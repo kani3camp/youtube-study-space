@@ -20,9 +20,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.text = WORKFLOW.read_text(encoding="utf-8")
         cls.caller = CALLER.read_text(encoding="utf-8")
-        # Existing job contracts retain their own counts; the separate new
-        # protocol is validated independently without weakening these checks.
-        cls.original_jobs = cls.text.split('\n  history_observation_sync_plan:',1)[0]
+        # Scope the legacy execution tests to the non-migration jobs only.
+        cls.original_jobs = cls.text.split('\n  migration_plan:', 1)[0]
 
     def test_private_notification_inputs_are_masked_and_do_not_enable_alerts(self) -> None:
         for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
@@ -355,13 +354,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_source_emission_window_preserves_baseline_and_denies_other_waves(self) -> None:
         gates = self.source_gates()
         # Exact-runtime activation has an independent bounded source contract.
-        gates.pop("DEV_RUNTIME_METADATA_READ_ENABLED")
-        gates.pop("DEV_RUNTIME_IAM_AUTHORITY_READ_ENABLED")
         self.assertEqual(gates, {
             "DEV_AUTHENTICATED_TERRAFORM_ENABLED": "true",
             "DEV_AUTHENTICATED_TERRAFORM_APPLY_ENABLED": "false",
-            "DEV_HISTORY_OBSERVATION_SYNC_ENABLED": "false",
-            "DEV_HISTORY_OBSERVATION_SYNC_APPLY_ENABLED": "false",
             "DEV_TERRAFORM_SECURITY_PROBE_ENABLED": "false",
             "DEV_HISTORY_POST_NOOP_ENABLED": "true",
             "PROD_AUTHENTICATED_TERRAFORM_ENABLED": "false",
@@ -380,7 +375,6 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             "DEV_HISTORY_POST_NOOP12_READY": "false",
             "DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED": "true",
             "DEV_CURRENT_STATE_BOOTSTRAP_ROOT_READY": "false",
-            "DEV_CURRENT_STATE_READ_ENABLED": "false",
             "DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED": "false",
             "DEV_RUNTIME_OWNERSHIP_SPLIT_INPUT_ENABLED": "false",
             "DEV_HISTORY_RECEIPT_EMITTER_ENABLED": "true",
@@ -543,7 +537,11 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
 
     def test_workspace_discovery_stays_within_target_prefix(self) -> None:
         self.assertEqual(self.text.count('workspace_key_prefix = "${STATE_KEY%/terraform.tfstate}/workspaces"'), 2)
-        self.assertEqual(self.original_jobs.count("TF_WORKSPACE: default"), 3)
+        self.assertEqual(self.original_jobs.count("TF_WORKSPACE: default"), 2)
+        for job in ("plan", "apply"):
+            match = re.search(r"(?ms)^  " + job + r":\n(.*?)(?=^  [A-Za-z_]+:|\Z)", self.original_jobs)
+            self.assertIsNotNone(match)
+            self.assertIn("TF_WORKSPACE: default", match.group(1))
 
     def test_private_identity_fragments_are_masked_before_authentication(self) -> None:
         for job in (self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0], self.text.split("  apply:\n", 1)[1]):
@@ -563,7 +561,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     self.assertNotRegex(source.read_text(), pattern)
 
     def test_oidc_permission_is_limited_to_authenticated_call_and_jobs(self) -> None:
-        self.assertEqual(self.original_jobs.count("id-token: write"), 6)
+        # Three legacy jobs (plan/apply/negative probe) and two current migration jobs.
+        self.assertEqual(self.original_jobs.count("id-token: write"), 3)
+        self.assertEqual(self.text.count("id-token: write"), 5)
         self.assertEqual(self.caller.count("id-token: write"), 2)
         terraform_call = self.caller.split("  gcp-terraform-authenticated:\n", 1)[1].split(
             "\n  gcp-user-activity-schema-audit:\n", 1
@@ -622,7 +622,34 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$", action)
 
     def test_checkout_does_not_persist_github_token(self) -> None:
-        self.assertEqual(self.original_jobs.split("\n  plan:",1)[1].count("persist-credentials: false"), 6)
+        self.assertEqual(self.original_jobs.split("\n  plan:",1)[1].count("persist-credentials: false"), 3)
+        for job in ("plan", "apply", "security-probe"):
+            match = re.search(r"(?ms)^  " + job.replace("-", "[-]") + r":\n(.*?)(?=^  [A-Za-z_-]+:|\Z)", self.original_jobs)
+            self.assertIsNotNone(match)
+            self.assertIn("persist-credentials: false", match.group(1))
+
+    def test_retired_metadata_read_routes_are_absent_and_denied(self) -> None:
+        for mode, job in (("current-state-read", "  current_state_read:"),
+                          ("runtime-metadata-read", "  runtime_metadata_read_plan:")):
+            with self.subTest(mode=mode):
+                self.assertNotIn("          - " + mode + "\n", self.caller)
+                self.assertNotIn(job, self.text)
+                self.assertNotEqual(self.run_preflight(MODE=mode).returncode, 0)
+                self.assertNotEqual(self.run_preflight(MODE=mode, TARGET="prod").returncode, 0)
+        self.assertNotIn("  runtime_metadata_read_apply:", self.text)
+        self.assertNotIn("DEV_CURRENT_STATE_READ_ENABLED:", self.text)
+        self.assertNotIn("DEV_RUNTIME_METADATA_READ_ENABLED:", self.text)
+
+    def test_retired_history_sync_cannot_be_dispatched_or_reenabled(self) -> None:
+        # Historical synchronization is no longer compiled as a protected route.
+        # A malicious direct workflow_call must still fail preflight before OIDC.
+        self.assertNotIn("          - dev-history-observation-sync\n", self.caller)
+        self.assertNotIn("history_observation_sync_profile:", self.text)
+        self.assertNotIn("  history_observation_sync_plan:", self.text)
+        self.assertNotIn("  history_observation_sync_apply:", self.text)
+        for target in ("dev", "prod"):
+            with self.subTest(target=target):
+                self.assertNotEqual(self.run_preflight(MODE="dev-history-observation-sync", TARGET=target).returncode, 0)
 
     def test_security_probe_requires_explicit_gate_and_has_no_terraform_route(self) -> None:
         self.assertIn('DEV_TERRAFORM_SECURITY_PROBE_ENABLED: "false"', self.text)
@@ -635,7 +662,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE="apply", DEV_TERRAFORM_SECURITY_PROBE_ENABLED="true").returncode, 0)
         plan = self.text.split("  plan:\n", 1)[1].split("  apply:\n", 1)[0]
-        self.assertIn("if: ${{ !startsWith(inputs.mode, 'migration-') && inputs.mode != 'security-probe' && inputs.mode != 'current-state-read' && inputs.mode != 'runtime-metadata-read' && inputs.mode != 'dev-history-observation-sync' }}", plan)
+        self.assertIn("if: ${{ !startsWith(inputs.mode, 'migration-') && inputs.mode != 'security-probe' }}", plan)
         probe = self.original_jobs.split("  security-probe:\n", 1)[1]
         for required in ("needs: preflight", "inputs.mode == 'security-probe'", "inputs.target == 'dev'",
                          "name: terraform-dev-plan", "id-token: write", "ref: ${{ github.sha }}",

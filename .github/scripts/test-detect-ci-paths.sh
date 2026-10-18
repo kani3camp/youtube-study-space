@@ -100,16 +100,6 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_plan_diagnostic
 assert_exact_groups gcp_terraform .github/scripts/terraform_baseline_drift_fields.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_baseline_drift_diagnostic.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_baseline_drift_diagnostic.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_history_observation_sync.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_observation_sync.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_history_observation_sync_diagnostic.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_observation_sync_diagnostic.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_history_observation_sync_profile.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_observation_sync_profile.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_history_observation_sync_provenance.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_observation_sync_provenance.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_history_observation_sync_prototype.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_history_observation_sync_prototype.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_email_adoption_gate.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_email_adoption_gate.py
 assert_exact_groups docs_site docs-site/docs/intro.md
@@ -166,8 +156,6 @@ if GITHUB_EVENT_NAME=pull_request BASE_SHA=missing HEAD_SHA=missing "$detector" 
 	exit 1
 fi
 
-echo "detect-ci-paths.sh tests passed"
-
 assert_exact_groups gcp_terraform .github/scripts/terraform_quota_refresh_gate.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_quota_refresh_gate.py
 
@@ -187,51 +175,9 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_current_state_a
 assert_exact_groups gcp_terraform .github/scripts/terraform_current_state_artifact_fixture.py
 assert_exact_groups gcp_terraform infra/gcp/scripts/runtime_ownership_provenance.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_ownership_provenance.py
-assert_exact_groups gcp_terraform infra/gcp/scripts/pack_runtime_reviewed_inputs.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_reviewed_inputs_codec.py
-assert_exact_groups gcp_terraform infra/gcp/scripts/collect_runtime_read_scope.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_collect_runtime_read_scope.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_collect_runtime_read_scope_reviewed_targets.py
-assert_exact_groups gcp_terraform infra/gcp/scripts/bootstrap_runtime_readers.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_bootstrap_runtime_readers.py
-assert_exact_groups gcp_terraform infra/gcp/docs/runtime-reader-bootstrap.md
-assert_exact_groups gcp_terraform infra/gcp/scripts/bootstrap_codex_metadata_readers.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_bootstrap_codex_metadata_readers.py
-assert_exact_groups gcp_terraform infra/gcp/docs/codex-metadata-reader-bootstrap.md
-assert_exact_groups gcp_terraform infra/gcp/scripts/complete_codex_history_reader.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_complete_codex_history_reader.py
-assert_exact_groups gcp_terraform infra/gcp/docs/codex-history-reader-completion.md
 
 assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_execution.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_execution.py
 
-# Metadata-only source/test edits must retain the authenticated Terraform checks.
-assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_metadata_read.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_metadata_read.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_metadata_read_workflow.py
-
-# Authority observations must retain authenticated Terraform validation.
-assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_iam_authority_read.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_iam_authority_read.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_iam_authority_read_workflow.py
-
-# Historical task projections and fresh version anchors retain Terraform checks.
-assert_exact_groups gcp_terraform infra/gcp/scripts/collect_aws_runtime_versioned_config.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_collect_aws_runtime_versioned_config.py
-assert_exact_groups gcp_terraform infra/gcp/scripts/prepare_runtime_versioned_caller_map.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_versioned_caller_map.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_aws_runtime_list_functions_projection.py
-assert_exact_groups gcp_terraform infra/gcp/tests/requirements.txt
-
-# Optional original-user metadata transport must retain dummy SDK validation.
-assert_exact_groups gcp_terraform infra/gcp/scripts/collect_codex_runtime_metadata.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_collect_codex_runtime_metadata.py
-assert_exact_groups gcp_terraform infra/gcp/requirements/codex-runtime-metadata.txt
-assert_exact_groups gcp_terraform infra/gcp/docs/codex-runtime-metadata-collector.md
-
-assert_exact_groups gcp_terraform infra/gcp/scripts/validate_history_observation_sync.py
-assert_exact_groups gcp_terraform infra/gcp/scripts/history_observation_sync_archive.py
-assert_exact_groups gcp_terraform infra/gcp/scripts/history_observation_sync_checks.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_history_observation_sync_validation.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_history_observation_sync_archive.py
-assert_exact_groups gcp_terraform infra/gcp/tests/test_history_observation_sync_checks.py
+echo "detect-ci-paths.sh tests passed"

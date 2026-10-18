@@ -60,7 +60,8 @@ source synthによる合成fixtureの検証をlive差分の検証と混同しな
 
 共有familyの日次3処理と手動3処理を含め、ACTIVE revision登録が全family参照へ及ぼす影響を
 reviewする。Image変更はtask replacementで、rollbackもprevious digestを使う新revisionになる。
-入力/承認条件と生成物は[dev history decision packet](../infra/gcp/docs/development-history-ready-packet.md#offline-managed-batch-deployment-candidate)を参照。
+移行当時の入力・承認条件と生成物の記録は[dev history decision packet（固定コミット）](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/development-history-ready-packet.md#offline-managed-batch-deployment-candidate)を参照。
+これは**歴史的なレビュー資料であり、現行の実行承認ではない**。再利用するときは現行CDK source、実deployed template・receipt、全family参照、digest、費用とrollback条件を別途照合する。
 
 ### prod
 

@@ -1,3 +1,0 @@
-# Test-only parser for the actual AWS CLI JMESPath projection contract.
-# Optional Codex metadata SDK dependencies have a separate isolated lock file.
-jmespath==1.0.1 --hash=sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980

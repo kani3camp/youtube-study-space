@@ -32,6 +32,7 @@ jobs:
         run: |
           python3 infra/gcp/tests/test_runtime_ownership.py
           python3 infra/gcp/tests/test_runtime_ownership_package.py
+          python3 infra/gcp/tests/test_runtime_reviewed_inputs_codec.py
           python3 infra/gcp/tests/test_runtime_ownership_provenance.py
           python3 .github/scripts/test_terraform_ownership_receipt.py
           python3 .github/scripts/test_terraform_current_state_attestation.py

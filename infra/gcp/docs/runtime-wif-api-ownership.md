@@ -1,5 +1,7 @@
 # GCP Terraform 定常Plan/Applyとruntime WIF / API ownership
 
+> 移行後整理（2026-10-18）: 旧offline collector/bootstrap/prototypeの記述は履歴です。現行の運用は [Terraform README](../README.md) と [Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191) を優先してください。
+
 ## 定常Plan/Applyへの移行（2026-10-16）
 
 Current Canon §10と本人の最新指示により、4 EnvironmentはRequired reviewersなし・本人GitHub ID `54093651` / `kani3camp` の初回 `workflow_dispatch`だけで運用する。旧節の毎回の人間承認、失われたhistory receipt、新issuer/catalogの期限、source activation windowは履歴・旧protocolであり、新しい `migration-plan` / `migration-apply` の実行条件には使用しない。`historical_delta_attested=false`は維持する。
@@ -1024,7 +1026,7 @@ optional fieldを特定できないwhole-object `true` maskや空のreplace path
 今は本人の追加設定操作を求めない。
 
 CI #885では上記診断がhistory Tableの`ETAG` / `LAST_MODIFIED_TIME`だけのdrift1を示し、strict判定はSTOPした。
-Stateを変更しない[限定同期の設計・pure prototype](history-observation-sync-prototype.md)で候補を具体化している。
+Stateを変更しない[限定同期の設計・pure prototype](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/history-observation-sync-prototype.md)で候補を具体化している。
 refresh-only候補はserializer未証明のため常に拒否し、既存実行mode・gate・issuerを変更しない。
 
 ### Fresh current-state の再発行から初回 Pool wave まで
@@ -1097,7 +1099,7 @@ protected current-state attestation の成功・別 issuer closure・freshness �
 
 #### 固定Task revisionを使う構成mapの明示join（offline候補）
 
-[`prepare_runtime_versioned_caller_map.py`](../scripts/prepare_runtime_versioned_caller_map.py) は、
+[`prepare_runtime_versioned_caller_map.py`](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/scripts/prepare_runtime_versioned_caller_map.py) は、
 `private-aws-runtime-versioned-config-observations` のcurrent-readと元のowner14key投影を、
 fresh `private-codex-runtime-metadata-capture` の全7種GCP metadataへofflineでjoinする別producer。
 旧AWS captureや旧GCP captureへ変換せず、既存collector/legacy consumerの拒否条件を維持する。
@@ -1191,7 +1193,7 @@ gate=false、別root、full packet併用ではdecompress自体を呼ばず認証
 join後の完全validator、issuer/provenance、24時間期限、同じnonce・commitment、plan/applyの同SHAは変更しない。
 これは可逆符号化であり、暗号化・真正性・freshness・full admission・Infrastructure Readyの証明ではない。
 
-[`pack_runtime_reviewed_inputs.py`](../scripts/pack_runtime_reviewed_inputs.py) はoffline専用で、
+[`pack_runtime_reviewed_inputs.py`](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/scripts/pack_runtime_reviewed_inputs.py) はoffline専用で、
 既定では検査だけを行う。初回Pool、empty adoption chain、exact SHA、レビュー期限24時間以内、
 完全inventoryの既存構造、明示issuer SHAと既存source catalog、参照shapeを検査する。
 既存bindingを読まず、GitHub証跡やrootの実期限/HMACを認証しないため、runner側検証の代替にはならない。
@@ -1241,7 +1243,9 @@ secure credential storeがなければ`gh`は設定fileへ平文保存し得る�
 
 ### Private handoff 不足中の protected metadata-only read
 
-[`terraform_current_state_read.py`](../../../.github/scripts/terraform_current_state_read.py) は
+> 2026-10-18の整理により、以下の専用read mode・job・helperは退役済みです。当時の検証条件・制限を記録した歴史であり、現在の実行手順ではありません。
+
+[移行時の`terraform_current_state_read.py`（固定Source）](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/.github/scripts/terraform_current_state_read.py) は
 専用 `current-state-read` mode / `current_state_read` job の source helper。
 workflow 配線・限定 gate activation・GitHub Environment approval は別途必要で、この追加自体は実行結果ではない。
 既存 `terraform-dev-plan` identity / trust / reviewer を使い、production は許可しない。
@@ -1483,7 +1487,7 @@ authority/current-state/root/ownership/split/apply/productionの既存gate、Env
 ### 履歴Tableの観測属性同期protocol（source-only・既定無効）
 
 CI #885のraw drift1 / no-op12、2項目だけのVALUE診断と5安全検査PASS、full-root STOPという記録は保持する。
-[別protocol](history-observation-sync.md)を既定無効で準備し、既存55guard / 通常drift0 / issuerと分離する。
+[別protocol](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/history-observation-sync.md)を既定無効で準備し、既存55guard / 通常drift0 / issuerと分離する。
 新source gateだけでは実行許可にならず、同SHA previewの独立QA後、期待値B固定の別apply runを作り、
 履歴TableのETAG/LAST_MODIFIED_TIMEと検査結果内容不変（配列順は変化可）を明示した新しい本人Env承認が必要である。
 旧run承認・期限切れprivate入力・旧issuerを流用しない。実State書込、new issuer、migration Ready、追加本人操作はいずれも現在0。
@@ -1500,7 +1504,7 @@ windowはUTC `2026-10-16T04:29:31Z` → `2026-10-17T04:29:31Z` の最大24hで�
 source windowの有効化はactual admission/State書込許可ではなく、この変更時点で両runは未実行、
 State同期・新issuer・migration Readyは未成立である。実run作成前に本人の追加操作を求めない。
 旧4runtime gate、その他read/one-off/production、profile契約、binding/nonce、55guard/issuerは不変。
-[専用契約の現在値](history-observation-sync.md)に従い、BがCならSTOPする。
+[専用契約の現在値](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/history-observation-sync.md)に従い、BがCならSTOPする。
 
 ### 2026-10-16 専用preview #893の停止と実行枠閉鎖
 
@@ -1512,7 +1516,7 @@ candidate未観測、適用CLI予約/呼出0、専用apply skipped、cleanup/pos
 事後State/lock不変・同期・issuer成立を推定せず、同R同期・旧run再試行は行わない。
 専用2gateをfalse、発行/失効UTCを空へ閉じ、旧windowを延長しない。
 
-次回向けに[専用の有限失敗診断](history-observation-sync.md#preview-893の停止と実行枠閉鎖)だけを追加する。
+次回向けに[専用の有限失敗診断](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/history-observation-sync.md#preview-893の停止と実行枠閉鎖)だけを追加する。
 PLAN/SHOW/VALIDATE・有限exit/reason・完全JSONの9counts/既知field codeを表示し、未知はNOT_OBSERVED。
 通常exit2は拒否したまま、条件を満たす保存planへの失敗診断showは最大1回、必ず元のSTOPへ戻す。
 既存safety readのbefore比較は適用CLI呼出0で実比較できた場合だけの事実で、期待State反映の証明ではない。

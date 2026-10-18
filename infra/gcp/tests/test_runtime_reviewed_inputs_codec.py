@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Dummy-only lossless transport and unchanged protected admission contracts."""
+"""Regression tests for retained reviewed-input codec and protected packet join.
+
+The retired one-shot packer CLI and its tests are deliberately excluded.
+All data is synthetic; no credential, cloud or Terraform State access.
+"""
 from __future__ import annotations
 
 import base64
@@ -7,7 +11,6 @@ import copy
 import hashlib
 import io
 import json
-import os
 from pathlib import Path
 import sys
 import tempfile
@@ -19,8 +22,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 import test_runtime_ownership_package as fixtures
 
 codec = fixtures.packet_module
-import pack_runtime_reviewed_inputs as packer
-
 
 def compact(value):
     return json.dumps(value, separators=(',', ':'), ensure_ascii=False, allow_nan=False).encode('utf-8')
@@ -228,134 +229,6 @@ class ProtectedJoinContracts(unittest.TestCase):
             with patch.object(codec, 'MAX_PACKET_BYTES', len(compact(reviewed))), self.assertRaises(ValueError):
                 codec.prepare_workflow(env)
             self.assertEqual(list(Path(directory).iterdir()), [])
-
-
-class OfflinePackerContracts(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        self.source = self.root / 'reviewed-fragment.json'
-        self.output = self.root / 'reviewed-wrapper.json'
-        self.value = fragment()
-        self.raw = compact(self.value)
-        self.source.write_bytes(self.raw)
-        self.source.chmod(0o600)
-        from test_terraform_current_state_attestation import bootstrap_catalog
-        catalog = self.root / 'dummy-catalog.json'
-        catalog.write_bytes(compact(bootstrap_catalog()))
-        for context in (patch.object(packer, 'CATALOG', catalog),
-                        patch.object(packer, 'now', return_value=fixtures.NOW),
-                        patch.object(fixtures.preparer, 'PROJECT', fixtures.PROJECT),
-                        patch('socket.socket', side_effect=AssertionError('network forbidden')),
-                        patch('subprocess.run', side_effect=AssertionError('child forbidden'))):
-            context.start()
-            self.addCleanup(context.stop)
-
-    def args(self, write=False):
-        args = ['--fragment', str(self.source), '--fragment-sha256', hashlib.sha256(self.source.read_bytes()).hexdigest(),
-                '--git-sha', fixtures.SHA, '--issuer-sha', self.value['current_state_attestation']['source_sha']]
-        return args + (['--pack', '--output', str(self.output)] if write else [])
-
-    def run_private(self, args, expected):
-        with patch('sys.stdout', io.StringIO()) as out, patch('sys.stderr', io.StringIO()) as err:
-            self.assertEqual(packer.main(args), expected)
-        text = out.getvalue() + err.getvalue()
-        for private in ('DUMMY_PRIVATE', str(self.source), str(self.output), 'dummy-state-bucket', 'attributeMapping'):
-            self.assertNotIn(private, text)
-
-    def test_default_off_then_explicit_exclusive_private_output_is_lossless(self):
-        self.run_private(self.args(), 0)
-        self.assertFalse(self.output.exists())
-        self.run_private(self.args(write=True), 0)
-        encoded = self.output.read_bytes()
-        self.assertEqual(self.output.stat().st_mode & 0o777, 0o600)
-        self.assertFalse(encoded.endswith((b'\r', b'\n')))
-        self.assertEqual(codec.reviewed_input(encoded.decode()), self.value)
-        metadata = json.loads(encoded)
-        self.assertEqual(zlib.decompress(base64.b64decode(metadata['payload'])), self.raw)
-        self.assertEqual(metadata['sha256'], hashlib.sha256(self.raw).hexdigest())
-        self.run_private(self.args(write=True), 3)
-        self.assertEqual(self.output.read_bytes(), encoded)
-
-    def test_bad_private_arguments_are_suppressed_and_create_nothing(self):
-        for args in ([], ['--unknown-DUMMY_PRIVATE', 'DUMMY_PRIVATE_VALUE'],
-                     self.args() + ['--output', str(self.output)], self.args() + ['--pack']):
-            with self.subTest(args=len(args)):
-                self.run_private(args, 3)
-                self.assertFalse(self.output.exists())
-
-    def test_input_and_output_private_modes_links_and_checkout_boundaries(self):
-        self.source.chmod(0o644)
-        self.run_private(self.args(write=True), 3)
-        self.source.chmod(0o600)
-        self.root.chmod(0o755)
-        self.run_private(self.args(write=True), 3)
-        self.root.chmod(0o700)
-        link = self.root / 'link'
-        os.link(self.source, link)
-        self.run_private(self.args(write=True), 3)
-        link.unlink()
-        self.source.rename(link)
-        self.source.symlink_to(link)
-        self.run_private(self.args(write=True), 3)
-        self.source.unlink()
-        link.rename(self.source)
-        marker = self.root / '.git'
-        marker.write_text('gitdir: DUMMY_PRIVATE\n')
-        self.run_private(self.args(write=True), 3)
-        marker.unlink()
-        marker.mkdir()
-        (marker / 'HEAD').write_text('ref: refs/heads/dummy\n')
-        self.run_private(self.args(write=True), 3)
-        (marker / 'HEAD').unlink()
-        marker.rmdir()
-        self.output.symlink_to(self.source)
-        self.run_private(self.args(write=True), 3)
-        self.assertEqual(self.source.read_bytes(), self.raw)
-
-    def test_header_scope_inventory_root_and_age_reject_without_output(self):
-        mutations = [lambda v: v.update(receipt_binding=None), lambda v: v.update(schema_version=True),
-                     lambda v: v.update(wave='provider'), lambda v: v.update(git_sha='b' * 40),
-                     lambda v: v.update(expires_utc='2026-10-11T05:30:00Z'),
-                     lambda v: v.update(expires_utc='2026-10-10T03:59:59Z'),
-                     lambda v: v['selected'].update(provider=True),
-                     lambda v: v['adopted'].update(pool=True),
-                     lambda v: v.update(adoption_receipts=[{}]),
-                     lambda v: v['current_state_attestation'].update(source_sha='b' * 40),
-                     lambda v: v['current_state_attestation'].update(transport='artifact-v1'),
-                     lambda v: v['inventory']['pool_attestation_rules'].update(nextPageToken='remaining')]
-        for index, mutate in enumerate(mutations):
-            with self.subTest(case=index):
-                value = copy.deepcopy(self.value)
-                mutate(value)
-                self.source.write_bytes(compact(value))
-                self.run_private(self.args(write=True), 3)
-                self.assertFalse(self.output.exists())
-
-    def test_hash_issuer_and_unapproved_catalog_reject_without_output(self):
-        for flag, wrong in (('--fragment-sha256', '0' * 64), ('--git-sha', 'b' * 40), ('--issuer-sha', 'b' * 40)):
-            args = self.args(write=True)
-            args[args.index(flag) + 1] = wrong
-            self.run_private(args, 3)
-        packer.CATALOG.write_bytes(compact(dict(schema_version=1, issuers={})))
-        self.run_private(self.args(write=True), 3)
-        self.assertFalse(self.output.exists())
-
-    def test_pretty_input_is_preserved_and_never_silently_reformatted(self):
-        original = json.dumps(self.value, indent=2).encode() + b'\r\n'
-        self.source.write_bytes(original)
-        self.run_private(self.args(write=True), 0)
-        metadata = json.loads(self.output.read_bytes())
-        self.assertEqual(metadata['sha256'], hashlib.sha256(original).hexdigest())
-        self.assertEqual(zlib.decompress(base64.b64decode(metadata['payload'])), original)
-        self.assertEqual(self.source.read_bytes(), original)
-
-    def test_partial_write_failure_removes_only_new_output(self):
-        with patch.object(packer.os, 'fsync', side_effect=OSError('DUMMY_PRIVATE')):
-            self.run_private(self.args(write=True), 3)
-        self.assertFalse(self.output.exists())
-        self.assertEqual(self.source.read_bytes(), self.raw)
 
 
 if __name__ == '__main__':
