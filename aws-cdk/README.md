@@ -50,6 +50,18 @@ pnpm cdk:deploy AwsCdkStack --profile soraride-dev --require-approval never --pa
 
 `cdk:diff` の内容を確認してから `cdk:deploy` を実行する。
 
+### dev batch imageだけのoffline候補
+
+共有`system/`の変更は通常synthでLambda assetにも波及する。履歴writer guardの限定更新では、
+既存deployed template、CDK artifact、stack receiptと同一ECR repositoryのcandidate/previous
+digestをprivateに揃え、`pnpm batch:prepare-candidate --input /private/input.json --out /private/fresh-output`
+でcandidate/rollback assemblyを生成する。操作はlocalのみで、image pushやdeployは実行しない。
+source synthによる合成fixtureの検証をlive差分の検証と混同しない。
+
+共有familyの日次3処理と手動3処理を含め、ACTIVE revision登録が全family参照へ及ぼす影響を
+reviewする。Image変更はtask replacementで、rollbackもprevious digestを使う新revisionになる。
+入力/承認条件と生成物は[dev history decision packet](../infra/gcp/docs/development-history-ready-packet.md#offline-managed-batch-deployment-candidate)を参照。
+
 ### prod
 
 ```text

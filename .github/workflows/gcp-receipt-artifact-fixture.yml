@@ -1,0 +1,46 @@
+name: GCP Receipt Artifact Fixture
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/scripts/terraform_ownership_receipt.py'
+      - '.github/scripts/test_terraform_ownership_receipt.py'
+      - '.github/scripts/terraform_receipt_artifact_fixture.py'
+      - '.github/workflows/gcp-receipt-artifact-fixture.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  receipt-artifact-fixture:
+    if: ${{ github.repository == 'kani3camp/youtube-study-space' && github.event.pull_request.head.repo.full_name == github.repository && github.run_attempt == 1 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout public source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Verify public dummy receipt contracts
+        run: python3 .github/scripts/test_terraform_ownership_receipt.py
+      - name: Prepare public dummy receipt fixture
+        run: python3 .github/scripts/terraform_receipt_artifact_fixture.py
+      - name: Publish public dummy receipt fixture
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ownership-receipt-fixture-v1-${{ github.run_id }}-1-${{ github.sha }}
+          path: ${{ runner.temp }}/receipt-fixture-public/ownership-receipt.json
+          archive: true
+          overwrite: false
+          include-hidden-files: false
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 6
+      - name: Cleanup public dummy receipt fixture
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "${RUNNER_TEMP}/receipt-fixture-public/ownership-receipt.json"
+          if [[ -d "${RUNNER_TEMP}/receipt-fixture-public" ]]; then rmdir "${RUNNER_TEMP}/receipt-fixture-public"; fi
