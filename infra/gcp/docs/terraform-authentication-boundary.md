@@ -100,6 +100,12 @@ owner自体の侵害や管理者による意図した設定変更を、これら
 
 検証は`python3 -B infra/gcp/tests/test_terraform_normal_change_contract.py` で実行し、`ci.yml`のcredentialless GCP Terraform Validateにも登録しています。実Plan JSONとmanifestを外部ファイルに置いた場合は`python3 infra/gcp/scripts/terraform_normal_change_contract.py --plan <private-plan.json> --review <private-review.json>`で読み取りだけ行います。生Planとmanifestには実ID・秘密値が含まれ得るためpublic artifactへ公開しません。
 
+**第2段階（source・Plan・State資料のオフライン結合）**：v2 review manifestと独立baseline資料を照合する `validate_bound` を追加しました。`source_sha`、固定S3 VersionId / State lineage / serial、`prior_state.values`全体の非公開ダイジェストと、**保存Plan全体**および各create/updateの非公開ダイジェストをexact一致させます。baselineの既存managed resourceがすべてPlanに含まれ、各no-op/updateのbefore値・type・provider・modeと一致し、create先が既存Stateにないことも照合します。`terraform show -json`の`prior_state.values`を含む実入力ではまだ検証されていないため、当面は合成fixture契約です。
+
+v2のローカル実行形は `python3 infra/gcp/scripts/terraform_normal_change_contract.py --plan <private-plan.json> --review <private-review-v2.json> --baseline <private-baseline.json> --source-sha <expected-git-sha>`。review manifestのv2には`source_sha`、`baseline`（`version_id`、`lineage`、`serial`、`prior_values_sha256`）、`plan_sha256`、変更ごとの`change_sha256`を加えます。baseline v1は同じState識別情報と`prior_values`本文を非公開で渡すため、Cloud/State権限なしでも不一致をSTOPできます。ダイジェスト・元の値・resource addressは公開しません。
+
+**重要な限界**：これらはすべて提供された入力同士の照合であり、GitHubの承認済みSHAの出所、S3の実VersionId、独立した最新State read、ネイティブPlan生成、Cloud Run HCLと実権限を証明しません。**Attestationやissuer catalogを復活させず**、実行時に現在のS3 State/lock・reviewed source・IAMを読み取る正規コントローラーの検証ができるまで、v2も実Plan/Applyの認可に使わないでください。
+
 **未実装の安全条件**：review manifestとGitHubの承認済みSHAの結合、HCL/metadata/Stateと全resource graphの厳密検証、create/updateの値・変更属性・未知値のreview、Dev専用のcredentialed Plan/ApplyとGCP最小IAM、アカウント分離・復旧・費用評価。このoffline検証成功だけでクラウド実行は許可しません。最終的なPlan/Apply提供には、これらの条件を別レビューで実装する必要があります。
 
 ### 次の実装境界

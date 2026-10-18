@@ -7,14 +7,19 @@ or resource addresses in stdout, stderr, exceptions or returned summaries.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
 import json
 from pathlib import Path
 import re
+import uuid
 
 TERRAFORM_VERSION = "1.16.4"
 PROVIDER = "registry.terraform.io/hashicorp/google"
 SUPPORTED_TYPES = frozenset({"google_cloud_run_v2_service"})
 SCHEMA = "gcp-normal-change-review-v1"
+BOUND_SCHEMA = "gcp-normal-change-review-v2"
+BASELINE_SCHEMA = "gcp-normal-change-baseline-v1"
 MAX_BYTES = 16 * 1024 * 1024
 ADDRESS = re.compile(
     r"(?:module\.[A-Za-z_][A-Za-z0-9_-]*\.)*"
@@ -22,6 +27,7 @@ ADDRESS = re.compile(
 )
 ERROR_CODES = frozenset({
     "INPUT", "REVIEW", "PLAN", "ACTION", "UNAPPROVED", "UNKNOWN", "OUTPUT", "DRIFT",
+    "SOURCE", "STATE", "BINDING",
 })
 
 
@@ -154,19 +160,150 @@ def validate(plan: dict, review: dict) -> dict:
             "no_op": no_op, "delete": 0, "replace": 0, "drift": 0}
 
 
+
+def digest(value) -> str:
+    """Private canonical JSON hash; never publish a value, address or digest."""
+    try:
+        raw = json.dumps(value, sort_keys=True, ensure_ascii=False,
+                         separators=(",", ":"), allow_nan=False).encode("utf-8")
+    except (TypeError, ValueError, OverflowError, RecursionError):
+        raise Rejected("INPUT") from None
+    need(len(raw) <= MAX_BYTES, "INPUT")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _hex(value, count):
+    return type(value) is str and re.fullmatch("[0-9a-f]{" + str(count) + "}", value) is not None
+
+
+def _root_resources(prior_values):
+    """Flatten managed resources in Terraform's prior_state.values only.
+
+    The collector must separately prove the S3 VersionId, lock and state lineage.
+    This helper checks a supplied snapshot, never performs that cloud read.
+    """
+    need(type(prior_values) is dict and type(prior_values.get("root_module")) is dict, "STATE")
+    result = {}
+
+    def visit(module):
+        need(type(module) is dict, "STATE")
+        resources, children = module.get("resources", []), module.get("child_modules", [])
+        need(type(resources) is list and type(children) is list
+             and len(result) + len(resources) <= 1000, "STATE")
+        for item in resources:
+            need(type(item) is dict and type(item.get("address")) is str
+                 and item["address"] not in result and item.get("mode") == "managed"
+                 and type(item.get("type")) is str and item["type"].startswith("google_")
+                 and item.get("provider_name") == PROVIDER and "values" in item, "STATE")
+            result[item["address"]] = item
+        for child in children:
+            visit(child)
+
+    visit(prior_values["root_module"])
+    return result
+
+
+def validate_bound(plan: dict, review: dict, baseline: dict, *, source_sha: str) -> dict:
+    """Strict offline join of immutable source selector, reviewed plan and supplied State.
+
+    No GitHub approval, trusted State read, AWS/GCP permission or Apply authorization
+    is established by these user-supplied inputs.
+    """
+    need(_hex(source_sha, 40), "SOURCE")
+    need(type(review) is dict and
+         set(review) == {"schema_version", "environment", "source_sha", "baseline",
+                         "plan_sha256", "changes"} and
+         review["schema_version"] == BOUND_SCHEMA and review["environment"] == "dev"
+         and review["source_sha"] == source_sha, "REVIEW")
+    need(type(baseline) is dict and
+         set(baseline) == {"schema_version", "environment", "source_sha",
+                           "version_id", "lineage", "serial", "prior_values"} and
+         baseline["schema_version"] == BASELINE_SCHEMA
+         and baseline["environment"] == "dev" and baseline["source_sha"] == source_sha
+         and type(baseline["version_id"]) is str and
+         0 < len(baseline["version_id"]) <= 256
+         and not any(ch in baseline["version_id"] for ch in "\r\n\x00")
+         and type(baseline["lineage"]) is str
+         and type(baseline["serial"]) is int and baseline["serial"] >= 0, "STATE")
+    try:
+        need(str(uuid.UUID(baseline["lineage"])) == baseline["lineage"], "STATE")
+    except (ValueError, AttributeError):
+        raise Rejected("STATE") from None
+    pinned = review["baseline"]
+    need(type(pinned) is dict and
+         set(pinned) == {"version_id", "lineage", "serial", "prior_values_sha256"}
+         and _hex(pinned["prior_values_sha256"], 64)
+         and pinned["version_id"] == baseline["version_id"]
+         and pinned["lineage"] == baseline["lineage"]
+         and type(pinned["serial"]) is int and pinned["serial"] == baseline["serial"]
+         and hmac.compare_digest(pinned["prior_values_sha256"],
+                                 digest(baseline["prior_values"])), "BINDING")
+    need(_hex(review["plan_sha256"], 64) and
+         hmac.compare_digest(review["plan_sha256"], digest(plan)), "BINDING")
+    prior = plan.get("prior_state")
+    need(type(prior) is dict and prior.get("format_version") == "1.0"
+         and type(prior.get("values")) is dict
+         and digest(prior["values"]) == pinned["prior_values_sha256"], "STATE")
+    old = _root_resources(baseline["prior_values"])
+    changes = review["changes"]
+    need(type(changes) is list and len(changes) <= 3, "REVIEW")
+    simple = []
+    change_hashes = {}
+    for change in changes:
+        need(type(change) is dict and
+             set(change) == {"address", "type", "action", "change_sha256"}
+             and _hex(change["change_sha256"], 64), "REVIEW")
+        simple.append({key: change[key] for key in ("address", "type", "action")})
+        change_hashes[change["address"]] = change["change_sha256"]
+    # Keep the v1 action/name/cap contract, including rejecting all forbidden
+    # deletes, moves, unknown update outcomes, imports, drift and output writes.
+    result = validate(plan, {"schema_version": SCHEMA, "environment": "dev",
+                             "changes": simple})
+    current = set()
+    for resource in plan["resource_changes"]:
+        address, action = resource["address"], resource["change"]["actions"]
+        item = old.get(address)
+        if action == ["create"]:
+            need(item is None, "STATE")
+        else:
+            need(item is not None and resource.get("mode") == item["mode"]
+                 and resource.get("type") == item["type"]
+                 and resource.get("provider_name") == item["provider_name"]
+                 and "before" in resource["change"]
+                 and _same_json(item["values"], resource["change"]["before"]), "STATE")
+        if item is not None:
+            current.add(address)
+        if action in (["create"], ["update"]):
+            need(hmac.compare_digest(digest(resource["change"]),
+                                     change_hashes[address]), "BINDING")
+    need(current == set(old), "STATE")
+    return dict(result, policy="offline-bound-only", source_bound=True,
+                baseline_bound=True, plan_bound=True)
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Credentialless reviewed-change shape check, not an Apply authorization")
     parser.add_argument("--plan", required=True, type=Path)
     parser.add_argument("--review", required=True, type=Path)
+    parser.add_argument("--baseline", type=Path,
+                        help="Private independently collected State projection for v2")
+    parser.add_argument("--source-sha", help="Explicit reviewed source SHA for v2")
     args = parser.parse_args()
     try:
-        summary = validate(load_private(args.plan), load_private(args.review))
+        plan = load_private(args.plan)
+        review = load_private(args.review)
+        if review.get("schema_version") == BOUND_SCHEMA:
+            need(args.baseline is not None and args.source_sha is not None, "SOURCE")
+            summary = validate_bound(plan, review, load_private(args.baseline),
+                                     source_sha=args.source_sha)
+        else:
+            need(args.baseline is None and args.source_sha is None, "SOURCE")
+            summary = validate(plan, review)
     except (Rejected, OSError, TypeError, AttributeError, KeyError) as error:
         code = error.code if isinstance(error, Rejected) else "INPUT"
         print("GCP_NORMAL_CHANGE_OFFLINE: STOP; code=" + code)
         return 1
-    print("GCP_NORMAL_CHANGE_OFFLINE: PASS; "
+    print("GCP_NORMAL_CHANGE_OFFLINE: PASS; policy=" + summary["policy"] + "; "
           + "; ".join(f"{key}={summary[key]}" for key in
                       ("create", "update", "no_op", "delete", "replace", "drift")))
     return 0

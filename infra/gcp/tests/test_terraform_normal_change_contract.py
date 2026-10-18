@@ -214,6 +214,148 @@ class OfflinePolicyTest(unittest.TestCase):
                 for value in (SECRET, ADDRESS, str(plan_file), str(review_file)):
                     self.assertNotIn(value, result.stdout + result.stderr)
 
+
+    def bound_case(self, action="create"):
+        candidate = plan(action)
+        source = "a" * 40
+        baseline_resources = [{
+            "address": "module.existing.google_storage_bucket.backup",
+            "mode": "managed", "type": "google_storage_bucket",
+            "provider_name": policy.PROVIDER, "values": {"private": SECRET},
+        }]
+        if action == "update":
+            baseline_resources.append({
+                "address": ADDRESS, "mode": "managed",
+                "type": "google_cloud_run_v2_service",
+                "provider_name": policy.PROVIDER, "values": {"labels": {"version": "old"}},
+            })
+        prior_values = {"root_module": {"resources": baseline_resources}, "outputs": {}}
+        candidate["prior_state"] = {"format_version": "1.0", "terraform_version":
+                                    policy.TERRAFORM_VERSION, "values": deepcopy(prior_values)}
+        state = {
+            "schema_version": policy.BASELINE_SCHEMA, "environment": "dev",
+            "source_sha": source, "version_id": "dummy-immutable-s3-version",
+            "lineage": "108ea279-4d66-4e77-a821-d643a67e63ce", "serial": 36,
+            "prior_values": deepcopy(prior_values),
+        }
+        contract = {
+            "schema_version": policy.BOUND_SCHEMA, "environment": "dev",
+            "source_sha": source,
+            "baseline": {
+                "version_id": state["version_id"], "lineage": state["lineage"],
+                "serial": state["serial"],
+                "prior_values_sha256": policy.digest(prior_values),
+            },
+            "plan_sha256": policy.digest(candidate),
+            "changes": [
+                {"address": ADDRESS, "type": "google_cloud_run_v2_service",
+                 "action": action,
+                 "change_sha256": policy.digest(candidate["resource_changes"][-1]["change"])}
+            ],
+        }
+        return candidate, contract, state, source
+
+    def test_bound_validated_exact_source_state_plan_and_mutations(self):
+        for action in ("create", "update"):
+            with self.subTest(action=action):
+                args = self.bound_case(action)
+                outcome = policy.validate_bound(*args[:3], source_sha=args[3])
+                self.assertEqual(outcome["policy"], "offline-bound-only")
+                self.assertTrue(outcome["baseline_bound"])
+                self.assertTrue(outcome["plan_bound"])
+                self.assertEqual(outcome[action], 1)
+                self.assertNotIn(SECRET, str(outcome))
+                self.assertNotIn(ADDRESS, str(outcome))
+
+    def test_bound_rejects_changed_source_state_version_lineage_and_serial(self):
+        changes = [
+            lambda p, r, b, s: r.update(source_sha="b" * 40),
+            lambda p, r, b, s: b.update(source_sha="b" * 40),
+            lambda p, r, b, s: b.update(environment="prod"),
+            lambda p, r, b, s: b.update(version_id="older-version"),
+            lambda p, r, b, s: b.update(serial=37),
+            lambda p, r, b, s: b.update(lineage="a" * 36),
+            lambda p, r, b, s: r["baseline"].update(prior_values_sha256="0" * 64),
+            lambda p, r, b, s: r["baseline"].update(serial=True),
+            lambda p, r, b, s: r.update(plan_sha256="0" * 64),
+            lambda p, r, b, s: r["changes"][0].update(change_sha256="0" * 64),
+            lambda p, r, b, s: r["changes"].append(deepcopy(r["changes"][0])),
+        ]
+        for i, mutate in enumerate(changes):
+            p, r, b, source = self.bound_case()
+            mutate(p, r, b, source)
+            with self.subTest(index=i), self.assertRaises(policy.Rejected):
+                policy.validate_bound(p, r, b, source_sha=source)
+
+    def test_bound_rejects_plan_tamper_and_state_mismatch_even_with_rehashed_plan(self):
+        cases = [
+            lambda p, r, b: p["resource_changes"][0]["change"]["before"].update(private="tampered"),
+            lambda p, r, b: p["resource_changes"][0].update(provider_name="invalid/provider"),
+            lambda p, r, b: p["resource_changes"].pop(0),
+            lambda p, r, b: b["prior_values"]["root_module"]["resources"][0]["values"].update(private="old"),
+            lambda p, r, b: p["prior_state"]["values"]["root_module"]["resources"][0]["values"].update(private="old"),
+            lambda p, r, b: p["resource_changes"][0].update(mode="data"),
+            lambda p, r, b: p["resource_changes"][-1]["change"].update(after={"injected": True}),
+            lambda p, r, b: p["resource_changes"][-1]["change"].update(after_unknown={"secrets": True}),
+        ]
+        for index, mutate in enumerate(cases):
+            p, r, b, source = self.bound_case()
+            mutate(p, r, b)
+            # Prevent a trivial mismatched plan fingerprint from hiding the
+            # independent resource/state invariant under test.
+            r["plan_sha256"] = policy.digest(p)
+            if index == 3:
+                r["baseline"]["prior_values_sha256"] = policy.digest(b["prior_values"])
+            if index == 7:
+                r["changes"][0]["change_sha256"] = policy.digest(p["resource_changes"][-1]["change"])
+            with self.subTest(index=index), self.assertRaises(policy.Rejected):
+                policy.validate_bound(p, r, b, source_sha=source)
+
+    def test_bound_can_be_used_for_noop_without_any_approved_changes(self):
+        p, r, b, source = self.bound_case()
+        p["resource_changes"].pop()
+        p["prior_state"]["values"]["root_module"]["resources"].pop()
+        b["prior_values"]["root_module"]["resources"].pop()
+        r["changes"] = []
+        r["baseline"]["prior_values_sha256"] = policy.digest(b["prior_values"])
+        r["plan_sha256"] = policy.digest(p)
+        p["applyable"] = False
+        r["plan_sha256"] = policy.digest(p)
+        result = policy.validate_bound(p, r, b, source_sha=source)
+        self.assertEqual((result["create"], result["no_op"]), (0, 1))
+
+    def test_bound_cli_output_does_not_publish_private_data_or_digests(self):
+        p, r, b, source = self.bound_case()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for filename, value in (("plan.json", p), ("review.json", r),
+                                    ("baseline.json", b)):
+                (root / filename).write_text(json.dumps(value))
+            command = [
+                sys.executable, str(policy.__file__), "--plan", str(root / "plan.json"),
+                "--review", str(root / "review.json"), "--baseline", str(root / "baseline.json"),
+                "--source-sha", source,
+            ]
+            good = subprocess.run(command, capture_output=True, text=True, check=False)
+            self.assertEqual(good.returncode, 0, good.stderr)
+            self.assertIn("policy=offline-bound-only", good.stdout)
+            bad = subprocess.run(command[:-1] + ["b" * 40],
+                                 capture_output=True, text=True, check=False)
+            self.assertEqual(bad.returncode, 1, bad.stderr)
+            for output in (good, bad):
+                for forbidden in (SECRET, ADDRESS, source, str(root),
+                                  r["plan_sha256"], r["baseline"]["prior_values_sha256"]):
+                    self.assertNotIn(forbidden, output.stdout + output.stderr)
+
+    def test_bound_requires_explicit_binding_files_and_review_v2(self):
+        p, r, b, source = self.bound_case()
+        for field in ("prior_state",):
+            candidate = deepcopy(p)
+            candidate.pop(field)
+            r["plan_sha256"] = policy.digest(candidate)
+            with self.assertRaises(policy.Rejected):
+                policy.validate_bound(candidate, r, b, source_sha=source)
+
     def test_duplicate_json_keys_and_oversize_rejected_before_plan(self):
         with tempfile.TemporaryDirectory() as directory:
             p = Path(directory) / "invalid.json"
