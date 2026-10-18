@@ -168,7 +168,7 @@ class OwnershipReceiptTest(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 gate.authenticate(fake.ref, dummy_catalog(), request=fake)
         for mutation in (dict(id=99), dict(repository_id=99), dict(head_repository_id=99),
-                         dict(id=True), dict(head_sha='b'*40), dict(head_branch='dev')):
+                         dict(id=True), dict(head_sha='b'*40), dict(head_branch='feature/gcp-terraform-iac')):
             fake = GitHubFixture()
             fake.responses[fake.artifact_path]['workflow_run'].update(mutation)
             with self.subTest(run=mutation), self.assertRaises(ValueError):

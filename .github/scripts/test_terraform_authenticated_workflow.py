@@ -540,7 +540,13 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     else:
                         self.assertNotEqual(got.returncode, 0)
                         self.assertEqual(got.outputs, "")
-                        self.assertIn("Authenticated Terraform branch does not match its target", got.stdout)
+                        self.assertIn("Authenticated Terraform requires the target's reviewed CI caller", got.stdout)
+                        # A forged matching caller must not make a foreign ref acceptable.
+                        exact_caller = "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/" + correct_branch
+                        wrong_ref = self.run_preflight(**(env | {"GITHUB_WORKFLOW_REF": exact_caller}))
+                        self.assertNotEqual(wrong_ref.returncode, 0)
+                        self.assertEqual(wrong_ref.outputs, "")
+                        self.assertIn("Authenticated Terraform branch does not match its target", wrong_ref.stdout)
 
     def test_untrusted_execution_is_rejected_before_any_authentication(self) -> None:
         for key, value in {
