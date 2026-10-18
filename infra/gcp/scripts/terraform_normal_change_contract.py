@@ -37,6 +37,17 @@ def need(condition: bool, code: str) -> None:
         raise Rejected(code)
 
 
+def _same_json(before, after):
+    """Compare canonical JSON values without Python's bool/int equality alias."""
+    try:
+        return json.dumps(before, sort_keys=True, ensure_ascii=False,
+                          separators=(",", ":"), allow_nan=False) == json.dumps(
+                              after, sort_keys=True, ensure_ascii=False,
+                              separators=(",", ":"), allow_nan=False)
+    except (TypeError, ValueError, RecursionError, OverflowError):
+        return False
+
+
 def unique_pairs(items):
     result = {}
     for key, value in items:
@@ -80,6 +91,8 @@ def validate(plan: dict, review: dict) -> dict:
     need(type(plan) is dict and plan.get("format_version") == "1.2"
          and plan.get("terraform_version") == TERRAFORM_VERSION
          and plan.get("complete") is True and plan.get("errored", False) is False, "PLAN")
+    if "applyable" in plan:
+        need(type(plan["applyable"]) is bool, "PLAN")
     for key in ("deferred_changes", "action_invocations", "deferred_action_invocations",
                 "resource_drift"):
         need(plan.get(key, []) == [], "DRIFT" if key == "resource_drift" else "PLAN")
@@ -87,8 +100,13 @@ def validate(plan: dict, review: dict) -> dict:
     need(type(checks) is list and all(type(c) is dict and c.get("status") == "pass"
                                       for c in checks), "PLAN")
     outputs = plan.get("output_changes", {})
-    need(type(outputs) is dict and all(type(o) is dict and o.get("actions") == ["no-op"]
-                                       for o in outputs.values()), "OUTPUT")
+    need(type(outputs) is dict, "OUTPUT")
+    for output in outputs.values():
+        need(type(output) is dict and output.get("actions") == ["no-op"], "OUTPUT")
+        need(_same_json(output.get("before"), output.get("after")), "OUTPUT")
+        need(output.get("after_unknown", {}) == {}, "OUTPUT")
+        need(_same_json(output.get("before_sensitive", {}),
+                        output.get("after_sensitive", {})), "OUTPUT")
     resources = plan.get("resource_changes")
     need(type(resources) is list and len(resources) <= 1000, "PLAN")
     seen, actual, no_op = set(), {}, 0
@@ -104,6 +122,10 @@ def validate(plan: dict, review: dict) -> dict:
         actions = change["actions"]
         if actions == ["no-op"]:
             need(address not in allowed, "UNAPPROVED")
+            need(_same_json(change.get("before"), change.get("after")), "ACTION")
+            need(change.get("after_unknown", {}) == {}, "UNKNOWN")
+            need(_same_json(change.get("before_sensitive", {}),
+                            change.get("after_sensitive", {})), "ACTION")
             no_op += 1
             continue
         need(actions in (["create"], ["update"]), "ACTION")
@@ -120,6 +142,9 @@ def validate(plan: dict, review: dict) -> dict:
             need(change["before"] != change["after"], "ACTION")
         actual[address] = actions[0]
     need(actual == allowed, "UNAPPROVED")
+    # Native no-change plans may be non-applyable. Mutating plans must be
+    # positively applyable, rather than merely complete and non-errored.
+    need(not actual or plan.get("applyable") is True, "PLAN")
     return {"schema_version": "gcp-normal-change-offline-result-v1",
             "policy": "offline-only", "environment": "dev",
             "create": sum(action == "create" for action in actual.values()),

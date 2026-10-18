@@ -37,7 +37,7 @@ def resource(action="create"):
 
 def plan(action="create"):
     return {"format_version": "1.2", "terraform_version": policy.TERRAFORM_VERSION,
-            "complete": True, "errored": False, "resource_changes": [
+            "complete": True, "errored": False, "applyable": True, "resource_changes": [
                 {"address": "module.existing.google_storage_bucket.backup",
                  "mode": "managed", "type": "google_storage_bucket",
                  "provider_name": policy.PROVIDER,
@@ -57,6 +57,62 @@ class OfflinePolicyTest(unittest.TestCase):
                 self.assertEqual(outcome["policy"], "offline-only")
                 self.assertNotIn(SECRET, str(outcome))
                 self.assertNotIn(ADDRESS, str(outcome))
+
+    def test_mutating_plan_requires_positive_native_applyable(self):
+        for action in ("create", "update"):
+            for invalid in (False, None, "true", 1):
+                candidate = plan(action)
+                candidate["applyable"] = invalid
+                with self.subTest(action=action, invalid=invalid), self.assertRaises(policy.Rejected):
+                    policy.validate(candidate, review(action))
+            candidate = plan(action)
+            del candidate["applyable"]
+            with self.subTest(action=action, invalid="absent"), self.assertRaises(policy.Rejected):
+                policy.validate(candidate, review(action))
+        no_change = plan()
+        no_change["resource_changes"].pop()
+        no_change["applyable"] = False  # Native Terraform no-op may not be applyable.
+        self.assertEqual(policy.validate(no_change, review() | {"changes": []})["no_op"], 1)
+
+    def test_noop_values_masks_and_unknowns_must_be_consistent(self):
+        mutations = [
+            lambda c: c["resource_changes"][0]["change"]["after"].update(private="inconsistent"),
+            lambda c: c["resource_changes"][0]["change"].update(after_unknown={"id": True}),
+            lambda c: c["resource_changes"][0]["change"].update(after_unknown={"id": False}),
+            lambda c: c["resource_changes"][0]["change"].update(after_unknown=None),
+            lambda c: c["resource_changes"][0]["change"].update(before_sensitive={"private": True}),
+            lambda c: c["resource_changes"][0]["change"].update(after_sensitive={"private": True}),
+            lambda c: c["resource_changes"][0]["change"].update(
+                before={"private": {"kind": True}}, after={"private": {"kind": 1}}),
+        ]
+        for index, mutate in enumerate(mutations):
+            candidate = plan()
+            mutate(candidate)
+            with self.subTest(index=index), self.assertRaises(policy.Rejected):
+                policy.validate(candidate, review())
+        candidate = plan()
+        candidate["resource_changes"][0]["change"].update(
+            after_unknown={}, before_sensitive={"private": True},
+            after_sensitive={"private": True})
+        self.assertEqual(policy.validate(candidate, review())["no_op"], 1)
+
+    def test_noop_output_values_and_unknowns_must_be_consistent(self):
+        baseline = plan()
+        baseline["output_changes"] = {
+            "status": {"actions": ["no-op"], "before": SECRET, "after": SECRET}
+        }
+        self.assertEqual(policy.validate(baseline, review())["create"], 1)
+        changes = [
+            lambda o: o.update(after="changed"),
+            lambda o: o.update(after_unknown={"value": True}),
+            lambda o: o.update(after_unknown={"value": False}),
+            lambda o: o.update(before_sensitive=True, after_sensitive=False),
+        ]
+        for index, mutate in enumerate(changes):
+            candidate = deepcopy(baseline)
+            mutate(candidate["output_changes"]["status"])
+            with self.subTest(index=index), self.assertRaises(policy.Rejected):
+                policy.validate(candidate, review())
 
     def test_empty_review_accepts_only_full_noop(self):
         base = plan()
