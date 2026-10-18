@@ -8,10 +8,15 @@ YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをT
 
 ## 現行の運用範囲（2026-10-18）
 
+PR #1373では独自Attestation/Ownership Receipt/issuer catalog/期限付き証跡と旧認証入口を撤廃し、
+`migration-plan` / `migration-apply`へ一本化します。[依存調査・維持する安全機構・GitHub実設定と保護提案](docs/terraform-authentication-boundary.md)を参照してください。
+現在のStateとクラウドmetadata、full-root plan、native lockingの検査は継続します。
+過去の証跡を新たな実行の承認根拠には使いません。
+
 現行運用はDev31件・Prod30件の固定baselineのfull-root監査planと、承認済みimport/no-op・State-only saved applyを扱う [`migration-plan` / `migration-apply`](docs/runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)です。
-入口は既存 `ci.yml` の本人初回 `workflow_dispatch`、専用integration branchです。
+入口は既存 `ci.yml` の本人初回 `workflow_dispatch`です。Devは各Environmentの選択branch、Prodは`main`だけを許可します。
 両環境の最終実行・検証証跡は実証Source H7（`0ed7486b`）に紐付きます。PR #1251の`dev`マージと最終Sourceの扱いを含む実績は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191#issuecomment-6233630058)を参照してください。現在のcommitで同じTerraformを再実行した証拠とは扱いません。
-全4 Terraform EnvironmentはRequired reviewersなし・admin bypass=falseで、plan/apply identityを分離します。
+GitHub管理APIで全4 Terraform EnvironmentのRequired reviewersなし・選択branch制限を確認しました。plan/apply identityは分離され、現在は人間の承認待ちを必須にしていません。
 旧issuer、期限付きwindow、毎回のEnvironment人間承認は現行経路へ戻しません。`dev`へのmerge・直接push・auto-mergeは行わず、最終mergeはユーザー本人だけが行います。
 
 | 環境 / 対象 | 実際に確認した範囲 | 証拠の境界・別判断 |
@@ -31,7 +36,7 @@ Stateの初回作成はProductionの正規不在・manifest0だけに許す固�
 [Infrastructure / MyPage ReadyGate](docs/phase2-approval-and-readiness.md#development--production--mypage-readygate)に集約します。
 TerraformによるIaC拡張の準備と、MyPage固有resourceのprovisioning・Production releaseは別判定です。
 新規resourceは専用normal-change PRでtype/schema、create/update専用の実行経路・検証契約、exact IAM/API、費用・rollbackを整えます。HCLや権限の追加だけでは現migration経路から作成できず、import-only契約は維持します。
-現行CIのtrustは専用integration refに固定しています。最終devマージ後もこの運用refを必要な間保持し、ref移行・branch削除はworkflow、Environment、cloud trustを整合させる別reviewで判断します。
+実際のcloud trustとの整合は別途readbackが必要です。今回のsource更新だけではcutover完了と判定しません。
 
 今回、過去raw-chat/混在backup削除、通知修復、CloudTrail継続課金、MyPage provisioningは行いません。
 [recovery運用 #1165](https://github.com/kani3camp/youtube-study-space/issues/1165#issuecomment-6223368027)、
@@ -87,8 +92,7 @@ reviewed-input packer、disconnected prototypeとその専用テストは現行t
 ```bash
 python3 .github/scripts/test_terraform_migration.py
 python3 .github/scripts/test_terraform_migration_contract.py
-python3 .github/scripts/test_terraform_runtime_execution.py
-python3 .github/scripts/test_terraform_identity_smoke.py
+python3 .github/scripts/test_terraform_authenticated_workflow.py
 terraform fmt -check -recursive infra/gcp
 for env in dev prod; do
   (cd "infra/gcp/environments/$env" && terraform init -backend=false -lockfile=readonly && terraform validate)
@@ -257,3 +261,17 @@ Audit logging/継続課金は未有効化で、設計案を実装完了と扱い
 - 今後の管理対象とMyPage向けcreate/updateは別の変更承認／権限／検証契約として設計する。現在のimport-only guardを迂回しない
 
 古いSourceに含まれる手順をそのまま実行せず、現在のGitHub・認証済み実環境・Notion Current Canonから最新の安全条件を照合します。
+
+## Terraform認証実行のブランチ移行（段階的cutover、2026-10-18）
+
+- **目標（2026-10-18更新）**：Developmentの認証付きTerraformは `dev` を基本とし、GitHubの `terraform-dev-plan`／`terraform-dev-apply` Environmentの **Selected branches and tags** に必要な統合ブランチを本人が追加・削除できる運用にする。Productionは `main` のみ。credentialed jobはEnvironmentのbranch selection、same-branch caller/reusable、exact SHA、本人初回dispatch、plan/apply独立identityを検証する。preflight単体ではEnvironment allowlistを取得できず、**選択ブランチの最終認可はEnvironmentで強制**する。
+- **任意ブランチ**：PRのTerraform fmt / credentialless init（`-backend=false`）/ validate / mock・negativeは引き続き無認証。Devの認証付きPlan/ApplyはGitHub Environmentへ**明示追加されたブランチ**だけが実行できる。Planだけ許可、Apply未許可も可。未選択ブランチ・外部fork・タグへcredentialを渡さない。統合branchでは実行前にreview済みの最新workflow/headを検証する。Selected branches方式でbranch protectionはtoken発行の技術上の必須条件ではないが、許可branch内のコード改変を防ぐために推奨する。
+- **このPRの境界**：`dev`にソース・テストがマージされても、AWS trust policy、GCP WIF attribute condition / SA IAM、GitHub Environmentのbranch restriction/secret/required reviewerは自動更新されない。既存 `feature/gcp-terraform-iac` の実運用sourceも自動更新されない。**PRのマージだけでcutoverが完了したとは判定しない**。
+- **前提**：現行 `main` にはTerraform rootとauthenticated workflowが未導入。通常の `dev → main` 昇格PRでレビュー・CIを通してからProductionで使う。昇格とIAM trust切替の順序・ロールバック・停止期間を別の運用reviewで決める。
+- **cutover手順**：①既存trusted実行とState/version・lock・protected Environment/role/SAを読み取り確認、②**初回のみ**Dev AWS IAM trustを固定repo/owner/Environment/caller/reusable/eventのままブランチ3か所だけ`StringLike`／`refs/heads/*`へ、Dev GCP WIFを固定actor・initial attempt・same-SHAを維持しcaller/reusableが**同じ`assertion.ref`**と等しいCEL条件へ変更、GitHub Dev plan/apply Environmentは `Selected branches and tags` で `dev` と承認済み統合ブランチだけに限定。本番AWS/GCP trustは `main` 完全固定、③非許可ref/不一致caller/別actor/tag/旧branchのnegativeと許可対象の認証付read-only Planを検証、④必要なApplyとno-op・State安全性を別承認で検証、⑤旧branchとRulesetは最後に退役する。
+- **変更禁止の範囲**：このソースPRでは `main` への直接push、`dev`のbotマージ、Cloud IAM/WIF、remote Terraform State、live Plan/Apply、workflow dispatch、ブランチ削除を実行しない。cloud trustの設定readが不可の場合は未確認と明示し、推測したまま切り替えない。
+
+- **Devのcloud trustは一度だけ変更が必要**：AWS IAMは`StringEquals(aud)`／`StringLike(sub)`を用い、repo/owner/Dev Environment/caller/reusable/eventは厳密に保持、ref・workflow_ref・job_workflow_refのブランチ部分だけワイルドカード化する。ただしIAMの複数ワイルドカードは相互に同じブランチであることまで証明しないため、GitHub Environmentのブランチ許可・GCP WIFの`workflow_ref == fixed_caller + assertion.ref` / `job_workflow_ref == fixed_reusable + assertion.ref`・same-SHAチェック・workflow preflightの多層防御が必要。GCP SA impersonation IAM memberが旧branch subjectに固定なら、そこも一度だけ移行する。以降の追加/削除操作はGitHub Environmentのみ。
+- **注意**：Devで最初に`terraform-dev-plan`へ統合ブランチを追加し、実Plan/readを確認してからApplyも必要なら追加する。旧`feature/gcp-terraform-iac`はGitHub Environmentでの許可を失効させるまでDev IAM/WIFのワイルドカードtrustを有効にしない。現在のimport-only controllerでMyPage新規resourceを作成できるわけではない。MyPage用のcreate/update実行contract、最小権限、デプロイ実装は別対応。
+
+監査入口：[PR #1251](https://github.com/kani3camp/youtube-study-space/pull/1251)・[PR #1372](https://github.com/kani3camp/youtube-study-space/pull/1372)・[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)。

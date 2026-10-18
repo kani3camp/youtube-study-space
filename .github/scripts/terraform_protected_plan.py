@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Value-free output for the separately approved development Email adoption.
+"""Offline value-free validation for development import-fidelity fixtures.
 
-Ordinary execution delegates to the unchanged global import-only policy. The
-exception is available only through the protected workflow's explicit mode.
+No authenticated workflow calls this fixture adapter. Current execution uses
+terraform_migration and its full-root contract.
 """
 from __future__ import annotations
 
@@ -25,9 +25,6 @@ from terraform_export_function_gate import validate as validate_export_function
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "infra/gcp/scripts"))
 from prepare_user_activity_history_adoption import prepare, private_json, unique_object
 from validate_user_activity_history_plan import validate as validate_history
-from runtime_ownership_packet import validate_packet
-from runtime_ownership_provenance import require_verified_inputs
-from validate_runtime_ownership_plan import validate as validate_runtime
 
 
 def adoption_summary(plan, *, environment, git_sha, phase, email, channel_name):
@@ -82,10 +79,8 @@ def main():
         diagnostic.mark("ADMISSION")
         history = os.environ.get("TF_VAR_manage_user_activity_history", "false")
         wave = os.environ.get("OWNERSHIP_WAVE", "none")
-        if wave not in {"none", "pool", "provider", "grant", "api", "noop"}:
-            raise ValueError("Unsupported ownership wave")
-        if wave != "none" and (history != "true" or args.environment != "dev" or args.operation not in {"plan", "apply"}):
-            raise ValueError("Cumulative ownership requires development history plan/apply")
+        if wave != "none":
+            raise ValueError("Runtime ownership workflow retired")
         if any(os.environ.get(key, default) != default for key, default in {
             "TF_VAR_own_runtime_wif_pool": "false", "TF_VAR_own_runtime_wif_provider": "false",
             "TF_VAR_runtime_wif_grant_keys": "[]", "TF_VAR_owned_api_keys": "[]",
@@ -113,26 +108,10 @@ def main():
                 if baseline:
                     diagnostic.note_failure("VALUE")
                 raise ValueError("Fresh history field order and descriptions required")
-            if wave == "none":
-                validate_history(plan, metadata=metadata, phase=args.phase,
-                                 execution_email=os.environ.get("TF_VAR_export_function_execution_service_account_email", ""),
-                                 diagnostic=diagnostic if baseline else None)
-                summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy=args.policy)
-            else:
-                packet = private_json(str(directory / "runtime-ownership-packet.json"))
-                diagnostic.mark("PROVENANCE")
-                require_verified_inputs(dict(os.environ), packet, metadata)
-                from terraform_runtime_execution import require_fresh_inputs
-                diagnostic.mark("FRESHNESS")
-                require_fresh_inputs(dict(os.environ), packet)
-                diagnostic.mark("PACKET")
-                candidate = validate_packet(packet, wave=wave, git_sha=args.git_sha)
-                diagnostic.mark("PRIVATE_INPUT")
-                if private_json(str(directory / "runtime-ownership.tfvars.json")) != candidate:
-                    raise ValueError("Reviewed cumulative ownership inputs required")
-                summary = validate_runtime(plan, packet=packet, wave=wave, git_sha=args.git_sha,
-                                           metadata=metadata, phase=args.phase, diagnostic=diagnostic,
-                                           execution_email=os.environ.get("TF_VAR_export_function_execution_service_account_email", ""))
+            validate_history(plan, metadata=metadata, phase=args.phase,
+                             execution_email=os.environ.get("TF_VAR_export_function_execution_service_account_email", ""),
+                             diagnostic=diagnostic if baseline else None)
+            summary = build_summary(plan, environment=args.environment, git_sha=args.git_sha, policy=args.policy)
         elif args.operation == "email-adoption":
             summary = adoption_summary(plan, environment=args.environment, git_sha=args.git_sha, phase=args.phase,
                                        email=os.environ.get("TF_VAR_primary_email_address"),
@@ -166,14 +145,6 @@ def main():
             elif os.environ.get("TF_VAR_manage_export_topic") == "true":
                 if args.environment != "dev": raise ValueError("Development topic only")
                 validate_export_topic(plan, phase=args.phase)
-        if wave != "none":
-            # Exact graph/value checks already passed. Runtime approval also
-            # binds the full private packet with a nonce-keyed commitment;
-            # published projection digests must not enumerate aliases/APIs.
-            summary = dict(summary, resources=[])
-            from terraform_runtime_execution import approve_plan
-            diagnostic.mark("APPROVAL")
-            approve_plan(dict(os.environ), plan, summary, phase=args.phase)
         diagnostic.mark("SERIALIZATION")
         write_private(args.json_output, json.dumps(summary, sort_keys=True, separators=(",", ":")) + "\n")
         write_private(args.markdown_output, render_markdown(dict(summary, resources=[]) if wave != "none" else summary))

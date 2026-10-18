@@ -17,7 +17,7 @@ import terraform_protected_plan as protected
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'infra/gcp/tests'))
-import test_runtime_ownership_package as fixture
+import test_runtime_plan_contract as fixture
 
 CANARY = 'arn:aws:iam::999999999999:role/PRIVATE_CANARY_nonce_member'
 
@@ -48,7 +48,7 @@ class DiagnosticTest(unittest.TestCase):
                 with patch.object(fixture.preparer, 'PROJECT', fixture.PROJECT), patch.object(fixture.gate, 'PROJECT', fixture.PROJECT):
                     with self.assertRaises(ValueError) as caught:
                         fixture.gate.validate(plan, packet=packet, wave='pool', git_sha=fixture.SHA, metadata=metadata,
-                            phase='before', execution_email=fixture.EMAIL, now=fixture.NOW, diagnostic=context)
+                            phase='before', execution_email=fixture.EMAIL, diagnostic=context)
                 diagnostic.record(directory, plan, context, caught.exception)
                 value = diagnostic.read(directory)
                 self.assertEqual((value['stage'], value['field']), (stage, field))
@@ -114,54 +114,7 @@ class DiagnosticTest(unittest.TestCase):
             self.assertFalse((root/'summary.json').exists());self.assertFalse((root/'summary.md').exists())
             self.assertIn('stage=INPUT',self.run_renderer(root)[1])
 
-    def test_runtime_failure_survives_protected_wrapper_without_approval(self):
-        plan, metadata, packet = fixture.fixture()
-        plan['resource_changes'][-1]['change']['after_sensitive'] = {'description':CANARY}
-        with tempfile.TemporaryDirectory() as directory, \
-             patch.object(fixture.preparer,'PROJECT',fixture.PROJECT), patch.object(fixture.gate,'PROJECT',fixture.PROJECT):
-            root=Path(directory)
-            candidate=fixture.packet_module.validate_packet(packet,wave='pool',git_sha=fixture.SHA,now=fixture.NOW)
-            inputs=protected.prepare(metadata);inputs.pop('manage_user_activity_history')
-            for name,value in [('user-history-before.json',metadata),('user-history-before.tfvars.json',inputs),
-                               ('runtime-ownership-packet.json',packet),('runtime-ownership.tfvars.json',candidate)]:
-                path=root/name;path.write_text(json.dumps(value));path.chmod(0o600)
-            args=['protected','--operation','plan','--phase','before','--environment','dev','--git-sha',fixture.SHA,
-                  '--policy','import-only','--json-output',str(root/'summary.json'),'--markdown-output',str(root/'summary.md')]
-            env=dict(TF_VAR_manage_user_activity_history='true',OWNERSHIP_WAVE='pool',RUNNER_TEMP=directory,
-                TF_VAR_export_function_execution_service_account_email=fixture.EMAIL,
-                **{'TF_VAR_manage_export_'+kind:'true' for kind in ('function','scheduler','topic')})
-            packet_validator, runtime_validator = protected.validate_packet, protected.validate_runtime
-            with patch.dict(os.environ,env,clear=True),patch('sys.argv',args),patch('sys.stdin',io.StringIO(json.dumps(plan))), \
-                 patch.object(protected,'require_verified_inputs'),patch('terraform_runtime_execution.require_fresh_inputs'), \
-                 patch('terraform_runtime_execution.approve_plan') as approve, \
-                 patch.object(protected,'validate_packet',side_effect=lambda p,**kw:packet_validator(p,now=fixture.NOW,**kw)), \
-                 patch.object(protected,'validate_runtime',side_effect=lambda p,**kw:runtime_validator(p,now=fixture.NOW,**kw)), \
-                 patch('sys.stdout',io.StringIO()) as out,patch('sys.stderr',io.StringIO()) as err:
-                self.assertEqual(protected.main(),3)
-                approve.assert_not_called()
-            self.assertEqual(out.getvalue(),'');self.assertNotIn(CANARY,err.getvalue())
-            self.assertFalse((root/'summary.json').exists());self.assertFalse((root/'summary.md').exists())
-            self.assertIn('stage=RESOURCE_CHANGE field=SENSITIVITY',self.run_renderer(root)[1])
 
-    def test_workflow_failure_renderer_cannot_change_failed_pipeline_status(self):
-        workflow=(ROOT/'.github/workflows/gcp-terraform-authenticated.yml').read_text()
-        block=workflow.split('      - name: Sanitize and enforce the selected protected contract\n',1)[1].split('\n      - name:',1)[0]
-        script=textwrap.dedent(block.split('        run: |\n',1)[1])
-        for expression,value in [('${{ inputs.mode }}','plan'),('${{ inputs.target }}','dev')]:
-            script=script.replace(expression,value)
-        with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);binary=root/'bin';binary.mkdir()
-            executable=binary/'terraform';executable.write_text("#!/bin/sh\nprintf '%s' '{\""+CANARY+"'\n");executable.chmod(0o700)
-            env=dict(os.environ, PATH=str(binary)+os.pathsep+os.environ['PATH'], RUNNER_TEMP=directory,
-                TF_ROOT='dummy', HISTORY_POST_NOOP='false', OWNERSHIP_WAVE='pool', GITHUB_SHA='a'*40,
-                GITHUB_OUTPUT=str(root/'output'), GITHUB_STEP_SUMMARY=str(root/'summary'))
-            result=subprocess.run(['bash','-c',script],cwd=ROOT,env=env,capture_output=True,text=True)
-            self.assertEqual(result.returncode,3)
-            self.assertIn('stage=INPUT',result.stdout)
-            self.assertNotIn(CANARY,result.stdout+result.stderr)
-            self.assertFalse((root/'summary').exists());self.assertFalse((root/'output').exists())
-        for job in (workflow.split('  plan:\n',1)[1].split('  current_state_read:\n',1)[0], workflow.split('  apply:\n',1)[1]):
-            self.assertIn('"${RUNNER_TEMP}/'+diagnostic.FILE+'"',job.split('Cleanup sensitive temporary files',1)[1])
 
 
 
@@ -195,11 +148,10 @@ class BaselineDiagnosticTest(unittest.TestCase):
                 stack.enter_context(patch.dict(os.environ,env,clear=True));stack.enter_context(patch('sys.argv',args))
                 stack.enter_context(patch('sys.stdin',io.StringIO(json.dumps(plan) if raw is None else raw)))
                 out=stack.enter_context(patch('sys.stdout',io.StringIO()));err=stack.enter_context(patch('sys.stderr',io.StringIO()))
-                approve=stack.enter_context(patch('terraform_runtime_execution.approve_plan'))
                 if unknown:
                     stack.enter_context(patch('validate_user_activity_history_plan.validate_baseline',side_effect=ValueError(CANARY)))
                 if serialization:stack.enter_context(patch.object(protected,'write_private',side_effect=OSError(CANARY)))
-                rc=protected.main();approve.assert_not_called()
+                rc=protected.main()
             result=dict(rc=rc,stdout=out.getvalue(),stderr=err.getvalue(),
                 json=(root/'summary.json').read_text() if (root/'summary.json').exists() else None,
                 markdown=(root/'summary.md').read_text() if (root/'summary.md').exists() else None,
@@ -315,69 +267,9 @@ class BaselineDiagnosticTest(unittest.TestCase):
             digest=lambda v:hashlib.sha256(json.dumps(v,separators=(',',':')).encode()).hexdigest()
             self.assertEqual(digest(actual),guards);self.assertEqual(digest(calls),delegates)
 
-    def exercise_post(self, *, failure=False, changes=None, summary_failure=False):
-        from contextlib import ExitStack
-        import test_terraform_history_post_noop_receipt as post_fixture
-        import terraform_history_post_noop_receipt as post
-        item=post_fixture.IndependentHistoryPostNoopTest();item.setUp()
-        try:
-            env=item.env|self.selectors()|(changes or {})
-            post.before(env,request=item.aws)
-            if failure:env['PLAN_VALIDATION_OUTCOME']='failure'
-            with ExitStack() as stack:
-                out=stack.enter_context(patch('sys.stdout',io.StringIO()))
-                record=stack.enter_context(patch('terraform_current_state_attestation.record_verified'))
-                if summary_failure:stack.enter_context(patch('builtins.open',side_effect=OSError(CANARY)))
-                try:
-                    post.after(env,request=item.aws,metadata_request=item.table_get);failed=False
-                except Exception:
-                    failed=True
-                stdout=out.getvalue();calls=record.call_count
-            summary=(item.root/'summary').read_text() if (item.root/'summary').exists() else ''
-            self.assertNotIn(CANARY,stdout+summary)
-            return failed,stdout,summary,calls
-        finally:item.doCleanups()
 
-    def test_post_six_fixed_statuses_are_scoped_and_failure_never_records_receipt(self):
-        failed,out,summary,calls=self.exercise_post()
-        self.assertFalse(failed);self.assertEqual(calls,1)
-        self.assertEqual(out.splitlines(),diagnostic.render_post_checks(dict.fromkeys(diagnostic.POST_CHECKS,True)))
-        failed,out,summary,calls=self.exercise_post(failure=True)
-        self.assertTrue(failed);self.assertEqual(calls,0)
-        self.assertIn('Current-state safety: Full-root no-op12 and job outcomes: STOP',out)
-        self.assertEqual(len(out.splitlines()),6)
-        failed,out,_,calls=self.exercise_post(summary_failure=True)
-        self.assertTrue(failed);self.assertEqual(calls,0);self.assertEqual(len(out.splitlines()),6)
-        for key,value in [('CURRENT_STATE_ATTESTATION','false'),('GITHUB_RUN_ATTEMPT','2'),('OWNERSHIP_ROOT_BASIS','current-state-bootstrap')]:
-            with self.subTest(key=key):
-                self.assertEqual(self.exercise_post(changes={key:value})[1],'')
 
-    def test_post_sink_rejects_unknown_missing_and_nonboolean_without_echo(self):
-        good=dict.fromkeys(diagnostic.POST_CHECKS,False)
-        for bad in ({**good,CANARY:True},{k:v for k,v in good.items() if k!=diagnostic.POST_CHECKS[0]},
-                    {**good,diagnostic.POST_CHECKS[0]:CANARY}):
-            with self.assertRaises(ValueError):diagnostic.render_post_checks(bad)
 
-    def test_current_state_workflow_renderer_uses_same_scope_and_keeps_failed_rc(self):
-        workflow=(ROOT/'.github/workflows/gcp-terraform-authenticated.yml').read_text()
-        block=workflow.split('      - name: Sanitize and enforce the selected protected contract\n',1)[1].split('\n      - name:',1)[0]
-        original=textwrap.dedent(block.split('        run: |\n',1)[1])
-        cases=[{},*[{key:'wrong'} for key in self.selectors() if key!='OWNERSHIP_WAVE']]
-        for changes in cases:
-            with self.subTest(changes=changes),tempfile.TemporaryDirectory() as directory:
-                root=Path(directory);binary=root/'bin';binary.mkdir()
-                executable=binary/'terraform';executable.write_text("#!/bin/sh\nprintf '%s' '{\""+CANARY+"'\n");executable.chmod(0o700)
-                selected=self.selectors()|changes
-                script=original.replace('${{ inputs.mode }}',selected['MODE']).replace('${{ inputs.target }}',selected['HISTORY_TARGET'])
-                env=dict(os.environ,**selected,PATH=str(binary)+os.pathsep+os.environ['PATH'],RUNNER_TEMP=directory,
-                    TF_ROOT='dummy',GITHUB_SHA='a'*40,GITHUB_OUTPUT=str(root/'output'),GITHUB_STEP_SUMMARY=str(root/'summary'))
-                result=subprocess.run(['bash','-c',script],cwd=ROOT,env=env,capture_output=True,text=True)
-                # Unsupported fake mode/target may argparse-stop with rc2;
-                # diagnostic observation must preserve that original failure.
-                self.assertIn(result.returncode,(2,3));self.assertNotIn(CANARY,result.stdout+result.stderr)
-                if not changes:self.assertIn('stage=INPUT field=FORMAT',result.stdout)
-                else:self.assertNotIn('Runtime plan diagnostic:',result.stdout)
-                self.assertFalse((root/'output').exists())
 
 
 if __name__ == '__main__': unittest.main()
