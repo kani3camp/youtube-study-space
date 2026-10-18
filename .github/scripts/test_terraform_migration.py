@@ -34,14 +34,15 @@ def manifest(target="dev"):
 
 
 def environment(*, target="dev", role="plan", mode=None):
+    expected_ref = "refs/heads/dev" if target == "dev" else "refs/heads/main"
     return {
         "MIGRATION_TARGET": target, "MIGRATION_MODE": mode or ("migration-apply" if role == "apply" else "migration-plan"),
         "MIGRATION_ROLE": role, "MIGRATION_PRODUCTION_READY": "false",
         "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REPOSITORY": "kani3camp/youtube-study-space",
         "GITHUB_REPOSITORY_ID": "340900071", "GITHUB_REPOSITORY_OWNER_ID": "54093651",
         "GITHUB_ACTOR_ID": "54093651", "GITHUB_ACTOR": "kani3camp", "GITHUB_TRIGGERING_ACTOR": "kani3camp",
-        "GITHUB_RUN_ATTEMPT": "1", "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac",
-        "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
+        "GITHUB_RUN_ATTEMPT": "1", "GITHUB_REF": expected_ref,
+        "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@" + expected_ref,
         "GITHUB_SHA": SHA, "GITHUB_JOB": "migration_" + role, "TF_WORKSPACE": "default",
         "STATE_AWS_REGION": "ap-northeast-1", "AWS_MAX_ATTEMPTS": "1", "AWS_RETRY_MODE": "standard",
         "STATE_BUCKET": "fixture-state-bucket", "STATE_ACCOUNT_ID": "111111111111",
@@ -212,7 +213,7 @@ class ContextAndPrivateInputTest(OfflineTest):
             for key, value in {
                 "GITHUB_ACTOR_ID": "1", "GITHUB_ACTOR": "another-user", "GITHUB_TRIGGERING_ACTOR": "another-user",
                 "GITHUB_RUN_ATTEMPT": "2", "GITHUB_EVENT_NAME": "push", "GITHUB_REPOSITORY_ID": "1",
-                "GITHUB_REPOSITORY_OWNER_ID": "1", "GITHUB_REF": "refs/heads/dev", "GITHUB_SHA": "bad",
+                "GITHUB_REPOSITORY_OWNER_ID": "1", "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac", "GITHUB_SHA": "bad",
                 "GITHUB_WORKFLOW_REF": "other/workflow.yml", "GITHUB_JOB": "legacy_" + role,
                 "TF_WORKSPACE": "other", "STATE_AWS_REGION": "other", "AWS_MAX_ATTEMPTS": "2",
                 "AWS_RETRY_MODE": "adaptive", "MIGRATION_MODE": "apply", "MIGRATION_TARGET": "unknown",
@@ -221,6 +222,31 @@ class ContextAndPrivateInputTest(OfflineTest):
                     migration.context(environment(role=role) | {key: value}, role)
         with self.assertRaises(ValueError):
             migration.context(environment(role="apply", mode="migration-plan"), "apply")
+
+    def test_target_specific_dev_integration_and_prod_pinning(self):
+        for target, branch in (("dev", "dev"), ("dev", "integration/mypage-canon-20261006"),
+                               ("prod", "main")):
+            with self.subTest(target=target, branch=branch):
+                ref = "refs/heads/" + branch
+                env = environment(target=target, role="plan") | {"MIGRATION_PRODUCTION_READY": "true",
+                    "GITHUB_REF": ref,
+                    "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@" + ref}
+                self.assertEqual(migration.context(env, "plan"), target)
+                for wrong_ref in ("refs/heads/other", "refs/tags/v1"):
+                    with self.subTest(ref_mismatch=wrong_ref), self.assertRaises(ValueError):
+                        migration.context(env | {"GITHUB_REF": wrong_ref}, "plan")
+                for wrong_caller in ("refs/heads/dev-invalid", "refs/heads/main-other"):
+                    with self.subTest(caller_mismatch=wrong_caller), self.assertRaises(ValueError):
+                        migration.context(env | {"GITHUB_WORKFLOW_REF":
+                            "kani3camp/youtube-study-space/.github/workflows/ci.yml@" + wrong_caller}, "plan")
+        for target, forbidden in (("dev", "refs/heads/main"),
+                                  ("dev", "refs/heads/feature/gcp-terraform-iac"),
+                                  ("dev", "refs/heads/"), ("prod", "refs/heads/dev"),
+                                  ("prod", "refs/heads/integration/mypage-canon-20261006")):
+            with self.subTest(target=target, forbidden=forbidden), self.assertRaises(ValueError):
+                migration.context(environment(target=target, role="plan") |
+                    {"MIGRATION_PRODUCTION_READY": "true", "GITHUB_REF": forbidden,
+                     "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@" + forbidden}, "plan")
 
     def test_production_requires_independent_measured_readiness_gate(self):
         for role in ("plan", "apply"):
@@ -296,9 +322,9 @@ class ContextAndPrivateInputTest(OfflineTest):
                                "ACTIONS_ID_TOKEN_REQUEST_TOKEN": CANARY}
         claims = {
             "repository_id": "340900071", "repository_owner_id": "54093651", "environment": "terraform-dev-plan",
-            "ref": "refs/heads/feature/gcp-terraform-iac",
-            "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
-            "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/feature/gcp-terraform-iac",
+            "ref": "refs/heads/dev",
+            "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev",
+            "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/dev",
             "event_name": "workflow_dispatch",
         }
         claims["sub"] = ":".join(f'{key}:{value.replace(":", "%3A")}' for key, value in claims.items())

@@ -84,7 +84,7 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
             'GITHUB_REPOSITORY}" == "kani3camp/youtube-study-space"',
             'GITHUB_REPOSITORY_ID}" == "340900071"',
             'GITHUB_REPOSITORY_OWNER_ID}" == "54093651"',
-            "refs/heads/feature/gcp-terraform-iac",
+            "refs/heads/dev",
         ):
             self.assertLess(guard.index(token), auth)
 
@@ -202,8 +202,8 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
             "GITHUB_REPOSITORY": "kani3camp/youtube-study-space",
             "GITHUB_REPOSITORY_ID": "340900071",
             "GITHUB_REPOSITORY_OWNER_ID": "54093651",
-            "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
-            "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac",
+            "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev",
+            "GITHUB_REF": "refs/heads/dev",
             "TARGET": "dev",
             "DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED": "false",
         }
@@ -236,8 +236,8 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
             "GITHUB_REPOSITORY": "synthetic/fork",
             "GITHUB_REPOSITORY_ID": "0",
             "GITHUB_REPOSITORY_OWNER_ID": "0",
-            "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev",
-            "GITHUB_REF": "refs/heads/dev",
+            "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac",
+            "GITHUB_REF": "refs/heads/feature/gcp-terraform-iac",
         }.items():
             with self.subTest(key=key):
                 self.assertNotEqual(self.run_guard(DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED="true",

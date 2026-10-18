@@ -257,3 +257,17 @@ Audit logging/継続課金は未有効化で、設計案を実装完了と扱い
 - 今後の管理対象とMyPage向けcreate/updateは別の変更承認／権限／検証契約として設計する。現在のimport-only guardを迂回しない
 
 古いSourceに含まれる手順をそのまま実行せず、現在のGitHub・認証済み実環境・Notion Current Canonから最新の安全条件を照合します。
+
+## Terraform認証実行のブランチ移行（段階的cutover、2026-10-18）
+
+- **目標（2026-10-18更新）**：Developmentの認証付きTerraformは `dev` を基本とし、GitHubの `terraform-dev-plan`／`terraform-dev-apply` Environmentの **Selected branches and tags** に必要な統合ブランチを本人が追加・削除できる運用にする。Productionは `main` のみ。credentialed jobはEnvironmentのbranch selection、same-branch caller/reusable、exact SHA、本人初回dispatch、plan/apply独立identityを検証する。preflight単体ではEnvironment allowlistを取得できず、**選択ブランチの最終認可はEnvironmentで強制**する。
+- **任意ブランチ**：PRのTerraform fmt / credentialless init（`-backend=false`）/ validate / mock・negativeは引き続き無認証。Devの認証付きPlan/ApplyはGitHub Environmentへ**明示追加されたブランチ**だけが実行できる。Planだけ許可、Apply未許可も可。未選択ブランチ・外部fork・タグへcredentialを渡さない。統合ブランチにはレビュー・branch protection・最新の認証ガードを含むworkflowを必要とし、実行branchを許可する前にそのheadを検証する。
+- **このPRの境界**：`dev`にソース・テストがマージされても、AWS trust policy、GCP WIF attribute condition / SA IAM、GitHub Environmentのbranch restriction/secret/required reviewerは自動更新されない。既存 `feature/gcp-terraform-iac` の実運用sourceも自動更新されない。**PRのマージだけでcutoverが完了したとは判定しない**。
+- **前提**：現行 `main` にはTerraform rootとauthenticated workflowが未導入。通常の `dev → main` 昇格PRでレビュー・CIを通してからProductionで使う。昇格とIAM trust切替の順序・ロールバック・停止期間を別の運用reviewで決める。
+- **cutover手順**：①既存trusted実行とState/version・lock・protected Environment/role/SA/issuerを読み取り確認、②**初回のみ**Dev AWS IAM trustを固定repo/owner/Environment/caller/reusable/eventのままブランチ3か所だけ`StringLike`／`refs/heads/*`へ、Dev GCP WIFを固定actor・initial attempt・same-SHAを維持しcaller/reusableが**同じ`assertion.ref`**と等しいCEL条件へ変更、GitHub Dev plan/apply Environmentは `Selected branches and tags` で `dev` と承認済み統合ブランチだけに限定。本番AWS/GCP trustは `main` 完全固定、③非許可ref/不一致caller/別actor/tag/旧branchのnegativeと許可対象の認証付read-only Planを検証、④必要なApplyとno-op・State安全性を別承認で検証、⑤旧branchとRulesetは最後に退役する。
+- **変更禁止の範囲**：このソースPRでは `main` への直接push、`dev`のbotマージ、Cloud IAM/WIF、remote Terraform State、live Plan/Apply、workflow dispatch、ブランチ削除を実行しない。cloud trustの設定readが不可の場合は未確認と明示し、推測したまま切り替えない。
+
+- **Devのcloud trustは一度だけ変更が必要**：AWS IAMは`StringEquals(aud)`／`StringLike(sub)`を用い、repo/owner/Dev Environment/caller/reusable/eventは厳密に保持、ref・workflow_ref・job_workflow_refのブランチ部分だけワイルドカード化する。ただしIAMの複数ワイルドカードは相互に同じブランチであることまで証明しないため、GitHub Environmentのブランチ許可・GCP WIFの`workflow_ref == fixed_caller + assertion.ref` / `job_workflow_ref == fixed_reusable + assertion.ref`・same-SHAチェック・workflow preflightの多層防御が必要。GCP SA impersonation IAM memberが旧branch subjectに固定なら、そこも一度だけ移行する。以降の追加/削除操作はGitHub Environmentのみ。
+- **注意**：Devで最初に`terraform-dev-plan`へ統合ブランチを追加し、実Plan/readを確認してからApplyも必要なら追加する。旧`feature/gcp-terraform-iac`はGitHub Environmentでの許可を失効させるまでDev IAM/WIFのワイルドカードtrustを有効にしない。現在のimport-only controllerでMyPage新規resourceを作成できるわけではない。MyPage用のcreate/update実行contract、最小権限、デプロイ実装は別対応。
+
+監査入口：[PR #1251](https://github.com/kani3camp/youtube-study-space/pull/1251)・[PR #1372](https://github.com/kani3camp/youtube-study-space/pull/1372)・[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)。

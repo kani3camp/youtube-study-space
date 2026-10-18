@@ -54,11 +54,11 @@ jobs:
             echo "::error::Unexpected immutable repository owner ID."
             exit 1
           }
-          [[ "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/feature/gcp-terraform-iac" ]] || {
+          [[ "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev" ]] || {
             echo "::error::Schema audit must be called from ci.yml at the trusted integration ref."
             exit 1
           }
-          [[ "${GITHUB_REF}" == "refs/heads/feature/gcp-terraform-iac" ]] || {
+          [[ "${GITHUB_REF}" == "refs/heads/dev" ]] || {
             echo "::error::Schema audit is restricted to the integration branch."
             exit 1
           }
