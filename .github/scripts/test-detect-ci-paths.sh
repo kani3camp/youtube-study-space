@@ -156,8 +156,6 @@ if GITHUB_EVENT_NAME=pull_request BASE_SHA=missing HEAD_SHA=missing "$detector" 
 	exit 1
 fi
 
-echo "detect-ci-paths.sh tests passed"
-
 assert_exact_groups gcp_terraform .github/scripts/terraform_quota_refresh_gate.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_quota_refresh_gate.py
 
@@ -181,11 +179,4 @@ assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_ownership_provena
 assert_exact_groups gcp_terraform .github/scripts/terraform_runtime_execution.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_runtime_execution.py
 
-# Metadata-only source/test edits must retain the authenticated Terraform checks.
-
-# Authority observations must retain authenticated Terraform validation.
-
-# Historical task projections and fresh version anchors retain Terraform checks.
-
-# Optional original-user metadata transport must retain dummy SDK validation.
-
+echo "detect-ci-paths.sh tests passed"
