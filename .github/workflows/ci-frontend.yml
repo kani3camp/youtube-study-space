@@ -1,0 +1,155 @@
+name: CI Frontend
+
+on:
+  workflow_call:
+    inputs:
+      youtube_monitor:
+        required: true
+        type: boolean
+      docs_site:
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  biome-lint:
+    name: Biome Lint (youtube-monitor)
+    if: ${{ inputs.youtube_monitor }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: youtube-monitor
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: youtube-monitor/package.json
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: youtube-monitor/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run check
+        run: pnpm exec biome check . --reporter=github
+
+  youtube-monitor-test:
+    name: YouTube Monitor Test
+    if: ${{ inputs.youtube_monitor }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: youtube-monitor
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: youtube-monitor/package.json
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: youtube-monitor/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run tests
+        run: pnpm test
+
+  youtube-monitor-build:
+    name: YouTube Monitor Build
+    if: ${{ inputs.youtube_monitor }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: youtube-monitor
+    env:
+      NEXT_PUBLIC_DEBUG: "false"
+      NEXT_PUBLIC_CHANNEL_GL: "false"
+      NEXT_PUBLIC_ROOM_CONFIG: "DEV"
+      NEXT_PUBLIC_API_ENDPOINT: "http://localhost:3000"
+      NEXT_PUBLIC_API_KEY: "ci-dummy-api-key"
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: "ci-dummy-project"
+      NEXT_PUBLIC_FIREBASE_API_KEY: "ci-dummy-firebase-api-key"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: youtube-monitor/package.json
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: youtube-monitor/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run build
+        run: pnpm build:ci
+
+  docs-site-check:
+    name: Docs Site Lint & Typecheck
+    if: ${{ inputs.docs_site }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: docs-site
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: docs-site/package.json
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: docs-site/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run lint
+        run: pnpm lint
+      - name: Run typecheck
+        run: pnpm typecheck
+
+  docs-site-build:
+    name: Docs Site Build
+    if: ${{ inputs.docs_site }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: docs-site
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: docs-site/package.json
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: docs-site/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run build
+        run: pnpm build
