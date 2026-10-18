@@ -36,6 +36,20 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             result.outputs = output.read_text() if output.exists() else ''
             return result
 
+    def test_display_names_describe_existing_resource_boundary_without_mode_changes(self):
+        self.assertIn('name: "Terraform Existing Resources Plan (${{ inputs.target }})"', self.text)
+        self.assertIn('name: "Terraform Existing Resources Apply (${{ inputs.target }})"', self.text)
+        self.assertIn('name: Validate bounded existing-resource Terraform plan', self.text)
+        self.assertIn('name: Validate bounded existing-resource Terraform apply', self.text)
+        self.assertIn('description: Existing-resource adoption/no-op only (not general create/update)', self.text)
+        self.assertIn('description: Authenticated existing-resource Plan/Apply only (no general create/update)', self.caller)
+        self.assertNotIn('name: "Import-only migration plan', self.text)
+        self.assertNotIn('name: "Import-only migration apply', self.text)
+        # Keep the public dispatch values and fail-closed controller selectors stable.
+        self.assertIn('default: migration-plan', self.caller)
+        self.assertIn('migration-plan|migration-apply) ;;', self.text)
+        self.assertIn("self.assertEqual(set(jobs), {'preflight', 'migration_plan', 'migration_apply'})", self.text)
+
     def test_current_modes_admit_same_branch_dev_and_main_only_prod(self):
         for mode in ('migration-plan', 'migration-apply'):
             for target, refs in (('dev', ('dev', 'integration/mypage-canon-20261006')), ('prod', ('main',))):

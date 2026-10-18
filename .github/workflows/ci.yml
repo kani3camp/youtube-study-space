@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       terraform_authenticated:
-        description: Run the fail-closed authenticated Terraform flow
+        description: Authenticated existing-resource Plan/Apply only (no general create/update)
         required: false
         default: false
         type: boolean
@@ -18,7 +18,7 @@ on:
           - dev
           - prod
       terraform_mode:
-        description: Authenticated Terraform mode (migration modes use the current import-only protocol)
+        description: Existing-resource Plan/Apply (migration-* are current protocol selectors)
         required: false
         default: migration-plan
         type: choice
