@@ -163,7 +163,18 @@ class Contracts(unittest.TestCase):
             root = Path(temporary); binary = root / 'plan'; binary.write_bytes(b'fixture')
             with patch.object(ops, 'snapshot', return_value={'changed': True}), patch.object(ops.common, 'terraform') as tf:
                 with self.assertRaises(ValueError):
-                    ops.apply_saved(env('apply'), root, root, binary, {'before': True}, 'fixture')
+                    ops.apply_saved(env('apply'), root, root, ops.SavedPlan(binary, ops.hashlib.sha256(binary.read_bytes()).digest()), {'before': True}, 'fixture')
+                tf.assert_not_called()
+
+    def test_saved_binary_changed_after_show_cannot_be_applied(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); binary = root / 'plan'; binary.write_bytes(b'original')
+            saved = ops.SavedPlan(binary, ops.hashlib.sha256(binary.read_bytes()).digest())
+            binary.write_bytes(b'changed')
+            with patch.object(ops, 'snapshot') as snapshot, patch.object(ops.common, 'terraform') as tf:
+                with self.assertRaises(ValueError):
+                    ops.apply_saved(env('apply'), root, root, saved, {}, 'fixture')
+                snapshot.assert_not_called()
                 tf.assert_not_called()
 
     def test_normal_modes_reach_preflight_only_for_exact_dev_sha(self):

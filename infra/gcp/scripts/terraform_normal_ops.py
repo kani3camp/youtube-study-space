@@ -16,6 +16,7 @@ import re
 import shutil
 import sys
 import time
+from typing import NamedTuple
 
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / '.github/scripts'))
@@ -27,6 +28,11 @@ MODES = {'normal-plan', 'normal-apply', 'normal-e2e'}
 ACTIONS = {('no-op',), ('read',), ('create',), ('update',), ('delete',),
            ('delete', 'create'), ('create', 'delete')}
 MAX_AGE = 1800
+
+
+class SavedPlan(NamedTuple):
+    path: Path
+    digest: bytes
 
 
 def need(value):
@@ -224,14 +230,14 @@ def plan(env, root, tfroot, name, approved, *, post=False):
     counts = validate(value, approved, post=post)
     if post:
         need(result.returncode == 0)
-    return binary, value, counts
+    return SavedPlan(binary, hashlib.sha256(binary.read_bytes()).digest()), value, counts
 
 
 def apply_saved(env, root, tfroot, binary, before, name):
-    seal = hashlib.sha256(binary.read_bytes()).digest()
+    need(hashlib.sha256(binary.path.read_bytes()).digest() == binary.digest)
     need(snapshot(env, root, name + '-pre') == before)
-    need(hashlib.sha256(binary.read_bytes()).digest() == seal)
-    common.terraform(env, root, tfroot, name + '-apply', ['apply', '-input=false', '-lock-timeout=60s', str(binary)])
+    need(hashlib.sha256(binary.path.read_bytes()).digest() == binary.digest)
+    common.terraform(env, root, tfroot, name + '-apply', ['apply', '-input=false', '-lock-timeout=60s', str(binary.path)])
     after = snapshot(env, root, name + '-after')
     need(after['state']['lineage'] == before['state']['lineage']
          and after['state']['serial'] >= before['state']['serial'])
