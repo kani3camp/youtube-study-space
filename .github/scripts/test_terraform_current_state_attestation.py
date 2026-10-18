@@ -238,9 +238,9 @@ class CurrentStateTest(unittest.TestCase):
             run = fake.responses[fake.base]
             steps = fake.jobs[0]['steps']
             if failure == 'rerun': run['run_attempt'] = 2
-            elif failure == 'branch': run['head_branch'] = 'dev'
+            elif failure == 'branch': run['head_branch'] = 'feature/gcp-terraform-iac'
             elif failure == 'caller': run['path'] = receipt.REUSABLE
-            elif failure == 'reusable': run['referenced_workflows'][0]['ref'] = 'refs/heads/dev'
+            elif failure == 'reusable': run['referenced_workflows'][0]['ref'] = 'refs/heads/feature/gcp-terraform-iac'
             elif failure == 'source': run['referenced_workflows'][0]['sha'] = 'b'*40
             elif failure == 'job-id': fake.ref['job_id'] += 100
             elif failure == 'duplicate-plan':
