@@ -223,17 +223,30 @@ class ContextAndPrivateInputTest(OfflineTest):
         with self.assertRaises(ValueError):
             migration.context(environment(role="apply", mode="migration-plan"), "apply")
 
-    def test_target_specific_branch_and_caller_are_not_interchangeable(self):
-        for target, good, wrong in (("dev", "dev", "main"), ("prod", "main", "dev")):
-            with self.subTest(target=target):
-                env = environment(target=target, role="plan") | {"MIGRATION_PRODUCTION_READY": "true"}
+    def test_target_specific_dev_integration_and_prod_pinning(self):
+        for target, branch in (("dev", "dev"), ("dev", "integration/mypage-canon-20261006"),
+                               ("prod", "main")):
+            with self.subTest(target=target, branch=branch):
+                ref = "refs/heads/" + branch
+                env = environment(target=target, role="plan") | {"MIGRATION_PRODUCTION_READY": "true",
+                    "GITHUB_REF": ref,
+                    "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@" + ref}
                 self.assertEqual(migration.context(env, "plan"), target)
-                for bad_ref in (wrong, "feature/gcp-terraform-iac", "feature/unreviewed"):
-                    with self.subTest(bad_ref=bad_ref), self.assertRaises(ValueError):
-                        migration.context(env | {"GITHUB_REF": "refs/heads/" + bad_ref}, "plan")
-                    with self.subTest(bad_caller=bad_ref), self.assertRaises(ValueError):
+                for wrong_ref in ("refs/heads/other", "refs/tags/v1"):
+                    with self.subTest(ref_mismatch=wrong_ref), self.assertRaises(ValueError):
+                        migration.context(env | {"GITHUB_REF": wrong_ref}, "plan")
+                for wrong_caller in ("refs/heads/dev-invalid", "refs/heads/main-other"):
+                    with self.subTest(caller_mismatch=wrong_caller), self.assertRaises(ValueError):
                         migration.context(env | {"GITHUB_WORKFLOW_REF":
-                            "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/" + bad_ref}, "plan")
+                            "kani3camp/youtube-study-space/.github/workflows/ci.yml@" + wrong_caller}, "plan")
+        for target, forbidden in (("dev", "refs/heads/main"),
+                                  ("dev", "refs/heads/feature/gcp-terraform-iac"),
+                                  ("dev", "refs/heads/"), ("prod", "refs/heads/dev"),
+                                  ("prod", "refs/heads/integration/mypage-canon-20261006")):
+            with self.subTest(target=target, forbidden=forbidden), self.assertRaises(ValueError):
+                migration.context(environment(target=target, role="plan") |
+                    {"MIGRATION_PRODUCTION_READY": "true", "GITHUB_REF": forbidden,
+                     "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@" + forbidden}, "plan")
 
     def test_production_requires_independent_measured_readiness_gate(self):
         for role in ("plan", "apply"):

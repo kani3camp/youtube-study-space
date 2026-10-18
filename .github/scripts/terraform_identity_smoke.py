@@ -67,11 +67,16 @@ def verify_oidc_claims(claims: dict, env: dict[str, str], *, expected_identity: 
     """Exact trusted claims; callers retain their own execution admission."""
     if expected_identity not in {"plan", "apply"}:
         raise SmokeFailure("github-environment-target")
+    expected_ref = env.get("GITHUB_REF", "")
+    if (not isinstance(expected_ref, str)
+            or re.fullmatch(r"refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*", expected_ref) is None
+            or expected_ref in {"refs/heads/main", "refs/heads/feature/gcp-terraform-iac"}):
+        raise SmokeFailure("github-development-branch-ref")
     expected = {
         "repository_id": "340900071", "repository_owner_id": "54093651",
-        "environment": f"terraform-dev-{expected_identity}", "ref": "refs/heads/dev",
-        "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev",
-        "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/dev",
+        "environment": f"terraform-dev-{expected_identity}", "ref": expected_ref,
+        "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@" + expected_ref,
+        "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@" + expected_ref,
         "event_name": "workflow_dispatch",
     }
     subject = ":".join(f"{key}:{value.replace(':', '%3A')}" for key, value in expected.items())

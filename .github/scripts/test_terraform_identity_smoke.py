@@ -342,13 +342,13 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
                   fail_read=None, put_error="(AccessDenied) PRIVATE_SENTINEL", change_after_put=None,
                   mode=None, probe_gate=None, post_noop_gate=None, history_enabled=False,
                   expected_role_id="PRIVATE_ROLE_ID",
-                  returned_user_id="PRIVATE_ROLE_ID:GitHubActions", sts_returncode=0):
+                  returned_user_id="PRIVATE_ROLE_ID:GitHubActions", sts_returncode=0, source_branch="dev"):
         project = "test-youtube-study-space"
         claims = {
             "repository_id": "340900071", "repository_owner_id": "54093651",
-            "environment": "terraform-dev-plan", "ref": "refs/heads/dev",
-            "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev",
-            "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/dev",
+            "environment": "terraform-dev-plan", "ref": "refs/heads/" + source_branch,
+            "workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/" + source_branch,
+            "job_workflow_ref": "kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/" + source_branch,
             "event_name": "workflow_dispatch",
         }
         claims["sub"] = ":".join(f"{k}:{v.replace(':', '%3A')}" for k, v in claims.items())
@@ -437,7 +437,8 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
                    "HISTORY_POST_NOOP": "true" if args == ("post-noop-read-only",) else "false",
                    "DEV_HISTORY_POST_NOOP_ENABLED": post_noop_gate if post_noop_gate is not None else "false",
                    "TF_VAR_manage_user_activity_history": "true" if history_enabled else "false",
-                   "GITHUB_SHA": "a" * 40, "ACTIONS_ID_TOKEN_REQUEST_URL": "https://fixture.invalid/oidc?request=1",
+                   "GITHUB_REF": "refs/heads/" + source_branch, "GITHUB_SHA": "a" * 40,
+                    "ACTIONS_ID_TOKEN_REQUEST_URL": "https://fixture.invalid/oidc?request=1",
                    "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "PRIVATE_GITHUB_TOKEN", "BACKEND_ROLE_ARN": "arn:aws:iam::PRIVATE_ACCOUNT:role/fixture-plan",
                    "BACKEND_ROLE_ID": expected_role_id,
                    "STATE_ACCOUNT_ID": "PRIVATE_ACCOUNT", "STATE_BUCKET": "PRIVATE_BUCKET", "STATE_KEY": state_key,
@@ -451,6 +452,20 @@ class PlanReadOnlySmokeTest(unittest.TestCase):
             summary_file = Path(env["GITHUB_STEP_SUMMARY"])
             summary = summary_file.read_text() if summary_file.exists() else ""
             return rc, http_calls, aws_calls, summary, stdout.getvalue() + stderr.getvalue()
+
+    def test_selected_integration_branch_same_sha_dev_identity_and_cross_branch_rejection(self):
+        rc, _, _, summary, output = self.run_smoke(source_branch="integration/mypage-canon-20261006")
+        self.assertEqual(rc, 0, output)
+        self.assertIn("PASS", summary)
+        for forbidden in ("main", "feature/gcp-terraform-iac"):
+            with self.subTest(branch=forbidden):
+                rc, _, _, _, output = self.run_smoke(source_branch=forbidden)
+                self.assertEqual(rc, 1)
+                self.assertNotIn("PRIVATE", output)
+        rc, _, _, _, output = self.run_smoke(source_branch="integration/mypage-canon-20261006",
+            claims_override={"workflow_ref": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev"})
+        self.assertEqual(rc, 1)
+        self.assertNotIn("PRIVATE", output)
 
     def test_plan_cli_exact_dev_read_allowlist_even_if_omitted_probes_would_succeed(self):
         rc, http, aws, summary, output = self.run_smoke()
@@ -1051,6 +1066,7 @@ urllib.request.urlopen = fake_urlopen
                     budget = receipt_fixtures.ACTUAL_EXECUTION_POLICY(json.dumps(evidence), fixture.env["GITHUB_SHA"], now=receipt_fixtures.NOW)
                     receipt.write_private(fixture.root / "history-plan-admission.json", budget)
                 fixture.env.update({
+                    "GITHUB_REF": "refs/heads/dev",
                     "GCP_SMOKE_SERVICE_ACCOUNT": "terraform-dev-plan@" + "test-youtube-study-space.iam.gserviceaccount.com",
                     "ACTIONS_ID_TOKEN_REQUEST_URL": "https://fixture.invalid/oidc?request=1",
                     "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "DUMMY_GITHUB_TOKEN",

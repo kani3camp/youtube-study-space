@@ -145,7 +145,7 @@ jobs:
       ownership_wave: ${{ steps.guard.outputs.ownership_wave }}
     steps:
       - name: Checkout trusted migration preflight source
-        if: ${{ startsWith(inputs.mode, 'migration-') && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && ((inputs.target == 'dev' && github.ref == 'refs/heads/dev') || (inputs.target == 'prod' && github.ref == 'refs/heads/main')) }}
+        if: ${{ startsWith(inputs.mode, 'migration-') && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && ((inputs.target == 'dev' && startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/feature/gcp-terraform-iac') || (inputs.target == 'prod' && github.ref == 'refs/heads/main')) }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -192,10 +192,20 @@ jobs:
             echo "::error::Authenticated Terraform only allows initial dispatches by the approved GitHub owner."
             exit 1
           }
-          # Exact target/ref pairing, before jobs can request OIDC or read secrets.
-          # No arbitrary-branch credentialed plan/apply. PR CI stays credentialless.
+          # Dev's branch allowlist is enforced by the GitHub Environment on
+          # each credentialed plan/apply job. Preflight checks the same-branch
+          # caller and immutable owner before any protected credentials exist.
+          # Prod remains main-only; deny tags, PR refs and the retired branch.
           case "${TARGET}" in
-            dev) expected_ref="refs/heads/dev" ;;
+            dev)
+              [[ "${GITHUB_REF:-}" =~ ^refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*$ &&
+                 "${GITHUB_REF}" != "refs/heads/main" &&
+                 "${GITHUB_REF}" != "refs/heads/feature/gcp-terraform-iac" ]] || {
+                echo "::error::Development requires a valid non-production branch ref."
+                exit 1
+              }
+              expected_ref="${GITHUB_REF}"
+              ;;
             prod) expected_ref="refs/heads/main" ;;
             *)
               echo "::error::Unknown Terraform target."

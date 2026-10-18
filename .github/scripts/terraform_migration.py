@@ -115,7 +115,11 @@ def run(args, *, cwd=None, env=None, codes=(0,), timeout=90):
 def context(env, role=None):
     target = env.get('MIGRATION_TARGET')
     need(target in PROJECTS and env.get('MIGRATION_MODE') in {'migration-plan', 'migration-apply'})
-    expected_ref = 'refs/heads/dev' if target == 'dev' else 'refs/heads/main'
+    expected_ref = env.get('GITHUB_REF', '') if target == 'dev' else 'refs/heads/main'
+    if target == 'dev':
+        need(isinstance(expected_ref, str)
+             and re.fullmatch(r'refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*', expected_ref) is not None
+             and expected_ref not in {'refs/heads/main', 'refs/heads/feature/gcp-terraform-iac'})
     exact = {
         'GITHUB_EVENT_NAME': 'workflow_dispatch',
         'GITHUB_REPOSITORY': 'kani3camp/youtube-study-space',
@@ -227,7 +231,7 @@ def verify_oidc(env):
         token = json.load(response)['value']
     part = token.split('.')[1]
     claims = decode(base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))
-    expected_ref = 'refs/heads/dev' if target == 'dev' else 'refs/heads/main'
+    expected_ref = env['GITHUB_REF'] if target == 'dev' else 'refs/heads/main'
     expected = {
         'repository_id': '340900071', 'repository_owner_id': '54093651',
         'environment': f'terraform-{target}-{role}',

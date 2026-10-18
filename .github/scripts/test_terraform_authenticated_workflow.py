@@ -147,9 +147,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
 
     def test_legacy_production_remains_closed_and_trusted_surface_is_fixed(self) -> None:
         self.assertIn('PROD_AUTHENTICATED_TERRAFORM_ENABLED: "false"', self.text)
-        self.assertIn('expected_ref="refs/heads/dev"', self.text)
+        self.assertIn('expected_ref="${GITHUB_REF}"', self.text)
         self.assertIn('expected_ref="refs/heads/main"', self.text)
-        self.assertNotIn("refs/heads/feature/gcp-terraform-iac", self.text)
+        self.assertIn("refs/heads/feature/gcp-terraform-iac", self.text)
         self.assertIn('GITHUB_REPOSITORY_ID}" == "340900071"', self.text)
         self.assertIn('GITHUB_REPOSITORY_OWNER_ID}" == "54093651"', self.text)
         self.assertIn('GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@${expected_ref}"', self.text)
@@ -522,31 +522,46 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     for key, value in denied.items():
                         self.assertNotEqual(self.run_preflight(**(env | {key: value})).returncode, 0, key)
 
-    def test_exact_branch_target_pair_rejects_cross_target_and_feature_before_auth(self) -> None:
-        prod_flags = {"PROD_AUTHENTICATED_TERRAFORM_ENABLED": "true",
-                      "PROD_EXECUTION_CONTRACT_READY": "true",
-                      "PROD_DEVELOPMENT_EXIT_READY": "true"}
-        for target, correct_branch in (("dev", "dev"), ("prod", "main")):
-            for branch in ("dev", "main", "feature/gcp-terraform-iac", "feature/unreviewed"):
-                with self.subTest(target=target, branch=branch):
-                    env = {"TARGET": target, "MODE": "plan",
-                           "GITHUB_REF": "refs/heads/" + branch,
-                           "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/" + branch}
-                    if target == "prod":
-                        env.update(prod_flags)
-                    got = self.run_preflight(**env)
-                    if branch == correct_branch:
-                        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
-                    else:
-                        self.assertNotEqual(got.returncode, 0)
-                        self.assertEqual(got.outputs, "")
-                        self.assertIn("Authenticated Terraform requires the target's reviewed CI caller", got.stdout)
-                        # A forged matching caller must not make a foreign ref acceptable.
-                        exact_caller = "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/" + correct_branch
-                        wrong_ref = self.run_preflight(**(env | {"GITHUB_WORKFLOW_REF": exact_caller}))
-                        self.assertNotEqual(wrong_ref.returncode, 0)
-                        self.assertEqual(wrong_ref.outputs, "")
-                        self.assertIn("Authenticated Terraform branch does not match its target", wrong_ref.stdout)
+    def test_dev_branch_refs_are_dynamic_but_cloud_credentials_require_environment_selection(self) -> None:
+        # This credentialless preflight deliberately cannot obtain the GitHub
+        # Environment allowlist. GitHub checks that when the protected job starts.
+        prod = {"PROD_AUTHENTICATED_TERRAFORM_ENABLED": "true",
+                "PROD_EXECUTION_CONTRACT_READY": "true",
+                "PROD_DEVELOPMENT_EXIT_READY": "true"}
+        for branch in ("dev", "integration/mypage-canon-20261006", "feature/unreviewed"):
+            ref = "refs/heads/" + branch
+            caller = "kani3camp/youtube-study-space/.github/workflows/ci.yml@" + ref
+            with self.subTest(dev_branch=branch):
+                allowed_preflight = self.run_preflight(TARGET="dev", MODE="plan",
+                    GITHUB_REF=ref, GITHUB_WORKFLOW_REF=caller)
+                self.assertEqual(allowed_preflight.returncode, 0, allowed_preflight.stdout + allowed_preflight.stderr)
+                mismatch = self.run_preflight(TARGET="dev", MODE="plan", GITHUB_REF=ref,
+                    GITHUB_WORKFLOW_REF="kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/other")
+                self.assertNotEqual(mismatch.returncode, 0)
+                self.assertEqual(mismatch.outputs, "")
+                self.assertIn("target's reviewed CI caller", mismatch.stdout)
+                cross_target = self.run_preflight(TARGET="prod", MODE="plan",
+                    GITHUB_REF=ref, GITHUB_WORKFLOW_REF=caller, **prod)
+                self.assertNotEqual(cross_target.returncode, 0)
+        for ref in ("refs/heads/main", "refs/heads/feature/gcp-terraform-iac",
+                    "refs/heads/", "refs/tags/v1", "refs/pull/12/merge", "refs/heads/bad@{ref}"):
+            with self.subTest(forbidden_dev_ref=ref):
+                denied = self.run_preflight(TARGET="dev", MODE="plan", GITHUB_REF=ref,
+                    GITHUB_WORKFLOW_REF="kani3camp/youtube-study-space/.github/workflows/ci.yml@" + ref)
+                self.assertNotEqual(denied.returncode, 0)
+                self.assertEqual(denied.outputs, "")
+        for ref in ("refs/heads/dev", "refs/heads/integration/mypage-canon-20261006",
+                    "refs/heads/feature/unreviewed"):
+            with self.subTest(forbidden_prod_ref=ref):
+                blocked = self.run_preflight(TARGET="prod", MODE="plan", GITHUB_REF=ref,
+                    GITHUB_WORKFLOW_REF="kani3camp/youtube-study-space/.github/workflows/ci.yml@" + ref,
+                    **prod)
+                self.assertNotEqual(blocked.returncode, 0)
+                self.assertEqual(blocked.outputs, "")
+        valid = self.run_preflight(TARGET="prod", MODE="plan",
+            GITHUB_REF="refs/heads/main",
+            GITHUB_WORKFLOW_REF="kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/main", **prod)
+        self.assertEqual(valid.returncode, 0)
 
     def test_untrusted_execution_is_rejected_before_any_authentication(self) -> None:
         for key, value in {
