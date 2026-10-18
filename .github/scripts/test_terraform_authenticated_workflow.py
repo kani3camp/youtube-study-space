@@ -28,6 +28,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         values.update(changes)
         values['MIGRATION_TARGET'] = values['TARGET']
         values['MIGRATION_MODE'] = values['MODE']
+        values['NORMAL_TARGET'] = values['TARGET']
+        values['NORMAL_MODE'] = values['MODE']
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / 'outputs'
             result = subprocess.run(['bash', '-c', script], cwd=ROOT,
@@ -42,7 +44,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn('name: Validate bounded existing-resource Terraform plan', self.text)
         self.assertIn('name: Validate bounded existing-resource Terraform apply', self.text)
         self.assertIn('description: Existing-resource adoption/no-op only (not general create/update)', self.text)
-        self.assertIn('description: Authenticated existing-resource Plan/Apply only (no general create/update)', self.caller)
+        self.assertIn('description: Authenticated Terraform (DEV native operations or existing-resource migration)', self.caller)
         self.assertNotIn('name: "Import-only migration plan', self.text)
         self.assertNotIn('name: "Import-only migration apply', self.text)
         # Keep the public dispatch values and fail-closed controller selectors stable.
@@ -76,7 +78,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(result.outputs, '')
         inputs = self.text.split('    # Explicit names', 1)[0]
-        self.assertEqual(re.findall(r'^      ([a-z_]+):', inputs, re.M), ['target', 'mode'])
+        self.assertEqual(re.findall(r'^      ([a-z_]+):', inputs, re.M), ['target', 'mode', 'expected_sha'])
         caller_inputs = self.caller.split('\npermissions:', 1)[0]
         self.assertNotRegex(caller_inputs, r'terraform_(history|current_state|ownership|plan_cost)')
 
@@ -106,7 +108,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
 
     def test_credentials_and_apply_require_independent_environments_and_preflight(self):
         jobs = dict(re.findall(r'^  ([a-z_]+):\n(.*?)(?=^  [a-z_]+:|\Z)', self.text.split('jobs:\n', 1)[1], re.M | re.S))
-        self.assertEqual(set(jobs), {'preflight', 'migration_plan', 'migration_apply'})
+        self.assertEqual(set(jobs), {'preflight', 'migration_plan', 'migration_apply', 'normal_plan', 'normal_apply'})
         self.assertNotIn('id-token: write', jobs['preflight'])
         self.assertNotIn('secrets.', jobs['preflight'])
         self.assertIn('needs: [preflight, migration_plan]', jobs['migration_apply'])

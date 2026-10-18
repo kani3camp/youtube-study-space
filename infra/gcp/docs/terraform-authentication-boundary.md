@@ -76,50 +76,42 @@ AWSのbranch wildcardを含むsubjectも独立したwildcard同士のbranch一�
 branch protectionはコード改変経路を制限し、Environment reviewは実行時の確認を加える別の制御です。
 owner自体の侵害や管理者による意図した設定変更を、これらだけで防げるとは主張しません。
 
-## 通常変更（create/update）への段階移行案（第1段階：offline-only実装）
+## DEVの通常Plan/Apply
 
-2026-10-18：`infra/gcp/scripts/terraform_normal_change_contract.py` と純粋なnegative-firstテストを追加しました。これらは **認証情報なし・クラウド呼出しなし・State操作なし** の専用プロトタイプです。既存`migration-*` 経路へは接続せず、実行許可を増やしません。
+`normal-plan` / `normal-apply` / `normal-e2e` を追加します。既存migration jobs/controller/contractは保持します。
+新controllerは `infra/gcp/scripts/terraform_normal_ops.py`、運用入口と設定手順は[README](../README.md#通常のdev-terraform開発)です。
+Cloud Run限定offline prototypeは認証付き経路から呼びません。リソース型・変更件数のallowlistはありません。
 
-現時点の検証器は、Terraform 1.16.4の`terraform show -json`形式、明示的にレビューした最大3件の`google_cloud_run_v2_service`作成・更新と、それ以外の既存no-opを照合します。確認できないdelete/replace/move/import、想定外のcreate/update、data read、drift、未承認output変更、未知のupdate値や不完全planは拒否します。公開出力は固定コードと件数のみで、値・address・Plan JSONを表示しません。
+| 境界 | 実装 |
+| --- | --- |
+| PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・`dev`固定・正確なexpected SHA・same-SHA caller/reusableをcredentials前に検査 |
+| Environment/OIDC | 既存DEV Plan/Apply EnvironmentとAWS backend roleを再利用。新規のDEV固定WIF poolと通常専用GCP SAを分離。旧providerと同poolを共有すると旧integration claimsから通常SAへ到達し得るため、poolも分離 |
+| 入力 | 既存private baselineのtfvarsへcommit-bound `normal.tfvars.json`を重ねる。manifestは通常変更の型/件数制限に使わない。projectはDEV固定 |
+| Plan | refresh付きfull-root native saved plan。Coreのcomplete/errored/checksとdriftを検査。create/updateのcomputed unknownはTerraformに委ねる |
+| delete/replace | commit内`normal-operations.json`のaddress/actions完全一致が必須。未使用指定も拒否。忘却操作・importは通常経路では拒否 |
+| Apply binding | 同runの独立Apply identityで同SHA/入力を再Plan。timestampだけを除く全Plan JSON、SHA、run ID、mode、入力、破壊的review、State本文/HEADをprivate keyのHMACで照合。30分の期限、未来時刻・欠落も拒否 |
+| saved plan | 新しく生成した一致Planだけを適用。公開artifactへの生Plan転送はしない。Apply直前にState/保存Planを再確認し、native S3 lockとCoreのstale-plan検査を使う |
+| State | DEV固定key、account制限、AES256、VersionId、lineage/serial、lock/workspace不在。State欠損時は停止し、自動初期化しない |
+| 事後確認 | lineage維持・serial単調増加、refresh付きfull-root no-op、State前後照合とlock解放。エラーを無視せず停止 |
+| 出力/cleanup | stdout/stderr/Plan/State/API例外はprivate runnerへ。公開は固定phaseと件数、HMAC/timeだけ。alwaysでprivate filesを削除。強制unlock/自動State巻戻しなし |
 
-初期review manifestの形（**以下はsynthetic例であり、実際の実行承認ではない**）：
+HMACは同runのPlan/Apply比較に限った小さな整合検査です。独自の発行サービス、durable receipt、
+承認台帳、履歴chain、per-resource attestationは作りません。
+Plan用SAにはリソースの読取りとmetadataだけ、Applyには限定したDEVリソース管理権限を準備します。
+新規リソース型を追加しても通常実行器の改修は不要です。未知の権限領域は同bootstrapの権限審査で扱います。
+公式の[S3 locking](https://developer.hashicorp.com/terraform/language/backend/s3)と
+[saved-plan apply](https://developer.hashicorp.com/terraform/cli/commands/apply)を基本にします。
 
-```json
-{
-  "schema_version": "gcp-normal-change-review-v1",
-  "environment": "dev",
-  "changes": [
-    {
-      "address": "module.mypage.google_cloud_run_v2_service.api",
-      "type": "google_cloud_run_v2_service",
-      "action": "create"
-    }
-  ]
-}
-```
+### 実設定・検証状況（2026-10-19 JST）
 
-検証は`python3 -B infra/gcp/tests/test_terraform_normal_change_contract.py` で実行し、`ci.yml`のcredentialless GCP Terraform Validateにも登録しています。実Plan JSONとmanifestを外部ファイルに置いた場合は`python3 infra/gcp/scripts/terraform_normal_change_contract.py --plan <private-plan.json> --review <private-review.json>`で読み取りだけ行います。生Planとmanifestには実ID・秘密値が含まれ得るためpublic artifactへ公開しません。
-
-**未実装の安全条件**：review manifestとGitHubの承認済みSHAの結合、HCL/metadata/Stateと全resource graphの厳密検証、create/updateの値・変更属性・未知値のreview、Dev専用のcredentialed Plan/ApplyとGCP最小IAM、アカウント分離・復旧・費用評価。このoffline検証成功だけでクラウド実行は許可しません。最終的なPlan/Apply提供には、これらの条件を別レビューで実装する必要があります。
-
-### 次の実装境界
-
-現在のGitHub Actionsジョブ表示名は `Terraform Existing Resources Plan/Apply` とします。旧表示名の `Import-only migration ...` は利用者に古い移行工程と誤解させるため更新しますが、**`migration-plan` / `migration-apply` は当面、認証済みコントローラーの内部モードとして残す**方針です。表示変更のみで動作対象やGCP IAMが拡張されたと解釈しません。
-
-既存の `terraform_migration_contract.py` は全resourceの既存no-opと限定import、観測値だけのState同期を検証する専用契約です。ここから `create/update` 禁止条件を削って一般用に転用すると、検証済みの安全境界を壊すため行いません。以下は次期実装の受入条件であり、現時点では**実行不可**です。
-
-1. **設計とPR**：MyPage等で必要なresource type、Terraform root／module、依存関係、dev/prodの差分、create/update許容対象、想定費用、rollbackを[MyPage基盤 #864](https://github.com/kani3camp/youtube-study-space/issues/864)と[Terraform移行 #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)に照らして別PRでレビューする。既存31/30 resourceを無関係な更新に巻き込まない。
-2. **独立実行経路**：通常変更用のPlanとApplyの入口・実行契約を新設し、当初はDevの非認証offline fixture／credentialless Terraform validateのみ通す。現在のimport専用ルート、`migration-*` selectors、State・Secretsを変更しない。切替を示す明示的なdispatch inputとdefault-off gateを設け、PR/forkへのcredential配布を禁止する。
-3. **認証と権限**：本人の初回dispatch、同一SHA caller/reusable、trusted branchとEnvironment制限、AWS backend Plan/Apply別role、GCP WIF/Service Account別identityを保持する。create/updateに必要なGCP IAM permissionは**管理するresource typeと個別操作を列挙して最小化**し、既存のread-only/import-only identityへ一括で権限を追加しない。最初は非破壊的な小さなresourceに限定する。
-4. **差分とApplyの保護**：Planでcreate/updateとresource address・属性変化・依存graphをレビューし、初期契約でdelete/replace・IAM policy全体の上書き・秘密値のログ出力・未承認resource typeを拒否する。PlanとApplyは独立Environmentと権限、同一review済みcommit・inputs・State/metadata・planの整合を確認する。Apply直前の再plan、S3 versioning/native lock、失敗時の復旧とpost-apply再検証を必須とする。
-5. **実証と段階拡張**：credentialless negative/contract/native試験、CodeQL/CIを通し、**明示的な本人承認後に限り**GitHub Environment／AWS IAM／GCP WIF／SA IAMの実値readbackと限定Dev認証Plan、必要時のApply実証を行う。本番はDevの実証後に別途通常リリースと最小権限審査で開放する。
-6. **最終的な名称統一**：一般用Plan/Applyの実行成功と旧consumerの参照廃止が確認できてから、内部`migration-plan` / `migration-apply` を退役・統一する。既存import専用契約を運用中に無条件で緩和しない。
-
-この段階では表示名と設計文書の変更だけで、Terraform HCL、内部job ID、mode値、OIDC claims、IAM／Environment／State、workflow実行は変更しません。
-
-## リリース前の残件
-
-本人によるdev向けPRの最終review/merge、通常のdev→main昇格、実際のIAM/WIF/SA IAM/Environmentとの整合readbackが必要です。
-認証付きのnegative/read-only Plan、必要なApplyとState/no-op検証は、別途許可された運用作業として実施します。
-このPRではcredentialed dispatch/Plan/Apply、State/クラウド/GitHub保護設定の変更を行いません。
-MyPage create/updateの実行契約と最小権限、recovery #1165、durable audit #1166、privacy #983は引き続き別課題です。
+- GitHubの最新dev `98fc225c` / main `68dfb342` と指定Issue/PRを直接確認。
+- DEV2 Environmentのselected branchesはdev/既存MyPage統合branch。通常経路は独立preflightと新WIFでdevだけに限定する設計。
+- AWS State管理アカウントへの接続、DEV backend roleのState/lock分離、Versioning、AES256、全Public Access Blockを実readback。
+- GCP既存login、DEV project、旧WIFのimmutable ID/actor/event/ref/same-SHA条件、旧SAのread-only権限を確認。
+- 自動承認レビューはState本文のAWSコネクタ取得と、通常用IAM/WIF/Environment設定を拒否した。
+  State本文はコネクタで取得せず、HEADだけを確認した。設定スクリプトのread-only `--check`は成功。
+  新規IAM/WIF/Environment値は**未設定**で、通常Plan/Applyの実成功とは扱わない。
+- 正規dev `98fc225c` の[実run39144216181](https://github.com/kani3camp/youtube-study-space/actions/runs/39144216181)は認証・Plan・cleanup成功。managed31 / no-op31 / import0 / mutation0 / raw drift0。新通常identityでの実証ではない。
+- 最終PRのdevマージ前は通常経路を起動できない。本人マージ後の単一`normal-e2e`で
+  既存no-op、create/update/replace/delete、事後no-op、lock解放をまとめて検証する。
+- Productionの通常操作、MyPage provisioning、#1165/#1166/#983は今回の実行対象外。

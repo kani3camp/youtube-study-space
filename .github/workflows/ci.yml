@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       terraform_authenticated:
-        description: Authenticated existing-resource Plan/Apply only (no general create/update)
+        description: Authenticated Terraform (DEV native operations or existing-resource migration)
         required: false
         default: false
         type: boolean
@@ -18,13 +18,20 @@ on:
           - dev
           - prod
       terraform_mode:
-        description: Existing-resource Plan/Apply (migration-* are current protocol selectors)
+        description: DEV normal-plan/normal-apply/normal-e2e; migration-* retain import-only behavior
         required: false
         default: migration-plan
         type: choice
         options:
           - migration-plan
           - migration-apply
+          - normal-plan
+          - normal-apply
+          - normal-e2e
+      terraform_expected_sha:
+        description: Exact dev commit SHA required for normal operations
+        required: false
+        type: string
       gcp_user_activity_schema_audit:
         description: Run the fail-closed development user-activity schema audit
         required: false
@@ -144,6 +151,7 @@ jobs:
           python3 .github/scripts/test_terraform_baseline_drift_diagnostic.py
           python3 infra/gcp/tests/test_runtime_plan_contract.py
           python3 -B infra/gcp/tests/test_terraform_normal_change_contract.py
+          python3 -B infra/gcp/tests/test_terraform_normal_ops.py
           python3 .github/scripts/test_terraform_quota_create_gate.py
           python3 .github/scripts/test_terraform_quota_refresh_gate.py
           python3 .github/scripts/test_terraform_export_topic_gate.py
@@ -180,6 +188,9 @@ jobs:
       - name: Test quota alert mock plans and import-only boundary
         run: python3 -B .github/scripts/run_terraform_native_tests.py --workers 2
 
+      - name: Test native normal Terraform CRUD against loopback only
+        run: python3 -B infra/gcp/tests/test_terraform_normal_ops_native.py
+
       - name: Verify multi-platform provider locks are complete
         run: |
           set -euo pipefail
@@ -204,6 +215,8 @@ jobs:
       id-token: write
     uses: ./.github/workflows/gcp-terraform-authenticated.yml
     secrets:
+      GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
+      GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
       AWS_TERRAFORM_BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
       AWS_TERRAFORM_BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
       AWS_TERRAFORM_STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
@@ -214,6 +227,7 @@ jobs:
     with:
       target: ${{ inputs.terraform_target }}
       mode: ${{ inputs.terraform_mode }}
+      expected_sha: ${{ inputs.terraform_expected_sha }}
 
   gcp-user-activity-schema-audit:
     name: GCP User Activity Schema Audit

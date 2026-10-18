@@ -6,22 +6,96 @@ YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをT
 
 設計上の正本はNotion「GCP Terraform / IaC移行」、実装・CI・import状態の正本はこのrepository / GitHubです。
 
-## 現行の運用範囲（2026-10-18）
+## 通常のDEV Terraform開発
 
-PR #1373では独自Attestation/Ownership Receipt/issuer catalog/期限付き証跡と旧認証入口を撤廃し、
-`migration-plan` / `migration-apply`へ一本化します。[依存調査・維持する安全機構・GitHub実設定と保護提案](docs/terraform-authentication-boundary.md)を参照してください。
-現在のStateとクラウドmetadata、full-root plan、native lockingの検査は継続します。
-過去の証跡を新たな実行の承認根拠には使いません。
+`ci.yml` の本人による初回 `workflow_dispatch` で `terraform_authenticated=true`、
+`terraform_target=dev`、`terraform_mode=normal-plan` / `normal-apply` を選択します。
+`terraform_expected_sha` には実行する `dev` の40桁HEADを指定します。
+PR/fork、他branch、再実行、Productionの通常操作は認証前に拒否します。
+`normal-apply` は同じrunで独立Plan job→Apply jobを実行します。
 
-現行運用はDev31件・Prod30件の固定baselineのfull-root監査planと、承認済みimport/no-op・State-only saved applyを扱う [`migration-plan` / `migration-apply`](docs/runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)です。
+1. 最新`dev`からPRを作り、`environments/dev/`へ通常のHCLを追加・変更する。
+2. 新しい非秘密入力は `normal.tfvars.json` に追加する。既存Environmentのprivate tfvarsを読み、
+   このcommitのファイルで上書きするため、既存リソースの選択・private inventoryを落とさない。
+   秘密値はコミットしない。新しいprivate入力は両DEV Environmentのmanaged入力を同じ内容へ更新する。
+3. delete/replaceが必要なら、同じPRの `normal-operations.json` に正確なaddressとactionsを記載する。
+   create/updateにはリソース別manifestやtype登録を要求しない。
+4. PRのcredentialless CIと差分を確認し、本人が`dev`へマージする。
+5. ActionsのCI画面で`dev`・そのSHA・`normal-plan`を指定し、実差分の件数を確認する。
+6. 適用する場合は同じSHAで`normal-apply`を新規dispatchする。
+   これは新しいPlanを作り、Apply identityの再Plan・State/SHA/入力一致を検査してsaved planを適用する。
+7. `GCP_NORMAL: PASS; role=apply` と事後full-root no-opを確認する。
+   破壊的変更のレビュー指定は次のPRで削除する。未使用の指定も拒否される。
 
-将来の一般create/update用には認証経路へ未接続の[offline検証器](scripts/terraform_normal_change_contract.py)とnegative-firstテストを追加しました（Cloud Run v2のみ、Dev向け、実行権限なし）。これを利用したPlan/Applyは**まだ起動できません**。
+破壊的変更の例（削除順を含めてTerraform Planと完全一致が必要）:
 
-GitHub Actionsのジョブ表示名は `Terraform Existing Resources Plan/Apply` とします。`terraform_mode` の `migration-plan` / `migration-apply` は既存の認証・失敗時拒否契約に結びついた内部選択値のため、今回変更しません。**新規resource作成・既存resourceの通常update/deleteは不可**です。一般的なTerraform変更を扱う次期経路は[認証境界の段階移行案](docs/terraform-authentication-boundary.md)に分離して整理しています。
-入口は既存 `ci.yml` の本人初回 `workflow_dispatch`です。Devは各Environmentの選択branch、Prodは`main`だけを許可します。
-両環境の最終実行・検証証跡は実証Source H7（`0ed7486b`）に紐付きます。PR #1251の`dev`マージと最終Sourceの扱いを含む実績は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191#issuecomment-6233630058)を参照してください。現在のcommitで同じTerraformを再実行した証拠とは扱いません。
-GitHub管理APIで全4 Terraform EnvironmentのRequired reviewersなし・選択branch制限を確認しました。plan/apply identityは分離され、現在は人間の承認待ちを必須にしていません。
-旧issuer、期限付きwindow、毎回のEnvironment人間承認は現行経路へ戻しません。`dev`へのmerge・直接push・auto-mergeは行わず、最終mergeはユーザー本人だけが行います。
+```json
+{
+  "destructive_changes": {
+    "google_pubsub_topic.retiring": ["delete"],
+    "google_pubsub_topic.replaced": ["delete", "create"]
+  }
+}
+```
+
+認証境界・State整合検査は[実行契約](docs/terraform-authentication-boundary.md#devの通常planapply)を参照してください。
+S3 native lockingとVersioning、環境別concurrencyを継続し、workspace・target apply・force-unlockは使いません。
+raw Plan/State/Secret/API応答はログ・artifactへ公開しません。公開結果は固定phaseと操作件数です。
+変更値はHCL/入力のレビューで確認し、秘密値を含む生Planが必要な障害調査はprivateな管理端末で行います。
+
+### 一回限りのDEV基盤設定
+
+`bootstrap_normal_ops.py --check` はGCPの現行ロール定義を読み、予定権限だけを表示します。
+設定実行は `python3 infra/gcp/scripts/bootstrap_normal_ops.py` です。
+既存のGCP管理login、GitHub Environment secret管理権限が必要です。長期鍵は作りません。
+途中失敗時も同じコマンドを再実行でき、各設定はreadbackで検査します。
+
+- 既存AWS Plan/Apply backend role・DEV key/lock・2 Environmentを再利用する。
+- GCPに通常専用Plan/Apply SA、DEV固定`terraform-normal` WIF pool/provider、
+  リソース管理用カスタムロール2個を作る。既存migration SA/WIFは変更しない。
+- 両DEV Environmentに `GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT` /
+  `GCP_TERRAFORM_NORMAL_WIF_PROVIDER` を設定する。既存managed入力はそのまま使う。
+- Cloud Run/Functions、Scheduler、Pub/Sub、Artifact Registry、Storage bucket、BigQuery構成、
+  Monitoring、Logging、Secret metadata、API有効化、SAの作成/更新/削除をまとめて準備する。
+  権限は現在の公式role catalogと明示的な資源/操作の共通部分から作る。型別の実行器は不要。
+- データ本文の読書き、SA鍵、token発行、project IAM、WIF管理は通常SAへ付与しない。
+  Secret本文、Storage object内容、BigQueryデータ操作は専用の権限審査対象。
+  IAM管理のためだけに通常SAへOwner/Editorを付与しない。
+- Cloud Run等の実行SAには、project権限なしの共通 `terraform-dev-workload` を準備し、
+  通常Apply SAの`actAs`だけを当該SA上で許可する。業務別のruntime権限は別の明示的なIAM変更。
+
+2026-10-19の初回設定は自動承認レビューに拒否され、**未反映**です。
+読み取り専用`--check`は成功し、予定権限はPlan88／Apply176でした。
+権限数は固定仕様ではありません。実設定成功の`BOOTSTRAP: PASS`後に以下の実証を行ってください。
+GitHub Secretは値を読み戻せないため名前の存在を確認し、実値の動作確認はActions認証で行います。
+
+### 一回のDEV実証
+
+基盤設定と本人の最終`dev`マージ後、CIを `normal-e2e`、`dev`、その正確なHEAD SHAで1回dispatchします。
+既存rootがno-opのときだけ、runnerのprivate source copyに一時的なDEV Pub/Sub topicを追加し、
+create→ラベルupdate→名前replace→deleteを実行します。各段階は対象topicだけの変更を要求し、
+saved plan Apply・full-root no-op・lock解放を検証します。既存業務リソースはテスト用に変更しません。
+最後に元のState resourcesと一致することを検査します。State serial/versionは正常に進みます。
+MyPageのHCL・専用Stateを扱いません。
+
+通常操作は`dev`固定のため、最終PRのマージ前に作業branchからこの実証を起動することはできません。
+Environment/WIFの保護を緩めず、最終`dev`マージは本人が実施します。
+E2Eが中途失敗した場合は、そのrunのprobeだけの削除Planで復旧を試みます。
+他リソースの差分・lock・認証失敗があれば停止します。自動force-unlockやStateの復元はしません。
+probeが残った場合は新しいE2Eを起動せず、State内の `google_pubsub_topic.normal_ops_probe` をprivate端末で確認し、
+同じtopic名・projectのHCLを一時的にDEV rootへ宣言して通常Planをno-opに戻します。
+その後、HCL削除と明示的delete reviewを通常PRで適用し、no-opを確認してからE2Eを再実行します。
+
+## 既存import専用経路と移行実績
+
+`migration-plan` / `migration-apply` は既存baselineのimport/no-op専用として保持します。
+独自Attestation/Ownership Receiptは再導入しません。
+通常経路はこのimport-only制限を解除しておらず、controller/contract/job本文も変更しません。
+DEVでbaseline外のHCL/Stateを追加した後は、固定manifestのmigration経路が拒否する場合があります。
+その場合は通常経路で運用し、legacy contractを緩めません。Productionは引き続きmainの既存経路だけです。
+PR #1380のCloud Run限定offline検証器は過去試作の回帰用として保持し、通常実行からは呼びません。
+
+以下の31/30件は移行時の実測です。現在の件数は新しい実Plan結果で確認し、履歴を現在の成功と読み替えません。
 
 | 環境 / 対象 | 実際に確認した範囲 | 証拠の境界・別判断 |
 | --- | --- | --- |
@@ -39,8 +113,9 @@ Stateの初回作成はProductionの正規不在・manifest0だけに許す固�
 [Production runbook](docs/production-readiness.md#current-execution-boundary--2026-10-17)、
 [Infrastructure / MyPage ReadyGate](docs/phase2-approval-and-readiness.md#development--production--mypage-readygate)に集約します。
 TerraformによるIaC拡張の準備と、MyPage固有resourceのprovisioning・Production releaseは別判定です。
-新規resourceは専用normal-change PRでtype/schema、create/update専用の実行経路・検証契約、exact IAM/API、費用・rollbackを整えます。HCLや権限の追加だけでは現migration経路から作成できず、import-only契約は維持します。
-実際のcloud trustとの整合は別途readbackが必要です。今回のsource更新だけではcutover完了と判定しません。
+新規resourceは通常のDEV PRとnative Plan/Applyを使います。新しい資源領域で権限不足となった場合は、
+権限カタログをレビューして同じbootstrapで更新し、認証基盤や実行器を作り直しません。
+MyPage固有の資源・独立Stateはその専用統合branchで管理し、二重ownershipを作りません。
 
 今回、過去raw-chat/混在backup削除、通知修復、CloudTrail継続課金、MyPage provisioningは行いません。
 [recovery運用 #1165](https://github.com/kani3camp/youtube-study-space/issues/1165#issuecomment-6223368027)、
@@ -73,7 +148,7 @@ CodeQLのintegration refには未解決finding6件（critical1/high3/medium2）�
 | `modules/` | 管理対象の共通Terraform modulesと既存リソース契約 |
 | `scripts/`、`tests/` | 現行の設定検証、offline準備、negative / native fixtureテスト |
 | `docs/` | 復旧・運用・準備判定の既存runbook。現行の判断入口は以下のリンク |
-| `.github/scripts/terraform_migration.py`、`terraform_migration_contract.py` | 通常の固定baseline import-only plan/apply実行・拒否契約 |
+| `.github/scripts/terraform_migration.py`、`terraform_migration_contract.py` | 既存baseline import-only実行・拒否契約（通常CRUDは`infra/gcp/scripts/terraform_normal_ops.py`） |
 | `.github/workflows/ci.yml`、`gcp-terraform-authenticated.yml` | credentialless PR CIと保護された本人起動の運用経路 |
 
 古い実行ツールと旧windowの入口は現行treeに残しません。過去のコード、テスト、個別runbookの内容は[固定移行コミット](https://github.com/kani3camp/youtube-study-space/tree/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908)から確認できます。
