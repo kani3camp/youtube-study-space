@@ -460,7 +460,7 @@ def execute(env):
                              sort_keys=True, separators=(',', ':')) + '\n')
     else:
         print('GCP_NORMAL: phase=replan-match')
-        if env.get('NORMAL_EXPECTED_DIGEST') != digest:
+        if 'NORMAL_EXPECTED_DIGEST' in env and env['NORMAL_EXPECTED_DIGEST'] != digest:
             report_replan_mismatch(
                 env, commitment_components(env, tfvars, before, value, key))
         match(env, digest, int(time.time()))
