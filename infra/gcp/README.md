@@ -83,6 +83,8 @@ GitHub Secretは値を読み戻せないため名前と更新時刻を確認し�
 ```bash
 python3 infra/gcp/scripts/enable_normal_integration.py          # read-only trust check
 python3 infra/gcp/scripts/enable_normal_integration.py --apply  # AWS/GCP/GitHub 3系統の限定変更+readback
+# まとめて実行したい場合（統合ブランチに本PRがマージ・CI成功した後だけ）:
+python3 infra/gcp/scripts/enable_normal_integration.py --apply --dispatch-e2e
 ```
 
 AWS role / GCP WIF / GitHub Environmentの実値が想定と異なる場合は**先にSTOP**して現在値を調査してください。
@@ -90,6 +92,7 @@ AWS role / GCP WIF / GitHub Environmentの実値が想定と異なる場合は**
 Terraform State、DEV business resources、Production、IAM permission grantsには触れません。
 この運用スクリプトは現行の選択branch policyを変更せず、統合branchの明示追加だけを行います。
 
+一括オプション `--dispatch-e2e` はGitHubで統合branchの必須CI成功と実行者IDをreadbackしてから本人の新規dispatchを1回行います（E2E完了までは判定しない）。
 外部信頼条件が整った後、CIを `normal-e2e`、branch `integration/gcp-terraform-normal-ops`、
 その正確な40桁HEAD SHAで**一度新規dispatch**します。失敗runのRe-runは拒否されます。
 既存rootがno-opのときだけ、runnerのprivate source copyに一時的なDEV Pub/Sub topicを追加し、
