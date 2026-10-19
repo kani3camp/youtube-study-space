@@ -75,14 +75,17 @@ GitHub Secretは値を読み戻せないため名前と更新時刻を確認し�
 
 ### 専用統合ブランチでの認証付きE2E
 
-一度だけDEVの既存AWS backend trust・GCP通常WIF・GitHubのDEV Plan/Apply Environmentを、`dev`と
-`integration/gcp-terraform-normal-ops`の**正確な2 refだけ**に整合させます。
+AWS DEV backend Roleは既存の7 claimsカスタムsubjectを read-only connector で実確認済みであり、
+移行用workflowと共有しているため**AWS trustを変更しません**。
+通常Terraformの実行refを `dev` と `integration/gcp-terraform-normal-ops` の2本に制限する
+変更は、専用GCP WIFとGitHubのDEV Plan/Apply Environmentで行います。
 `infra/gcp/scripts/enable_normal_integration.py` はread-only事前確認が既定で、
-`--apply` は既存認証済み管理端末（AWS State account SSO、GCP DEV gcloud、GitHub gh admin）から一回実行します。
+`--apply` は認証済み管理端末（GCP DEV gcloud、GitHub gh admin）から実行します。
+**ローカルAWS CLIのSSO Profileを作る必要はありません**。
 任意branchを許可しません。既存migration/Production identityの権限は変更しません。
 ```bash
-python3 infra/gcp/scripts/enable_normal_integration.py          # read-only trust check
-python3 infra/gcp/scripts/enable_normal_integration.py --apply  # AWS/GCP/GitHub 3系統の限定変更+readback
+python3 infra/gcp/scripts/enable_normal_integration.py          # GCP/GitHubのread-only事前確認
+python3 infra/gcp/scripts/enable_normal_integration.py --apply  # GCP/GitHubの限定変更+readback
 # まとめて実行したい場合（統合ブランチに本PRがマージ・CI成功した後だけ）:
 python3 infra/gcp/scripts/enable_normal_integration.py --apply --dispatch-e2e
 ```
@@ -94,11 +97,15 @@ python3 infra/gcp/scripts/enable_normal_integration.py --apply --dispatch-e2e
 通常操作を2 refに限定するのはcontroller・GCPの独立WIFとGitHubのEnvironment policyです。
 想定外のwildcard、repo/claim変更、default OIDC subjectは拒否します。
 
-AWS role / GCP WIF / GitHub Environmentの実値が想定と異なる場合は**先にSTOP**して現在値を調査してください。
+AWS IAMを実行時にも検証したい場合だけ、認証済みAWS CLIから `--verify-aws` を追加できます。
+これは読取のみで、IAMの変更は行いません。既存のAWS IAMに変更があった場合は、
+IAM trustの実値再確認を行ってください。変更後のtrustが不適切ならGitHub Actionsの
+AWS backend認証は失敗してStateへの書込みは行いません。
+GCP WIF / GitHub Environmentの実値が想定と異なる場合は**先にSTOP**して現在値を調査してください。
 失敗時は `NORMAL_INTEGRATION: STOP; phase=<検証段階>` の固定分類だけを表示します。
 AWS/GCP CLIエラーの生ログ・認証情報は表示しません。
-`--apply`はAWS IAM Trust、GCP WIF attribute condition、GitHub Environmentのbranch policyだけを変更し、
-Terraform State、DEV business resources、Production、IAM permission grantsには触れません。
+`--apply`はGCP WIF attribute conditionとGitHub Environmentのbranch policyだけを変更し、
+AWS IAM Trust/permissions、Terraform State、DEV business resources、Productionには触れません。
 この運用スクリプトは現行の選択branch policyを変更せず、統合branchの明示追加だけを行います。
 
 一括オプション `--dispatch-e2e` はGitHubで統合branchの必須CI成功と実行者IDをreadbackしてから本人の新規dispatchを1回行います（E2E完了までは判定しない）。

@@ -250,24 +250,35 @@ def main():
                         help="Apply exact DEV integration trust; default is read-only inspection")
     parser.add_argument("--dispatch-e2e", action="store_true",
                         help="After verified --apply, dispatch one DEV normal-e2e from the reviewed integration SHA")
+    parser.add_argument("--verify-aws", action="store_true",
+                        help="Optional read-only AWS role audit; requires an authenticated AWS CLI. No IAM changes.")
     flags = parser.parse_args()
     need(not flags.dispatch_e2e or flags.apply)
-    PHASE = "aws_identity"
-    caller = aws("sts", "get-caller-identity")
-    need(isinstance(caller.get("Account"), str))
-    PHASE = "aws_roles"
-    aws_roles = aws("iam", "list-roles")
-    need(isinstance(aws_roles.get("Roles"), list) and not aws_roles.get("IsTruncated"))
-    roles = eligible_roles(aws_roles["Roles"])
+    if flags.verify_aws:
+        PHASE = "aws_identity"
+        caller = aws("sts", "get-caller-identity")
+        need(isinstance(caller.get("Account"), str))
+        PHASE = "aws_roles"
+        aws_roles = aws("iam", "list-roles")
+        need(isinstance(aws_roles.get("Roles"), list) and not aws_roles.get("IsTruncated"))
+        roles = eligible_roles(aws_roles["Roles"])
+        PHASE = "aws_trust_preflight"
+        for kind, role in roles.items():
+            need(caller["Account"] in role["Arn"])
+            document = role["AssumeRolePolicyDocument"]
+            if isinstance(document, str):
+                document = json.loads(unquote(document))
+            # Auditing only: normal setup never changes these shared backend roles.
+            need(extended_trust(document, kind) == document)
+        print("NORMAL_INTEGRATION: AWS_TRUST_READBACK_PASS; no mutation")
+    else:
+        # Verified independently through the connected Terraform State AWS account:
+        # pre-existing DEV role trusts already accept the exact 7-claim
+        # refs/heads/* subject. We never write AWS IAM here. If trust changes,
+        # GitHub Actions will fail closed when assuming its backend role.
+        print("NORMAL_INTEGRATION: AWS_CLI_NOT_REQUIRED; AWS_IAM_MUTATION=0")
     PHASE = "github_oidc_template"
     verify_oidc_template()
-    PHASE = "aws_trust_preflight"
-    for k, role in roles.items():
-        need(caller["Account"] in role["Arn"])
-        document = role["AssumeRolePolicyDocument"]
-        if isinstance(document, str):
-            document = json.loads(unquote(document))
-        role["desired_trust"] = extended_trust(document, k)
     PHASE = "gcp_wif_preflight"
     provider = provider_details()
     check_provider(provider)
@@ -275,20 +286,14 @@ def main():
     gh_envs = {kind: branch_policies(kind) for kind in ("plan", "apply")}
     for _, pol in gh_envs.values():
         integration_present(pol)
-    print("NORMAL_INTEGRATION: PASS; phase=preflight; target=DEV; roles=2; environments=2")
+    print("NORMAL_INTEGRATION: PASS; phase=preflight; target=DEV; environments=2; AWS_IAM_MUTATION=0")
     if not flags.apply:
         print("NORMAL_INTEGRATION: CHECK_ONLY; rerun with --apply to change exact DEV trust")
         return
-    PHASE = "aws_trust_update"
-    for kind, role in roles.items():
-        document = role["desired_trust"]
-        previous = role["AssumeRolePolicyDocument"]
-        if isinstance(previous, str):
-            previous = json.loads(unquote(previous))
-        if document != previous:
-            aws("iam", "update-assume-role-policy", "--role-name",
-                role["RoleName"], "--policy-document", json.dumps(document, separators=(",", ":")))
-        verify_role_readback(role["RoleName"], role["RoleId"], document)
+    # Existing AWS backend roles are shared by migration and normal flows.
+    # Do not alter their trust, permissions, or state merely to add an
+    # integration branch. Only GCP WIF and GitHub deployment restrictions
+    # are adjusted below.
     PHASE = "gcp_wif_update"
     if provider["attributeCondition"] != config.CONDITION:
         gcloud("iam", "workload-identity-pools", "providers", "update-oidc", "github-actions",
@@ -305,7 +310,7 @@ def main():
                "-H", "Accept: application/vnd.github+json",
                "--input", "-", data={"name": BRANCH})
         need(integration_present(branch_policies(kind)[1]))
-    print("NORMAL_INTEGRATION: PASS; AWS/GCP/GitHub DEV-only trust readback verified")
+    print("NORMAL_INTEGRATION: PASS; GCP/GitHub DEV trust readback verified; AWS not modified")
     print("NORMAL_INTEGRATION: Production, State and role resource grants untouched")
     if flags.dispatch_e2e:
         PHASE = "github_dispatch_preflight"

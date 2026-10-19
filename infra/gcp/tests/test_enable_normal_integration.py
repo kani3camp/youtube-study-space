@@ -150,9 +150,41 @@ class IntegrationTrustTest(unittest.TestCase):
             with self.assertRaises(op.Stop):
                 op.extended_trust(candidate, kind)
 
+    def test_aws_profile_is_optional_and_setup_never_calls_aws(self):
+        # Existing shared AWS backend trust was verified independently.
+        # Local gcloud and gh credentials are sufficient for setup.
+        provider = {"state": "ACTIVE",
+                    "oidc": {"issuerUri": "https://token.actions.githubusercontent.com"},
+                    "attributeMapping": bootstrap.MAPPING,
+                    "attributeCondition": bootstrap.CONDITION}
+        policies = {"total_count": 2, "branch_policies": [
+            {"name": "dev", "type": "branch"},
+            {"name": op.BRANCH, "type": "branch"}]}
+        def read_github(*args, **kwargs):
+            address = args[0]
+            if address.endswith("/actions/oidc/customization/sub"):
+                return {"use_default": False, "include_claim_keys": list(op.CLAIM_KEYS)}
+            if address.endswith("/deployment-branch-policies?per_page=100"):
+                return policies
+            return {"deployment_branch_policy": {"custom_branch_policies": True,
+                                                  "protected_branches": False}}
+
+        with patch.object(op, "aws", side_effect=AssertionError("AWS must not run")), patch.object(
+                op, "gcloud", return_value=provider), patch.object(
+                op, "gh", side_effect=read_github), patch.object(
+                sys, "argv", ["bootstrap", "--apply"]):
+            op.main()
+
+    def test_aws_audit_explicitly_requires_local_identity(self):
+        with patch.object(op, "aws", side_effect=op.Stop("session expired")), patch.object(
+                sys, "argv", ["bootstrap", "--verify-aws"]):
+            with self.assertRaises(op.Stop):
+                op.main()
+            self.assertEqual(op.PHASE, "aws_identity")
+
     def test_stop_phase_is_fixed_and_never_includes_private_cli_data(self):
         with patch.object(op, "aws", side_effect=op.Stop("PRIVATE_CANARY")), patch.object(
-                sys, "argv", ["bootstrap", "--apply"]):
+                sys, "argv", ["bootstrap", "--verify-aws"]):
             with self.assertRaises(op.Stop):
                 op.main()
             self.assertEqual(op.PHASE, "aws_identity")
