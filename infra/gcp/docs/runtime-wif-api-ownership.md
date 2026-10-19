@@ -1,6 +1,6 @@
 # GCP Terraform 定常Plan/Applyとruntime WIF / API ownership
 
-> 現行の認証付き入口は `migration-plan` / `migration-apply` のみです。[撤廃調査と認証境界](terraform-authentication-boundary.md)を参照してください。
+> この文書は `migration-plan` / `migration-apply` の既存import専用経路を扱います。通常CRUDは[README](../README.md#通常のdev-terraform開発)、共通の保護は[認証・実行境界](terraform-authentication-boundary.md)を参照してください。
 
 ## 定常Plan/Applyへの移行（2026-10-16）
 

@@ -1,8 +1,6 @@
 # GCP Terraform
 
-> 2026-10-18: #1251のdevマージ後、完了済みの一回限りの補助コード・旧手順書を退役。証跡は[固定コミット](https://github.com/kani3camp/youtube-study-space/tree/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp)と[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191#issuecomment-6244637630)に保持します。
-
-YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをTerraform管理するためのrootと運用入口です。移行時の個別判断は後半の固定履歴を参照してください。
+YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをTerraform管理するためのrootと運用入口です。実行結果や導入時の判断は[変更履歴](#実行記録と変更履歴)を参照してください。
 
 設計上の正本はNotion「GCP Terraform / IaC移行」、実装・CI・import状態の正本はこのrepository / GitHubです。
 
@@ -66,31 +64,30 @@ no-opは一覧から省略し、replaceはcreate/deleteの順序も表示しま�
 - Cloud Run等の実行SAには、project権限なしの共通 `terraform-dev-workload` を準備し、
   通常Apply SAの`actAs`だけを当該SA上で許可する。業務別のruntime権限は別の明示的なIAM変更。
 
-2026-10-19、本人の具体的な再承認後に初回設定が成功しました。
-独立readbackでもPlan88／Apply176権限、SA3個のuser-managed keyなし、通常WIFのACTIVE状態・dev固定条件・mapping・issuer完全一致、
-runtime SAのproject roleなし・通常ApplyだけのactAs、旧migration SAのproject role不変を確認しました。
-両DEV Environmentの新規参照4件も設定済みです。AWS backendやStateの変更はありません。
-権限数は固定仕様ではありません。新identityの実認証・通常Plan/Apply成功は、以下のマージ後E2Eで検証します。
-GitHub Secretは値を読み戻せないため名前と更新時刻を確認し、実値の動作確認はActions認証で行います。
+設定後はSAのproject roleとtrust、WIFのissuer・mapping・条件、user-managed keyがないこと、
+runtime SAの権限とactAs付与先、既存identityへの影響を実値で確認します。
+権限数やpermission一覧は `--check` とIAMのreadbackから取得し、固定値を本書へ転記しません。
+GitHub Secretは値を読み戻せないため名前と更新時刻を確認し、実際の認証・Plan/ApplyはActionsで検証します。
+設定変更時の確認項目は[認証・実行境界](docs/terraform-authentication-boundary.md#設定変更時の確認)を参照してください。
 
-### 一回のDEV実証
+### DEV基盤のE2E検証
 
-基盤設定と本人の最終`dev`マージ後、CIを `normal-e2e`、`dev`、その正確なHEAD SHAで1回dispatchします。
+基盤設定と対象ソースの`dev`マージ後、CIを `normal-e2e`、`dev`、その正確なHEAD SHAで1回dispatchします。
 既存rootがno-opのときだけ、runnerのprivate source copyに一時的なDEV Pub/Sub topicを追加し、
 create→ラベルupdate→名前replace→deleteを実行します。各段階は対象topicだけの変更を要求し、
 saved plan Apply・full-root no-op・lock解放を検証します。既存業務リソースはテスト用に変更しません。
 最後に元のState resourcesと一致することを検査します。State serial/versionは正常に進みます。
 MyPageのHCL・専用Stateを扱いません。
 
-通常操作は`dev`固定のため、最終PRのマージ前に作業branchからこの実証を起動することはできません。
-Environment/WIFの保護を緩めず、最終`dev`マージは本人が実施します。
+通常操作は`dev`固定のため、作業branchからこの実証を起動することはできません。
+Environment/WIFの保護は維持し、`dev`向けPRのマージは本人が実施します。
 E2Eが中途失敗した場合は、そのrunのprobeだけの削除Planで復旧を試みます。
 他リソースの差分・lock・認証失敗があれば停止します。自動force-unlockやStateの復元はしません。
 probeが残った場合は新しいE2Eを起動せず、State内の `google_pubsub_topic.normal_ops_probe` をprivate端末で確認し、
 同じtopic名・projectのHCLを一時的にDEV rootへ宣言して通常Planをno-opに戻します。
 その後、HCL削除と明示的delete reviewを通常PRで適用し、no-opを確認してからE2Eを再実行します。
 
-## 既存import専用経路と移行実績
+## 既存import専用経路
 
 `migration-plan` / `migration-apply` は既存baselineのimport/no-op専用として保持します。
 独自Attestation/Ownership Receiptは再導入しません。
@@ -99,50 +96,13 @@ DEVでbaseline外のHCL/Stateを追加した後は、固定manifestのmigration�
 その場合は通常経路で運用し、legacy contractを緩めません。Productionは引き続きmainの既存経路だけです。
 PR #1380のCloud Run限定offline検証器は過去試作の回帰用として保持し、通常実行からは呼びません。
 
-以下の31/30件は移行時の実測です。現在の件数は新しい実Plan結果で確認し、履歴を現在の成功と読み替えません。
+既存rootのopt-inやprivate baselineから管理対象を落とすと削除Planにつながるため、
+未選択の既定値を既存Stateへ適用しません。State初期化やimportは、その専用契約と復旧手順に従います。
+新しい資源領域で権限不足となった場合は、権限カタログをレビューして同じbootstrapで更新します。
+MyPage固有リソースと独立Stateは専用統合branchで管理し、二重ownershipを作りません。
 
-| 環境 / 対象 | 実際に確認した範囲 | 証拠の境界・別判断 |
-| --- | --- | --- |
-| Development | DevExit [run38945893535](https://github.com/kani3camp/youtube-study-space/actions/runs/38945893535)後、H7の[最終run39029559218](https://github.com/kani3camp/youtube-study-space/actions/runs/39029559218)も両identityのimport0/no-op31/rawdrift0・全34 jobの検証完了（選択job成功・非対象skip）。独立full-root no-op31・State serial36/35とversion/lock監査PASS | 最終no-op後healthも全5 stage・finding0。quiet/null・日次処理未観測とoriginal history final receipt欠落は保持 |
-| Production backend / CI foundation | 既存共通S3 bucketを再利用し、AWS backend roles2・inline policies2、GCP CI resources7・個別policy5へのmember追加8/削除0、Prod2 Environmentへの設定7種ずつを実readback・独立review済み | 新bucket・長期key・業務resource変更なし。bootstrap7資源はapp root所有30件の対象外として区別する |
-| Production State / ownership | H2の[初期化run38961710157](https://github.com/kani3camp/youtube-study-space/actions/runs/38961710157)、H3の初版直接監査を経て、H7の[第30波run39029269335](https://github.com/kani3camp/youtube-study-space/actions/runs/39029269335)で30所有。続く[最終run39029874116](https://github.com/kani3camp/youtube-study-space/actions/runs/39029874116)は両identityのimport0/no-op30/rawdrift0・全34 jobの検証完了（選択job成功・非対象skip）。独立通常full-rootとState32/31のversion/lock監査、最終no-op後health全5 stage・finding0もPASS | 元R10/R11/R20の失敗とreconciliationは[既存runbook](docs/production-readiness.md#current-execution-boundary--2026-10-17)に保持。最終統合Sourceの同等性・authority/State closeout・正本同期とReady判定はIssue #1191 |
-
-Dev31件は既存12件＋runtime Pool/Provider2件＋個別grant7件＋Own API10件、Prod30件は既存11件＋同runtime9件＋Own API10件です。
-Production rootの既定選択は0です。Developmentの既存基礎graphと各opt-inはsource定義に従います。
-実運用は両環境ともreview済みprivate baselineで既存所有をすべて選択し、候補を1件ずつ追加します。
-未選択の既定値を既存Stateへ適用したり、既存所有をbaselineから落としたりしません。
-Stateの初回作成はProductionの正規不在・manifest0だけに許す固定outputs2件の例外で、一般resource createは許可しません。
-
-最新の実行結果・source/run・残件は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)、
-[Production runbook](docs/production-readiness.md#current-execution-boundary--2026-10-17)、
-[Infrastructure / MyPage ReadyGate](docs/phase2-approval-and-readiness.md#development--production--mypage-readygate)に集約します。
-TerraformによるIaC拡張の準備と、MyPage固有resourceのprovisioning・Production releaseは別判定です。
-新規resourceは通常のDEV PRとnative Plan/Applyを使います。新しい資源領域で権限不足となった場合は、
-権限カタログをレビューして同じbootstrapで更新し、認証基盤や実行器を作り直しません。
-MyPage固有の資源・独立Stateはその専用統合branchで管理し、二重ownershipを作りません。
-
-今回、過去raw-chat/混在backup削除、通知修復、CloudTrail継続課金、MyPage provisioningは行いません。
-[recovery運用 #1165](https://github.com/kani3camp/youtube-study-space/issues/1165#issuecomment-6223368027)、
-[durable audit #1166](https://github.com/kani3camp/youtube-study-space/issues/1166#issuecomment-6223368703)、
-[Privacy cleanup #983](https://github.com/kani3camp/youtube-study-space/issues/983#issuecomment-6223369320)はすべてOPEN・Acceptance未達で、今回のexisting ownership移行のblockerにはしません。
-MyPageのProduction release前の運用判断とPrivacyの独立laneへ残します。
-CodeQLのintegration refには未解決finding6件（critical1/high3/medium2）があり、dismiss/suppressしません。解析・SARIF受付成功を脆弱性0と扱わず、[別対応の境界](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/development-history-ready-packet.md#codeql-and-mandatory-oidc-claims)を保持します。
-
-## 旧protocolの経緯（履歴・現行の実行条件ではない）
-
-**退役済みの専用実行経路**：`dev-history-observation-sync` の手動dispatch入力、認証付きpreview/applyジョブおよび旧validatorは
-2026-10-18の整理で現行treeから削除しました。固定コミットの当時の資料は監査履歴であり、実行手順ではありません。
-通常の `migration-plan` / `migration-apply` とS3 State/認証/secret/no-op契約は継続します。
-
-
-2026-10-16以前のhistory import、issuer、期限付きwindow、個別Environment承認は**移行当時の手順**です。現在のDev31／Prod30件の運用条件には適用しません。
-履歴・再現条件は次の既存資料とGitHub実行証拠から参照してください。
-
-- [history schema修復・一回限りのimportと欠落証跡](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/development-history-ready-packet.md)
-- [State観測属性同期の旧手順と停止記録](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/history-observation-sync.md)
-- [旧Development history execution windowの固定履歴](https://github.com/kani3camp/youtube-study-space/blob/a94eea6474ae6f89c679e306b291701209607718/infra/gcp/docs/development-history-execution-window.md)
-- [現行の定常Plan/Applyと所有範囲](docs/runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)
-- [移行最終結果・不確実性・残件（Issue #1191）](https://github.com/kani3camp/youtube-study-space/issues/1191#issuecomment-6233630058)
+移行時のState採用件数、各run・障害・未観測事項は[移行記録](#実行記録と変更履歴)を参照してください。
+現在の件数や実設定は、新しいPlanと管理APIから確認します。
 
 ## ディレクトリと現行の責務
 
@@ -238,7 +198,7 @@ forkを含む通常PRへAWS / GCP credentialを渡しません。
 - GitHub OIDC / Workload Identity Federation → GCPの短期credentialでtarget workload projectへアクセスする
 - long-lived AWS key / Google Service Account JSON keyをGitHub Secretsへ保存しない
 - cloud側trustはrepositoryだけでなくtrusted ref / GitHub Environment / workflow等へ可能な限り限定する
-- 全4 Terraform Environmentは本人初回workflow_dispatch限定・Required reviewersなし。Productionの実行はDevelopment Exitと独立レビュー後のreadiness gateを必須とする
+- 本人初回workflow_dispatchと対象refの制限を維持し、必要なreview・保護設定を各Environmentで管理する
 - plan用identityとapply用identityを分離し、それぞれのEnvironmentから専用least-privilege identityを使う
 - full saved plan file / raw stateをpublic Actions artifactへuploadしない
 - `terraform show -json` 等のraw sensitive outputをpublic logへ出さない
@@ -295,9 +255,9 @@ bucket / BigQuery / IAM / Scheduler等でdestroyやreplacementが出た場合は
 
 ## Authentication boundary
 
-Phase 1のrepository validationはcloud credentialを使いません。
+repository validationはcloud credentialを使いません。
 
-Issue #1161のdevelopment backend bootstrapはoperatorの短期SSO credentialで完了済みです。長期AWS access key / secret key、Google Service Account JSON keyは作成していません。
+bootstrapや障害調査にはoperatorの短期SSO/更新可能credentialを使い、長期AWS keyやGCP SA JSON keyを作りません。
 
 通常運用では認証をCIへ寄せます。
 
@@ -305,8 +265,8 @@ Issue #1161のdevelopment backend bootstrapはoperatorの短期SSO credentialで
 - GCP provider: GitHub OIDC / Workload Identity Federation → GCP
 - ローカルのauthenticated `plan` / state operationはmigration・障害調査等の例外用途とし、AWS SSO / Google ADC等の短期・更新可能credentialを使う
 - public PR CIはcredentiallessを維持する
-- development authenticated plan / applyはtrusted ref / GitHub Environment / least privilegeで実装・実測済み
-- production backend/trustは実bootstrap済み。正規migration経路は有効で、State初期化・既存30件のownershipと最終no-opは各実行結果で検証する
+- DEV通常操作は`dev`固定の専用WIF/SAと、Plan/Apply別Environment・least privilegeを使う
+- Productionの既存import経路は`main`へ固定し、通常CRUDは対象外とする
 
 既存AWS runtime → GCP WIFとはTerraform CI trustを分離します。
 
@@ -315,46 +275,29 @@ Issue #1161のdevelopment backend bootstrapはoperatorの短期SSO credentialで
 production:
 
 - 最初のimportは同resource typeをdevで確立してから
-- 本人初回workflow_dispatch限定・Required reviewersなし。実測Development Exitと独立レビュー済みproduction readiness gateを必須とする
+- 本人初回workflow_dispatch限定。実行前の準備判定は[Production runbook](docs/production-readiness.md)に従う
 - import直後の想定外diffをapplyしない
 - destructive planは停止
-- Node.js 22 migrationとTerraform ownership移行を同じ変更にしない
 
 
-## Bootstrap follow-up
+## 関連する運用課題
 
-Issue #1161のdevelopment S3 backend bootstrap本体は完了しています。
+State復旧と継続監査は、通常のPlan/Applyとは別に運用します。
+実装・有効化・費用判断の状況は対応するIssueで追跡し、設計案を有効化済みと扱いません。
 
-残件はbootstrapとは分離して追跡します。
+- [Recovery運用 #1165](https://github.com/kani3camp/youtube-study-space/issues/1165) / [State recovery runbook](docs/state-account-recovery.md)
+- [Durable audit #1166](https://github.com/kani3camp/youtube-study-space/issues/1166) / [設定案](docs/state-durable-audit.md)
+- [Privacy cleanup #983](https://github.com/kani3camp/youtube-study-space/issues/983) / [Privacy runbooks](../../docs/privacy/)
 
-- Issue #1165: alternate contacts / recovery運用
-- Issue #1166: durable CloudTrail / S3 data events監査
-- Issue #1162: public repository向けauthenticated Terraform plan / apply（completed）
-- Issue #1191: Development Exit実証済み / Production State・既存ownership移行と最終ReadyGate
+## 実行記録と変更履歴
 
-#1165の[recovery runbook](docs/state-account-recovery.md)と#1166の
-[durable audit source/設定案](docs/state-durable-audit.md)は独立follow-upです。
-Audit logging/継続課金は未有効化で、設計案を実装完了と扱いません。
+設定readback・実施日時・対象SHA・CI/レビュー・Plan/Apply結果・未検証事項は、対応PRとActionsへ記録します。
+本書には現在の運用手順と制約を置き、一時点の実測値や進捗を複製しません。
 
-## 移行時の履歴と継続保守
+- [DEV通常運用の導入・実設定・検証（PR #1382）](https://github.com/kani3camp/youtube-study-space/pull/1382)
+- [独自証跡の撤廃と認証境界の変更（PR #1373）](https://github.com/kani3camp/youtube-study-space/pull/1373)
+- [既存State移行と採用結果（Issue #1191）](https://github.com/kani3camp/youtube-study-space/issues/1191#issuecomment-6233630058)
+- [旧経路の整理方針（Issue #1191）](https://github.com/kani3camp/youtube-study-space/issues/1191#issuecomment-6244637630)
+- [移行当時のコード・runbook（固定コミット）](https://github.com/kani3camp/youtube-study-space/tree/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp)
 
-- 既存Dev31件／Prod30件の採用・通常no-op確認と未観測事項：[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191#issuecomment-6233630058)
-- 旧waveのコード・テスト・実行runbook：[移行当時の固定コミット](https://github.com/kani3camp/youtube-study-space/tree/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp)
-- post-mergeで退役した実行経路とテスト：[Issue #1191の整理方針](https://github.com/kani3camp/youtube-study-space/issues/1191#issuecomment-6244637630)
-- 今後の管理対象とMyPage向けcreate/updateは別の変更承認／権限／検証契約として設計する。現在のimport-only guardを迂回しない
-
-古いSourceに含まれる手順をそのまま実行せず、現在のGitHub・認証済み実環境・Notion Current Canonから最新の安全条件を照合します。
-
-## Terraform認証実行のブランチ移行（段階的cutover、2026-10-18）
-
-- **目標（2026-10-18更新）**：Developmentの認証付きTerraformは `dev` を基本とし、GitHubの `terraform-dev-plan`／`terraform-dev-apply` Environmentの **Selected branches and tags** に必要な統合ブランチを本人が追加・削除できる運用にする。Productionは `main` のみ。credentialed jobはEnvironmentのbranch selection、same-branch caller/reusable、exact SHA、本人初回dispatch、plan/apply独立identityを検証する。preflight単体ではEnvironment allowlistを取得できず、**選択ブランチの最終認可はEnvironmentで強制**する。
-- **任意ブランチ**：PRのTerraform fmt / credentialless init（`-backend=false`）/ validate / mock・negativeは引き続き無認証。Devの認証付きPlan/ApplyはGitHub Environmentへ**明示追加されたブランチ**だけが実行できる。Planだけ許可、Apply未許可も可。未選択ブランチ・外部fork・タグへcredentialを渡さない。統合branchでは実行前にreview済みの最新workflow/headを検証する。Selected branches方式でbranch protectionはtoken発行の技術上の必須条件ではないが、許可branch内のコード改変を防ぐために推奨する。
-- **このPRの境界**：`dev`にソース・テストがマージされても、AWS trust policy、GCP WIF attribute condition / SA IAM、GitHub Environmentのbranch restriction/secret/required reviewerは自動更新されない。既存 `feature/gcp-terraform-iac` の実運用sourceも自動更新されない。**PRのマージだけでcutoverが完了したとは判定しない**。
-- **前提**：現行 `main` にはTerraform rootとauthenticated workflowが未導入。通常の `dev → main` 昇格PRでレビュー・CIを通してからProductionで使う。昇格とIAM trust切替の順序・ロールバック・停止期間を別の運用reviewで決める。
-- **cutover手順**：①既存trusted実行とState/version・lock・protected Environment/role/SAを読み取り確認、②**初回のみ**Dev AWS IAM trustを固定repo/owner/Environment/caller/reusable/eventのままブランチ3か所だけ`StringLike`／`refs/heads/*`へ、Dev GCP WIFを固定actor・initial attempt・same-SHAを維持しcaller/reusableが**同じ`assertion.ref`**と等しいCEL条件へ変更、GitHub Dev plan/apply Environmentは `Selected branches and tags` で `dev` と承認済み統合ブランチだけに限定。本番AWS/GCP trustは `main` 完全固定、③非許可ref/不一致caller/別actor/tag/旧branchのnegativeと許可対象の認証付read-only Planを検証、④必要なApplyとno-op・State安全性を別承認で検証、⑤旧branchとRulesetは最後に退役する。
-- **変更禁止の範囲**：このソースPRでは `main` への直接push、`dev`のbotマージ、Cloud IAM/WIF、remote Terraform State、live Plan/Apply、workflow dispatch、ブランチ削除を実行しない。cloud trustの設定readが不可の場合は未確認と明示し、推測したまま切り替えない。
-
-- **Devのcloud trustは一度だけ変更が必要**：AWS IAMは`StringEquals(aud)`／`StringLike(sub)`を用い、repo/owner/Dev Environment/caller/reusable/eventは厳密に保持、ref・workflow_ref・job_workflow_refのブランチ部分だけワイルドカード化する。ただしIAMの複数ワイルドカードは相互に同じブランチであることまで証明しないため、GitHub Environmentのブランチ許可・GCP WIFの`workflow_ref == fixed_caller + assertion.ref` / `job_workflow_ref == fixed_reusable + assertion.ref`・same-SHAチェック・workflow preflightの多層防御が必要。GCP SA impersonation IAM memberが旧branch subjectに固定なら、そこも一度だけ移行する。以降の追加/削除操作はGitHub Environmentのみ。
-- **注意**：Devで最初に`terraform-dev-plan`へ統合ブランチを追加し、実Plan/readを確認してからApplyも必要なら追加する。旧`feature/gcp-terraform-iac`はGitHub Environmentでの許可を失効させるまでDev IAM/WIFのワイルドカードtrustを有効にしない。現在のimport-only controllerでMyPage新規resourceを作成できるわけではない。MyPage用のcreate/update実行contract、最小権限、デプロイ実装は別対応。
-
-監査入口：[PR #1251](https://github.com/kani3camp/youtube-study-space/pull/1251)・[PR #1372](https://github.com/kani3camp/youtube-study-space/pull/1372)・[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)。
+過去の手順を再実行する場合は、現在の実装・認証済み実環境・復旧契約を確認します。
