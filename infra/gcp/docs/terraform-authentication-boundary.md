@@ -21,16 +21,16 @@ controllerは `infra/gcp/scripts/terraform_normal_ops.py`、運用入口と設�
 
 | 境界 | 実装 |
 | --- | --- |
-| PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・`dev`固定・正確なexpected SHA・same-SHA caller/reusableをcredentials前に検査 |
+| PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・`dev`/専用統合branchの2 ref限定・正確なexpected SHA・same-SHA caller/reusableをcredentials前に検査 |
 | Environment/OIDC | 既存DEV Plan/Apply EnvironmentとAWS backend roleを再利用。新規のDEV固定WIF poolと通常専用GCP SAを分離。旧providerと同poolを共有すると旧integration claimsから通常SAへ到達し得るため、poolも分離 |
 | 入力 | 既存private baselineのtfvarsへcommit-bound `normal.tfvars.json`を重ねる。manifestは通常変更の型/件数制限に使わない。projectはDEV固定 |
 | Plan | refresh付きfull-root native saved plan。Coreのcomplete/errored/checksとdriftを検査。create/updateのcomputed unknownはTerraformに委ねる |
 | delete/replace | commit内`normal-operations.json`のaddress/actions完全一致が必須。未使用指定も拒否。忘却操作・importは通常経路では拒否 |
-| Apply binding | 同runの独立Apply identityで同SHA/入力を再Plan。timestampだけを除く全Plan JSON、SHA、run ID、mode、入力、破壊的review、State本文/HEADをprivate keyのHMACで照合。30分の期限、未来時刻・欠落も拒否 |
+| Apply binding | 同runの独立Apply identityで同SHA/入力を再Plan。timestampと順序のない配列のみ正規化し、全Plan JSON、SHA、run ID、mode、入力、破壊的review、State本文/HEADをprivate keyのHMACで照合。GitHub Actionsのstep `if`でHMAC一致だけを評価し値をstep環境・ログに展開しない。30分の期限、未来時刻・欠落も拒否 |
 | saved plan | 新しく生成した一致Planだけを適用。公開artifactへの生Plan転送はしない。Apply直前にState/保存Planを再確認し、native S3 lockとCoreのstale-plan検査を使う |
 | State | DEV固定key、account制限、AES256、VersionId、lineage/serial、lock/workspace不在。State欠損時は停止し、自動初期化しない |
 | 事後確認 | lineage維持・serial単調増加、refresh付きfull-root no-op、State前後照合とlock解放。エラーを無視せず停止 |
-| 出力/cleanup | stdout/stderr/Plan/State/API例外はprivate runnerへ。公開は固定phase・件数・provider schemaで照合した変更リソース種別/操作別件数とHMAC/time。address/for_eachキー/属性名/値は出さず、ログとjob summaryへ同じ変更一覧を表示。alwaysでprivate filesを削除。強制unlock/自動State巻戻しなし |
+| 出力/cleanup | stdout/stderr/Plan/State/API例外はprivate runnerへ。公開は固定phase・件数・provider schemaで照合した変更リソース種別/操作別件数・プラン時刻・HMAC不一致セクション名のみ。address/for_eachキー/属性名/値は出さず、ログとjob summaryへ同じ変更一覧を表示。alwaysでprivate filesを削除。強制unlock/自動State巻戻しなし |
 
 HMACは同runのPlan/Apply比較に限った小さな整合検査です。独自の発行サービス、durable receipt、
 承認台帳、履歴chain、per-resource attestationは作りません。
@@ -53,14 +53,14 @@ Applyでは同runのPlan成功後、独立identityで同SHAを再Planし、sourc
 
 | 経路 | 許可するref |
 | --- | --- |
-| DEV通常操作 | `dev`固定。通常専用WIF poolも同じrefへ限定 |
+| DEV通常操作 | `dev`と`integration/gcp-terraform-normal-ops`の完全一致。通常専用WIF poolも同じ2 refだけ |
 | DEV既存import | 各Environmentで明示許可したbranch。`main`・旧移行branch・tag・PR refは拒否 |
 | Production既存import | `main`固定 |
 
 Environmentのbranch policyはcredentialed jobの最終認可を行います。preflightだけで許可一覧を取得・代替しません。
 Environmentの許可branch・required reviewers・admin bypass等の実設定は、管理APIで実行時に確認してください。
 許可branchを追加しても、そのbranchのworkflow/controllerやクラウド側trustが自動更新されるわけではありません。
-通常DEV操作はEnvironmentへのbranch追加だけでは他branchへ開放されません。
+通常DEV操作はEnvironmentへのbranch追加だけでは他branchへ開放されません。専用統合branchの有効化には`enable_normal_integration.py --apply`でAWS backend trust・GCP通常WIF・GitHub Environmentの3系統をまとめて検証・変更します。既存DEV identityの権限数、State、Production trustは不変です。
 
 Selected branches方式のEnvironmentはref名を検査します。許可branch内のコード改変経路には、PRレビュー・必須CI・force-push/deletion禁止を適用します。
 同SHAのcaller/reusableであることは、内容が安全にレビュー済みであることまで保証しません。
