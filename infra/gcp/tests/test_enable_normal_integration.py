@@ -5,6 +5,7 @@ All identities, roles and policy documents here are invented fixtures.
 """
 from copy import deepcopy
 from pathlib import Path
+from unittest.mock import patch
 import sys
 import unittest
 
@@ -106,6 +107,39 @@ class IntegrationTrustTest(unittest.TestCase):
                 op.integration_present({
                     "branch_policies": [{"name": "dev", "type": "branch"},
                                         {"name": name, "type": "branch"}]})
+
+    def test_default_oidc_subject_is_rejected(self):
+        original = role("plan")["AssumeRolePolicyDocument"]
+        original["Statement"][0]["Condition"]["StringEquals"][
+            "token.actions.githubusercontent.com:sub"
+        ] = "repo:" + op.REPO + ":environment:terraform-dev-plan"
+        with self.assertRaises(op.Stop):
+            op.extended_trust(original, "plan")
+
+    def test_oidc_template_must_match_ordered_custom_claims(self):
+        exact = {"use_default": False, "include_claim_keys": list(op.CLAIM_KEYS)}
+        with patch.object(op, "gh", return_value=exact):
+            op.verify_oidc_template()
+        for invalid in (
+            {"use_default": True, "include_claim_keys": list(op.CLAIM_KEYS)},
+            {"use_default": False, "include_claim_keys": list(reversed(op.CLAIM_KEYS))},
+            {"use_default": False, "include_claim_keys": list(op.CLAIM_KEYS[:-1])},
+        ):
+            with patch.object(op, "gh", return_value=invalid), self.assertRaises(op.Stop):
+                op.verify_oidc_template()
+
+    def test_role_readback_requires_exact_raw_policy(self):
+        fixture = role("plan")
+        wanted = op.extended_trust(fixture["AssumeRolePolicyDocument"], "plan")
+        stale = {"Role": fixture}
+        current = {"Role": {**fixture, "AssumeRolePolicyDocument": wanted}}
+        with patch.object(op, "aws", side_effect=[stale, current]) as aws, patch.object(
+                op.time, "sleep") as sleeping:
+            op.verify_role_readback(fixture["RoleName"], fixture["RoleId"], wanted)
+            self.assertEqual(aws.call_count, 2)
+            sleeping.assert_called_once()
+        with patch.object(op, "aws", return_value=stale), patch.object(op.time, "sleep"), self.assertRaises(op.Stop):
+            op.verify_role_readback(fixture["RoleName"], fixture["RoleId"], wanted)
 
     def test_gcp_provider_rejects_unexpected_condition(self):
         base = {"state": "ACTIVE",
