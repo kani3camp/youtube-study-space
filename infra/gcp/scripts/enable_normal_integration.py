@@ -22,6 +22,22 @@ GIT_REF = "refs/heads/" + BRANCH
 ISSUER = "token.actions.githubusercontent.com"
 STATE_REGION = "ap-northeast-1"
 OLD_REF = "refs/heads/dev"
+CLAIM_KEYS = ("repository_id", "repository_owner_id", "environment", "ref",
+              "workflow_ref", "job_workflow_ref", "event_name")
+
+
+def custom_subject(role: str, ref: str) -> str:
+    claims = {
+        "repository_id": "340900071", "repository_owner_id": "54093651",
+        "environment": "terraform-dev-" + role,
+        "ref": ref,
+        "workflow_ref": REPO + "/.github/workflows/ci.yml@" + ref,
+        "job_workflow_ref": REPO + "/.github/workflows/gcp-terraform-authenticated.yml@" + ref,
+        "event_name": "workflow_dispatch",
+    }
+    return ":".join(f"{key}:{claims[key].replace(':', '%3A')}"
+                    for key in CLAIM_KEYS)
+
 OLD_CONDITION = config.CONDITION.replace(
     "assertion.ref in ['refs/heads/dev', 'refs/heads/integration/gcp-terraform-normal-ops']",
     "assertion.ref == 'refs/heads/dev'"
@@ -86,9 +102,17 @@ def _aws_statements(document: dict, role: str) -> list[dict]:
                 and isinstance(fed, str) and fed.endswith(":oidc-provider/" + ISSUER)):
             matches.append(statement)
     need(len(matches) == 1)
-    sub = matches[0].get("Condition", {}).get("StringEquals", {}).get(
-        ISSUER + ":sub")
-    need(sub == "repo:" + REPO + ":environment:terraform-dev-" + role)
+    conditions = matches[0].get("Condition")
+    need(isinstance(conditions, dict))
+    subjects = [values[ISSUER + ":sub"]
+                for family in ("StringEquals", "StringLike")
+                for values in [conditions.get(family, {})]
+                if isinstance(values, dict) and ISSUER + ":sub" in values]
+    need(len(subjects) == 1)
+    original = custom_subject(role, OLD_REF)
+    extended = custom_subject(role, GIT_REF)
+    fallback = "repo:" + REPO + ":environment:terraform-dev-" + role
+    need(subjects[0] in (original, [original, extended], fallback))
     return matches
 
 
@@ -126,22 +150,28 @@ def extended_trust(document: dict, role: str) -> dict:
     for stmt in _aws_statements(updated, role):
         conditions = stmt["Condition"]
         need(isinstance(conditions, dict))
-        for operation in ("StringEquals", "StringLike"):
-            rule = conditions.get(operation, {})
-            need(isinstance(rule, dict))
+        for family in ("StringEquals", "StringLike"):
+            rules = conditions.get(family, {})
+            need(isinstance(rules, dict))
+            sub_key = ISSUER + ":sub"
+            if sub_key in rules and rules[sub_key] == custom_subject(role, OLD_REF):
+                # A customized GitHub OIDC 'sub' binds environment + caller +
+                # reusable path + ref together, so OR exactly two complete subs.
+                rules[sub_key] = [custom_subject(role, OLD_REF),
+                                  custom_subject(role, GIT_REF)]
             for claim, suffix in (
                 ("ref", ""), ("workflow_ref", REPO + "/.github/workflows/ci.yml@"),
                 ("job_workflow_ref", REPO + "/.github/workflows/gcp-terraform-authenticated.yml@"),
             ):
                 key = ISSUER + ":" + claim
-                if key not in rule:
+                if key not in rules:
                     continue
                 one, two = suffix + OLD_REF, suffix + GIT_REF
-                actual = rule[key]
+                actual = rules[key]
                 need(actual == one or actual == [one, two])
-                rule[key] = [one, two]
-    # Preserve every other trust condition (issuer/audience, actor, repo,
-    # environment, OIDC principal and action) verbatim.
+                rules[key] = [one, two]
+    # Preserve every other trust condition (audience, actor, owner, account,
+    # OIDC principal and IAM permission policies) verbatim.
     return updated
 
 
