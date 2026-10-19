@@ -101,6 +101,18 @@ class Contracts(unittest.TestCase):
             with self.subTest(key=k), self.assertRaises(ValueError):
                 ops.context(env() | {k: v}, 'plan')
 
+    def test_integration_ref_context_is_allowed_only_with_matching_caller(self):
+        for role in ('plan', 'apply'):
+            v = env(role)
+            v['GITHUB_REF'] = ops.INTEGRATION_REF
+            v['GITHUB_WORKFLOW_REF'] = ops.CALLER + ops.INTEGRATION_REF
+            self.assertEqual(ops.context(v, role), 'dev')
+            with self.assertRaises(ValueError):
+                ops.context(v | {'GITHUB_WORKFLOW_REF': ops.CALLER + 'refs/heads/dev'}, role)
+            with self.assertRaises(ValueError):
+                ops.context(v | {'GITHUB_REF': 'refs/heads/feature/untrusted',
+                                 'GITHUB_WORKFLOW_REF': ops.CALLER + 'refs/heads/feature/untrusted'}, role)
+
     def test_apply_is_not_authorized_by_plan_mode(self):
         with self.assertRaises(ValueError):
             ops.context(env('apply') | {'NORMAL_MODE': 'normal-plan'}, 'apply')
@@ -170,26 +182,18 @@ class Contracts(unittest.TestCase):
             self.assertNotEqual(ops.commitment(e, tfvars, state, baseline, key),
                                 ops.commitment(e, tfvars, state, changed_values, key))
 
-    def test_replan_diagnostics_name_only_changed_components(self):
-        with patch.object(ops, 'review', return_value={}):
-            e, p, state, key = env(), plan(), {'head': {'VersionId': 's3-v1'}}, b'q' * 32
-            tfvars = {'project_id': ops.PROJECT}
-            expected = ops.commitment_components(e, tfvars, state, p, key)
-            current = ops.commitment_components(e, tfvars, {'head': {'VersionId': 's3-v2'}}, p, key)
-            output = io.StringIO()
-            with redirect_stdout(output):
-                ops.report_replan_mismatch(e | {
-                    'NORMAL_EXPECTED_COMPONENTS': json.dumps(expected)
-                }, current)
-            self.assertIn('sections=state', output.getvalue())
-            self.assertNotIn('s3-v1', output.getvalue())
-            self.assertNotIn('s3-v2', output.getvalue())
-            self.assertNotIn(expected['state'], output.getvalue())
-            output = io.StringIO()
-            with redirect_stdout(output):
-                ops.report_replan_mismatch(e, current)
-            self.assertIn('sections=diagnostic_unavailable', output.getvalue())
-            self.assertNotIn('s3-v2', output.getvalue())
+    def test_replan_diagnostics_print_boolean_section_labels_not_hmacs(self):
+        flags = {f'NORMAL_MISMATCH_{name.upper()}': 'false' for name in ops.DIAGNOSTIC_SECTIONS}
+        flags['NORMAL_MISMATCH_STATE'] = 'true'
+        with redirect_stdout(io.StringIO()) as output:
+            ops.report_replan_mismatch(flags)
+        self.assertIn('sections=state', output.getvalue())
+        self.assertNotIn(CANARY, output.getvalue())
+        with self.assertRaises(ValueError):
+            ops.report_replan_mismatch(flags | {'NORMAL_MISMATCH_INPUTS': 'secret'})
+        with self.assertRaises(ValueError):
+            ops.report_replan_mismatch({})
+
 
     def test_stale_future_missing_and_different_plan_rejected(self):
         e = env() | {'NORMAL_EXPECTED_DIGEST': 'a' * 64, 'NORMAL_PLAN_TIME': '100'}
@@ -209,12 +213,12 @@ class Contracts(unittest.TestCase):
             self.assertFalse(root.exists())
 
     def test_permission_provider_state_and_mismatch_failures_do_not_leak_or_apply(self):
-        for failure in ('identity', 'snapshot', 'setup', 'plan', 'match'):
+        for failure in ('identity', 'snapshot', 'setup', 'plan', 'commitment'):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
                 e = env('apply') | {'RUNNER_TEMP': temporary}
                 root = ops.private(e); root.mkdir(mode=0o700)
                 mocks = {k: patch.object(ops, k) for k in ('inputs', 'identity', 'snapshot', 'setup', 'plan',
-                         'review', 'report_plan', 'commitment', 'match', 'apply_saved')}
+                         'review', 'report_plan', 'commitment', 'apply_saved')}
                 from contextlib import ExitStack
                 with ExitStack() as stack:
                     m = {k: stack.enter_context(v) for k, v in mocks.items()}
@@ -223,11 +227,38 @@ class Contracts(unittest.TestCase):
                     m['plan'].return_value = (root / 'plan', plan(), {})
                     m[failure].side_effect = RuntimeError(CANARY)
                     output = io.StringIO()
-                    with patch.dict(os.environ, e, clear=True), patch.object(sys, 'argv', ['ops', 'execute']), redirect_stdout(output):
+                    with patch.dict(os.environ, e, clear=True), patch.object(sys, 'argv', ['ops', 'prepare']), redirect_stdout(output):
                         self.assertEqual(ops.main(), 1)
                     self.assertNotIn(CANARY, output.getvalue())
                     m[failure].assert_called_once()
                     m['apply_saved'].assert_not_called()
+
+    def test_apply_requires_sealed_private_plan_and_fresh_time(self):
+        with tempfile.TemporaryDirectory() as directory:
+            e = env('apply') | {'RUNNER_TEMP': directory, 'NORMAL_PLAN_TIME': '10'}
+            private = ops.private(e)
+            private.mkdir(mode=0o700)
+            prepared = {'source_sha': e['GITHUB_SHA'], 'run_id': e['GITHUB_RUN_ID'],
+                        'mode': e['NORMAL_MODE'], 'digest': 'a' * 64,
+                        'binary_sha256': 'b' * 64,
+                        'before': {'state': {'resources': []}},
+                        'counts': {'create': 0, 'no-op': 1}}
+            ops.common.write(private / 'normal-prepared.json', ops.common.canonical(prepared))
+            with patch.object(ops, 'identity'), patch.object(
+                    ops, 'inputs', return_value=({'project_id': ops.PROJECT}, b'x' * 32)), patch.object(
+                    ops, 'apply_saved') as applied:
+                with self.assertRaises(ValueError):
+                    ops.apply_prepared(e)
+                applied.assert_not_called()
+
+    def test_workflow_never_interpolates_hmac_as_step_environment(self):
+        text = (ops.REPO / '.github/workflows/gcp-terraform-authenticated.yml').read_text()
+        self.assertNotIn('NORMAL_EXPECTED_DIGEST: ${{ needs.normal_plan.outputs.digest }}', text)
+        self.assertNotIn('NORMAL_EXPECTED_COMPONENTS: ${{ needs.normal_plan.outputs.components }}', text)
+        self.assertIn('steps.prepared.outputs.digest == needs.normal_plan.outputs.digest', text)
+        for cmd in ('prepare', 'apply', 'mismatch'):
+            self.assertIn('terraform_normal_ops.py ' + cmd, text)
+        self.assertIn("steps.normal.outcome != 'success'", text)
 
     def test_stale_state_stops_saved_apply(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -256,6 +287,9 @@ class Contracts(unittest.TestCase):
         for mode in ('normal-plan', 'normal-apply', 'normal-e2e'):
             good = runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='a' * 40)
             self.assertEqual(good.returncode, 0, good.stdout + good.stderr)
+            integrated = runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='a' * 40,
+                GITHUB_REF=ops.INTEGRATION_REF, GITHUB_WORKFLOW_REF=ops.CALLER + ops.INTEGRATION_REF)
+            self.assertEqual(integrated.returncode, 0, integrated.stdout + integrated.stderr)
             for change in ({'NORMAL_EXPECTED_SHA': 'b' * 40}, {'NORMAL_EXPECTED_SHA': ''},
                 {'GITHUB_REF': 'refs/heads/integration/mypage-canon-20261006',
                  'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/integration/mypage-canon-20261006'},
