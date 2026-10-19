@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       terraform_authenticated:
-        description: Authenticated Terraform (DEV native operations or existing-resource migration)
+        description: Authenticated Terraform
         required: false
         default: false
         type: boolean

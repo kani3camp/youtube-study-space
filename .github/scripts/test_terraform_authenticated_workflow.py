@@ -44,7 +44,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn('name: Validate bounded existing-resource Terraform plan', self.text)
         self.assertIn('name: Validate bounded existing-resource Terraform apply', self.text)
         self.assertIn('description: Existing-resource adoption/no-op only (not general create/update)', self.text)
-        self.assertIn('description: Authenticated Terraform (DEV native operations or existing-resource migration)', self.caller)
+        self.assertIn('description: Authenticated Terraform', self.caller)
         self.assertNotIn('name: "Import-only migration plan', self.text)
         self.assertNotIn('name: "Import-only migration apply', self.text)
         # Keep the public dispatch values and fail-closed controller selectors stable.
