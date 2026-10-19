@@ -11,7 +11,7 @@ import argparse
 from copy import deepcopy
 import json
 import subprocess
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 
 import bootstrap_normal_ops as config
 
@@ -185,7 +185,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true",
                         help="Apply exact DEV integration trust; default is read-only inspection")
+    parser.add_argument("--dispatch-e2e", action="store_true",
+                        help="After verified --apply, dispatch one DEV normal-e2e from the reviewed integration SHA")
     flags = parser.parse_args()
+    need(not flags.dispatch_e2e or flags.apply)
     caller = aws("sts", "get-caller-identity")
     need(isinstance(caller.get("Account"), str))
     aws_roles = aws("iam", "list-roles")
@@ -233,6 +236,29 @@ def main():
         need(integration_present(branch_policies(kind)[1]))
     print("NORMAL_INTEGRATION: PASS; AWS/GCP/GitHub DEV-only trust readback verified")
     print("NORMAL_INTEGRATION: Production, State and role resource grants untouched")
+    if flags.dispatch_e2e:
+        operator = gh("user")
+        need(operator.get("login") == "kani3camp" and operator.get("id") == 54093651)
+        branch = gh(f"repos/{REPO}/branches/{quote(BRANCH, safe='')}")
+        sha = branch.get("commit", {}).get("sha")
+        need(isinstance(sha, str) and len(sha) == 40
+             and all(ch in "0123456789abcdef" for ch in sha))
+        status = gh(f"repos/{REPO}/commits/{sha}/check-runs?per_page=100")
+        checks = status.get("check_runs", [])
+        need(isinstance(checks, list) and len(checks) >= 2)
+        for required in ("CI Gate", "GCP Terraform Validate"):
+            selected = [c for c in checks if c.get("name") == required]
+            need(len(selected) == 1 and selected[0].get("conclusion") == "success")
+        command = subprocess.run([
+            "gh", "workflow", "run", "ci.yml", "--repo", REPO,
+            "--ref", BRANCH,
+            "-f", "terraform_authenticated=true",
+            "-f", "terraform_target=dev",
+            "-f", "terraform_mode=normal-e2e",
+            "-f", "terraform_expected_sha=" + sha,
+        ], capture_output=True, text=True, timeout=60, check=False)
+        need(command.returncode == 0)
+        print("NORMAL_INTEGRATION: PASS; DEV normal-e2e dispatched once; sha=" + sha)
 
 
 if __name__ == "__main__":
