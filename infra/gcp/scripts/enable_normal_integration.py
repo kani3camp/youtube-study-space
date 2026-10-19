@@ -38,7 +38,8 @@ def need(value: bool) -> None:
 
 def branch_name(value: str) -> str:
     need(type(value) is str and BRANCH.fullmatch(value) is not None
-         and value != "main" and not value.startswith("-"))
+         and value != "main" and not value.startswith("-")
+         and not value.startswith("refs/"))
     return value
 
 
