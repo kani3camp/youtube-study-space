@@ -77,6 +77,8 @@ GitHub Secretは値を読み戻せないため名前と更新時刻を確認し�
 
 AWS DEV backend Roleは既存の7 claimsカスタムsubjectを read-only connector で実確認済みであり、移行用workflowと共有しているため**AWS trustを変更しません**。GCP通常WIFもブランチ名をallowlistせず、repository / owner / Environment / actor / workflow path / same-ref / same-SHAを恒久的に検証します。
 **ブランチごとのPlan/Apply許可はGitHub Environmentだけ**で変更します。`infra/gcp/scripts/enable_normal_integration.py --apply --branch <branch>` は `terraform-dev-plan` / `terraform-dev-apply` のSelected branchesへ完全一致のbranch名を追加するだけです。通常利用にAWS Profileやgcloud loginは不要で、GitHub Environmentを管理できる`gh`認証だけを使います。既存migration/Production identityの権限は変更しません。
+GitHubの Settings → Environments からも操作できます。Planだけを許可する場合は `terraform-dev-plan`、Applyも許可する場合は `terraform-dev-plan` / `terraform-dev-apply` の両方で、Selected branches and tagsへ対象branchを追加します。取消時は同じ画面から対象branchのruleを削除します。WIFやAWS trustの編集は不要です。上のスクリプトは両Environmentへの追加を行います。
+
 ```bash
 python3 infra/gcp/scripts/enable_normal_integration.py --branch integration/gcp-terraform-normal-ops
 python3 infra/gcp/scripts/enable_normal_integration.py --branch integration/gcp-terraform-normal-ops --apply
@@ -92,7 +94,7 @@ AWS/GCPはブランチ名の運用allowlistを持ちません。実際に認証�
 想定外のwildcard、repo/claim変更、default OIDC subjectは拒否します。
 
 AWS IAMを再監査したい場合だけ認証済みAWS CLIから`--verify-aws`、GCP WIFを再監査したい場合だけ認証済みgcloudから`--verify-gcp`を追加できます。どちらもread-onlyです。通常のbranch追加ではクラウドCLIを使いません。AWS/GCPの恒久trustが不適切ならGitHub Actionsの短期認証がfail-closedで停止し、State Applyへ進みません。GitHub Environmentの実値が想定と異なる場合は**先にSTOP**します。
-失敗時は `NORMAL_INTEGRATION: STOP; phase=<検証段階>` の固定分類だけを表示します。
+失敗時は `NORMAL_BRANCH_ACCESS: STOP; phase=<検証段階>` の固定分類だけを表示します。
 AWS/GCP CLIエラーの生ログ・認証情報は表示しません。
 `--apply`が変更するのはGitHub Environmentのbranch policyだけです。AWS IAM / GCP WIF / Terraform State / DEV business resources / Productionには触れません。
 この運用スクリプトは現行の選択branch policyを変更せず、統合branchの明示追加だけを行います。
@@ -278,7 +280,7 @@ bootstrapや障害調査にはoperatorの短期SSO/更新可能credentialを使�
 - GCP provider: GitHub OIDC / Workload Identity Federation → GCP
 - ローカルのauthenticated `plan` / state operationはmigration・障害調査等の例外用途とし、AWS SSO / Google ADC等の短期・更新可能credentialを使う
 - public PR CIはcredentiallessを維持する
-- DEV通常操作は`dev`固定の専用WIF/SAと、Plan/Apply別Environment・least privilegeを使う
+- DEV通常操作は専用WIF/SAとPlan/Apply別Environment・least privilegeを使い、許可する非`main`ブランチはGitHub Environmentで管理する
 - Productionの既存import経路は`main`へ固定し、通常CRUDは対象外とする
 
 既存AWS runtime → GCP WIFとはTerraform CI trustを分離します。
