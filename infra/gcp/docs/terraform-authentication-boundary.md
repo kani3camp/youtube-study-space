@@ -22,7 +22,7 @@ controllerは `infra/gcp/scripts/terraform_normal_ops.py`、運用入口と設�
 | 境界 | 実装 |
 | --- | --- |
 | PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・有効な非`main` branch ref・正確なexpected SHA・same-ref/same-SHA caller/reusableをcredentials前に検査。どのbranchを認証付き実行へ許可するかはGitHub Environmentが決定 |
-| Environment/OIDC | 既存DEV Plan/Apply EnvironmentとAWS backend roleを再利用。通常専用GCP WIF/SAはrepository・owner・actor・Environment・workflow path・branch-shaped same-ref・same-SHAを検証するが**branch名をallowlistしない**。Plan/Applyを許可するbranch名はGitHub EnvironmentのSelected branchesだけで管理 |
+| Environment/OIDC | 既存DEV Plan/Apply EnvironmentとAWS backend roleを再利用。AWSは既存7-claim subjectとネイティブactor_idの完全一致で本人に固定。通常専用GCP WIF/SAはrepository・owner・actor・Environment・workflow path・branch-shaped same-ref・same-SHAを検証するが**branch名をallowlistしない**。通常Plan/Applyを許可するbranch名はGitHub EnvironmentのSelected branchesだけで管理 |
 | 入力 | 既存private baselineのtfvarsへcommit-bound `normal.tfvars.json`を重ねる。manifestは通常変更の型/件数制限に使わない。projectはDEV固定 |
 | Plan | refresh付きfull-root native saved plan。Coreのcomplete/errored/checksとdriftを検査。create/updateのcomputed unknownはTerraformに委ねる |
 | delete/replace | commit内`normal-operations.json`のaddress/actions完全一致が必須。未使用指定も拒否。忘却操作・importは通常経路では拒否 |
@@ -54,7 +54,7 @@ Applyでは同runのPlan成功後、独立identityで同SHAを再Planし、sourc
 | 経路 | 許可するref |
 | --- | --- |
 | DEV通常操作 | GitHub Environmentで明示選択した任意の非`main` branch。AWS/GCPはbranch名allowlistを持たず、同一refの正規workflowであることだけを検証 |
-| DEV既存import | 各Environmentで明示許可したbranch。`main`・旧移行branch・tag・PR refは拒否 |
+| DEV既存import | 従来の`dev` / `integration/mypage-canon-20261006`のみ。共有Environmentへの通常用branch追加ではimportの認可を広げない |
 | Production既存import | `main`固定 |
 
 Environmentのbranch policyはcredentialed jobの最終認可を行います。preflightだけで許可一覧を取得・代替しません。

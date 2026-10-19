@@ -99,23 +99,33 @@ def _actions(value):
 
 
 def audit_aws_role(document: dict, role: str) -> None:
-    """Require the existing branch-agnostic seven-claim subject; never mutate it."""
+    """Audit every WebIdentity Allow; owner claim is enforced by AWS itself."""
     candidates = []
     for statement in _statements(document):
+        if statement.get("Effect") != "Allow":
+            continue
+        # NotAction / wildcard grants can authorize WebIdentity without naming
+        # it. These are not part of this role's reviewed trust contract.
+        need("NotAction" not in statement and "NotPrincipal" not in statement)
+        actions = _actions(statement.get("Action", []))
+        need(actions == ["sts:AssumeRoleWithWebIdentity"])
         principal = statement.get("Principal")
-        federated = principal.get("Federated") if isinstance(principal, dict) else None
-        if (statement.get("Effect") == "Allow"
-                and "sts:AssumeRoleWithWebIdentity" in _actions(statement.get("Action", []))
-                and isinstance(federated, str)
-                and federated.endswith(":oidc-provider/" + ISSUER)):
-            candidates.append(statement)
+        need(isinstance(principal, dict) and set(principal) == {"Federated"})
+        federated = principal["Federated"]
+        federated = [federated] if isinstance(federated, str) else federated
+        need(isinstance(federated, list) and len(federated) == 1
+             and isinstance(federated[0], str)
+             and re.fullmatch(r"arn:aws:iam::[0-9]{12}:oidc-provider/" + re.escape(ISSUER),
+                              federated[0]) is not None)
+        candidates.append(statement)
     need(len(candidates) == 1)
     condition = candidates[0].get("Condition")
     need(isinstance(condition, dict))
     equals = condition.get("StringEquals", {})
     likes = condition.get("StringLike", {})
     need(isinstance(equals, dict) and isinstance(likes, dict)
-         and equals.get(ISSUER + ":aud") == "sts.amazonaws.com")
+         and equals.get(ISSUER + ":aud") == "sts.amazonaws.com"
+         and equals.get(ISSUER + ":actor_id") == "54093651")
     # This wildcard is not the authorization surface. GitHub Environment is.
     # Every other claim remains fixed inside the custom subject.
     need(likes.get(ISSUER + ":sub") == custom_subject(role, LEGACY_AWS_REF))

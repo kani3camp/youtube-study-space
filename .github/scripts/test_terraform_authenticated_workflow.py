@@ -63,6 +63,17 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                             GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref)
                         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_normal_branch_authorization_does_not_expand_legacy_import(self):
+        for branch in ('feature/arbitrary', 'integration/gcp-terraform-normal-ops'):
+            ref = 'refs/heads/' + branch
+            context = {'GITHUB_REF': ref,
+                       'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref}
+            for mode in ('normal-plan', 'normal-apply', 'normal-e2e'):
+                self.assertEqual(self.run_preflight(MODE=mode,
+                    NORMAL_EXPECTED_SHA='a' * 40, **context).returncode, 0)
+            for mode in ('migration-plan', 'migration-apply'):
+                self.assertNotEqual(self.run_preflight(MODE=mode, **context).returncode, 0)
+
     def test_retired_modes_cannot_reach_credentials_even_with_old_gates_enabled(self):
         modes = ('plan', 'apply', 'history_post_noop', 'security-probe', 'email-adoption',
                  'quota-plan', 'quota-create', 'quota-refresh', 'current-state-read',
