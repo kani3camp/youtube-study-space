@@ -165,7 +165,9 @@ class Contracts(unittest.TestCase):
                              ops.commitment_components(e, tfvars, state, changed_order, key))
             # Values within provider attributes are ordered when expressed as JSON lists.
             changed_values = deepcopy(changed_order)
-            changed_values['planned_values']['root_module']['resources'][0]['values']['labels'] = ['b', 'a']
+            for resource in changed_values['planned_values']['root_module']['resources']:
+                if resource['address'] == 'google_pubsub_topic.z':
+                    resource['values']['labels'] = ['b', 'a']
             self.assertNotEqual(ops.commitment(e, tfvars, state, baseline, key),
                                 ops.commitment(e, tfvars, state, changed_values, key))
 
