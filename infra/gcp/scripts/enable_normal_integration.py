@@ -11,6 +11,7 @@ import argparse
 from copy import deepcopy
 import json
 import subprocess
+import time
 from urllib.parse import unquote, quote
 
 import bootstrap_normal_ops as config
@@ -111,8 +112,7 @@ def _aws_statements(document: dict, role: str) -> list[dict]:
     need(len(subjects) == 1)
     original = custom_subject(role, OLD_REF)
     extended = custom_subject(role, GIT_REF)
-    fallback = "repo:" + REPO + ":environment:terraform-dev-" + role
-    need(subjects[0] in (original, [original, extended], fallback))
+    need(subjects[0] == original or subjects[0] == [original, extended])
     return matches
 
 
@@ -188,6 +188,28 @@ def check_provider(value: dict) -> None:
     need(value.get("attributeCondition") in {OLD_CONDITION, config.CONDITION})
 
 
+def verify_oidc_template() -> None:
+    settings = gh(f"repos/{REPO}/actions/oidc/customization/sub")
+    need(settings.get("use_default") is False and
+         settings.get("include_claim_keys") == list(CLAIM_KEYS))
+
+
+def verify_role_readback(role_name: str, role_id: str, desired: dict) -> None:
+    # IAM is eventually consistent: compare the actual policy, not a projected
+    # post-transformation document. Retry a bounded number of times.
+    for attempt in range(6):
+        role = aws("iam", "get-role", "--role-name", role_name)["Role"]
+        need(role.get("RoleId") == role_id)
+        actual = role.get("AssumeRolePolicyDocument")
+        if isinstance(actual, str):
+            actual = json.loads(unquote(actual))
+        if actual == desired:
+            return
+        if attempt < 5:
+            time.sleep(2)
+    raise Stop("AWS trust propagation verification failed")
+
+
 def branch_policies(role: str) -> tuple[str, dict]:
     endpoint = f"repos/{REPO}/environments/terraform-dev-{role}"
     env = gh(endpoint)
@@ -224,6 +246,7 @@ def main():
     aws_roles = aws("iam", "list-roles")
     need(isinstance(aws_roles.get("Roles"), list) and not aws_roles.get("IsTruncated"))
     roles = eligible_roles(aws_roles["Roles"])
+    verify_oidc_template()
     for k, role in roles.items():
         need(caller["Account"] in role["Arn"])
         document = role["AssumeRolePolicyDocument"]
@@ -247,9 +270,7 @@ def main():
         if document != previous:
             aws("iam", "update-assume-role-policy", "--role-name",
                 role["RoleName"], "--policy-document", json.dumps(document, separators=(",", ":")))
-        current = aws("iam", "get-role", "--role-name", role["RoleName"])["Role"]
-        need(current["RoleId"] == role["RoleId"] and
-             extended_trust(current["AssumeRolePolicyDocument"], kind) == document)
+        verify_role_readback(role["RoleName"], role["RoleId"], document)
     if provider["attributeCondition"] != config.CONDITION:
         gcloud("iam", "workload-identity-pools", "providers", "update-oidc", "github-actions",
                "--workload-identity-pool=terraform-normal", "--location=global",
