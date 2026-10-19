@@ -149,7 +149,6 @@ class Contracts(unittest.TestCase):
             changed_order = deepcopy(baseline)
             for keyname in ('resource_changes', 'relevant_attributes', 'checks'):
                 changed_order[keyname].reverse()
-            changed_order['checks'][0]['instances'] = [] if 'instances' not in changed_order['checks'][0] else changed_order['checks'][0]['instances']
             changed_order['checks'][1]['instances'].reverse()
             for phase in ('planned_values',):
                 changed_order[phase]['root_module']['resources'].reverse()
