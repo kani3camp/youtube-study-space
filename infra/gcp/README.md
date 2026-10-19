@@ -87,7 +87,16 @@ python3 infra/gcp/scripts/enable_normal_integration.py --apply  # AWS/GCP/GitHub
 python3 infra/gcp/scripts/enable_normal_integration.py --apply --dispatch-e2e
 ```
 
+既存AWS DEV backend Roleのtrustでは、移行用workflowとの共用のため、
+固定されたrepository/owner/Environment/caller/reusable等の**7 claims**に対し
+ブランチ部分だけ`refs/heads/*`を使う場合があります。現行実値がこの**完全一致した形式**
+であれば読み取り検証して維持し、AWS trustを狭めて既存migrationを壊しません。
+通常操作を2 refに限定するのはcontroller・GCPの独立WIFとGitHubのEnvironment policyです。
+想定外のwildcard、repo/claim変更、default OIDC subjectは拒否します。
+
 AWS role / GCP WIF / GitHub Environmentの実値が想定と異なる場合は**先にSTOP**して現在値を調査してください。
+失敗時は `NORMAL_INTEGRATION: STOP; phase=<検証段階>` の固定分類だけを表示します。
+AWS/GCP CLIエラーの生ログ・認証情報は表示しません。
 `--apply`はAWS IAM Trust、GCP WIF attribute condition、GitHub Environmentのbranch policyだけを変更し、
 Terraform State、DEV business resources、Production、IAM permission grantsには触れません。
 この運用スクリプトは現行の選択branch policyを変更せず、統合branchの明示追加だけを行います。

@@ -23,6 +23,8 @@ GIT_REF = "refs/heads/" + BRANCH
 ISSUER = "token.actions.githubusercontent.com"
 STATE_REGION = "ap-northeast-1"
 OLD_REF = "refs/heads/dev"
+LEGACY_AWS_REF = "refs/heads/*"  # Existing dev backend roles also serve migration workflows.
+PHASE = "start"  # Fixed classification only; never embed raw CLI output.
 CLAIM_KEYS = ("repository_id", "repository_owner_id", "environment", "ref",
               "workflow_ref", "job_workflow_ref", "event_name")
 
@@ -105,14 +107,21 @@ def _aws_statements(document: dict, role: str) -> list[dict]:
     need(len(matches) == 1)
     conditions = matches[0].get("Condition")
     need(isinstance(conditions, dict))
-    subjects = [values[ISSUER + ":sub"]
+    need(conditions.get("StringEquals", {}).get(ISSUER + ":aud") == "sts.amazonaws.com")
+    subjects = [(family, values[ISSUER + ":sub"])
                 for family in ("StringEquals", "StringLike")
                 for values in [conditions.get(family, {})]
                 if isinstance(values, dict) and ISSUER + ":sub" in values]
     need(len(subjects) == 1)
+    family, actual = subjects[0]
     original = custom_subject(role, OLD_REF)
     extended = custom_subject(role, GIT_REF)
-    need(subjects[0] == original or subjects[0] == [original, extended])
+    # A verified pre-existing wildcard is compatible with the integration ref.
+    # It is shared with migration flows and MUST NOT be silently narrowed.
+    # Only the exact seven-claim subject is accepted, not a generic wildcard.
+    legacy = custom_subject(role, LEGACY_AWS_REF)
+    need(actual == original or actual == [original, extended] or
+         (family == "StringLike" and actual == legacy))
     return matches
 
 
@@ -234,6 +243,8 @@ def integration_present(policy: dict) -> bool:
 
 
 def main():
+    global PHASE
+    PHASE = "arguments"
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true",
                         help="Apply exact DEV integration trust; default is read-only inspection")
@@ -241,20 +252,26 @@ def main():
                         help="After verified --apply, dispatch one DEV normal-e2e from the reviewed integration SHA")
     flags = parser.parse_args()
     need(not flags.dispatch_e2e or flags.apply)
+    PHASE = "aws_identity"
     caller = aws("sts", "get-caller-identity")
     need(isinstance(caller.get("Account"), str))
+    PHASE = "aws_roles"
     aws_roles = aws("iam", "list-roles")
     need(isinstance(aws_roles.get("Roles"), list) and not aws_roles.get("IsTruncated"))
     roles = eligible_roles(aws_roles["Roles"])
+    PHASE = "github_oidc_template"
     verify_oidc_template()
+    PHASE = "aws_trust_preflight"
     for k, role in roles.items():
         need(caller["Account"] in role["Arn"])
         document = role["AssumeRolePolicyDocument"]
         if isinstance(document, str):
             document = json.loads(unquote(document))
         role["desired_trust"] = extended_trust(document, k)
+    PHASE = "gcp_wif_preflight"
     provider = provider_details()
     check_provider(provider)
+    PHASE = "github_environments"
     gh_envs = {kind: branch_policies(kind) for kind in ("plan", "apply")}
     for _, pol in gh_envs.values():
         integration_present(pol)
@@ -262,6 +279,7 @@ def main():
     if not flags.apply:
         print("NORMAL_INTEGRATION: CHECK_ONLY; rerun with --apply to change exact DEV trust")
         return
+    PHASE = "aws_trust_update"
     for kind, role in roles.items():
         document = role["desired_trust"]
         previous = role["AssumeRolePolicyDocument"]
@@ -271,6 +289,7 @@ def main():
             aws("iam", "update-assume-role-policy", "--role-name",
                 role["RoleName"], "--policy-document", json.dumps(document, separators=(",", ":")))
         verify_role_readback(role["RoleName"], role["RoleId"], document)
+    PHASE = "gcp_wif_update"
     if provider["attributeCondition"] != config.CONDITION:
         gcloud("iam", "workload-identity-pools", "providers", "update-oidc", "github-actions",
                "--workload-identity-pool=terraform-normal", "--location=global",
@@ -278,6 +297,7 @@ def main():
     latest = provider_details()
     check_provider(latest)
     need(latest["attributeCondition"] == config.CONDITION)
+    PHASE = "github_environment_update"
     for kind in ("plan", "apply"):
         endpoint, policy = gh_envs[kind]
         if not integration_present(policy):
@@ -288,6 +308,7 @@ def main():
     print("NORMAL_INTEGRATION: PASS; AWS/GCP/GitHub DEV-only trust readback verified")
     print("NORMAL_INTEGRATION: Production, State and role resource grants untouched")
     if flags.dispatch_e2e:
+        PHASE = "github_dispatch_preflight"
         operator = gh("user")
         need(operator.get("login") == "kani3camp" and operator.get("id") == 54093651)
         branch = gh(f"repos/{REPO}/branches/{quote(BRANCH, safe='')}")
@@ -300,6 +321,7 @@ def main():
         for required in ("CI Gate", "GCP Terraform Validate"):
             selected = [c for c in checks if c.get("name") == required]
             need(len(selected) == 1 and selected[0].get("conclusion") == "success")
+        PHASE = "github_dispatch"
         command = subprocess.run([
             "gh", "workflow", "run", "ci.yml", "--repo", REPO,
             "--ref", BRANCH,
@@ -316,5 +338,6 @@ if __name__ == "__main__":
     try:
         main()
     except (Stop, OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired):
-        print("NORMAL_INTEGRATION: STOP; auth/role/condition mismatch; raw details suppressed")
+        print("NORMAL_INTEGRATION: STOP; phase=" + PHASE +
+              "; auth/role/condition mismatch; raw details suppressed")
         raise SystemExit(1)
