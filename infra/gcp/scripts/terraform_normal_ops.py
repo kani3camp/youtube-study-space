@@ -126,6 +126,53 @@ def validate(plan, approved, *, post=False):
     return counts
 
 
+def summarize_changes(plan, provider_schema):
+    """Publish only pinned-provider type names, native actions and counts.
+
+    Addresses can embed private for_each keys. Attributes, schema descriptions,
+    IDs, variables and values never enter this public projection.
+    """
+    grouped = {}
+    for item in plan.get('resource_changes', []):
+        actions = tuple(item['change']['actions'])
+        need(actions in ACTIONS)
+        if actions == ('no-op',):
+            continue
+        provider = item['provider_name']
+        need(provider in {'registry.terraform.io/hashicorp/google',
+                          'registry.terraform.io/hashicorp/google-beta'})
+        need(item['mode'] in {'managed', 'data'})
+        kind = item['type']
+        need(type(kind) is str and re.fullmatch(r'google_[a-z0-9_]{1,200}', kind) is not None)
+        schemas = provider_schema['provider_schemas'][provider][
+            'resource_schemas' if item['mode'] == 'managed' else 'data_source_schemas']
+        need(kind in schemas)
+        key = kind, actions
+        grouped[key] = grouped.get(key, 0) + 1
+    return [{'resource_type': kind, 'actions': list(actions), 'count': count}
+            for (kind, actions), count in sorted(grouped.items())]
+
+
+def publish_plan_summary(env, changes):
+    print('GCP_NORMAL_PLAN: ' + json.dumps({'changes': changes}, sort_keys=True))
+    if env.get('GITHUB_STEP_SUMMARY'):
+        lines = ['### Terraform resource changes', '']
+        if changes:
+            lines += ['| Resource type | Actions | Count |', '| --- | --- | ---: |']
+            lines += [f"| `{row['resource_type']}` | {' → '.join(row['actions'])} | {row['count']} |"
+                      for row in changes]
+        else:
+            lines += ['No resource changes.']
+        with open(env['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+            summary.write('\n'.join(lines) + '\n')
+
+
+def report_plan(env, root, tfroot, value):
+    schema = common.decode(common.terraform(env, root, tfroot, 'summary-schema',
+        ['providers', 'schema', '-json']).stdout)
+    publish_plan_summary(env, summarize_changes(value, schema))
+
+
 def commitment(env, tfvars, state, plan, key):
     projection = {k: v for k, v in plan.items() if k != 'timestamp'}
     payload = {'sha': env['GITHUB_SHA'], 'run': env['GITHUB_RUN_ID'],
@@ -306,6 +353,7 @@ def execute(env):
     tfroot = setup(env, root, tfvars)
     binary, value, counts = plan(env, root, tfroot, 'normal', review())
     need(snapshot(env, root, 'after-plan') == before)
+    report_plan(env, root, tfroot, value)
     digest = commitment(env, tfvars, before, value, key)
     if role == 'plan':
         if env['NORMAL_MODE'] == 'normal-e2e':

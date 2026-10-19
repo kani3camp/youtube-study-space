@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import terraform_normal_ops as ops
@@ -35,7 +35,7 @@ def plan(actions=('create',), resource='google_pubsub_topic.example'):
     return {'format_version': '1.2', 'terraform_version': ops.common.VERSION,
         'errored': False, 'complete': True, 'timestamp': '2026-10-19T00:00:00Z',
         'resource_changes': [{'address': resource, 'mode': 'managed',
-            'provider_name': 'registry.terraform.io/hashicorp/google',
+            'provider_name': 'registry.terraform.io/hashicorp/google', 'type': 'google_pubsub_topic',
             'change': {'actions': list(actions), 'before': None,
                        'after': {'project': ops.PROJECT}, 'after_unknown': {'id': True}}}]}
 
@@ -144,7 +144,7 @@ class Contracts(unittest.TestCase):
                 e = env('apply') | {'RUNNER_TEMP': temporary}
                 root = ops.private(e); root.mkdir(mode=0o700)
                 mocks = {k: patch.object(ops, k) for k in ('inputs', 'identity', 'snapshot', 'setup', 'plan',
-                         'review', 'commitment', 'match', 'apply_saved')}
+                         'review', 'report_plan', 'commitment', 'match', 'apply_saved')}
                 from contextlib import ExitStack
                 with ExitStack() as stack:
                     m = {k: stack.enter_context(v) for k, v in mocks.items()}
@@ -156,6 +156,7 @@ class Contracts(unittest.TestCase):
                     with patch.dict(os.environ, e, clear=True), patch.object(sys, 'argv', ['ops', 'execute']), redirect_stdout(output):
                         self.assertEqual(ops.main(), 1)
                     self.assertNotIn(CANARY, output.getvalue())
+                    m[failure].assert_called_once()
                     m['apply_saved'].assert_not_called()
 
     def test_stale_state_stops_saved_apply(self):
@@ -205,6 +206,88 @@ class Contracts(unittest.TestCase):
         self.assertEqual(set(roles['plan']), {'resourcemanager.projects.get', 'pubsub.topics.get', 'bigquery.tables.get'})
         self.assertEqual(set(roles['apply']) - set(roles['plan']),
             {'pubsub.topics.create', 'storage.buckets.delete', 'secretmanager.secrets.create', 'iam.serviceAccounts.create'})
+
+    def summary_schema(self):
+        return {'provider_schemas': {'registry.terraform.io/hashicorp/google': {
+            'resource_schemas': {'google_pubsub_topic': {'block': CANARY}, 'google_storage_bucket': {}},
+            'data_source_schemas': {'google_pubsub_topic': {}}}}}
+
+    def test_public_summary_groups_types_actions_counts_and_omits_noop(self):
+        p = plan(('update',))
+        first = p['resource_changes'][0]
+        first['address'] = 'module.' + CANARY + '.google_pubsub_topic.name["' + CANARY + '"]'
+        first['change']['before'] = {'project': ops.PROJECT, 'secret': CANARY}
+        first['change']['after']['secret'] = CANARY
+        first['name'], first['index'], first['module_address'] = CANARY, CANARY, CANARY
+        p['variables'], p['output_changes'], p['prior_state'] = {'secret': CANARY}, {'secret': CANARY}, {'secret': CANARY}
+        second = deepcopy(first); second['address'] += '.second'
+        replace = deepcopy(first); replace['type'] = 'google_storage_bucket'
+        replace['change']['actions'] = ['create', 'delete']
+        noop = deepcopy(first); noop['change']['actions'] = ['no-op']
+        p['resource_changes'] += [replace, noop, second]
+        expected = [
+            {'resource_type': 'google_pubsub_topic', 'actions': ['update'], 'count': 2},
+            {'resource_type': 'google_storage_bucket', 'actions': ['create', 'delete'], 'count': 1}]
+        self.assertEqual(ops.summarize_changes(p, self.summary_schema()), expected)
+        p['resource_changes'].reverse()
+        self.assertEqual(ops.summarize_changes(p, self.summary_schema()), expected)
+        with tempfile.TemporaryDirectory() as directory:
+            summary = Path(directory) / 'summary.md'
+            summary.write_text('Existing summary\n')
+            output = io.StringIO()
+            with patch.object(ops.common, 'terraform', return_value=Mock(
+                    stdout=json.dumps(self.summary_schema()).encode())) as tf, redirect_stdout(output):
+                ops.report_plan({'GITHUB_STEP_SUMMARY': str(summary)}, Path(directory), Path(directory), p)
+            tf.assert_called_once_with({'GITHUB_STEP_SUMMARY': str(summary)}, Path(directory), Path(directory),
+                'summary-schema', ['providers', 'schema', '-json'])
+            self.assertEqual(json.loads(output.getvalue().removeprefix('GCP_NORMAL_PLAN: ')), {'changes': expected})
+            markdown = summary.read_text()
+            self.assertTrue(markdown.startswith('Existing summary\n'))
+            self.assertIn('| `google_pubsub_topic` | update | 2 |', markdown)
+            self.assertIn('| `google_storage_bucket` | create → delete | 1 |', markdown)
+            self.assertNotIn(CANARY, output.getvalue() + markdown)
+            self.assertNotIn('no-op', output.getvalue() + markdown)
+
+    def test_public_summary_preserves_both_replace_orders_and_data_reads(self):
+        for actions in (['delete', 'create'], ['create', 'delete'], ['create'], ['delete'], ['read']):
+            p = plan(actions)
+            if actions == ['read']:
+                p['resource_changes'][0]['mode'] = 'data'
+            self.assertEqual(ops.summarize_changes(p, self.summary_schema()), [
+                {'resource_type': 'google_pubsub_topic', 'actions': actions, 'count': 1}])
+
+    def test_public_summary_rejects_untrusted_type_or_log_injection_before_publishing(self):
+        for provider, kind, mode in [('registry.terraform.io/hashicorp/google', CANARY, 'managed'),
+            ('registry.terraform.io/hashicorp/google', 'google_pubsub_topic\n::warning::' + CANARY, 'managed'),
+            ('registry.terraform.io/hashicorp/google', 'google_' + 'x' * 201, 'managed'),
+            ('attacker/' + CANARY, 'google_pubsub_topic', 'managed'),
+            ('registry.terraform.io/hashicorp/google', 'google_pubsub_topic', CANARY)]:
+            p = plan(); p['resource_changes'][0].update(provider_name=provider, type=kind, mode=mode)
+            output = io.StringIO()
+            with tempfile.TemporaryDirectory() as directory:
+                summary = Path(directory) / 'summary.md'
+                with patch.object(ops.common, 'terraform', return_value=Mock(
+                        stdout=json.dumps(self.summary_schema()).encode())), redirect_stdout(output):
+                    with self.assertRaises(ValueError):
+                        ops.report_plan({'GITHUB_STEP_SUMMARY': str(summary)}, Path(directory), Path(directory), p)
+                self.assertEqual(output.getvalue(), '')
+                self.assertFalse(summary.exists())
+
+    def test_public_summary_noop_has_no_changed_resource_rows(self):
+        self.assertEqual(ops.summarize_changes(plan(('no-op',)), self.summary_schema()), [])
+        with tempfile.TemporaryDirectory() as directory:
+            summary = Path(directory) / 'summary.md'
+            output = io.StringIO()
+            with redirect_stdout(output):
+                ops.publish_plan_summary({'GITHUB_STEP_SUMMARY': str(summary)}, [])
+            self.assertEqual(json.loads(output.getvalue().removeprefix('GCP_NORMAL_PLAN: ')), {'changes': []})
+            self.assertEqual(summary.read_text(), '### Terraform resource changes\n\nNo resource changes.\n')
+
+    def test_public_summary_without_job_summary_still_writes_log(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ops.publish_plan_summary({}, [])
+        self.assertEqual(json.loads(output.getvalue().removeprefix('GCP_NORMAL_PLAN: ')), {'changes': []})
 
     def test_workflow_uses_protected_independent_jobs_and_no_artifacts(self):
         text = (ops.REPO / '.github/workflows/gcp-terraform-authenticated.yml').read_text()

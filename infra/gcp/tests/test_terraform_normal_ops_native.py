@@ -107,6 +107,7 @@ resource "google_pubsub_topic" "probe" {
                 self.assertIn(result.returncode, codes, 'native fixture failed: ' + args[0] + '\n' + result.stderr.decode())
                 return result.stdout
             command('init', '-backend=false', '-input=false', '-lockfile=readonly')
+            schema = json.loads(command('providers', 'schema', '-json'))
             address = 'google_pubsub_topic.probe[0]'
             for phase, variables, actions in [
                 ('create', [], ['create']),
@@ -119,9 +120,13 @@ resource "google_pubsub_topic" "probe" {
                     self.assertEqual(p['resource_changes'][0]['change']['actions'], actions)
                     approvals = {address: actions} if 'delete' in actions else {}
                     ops.validate(p, approvals)
+                    self.assertEqual(ops.summarize_changes(p, schema), [
+                        {'resource_type': 'google_pubsub_topic', 'actions': actions, 'count': 1}])
                     command('apply', '-input=false', 'saved.tfplan')
                     command('plan', '-input=false', '-detailed-exitcode', *variables, '-out=post.tfplan')
-                    ops.validate(json.loads(command('show', '-json', 'post.tfplan')), {}, post=True)
+                    post = json.loads(command('show', '-json', 'post.tfplan'))
+                    ops.validate(post, {}, post=True)
+                    self.assertEqual(ops.summarize_changes(post, schema), [])
             self.assertEqual(topics, {})
             self.assertEqual([m for m, _ in requests if m != 'GET'], ['PUT', 'PATCH', 'DELETE', 'PUT', 'DELETE'])
             self.assertEqual(json.loads((root / 'terraform.tfstate').read_text())['resources'], [])

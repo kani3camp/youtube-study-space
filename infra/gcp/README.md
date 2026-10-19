@@ -21,7 +21,7 @@ PR/fork、他branch、再実行、Productionの通常操作は認証前に拒否
 3. delete/replaceが必要なら、同じPRの `normal-operations.json` に正確なaddressとactionsを記載する。
    create/updateにはリソース別manifestやtype登録を要求しない。
 4. PRのcredentialless CIと差分を確認し、本人が`dev`へマージする。
-5. ActionsのCI画面で`dev`・そのSHA・`normal-plan`を指定し、実差分の件数を確認する。
+5. ActionsのCI画面で`dev`・そのSHA・`normal-plan`を指定し、Actionsのログとjob summaryで変更リソースの種別・操作・件数を確認する。
 6. 適用する場合は同じSHAで`normal-apply`を新規dispatchする。
    これは新しいPlanを作り、Apply identityの再Plan・State/SHA/入力一致を検査してsaved planを適用する。
 7. `GCP_NORMAL: PASS; role=apply` と事後full-root no-opを確認する。
@@ -40,7 +40,9 @@ PR/fork、他branch、再実行、Productionの通常操作は認証前に拒否
 
 認証境界・State整合検査は[実行契約](docs/terraform-authentication-boundary.md#devの通常planapply)を参照してください。
 S3 native lockingとVersioning、環境別concurrencyを継続し、workspace・target apply・force-unlockは使いません。
-raw Plan/State/Secret/API応答はログ・artifactへ公開しません。公開結果は固定phaseと操作件数です。
+raw Plan/State/Secret/API応答はログ・artifactへ公開しません。公開結果は固定phase、操作件数、変更リソースの種別・操作別件数です。
+種別名は固定providerのschemaに存在する名前だけを使用し、address・for_eachキー・属性名/値は表示しません。
+no-opは一覧から省略し、replaceはcreate/deleteの順序も表示します。
 変更値はHCL/入力のレビューで確認し、秘密値を含む生Planが必要な障害調査はprivateな管理端末で行います。
 
 ### 一回限りのDEV基盤設定

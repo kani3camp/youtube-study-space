@@ -93,7 +93,7 @@ Cloud Run限定offline prototypeは認証付き経路から呼びません。リ
 | saved plan | 新しく生成した一致Planだけを適用。公開artifactへの生Plan転送はしない。Apply直前にState/保存Planを再確認し、native S3 lockとCoreのstale-plan検査を使う |
 | State | DEV固定key、account制限、AES256、VersionId、lineage/serial、lock/workspace不在。State欠損時は停止し、自動初期化しない |
 | 事後確認 | lineage維持・serial単調増加、refresh付きfull-root no-op、State前後照合とlock解放。エラーを無視せず停止 |
-| 出力/cleanup | stdout/stderr/Plan/State/API例外はprivate runnerへ。公開は固定phaseと件数、HMAC/timeだけ。alwaysでprivate filesを削除。強制unlock/自動State巻戻しなし |
+| 出力/cleanup | stdout/stderr/Plan/State/API例外はprivate runnerへ。公開は固定phase・件数・provider schemaで照合した変更リソース種別/操作別件数とHMAC/time。address/for_eachキー/属性名/値は出さず、ログとjob summaryへ同じ変更一覧を表示。alwaysでprivate filesを削除。強制unlock/自動State巻戻しなし |
 
 HMACは同runのPlan/Apply比較に限った小さな整合検査です。独自の発行サービス、durable receipt、
 承認台帳、履歴chain、per-resource attestationは作りません。
