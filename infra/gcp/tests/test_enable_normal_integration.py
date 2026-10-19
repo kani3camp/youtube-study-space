@@ -17,7 +17,7 @@ ACCOUNT = "123456789012"
 
 def role(kind):
     provider = f"arn:aws:iam::{ACCOUNT}:oidc-provider/token.actions.githubusercontent.com"
-    sub = f"repo:{op.REPO}:environment:terraform-dev-{kind}"
+    sub = op.custom_subject(kind, op.OLD_REF)
     conditions = {
         "StringEquals": {
             "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
@@ -63,7 +63,11 @@ class IntegrationTrustTest(unittest.TestCase):
             self.assertEqual(item["AssumeRolePolicyDocument"], original)
             old = original["Statement"][0]["Condition"]
             new = updated["Statement"][0]["Condition"]
-            self.assertEqual(old["StringEquals"], new["StringEquals"])
+            self.assertEqual(old["StringEquals"]["token.actions.githubusercontent.com:aud"],
+                             new["StringEquals"]["token.actions.githubusercontent.com:aud"])
+            self.assertEqual(new["StringEquals"]["token.actions.githubusercontent.com:sub"],
+                             [op.custom_subject(kind, op.OLD_REF),
+                              op.custom_subject(kind, op.GIT_REF)])
             for name in ("ref", "workflow_ref", "job_workflow_ref"):
                 key = "token.actions.githubusercontent.com:" + name
                 self.assertEqual(new["StringLike"][key],
@@ -77,7 +81,7 @@ class IntegrationTrustTest(unittest.TestCase):
             lambda policy: policy["Statement"][0]["Condition"]["StringLike"].update({
                 "token.actions.githubusercontent.com:ref": "refs/heads/*"}),
             lambda policy: policy["Statement"][0]["Condition"]["StringEquals"].update({
-                "token.actions.githubusercontent.com:sub": "repo:other/repo:environment:terraform-dev-apply"}),
+                "token.actions.githubusercontent.com:sub": "repository_id:999999999"}),
             lambda policy: policy["Statement"][0]["Principal"].update(Federated="other"),
             lambda policy: policy["Statement"][0].update(Action="sts:AssumeRole"),
         ]
