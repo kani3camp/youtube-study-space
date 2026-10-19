@@ -101,17 +101,25 @@ class Contracts(unittest.TestCase):
             with self.subTest(key=k), self.assertRaises(ValueError):
                 ops.context(env() | {k: v}, 'plan')
 
-    def test_integration_ref_context_is_allowed_only_with_matching_caller(self):
-        for role in ('plan', 'apply'):
-            v = env(role)
-            v['GITHUB_REF'] = ops.INTEGRATION_REF
-            v['GITHUB_WORKFLOW_REF'] = ops.CALLER + ops.INTEGRATION_REF
-            self.assertEqual(ops.context(v, role), 'dev')
+    def test_any_non_main_branch_context_is_allowed_only_with_matching_caller(self):
+        for branch in ("dev", "integration/gcp-terraform-normal-ops",
+                       "feature/arbitrary-normal-change"):
+            ref = "refs/heads/" + branch
+            for role in ("plan", "apply"):
+                v = env(role)
+                v["GITHUB_REF"] = ref
+                v["GITHUB_WORKFLOW_REF"] = ops.CALLER + ref
+                self.assertEqual(ops.context(v, role), "dev")
+                with self.assertRaises(ValueError):
+                    ops.context(v | {"GITHUB_WORKFLOW_REF":
+                                      ops.CALLER + "refs/heads/other"}, role)
+        for bad in ("refs/heads/main", "refs/tags/v1", "refs/pull/1/merge",
+                    "refs/heads/-bad"):
+            v = env("plan") | {"GITHUB_REF": bad,
+                               "GITHUB_WORKFLOW_REF": ops.CALLER + bad}
             with self.assertRaises(ValueError):
-                ops.context(v | {'GITHUB_WORKFLOW_REF': ops.CALLER + 'refs/heads/dev'}, role)
-            with self.assertRaises(ValueError):
-                ops.context(v | {'GITHUB_REF': 'refs/heads/feature/untrusted',
-                                 'GITHUB_WORKFLOW_REF': ops.CALLER + 'refs/heads/feature/untrusted'}, role)
+                ops.context(v, "plan")
+
 
     def test_apply_is_not_authorized_by_plan_mode(self):
         with self.assertRaises(ValueError):
@@ -287,12 +295,14 @@ class Contracts(unittest.TestCase):
         for mode in ('normal-plan', 'normal-apply', 'normal-e2e'):
             good = runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='a' * 40)
             self.assertEqual(good.returncode, 0, good.stdout + good.stderr)
-            integrated = runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='a' * 40,
-                GITHUB_REF=ops.INTEGRATION_REF, GITHUB_WORKFLOW_REF=ops.CALLER + ops.INTEGRATION_REF)
-            self.assertEqual(integrated.returncode, 0, integrated.stdout + integrated.stderr)
+            for branch in ('integration/gcp-terraform-normal-ops', 'feature/arbitrary'):
+                ref = 'refs/heads/' + branch
+                integrated = runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='a' * 40,
+                    GITHUB_REF=ref, GITHUB_WORKFLOW_REF=ops.CALLER + ref)
+                self.assertEqual(integrated.returncode, 0, integrated.stdout + integrated.stderr)
             for change in ({'NORMAL_EXPECTED_SHA': 'b' * 40}, {'NORMAL_EXPECTED_SHA': ''},
-                {'GITHUB_REF': 'refs/heads/integration/mypage-canon-20261006',
-                 'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/integration/mypage-canon-20261006'},
+                {'GITHUB_REF': 'refs/tags/v1',
+                 'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/tags/v1'},
                 {'TARGET': 'prod', 'GITHUB_REF': 'refs/heads/main',
                  'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/main'}):
                 bad = runner.run_preflight(MODE=mode, **({'NORMAL_EXPECTED_SHA': 'a' * 40} | change))

@@ -9,18 +9,18 @@ YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをT
 `ci.yml` の本人による初回 `workflow_dispatch` で `terraform_authenticated=true`、
 `terraform_target=dev`、`terraform_mode=normal-plan` / `normal-apply` を選択します。
 `terraform_expected_sha` には実行するbranchの40桁HEADを指定します。
-認証付き通常操作の許可refは `dev` と `integration/gcp-terraform-normal-ops` の**2本だけ**です。
-PR/fork、その他のbranch、再実行、Productionの通常操作は認証前に拒否します。
+認証付き通常操作の**ブランチ許可はGitHub EnvironmentのSelected branchesだけ**で管理します。controller / AWS OIDC / GCP WIFはブランチ名を個別allowlistせず、同一refの正規workflow・本人初回dispatch・非`main`のbranch refだけを検証します。
+PR/fork、tag、`main`でのDEV通常操作、再実行、Productionの通常操作は認証前またはEnvironmentで拒否します。
 `normal-apply` は同じrunで独立Plan job→Apply jobを実行します。
 
-1. 通常のHCL追加・修正は専用統合ブランチ `integration/gcp-terraform-normal-ops` 向けのPRで進める。`dev`は運用可能な統合結果だけを最終PRで受け入れる。
+1. 通常のHCL追加・修正は任意の作業/統合ブランチ向けPRで進める。認証付きPlan/Applyが必要なブランチだけをGitHubの`terraform-dev-plan` / `terraform-dev-apply` Environmentへ明示追加する。`dev`は運用可能な統合結果だけを最終PRで受け入れる。
 2. 新しい非秘密入力は `normal.tfvars.json` に追加する。既存Environmentのprivate tfvarsを読み、
    このcommitのファイルで上書きするため、既存リソースの選択・private inventoryを落とさない。
    秘密値はコミットしない。新しいprivate入力は両DEV Environmentのmanaged入力を同じ内容へ更新する。
 3. delete/replaceが必要なら、同じPRの `normal-operations.json` に正確なaddressとactionsを記載する。
    create/updateにはリソース別manifestやtype登録を要求しない。
-4. 作業PRのcredentialless CIとレビューを確認後、Codexは専用統合ブランチへマージしてよい。
-5. `integration/gcp-terraform-normal-ops` のHEADから認証付き `normal-plan` / `normal-e2e` を実行し、Actionsのログとjob summaryで変更リソース種別・操作・件数を確認する。
+4. 作業PRのcredentialless CIとレビューを確認する。認証付き検証が必要なら対象ブランチをGitHub Environmentへ追加する。専用統合ブランチを使う作業ではCodexがそこへマージしてよい。
+5. Environmentで許可した対象ブランチのHEADから認証付き `normal-plan` / `normal-e2e` を実行し、Actionsのログとjob summaryで変更リソース種別・操作・件数を確認する。
 6. 適用する場合は同一ブランチ・HEADで `normal-apply` を新規dispatchする。
    これは新しいPlanを作り、Apply identityの再Plan・State/SHA/入力一致を検査してsaved planを適用する。
 7. `GCP_NORMAL: PASS; role=apply` と事後full-root no-opを確認する。
@@ -73,36 +73,32 @@ runtime SAの権限とactAs付与先、既存identityへの影響を実値で確
 GitHub Secretは値を読み戻せないため名前と更新時刻を確認し、実際の認証・Plan/ApplyはActionsで検証します。
 設定変更時の確認項目は[認証・実行境界](docs/terraform-authentication-boundary.md#設定変更時の確認)を参照してください。
 
-### 専用統合ブランチでの認証付きE2E
+### GitHub Environmentで許可したブランチの認証付きE2E
 
-一度だけDEVの既存AWS backend trust・GCP通常WIF・GitHubのDEV Plan/Apply Environmentを、`dev`と
-`integration/gcp-terraform-normal-ops`の**正確な2 refだけ**に整合させます。
-`infra/gcp/scripts/enable_normal_integration.py` はread-only事前確認が既定で、
-`--apply` は既存認証済み管理端末（AWS State account SSO、GCP DEV gcloud、GitHub gh admin）から一回実行します。
-任意branchを許可しません。既存migration/Production identityの権限は変更しません。
+AWS DEV backend Roleは既存の7 claimsカスタムsubjectを read-only connector で実確認済みであり、移行用workflowと共有しているため**AWS trustを変更しません**。GCP通常WIFもブランチ名をallowlistせず、repository / owner / Environment / actor / workflow path / same-ref / same-SHAを恒久的に検証します。
+**ブランチごとのPlan/Apply許可はGitHub Environmentだけ**で変更します。`infra/gcp/scripts/enable_normal_integration.py --apply --branch <branch>` は `terraform-dev-plan` / `terraform-dev-apply` のSelected branchesへ完全一致のbranch名を追加するだけです。通常利用にAWS Profileやgcloud loginは不要で、GitHub Environmentを管理できる`gh`認証だけを使います。既存migration/Production identityの権限は変更しません。
 ```bash
-python3 infra/gcp/scripts/enable_normal_integration.py          # read-only trust check
-python3 infra/gcp/scripts/enable_normal_integration.py --apply  # AWS/GCP/GitHub 3系統の限定変更+readback
-# まとめて実行したい場合（統合ブランチに本PRがマージ・CI成功した後だけ）:
-python3 infra/gcp/scripts/enable_normal_integration.py --apply --dispatch-e2e
+python3 infra/gcp/scripts/enable_normal_integration.py --branch integration/gcp-terraform-normal-ops
+python3 infra/gcp/scripts/enable_normal_integration.py --branch integration/gcp-terraform-normal-ops --apply
+# CI成功後、そのbranchを許可してE2Eも1回起動:
+python3 infra/gcp/scripts/enable_normal_integration.py --branch integration/gcp-terraform-normal-ops --apply --dispatch-e2e
 ```
 
 既存AWS DEV backend Roleのtrustでは、移行用workflowとの共用のため、
 固定されたrepository/owner/Environment/caller/reusable等の**7 claims**に対し
 ブランチ部分だけ`refs/heads/*`を使う場合があります。現行実値がこの**完全一致した形式**
 であれば読み取り検証して維持し、AWS trustを狭めて既存migrationを壊しません。
-通常操作を2 refに限定するのはcontroller・GCPの独立WIFとGitHubのEnvironment policyです。
+AWS/GCPはブランチ名の運用allowlistを持ちません。実際に認証付きjobへ到達できるbranchはGitHub Environment policyが決めます。
 想定外のwildcard、repo/claim変更、default OIDC subjectは拒否します。
 
-AWS role / GCP WIF / GitHub Environmentの実値が想定と異なる場合は**先にSTOP**して現在値を調査してください。
+AWS IAMを再監査したい場合だけ認証済みAWS CLIから`--verify-aws`、GCP WIFを再監査したい場合だけ認証済みgcloudから`--verify-gcp`を追加できます。どちらもread-onlyです。通常のbranch追加ではクラウドCLIを使いません。AWS/GCPの恒久trustが不適切ならGitHub Actionsの短期認証がfail-closedで停止し、State Applyへ進みません。GitHub Environmentの実値が想定と異なる場合は**先にSTOP**します。
 失敗時は `NORMAL_INTEGRATION: STOP; phase=<検証段階>` の固定分類だけを表示します。
 AWS/GCP CLIエラーの生ログ・認証情報は表示しません。
-`--apply`はAWS IAM Trust、GCP WIF attribute condition、GitHub Environmentのbranch policyだけを変更し、
-Terraform State、DEV business resources、Production、IAM permission grantsには触れません。
+`--apply`が変更するのはGitHub Environmentのbranch policyだけです。AWS IAM / GCP WIF / Terraform State / DEV business resources / Productionには触れません。
 この運用スクリプトは現行の選択branch policyを変更せず、統合branchの明示追加だけを行います。
 
-一括オプション `--dispatch-e2e` はGitHubで統合branchの必須CI成功と実行者IDをreadbackしてから本人の新規dispatchを1回行います（E2E完了までは判定しない）。
-外部信頼条件が整った後、CIを `normal-e2e`、branch `integration/gcp-terraform-normal-ops`、
+一括オプション `--dispatch-e2e` はGitHubで指定branchの必須CI成功と実行者IDをreadbackしてから本人の新規dispatchを1回行います（E2E完了までは判定しない）。
+GitHub Environmentでbranchを許可した後、CIを `normal-e2e`、branch `integration/gcp-terraform-normal-ops`、
 その正確な40桁HEAD SHAで**一度新規dispatch**します。失敗runのRe-runは拒否されます。
 既存rootがno-opのときだけ、runnerのprivate source copyに一時的なDEV Pub/Sub topicを追加し、
 create→ラベルupdate→名前replace→deleteを実行します。各段階は対象topicだけの変更を要求し、
@@ -110,7 +106,7 @@ saved plan Apply・full-root no-op・lock解放を検証します。既存業務
 最後に元のState resourcesと一致することを検査します。State serial/versionは正常に進みます。
 MyPageのHCL・専用Stateを扱いません。
 
-通常操作は `dev` および専用統合branchの2 ref限定です。GitHub EnvironmentやAWS/GCP trustのいずれかが未設定なら認証前・認証中に拒否されます。
+通常操作は有効な非`main` branch refをcontroller/WIFが受け付けますが、**GitHub Environmentで明示許可されていないbranchはcredentialed jobへ入れません**。AWS/GCPの恒久trustが不正なら認証中に拒否されます。
 Environment/WIFの保護は維持し、`dev`向け最終PRのマージは本人が実施します。
 E2Eが中途失敗した場合は、そのrunのprobeだけの削除Planで復旧を試みます。
 他リソースの差分・lock・認証失敗があれば停止します。自動force-unlockやStateの復元はしません。

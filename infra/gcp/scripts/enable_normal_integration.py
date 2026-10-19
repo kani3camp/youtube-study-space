@@ -1,56 +1,30 @@
 #!/usr/bin/env python3
-"""One-time bounded DEV-only trust update for the normal Terraform integration.
+"""Manage DEV Terraform branch authorization through GitHub Environments only.
 
-Operator script: requires existing AWS state-account SSO, gcloud DEV login, and
-GitHub environment administration. No credentials, state or tokens are stored.
-It never touches Production, MyPage, Terraform State or resource permissions.
+Per-branch authorization lives in the two GitHub DEV Terraform Environments.
+AWS/GCP trust are long-lived, branch-name-agnostic control planes and are never
+mutated by this script. Optional AWS/GCP flags are read-only audits.
 """
 from __future__ import annotations
 
 import argparse
-from copy import deepcopy
 import json
+import re
 import subprocess
-import time
-from urllib.parse import unquote, quote
+from urllib.parse import quote, unquote
 
 import bootstrap_normal_ops as config
 
 REPO = "kani3camp/youtube-study-space"
 PROJECT = "test-youtube-study-space"
-BRANCH = "integration/gcp-terraform-normal-ops"
-GIT_REF = "refs/heads/" + BRANCH
+DEFAULT_BRANCH = "integration/gcp-terraform-normal-ops"
 ISSUER = "token.actions.githubusercontent.com"
 STATE_REGION = "ap-northeast-1"
-OLD_REF = "refs/heads/dev"
-LEGACY_AWS_REF = "refs/heads/*"  # Existing dev backend roles also serve migration workflows.
-PHASE = "start"  # Fixed classification only; never embed raw CLI output.
+LEGACY_AWS_REF = "refs/heads/*"
 CLAIM_KEYS = ("repository_id", "repository_owner_id", "environment", "ref",
               "workflow_ref", "job_workflow_ref", "event_name")
-
-
-def custom_subject(role: str, ref: str) -> str:
-    claims = {
-        "repository_id": "340900071", "repository_owner_id": "54093651",
-        "environment": "terraform-dev-" + role,
-        "ref": ref,
-        "workflow_ref": REPO + "/.github/workflows/ci.yml@" + ref,
-        "job_workflow_ref": REPO + "/.github/workflows/gcp-terraform-authenticated.yml@" + ref,
-        "event_name": "workflow_dispatch",
-    }
-    return ":".join(f"{key}:{claims[key].replace(':', '%3A')}"
-                    for key in CLAIM_KEYS)
-
-OLD_CONDITION = config.CONDITION.replace(
-    "assertion.ref in ['refs/heads/dev', 'refs/heads/integration/gcp-terraform-normal-ops']",
-    "assertion.ref == 'refs/heads/dev'"
-).replace(
-    "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + assertion.ref",
-    "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev'"
-).replace(
-    "assertion.job_workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@' + assertion.ref",
-    "assertion.job_workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/dev'"
-)
+BRANCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
+PHASE = "start"
 
 
 class Stop(ValueError):
@@ -59,17 +33,39 @@ class Stop(ValueError):
 
 def need(value: bool) -> None:
     if not value:
-        raise Stop("integration trust precondition not met")
+        raise Stop("branch authorization precondition not met")
+
+
+def branch_name(value: str) -> str:
+    need(type(value) is str and BRANCH.fullmatch(value) is not None
+         and value != "main" and not value.startswith("-")
+         and not value.startswith("refs/"))
+    return value
+
+
+def custom_subject(role: str, ref: str) -> str:
+    claims = {
+        "repository_id": "340900071",
+        "repository_owner_id": "54093651",
+        "environment": "terraform-dev-" + role,
+        "ref": ref,
+        "workflow_ref": REPO + "/.github/workflows/ci.yml@" + ref,
+        "job_workflow_ref":
+            REPO + "/.github/workflows/gcp-terraform-authenticated.yml@" + ref,
+        "event_name": "workflow_dispatch",
+    }
+    return ":".join(f"{key}:{claims[key].replace(':', '%3A')}"
+                    for key in CLAIM_KEYS)
 
 
 def cmd(*args: str, stdin: str | None = None) -> dict:
-    outcome = subprocess.run(args, input=stdin, capture_output=True,
-                             text=True, timeout=90, check=False)
-    need(outcome.returncode == 0)
-    if not outcome.stdout.strip():
+    result = subprocess.run(args, input=stdin, capture_output=True, text=True,
+                            timeout=90, check=False)
+    need(result.returncode == 0)
+    if not result.stdout.strip():
         return {}
     try:
-        return json.loads(outcome.stdout)
+        return json.loads(result.stdout)
     except ValueError:
         raise Stop("invalid operator API response") from None
 
@@ -83,105 +79,63 @@ def gcloud(*args: str) -> dict:
 
 
 def gh(*args: str, data: dict | None = None) -> dict:
-    return cmd("gh", "api", *args, stdin=json.dumps(data) if data is not None else None)
+    return cmd("gh", "api", *args,
+               stdin=json.dumps(data) if data is not None else None)
 
 
-def _singular(value):
+def _statements(document):
+    values = document.get("Statement", [])
+    if isinstance(values, dict):
+        values = [values]
+    need(isinstance(values, list) and all(isinstance(x, dict) for x in values))
+    return values
+
+
+def _actions(value):
     if isinstance(value, str):
         return [value]
     need(isinstance(value, list) and all(isinstance(x, str) for x in value))
     return value
 
 
-def _aws_statements(document: dict, role: str) -> list[dict]:
-    need(isinstance(document, dict))
-    matches = []
-    for statement in _singular_statement(document.get("Statement", [])):
-        actions = _singular(statement.get("Action", []))
+def audit_aws_role(document: dict, role: str) -> None:
+    """Require the existing branch-agnostic seven-claim subject; never mutate it."""
+    candidates = []
+    for statement in _statements(document):
         principal = statement.get("Principal")
-        fed = principal.get("Federated") if isinstance(principal, dict) else None
+        federated = principal.get("Federated") if isinstance(principal, dict) else None
         if (statement.get("Effect") == "Allow"
-                and "sts:AssumeRoleWithWebIdentity" in actions
-                and isinstance(fed, str) and fed.endswith(":oidc-provider/" + ISSUER)):
-            matches.append(statement)
-    need(len(matches) == 1)
-    conditions = matches[0].get("Condition")
-    need(isinstance(conditions, dict))
-    need(conditions.get("StringEquals", {}).get(ISSUER + ":aud") == "sts.amazonaws.com")
-    subjects = [(family, values[ISSUER + ":sub"])
-                for family in ("StringEquals", "StringLike")
-                for values in [conditions.get(family, {})]
-                if isinstance(values, dict) and ISSUER + ":sub" in values]
-    need(len(subjects) == 1)
-    family, actual = subjects[0]
-    original = custom_subject(role, OLD_REF)
-    extended = custom_subject(role, GIT_REF)
-    # A verified pre-existing wildcard is compatible with the integration ref.
-    # It is shared with migration flows and MUST NOT be silently narrowed.
-    # Only the exact seven-claim subject is accepted, not a generic wildcard.
-    legacy = custom_subject(role, LEGACY_AWS_REF)
-    need(actual == original or actual == [original, extended] or
-         (family == "StringLike" and actual == legacy))
-    return matches
+                and "sts:AssumeRoleWithWebIdentity" in _actions(statement.get("Action", []))
+                and isinstance(federated, str)
+                and federated.endswith(":oidc-provider/" + ISSUER)):
+            candidates.append(statement)
+    need(len(candidates) == 1)
+    condition = candidates[0].get("Condition")
+    need(isinstance(condition, dict))
+    equals = condition.get("StringEquals", {})
+    likes = condition.get("StringLike", {})
+    need(isinstance(equals, dict) and isinstance(likes, dict)
+         and equals.get(ISSUER + ":aud") == "sts.amazonaws.com")
+    # This wildcard is not the authorization surface. GitHub Environment is.
+    # Every other claim remains fixed inside the custom subject.
+    need(likes.get(ISSUER + ":sub") == custom_subject(role, LEGACY_AWS_REF))
 
 
-def _singular_statement(value):
-    if isinstance(value, dict):
-        return [value]
-    need(isinstance(value, list) and all(isinstance(x, dict) for x in value))
-    return value
-
-
-def eligible_roles(roles: list[dict]) -> dict[str, dict]:
-    result = {}
-    for kind in ("plan", "apply"):
-        matches = []
-        for role in roles:
-            name = role.get("RoleName")
-            if not isinstance(name, str) or not name.endswith("-" + kind):
-                continue
-            document = role.get("AssumeRolePolicyDocument")
-            if isinstance(document, str):
-                document = json.loads(unquote(document))
-            try:
-                _aws_statements(document, kind)
-            except (Stop, ValueError, AttributeError):
-                continue
-            matches.append(role)
-        need(len(matches) == 1)
-        result[kind] = matches[0]
-    need(result["plan"]["RoleName"] != result["apply"]["RoleName"])
-    return result
-
-
-def extended_trust(document: dict, role: str) -> dict:
-    updated = deepcopy(document)
-    for stmt in _aws_statements(updated, role):
-        conditions = stmt["Condition"]
-        need(isinstance(conditions, dict))
-        for family in ("StringEquals", "StringLike"):
-            rules = conditions.get(family, {})
-            need(isinstance(rules, dict))
-            sub_key = ISSUER + ":sub"
-            if sub_key in rules and rules[sub_key] == custom_subject(role, OLD_REF):
-                # A customized GitHub OIDC 'sub' binds environment + caller +
-                # reusable path + ref together, so OR exactly two complete subs.
-                rules[sub_key] = [custom_subject(role, OLD_REF),
-                                  custom_subject(role, GIT_REF)]
-            for claim, suffix in (
-                ("ref", ""), ("workflow_ref", REPO + "/.github/workflows/ci.yml@"),
-                ("job_workflow_ref", REPO + "/.github/workflows/gcp-terraform-authenticated.yml@"),
-            ):
-                key = ISSUER + ":" + claim
-                if key not in rules:
-                    continue
-                one, two = suffix + OLD_REF, suffix + GIT_REF
-                actual = rules[key]
-                need(actual == one or actual == [one, two])
-                rules[key] = [one, two]
-    # Preserve every other trust condition (audience, actor, owner, account,
-    # OIDC principal and IAM permission policies) verbatim.
-    return updated
+def verify_aws() -> None:
+    global PHASE
+    PHASE = "aws_identity"
+    identity = aws("sts", "get-caller-identity")
+    need(isinstance(identity.get("Account"), str))
+    PHASE = "aws_roles"
+    for role in ("plan", "apply"):
+        name = "youtube-study-space-terraform-dev-" + role
+        value = aws("iam", "get-role", "--role-name", name)["Role"]
+        need(value.get("Arn", "").split(":")[4] == identity["Account"])
+        document = value.get("AssumeRolePolicyDocument")
+        if isinstance(document, str):
+            document = json.loads(unquote(document))
+        audit_aws_role(document, role)
+    print("NORMAL_BRANCH_ACCESS: AWS_READBACK_PASS; mutation=0")
 
 
 def provider_details() -> dict:
@@ -192,152 +146,143 @@ def provider_details() -> dict:
 
 def check_provider(value: dict) -> None:
     need(value.get("state") == "ACTIVE")
-    need(value.get("oidc", {}).get("issuerUri") == "https://token.actions.githubusercontent.com")
+    need(value.get("oidc", {}).get("issuerUri")
+         == "https://token.actions.githubusercontent.com")
     need(value.get("attributeMapping") == config.MAPPING)
-    need(value.get("attributeCondition") in {OLD_CONDITION, config.CONDITION})
+    # No branch names are allowed in the durable WIF condition. It verifies
+    # branch-shaped refs and same-ref workflow paths; Environment selects names.
+    need(value.get("attributeCondition") == config.CONDITION)
+    condition = value["attributeCondition"]
+    need("refs/heads/dev" not in condition
+         and "integration/gcp-terraform-normal-ops" not in condition)
+
+
+def verify_gcp() -> None:
+    global PHASE
+    PHASE = "gcp_wif_readback"
+    check_provider(provider_details())
+    print("NORMAL_BRANCH_ACCESS: GCP_WIF_READBACK_PASS; mutation=0")
 
 
 def verify_oidc_template() -> None:
     settings = gh(f"repos/{REPO}/actions/oidc/customization/sub")
-    need(settings.get("use_default") is False and
-         settings.get("include_claim_keys") == list(CLAIM_KEYS))
-
-
-def verify_role_readback(role_name: str, role_id: str, desired: dict) -> None:
-    # IAM is eventually consistent: compare the actual policy, not a projected
-    # post-transformation document. Retry a bounded number of times.
-    for attempt in range(6):
-        role = aws("iam", "get-role", "--role-name", role_name)["Role"]
-        need(role.get("RoleId") == role_id)
-        actual = role.get("AssumeRolePolicyDocument")
-        if isinstance(actual, str):
-            actual = json.loads(unquote(actual))
-        if actual == desired:
-            return
-        if attempt < 5:
-            time.sleep(2)
-    raise Stop("AWS trust propagation verification failed")
+    need(settings.get("use_default") is False
+         and settings.get("include_claim_keys") == list(CLAIM_KEYS))
 
 
 def branch_policies(role: str) -> tuple[str, dict]:
     endpoint = f"repos/{REPO}/environments/terraform-dev-{role}"
-    env = gh(endpoint)
-    rule = env.get("deployment_branch_policy")
-    need(isinstance(rule, dict) and rule.get("custom_branch_policies") is True
-         and rule.get("protected_branches") is False)
-    result = gh(endpoint + "/deployment-branch-policies?per_page=100")
-    need(isinstance(result.get("branch_policies"), list) and
-         not result.get("total_count", 0) > 100)
-    return endpoint, result
+    environment = gh(endpoint)
+    policy = environment.get("deployment_branch_policy")
+    need(isinstance(policy, dict)
+         and policy.get("custom_branch_policies") is True
+         and policy.get("protected_branches") is False)
+    values = gh(endpoint + "/deployment-branch-policies?per_page=100")
+    need(isinstance(values.get("branch_policies"), list)
+         and type(values.get("total_count")) is int
+         and values["total_count"] <= 100)
+    return endpoint, values
 
 
-def integration_present(policy: dict) -> bool:
-    policies = policy["branch_policies"]
-    need(all(isinstance(x, dict) and isinstance(x.get("name"), str)
-             and x.get("type") in ("branch", None) for x in policies))
-    # A wildcard is not a substitute for an exact permitted integration ref.
-    need(not any("*" in x["name"] or "?" in x["name"] for x in policies))
-    names = [x["name"] for x in policies]
+def exact_policy_names(values: dict) -> list[str]:
+    policies = values["branch_policies"]
+    need(all(isinstance(item, dict) and isinstance(item.get("name"), str)
+             and item.get("type") in ("branch", None) for item in policies))
+    names = [item["name"] for item in policies]
+    # Keep this operational lane exact. Broad patterns bypass the explicit
+    # per-branch workflow the user chose for DEV.
+    need(not any("*" in name or "?" in name for name in names))
+    return names
+
+
+def branch_present(values: dict, target: str) -> bool:
+    names = exact_policy_names(values)
     need("dev" in names)
-    return BRANCH in names
+    return target in names
 
 
-def main():
+def add_branch(endpoint: str, target: str) -> None:
+    gh("-X", "POST", endpoint + "/deployment-branch-policies",
+       "-H", "Accept: application/vnd.github+json",
+       "--input", "-", data={"name": target})
+
+
+def dispatch_e2e(target: str) -> None:
+    global PHASE
+    PHASE = "github_dispatch_preflight"
+    operator = gh("user")
+    need(operator.get("login") == "kani3camp" and operator.get("id") == 54093651)
+    remote = gh(f"repos/{REPO}/branches/{quote(target, safe='')}")
+    sha = remote.get("commit", {}).get("sha")
+    need(isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{40}", sha) is not None)
+    status = gh(f"repos/{REPO}/commits/{sha}/check-runs?per_page=100")
+    checks = status.get("check_runs", [])
+    need(isinstance(checks, list))
+    for required in ("CI Gate", "GCP Terraform Validate"):
+        selected = [item for item in checks if item.get("name") == required]
+        need(len(selected) == 1 and selected[0].get("conclusion") == "success")
+    PHASE = "github_dispatch"
+    result = subprocess.run([
+        "gh", "workflow", "run", "ci.yml", "--repo", REPO, "--ref", target,
+        "-f", "terraform_authenticated=true",
+        "-f", "terraform_target=dev",
+        "-f", "terraform_mode=normal-e2e",
+        "-f", "terraform_expected_sha=" + sha,
+    ], capture_output=True, text=True, timeout=60, check=False)
+    need(result.returncode == 0)
+    print("NORMAL_BRANCH_ACCESS: PASS; normal-e2e dispatched; sha=" + sha)
+
+
+def main() -> None:
     global PHASE
     PHASE = "arguments"
     parser = argparse.ArgumentParser()
+    parser.add_argument("--branch", default=DEFAULT_BRANCH,
+                        help="Exact DEV branch to authorize in GitHub Environments")
     parser.add_argument("--apply", action="store_true",
-                        help="Apply exact DEV integration trust; default is read-only inspection")
+                        help="Add exact branch to DEV plan/apply Environments")
     parser.add_argument("--dispatch-e2e", action="store_true",
-                        help="After verified --apply, dispatch one DEV normal-e2e from the reviewed integration SHA")
+                        help="After verified --apply, dispatch one normal-e2e")
+    parser.add_argument("--verify-aws", action="store_true",
+                        help="Optional read-only AWS OIDC trust audit")
+    parser.add_argument("--verify-gcp", action="store_true",
+                        help="Optional read-only GCP WIF audit")
     flags = parser.parse_args()
+    target = branch_name(flags.branch)
     need(not flags.dispatch_e2e or flags.apply)
-    PHASE = "aws_identity"
-    caller = aws("sts", "get-caller-identity")
-    need(isinstance(caller.get("Account"), str))
-    PHASE = "aws_roles"
-    aws_roles = aws("iam", "list-roles")
-    need(isinstance(aws_roles.get("Roles"), list) and not aws_roles.get("IsTruncated"))
-    roles = eligible_roles(aws_roles["Roles"])
+
+    if flags.verify_aws:
+        verify_aws()
+    if flags.verify_gcp:
+        verify_gcp()
+
     PHASE = "github_oidc_template"
     verify_oidc_template()
-    PHASE = "aws_trust_preflight"
-    for k, role in roles.items():
-        need(caller["Account"] in role["Arn"])
-        document = role["AssumeRolePolicyDocument"]
-        if isinstance(document, str):
-            document = json.loads(unquote(document))
-        role["desired_trust"] = extended_trust(document, k)
-    PHASE = "gcp_wif_preflight"
-    provider = provider_details()
-    check_provider(provider)
     PHASE = "github_environments"
-    gh_envs = {kind: branch_policies(kind) for kind in ("plan", "apply")}
-    for _, pol in gh_envs.values():
-        integration_present(pol)
-    print("NORMAL_INTEGRATION: PASS; phase=preflight; target=DEV; roles=2; environments=2")
-    if not flags.apply:
-        print("NORMAL_INTEGRATION: CHECK_ONLY; rerun with --apply to change exact DEV trust")
-        return
-    PHASE = "aws_trust_update"
-    for kind, role in roles.items():
-        document = role["desired_trust"]
-        previous = role["AssumeRolePolicyDocument"]
-        if isinstance(previous, str):
-            previous = json.loads(unquote(previous))
-        if document != previous:
-            aws("iam", "update-assume-role-policy", "--role-name",
-                role["RoleName"], "--policy-document", json.dumps(document, separators=(",", ":")))
-        verify_role_readback(role["RoleName"], role["RoleId"], document)
-    PHASE = "gcp_wif_update"
-    if provider["attributeCondition"] != config.CONDITION:
-        gcloud("iam", "workload-identity-pools", "providers", "update-oidc", "github-actions",
-               "--workload-identity-pool=terraform-normal", "--location=global",
-               "--attribute-condition=" + config.CONDITION)
-    latest = provider_details()
-    check_provider(latest)
-    need(latest["attributeCondition"] == config.CONDITION)
-    PHASE = "github_environment_update"
-    for kind in ("plan", "apply"):
-        endpoint, policy = gh_envs[kind]
-        if not integration_present(policy):
-            gh("-X", "POST", endpoint + "/deployment-branch-policies",
-               "-H", "Accept: application/vnd.github+json",
-               "--input", "-", data={"name": BRANCH})
-        need(integration_present(branch_policies(kind)[1]))
-    print("NORMAL_INTEGRATION: PASS; AWS/GCP/GitHub DEV-only trust readback verified")
-    print("NORMAL_INTEGRATION: Production, State and role resource grants untouched")
+    current = {role: branch_policies(role) for role in ("plan", "apply")}
+    for _, values in current.values():
+        exact_policy_names(values)
+
+    print("NORMAL_BRANCH_ACCESS: PASS; phase=preflight; branch=" + target
+          + "; cloud_mutation=0")
+    if flags.apply:
+        PHASE = "github_environment_update"
+        for role in ("plan", "apply"):
+            endpoint, values = current[role]
+            if not branch_present(values, target):
+                add_branch(endpoint, target)
+            need(branch_present(branch_policies(role)[1], target))
+        print("NORMAL_BRANCH_ACCESS: PASS; GitHub Environment branch enabled;"
+              " AWS/GCP mutation=0")
     if flags.dispatch_e2e:
-        PHASE = "github_dispatch_preflight"
-        operator = gh("user")
-        need(operator.get("login") == "kani3camp" and operator.get("id") == 54093651)
-        branch = gh(f"repos/{REPO}/branches/{quote(BRANCH, safe='')}")
-        sha = branch.get("commit", {}).get("sha")
-        need(isinstance(sha, str) and len(sha) == 40
-             and all(ch in "0123456789abcdef" for ch in sha))
-        status = gh(f"repos/{REPO}/commits/{sha}/check-runs?per_page=100")
-        checks = status.get("check_runs", [])
-        need(isinstance(checks, list) and len(checks) >= 2)
-        for required in ("CI Gate", "GCP Terraform Validate"):
-            selected = [c for c in checks if c.get("name") == required]
-            need(len(selected) == 1 and selected[0].get("conclusion") == "success")
-        PHASE = "github_dispatch"
-        command = subprocess.run([
-            "gh", "workflow", "run", "ci.yml", "--repo", REPO,
-            "--ref", BRANCH,
-            "-f", "terraform_authenticated=true",
-            "-f", "terraform_target=dev",
-            "-f", "terraform_mode=normal-e2e",
-            "-f", "terraform_expected_sha=" + sha,
-        ], capture_output=True, text=True, timeout=60, check=False)
-        need(command.returncode == 0)
-        print("NORMAL_INTEGRATION: PASS; DEV normal-e2e dispatched once; sha=" + sha)
+        dispatch_e2e(target)
 
 
 if __name__ == "__main__":
     try:
         main()
-    except (Stop, OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired):
-        print("NORMAL_INTEGRATION: STOP; phase=" + PHASE +
-              "; auth/role/condition mismatch; raw details suppressed")
+    except (Stop, OSError, ValueError, KeyError, TypeError,
+            subprocess.TimeoutExpired):
+        print("NORMAL_BRANCH_ACCESS: STOP; phase=" + PHASE
+              + "; raw provider output suppressed")
         raise SystemExit(1)
