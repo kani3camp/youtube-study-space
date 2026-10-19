@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Credentialless tests for DEV-only integration ref bootstrap.
-
-All identities, roles and policy documents here are invented fixtures.
-"""
+"""Credentialless contracts for GitHub-Environment-driven DEV Terraform access."""
 from copy import deepcopy
+from contextlib import redirect_stdout
+import io
 from pathlib import Path
-from unittest.mock import patch
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import enable_normal_integration as op
@@ -18,186 +17,137 @@ ACCOUNT = "123456789012"
 
 def role(kind):
     provider = f"arn:aws:iam::{ACCOUNT}:oidc-provider/token.actions.githubusercontent.com"
-    sub = op.custom_subject(kind, op.OLD_REF)
-    conditions = {
-        "StringEquals": {
-            "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-            "token.actions.githubusercontent.com:sub": sub,
-        },
+    condition = {
+        "StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com"},
         "StringLike": {
-            "token.actions.githubusercontent.com:ref": op.OLD_REF,
-            "token.actions.githubusercontent.com:workflow_ref":
-                op.REPO + "/.github/workflows/ci.yml@" + op.OLD_REF,
-            "token.actions.githubusercontent.com:job_workflow_ref":
-                op.REPO + "/.github/workflows/gcp-terraform-authenticated.yml@" + op.OLD_REF,
+            "token.actions.githubusercontent.com:sub":
+                op.custom_subject(kind, op.LEGACY_AWS_REF)
         },
     }
-    return {"RoleName": "terraform-state-dev-" + kind, "RoleId": "AROA" + kind,
-            "Arn": f"arn:aws:iam::{ACCOUNT}:role/terraform-state-dev-{kind}",
+    return {"RoleName": "youtube-study-space-terraform-dev-" + kind,
+            "RoleId": "AROA" + kind,
+            "Arn": f"arn:aws:iam::{ACCOUNT}:role/youtube-study-space-terraform-dev-{kind}",
             "AssumeRolePolicyDocument": {
-                "Version": "2012-10-17", "Statement": [
-                    {"Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity",
-                     "Principal": {"Federated": provider}, "Condition": conditions},
-                ],
-            },
-    }
+                "Version": "2012-10-17",
+                "Statement": [{"Effect": "Allow",
+                               "Action": "sts:AssumeRoleWithWebIdentity",
+                               "Principal": {"Federated": provider},
+                               "Condition": condition}],
+            }}
 
 
-class IntegrationTrustTest(unittest.TestCase):
-    def test_exact_dual_branch_mapping_and_actor_bound(self):
+def policies(*names):
+    return {"total_count": len(names),
+            "branch_policies": [{"name": name, "type": "branch"} for name in names]}
+
+
+class BranchAuthorizationTest(unittest.TestCase):
+    def test_gcp_condition_is_branch_name_agnostic(self):
         condition = bootstrap.CONDITION
-        self.assertIn("refs/heads/integration/gcp-terraform-normal-ops", condition)
-        self.assertIn("assertion.ref in ['refs/heads/dev',", condition)
+        self.assertIn("assertion.ref.startsWith('refs/heads/')", condition)
+        self.assertIn("assertion.ref != 'refs/heads/main'", condition)
         self.assertIn("assertion.workflow_ref ==", condition)
         self.assertIn("' + assertion.ref", condition)
         self.assertIn("assertion.repository_id == '340900071'", condition)
         self.assertIn("assertion.job_workflow_sha == assertion.sha", condition)
-        self.assertNotIn("refs/heads/*", condition)
+        self.assertNotIn("refs/heads/dev", condition)
+        self.assertNotIn("integration/gcp-terraform-normal-ops", condition)
 
-    def test_aws_trust_expands_only_allowed_branch_claims(self):
-        plan, apply = role("plan"), role("apply")
-        roles = op.eligible_roles([plan, apply])
-        self.assertEqual(set(roles), {"plan", "apply"})
-        for kind, item in roles.items():
-            original = deepcopy(item["AssumeRolePolicyDocument"])
-            updated = op.extended_trust(original, kind)
-            self.assertEqual(item["AssumeRolePolicyDocument"], original)
-            old = original["Statement"][0]["Condition"]
-            new = updated["Statement"][0]["Condition"]
-            self.assertEqual(old["StringEquals"]["token.actions.githubusercontent.com:aud"],
-                             new["StringEquals"]["token.actions.githubusercontent.com:aud"])
-            self.assertEqual(new["StringEquals"]["token.actions.githubusercontent.com:sub"],
-                             [op.custom_subject(kind, op.OLD_REF),
-                              op.custom_subject(kind, op.GIT_REF)])
-            for name in ("ref", "workflow_ref", "job_workflow_ref"):
-                key = "token.actions.githubusercontent.com:" + name
-                self.assertEqual(new["StringLike"][key],
-                                 [old["StringLike"][key],
-                                  old["StringLike"][key].replace(op.OLD_REF, op.GIT_REF)])
-            self.assertEqual(updated, op.extended_trust(updated, kind))
+    def test_branch_names_are_selected_by_github_only(self):
+        for value in ("dev", "feature/x", "integration/gcp-terraform-normal-ops",
+                      "fix/foo.bar-1"):
+            self.assertEqual(op.branch_name(value), value)
+        for value in ("main", "-bad", "bad branch", "refs/heads/dev", "", "../x"):
+            with self.subTest(value=value), self.assertRaises(op.Stop):
+                op.branch_name(value)
 
-    def test_aws_rejects_broad_or_unrecognized_trust(self):
-        valid = role("apply")["AssumeRolePolicyDocument"]
-        variants = [
-            lambda policy: policy["Statement"][0]["Condition"]["StringLike"].update({
-                "token.actions.githubusercontent.com:ref": "refs/heads/*"}),
-            lambda policy: policy["Statement"][0]["Condition"]["StringEquals"].update({
-                "token.actions.githubusercontent.com:sub": "repository_id:999999999"}),
-            lambda policy: policy["Statement"][0]["Principal"].update(Federated="other"),
-            lambda policy: policy["Statement"][0].update(Action="sts:AssumeRole"),
-        ]
-        for mutate in variants:
-            candidate = deepcopy(valid)
-            mutate(candidate)
-            with self.subTest(index=variants.index(mutate)), self.assertRaises(op.Stop):
-                op.extended_trust(candidate, "apply")
-        with self.assertRaises(op.Stop):
-            op.eligible_roles([role("plan"), role("plan"), role("apply")])
-
-    def test_selected_github_branch_policies_reject_patterns(self):
-        base = {"branch_policies": [
-            {"name": "dev", "type": "branch"},
-            {"name": op.BRANCH, "type": "branch"}],
-            "total_count": 2}
-        self.assertTrue(op.integration_present(base))
-        self.assertFalse(op.integration_present(
-            {"branch_policies": [{"name": "dev", "type": "branch"}], "total_count": 1}))
-        for name in ("*", "integration/*", "release?"):
-            with self.subTest(name=name), self.assertRaises(op.Stop):
-                op.integration_present({
-                    "branch_policies": [{"name": "dev", "type": "branch"},
-                                        {"name": name, "type": "branch"}]})
-
-
-    def test_existing_dev_backend_legacy_wildcard_is_preserved(self):
+    def test_existing_aws_branch_agnostic_trust_is_read_only_valid(self):
         for kind in ("plan", "apply"):
-            initial = role(kind)
-            conditions = initial["AssumeRolePolicyDocument"]["Statement"][0]["Condition"]
-            conditions["StringEquals"].pop("token.actions.githubusercontent.com:sub")
-            conditions["StringLike"] = {
-                "token.actions.githubusercontent.com:sub":
-                    op.custom_subject(kind, op.LEGACY_AWS_REF)}
-            original = deepcopy(initial["AssumeRolePolicyDocument"])
-            # Live DEV roles use exactly this historical seven-claim wildcard
-            # and serve existing migration workflows. Preserve it unchanged.
-            self.assertEqual(op.extended_trust(original, kind), original)
-            self.assertEqual(op.eligible_roles([initial, role("apply" if kind == "plan" else "plan")])[kind]["RoleName"],
-                             initial["RoleName"])
-
-    def test_only_exact_legacy_wildcard_is_accepted(self):
-        for kind in ("plan", "apply"):
-            initial = role(kind)["AssumeRolePolicyDocument"]
-            rule = initial["Statement"][0]["Condition"]
-            rule["StringEquals"].pop("token.actions.githubusercontent.com:sub")
-            legacy = op.custom_subject(kind, op.LEGACY_AWS_REF)
-            rule["StringLike"] = {"token.actions.githubusercontent.com:sub": legacy}
-            self.assertEqual(op.extended_trust(initial, kind), initial)
-            for invalid in (
-                legacy.replace("repository_id:340900071", "repository_id:999999999"),
-                legacy.replace("refs/heads/*", "*"),
-                legacy.replace("/ci.yml@refs/heads/*", "/evil.yml@refs/heads/*"),
-            ):
-                candidate = deepcopy(initial)
-                candidate["Statement"][0]["Condition"]["StringLike"][
-                    "token.actions.githubusercontent.com:sub"] = invalid
-                with self.subTest(kind=kind, invalid=invalid[:20]), self.assertRaises(op.Stop):
-                    op.extended_trust(candidate, kind)
-            candidate = deepcopy(initial)
-            candidate["Statement"][0]["Condition"]["StringEquals"][
-                "token.actions.githubusercontent.com:sub"] = legacy
-            candidate["Statement"][0]["Condition"]["StringLike"].pop(
-                "token.actions.githubusercontent.com:sub")
+            fixture = role(kind)
+            original = deepcopy(fixture)
+            op.audit_aws_role(fixture["AssumeRolePolicyDocument"], kind)
+            self.assertEqual(fixture, original)
+            invalid = deepcopy(fixture["AssumeRolePolicyDocument"])
+            invalid["Statement"][0]["Condition"]["StringLike"][
+                "token.actions.githubusercontent.com:sub"] = op.custom_subject(
+                    kind, "refs/heads/dev")
             with self.assertRaises(op.Stop):
-                op.extended_trust(candidate, kind)
+                op.audit_aws_role(invalid, kind)
 
-    def test_aws_profile_is_optional_and_setup_never_calls_aws(self):
-        # Existing shared AWS backend trust was verified independently.
-        # Local gcloud and gh credentials are sufficient for setup.
+    def test_aws_trust_rejects_wrong_repo_audience_principal_or_action(self):
+        base = role("apply")["AssumeRolePolicyDocument"]
+        mutations = [
+            lambda p: p["Statement"][0]["Condition"]["StringLike"].update({
+                "token.actions.githubusercontent.com:sub":
+                    op.custom_subject("apply", op.LEGACY_AWS_REF).replace(
+                        "repository_id:340900071", "repository_id:999999999")}),
+            lambda p: p["Statement"][0]["Condition"]["StringEquals"].update({
+                "token.actions.githubusercontent.com:aud": "wrong"}),
+            lambda p: p["Statement"][0]["Principal"].update(Federated="wrong"),
+            lambda p: p["Statement"][0].update(Action="sts:AssumeRole"),
+        ]
+        for mutate in mutations:
+            candidate = deepcopy(base)
+            mutate(candidate)
+            with self.subTest(index=mutations.index(mutate)), self.assertRaises(op.Stop):
+                op.audit_aws_role(candidate, "apply")
+
+    def test_github_environment_requires_exact_selected_branches(self):
+        self.assertTrue(op.branch_present(
+            policies("dev", "feature/a"), "feature/a"))
+        self.assertFalse(op.branch_present(
+            policies("dev"), "feature/a"))
+        for name in ("*", "feature/*", "release?"):
+            with self.subTest(name=name), self.assertRaises(op.Stop):
+                op.exact_policy_names(policies("dev", name))
+        with self.assertRaises(op.Stop):
+            op.branch_present(policies("feature/a"), "feature/a")
+
+    def test_default_apply_mutates_github_only(self):
+        current = {
+            "plan": ("plan-endpoint", policies("dev")),
+            "apply": ("apply-endpoint", policies("dev")),
+        }
+        updated = {
+            "plan": ("plan-endpoint", policies("dev", op.DEFAULT_BRANCH)),
+            "apply": ("apply-endpoint", policies("dev", op.DEFAULT_BRANCH)),
+        }
+        calls = {"plan": 0, "apply": 0}
+
+        def read(role):
+            calls[role] += 1
+            return current[role] if calls[role] == 1 else updated[role]
+
+        with patch.object(op, "aws", side_effect=AssertionError("AWS must not run")),              patch.object(op, "gcloud", side_effect=AssertionError("GCP must not run")),              patch.object(op, "verify_oidc_template"),              patch.object(op, "branch_policies", side_effect=read),              patch.object(op, "add_branch") as add,              patch.object(sys, "argv", ["tool", "--apply"]):
+            op.main()
+        self.assertEqual(add.call_count, 2)
+
+    def test_optional_cloud_audits_are_read_only(self):
+        aws_role_plan, aws_role_apply = role("plan"), role("apply")
+        with patch.object(op, "aws", side_effect=[
+                {"Account": ACCOUNT},
+                {"Role": aws_role_plan},
+                {"Role": aws_role_apply}]):
+            op.verify_aws()
+
         provider = {"state": "ACTIVE",
                     "oidc": {"issuerUri": "https://token.actions.githubusercontent.com"},
                     "attributeMapping": bootstrap.MAPPING,
                     "attributeCondition": bootstrap.CONDITION}
-        policies = {"total_count": 2, "branch_policies": [
-            {"name": "dev", "type": "branch"},
-            {"name": op.BRANCH, "type": "branch"}]}
-        def read_github(*args, **kwargs):
-            address = args[0]
-            if address.endswith("/actions/oidc/customization/sub"):
-                return {"use_default": False, "include_claim_keys": list(op.CLAIM_KEYS)}
-            if address.endswith("/deployment-branch-policies?per_page=100"):
-                return policies
-            return {"deployment_branch_policy": {"custom_branch_policies": True,
-                                                  "protected_branches": False}}
+        with patch.object(op, "provider_details", return_value=provider):
+            op.verify_gcp()
 
-        with patch.object(op, "aws", side_effect=AssertionError("AWS must not run")), patch.object(
-                op, "gcloud", return_value=provider), patch.object(
-                op, "gh", side_effect=read_github), patch.object(
-                sys, "argv", ["bootstrap", "--apply"]):
-            op.main()
-
-    def test_aws_audit_explicitly_requires_local_identity(self):
-        with patch.object(op, "aws", side_effect=op.Stop("session expired")), patch.object(
-                sys, "argv", ["bootstrap", "--verify-aws"]):
-            with self.assertRaises(op.Stop):
-                op.main()
-            self.assertEqual(op.PHASE, "aws_identity")
-
-    def test_stop_phase_is_fixed_and_never_includes_private_cli_data(self):
-        with patch.object(op, "aws", side_effect=op.Stop("PRIVATE_CANARY")), patch.object(
-                sys, "argv", ["bootstrap", "--verify-aws"]):
-            with self.assertRaises(op.Stop):
-                op.main()
-            self.assertEqual(op.PHASE, "aws_identity")
-
-    def test_default_oidc_subject_is_rejected(self):
-        original = role("plan")["AssumeRolePolicyDocument"]
-        original["Statement"][0]["Condition"]["StringEquals"][
-            "token.actions.githubusercontent.com:sub"
-        ] = "repo:" + op.REPO + ":environment:terraform-dev-plan"
+    def test_gcp_readback_rejects_named_branch_conditions(self):
+        provider = {"state": "ACTIVE",
+                    "oidc": {"issuerUri": "https://token.actions.githubusercontent.com"},
+                    "attributeMapping": bootstrap.MAPPING,
+                    "attributeCondition": bootstrap.CONDITION}
+        op.check_provider(provider)
         with self.assertRaises(op.Stop):
-            op.extended_trust(original, "plan")
+            op.check_provider(provider | {
+                "attributeCondition": bootstrap.CONDITION + " && assertion.ref == 'refs/heads/dev'"})
 
-    def test_oidc_template_must_match_ordered_custom_claims(self):
+    def test_oidc_template_requires_ordered_custom_claims(self):
         exact = {"use_default": False, "include_claim_keys": list(op.CLAIM_KEYS)}
         with patch.object(op, "gh", return_value=exact):
             op.verify_oidc_template()
@@ -209,30 +159,13 @@ class IntegrationTrustTest(unittest.TestCase):
             with patch.object(op, "gh", return_value=invalid), self.assertRaises(op.Stop):
                 op.verify_oidc_template()
 
-    def test_role_readback_requires_exact_raw_policy(self):
-        fixture = role("plan")
-        wanted = op.extended_trust(fixture["AssumeRolePolicyDocument"], "plan")
-        stale = {"Role": fixture}
-        current = {"Role": {**fixture, "AssumeRolePolicyDocument": wanted}}
-        with patch.object(op, "aws", side_effect=[stale, current]) as aws, patch.object(
-                op.time, "sleep") as sleeping:
-            op.verify_role_readback(fixture["RoleName"], fixture["RoleId"], wanted)
-            self.assertEqual(aws.call_count, 2)
-            sleeping.assert_called_once()
-        with patch.object(op, "aws", return_value=stale), patch.object(op.time, "sleep"), self.assertRaises(op.Stop):
-            op.verify_role_readback(fixture["RoleName"], fixture["RoleId"], wanted)
-
-    def test_gcp_provider_rejects_unexpected_condition(self):
-        base = {"state": "ACTIVE",
-                "oidc": {"issuerUri": "https://token.actions.githubusercontent.com"},
-                "attributeMapping": bootstrap.MAPPING,
-                "attributeCondition": op.OLD_CONDITION}
-        op.check_provider(base)
-        op.check_provider(base | {"attributeCondition": bootstrap.CONDITION})
-        for key, val in (("state", "DISABLED"), ("attributeMapping", {}),
-                         ("attributeCondition", "true")):
-            with self.subTest(key=key), self.assertRaises(op.Stop):
-                op.check_provider(base | {key: val})
+    def test_stop_phase_does_not_echo_provider_values(self):
+        with patch.object(op, "verify_oidc_template",
+                          side_effect=op.Stop("PRIVATE_CANARY")),              patch.object(sys, "argv", ["tool"]),              redirect_stdout(io.StringIO()) as output:
+            with self.assertRaises(op.Stop):
+                op.main()
+        self.assertEqual(op.PHASE, "github_oidc_template")
+        self.assertNotIn("PRIVATE_CANARY", output.getvalue())
 
 
 if __name__ == "__main__":
