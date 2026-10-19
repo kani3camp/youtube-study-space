@@ -21,8 +21,8 @@ controllerは `infra/gcp/scripts/terraform_normal_ops.py`、運用入口と設�
 
 | 境界 | 実装 |
 | --- | --- |
-| PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・`dev`/専用統合branchの2 ref限定・正確なexpected SHA・same-SHA caller/reusableをcredentials前に検査 |
-| Environment/OIDC | 既存DEV Plan/Apply EnvironmentとAWS backend roleを再利用。新規のDEV固定WIF poolと通常専用GCP SAを分離。旧providerと同poolを共有すると旧integration claimsから通常SAへ到達し得るため、poolも分離 |
+| PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・有効な非`main` branch ref・正確なexpected SHA・same-ref/same-SHA caller/reusableをcredentials前に検査。どのbranchを認証付き実行へ許可するかはGitHub Environmentが決定 |
+| Environment/OIDC | 既存DEV Plan/Apply EnvironmentとAWS backend roleを再利用。通常専用GCP WIF/SAはrepository・owner・actor・Environment・workflow path・branch-shaped same-ref・same-SHAを検証するが**branch名をallowlistしない**。Plan/Applyを許可するbranch名はGitHub EnvironmentのSelected branchesだけで管理 |
 | 入力 | 既存private baselineのtfvarsへcommit-bound `normal.tfvars.json`を重ねる。manifestは通常変更の型/件数制限に使わない。projectはDEV固定 |
 | Plan | refresh付きfull-root native saved plan。Coreのcomplete/errored/checksとdriftを検査。create/updateのcomputed unknownはTerraformに委ねる |
 | delete/replace | commit内`normal-operations.json`のaddress/actions完全一致が必須。未使用指定も拒否。忘却操作・importは通常経路では拒否 |
@@ -53,14 +53,13 @@ Applyでは同runのPlan成功後、独立identityで同SHAを再Planし、sourc
 
 | 経路 | 許可するref |
 | --- | --- |
-| DEV通常操作 | `dev`と`integration/gcp-terraform-normal-ops`の完全一致。通常専用WIF poolも同じ2 refだけ |
+| DEV通常操作 | GitHub Environmentで明示選択した任意の非`main` branch。AWS/GCPはbranch名allowlistを持たず、同一refの正規workflowであることだけを検証 |
 | DEV既存import | 各Environmentで明示許可したbranch。`main`・旧移行branch・tag・PR refは拒否 |
 | Production既存import | `main`固定 |
 
 Environmentのbranch policyはcredentialed jobの最終認可を行います。preflightだけで許可一覧を取得・代替しません。
 Environmentの許可branch・required reviewers・admin bypass等の実設定は、管理APIで実行時に確認してください。
-許可branchを追加しても、そのbranchのworkflow/controllerやクラウド側trustが自動更新されるわけではありません。
-通常DEV操作はEnvironmentへのbranch追加だけでは他branchへ開放されません。専用統合branchの有効化には`enable_normal_integration.py --apply`でAWS backend trust・GCP通常WIF・GitHub Environmentの3系統をまとめて検証・変更します。既存DEV identityの権限数、State、Production trustは不変です。
+許可branchを追加しても、そのbranchのworkflow/controllerの安全性が自動的に保証されるわけではありません。一方、AWS/GCPの恒久trustはbranch追加のたびに変更しません。`enable_normal_integration.py --apply --branch <branch>`が変更するのはDEV Plan/Apply GitHub EnvironmentのSelected branchesだけです。AWS/GCPは必要時に`--verify-aws` / `--verify-gcp`でread-only監査できます。
 
 Selected branches方式のEnvironmentはref名を検査します。許可branch内のコード改変経路には、PRレビュー・必須CI・force-push/deletion禁止を適用します。
 同SHAのcaller/reusableであることは、内容が安全にレビュー済みであることまで保証しません。
@@ -71,7 +70,7 @@ Environment reviewは実行時の確認を加える別の制御です。必要�
 ## 設定変更時の確認
 
 1. 対象project/account/ref/Environmentと、Plan/Applyの実identityを確認する。
-2. GCP WIFのissuer・attribute mapping/condition、SA trust、project roleをbootstrap定義と照合する。
+2. GCP WIFのissuer・attribute mapping/condition、SA trust、project roleをbootstrap定義と照合する。WIF conditionに個別branch名を入れず、same-ref workflow条件とbranch-shaped refだけを保持する。
    user-managed keyがないこと、runtime SAに不要なproject roleがないこと、actAsの付与先が限定されていることも確認する。
    権限数やpermission一覧は `bootstrap_normal_ops.py --check` とIAMの実値から確認する。
 3. AWS backend roleの対象State/lock key、PlanのState書込禁止、Applyの環境限定書込、S3のVersioning・暗号化・公開アクセス遮断を確認する。
