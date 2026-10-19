@@ -18,7 +18,8 @@ ACCOUNT = "123456789012"
 def role(kind):
     provider = f"arn:aws:iam::{ACCOUNT}:oidc-provider/token.actions.githubusercontent.com"
     condition = {
-        "StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com"},
+        "StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                         "token.actions.githubusercontent.com:actor_id": "54093651"},
         "StringLike": {
             "token.actions.githubusercontent.com:sub":
                 op.custom_subject(kind, op.LEGACY_AWS_REF)
@@ -90,6 +91,44 @@ class BranchAuthorizationTest(unittest.TestCase):
             candidate = deepcopy(base)
             mutate(candidate)
             with self.subTest(index=mutations.index(mutate)), self.assertRaises(op.Stop):
+                op.audit_aws_role(candidate, "apply")
+
+    def test_aws_federated_principal_array_is_audited(self):
+        document = role("apply")["AssumeRolePolicyDocument"]
+        trusted = document["Statement"][0]
+        trusted["Principal"]["Federated"] = [trusted["Principal"]["Federated"]]
+        op.audit_aws_role(document, "apply")
+        # A second relaxed array-form grant must not be ignored.
+        loose = deepcopy(trusted)
+        loose["Condition"] = {"StringLike": {op.ISSUER + ":sub": "*"}}
+        document["Statement"].append(loose)
+        with self.assertRaises(op.Stop):
+            op.audit_aws_role(document, "apply")
+
+    def test_aws_rejects_all_unreviewed_webidentity_allow_shapes(self):
+        base = role("apply")["AssumeRolePolicyDocument"]
+        for alteration in (
+            {"Principal": "*"},
+            {"Principal": {"Federated": ["wrong", "other"]}},
+            {"Action": "sts:*"},
+            {"Action": "sts:assumerolewithwebidentity"},
+            {"NotAction": "iam:*"},
+            {"NotPrincipal": {"AWS": "*"}},
+        ):
+            candidate = deepcopy(base)
+            candidate["Statement"].append(deepcopy(base["Statement"][0]) | alteration)
+            with self.subTest(alteration=alteration), self.assertRaises(op.Stop):
+                op.audit_aws_role(candidate, "apply")
+
+    def test_aws_requires_native_immutable_owner_claim(self):
+        for invalid in (None, "attacker", ["54093651", "attacker"]):
+            candidate = role("apply")["AssumeRolePolicyDocument"]
+            equals = candidate["Statement"][0]["Condition"]["StringEquals"]
+            if invalid is None:
+                del equals[op.ISSUER + ":actor_id"]
+            else:
+                equals[op.ISSUER + ":actor_id"] = invalid
+            with self.subTest(invalid=invalid), self.assertRaises(op.Stop):
                 op.audit_aws_role(candidate, "apply")
 
     def test_github_environment_requires_exact_selected_branches(self):
