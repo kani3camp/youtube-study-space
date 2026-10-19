@@ -24,6 +24,12 @@ sys.path.insert(0, str(REPO / '.github/scripts'))
 import terraform_migration as common
 
 PROJECT = 'test-youtube-study-space'
+INTEGRATION_REF = 'refs/heads/integration/gcp-terraform-normal-ops'
+NORMAL_REFS = frozenset({'refs/heads/dev', INTEGRATION_REF})
+CALLER = 'kani3camp/youtube-study-space/.github/workflows/ci.yml@'
+REUSABLE = 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@'
+DIAGNOSTIC_SECTIONS = ('source_run_mode', 'inputs', 'review', 'state', 'resource_changes',
+                       'planned_values', 'prior_state', 'checks', 'relevant_attributes', 'other_plan_fields')
 PRIVATE = 'gcp-normal-private'
 MODES = {'normal-plan', 'normal-apply', 'normal-e2e'}
 ACTIONS = {('no-op',), ('read',), ('create',), ('update',), ('delete',),
@@ -47,10 +53,10 @@ def context(env, role=None):
              'GITHUB_REPOSITORY_ID': '340900071', 'GITHUB_REPOSITORY_OWNER_ID': '54093651',
              'GITHUB_ACTOR': 'kani3camp', 'GITHUB_ACTOR_ID': '54093651',
              'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1',
-             'GITHUB_REF': 'refs/heads/dev',
-             'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
              'NORMAL_TARGET': 'dev'}
     need(all(env.get(k) == v for k, v in exact.items()))
+    ref = env.get('GITHUB_REF')
+    need(ref in NORMAL_REFS and env.get('GITHUB_WORKFLOW_REF') == CALLER + ref)
     need(env.get('NORMAL_MODE') in MODES)
     need(re.fullmatch('[0-9a-f]{40}', env.get('GITHUB_SHA', '')) is not None)
     need(env.get('NORMAL_EXPECTED_SHA') == env['GITHUB_SHA'])
@@ -260,27 +266,29 @@ def commitment_components(env, tfvars, state, plan, key):
             for name, value in sections.items()}
 
 
-def report_replan_mismatch(env, actual):
-    """On a stopped execution print fixed component names, never raw evidence."""
-    try:
-        expected = json.loads(env.get('NORMAL_EXPECTED_COMPONENTS', ''))
-        need(type(expected) is dict and set(expected) == set(actual))
-        need(all(type(value) is str and re.fullmatch(r'[0-9a-f]{64}', value)
-                 for value in expected.values()))
-    except (ValueError, TypeError):
-        print('GCP_NORMAL_REPLAN: STOP; sections=diagnostic_unavailable')
-        return
-    different = [name for name in actual
-                 if not hmac.compare_digest(expected[name], actual[name])]
-    print('GCP_NORMAL_REPLAN: STOP; sections=' + (
-        ','.join(different) if different else 'commitment_only'))
+def report_replan_mismatch(env):
+    """GitHub expression comparisons provide booleans, never private HMACs."""
+    flags = []
+    for section in DIAGNOSTIC_SECTIONS:
+        flag = env.get('NORMAL_MISMATCH_' + section.upper())
+        need(flag in {'true', 'false'})
+        if flag == 'true':
+            flags.append(section)
+    print('GCP_NORMAL_REPLAN: STOP; sections=' +
+          (','.join(flags) if flags else 'commitment_only'))
+
+
+def check_plan_time(env, now):
+    issued = int(env.get('NORMAL_PLAN_TIME', '0'))
+    need(0 <= now - issued <= MAX_AGE)
 
 
 def match(env, digest, now):
+    # Credentialless unit-test helper only. No expected digest is passed to
+    # authenticated Apply as a step environment variable.
     need(re.fullmatch('[0-9a-f]{64}', env.get('NORMAL_EXPECTED_DIGEST', '')) is not None)
     need(hmac.compare_digest(digest, env['NORMAL_EXPECTED_DIGEST']))
-    issued = int(env.get('NORMAL_PLAN_TIME', '0'))
-    need(0 <= now - issued <= MAX_AGE)
+    check_plan_time(env, now)
 
 
 def snapshot(env, root, name):
@@ -323,11 +331,13 @@ def oidc(env):
         token = json.load(response)['value']
     part = token.split('.')[1]
     claims = common.decode(common.base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))
+    ref = env['GITHUB_REF']
+    need(ref in NORMAL_REFS)
     expected = {
         'repository_id': '340900071', 'repository_owner_id': '54093651',
-        'environment': 'terraform-dev-' + env['NORMAL_ROLE'], 'ref': 'refs/heads/dev',
-        'workflow_ref': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
-        'job_workflow_ref': 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/dev',
+        'environment': 'terraform-dev-' + env['NORMAL_ROLE'], 'ref': ref,
+        'workflow_ref': CALLER + ref,
+        'job_workflow_ref': REUSABLE + ref,
         'event_name': 'workflow_dispatch',
     }
     subject = ':'.join(f'{k}:{v.replace(":", "%3A")}' for k, v in expected.items())
@@ -435,9 +445,25 @@ def e2e(env, root, tfroot, before):
     print('GCP_NORMAL_E2E: PASS; baseline_restored=true')
 
 
-def execute(env):
+def output_commitments(env, tfvars, before, plan_json, key, *, include_time=False):
+    # The runner only logs output names. HMACs must never be placed into step
+    # env or interpolated shell commands. GitHub expressions compare them.
+    digest = commitment(env, tfvars, before, plan_json, key)
+    values = commitment_components(env, tfvars, before, plan_json, key)
+    need(set(values) == set(DIAGNOSTIC_SECTIONS))
+    with open(env['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+        output.write('digest=' + digest + '\ncomponents=' +
+                     json.dumps(values, sort_keys=True, separators=(',', ':')) + '\n')
+        if include_time:
+            output.write('plan_time=' + str(int(time.time())) + '\n')
+    return digest
+
+
+def execute(env, *, prepare_only=False):
     role = env['NORMAL_ROLE']
     context(env, role)
+    need((role == 'plan' and not prepare_only) or
+         (role == 'apply' and prepare_only))
     root = private(env)
     tfvars, key = inputs(env)
     print('GCP_NORMAL: phase=identity')
@@ -449,27 +475,59 @@ def execute(env):
     binary, value, counts = plan(env, root, tfroot, 'normal', review())
     need(snapshot(env, root, 'after-plan') == before)
     report_plan(env, root, tfroot, value)
-    digest = commitment(env, tfvars, before, value, key)
-    if role == 'plan':
-        if env['NORMAL_MODE'] == 'normal-e2e':
-            need(all(k in {'no-op', 'read'} or v == 0 for k, v in counts.items()))
-        with open(env['GITHUB_OUTPUT'], 'a') as output:
-            output.write('digest=' + digest + '\nplan_time=' + str(int(time.time())) +
-                         '\ncomponents=' + json.dumps(
-                             commitment_components(env, tfvars, before, value, key),
-                             sort_keys=True, separators=(',', ':')) + '\n')
+    if env['NORMAL_MODE'] == 'normal-e2e':
+        need(all(k in {'no-op', 'read'} or v == 0 for k, v in counts.items()))
+    digest = output_commitments(env, tfvars, before, value, key,
+                                include_time=(role == 'plan'))
+    if role == 'apply':
+        # Save all private material solely inside this job's 0700 runner dir.
+        # The next step can apply the *same sealed* native plan only after
+        # Actions checks both jobs' HMACs without logging either HMAC.
+        prepared = {'source_sha': env['GITHUB_SHA'], 'run_id': env['GITHUB_RUN_ID'],
+                    'mode': env['NORMAL_MODE'], 'digest': digest,
+                    'binary_sha256': binary.digest.hex(), 'before': before,
+                    'counts': counts}
+        common.write(root / 'normal-prepared.json', common.canonical(prepared))
+        print('GCP_NORMAL: PASS; phase=apply-prepared')
     else:
-        print('GCP_NORMAL: phase=replan-match')
-        if 'NORMAL_EXPECTED_DIGEST' in env and env['NORMAL_EXPECTED_DIGEST'] != digest:
-            report_replan_mismatch(
-                env, commitment_components(env, tfvars, before, value, key))
-        match(env, digest, int(time.time()))
-        print('GCP_NORMAL: phase=apply-and-verify')
-        after = apply_saved(env, root, tfroot, binary, before, 'normal')
-        if env['NORMAL_MODE'] == 'normal-e2e':
-            need(all(k in {'no-op', 'read'} or v == 0 for k, v in counts.items()))
-            e2e(env, root, tfroot, after)
-    print('GCP_NORMAL: PASS; role=' + role + '; counts=' + json.dumps(counts, sort_keys=True))
+        print('GCP_NORMAL: PASS; role=plan; counts=' + json.dumps(counts, sort_keys=True))
+
+
+def apply_prepared(env):
+    context(env, 'apply')
+    root = private(env)
+    path = root / 'normal-prepared.json'
+    need(path.is_file() and not path.is_symlink())
+    prepared = common.decode(path.read_bytes())
+    need(type(prepared) is dict and
+         set(prepared) == {'source_sha', 'run_id', 'mode', 'digest',
+                           'binary_sha256', 'before', 'counts'})
+    need(prepared['source_sha'] == env['GITHUB_SHA'] and
+         prepared['run_id'] == env['GITHUB_RUN_ID'] and
+         prepared['mode'] == env['NORMAL_MODE'])
+    need(re.fullmatch('[0-9a-f]{64}', prepared['binary_sha256']) is not None)
+    need(re.fullmatch('[0-9a-f]{64}', prepared['digest']) is not None)
+    check_plan_time(env, int(time.time()))
+    tfvars, key = inputs(env)
+    identity(env)
+    before = prepared['before']
+    root_plan = root / 'normal.tfplan'
+    shown = common.decode((root / 'normal-show.stdout').read_bytes())
+    need(commitment(env, tfvars, before, shown, key) == prepared['digest'])
+    binary = SavedPlan(root_plan, bytes.fromhex(prepared['binary_sha256']))
+    need(binary.path.is_file() and not binary.path.is_symlink() and
+         hashlib.sha256(binary.path.read_bytes()).digest() == binary.digest)
+    tfroot = root / 'checkout/infra/gcp/environments/dev'
+    need(tfroot.is_dir() and not tfroot.is_symlink())
+    print('GCP_NORMAL: phase=apply-and-verify')
+    after = apply_saved(env, root, tfroot, binary, before, 'normal')
+    if env['NORMAL_MODE'] == 'normal-e2e':
+        counts = prepared['counts']
+        need(type(counts) is dict and
+             all(k in {'no-op', 'read'} or v == 0 for k, v in counts.items()))
+        e2e(env, root, tfroot, after)
+    print('GCP_NORMAL: PASS; role=apply; counts=' +
+          json.dumps(prepared['counts'], sort_keys=True))
 
 
 def main():
@@ -493,6 +551,14 @@ def main():
             oidc(env)
         elif operation == 'execute':
             execute(env)
+        elif operation == 'prepare':
+            execute(env, prepare_only=True)
+        elif operation == 'apply':
+            apply_prepared(env)
+        elif operation == 'mismatch':
+            context(env, 'apply')
+            report_replan_mismatch(env)
+            need(False)
         else:
             need(False)
         return 0
