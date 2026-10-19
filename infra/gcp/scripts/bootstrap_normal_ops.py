@@ -35,9 +35,10 @@ MAPPING = {
 }
 CONDITION = " && ".join([
     "assertion.repository_id == '340900071'", "assertion.repository_owner_id == '54093651'",
-    "assertion.ref == 'refs/heads/dev'", "assertion.event_name == 'workflow_dispatch'",
-    "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev'",
-    "assertion.job_workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/dev'",
+    "assertion.ref in ['refs/heads/dev', 'refs/heads/integration/gcp-terraform-normal-ops']",
+    "assertion.event_name == 'workflow_dispatch'",
+    "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + assertion.ref",
+    "assertion.job_workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@' + assertion.ref",
     "assertion.environment in ['terraform-dev-plan', 'terraform-dev-apply']",
     "assertion.actor_id == '54093651'", "assertion.actor == 'kani3camp'", "assertion.run_attempt == '1'",
     "assertion.workflow_sha == assertion.sha", "assertion.job_workflow_sha == assertion.sha",
