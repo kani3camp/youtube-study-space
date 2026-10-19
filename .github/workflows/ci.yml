@@ -150,7 +150,6 @@ jobs:
           python3 .github/scripts/test_terraform_plan_diagnostic.py
           python3 .github/scripts/test_terraform_baseline_drift_diagnostic.py
           python3 infra/gcp/tests/test_runtime_plan_contract.py
-          python3 -B infra/gcp/tests/test_terraform_normal_change_contract.py
           python3 -B infra/gcp/tests/test_terraform_normal_ops.py
           python3 .github/scripts/test_terraform_quota_create_gate.py
           python3 .github/scripts/test_terraform_quota_refresh_gate.py

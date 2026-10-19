@@ -94,7 +94,6 @@ probeが残った場合は新しいE2Eを起動せず、State内の `google_pubs
 通常経路はこのimport-only制限を解除しておらず、controller/contract/job本文も変更しません。
 DEVでbaseline外のHCL/Stateを追加した後は、固定manifestのmigration経路が拒否する場合があります。
 その場合は通常経路で運用し、legacy contractを緩めません。Productionは引き続きmainの既存経路だけです。
-PR #1380のCloud Run限定offline検証器は過去試作の回帰用として保持し、通常実行からは呼びません。
 
 既存rootのopt-inやprivate baselineから管理対象を落とすと削除Planにつながるため、
 未選択の既定値を既存Stateへ適用しません。State初期化やimportは、その専用契約と復旧手順に従います。
