@@ -108,9 +108,14 @@ Plan用SAにはリソースの読取りとmetadataだけ、Applyには限定し�
 - DEV2 Environmentのselected branchesはdev/既存MyPage統合branch。通常経路は独立preflightと新WIFでdevだけに限定する設計。
 - AWS State管理アカウントへの接続、DEV backend roleのState/lock分離、Versioning、AES256、全Public Access Blockを実readback。
 - GCP既存login、DEV project、旧WIFのimmutable ID/actor/event/ref/same-SHA条件、旧SAのread-only権限を確認。
-- 自動承認レビューはState本文のAWSコネクタ取得と、通常用IAM/WIF/Environment設定を拒否した。
-  State本文はコネクタで取得せず、HEADだけを確認した。設定スクリプトのread-only `--check`は成功。
-  新規IAM/WIF/Environment値は**未設定**で、通常Plan/Applyの実成功とは扱わない。
+- 当初、自動承認レビューはState本文のAWSコネクタ取得と、通常用IAM/WIF/Environment設定を拒否した。
+  State本文はコネクタで取得せず、HEADだけを確認した。
+- 2026-10-19、本人の具体的な再承認後、通常用IAM/WIF/Environment設定が成功。
+  独立readbackでPlan88／Apply176権限、通常SA2個の正確なproject roleとWIF trust、SA3個のuser-managed key0、
+  WIF ACTIVE・dev固定条件/mapping/issuer完全一致、runtimeのproject role0・通常ApplyだけのactAs、旧SA project role不変を確認。
+  両DEV EnvironmentのSA/provider参照は同日08:46–08:47 JSTに更新済み。
+  Secretの値は読み戻せないため名前と更新時刻を確認し、新identityの認証付きPlan/Apply実証とは区別する。
+- PR #1382への`@codex review`投稿は、再承認後に成功。レビュー結果はPRへ記録する。
 - 正規dev `98fc225c` の[実run39144216181](https://github.com/kani3camp/youtube-study-space/actions/runs/39144216181)は認証・Plan・cleanup成功。managed31 / no-op31 / import0 / mutation0 / raw drift0。新通常identityでの実証ではない。
 - 最終PRのdevマージ前は通常経路を起動できない。本人マージ後の単一`normal-e2e`で
   既存no-op、create/update/replace/delete、事後no-op、lock解放をまとめて検証する。

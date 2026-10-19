@@ -64,10 +64,12 @@ raw Plan/State/Secret/API応答はログ・artifactへ公開しません。公�
 - Cloud Run等の実行SAには、project権限なしの共通 `terraform-dev-workload` を準備し、
   通常Apply SAの`actAs`だけを当該SA上で許可する。業務別のruntime権限は別の明示的なIAM変更。
 
-2026-10-19の初回設定は自動承認レビューに拒否され、**未反映**です。
-読み取り専用`--check`は成功し、予定権限はPlan88／Apply176でした。
-権限数は固定仕様ではありません。実設定成功の`BOOTSTRAP: PASS`後に以下の実証を行ってください。
-GitHub Secretは値を読み戻せないため名前の存在を確認し、実値の動作確認はActions認証で行います。
+2026-10-19、本人の具体的な再承認後に初回設定が成功しました。
+独立readbackでもPlan88／Apply176権限、SA3個のuser-managed keyなし、通常WIFのACTIVE状態・dev固定条件・mapping・issuer完全一致、
+runtime SAのproject roleなし・通常ApplyだけのactAs、旧migration SAのproject role不変を確認しました。
+両DEV Environmentの新規参照4件も設定済みです。AWS backendやStateの変更はありません。
+権限数は固定仕様ではありません。新identityの実認証・通常Plan/Apply成功は、以下のマージ後E2Eで検証します。
+GitHub Secretは値を読み戻せないため名前と更新時刻を確認し、実値の動作確認はActions認証で行います。
 
 ### 一回のDEV実証
 
