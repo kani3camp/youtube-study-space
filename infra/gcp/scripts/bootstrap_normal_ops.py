@@ -35,7 +35,9 @@ MAPPING = {
 }
 CONDITION = " && ".join([
     "assertion.repository_id == '340900071'", "assertion.repository_owner_id == '54093651'",
-    "assertion.ref in ['refs/heads/dev', 'refs/heads/integration/gcp-terraform-normal-ops']",
+    # Branch names are intentionally NOT allowlisted in GCP. GitHub Environment
+    # Selected branches/tags is the sole per-branch authorization surface.
+    "assertion.ref.startsWith('refs/heads/')", "assertion.ref != 'refs/heads/main'",
     "assertion.event_name == 'workflow_dispatch'",
     "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + assertion.ref",
     "assertion.job_workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@' + assertion.ref",
