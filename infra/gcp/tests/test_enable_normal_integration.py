@@ -108,6 +108,55 @@ class IntegrationTrustTest(unittest.TestCase):
                     "branch_policies": [{"name": "dev", "type": "branch"},
                                         {"name": name, "type": "branch"}]})
 
+
+    def test_existing_dev_backend_legacy_wildcard_is_preserved(self):
+        for kind in ("plan", "apply"):
+            initial = role(kind)
+            conditions = initial["AssumeRolePolicyDocument"]["Statement"][0]["Condition"]
+            conditions["StringEquals"].pop("token.actions.githubusercontent.com:sub")
+            conditions["StringLike"] = {
+                "token.actions.githubusercontent.com:sub":
+                    op.custom_subject(kind, op.LEGACY_AWS_REF)}
+            original = deepcopy(initial["AssumeRolePolicyDocument"])
+            # Live DEV roles use exactly this historical seven-claim wildcard
+            # and serve existing migration workflows. Preserve it unchanged.
+            self.assertEqual(op.extended_trust(original, kind), original)
+            self.assertEqual(op.eligible_roles([initial, role("apply" if kind == "plan" else "plan")])[kind]["RoleName"],
+                             initial["RoleName"])
+
+    def test_only_exact_legacy_wildcard_is_accepted(self):
+        for kind in ("plan", "apply"):
+            initial = role(kind)["AssumeRolePolicyDocument"]
+            rule = initial["Statement"][0]["Condition"]
+            rule["StringEquals"].pop("token.actions.githubusercontent.com:sub")
+            legacy = op.custom_subject(kind, op.LEGACY_AWS_REF)
+            rule["StringLike"] = {"token.actions.githubusercontent.com:sub": legacy}
+            self.assertEqual(op.extended_trust(initial, kind), initial)
+            for invalid in (
+                legacy.replace("repository_id:340900071", "repository_id:999999999"),
+                legacy.replace("refs/heads/*", "*"),
+                legacy.replace("/ci.yml@refs/heads/*", "/evil.yml@refs/heads/*"),
+            ):
+                candidate = deepcopy(initial)
+                candidate["Statement"][0]["Condition"]["StringLike"][
+                    "token.actions.githubusercontent.com:sub"] = invalid
+                with self.subTest(kind=kind, invalid=invalid[:20]), self.assertRaises(op.Stop):
+                    op.extended_trust(candidate, kind)
+            candidate = deepcopy(initial)
+            candidate["Statement"][0]["Condition"]["StringEquals"][
+                "token.actions.githubusercontent.com:sub"] = legacy
+            candidate["Statement"][0]["Condition"]["StringLike"].pop(
+                "token.actions.githubusercontent.com:sub")
+            with self.assertRaises(op.Stop):
+                op.extended_trust(candidate, kind)
+
+    def test_stop_phase_is_fixed_and_never_includes_private_cli_data(self):
+        with patch.object(op, "aws", side_effect=op.Stop("PRIVATE_CANARY")), patch.object(
+                sys, "argv", ["bootstrap", "--apply"]):
+            with self.assertRaises(op.Stop):
+                op.main()
+            self.assertEqual(op.PHASE, "aws_identity")
+
     def test_default_oidc_subject_is_rejected(self):
         original = role("plan")["AssumeRolePolicyDocument"]
         original["Statement"][0]["Condition"]["StringEquals"][
