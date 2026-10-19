@@ -121,6 +121,75 @@ class Contracts(unittest.TestCase):
         with patch.object(ops, 'review', return_value={'changed': ['delete']}):
             self.assertNotEqual(original, ops.commitment(e, tfvars, state, p, key))
 
+    def test_replan_projection_normalizes_only_order_insensitive_collections(self):
+        with patch.object(ops, 'review', return_value={}):
+            key = b'x' * 32
+            e = env()
+            baseline = plan()
+            baseline['resource_changes'].extend([{
+                'address': 'google_pubsub_topic.z', 'mode': 'managed',
+                'provider_name': 'registry.terraform.io/hashicorp/google',
+                'change': {'actions': ['no-op'], 'before': {'enabled': True},
+                           'after': {'enabled': True}}}])
+            baseline['relevant_attributes'] = [
+                {'resource': 'google_pubsub_topic.z', 'attribute': ['labels', 'a']},
+                {'resource': 'google_pubsub_topic.example', 'attribute': ['name']}]
+            baseline['checks'] = [
+                {'status': 'pass', 'address': {'kind': 'var', 'to_display': 'var.z'},
+                 'instances': [{'status': 'pass', 'address': {'to_display': 'var.z[1]'}},
+                               {'status': 'pass', 'address': {'to_display': 'var.z[0]'}}]},
+                {'status': 'pass', 'address': {'kind': 'var', 'to_display': 'var.a'}}]
+            baseline['planned_values'] = {'root_module': {
+                'resources': [{'address': 'google_pubsub_topic.z', 'values': {'labels': ['a', 'b']}},
+                              {'address': 'google_pubsub_topic.example', 'values': {}}],
+                'child_modules': [
+                    {'address': 'module.z', 'resources': [{'address': 'module.z.google_pubsub_topic.a', 'values': {}}]},
+                    {'address': 'module.a', 'resources': []}]}}
+            baseline['prior_state'] = {'format_version': '1.0', 'values': deepcopy(baseline['planned_values'])}
+            changed_order = deepcopy(baseline)
+            for keyname in ('resource_changes', 'relevant_attributes', 'checks'):
+                changed_order[keyname].reverse()
+            changed_order['checks'][0]['instances'] = [] if 'instances' not in changed_order['checks'][0] else changed_order['checks'][0]['instances']
+            changed_order['checks'][1]['instances'].reverse()
+            for phase in ('planned_values',):
+                changed_order[phase]['root_module']['resources'].reverse()
+                changed_order[phase]['root_module']['child_modules'].reverse()
+            changed_order['prior_state']['values']['root_module']['resources'].reverse()
+            changed_order['prior_state']['values']['root_module']['child_modules'].reverse()
+            changed_order['timestamp'] = 'different-creation-time'
+            tfvars = {'project_id': ops.PROJECT}
+            state = {'head': {'VersionId': 'fixed-s3-version'}}
+            self.assertEqual(ops.commitment(e, tfvars, state, baseline, key),
+                             ops.commitment(e, tfvars, state, changed_order, key))
+            self.assertEqual(ops.commitment_components(e, tfvars, state, baseline, key),
+                             ops.commitment_components(e, tfvars, state, changed_order, key))
+            # Values within provider attributes are ordered when expressed as JSON lists.
+            changed_values = deepcopy(changed_order)
+            changed_values['planned_values']['root_module']['resources'][0]['values']['labels'] = ['b', 'a']
+            self.assertNotEqual(ops.commitment(e, tfvars, state, baseline, key),
+                                ops.commitment(e, tfvars, state, changed_values, key))
+
+    def test_replan_diagnostics_name_only_changed_components(self):
+        with patch.object(ops, 'review', return_value={}):
+            e, p, state, key = env(), plan(), {'head': {'VersionId': 's3-v1'}}, b'q' * 32
+            tfvars = {'project_id': ops.PROJECT}
+            expected = ops.commitment_components(e, tfvars, state, p, key)
+            current = ops.commitment_components(e, tfvars, {'head': {'VersionId': 's3-v2'}}, p, key)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                ops.report_replan_mismatch(e | {
+                    'NORMAL_EXPECTED_COMPONENTS': json.dumps(expected)
+                }, current)
+            self.assertIn('sections=state', output.getvalue())
+            self.assertNotIn('s3-v1', output.getvalue())
+            self.assertNotIn('s3-v2', output.getvalue())
+            self.assertNotIn(expected['state'], output.getvalue())
+            output = io.StringIO()
+            with redirect_stdout(output):
+                ops.report_replan_mismatch(e, current)
+            self.assertIn('sections=diagnostic_unavailable', output.getvalue())
+            self.assertNotIn('s3-v2', output.getvalue())
+
     def test_stale_future_missing_and_different_plan_rejected(self):
         e = env() | {'NORMAL_EXPECTED_DIGEST': 'a' * 64, 'NORMAL_PLAN_TIME': '100'}
         ops.match(e, 'a' * 64, 100 + ops.MAX_AGE)

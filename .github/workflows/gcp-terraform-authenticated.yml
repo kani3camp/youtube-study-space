@@ -319,6 +319,7 @@ jobs:
     outputs:
       digest: ${{ steps.normal.outputs.digest }}
       plan_time: ${{ steps.normal.outputs.plan_time }}
+      components: ${{ steps.normal.outputs.components }}
     env:
       NORMAL_TARGET: ${{ inputs.target }}
       NORMAL_MODE: ${{ inputs.mode }}
@@ -469,6 +470,7 @@ jobs:
           GCP_ACCESS_TOKEN: ${{ steps.normal_gcp.outputs.access_token }}
           NORMAL_EXPECTED_DIGEST: ${{ needs.normal_plan.outputs.digest }}
           NORMAL_PLAN_TIME: ${{ needs.normal_plan.outputs.plan_time }}
+          NORMAL_EXPECTED_COMPONENTS: ${{ needs.normal_plan.outputs.components }}
         run: python3 infra/gcp/scripts/terraform_normal_ops.py execute
       - name: Remove private Terraform files
         if: ${{ always() }}

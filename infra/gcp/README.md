@@ -23,6 +23,7 @@ PR/fork、他branch、再実行、Productionの通常操作は認証前に拒否
 6. 適用する場合は同じSHAで`normal-apply`を新規dispatchする。
    これは新しいPlanを作り、Apply identityの再Plan・State/SHA/入力一致を検査してsaved planを適用する。
 7. `GCP_NORMAL: PASS; role=apply` と事後full-root no-opを確認する。
+   別jobの再Planが不一致なら引き続き停止する。順序に意味のないTerraform Plan JSON配列のみ正規化し、なお一致しない場合は安全なセクション名だけを `GCP_NORMAL_REPLAN: STOP` に表示する。値・address・HMACは公開しない。
    破壊的変更のレビュー指定は次のPRで削除する。未使用の指定も拒否される。
 
 破壊的変更の例（削除順を含めてTerraform Planと完全一致が必要）:

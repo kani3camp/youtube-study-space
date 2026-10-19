@@ -7,6 +7,7 @@ S3 version, then apply the freshly saved, matching native plan once.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 import hashlib
 import hmac
 import json
@@ -173,12 +174,106 @@ def report_plan(env, root, tfroot, value):
     publish_plan_summary(env, summarize_changes(value, schema))
 
 
+def replan_projection(plan):
+    """Normalize only documented order-insensitive JSON-plan collections.
+
+    Retain every value, mask, action, configuration, dependency and check.
+    Terraform Core emits relevant_attributes using heuristic collection order.
+    Resource/module/check/instance collections are address-keyed, not ordered.
+    Never sort values inside provider-managed resource attributes.
+    """
+    projection = deepcopy(plan)
+    projection.pop('timestamp', None)
+    if 'relevant_attributes' in projection:
+        refs = projection['relevant_attributes']
+        need(type(refs) is list and all(type(x) is dict for x in refs))
+        projection['relevant_attributes'] = sorted(refs, key=common.canonical)
+    if 'checks' in projection:
+        checks = projection['checks']
+        need(type(checks) is list and all(type(x) is dict for x in checks))
+        for check in checks:
+            if 'instances' in check and check['instances'] is not None:
+                instances = check['instances']
+                need(type(instances) is list and all(type(x) is dict for x in instances))
+                check['instances'] = sorted(instances, key=common.canonical)
+        projection['checks'] = sorted(checks, key=common.canonical)
+    if 'resource_changes' in projection:
+        changes = projection['resource_changes']
+        need(type(changes) is list and all(type(x) is dict and type(x.get('address')) is str for x in changes))
+        projection['resource_changes'] = sorted(changes, key=lambda x: x['address'])
+
+    def sort_module(module):
+        need(type(module) is dict)
+        if 'resources' in module:
+            resources = module['resources']
+            need(type(resources) is list and all(type(x) is dict and type(x.get('address')) is str for x in resources))
+            module['resources'] = sorted(resources, key=lambda x: x['address'])
+        if 'child_modules' in module:
+            children = module['child_modules']
+            need(type(children) is list and all(type(x) is dict and type(x.get('address')) is str for x in children))
+            for child in children:
+                sort_module(child)
+            module['child_modules'] = sorted(children, key=lambda x: x['address'])
+
+    for section in ('planned_values', 'prior_state'):
+        value = projection.get(section)
+        if value is None:
+            continue
+        need(type(value) is dict)
+        shown = value if section == 'planned_values' else value.get('values')
+        need(type(shown) is dict)
+        if 'root_module' in shown:
+            sort_module(shown['root_module'])
+    return projection
+
+
+def commitment_payload(env, tfvars, state, plan):
+    return {'sha': env['GITHUB_SHA'], 'run': env['GITHUB_RUN_ID'],
+            'mode': env['NORMAL_MODE'], 'tfvars': tfvars, 'review': review(),
+            'state': state, 'plan': replan_projection(plan)}
+
+
 def commitment(env, tfvars, state, plan, key):
-    projection = {k: v for k, v in plan.items() if k != 'timestamp'}
-    payload = {'sha': env['GITHUB_SHA'], 'run': env['GITHUB_RUN_ID'],
-               'mode': env['NORMAL_MODE'], 'tfvars': tfvars, 'review': review(),
-               'state': state, 'plan': projection}
-    return hmac.new(key, common.canonical(payload), hashlib.sha256).hexdigest()
+    return hmac.new(key, common.canonical(commitment_payload(env, tfvars, state, plan)),
+                    hashlib.sha256).hexdigest()
+
+
+def commitment_components(env, tfvars, state, plan, key):
+    """Per-section keyed diagnostics. Values and HMACs are never printed."""
+    payload = commitment_payload(env, tfvars, state, plan)
+    planned = payload['plan']
+    sections = {
+        'source_run_mode': {k: payload[k] for k in ('sha', 'run', 'mode')},
+        'inputs': payload['tfvars'],
+        'review': payload['review'],
+        'state': payload['state'],
+        'resource_changes': planned.get('resource_changes'),
+        'planned_values': planned.get('planned_values'),
+        'prior_state': planned.get('prior_state'),
+        'checks': planned.get('checks'),
+        'relevant_attributes': planned.get('relevant_attributes'),
+        'other_plan_fields': {k: v for k, v in planned.items() if k not in {
+            'resource_changes', 'planned_values', 'prior_state', 'checks', 'relevant_attributes'}},
+    }
+    return {name: hmac.new(key, b'gcp-normal-diagnostic-v1\0' + name.encode() +
+                          b'\0' + common.canonical(value), hashlib.sha256).hexdigest()
+            for name, value in sections.items()}
+
+
+def report_replan_mismatch(env, actual):
+    """On a stopped execution print fixed component names, never raw evidence."""
+    try:
+        expected = json.loads(env.get('NORMAL_EXPECTED_COMPONENTS', ''))
+        need(type(expected) is dict and set(expected) == set(actual))
+        need(all(type(value) is str and re.fullmatch(r'[0-9a-f]{64}', value)
+                 for value in expected.values()))
+    except (ValueError, TypeError):
+        print('GCP_NORMAL_REPLAN: STOP; sections=diagnostic_unavailable')
+        return
+    different = [name for name in actual
+                 if not hmac.compare_digest(expected[name], actual[name])]
+    print('GCP_NORMAL_REPLAN: STOP; sections=' + (
+        ','.join(different) if different else 'commitment_only'))
 
 
 def match(env, digest, now):
@@ -359,9 +454,15 @@ def execute(env):
         if env['NORMAL_MODE'] == 'normal-e2e':
             need(all(k in {'no-op', 'read'} or v == 0 for k, v in counts.items()))
         with open(env['GITHUB_OUTPUT'], 'a') as output:
-            output.write('digest=' + digest + '\nplan_time=' + str(int(time.time())) + '\n')
+            output.write('digest=' + digest + '\nplan_time=' + str(int(time.time())) +
+                         '\ncomponents=' + json.dumps(
+                             commitment_components(env, tfvars, before, value, key),
+                             sort_keys=True, separators=(',', ':')) + '\n')
     else:
         print('GCP_NORMAL: phase=replan-match')
+        if env.get('NORMAL_EXPECTED_DIGEST') != digest:
+            report_replan_mismatch(
+                env, commitment_components(env, tfvars, before, value, key))
         match(env, digest, int(time.time()))
         print('GCP_NORMAL: phase=apply-and-verify')
         after = apply_saved(env, root, tfroot, binary, before, 'normal')
