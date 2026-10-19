@@ -115,8 +115,6 @@ MyPage固有リソースと独立Stateは専用統合branchで管理し、二重
 | `.github/scripts/terraform_migration.py`、`terraform_migration_contract.py` | 既存baseline import-only実行・拒否契約（通常CRUDは`infra/gcp/scripts/terraform_normal_ops.py`） |
 | `.github/workflows/ci.yml`、`gcp-terraform-authenticated.yml` | credentialless PR CIと保護された本人起動の運用経路 |
 
-古い実行ツールと旧windowの入口は現行treeに残しません。過去のコード、テスト、個別runbookの内容は[固定移行コミット](https://github.com/kani3camp/youtube-study-space/tree/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908)から確認できます。
-
 ## Version policy
 
 - Terraform CLI: `.terraform-version` と各rootの `required_version` を一致させる
@@ -125,17 +123,16 @@ MyPage固有リソースと独立Stateは専用統合branchで管理し、二重
 - version更新は通常のdependency変更としてPRでreviewする
 - Notionにはpatch versionを複製しない
 
-## ローカル検証（移行後）
+## ローカル検証
 
-通常の検証はcredentiallessです。移行時だけ利用したmetadata collector、IAM bootstrap、
-reviewed-input packer、disconnected prototypeとその専用テストは現行treeから退役しました。
-[移行時の固定Source](https://github.com/kani3camp/youtube-study-space/tree/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp)は証跡として参照できますが、
-**固定履歴の旧実行ツールを現在の承認で再実行してはいけません**。
+通常の検証はcredentiallessです。
 
 ```bash
 python3 .github/scripts/test_terraform_migration.py
 python3 .github/scripts/test_terraform_migration_contract.py
 python3 .github/scripts/test_terraform_authenticated_workflow.py
+python3 -B infra/gcp/tests/test_terraform_normal_ops.py
+python3 -B infra/gcp/tests/test_terraform_normal_ops_native.py
 terraform fmt -check -recursive infra/gcp
 for env in dev prod; do
   (cd "infra/gcp/environments/$env" && terraform init -backend=false -lockfile=readonly && terraform validate)
@@ -147,10 +144,6 @@ PRでは **GCP Terraform Validate** が必要な安全契約・Terraform root/mo
 secret非漏出・import-only/no-op/unknown/drift拒否の実行コードと対応テストは維持します。
 復旧・監査は[State account recovery](docs/state-account-recovery.md)、[durable audit](docs/state-durable-audit.md)、
 [現行の運用契約](docs/runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)を参照してください。
-
-**終了済み観測ジョブ**：`current-state-read` / `runtime-metadata-read` とIAM authority readの
-旧短期Environment経路も撤去済みです。今後必要なState/認証照合は、新しい用途と権限を独立レビューして設計し、
-Git履歴の読取用workflowを再有効化する方法は採りません。
 
 ## Remote state bootstrap
 
@@ -206,12 +199,6 @@ forkを含む通常PRへAWS / GCP credentialを渡しません。
 - application secret valueはTerraformへ極力流さず、Secret Manager等のsecret storeとwrite-only / ephemeralな経路を優先する
 
 外部forkのTerraformコードへcredential付きplanを自動実行しません。authenticated planをPR前に行う場合も、trusted same-repository commitを明示的なgate後に実行する設計とします。
-
-### 完了済みの一回限り手順
-
-旧history import、短期のissuer/window、metadata reader、quota/Email/exportの各adoption waveの詳しい手順は運用対象外です。
-当時の意思決定・失敗・再検証・復旧の限定証拠は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191) と[固定コミットの旧README](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/README.md)から辿れます。
-古いgateや承認windowは再有効化せず、現在の認証・State・import/no-op境界は現行sourceを優先してください。
 
 ## State recovery
 

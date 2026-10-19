@@ -36,8 +36,7 @@ Google 8.5の既存API importは、設定が `false` でも `disable_on_destroy`
 
 Devの実行branchはPlan/Apply Environmentの選択branch制限で認可し、Prodは`main`固定です。AWS/GCP/SA IAMの実設定との整合はreadbackが必要です。
 
-第30波と両環境の最終通常Plan/Apply・State監査の実行SourceはH7（`0ed7486b`）です。SHAは実証に用いるSourceの記録であり、文書自体のHEADではありません。最新の運用Sourceと最終runは[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照してください。H4でnative10 caseの上限2並列化とrouting/回帰を追加し、H5の[#1366](https://github.com/kani3camp/youtube-study-space/pull/1366)でnative runnerと回帰テストを修正しました。H7（`0ed7486b`）の[#1370](https://github.com/kani3camp/youtube-study-space/pull/1370)で観測テストを修正し、後続waveと最終no-opを実行しました。runtime controller5ファイル・認証workflow・HCLはH3/H4から不変です。
-認証設定と対象branchのreview済みsource/CIを確認し、既存の `ci.yml` を本人accountから初回dispatchする。このPRでは実行しない。現固定baselineに対する通常full-root監査planの例は次のとおりで、Productionはtargetだけを `prod` にする。
+認証設定と対象branchのreview済みsource/CIを確認し、`ci.yml` を本人accountから初回dispatchします。Productionではrefを `main`、targetを `prod` にします。
 
 ```sh
 gh workflow run ci.yml --ref dev \
@@ -53,12 +52,10 @@ gh workflow run ci.yml --ref dev \
 認証はOIDC/WIFの短期credentialで、参照値やHMAC鍵を長期credentialと扱わない。値、mailbox、IAM本文を公開しない。
 初期State例外はProductionの正規不在・manifest0・固定outputs2件だけで、既存Stateや通常resource createへ拡張しない。
 
-DevExit時のDevelopmentは[run38945893535](https://github.com/kani3camp/youtube-study-space/actions/runs/38945893535)で31所有のfull-root監査planとState-only saved-plan applyの両identityがimport0/no-op31/rawdrift0。DevExit後のfresh自然回帰はLambda3/6で1,338実行・Errors/Throttles0、5 stage・finding0を独立review済みです。quiet/未観測の範囲を保持します。
-ProductionはH3の[run39005902978](https://github.com/kani3camp/youtube-study-space/actions/runs/39005902978)まで9件を全CI成功とともに検証済みです。H4の[第10波run39014888191](https://github.com/kani3camp/youtube-study-space/actions/runs/39014888191)は認証付きPlan/Apply・post10成功後、native runner回帰の静的CIとGateで失敗し、sequenceを停止しました。State10/直前9のversion固定GET・厳密差分照合は独立PASS。元runの静的CI失敗を保持します。State10照合後にH5の[第11波run39021164334](https://github.com/kani3camp/youtube-study-space/actions/runs/39021164334)を1回発行しました。認証付きPlan/Applyは成功しましたが、native runnerのtimeout/grandchild回帰で静的CIとGateが失敗しました。State11/直前10のversion固定GET・厳密差分照合も独立PASSで、直前10の本文/HEADは第10波の独立確認済みcurrentと完全一致します。元R11の静的CI失敗を保持します。H6の[第12波run39022399909](https://github.com/kani3camp/youtube-study-space/actions/runs/39022399909)は全34 jobと両Auth成功、Plan import1/managed12、Apply post import0/no-op12/rawdrift0/mutation0、cleanup/artifact0/pending0を独立確認済みです。観測テストの修正[#1370](https://github.com/kani3camp/youtube-study-space/pull/1370)はrequired CI・独立review後に統合済みです。H7（`0ed7486b`）で第13波以降へ進み、[第30波run39029269335](https://github.com/kani3camp/youtube-study-space/actions/runs/39029269335)まで30件のownershipを確認しました。元失敗runは再送せず、その失敗判定を保持します。H7の最終通常実証はDevelopment [run39029559218](https://github.com/kani3camp/youtube-study-space/actions/runs/39029559218)・Production [run39029874116](https://github.com/kani3camp/youtube-study-space/actions/runs/39029874116)で、各plan/apply両identityのimport0・no-op31/30・rawdrift/leaf/mutation0、全34 jobの検証（選択job成功・非対象skip）・cleanup・artifact0/pending0を確認しました。独立した通常full-root planも31/30 no-opです。version固定GETでDev serial36/35・Prod32/31を照合し、同lineage・controls9・live lock/workspace0・安定GCP metadata不変を直接監査して独立review PASSです。 H7の最終no-op後healthも両環境の全5 stage・finding0を確認しました。これはH7の実証時点の記録です。最終統合Sourceでの同等性・authority/State closeout・正本同期とInfrastructure Readyの最終判断は[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照します。
 実証の判定は[ReadyGate](phase2-approval-and-readiness.md#development--production--mypage-readygate)へ集約します。MyPage provisioning/releaseはHOLDで、後続PRにtype/schema・create/update専用workflow/検証契約・exact IAM/API・費用/rollbackが必要です。現在の13type・exact import ID・resource no-op契約へcreate/update権限を追加するだけでは実行できません。
 
-## 旧protocolの固定履歴
+## 移行記録
 
 旧current-state発行、Ownership Receipt chain、private packet、issuer closure、期限付きwindowは現行の実行条件ではありません。
-過去の判断・失敗記録は[変更前の固定Source](https://github.com/kani3camp/youtube-study-space/blob/afdeace602cacb87780262f44d11d9e6935f9724/infra/gcp/docs/runtime-wif-api-ownership.md)と[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)から参照できます。
+過去の判断・失敗・検証結果は[整理前の固定Source](https://github.com/kani3camp/youtube-study-space/blob/781a1a98d038793f6eba4b02f640210a9473dffd/infra/gcp/docs/runtime-wif-api-ownership.md)と[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)から参照できます。
 履歴のツールや期限切れ入力を現在の実行承認で再利用しません。

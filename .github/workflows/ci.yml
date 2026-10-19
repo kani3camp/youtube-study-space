@@ -18,7 +18,7 @@ on:
           - dev
           - prod
       terraform_mode:
-        description: DEV normal-plan/normal-apply/normal-e2e; migration-* retain import-only behavior
+        description: Terraform operation
         required: false
         default: migration-plan
         type: choice
@@ -29,7 +29,7 @@ on:
           - normal-apply
           - normal-e2e
       terraform_expected_sha:
-        description: Exact dev commit SHA required for normal operations
+        description: Reviewed dev SHA for normal operations
         required: false
         type: string
       gcp_user_activity_schema_audit:
@@ -188,7 +188,7 @@ jobs:
       - name: Test quota alert mock plans and import-only boundary
         run: python3 -B .github/scripts/run_terraform_native_tests.py --workers 2
 
-      - name: Test native normal Terraform CRUD against loopback only
+      - name: Test Terraform create/update/delete/replace
         run: python3 -B infra/gcp/tests/test_terraform_normal_ops_native.py
 
       - name: Verify multi-platform provider locks are complete
