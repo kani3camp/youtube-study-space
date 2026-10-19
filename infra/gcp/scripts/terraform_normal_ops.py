@@ -24,8 +24,7 @@ sys.path.insert(0, str(REPO / '.github/scripts'))
 import terraform_migration as common
 
 PROJECT = 'test-youtube-study-space'
-INTEGRATION_REF = 'refs/heads/integration/gcp-terraform-normal-ops'
-NORMAL_REFS = frozenset({'refs/heads/dev', INTEGRATION_REF})
+BRANCH_REF = re.compile(r'refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*')
 CALLER = 'kani3camp/youtube-study-space/.github/workflows/ci.yml@'
 REUSABLE = 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@'
 DIAGNOSTIC_SECTIONS = ('source_run_mode', 'inputs', 'review', 'state', 'resource_changes',
@@ -47,6 +46,12 @@ def need(value):
         raise ValueError('normal Terraform operation rejected')
 
 
+def development_ref(value):
+    need(type(value) is str and BRANCH_REF.fullmatch(value) is not None
+         and value != 'refs/heads/main')
+    return value
+
+
 def context(env, role=None):
     exact = {'GITHUB_EVENT_NAME': 'workflow_dispatch',
              'GITHUB_REPOSITORY': 'kani3camp/youtube-study-space',
@@ -55,8 +60,8 @@ def context(env, role=None):
              'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1',
              'NORMAL_TARGET': 'dev'}
     need(all(env.get(k) == v for k, v in exact.items()))
-    ref = env.get('GITHUB_REF')
-    need(ref in NORMAL_REFS and env.get('GITHUB_WORKFLOW_REF') == CALLER + ref)
+    ref = development_ref(env.get('GITHUB_REF'))
+    need(env.get('GITHUB_WORKFLOW_REF') == CALLER + ref)
     need(env.get('NORMAL_MODE') in MODES)
     need(re.fullmatch('[0-9a-f]{40}', env.get('GITHUB_SHA', '')) is not None)
     need(env.get('NORMAL_EXPECTED_SHA') == env['GITHUB_SHA'])
@@ -331,8 +336,7 @@ def oidc(env):
         token = json.load(response)['value']
     part = token.split('.')[1]
     claims = common.decode(common.base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))
-    ref = env['GITHUB_REF']
-    need(ref in NORMAL_REFS)
+    ref = development_ref(env['GITHUB_REF'])
     expected = {
         'repository_id': '340900071', 'repository_owner_id': '54093651',
         'environment': 'terraform-dev-' + env['NORMAL_ROLE'], 'ref': ref,
