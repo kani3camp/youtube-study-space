@@ -57,7 +57,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout trusted migration preflight source
-        if: ${{ (inputs.mode == 'migration-plan' || inputs.mode == 'migration-apply' || inputs.mode == 'normal-plan' || inputs.mode == 'normal-apply' || inputs.mode == 'normal-e2e') && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && ((inputs.target == 'dev' && startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/feature/gcp-terraform-iac') || (inputs.target == 'prod' && github.ref == 'refs/heads/main')) }}
+        if: ${{ (inputs.mode == 'migration-plan' || inputs.mode == 'migration-apply' || inputs.mode == 'normal-plan' || inputs.mode == 'normal-apply' || inputs.mode == 'normal-e2e') && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && ((inputs.target == 'dev' && startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main') || (inputs.target == 'prod' && github.ref == 'refs/heads/main')) }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -106,8 +106,7 @@ jobs:
           case "${TARGET}" in
             dev)
               [[ "${GITHUB_REF:-}" =~ ^refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*$ &&
-                 "${GITHUB_REF}" != "refs/heads/main" &&
-                 "${GITHUB_REF}" != "refs/heads/feature/gcp-terraform-iac" ]] || {
+                 "${GITHUB_REF}" != "refs/heads/main" ]] || {
                 echo "::error::Development requires a valid non-production branch ref."
                 exit 1
               }
