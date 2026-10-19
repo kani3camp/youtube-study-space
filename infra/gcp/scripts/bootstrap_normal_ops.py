@@ -114,7 +114,8 @@ def bootstrap():
     permissions = selected_permissions(catalog, baseline)
     if '--check' in sys.argv:
         print(json.dumps({'project': PROJECT, 'roles': permissions,
-            'wif_ref': 'refs/heads/dev', 'runtime_sa': 'terraform-dev-workload',
+            'wif_branch_authorization': 'github-environment',
+            'runtime_sa': 'terraform-dev-workload',
             'github_environments': ['terraform-dev-plan', 'terraform-dev-apply']}, indent=2))
         return
     for kind, allowed in permissions.items():
