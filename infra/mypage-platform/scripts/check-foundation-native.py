@@ -12,17 +12,17 @@ result = subprocess.run(["terraform", "test", "-filter=tests/foundation-contract
 need(result.returncode == 0)
 plans = [event["test_plan"] for line in result.stdout.splitlines()
          if (event := json.loads(line)).get("type") == "test_plan"]
-need(len(plans) == 1)
+need(len(plans) == 2)
 # terraform test emits the renderer's Plan envelope, not terraform show's
 # native envelope. Preserve the actual provider-generated changes/unknowns;
 # only supply the test run's known stage and successful completion metadata.
 # The authenticated path continues to require the real native envelope.
-rendered = plans[0]
-summary = validate_plan({"format_version": rendered["plan_format_version"],
+for rendered, stage, creates in zip(plans, ("foundation_metadata", "foundation"), (4, 8)):
+    summary = validate_plan({"format_version": rendered["plan_format_version"],
                          "complete": True, "errored": False,
-                         "variables": {"stage": {"value": "foundation"}},
+                         "variables": {"stage": {"value": stage}},
                          "resource_changes": rendered.get("resource_changes", []),
                          "resource_drift": rendered.get("resource_drift", []),
-                         "deferred_changes": rendered.get("deferred_changes", [])})
-need(summary == {"resources": 8, "creates": 8})
-print("Native mocked Foundation Plan accepted: eight creates; no cloud I/O.")
+                         "deferred_changes": rendered.get("deferred_changes", [])}, stage)
+    need(summary == {"resources": creates, "creates": creates})
+print("Native mocked Foundation Plans accepted: metadata four / full eight; no cloud I/O.")

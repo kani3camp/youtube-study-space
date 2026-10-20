@@ -55,6 +55,11 @@ def backend_policy(bucket, kind):
     ]}
 
 
+def stage_for_mode(mode):
+    need(mode in {"foundation-plan", "foundation-apply", "foundation-metadata-plan", "foundation-metadata-apply"})
+    return "foundation_metadata" if mode.startswith("foundation-metadata-") else "foundation"
+
+
 def context(env, kind):
     need(kind in {"plan", "apply"})
     expected = {"GITHUB_REPOSITORY": REPOSITORY, "GITHUB_REPOSITORY_ID": "340900071",
@@ -65,26 +70,28 @@ def context(env, kind):
     need(all(env.get(k) == v for k, v in expected.items()))
     sha = env.get("GITHUB_SHA", "")
     need(re.fullmatch(r"[a-f0-9]{40}", sha) and env.get("MYPAGE_EXPECTED_SHA") == sha)
-    need(env.get("MYPAGE_MODE") in {"foundation-plan", "foundation-apply"})
-    need(kind != "apply" or env["MYPAGE_MODE"] == "foundation-apply")
+    stage_for_mode(env.get("MYPAGE_MODE"))
+    need(kind != "apply" or env["MYPAGE_MODE"].endswith("-apply"))
 
 
-def resource_contract():
+def resource_contract(stage="foundation"):
+    need(stage in {"foundation_metadata", "foundation"})
     resources = {"google_service_account.runtime": {"project": PROJECT, "account_id": "mypage-api"}}
     for name, secret_id in SECRET_IDS.items():
         resources["google_secret_manager_secret." + name] = {
             "project": PROJECT, "secret_id": secret_id, "deletion_protection": True,
             "replication": [{"auto": [{"customer_managed_encryption": []}], "user_managed": []}],
         }
-        resources["google_secret_manager_secret_iam_member." + name + "_runtime"] = {
+        resources["google_secret_manager_secret_iam_member." + name + "_runtime[0]"] = {
             "project": PROJECT, "secret_id": secret_id, "role": "roles/secretmanager.secretAccessor",
             "member": "serviceAccount:" + EMAIL,
         }
-    resources["google_service_account_iam_member.runtime_signer"] = {
+    resources["google_service_account_iam_member.runtime_signer[0]"] = {
         "service_account_id": "projects/" + PROJECT + "/serviceAccounts/" + EMAIL,
         "role": "roles/iam.serviceAccountTokenCreator", "member": "serviceAccount:" + EMAIL,
     }
-    return {"module.platform[0]." + key: value for key, value in resources.items()}
+    return {"module.platform[0]." + key: value for key, value in resources.items()
+            if stage == "foundation" or "_iam_member." not in key}
 
 
 def has_unknown(value):
@@ -96,12 +103,13 @@ def has_unknown(value):
     return value is True
 
 
-def validate_plan(plan):
+def validate_plan(plan, stage="foundation"):
     need(plan.get("format_version") == "1.2" and plan.get("complete") is True and plan.get("errored") is False)
     need(not plan.get("resource_drift") and not plan.get("deferred_changes"))
+    need(not plan.get("action_invocations") and not plan.get("deferred_action_invocations"))
     need(all(item.get("status") == "pass" for item in plan.get("checks", []) or []))
-    need(plan.get("variables", {}).get("stage", {}).get("value") == "foundation")
-    contract, seen = resource_contract(), set()
+    need(plan.get("variables", {}).get("stage", {}).get("value") == stage)
+    contract, seen = resource_contract(stage), set()
     for item in plan.get("resource_changes", []):
         address = item.get("address")
         need(address in contract and address not in seen and item.get("mode") == "managed")

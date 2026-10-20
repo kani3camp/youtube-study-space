@@ -22,8 +22,8 @@ variable "environment" {
 variable "stage" {
   type = string
   validation {
-    condition     = contains(["foundation", "runtime_private", "runtime_public"], var.stage)
-    error_message = "Module stages are foundation, runtime_private or runtime_public."
+    condition     = contains(["foundation_metadata", "foundation", "runtime_private", "runtime_public"], var.stage)
+    error_message = "Module stages are foundation_metadata, foundation, runtime_private or runtime_public."
   }
 }
 
@@ -100,6 +100,7 @@ resource "google_secret_manager_secret" "youtube_api_key" {
 
 # Additive IAM membership; never replace a project's IAM policy or bindings.
 resource "google_secret_manager_secret_iam_member" "oauth_client_id_runtime" {
+  count     = var.stage == "foundation_metadata" ? 0 : 1
   project   = var.project_id
   secret_id = google_secret_manager_secret.oauth_client_id.secret_id
   role      = "roles/secretmanager.secretAccessor"
@@ -107,6 +108,7 @@ resource "google_secret_manager_secret_iam_member" "oauth_client_id_runtime" {
 }
 
 resource "google_secret_manager_secret_iam_member" "oauth_client_secret_runtime" {
+  count     = var.stage == "foundation_metadata" ? 0 : 1
   project   = var.project_id
   secret_id = google_secret_manager_secret.oauth_client_secret.secret_id
   role      = "roles/secretmanager.secretAccessor"
@@ -114,6 +116,7 @@ resource "google_secret_manager_secret_iam_member" "oauth_client_secret_runtime"
 }
 
 resource "google_secret_manager_secret_iam_member" "youtube_api_key_runtime" {
+  count     = var.stage == "foundation_metadata" ? 0 : 1
   project   = var.project_id
   secret_id = google_secret_manager_secret.youtube_api_key.secret_id
   role      = "roles/secretmanager.secretAccessor"
@@ -123,6 +126,7 @@ resource "google_secret_manager_secret_iam_member" "youtube_api_key_runtime" {
 # Firebase Custom Token signing uses IAM signBlob; bind only the dedicated
 # runtime service account resource, never all service accounts in the project.
 resource "google_service_account_iam_member" "runtime_signer" {
+  count              = var.stage == "foundation_metadata" ? 0 : 1
   service_account_id = "projects/${var.project_id}/serviceAccounts/${local.runtime_email}"
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = local.runtime_principal

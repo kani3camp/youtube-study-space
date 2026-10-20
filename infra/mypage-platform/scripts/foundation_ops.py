@@ -85,13 +85,14 @@ def oidc(env):
 
 
 def state_version(env):
-    result = subprocess.run(["aws", "s3api", "head-object", "--bucket", env["MYPAGE_STATE_BUCKET"],
-        "--key", contract.STATE_KEY, "--expected-bucket-owner", env["MYPAGE_STATE_ACCOUNT"], "--output", "json"],
-        capture_output=True, text=True, timeout=30)
-    if result.returncode:
-        need("(404)" in result.stderr)
+    common = ["--bucket", env["MYPAGE_STATE_BUCKET"], "--expected-bucket-owner", env["MYPAGE_STATE_ACCOUNT"], "--output", "json"]
+    listing = json.loads(run(["aws", "s3api", "list-objects-v2", *common, "--prefix", contract.STATE_KEY, "--max-keys", "2", "--no-paginate"]))
+    need(listing.get("IsTruncated") is False and listing.get("Prefix") == contract.STATE_KEY)
+    entries = [item for item in listing.get("Contents", []) if item["Key"] == contract.STATE_KEY]
+    if not entries:
         return "absent"
-    metadata = json.loads(result.stdout)
+    need(len(entries) == 1)
+    metadata = json.loads(run(["aws", "s3api", "head-object", *common, "--key", contract.STATE_KEY]))
     need(metadata.get("VersionId") not in {None, "null", ""} and metadata.get("ServerSideEncryption") == "AES256")
     return {k: metadata[k] for k in ("VersionId", "ETag", "ContentLength")}
 
@@ -132,10 +133,11 @@ def prepare(env):
     run(["terraform", "init", "-input=false", "-lockfile=readonly", "-no-color", "-backend-config=" + str(root / "backend.json")], cwd=work)
     PHASE = "plan"
     saved = root / "foundation.tfplan"
-    run(["terraform", "plan", "-input=false", "-no-color", "-lock-timeout=60s", "-var=stage=foundation", "-out=" + str(saved)], cwd=work)
+    stage = contract.stage_for_mode(env["MYPAGE_MODE"])
+    run(["terraform", "plan", "-input=false", "-no-color", "-lock-timeout=60s", "-var=stage=" + stage, "-out=" + str(saved)], cwd=work)
     plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work))
     PHASE = "plan-contract"
-    summary = contract.validate_plan(plan)
+    summary = contract.validate_plan(plan, stage)
     reject_unowned_resources(env, plan)
     need(state_version(env) == version)
     digest = contract.commitment(plan, version, env["GITHUB_SHA"], env["MYPAGE_PLAN_HMAC_KEY"])
@@ -166,9 +168,9 @@ def apply_saved(env):
         for child in module.get("child_modules", []):
             walk(child)
     walk(state["values"]["root_module"])
-    need(addresses == set(contract.resource_contract()))
+    need(addresses == set(contract.resource_contract(contract.stage_for_mode(env["MYPAGE_MODE"]))))
     need(state_version(env) != "absent")
-    print("Development foundation saved Plan applied and eight State resources read back.")
+    print("Development foundation saved Plan applied and expected State resources read back.")
 
 
 def main():

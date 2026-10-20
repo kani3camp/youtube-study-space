@@ -12,9 +12,11 @@ on:
       mypage_foundation_mode:
         description: MyPage foundation operation
         required: false
-        default: foundation-plan
+        default: foundation-metadata-plan
         type: choice
         options:
+          - foundation-metadata-plan
+          - foundation-metadata-apply
           - foundation-plan
           - foundation-apply
       mypage_foundation_expected_sha:

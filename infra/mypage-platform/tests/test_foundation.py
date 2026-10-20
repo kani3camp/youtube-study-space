@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'infra/mypage-platform/scripts'))
@@ -58,6 +59,20 @@ class FoundationTest(unittest.TestCase):
         for changed, version, sha in ((plan | {'applyable': False}, 'absent', 'a' * 40), (plan, 'new-version', 'a' * 40), (plan, 'absent', 'b' * 40)):
             self.assertNotEqual(digest, c.commitment(changed, version, sha, key))
 
+    def test_metadata_first_stage_cannot_grant_iam(self):
+        plan = plan_fixture()
+        plan['variables']['stage']['value'] = 'foundation_metadata'
+        plan['resource_changes'] = [x for x in plan['resource_changes'] if '_iam_member.' not in x['address']]
+        self.assertEqual(c.validate_plan(plan, 'foundation_metadata'), {'resources': 4, 'creates': 4})
+        plan['resource_changes'].append(plan_fixture()['resource_changes'][-1])
+        with self.assertRaises(ValueError):
+            c.validate_plan(plan, 'foundation_metadata')
+
+    def test_provider_actions_cannot_bypass_resource_boundary(self):
+        plan = plan_fixture() | {'action_invocations': [{'address': 'action.google_arbitrary.call'}]}
+        with self.assertRaises(ValueError):
+            c.validate_plan(plan)
+
     def test_nested_false_unknown_masks_are_known_but_nested_true_is_rejected(self):
         plan = plan_fixture()
         secret = next(x for x in plan['resource_changes'] if '.google_secret_manager_secret.' in x['address'])
@@ -94,6 +109,17 @@ class FoundationTest(unittest.TestCase):
             conditions = c.trust_policy('123456789012', kind)['Statement'][0]['Condition']['StringEquals']
             self.assertIn(c.REF, conditions['token.actions.githubusercontent.com:sub'])
             self.assertNotIn('*', json.dumps(conditions))
+
+    def test_state_absence_requires_a_successful_exact_prefix_listing(self):
+        env = {'MYPAGE_STATE_BUCKET': 'synthetic-state-bucket', 'MYPAGE_STATE_ACCOUNT': '123456789012'}
+        listing = {'IsTruncated': False, 'Prefix': c.STATE_KEY, 'Contents': []}
+        with patch.object(ops, 'run', return_value=json.dumps(listing)) as command:
+            self.assertEqual(ops.state_version(env), 'absent')
+            self.assertEqual(command.call_count, 1)
+            self.assertIn('list-objects-v2', command.call_args.args[0])
+        with patch.object(ops, 'run', side_effect=ValueError('AccessDenied')):
+            with self.assertRaises(ValueError):
+                ops.state_version(env)
 
     def test_workflow_apply_requires_independent_plan_agreement_and_cleanup(self):
         # Reuse the repository's YAML-1.2 parser when its CI dependency is installed.

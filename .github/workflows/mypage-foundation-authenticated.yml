@@ -92,7 +92,7 @@ jobs:
           cleanup_credentials: true
           token_format: access_token
           access_token_lifetime: 1800s
-      - name: Plan eight private foundation resources
+      - name: Plan bounded private foundation resources
         id: plan
         env:
           MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
@@ -103,7 +103,7 @@ jobs:
 
   foundation_apply:
     needs: foundation_plan
-    if: ${{ inputs.mode == 'foundation-apply' }}
+    if: ${{ inputs.mode == 'foundation-apply' || inputs.mode == 'foundation-metadata-apply' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: mypage-dev-apply
