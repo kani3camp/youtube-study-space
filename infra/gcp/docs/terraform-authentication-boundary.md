@@ -43,7 +43,7 @@ Plan用SAにはリソースの読取りとmetadataだけ、Applyには限定し�
 
 Productionは `normal-plan` / `normal-apply` を `refs/heads/main` と完全一致する同SHA caller/reusableだけに許可します。`normal-e2e` はPRODでは拒否します。GCP Projectは `youtube-study-space`、State keyは `youtube-study-space/prod/terraform.tfstate`、Terraform root/private inputsは `infra/gcp/environments/prod/` 専用です。DEV Root/Stateを使い回しません。
 
-通常Planのrefresh差分は、移行経路と共通のprovider schemaでcomputed専用と確認したBigQuery tableの`etag` / `last_modified_time`だけを許容します。保存済みnative State→refresh前値→refresh後値→Planのbefore、identity・sensitivity maskを照合し、未知値・他フィールド・他リソース種別のdriftは拒否します。drift全体はHMACに含め、初回30資源・outputsのno-opとState不変の条件は維持します。検証失敗時の公開診断は固定理由コードだけです。
+通常Planのrefresh差分は、移行経路と共通のprovider schemaでcomputed専用と確認したBigQuery tableの`etag` / `last_modified_time` / `num_bytes` / `num_long_term_bytes` / `num_rows`だけを許容します。保存済みnative State→refresh前値→refresh後値→Planのbefore、identity・sensitivity maskを照合し、未知値・設定値・作成時刻・他フィールド・他種別のdriftは拒否します。移行経路の許容範囲は従来の2属性のままです。drift全体はHMACに含め、初回30資源・outputsのno-opとState不変の条件は維持します。公開診断は固定理由コードとprovider schemaで照合したresource type・操作・件数だけです。
 
 GitHubの `terraform-prod-plan` / `terraform-prod-apply` はmain-only Selected branches、別GCP normal WIF/SA、既存のPROD AWS backend role、同runの独立再Plan/HMAC一致・saved plan seal、明示的な破壊的操作review、適用後のfull-root no-opとnative S3 lockを要求します。source+inputs+target+State/HEAD+全planのHMACは値をstep envやshell commandへ渡さずGitHub式で比較します。既存migration controller/identityの権限は変えません。
 
