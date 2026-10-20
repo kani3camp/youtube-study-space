@@ -4,6 +4,8 @@ from copy import deepcopy
 import json
 from pathlib import Path
 import sys
+import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -98,7 +100,7 @@ class ProductionBootstrap(unittest.TestCase):
             "storage.buckets.setIamPolicy", "iam.workloadIdentityPools.setIamPolicy",
             "resourcemanager.projects.setIamPolicy", "iam.serviceAccounts.create",
         }
-        permissions = prod.production_permissions(catalog)
+        permissions = prod.production_permissions(catalog, {"resourcemanager.projects.get"})
         self.assertIn("pubsub.topics.create", permissions["apply"])
         self.assertIn("run.services.create", permissions["apply"])
         self.assertNotIn("run.services.create", permissions["plan"])
@@ -197,18 +199,169 @@ class ProductionBootstrap(unittest.TestCase):
             prod.bootstrap("12345", {"plan": ["resourcemanager.projects.get"], "apply": []})
         self.assertEqual(len(calls), 1)
 
-    def test_check_mode_is_read_only_and_does_not_bootstrap(self):
-        args = ["script", "--check"]
+    def test_backend_policies_include_inline_and_attached_and_exact_prod_scope(self):
+        for kind in ("plan", "apply"):
+            expected = prod.backend.permissions_policy("fixture-state-bucket", kind)
+            prod.verify_backend_permissions([expected], [], "fixture-state-bucket", kind)
+            prod.verify_backend_permissions([], [expected], "fixture-state-bucket", kind)
+            for invalid in (
+                prod.backend.permissions_policy("another-bucket", kind),
+                prod.backend.permissions_policy("fixture-state-bucket", "apply" if kind == "plan" else "plan"),
+                {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Action": "s3:*", "Resource": "*"}]},
+            ):
+                with self.subTest(kind=kind, invalid=invalid), self.assertRaises(ValueError):
+                    prod.verify_backend_permissions([invalid], [], "fixture-state-bucket", kind)
+            for field in ("Resource", "Condition"):
+                altered = deepcopy(expected)
+                if field == "Resource":
+                    altered["Statement"][0][field] = "arn:aws:s3:::fixture-state-bucket/youtube-study-space/dev/terraform.tfstate"
+                else:
+                    altered["Statement"][2].pop(field)
+                with self.assertRaises(ValueError):
+                    prod.verify_backend_permissions([altered], [], "fixture-state-bucket", kind)
+            with self.assertRaises(ValueError):
+                prod.verify_backend_permissions([expected], [expected], "fixture-state-bucket", kind)
+
+    def test_string_equals_subject_preserves_native_actor_and_main(self):
+        document = aws_policy("plan")
+        condition = document["Statement"][0]["Condition"]
+        condition["StringEquals"].update(condition.pop("StringLike"))
+        prod.verify_role(document, "123456789012", "plan")
+        condition["StringEquals"].pop("token.actions.githubusercontent.com:actor_id")
+        with self.assertRaises(ValueError):
+            prod.verify_role(document, "123456789012", "plan")
+
+    def test_private_backend_configuration_does_not_invent_existing_role_names(self):
+        value = {"state_account_id": "123456789012", "state_bucket": "fixture-state-bucket",
+                 "production_plan_role_name": "existing-prod-plan", "production_apply_role_name": "existing-prod-apply"}
+        with patch.object(prod.backend, "private_file", return_value=value):
+            self.assertEqual(prod.load_backend(Path("/private/config.json")), value)
+        calls = []
+        def aws(*args):
+            calls.append(args)
+            if args[:2] == ("sts", "get-caller-identity"):
+                return {"Account": value["state_account_id"]}
+            kind = "apply" if "existing-prod-apply" in args else "plan"
+            if args[1] == "get-role":
+                return {"Role": {"Arn": "arn:aws:iam::123456789012:role/" + value[f"production_{kind}_role_name"],
+                                 "AssumeRolePolicyDocument": aws_policy(kind)}}
+            if args[1] == "list-role-policies":
+                return {"PolicyNames": ["backend"]}
+            if args[1] == "list-attached-role-policies":
+                return {"AttachedPolicies": []}
+            if args[1] == "get-role-policy":
+                return {"PolicyDocument": prod.backend.permissions_policy(value["state_bucket"], kind)}
+            raise AssertionError(args)
+        with patch.object(prod, "aws", side_effect=aws):
+            self.assertEqual(prod.preflight_cloud(value), "123456789012")
+        self.assertTrue(any("existing-prod-plan" in args for args in calls))
+        self.assertTrue(any("existing-prod-apply" in args for args in calls))
+
+    def test_main_noop_evidence_rejects_stale_rerun_migration_and_failed_runs(self):
+        run = {"id": 123, "head_sha": "a" * 40, "run_attempt": 1, "head_branch": "main",
+               "event": "workflow_dispatch", "status": "completed", "conclusion": "success",
+               "path": ".github/workflows/ci.yml", "repository": {"id": 340900071},
+               "head_repository": {"id": 340900071}, "actor": {"id": 54093651},
+               "triggering_actor": {"id": 54093651}}
+        job = {"id": 456, "run_id": 123, "head_sha": "a" * 40,
+               "name": "GCP Terraform / Terraform Plan (prod)", "conclusion": "success"}
+        marker = "GCP_PROD_INITIAL_NOOP: PASS; source=" + "a" * 40 + "; run=123; managed=30; state_unchanged=true"
+        current = "a" * 40
+        def gh(endpoint):
+            if endpoint.endswith("/branches/main"):
+                return {"commit": {"sha": current}}
+            if endpoint.endswith("/jobs?per_page=100"):
+                return {"total_count": 1, "jobs": [job]}
+            return run
+        with patch.object(prod, "gh", side_effect=gh), patch.object(prod.subprocess, "run",
+                return_value=subprocess.CompletedProcess([], 0, "timestamp " + marker + "\n", "")):
+            self.assertEqual(prod.verify_initial_noop("123"), "a" * 40)
+            for change in ({"run_attempt": 2}, {"head_branch": "dev"}, {"conclusion": "failure"},
+                           {"actor": {"id": 42}}, {"head_repository": {"id": 42}}):
+                old = dict(run)
+                run.update(change)
+                with self.subTest(change=change), self.assertRaises(ValueError):
+                    prod.verify_initial_noop("123")
+                run.clear(); run.update(old)
+            current = "b" * 40
+            with self.assertRaises(ValueError):
+                prod.verify_initial_noop("123")
+            current = "a" * 40
+            job["name"] = "GCP Terraform / Terraform Existing Resources Plan (prod)"
+            with self.assertRaises(ValueError):
+                prod.verify_initial_noop("123")
+        job["name"] = "GCP Terraform / Terraform Plan (prod)"
+        with patch.object(prod, "gh", side_effect=gh), patch.object(prod.subprocess, "run",
+                return_value=subprocess.CompletedProcess([], 0, "no proof\n", "")), self.assertRaises(ValueError):
+            prod.verify_initial_noop("123")
+
+    def test_check_mode_reads_existing_gcp_but_does_not_mutate(self):
+        args = ["script", "--check", "--backend-config", "/private/backend.json"]
         permitted = {"plan": ["resourcemanager.projects.get"],
                      "apply": ["resourcemanager.projects.get", "pubsub.topics.create"]}
         with patch.object(sys, "argv", args), \
-             patch.object(prod, "preflight_cloud", return_value="123456789012"), \
-             patch.object(prod, "preflight_github"), \
+             patch.object(prod, "load_backend", return_value={}), \
+             patch.object(prod, "preflight_cloud"), patch.object(prod, "preflight_github"), \
              patch.object(prod, "permissions", return_value=("12345", permitted)), \
-             patch.object(prod, "bootstrap", side_effect=AssertionError("must not mutate")):
+             patch.object(prod, "bootstrap") as bootstrap:
             prod.main()
-        with patch.object(sys, "argv", ["script", "--random"]), self.assertRaises(ValueError):
+            bootstrap.assert_called_once_with("12345", permitted, enable_apply=False, check=True)
+        with patch.object(sys, "argv", args + ["--enable-apply"]), self.assertRaises(ValueError):
             prod.main()
+
+    def test_plan_bootstrap_never_creates_or_grants_apply_identity(self):
+        calls, roles, accounts, policies = [], {}, {}, {}
+        project_policy = {"bindings": []}
+        provider = None
+        def gcloud(*args, missing=False):
+            nonlocal provider
+            calls.append(args)
+            if args[:2] == ("iam", "roles"):
+                if args[2] == "create":
+                    roles[args[3]] = {"stage": "GA", "includedPermissions": []}
+                    return {}
+                return roles.get(args[3])
+            if args[:2] == ("projects", "get-iam-policy"):
+                return project_policy
+            if args[:2] == ("projects", "add-iam-policy-binding"):
+                project_policy["bindings"].append({"role": args[4].split("=", 1)[1],
+                                                   "members": [args[3].split("=", 1)[1]]})
+                return {}
+            if args[:2] == ("iam", "service-accounts"):
+                action = args[2]
+                if action == "describe":
+                    return accounts.get(args[3])
+                if action == "create":
+                    email = args[3] + "@" + prod.PROJECT + ".iam.gserviceaccount.com"
+                    accounts[email] = {"email": email}
+                    return {}
+                if action == "keys":
+                    return []
+                if action == "get-iam-policy":
+                    return policies.get(args[3], {"bindings": []})
+                if action == "add-iam-policy-binding":
+                    policies[args[3]] = {"bindings": [{"role": args[5].split("=", 1)[1],
+                                                       "members": [args[4].split("=", 1)[1]]}]}
+                    return {}
+            if args[:3] == ("iam", "workload-identity-pools", "providers"):
+                if args[3] == "create-oidc":
+                    provider = {"name": "projects/12345/locations/global/workloadIdentityPools/terraform-normal/providers/github-actions",
+                                "state": "ACTIVE", "oidc": {"issuerUri": "https://" + prod.ISSUER},
+                                "attributeMapping": prod.MAPPING, "attributeCondition": prod.CONDITION}
+                return provider
+            if args[:2] == ("iam", "workload-identity-pools"):
+                return None
+            raise AssertionError(args)
+        def gh(endpoint):
+            return {"secrets": [{"name": key} for key in ("GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT", "GCP_TERRAFORM_NORMAL_WIF_PROVIDER")]}
+        with patch.object(prod, "gcloud", side_effect=gcloud), patch.object(prod, "gh", side_effect=gh), \
+             patch.object(prod.dev, "run") as run:
+            prod.bootstrap("12345", {"plan": [], "apply": []})
+            self.assertEqual(len(run.call_args_list), 2)
+            self.assertTrue(all("terraform-prod-plan" in call.args[0] for call in run.call_args_list))
+        self.assertEqual(set(accounts), {"terraform-prod-normal-plan@" + prod.PROJECT + ".iam.gserviceaccount.com"})
+        self.assertEqual(set(roles), {"terraformNormalPlan"})
+        self.assertFalse(any("terraform-prod-normal-apply" == a or "terraform-prod-workload" == a for call in calls for a in call))
 
 
 if __name__ == "__main__":

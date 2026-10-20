@@ -7,11 +7,15 @@ Existing migration WIF, GCP SA, State, workloads and AWS roles are untouched.
 """
 from __future__ import annotations
 
+import argparse
 import json
+from pathlib import Path
 import re
 import sys
+import subprocess
 
 import bootstrap_normal_ops as dev
+import production_backend_packet as backend
 
 PROJECT = "youtube-study-space"
 REPO = dev.REPO
@@ -20,9 +24,8 @@ ISSUER = "token.actions.githubusercontent.com"
 CLAIMS = ("repository_id", "repository_owner_id", "environment", "ref",
           "workflow_ref", "job_workflow_ref", "event_name")
 MAIN = "refs/heads/main"
-BASELINE = {"resourcemanager.projects.get",
-            "iam.workloadIdentityPools.get",
-            "iam.workloadIdentityPoolProviders.get"}
+BASELINE_ROLES = ("terraformCiRead", "terraformProdRuntimePoolReadV1",
+                  "terraformProdRuntimeSaPolicyReadV1")
 MAPPING = dev.MAPPING
 CONDITION = " && ".join([
     "assertion.repository_id == '340900071'",
@@ -87,22 +90,88 @@ def verify_role(document, account, role):
     expected_arn = f"arn:aws:iam::{account}:oidc-provider/{ISSUER}"
     need(principal["Federated"] in (expected_arn, [expected_arn]))
     conditions = statement.get("Condition")
-    need(type(conditions) is dict and set(conditions) == {"StringEquals", "StringLike"})
-    need(conditions["StringEquals"] == {
-        ISSUER + ":aud": "sts.amazonaws.com",
-        ISSUER + ":actor_id": "54093651",
-    })
-    need(conditions["StringLike"] == {ISSUER + ":sub": subject(role)})
+    expected = {ISSUER + ":aud": "sts.amazonaws.com", ISSUER + ":actor_id": "54093651"}
+    need(type(conditions) is dict)
+    # AWS supports GitHub's native actor_id condition. Preserve the existing
+    # seven-claim subject template; customising it would affect every workflow.
+    need(conditions in (
+        {"StringEquals": expected | {ISSUER + ":sub": subject(role)}},
+        {"StringEquals": expected, "StringLike": {ISSUER + ":sub": subject(role)}},
+    ))
 
 
-def preflight_cloud():
-    identity = aws("sts", "get-caller-identity")
-    account = identity.get("Account")
-    need(type(account) is str and re.fullmatch("[0-9]{12}", account) is not None)
-    for role in ("plan", "apply"):
-        value = aws("iam", "get-role", "--role-name", f"youtube-study-space-terraform-prod-{role}")["Role"]
-        need(value.get("Arn") == f"arn:aws:iam::{account}:role/youtube-study-space-terraform-prod-{role}")
-        verify_role(value.get("AssumeRolePolicyDocument"), account, role)
+def load_backend(path):
+    value = backend.private_file(path)
+    need(type(value) is dict and set(value) == {
+        "state_account_id", "state_bucket", "production_plan_role_name", "production_apply_role_name"})
+    need(re.fullmatch(r"[0-9]{12}", value["state_account_id"]) is not None)
+    bucket = value["state_bucket"]
+    need(re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket) is not None
+         and ".." not in bucket and ".-" not in bucket and "-." not in bucket
+         and re.fullmatch(r"[0-9]+(?:\.[0-9]+){3}", bucket) is None)
+    names = [value[f"production_{kind}_role_name"] for kind in ("plan", "apply")]
+    need(len(set(names)) == 2 and all(re.fullmatch(r"[A-Za-z0-9+=,.@_-]{1,64}", n) for n in names))
+    return value
+
+
+def policy_projection(document):
+    """Ignore policy presentation, never actions/resources/conditions."""
+    need(type(document) is dict and set(document) <= {"Version", "Id", "Statement"}
+         and document.get("Version") == "2012-10-17")
+    statements = document.get("Statement")
+    if type(statements) is dict:
+        statements = [statements]
+    need(type(statements) is list)
+    projected = []
+    for statement in statements:
+        need(type(statement) is dict)
+        item = {key: value for key, value in statement.items() if key != "Sid"}
+        for key in ("Action", "Resource"):
+            if type(item.get(key)) is str:
+                item[key] = [item[key]]
+            need(type(item.get(key)) is list and all(type(x) is str for x in item[key]))
+            item[key] = sorted(item[key])
+        if "Condition" in item:
+            condition = item["Condition"]
+            need(type(condition) is dict)
+            item["Condition"] = {}
+            for operator, entries in condition.items():
+                need(type(entries) is dict)
+                item["Condition"][operator] = {}
+                for key, values in entries.items():
+                    values = [values] if type(values) is str else values
+                    need(type(values) is list and all(type(v) is str for v in values))
+                    item["Condition"][operator][key] = sorted(values)
+        projected.append(item)
+    return sorted(projected, key=lambda x: json.dumps(x, sort_keys=True))
+
+
+def verify_backend_permissions(inline, attached, bucket, kind):
+    # An attached managed policy is acceptable only if it is the sole exact
+    # backend policy. Never silently ignore either source of permission grants.
+    documents = inline + attached
+    need(len(documents) == 1)
+    need(policy_projection(documents[0]) == policy_projection(backend.permissions_policy(bucket, kind)))
+
+
+def preflight_cloud(config):
+    account = config["state_account_id"]
+    need(aws("sts", "get-caller-identity").get("Account") == account)
+    for kind in ("plan", "apply"):
+        name = config[f"production_{kind}_role_name"]
+        value = aws("iam", "get-role", "--role-name", name)["Role"]
+        need(value.get("Arn") == f"arn:aws:iam::{account}:role/{name}")
+        verify_role(value.get("AssumeRolePolicyDocument"), account, kind)
+        inline, attached = [], []
+        for policy in aws("iam", "list-role-policies", "--role-name", name)["PolicyNames"]:
+            inline.append(aws("iam", "get-role-policy", "--role-name", name,
+                              "--policy-name", policy)["PolicyDocument"])
+        for policy in aws("iam", "list-attached-role-policies", "--role-name", name)["AttachedPolicies"]:
+            arn = policy["PolicyArn"]
+            version = aws("iam", "get-policy", "--policy-arn", arn)["Policy"]["DefaultVersionId"]
+            attached.append(aws("iam", "get-policy-version", "--policy-arn", arn,
+                                "--version-id", version)["PolicyVersion"]["Document"])
+        verify_backend_permissions(inline, attached, config["state_bucket"], kind)
     return account
 
 
@@ -133,9 +202,9 @@ def preflight_github():
              <= {s.get("name") for s in secrets.get("secrets", [])})
 
 
-def production_permissions(catalog):
+def production_permissions(catalog, baseline):
     """Allow general infrastructure changes but never delegate resource IAM."""
-    roles = dev.selected_permissions(catalog, BASELINE)
+    roles = dev.selected_permissions(catalog, baseline)
     roles["apply"] = [p for p in roles["apply"] if not p.endswith(".setIamPolicy")]
     need(not any(p.endswith(".setIamPolicy") for p in roles["apply"]))
     return roles
@@ -149,7 +218,10 @@ def permissions():
     catalog = set()
     for role in dev.CATALOGS:
         catalog.update(gcloud("iam", "roles", "describe", role)["includedPermissions"])
-    allowed = production_permissions(catalog)
+    baseline = set()
+    for role in BASELINE_ROLES:
+        baseline.update(gcloud("iam", "roles", "describe", role)["includedPermissions"])
+    allowed = production_permissions(catalog, baseline)
     return str(number), allowed
 
 
@@ -197,11 +269,13 @@ def check_project_grants(policy, member, expected_role):
     return bool(allowed)
 
 
-def bootstrap(number, allowed):
+def bootstrap(number, allowed, *, enable_apply=False, check=False):
+    kinds = ("plan", "apply") if enable_apply else ("plan",)
     # Validate *all existing* target resources before writing anything. A
     # bootstrap rerun must not overwrite an unexpected production role or WIF.
     roles = {}
-    for kind, included in allowed.items():
+    for kind in kinds:
+        included = allowed[kind]
         name = "terraformNormal" + kind.title()
         current = gcloud("iam", "roles", "describe", name, missing=True)
         if current is not None:
@@ -226,7 +300,8 @@ def bootstrap(number, allowed):
     runtime_grant = ("roles/iam.serviceAccountUser",
                      "serviceAccount:terraform-prod-normal-apply@" + PROJECT + ".iam.gserviceaccount.com")
     if runtime_exists is not None:
-        check_policy(gcloud("iam", "service-accounts", "get-iam-policy", runtime), {runtime_grant})
+        check_policy(gcloud("iam", "service-accounts", "get-iam-policy", runtime),
+                     {runtime_grant} if enable_apply else set())
     accounts = {}
     for kind in ("plan", "apply"):
         email = "terraform-prod-normal-" + kind + "@" + PROJECT + ".iam.gserviceaccount.com"
@@ -235,16 +310,22 @@ def bootstrap(number, allowed):
                      f"workloadIdentityPools/{POOL}/attribute.environment/terraform-prod-{kind}")
         approved_grant = ("roles/iam.workloadIdentityUser", principal)
         project_role = f"projects/{PROJECT}/roles/terraformNormal" + kind.title()
-        check_project_grants(project_policy, "serviceAccount:" + email, project_role)
+        granted = check_project_grants(project_policy, "serviceAccount:" + email, project_role)
+        need(enable_apply or kind == "plan" or not granted)
         if exists is not None:
             need(exists.get("email") == email)
             keys = gcloud("iam", "service-accounts", "keys", "list", "--iam-account=" + email)
             need(all(key.get("keyType") != "USER_MANAGED" for key in keys))
-            check_policy(gcloud("iam", "service-accounts", "get-iam-policy", email), {approved_grant})
+            check_policy(gcloud("iam", "service-accounts", "get-iam-policy", email),
+                         {approved_grant} if kind in kinds else set())
         accounts[kind] = (email, exists, principal, approved_grant, project_role)
 
+    if check:
+        return
+
     # Only absent resources are created; matching existing resources stay intact.
-    for kind, included in allowed.items():
+    for kind in kinds:
+        included = allowed[kind]
         name, existing = roles[kind]
         if existing is None:
             gcloud("iam", "roles", "create", name,
@@ -254,7 +335,7 @@ def bootstrap(number, allowed):
         need(sorted(updated.get("includedPermissions", [])) == included
              and updated.get("stage") == "GA")
 
-    if runtime_exists is None:
+    if enable_apply and runtime_exists is None:
         gcloud("iam", "service-accounts", "create", "terraform-prod-workload",
                "--display-name=Terraform PROD workload runtime")
     if pool is None:
@@ -270,7 +351,7 @@ def bootstrap(number, allowed):
     provider = provider_details()
     verify_provider(provider)
 
-    for kind in ("plan", "apply"):
+    for kind in kinds:
         account, exists, principal, approved_grant, project_role = accounts[kind]
         if exists is None:
             gcloud("iam", "service-accounts", "create", "terraform-prod-normal-" + kind,
@@ -309,18 +390,61 @@ def bootstrap(number, allowed):
         print("PROD_NORMAL_BOOTSTRAP: PASS; role=" + kind + "; provider_verified=true")
 
 
+def verify_initial_noop(run_id):
+    """Verify a successful owner-dispatched normal Plan on current main.
+
+    Only a reviewed main workflow can emit this marker after native full-root
+    no-op/output/30-managed-resource and unchanged-State verification. Migration
+    jobs, stale revisions, reruns and copied/failed logs are not evidence.
+    """
+    need(re.fullmatch(r"[1-9][0-9]*", run_id) is not None)
+    run = gh(f"repos/{REPO}/actions/runs/{run_id}")
+    sha = run.get("head_sha")
+    need(type(sha) is str and re.fullmatch(r"[0-9a-f]{40}", sha) is not None)
+    need(run.get("id") == int(run_id) and run.get("run_attempt") == 1
+         and run.get("head_branch") == "main" and run.get("event") == "workflow_dispatch"
+         and run.get("status") == "completed" and run.get("conclusion") == "success"
+         and run.get("path") == ".github/workflows/ci.yml"
+         and run.get("repository", {}).get("id") == 340900071
+         and run.get("head_repository", {}).get("id") == 340900071
+         and all(run.get(key, {}).get("id") == 54093651 for key in ("actor", "triggering_actor")))
+    need(gh(f"repos/{REPO}/branches/main").get("commit", {}).get("sha") == sha)
+    jobs = gh(f"repos/{REPO}/actions/runs/{run_id}/jobs?per_page=100")
+    need(type(jobs.get("total_count")) is int and jobs["total_count"] <= 100
+         and jobs["total_count"] == len(jobs.get("jobs", [])))
+    selected = [job for job in jobs["jobs"] if job.get("name", "").endswith(" / Terraform Plan (prod)")]
+    need(len(selected) == 1 and selected[0].get("conclusion") == "success")
+    job = selected[0]
+    need(job.get("run_id") == int(run_id) and job.get("head_sha") == sha)
+    marker = f"GCP_PROD_INITIAL_NOOP: PASS; source={sha}; run={run_id}; managed=30; state_unchanged=true"
+    logs = subprocess.run(["gh", "api", f"repos/{REPO}/actions/jobs/{job['id']}/logs"],
+                              capture_output=True, text=True, timeout=120)
+    need(logs.returncode == 0)
+    logs = logs.stdout
+    need(type(logs) is str and sum(line.endswith(marker) for line in logs.splitlines()) == 1)
+    return sha
+
+
 def main():
-    need(sys.argv[1:] in (["--check"], ["--apply"]))
-    preflight_cloud()
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--apply", action="store_true")
+    parser.add_argument("--backend-config", type=Path, required=True)
+    parser.add_argument("--enable-apply", action="store_true")
+    parser.add_argument("--noop-run-id")
+    args = parser.parse_args()
+    need(args.enable_apply == (args.noop_run_id is not None))
+    config = load_backend(args.backend_config)
+    preflight_cloud(config)
     preflight_github()
+    if args.enable_apply:
+        verify_initial_noop(args.noop_run_id)
     number, roles = permissions()
-    if sys.argv[1] == "--check":
-        print(json.dumps({"project": PROJECT, "normal_roles": roles,
-                          "ref": MAIN, "environment": ["terraform-prod-plan", "terraform-prod-apply"],
-                          "state_mutations": 0, "cloud_mutations": 0}, sort_keys=True))
-        return
-    bootstrap(number, roles)
-    print("PROD_NORMAL_BOOTSTRAP: PASS; migration_and_state_untouched=true; production_apply_not_run")
+    bootstrap(number, roles, enable_apply=args.enable_apply, check=args.check)
+    print(json.dumps({"project": PROJECT, "phase": "apply" if args.enable_apply else "plan",
+                      "read_only": args.check, "permission_counts": {k: len(v) for k, v in roles.items()},
+                      "state_mutations": 0, "production_apply_not_run": True}, sort_keys=True))
 
 
 if __name__ == "__main__":

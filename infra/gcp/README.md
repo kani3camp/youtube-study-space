@@ -119,7 +119,7 @@ probeが残った場合は新しいE2Eを起動せず、State内の `google_pubs
 
 ## 通常のPROD Terraform開発（main固定）
 
-Productionの通常Plan/Applyは既存DEVと同じ `normal-plan` / `normal-apply` を使います。**実行refは `main` のみ**。Production `normal-e2e`（一時的な実リソース生成）は禁止します。既存の `migration-*` はimport-only/no-opのまま変更しません。通常実行にはPROD専用IAM/WIF・既存State・全plan/StateのHMAC・saved plan・事後full-root no-opを要求します。
+Productionの通常Plan/Applyは既存DEVと同じ `normal-plan` / `normal-apply` を使います。**実行refは `main` のみ**。Production `normal-e2e`（一時的な実リソース生成）は禁止します。既存の `migration-*` はimport-only/no-opのまま変更しません。通常実行にはPROD専用IAM/WIF・既存State・全plan/StateのHMAC・saved plan・事後full-root no-opを要求します。Plan属性内の入れ子になったproject-bearing ID、principalSet、SAメールもPRODへ限定し、数値project別名は認証付きResource Manager readbackから取得します。
 
 1. `infra/gcp/environments/prod/` のHCLをレビュー対象とし、先にDEVで相当する変更を検証します。既存PRODリソースの宣言とprivate inventoryを落としてはなりません。DEVのRoot/StateをPRODへコピーしません。
 2. 非秘密の差分だけを `normal.tfvars.json` に記載します。既存30資源の選択情報・private metadataは `terraform-prod-plan` / `terraform-prod-apply` Environmentのmanaged入力を引き続き使います。両者の入力内容はPlan/Applyで論理的に一致させます。
@@ -137,11 +137,21 @@ Productionの通常Plan/Applyは既存DEVと同じ `normal-plan` / `normal-apply
 - AWS・GCP・GitHubで必要な管理者権限を持つ短期認証済み端末で以下を実行します。
 
 ```bash
-python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --check
-python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply
+# Checkout外のowner-only (0600) JSON。値は実設定から確認し、公開しない。
+# keys: state_account_id, state_bucket,
+#       production_plan_role_name, production_apply_role_name
+python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --check --backend-config /private/prod-backend.json
+python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply --backend-config /private/prod-backend.json
+# mainの初回 normal-plan が既存30資源・outputともno-opで成功した後のみ:
+python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --check --enable-apply --noop-run-id <run-id> --backend-config /private/prod-backend.json
+python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply --enable-apply --noop-run-id <run-id> --backend-config /private/prod-backend.json
 ```
 
-`--check` はAWS Role、GitHub OIDC/Environment、GCPの現行権限カタログをread-only検査します。`--apply` は通常専用GCP identity/WIFとGitHub Environmentの**新規通常用Secret参照**だけを設定し、AWS Role/State/既存リソース・migration identityは変更しません。readbackに不一致があればSTOPし、生APIエラー・秘密値は表示しません。
+`--check` はAWS Roleのtrustと全inline/attached権限、GitHub OIDC/Environment、GCPの現行権限カタログと既存通常identityをread-only検査します。backendの既存role名・bucket/accountはprivate設定から読み、新しい名前を推測しません。S3権限は既存 `production_backend_packet.py` のPROD state/lock/限定prefixへ完全一致させ、DEV keyや追加AWS権限を拒否します。
+
+初回 `--apply` は**Plan用のcustom role/SA/WIF/Secret参照だけ**を設定します。Apply用SA・project grant・impersonation・runtime SAは作成せず、既存の早期Apply grantがあればSTOPします。既存移行用の読み取りロール3件からread権限を引き継ぎ、Firestore backup等の既存30資源を欠落させません。AWS Role/State/既存業務リソース・migration identityは変更しません。
+
+`--enable-apply --noop-run-id` は別の明示操作です。GitHub APIで本人初回dispatch・成功したCI・現在のmain SHA・通常PROD Plan jobと専用no-op markerを照合し、それからApply用identity/Secret参照を追加します。migration実績・古いmain・再実行・失敗run・30資源でないPlanは有効化証跡になりません。readbackに不一致があればSTOPし、生APIエラー・秘密値は表示しません。
 
 - `main` への認証付きworkflowのリリース後、まずPRODの既存30資源を対象とする認証付きfull-root no-op Planを実測してください。その後、必要最小限の変更についてPlan→承認済みApply→事後no-opを確認します。PRODで一時Pub/Sub CRUDテストを実施しません。
 

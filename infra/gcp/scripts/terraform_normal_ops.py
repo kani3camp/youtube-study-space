@@ -118,7 +118,86 @@ def review(target='dev'):
     return changes
 
 
-def validate(plan, approved, *, post=False, project=PROJECT):
+def production_references(values, project, project_number=None):
+    """Check project-bearing IDs at every nesting level, not only `project`.
+
+    Google full/relative resource names, principalSet IDs and service-account
+    emails carry their own project. Numeric aliases come only from the live
+    authenticated Resource Manager response, never private input assertions.
+    """
+    aliases = {project}
+    if project_number is not None:
+        need(type(project_number) is str and re.fullmatch(r"[0-9]+", project_number))
+        aliases.add(project_number)
+    if isinstance(values, dict):
+        for key, value in values.items():
+            if key in {"project", "project_id", "project_number", "billing_project"} and value is not None:
+                need(str(value) in aliases)
+            production_references(value, project, project_number)
+    elif isinstance(values, list):
+        for value in values:
+            production_references(value, project, project_number)
+    elif isinstance(values, str):
+        need(re.search(r"(?<![a-z0-9-])test-youtube-study-space(?![a-z0-9-])", values) is None)
+        for found in re.finditer(r'''(?:^|[/\s"':=])projects/([^/\s"':]+)''', values):
+            identifier = found.group(1)
+            # IAM allows '-' only for an unambiguous SA email in this project.
+            if identifier == "-":
+                suffix = values[found.end():]
+                need(re.match(r"/serviceAccounts/[A-Za-z0-9._-]+@" + re.escape(project) +
+                              r'''\.iam\.gserviceaccount\.com(?:$|[/\s"'])''', suffix))
+            else:
+                need(identifier in aliases)
+        for email in re.findall(r"[A-Za-z0-9._-]+@[A-Za-z0-9.-]+\.gserviceaccount\.com", values):
+            local, domain = email.split("@")
+            if domain in {project + ".iam.gserviceaccount.com", project + ".appspot.gserviceaccount.com"}:
+                continue
+            if project_number is not None:
+                if domain in {"developer.gserviceaccount.com", "cloudservices.gserviceaccount.com"}:
+                    need(local == (project_number + '-compute' if domain == 'developer.gserviceaccount.com' else project_number))
+                    continue
+                if domain.startswith("gcp-sa-") and domain.endswith(".iam.gserviceaccount.com"):
+                    need(local == "service-" + project_number)
+                    continue
+            need(False)
+
+
+def verify_storage_ownership(env, plan):
+    """Resolve globally named buckets; their names do not encode a project."""
+    if env['NORMAL_TARGET'] != 'prod':
+        return
+    number = env['NORMAL_PROJECT_NUMBER']
+    created, references = set(), set()
+
+    def collect(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key in {'bucket', 'bucket_name', 'source_archive_bucket'} and type(child) is str:
+                    references.add(child)
+                collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+        elif isinstance(value, str):
+            references.update(re.findall(r'gs://([^/\s]+)', value))
+
+    for item in plan.get('resource_changes', []):
+        change = item['change']
+        after = change.get('after') or {}
+        if item.get('type') == 'google_storage_bucket' and change['actions'] == ['create']:
+            need(after.get('project') == PROJECTS['prod'] and type(after.get('name')) is str)
+            created.add(after['name'])
+        for values in (change.get('before'), change.get('after')):
+            collect(values)
+            if item.get('type') == 'google_storage_bucket' and isinstance(values, dict) and values.get('name'):
+                references.add(values['name'])
+    for bucket in sorted(references - created):
+        need(re.fullmatch(r'[a-z0-9][a-z0-9._-]{1,221}[a-z0-9]', bucket) is not None)
+        observed = common.google(env, 'storage.googleapis.com', 'storage/v1/b/' + bucket)
+        need(observed.get('name') == bucket and str(observed.get('projectNumber')) == number)
+
+
+def validate(plan, approved, *, post=False, project=PROJECT, project_number=None):
     need(type(plan) is dict and plan.get('format_version') == '1.2'
          and plan.get('terraform_version') == common.VERSION)
     need(plan.get('errored') is False and plan.get('complete') is True)
@@ -140,6 +219,8 @@ def validate(plan, approved, *, post=False, project=PROJECT):
         for values in (change.get('before'), change.get('after')):
             if isinstance(values, dict) and values.get('project') is not None:
                 need(values['project'] == project)
+            if project == PROJECTS['prod']:
+                production_references(values, project, project_number)
         if post:
             need(action == ('no-op',))
         if 'delete' in action:
@@ -329,6 +410,10 @@ def identity(env):
     need(env['GCP_SERVICE_ACCOUNT'] == f'terraform-{target}-normal-{role}@{project}.iam.gserviceaccount.com')
     current = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + project)
     need(current.get('projectId') == project and current.get('state') == 'ACTIVE')
+    if target == 'prod':
+        name = current.get('name', '')
+        need(re.fullmatch(r'projects/[0-9]+', name) is not None)
+        env['NORMAL_PROJECT_NUMBER'] = name.split('/')[1]
     permissions = ['resourcemanager.projects.get', 'pubsub.topics.create', 'pubsub.topics.update', 'pubsub.topics.delete']
     own = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + project + ':testIamPermissions', {'permissions': permissions})
     need(set(own.get('permissions', [])) == set(permissions if role == 'apply' else permissions[:1]))
@@ -402,7 +487,9 @@ def plan(env, root, tfroot, name, approved, *, post=False):
     result = common.terraform(env, root, tfroot, name, ['plan', '-input=false', '-detailed-exitcode', '-lock-timeout=60s',
         '-var-file=' + str(root / 'inputs.tfvars.json'), '-out=' + str(binary)], codes=(0, 2))
     value = common.decode(common.terraform(env, root, tfroot, name + '-show', ['show', '-json', str(binary)]).stdout)
-    counts = validate(value, approved, post=post, project=target_project(env))
+    counts = validate(value, approved, post=post, project=target_project(env),
+                      project_number=env.get('NORMAL_PROJECT_NUMBER'))
+    verify_storage_ownership(env, value)
     if post:
         need(result.returncode == 0)
     return SavedPlan(binary, hashlib.sha256(binary.read_bytes()).digest()), value, counts
@@ -483,6 +570,15 @@ def output_commitments(env, tfvars, before, plan_json, key, *, include_time=Fals
     return digest
 
 
+def initial_production_noop(env, before, value, counts):
+    if env['NORMAL_TARGET'] != 'prod' or env['NORMAL_MODE'] != 'normal-plan':
+        return False
+    return (len(before['state']['resources']) == 30
+            and sum(item.get('mode') == 'managed' for item in value.get('resource_changes', [])) == 30
+            and counts['no-op'] == 30 and sum(counts.values()) == 30
+            and all(c.get('actions') == ['no-op'] for c in value.get('output_changes', {}).values()))
+
+
 def execute(env, *, prepare_only=False):
     role = env['NORMAL_ROLE']
     context(env, role)
@@ -499,6 +595,9 @@ def execute(env, *, prepare_only=False):
     binary, value, counts = plan(env, root, tfroot, 'normal', review(env['NORMAL_TARGET']))
     need(snapshot(env, root, 'after-plan') == before)
     report_plan(env, root, tfroot, value)
+    if initial_production_noop(env, before, value, counts):
+        # Emitted only after native full-root validation and State readback.
+        print(f"GCP_PROD_INITIAL_NOOP: PASS; source={env['GITHUB_SHA']}; run={env['GITHUB_RUN_ID']}; managed=30; state_unchanged=true")
     if env['NORMAL_MODE'] == 'normal-e2e':
         need(all(k in {'no-op', 'read'} or v == 0 for k, v in counts.items()))
     digest = output_commitments(env, tfvars, before, value, key,

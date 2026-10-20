@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Production normal-operation boundary: exact main, project and state isolation."""
+from copy import deepcopy
 import json
 from pathlib import Path
 import sys
@@ -96,6 +97,73 @@ class ProductionNormalOps(unittest.TestCase):
         with self.assertRaises(ValueError):
             ops.validate(native_plan(), {"google_pubsub_topic.example": ["delete"]}, project=PROD)
 
+    def test_project_bearing_ids_and_nested_references_cannot_cross_to_dev(self):
+        for kind, attributes in (
+            ("google_service_account_iam_member", {"service_account_id": "projects/" + DEV + "/serviceAccounts/worker@" + DEV + ".iam.gserviceaccount.com"}),
+            ("google_secret_manager_secret_iam_member", {"secret_id": "projects/" + DEV + "/secrets/example"}),
+            ("google_cloud_scheduler_job", {"pubsub_target": [{"topic_name": "projects/" + DEV + "/topics/example"}]}),
+            ("google_cloud_run_v2_service", {"template": [{"service_account": "worker@" + DEV + ".iam.gserviceaccount.com"}]}),
+            ("google_service_account_iam_member", {"member": "principalSet://iam.googleapis.com/projects/67890/locations/global/workloadIdentityPools/pool/*"}),
+            ("google_pubsub_subscription", {"topic": "https://pubsub.googleapis.com/v1/projects/" + DEV + "/topics/example"}),
+        ):
+            plan = native_plan()
+            plan["resource_changes"][0]["type"] = kind
+            for side in ("before", "after"):
+                candidate = deepcopy(plan)
+                candidate["resource_changes"][0]["change"][side] = {"project": PROD} | attributes
+                with self.subTest(kind=kind, side=side), self.assertRaises(ValueError):
+                    ops.validate(candidate, {}, project=PROD, project_number="12345")
+
+    def test_project_number_aliases_and_local_service_agents_are_valid(self):
+        for attributes in (
+            {"service_account_id": "projects/" + PROD + "/serviceAccounts/worker@" + PROD + ".iam.gserviceaccount.com"},
+            {"service_account_id": "projects/-/serviceAccounts/worker@" + PROD + ".iam.gserviceaccount.com"},
+            {"member": "principalSet://iam.googleapis.com/projects/12345/locations/global/workloadIdentityPools/pool/*"},
+            {"member": "serviceAccount:service-12345@gcp-sa-pubsub.iam.gserviceaccount.com"},
+            {"service_account": "12345-compute@developer.gserviceaccount.com"},
+        ):
+            candidate = native_plan()
+            candidate["resource_changes"][0]["change"]["after"].update(attributes)
+            self.assertEqual(ops.validate(candidate, {}, project=PROD, project_number="12345")["create"], 1)
+        with self.assertRaises(ValueError):
+            ops.production_references({"secret_id": "projects/-/secrets/example"}, PROD, "12345")
+
+    def test_globally_named_storage_references_require_live_prod_ownership(self):
+        plan = native_plan()
+        plan['resource_changes'][0]['type'] = 'google_storage_bucket_iam_member'
+        plan['resource_changes'][0]['change']['after'] = {'bucket': 'fixture-bucket'}
+        env = context() | {'NORMAL_PROJECT_NUMBER': '12345'}
+        for project in ('12345', '67890'):
+            with patch.object(ops.common, 'google', return_value={'name': 'fixture-bucket', 'projectNumber': project}):
+                if project == '12345':
+                    ops.verify_storage_ownership(env, plan)
+                else:
+                    with self.assertRaises(ValueError):
+                        ops.verify_storage_ownership(env, plan)
+        plan['resource_changes'][0]['type'] = 'google_storage_bucket'
+        plan['resource_changes'][0]['change']['after'] = {'name': 'fixture-bucket', 'project': PROD}
+        with patch.object(ops.common, 'google', side_effect=AssertionError('new bucket is not created yet')):
+            ops.verify_storage_ownership(env, plan)
+        plan['resource_changes'][0]['type'] = 'google_cloudfunctions_function'
+        plan['resource_changes'][0]['change']['after'] = {'project': PROD, 'source_archive_bucket': 'fixture-bucket'}
+        with patch.object(ops.common, 'google', return_value={'name': 'fixture-bucket', 'projectNumber': '67890'}), self.assertRaises(ValueError):
+            ops.verify_storage_ownership(env, plan)
+
+    def test_initial_noop_marker_cannot_come_from_mutation_partial_root_or_apply(self):
+        item = native_plan()['resource_changes'][0]
+        item['change']['actions'] = ['no-op']
+        value = {'resource_changes': [deepcopy(item) for _ in range(30)]}
+        before = {'state': {'resources': [{} for _ in range(30)]}}
+        counts = {'no-op': 30, 'create': 0, 'update': 0, 'delete': 0, 'replace': 0, 'read': 0}
+        env = context() | {'NORMAL_MODE': 'normal-plan'}
+        self.assertTrue(ops.initial_production_noop(env, before, value, counts))
+        self.assertFalse(ops.initial_production_noop(env | {'NORMAL_TARGET': 'dev'}, before, value, counts))
+        self.assertFalse(ops.initial_production_noop(env | {'NORMAL_MODE': 'normal-apply'}, before, value, counts))
+        self.assertFalse(ops.initial_production_noop(env, before, value, counts | {'create': 1}))
+        self.assertFalse(ops.initial_production_noop(env, {'state': {'resources': []}}, value, counts))
+        self.assertFalse(ops.initial_production_noop(env, before, value | {'resource_changes': []}, counts))
+        self.assertFalse(ops.initial_production_noop(env, before, value | {'output_changes': {'v': {'actions': ['update']}}}, counts))
+
     def test_prod_private_inputs_cannot_select_dev_project(self):
         with patch.object(ops.common, "decode_input_transport",
                           return_value={"tfvars": {"project_id": PROD, "existing_resources": ["dataset"]},
@@ -168,7 +236,7 @@ class ProductionNormalOps(unittest.TestCase):
                  "pubsub.topics.update", "pubsub.topics.delete"]
         def google(_env, _service, name, data=None):
             if name == "v3/projects/" + PROD:
-                return {"projectId": PROD, "state": "ACTIVE"}
+                return {"projectId": PROD, "state": "ACTIVE", "name": "projects/12345"}
             if name == "v3/projects/" + PROD + ":testIamPermissions":
                 self.assertEqual(data, {"permissions": perms})
                 return {"permissions": perms[:1]}
