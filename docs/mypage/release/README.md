@@ -12,7 +12,7 @@
 | OAuth transaction TTL | [MyPage専用Terraform](../../../infra/mypage-oauth-ttl/README.md)、dev/prod定義、credential不要mock/限定plan contract | owner-approved target/state、別途承認したplan/apply、両環境のTTL ACTIVE・自然削除観測。applicationの10分失効は維持 |
 | MyPage Cloud Run platform IaC | [専用Terraform source](../../../infra/mypage-platform/README.md) は dev/prod 別root、段階有効化、Secret metadata/Runtime SA/Cloud Run/Invoker候補をdefault-offで定義。credentialless mock CI成功まではsource-only | 専用State・短期OIDC/WIF・最小IAM/API、Secret実version・immutable image、実plan/apply、Hosting実経路、費用/rollback/Privacy公開Gateは未実施 |
 | API / Firebase | [server assembly](../../../system/core/mypage/server.go)、keyless SDK、署名/claim、Origin、6 endpoints | [entrypoint](../../../system/cmd/mypage-server/main.go)のkeyless/Firestore/provider/HTTP bootstrap成功、実App Check/Auth、runtime signer/IAM、Hosting経路/Host |
-| metadata | refresh、正常なchannel不在のclear、29日cleanup、23時間heartbeat判定 | scheduled runner/期限対応sink/alertの実結線、実inventory、自然実行 |
+| metadata | refresh、正常なchannel不在のclear、29日cleanup、[定期呼出しrunner・durable監視・期限付きalert source](metadata-monitoring.md)、23時間heartbeat判定 | 実scheduler/独立watchdog/監視sink/alert宛先の結線、実inventory、自然実行 |
 | 作業集計 | Firestore snapshot/readTime、JST境界、小数秒fixture、欠損/partial | history coverage・writer atomicity・query indexの実証跡 |
 | ServiceAccessControl | [MyPage guardとtrusted moderation CLI](../service-access-control.md)、独立reasonとtransaction/checkpoint、合成QA | 実environmentの権限・runtime・運用結線、全runtime drainと横断削除B |
 | support | request/purpose/channel binding、fresh proof、opaque参照、[demo限定dry-run](../../../system/cmd/mypage-operator-dryrun/main.go)、[無効のアプリ内受付](../privacy-intake.md) | 初期公開は返信可能な人的Privacy窓口と既存fresh OAuth / private CLI / Runbookの実運用。実連絡先・担当・期限管理・返信deliveryは未確定 |
@@ -23,7 +23,7 @@
 | Bot入口 | 正本で `!app`/alias・固定public入口/UTMを決定済み。設定・受入条件は本runbookで準備 | runtimeコマンド接続は本PRに含めない。別の実装scope承認、Phase 1の実URL設定・live導線/流入確認 |
 | 表示・操作 | visual/runtime/privacy/font/bfcache合成QA | 実端末・実account差。受容済みMyPage見た目を再設計しない |
 
-support proofやdry-runは削除実行ではない。古い `mypage-users` mapping向け運用コードを、channel UIDの現在契約へ確認なしで流用しない。metadata cleanupはinjectable jobまでで、schedulerや監視sinkが作成済みとは扱わない。`mypage-server` の起動もkeyless credential、Firestore client、OAuth provider、HTTP listenに依存し、現行sourceや配置templateだけでは稼働中のdev Hosting→Cloud Run経路を証明できない。[S01/S04実経路手順](e2e.md#canon-s01s04-実経路セキュリティ検証)は配備・bootstrapの存在を先に確認する計画であり、このPRではcloud read・実試験・deployを行わない。
+support proofやdry-runは削除実行ではない。古い `mypage-users` mapping向け運用コードを、channel UIDの現在契約へ確認なしで流用しない。metadata cleanupは定期呼出しcallback・durable monitor・期限付きJSON health sinkのsourceまでで、実schedulerや監視宛先が作成済みとは扱わない。`mypage-server` の起動もkeyless credential、Firestore client、OAuth provider、HTTP listenに依存し、現行sourceや配置templateだけでは稼働中のdev Hosting→Cloud Run経路を証明できない。[S01/S04実経路手順](e2e.md#canon-s01s04-実経路セキュリティ検証)は配備・bootstrapの存在を先に確認する計画であり、このPRではcloud read・実試験・deployを行わない。
 
 ## 2. 外部接続なしの設定preflight
 
