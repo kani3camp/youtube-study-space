@@ -85,3 +85,30 @@ Changes to storage, forwarding, archival, or deletion must also be checked again
 **Current fact:** the monitor participates in max-seat control as described above.
 
 **Design direction:** prefer moving control decisions out of the presentation client so the monitor can eventually become a read/render-only component. This is a target boundary, not a statement that migration is complete. Until code changes remove the request path, reviews and tests must assume the current control loop exists.
+
+## CI validation boundaries
+
+[CI](../../.github/workflows/ci.yml) is the pull-request orchestrator: it detects changed paths, calls same-tree reusable validation workflows, and publishes the required checks. The validation commands remain in independent jobs so their parallelism and per-job timeouts are preserved.
+
+| Reusable workflow | Responsibility |
+| --- | --- |
+| [ci-system.yml](../../.github/workflows/ci-system.yml) | Go lint/tests, generated files, Firestore Emulator |
+| [ci-frontend.yml](../../.github/workflows/ci-frontend.yml) | YouTube Monitor and Docs Site checks/builds |
+| [ci-tools.yml](../../.github/workflows/ci-tools.yml) | Room Image Prompt, Menu Image Generator, Video Maker Simulator, Figma plugin, Formal Spec |
+| [ci-infra.yml](../../.github/workflows/ci-infra.yml) | AWS CDK tests and synth; no deployment |
+| [ci-repository.yml](../../.github/workflows/ci-repository.yml) | Base-image report tests, Node LTS expiry, documentation links, CI workflow contracts/actionlint |
+
+The modules accept only typed selection flags, use read-only repository permissions, and receive no operational secrets or Environments. [Path detection](../../.github/scripts/detect-ci-paths.sh) selects the same validation domains as before; changes to workflows, shared CI actions, or CI selection/result contracts select the full suite. Unchanged domains can skip. Repository checks always run, including during authenticated Terraform dispatches.
+
+`CI Gate` and `GCP Terraform Validate` remain uniquely named direct jobs in `ci.yml`, preserving the existing Required Status Check contexts. Other validation check names acquire their caller prefix (for example, `System / Go Lint`); they are covered by `CI Gate`. The [gate result policy](../../.github/scripts/check-ci-results.py) rejects failed/cancelled reusable calls, missing or malformed detection outputs, unsuccessful detection/repository checks, and skipped selected modules. An unrequested schema audit may skip; a requested audit must succeed. Authenticated Terraform retains its existing separate operational result and is not added as a quality-gate dependency.
+
+Authenticated Terraform and schema-audit calls, dispatch inputs, cancellation rules, explicit secrets and OIDC permissions stay in `ci.yml`. Their workflow path is part of the cloud trust contract. Schema Audit remains disabled by default. Moving either caller requires a separate change that verifies actual AWS/GCP trust and its rollout; this split requires no Ruleset, IAM, or cloud changes. Existing CodeQL, GCP Production Readiness and GCP Runtime Ownership Contracts workflows retain their separate responsibilities.
+
+Local source verification (with the pinned parser from `.github/codeql/requirements.txt` installed):
+
+```sh
+python3 -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v
+bash .github/scripts/test-detect-ci-paths.sh
+```
+
+CI additionally runs pinned actionlint against the orchestrator, all five modules, and the two operational reusable workflows. Selection contracts exhaust all 8,192 combinations of detection flags; result contracts exercise failures, cancellations, skipped selected modules, and incomplete detection. The independent CodeQL source-contract workflow continues to validate its own source and actionlint scope.

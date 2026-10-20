@@ -1,0 +1,66 @@
+name: CI Repository
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  base-image-update-report-test:
+    name: Base Image Update Report Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Run tests
+        run: node --test .github/scripts/base-image-update-report.test.mjs
+
+  node-lts-ignore-expiry:
+    name: Node LTS Ignore Expiry
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Check Node LTS ignore expiry
+        run: tools/ci/check-node-lts-ignore-expiry.sh
+
+  documentation-references:
+    name: Documentation References
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Test document link guardrails
+        run: python3 .github/scripts/test_check_doc_references.py
+      - name: Check repository-relative documentation links
+        run: python3 .github/scripts/check-doc-references.py
+
+  ci-contracts:
+    name: CI Workflow Contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - name: Install pinned source validation tools
+        run: bash .github/scripts/install-ci-source-tools.sh "$RUNNER_TEMP/ci-source-tools"
+      - name: Test CI selection, required checks and authentication boundary
+        run: python -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v
+      - name: Lint CI and operational workflow calls
+        run: >-
+          "$RUNNER_TEMP/ci-source-tools/actionlint" -shellcheck= -pyflakes=
+          .github/workflows/ci.yml .github/workflows/ci-*.yml
+          .github/workflows/gcp-terraform-authenticated.yml
+          .github/workflows/gcp-user-activity-schema-audit.yml
