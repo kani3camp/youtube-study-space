@@ -107,6 +107,7 @@ class FoundationTest(unittest.TestCase):
             self.assertEqual(lock['Resource'], state['Resource'] + '.tflock')
             self.assertFalse(any('*' in value for value in listing['Condition']['StringEquals']['s3:prefix']))
             conditions = c.trust_policy('123456789012', kind)['Statement'][0]['Condition']['StringEquals']
+            self.assertEqual(conditions['token.actions.githubusercontent.com:actor_id'], '54093651')
             self.assertIn(c.REF, conditions['token.actions.githubusercontent.com:sub'])
             self.assertNotIn('*', json.dumps(conditions))
 
