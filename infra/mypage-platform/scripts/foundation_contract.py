@@ -110,11 +110,37 @@ def has_unknown(value):
     return value is True
 
 
+def validate_empty_metadata_refresh(plan):
+    """Admit only observed null-to-empty Secret maps on planned no-op resources.
+
+    Google 8.5.0 refreshes these unset maps from null to {} after initial
+    creation. Keep the full native drift in the HMAC; do not erase it or admit
+    an actual metadata change, another resource, or a Terraform write.
+    """
+    secrets = {"module.platform[0].google_secret_manager_secret." + name for name in SECRET_IDS}
+    planned = {item.get("address"): item for item in plan.get("resource_changes", [])}
+    seen = set()
+    for item in plan.get("resource_drift", []) or []:
+        address = item.get("address")
+        need(address in secrets and address not in seen, "metadata-refresh-address")
+        seen.add(address)
+        need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "metadata-refresh-provider")
+        change = item["change"]
+        need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths"), "metadata-refresh-action")
+        need(not has_unknown(change.get("after_unknown")), "metadata-refresh-unknown")
+        before, after = change.get("before"), change.get("after")
+        need(type(before) is dict and type(after) is dict and set(before) == set(after), "metadata-refresh-shape")
+        changed = {key for key in before if before[key] != after[key]}
+        need(bool(changed) and changed <= {"annotations", "labels", "version_aliases"}, "metadata-refresh-fields")
+        need(all(before[key] is None and type(after[key]) is dict and not after[key] for key in changed), "metadata-refresh-empty-only")
+        need(planned.get(address, {}).get("change", {}).get("actions") == ["no-op"], "metadata-refresh-planned-noop")
+
+
 def validate_plan(plan, stage="foundation"):
     need(plan.get("format_version") == "1.2", "plan-format")
     need(plan.get("complete") is True, "plan-complete")
     need(plan.get("errored") is False, "plan-errored")
-    need(not plan.get("resource_drift"), "resource-drift")
+    validate_empty_metadata_refresh(plan)
     need(not plan.get("deferred_changes"), "deferred-changes")
     need(not plan.get("action_invocations") and not plan.get("deferred_action_invocations"), "provider-actions")
     need(all(item.get("status") == "pass" for item in plan.get("checks", []) or []), "plan-checks")

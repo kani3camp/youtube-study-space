@@ -24,7 +24,68 @@ def plan_fixture():
             'resource_changes': changes}
 
 
+def refreshed_metadata_fixture():
+    plan = plan_fixture()
+    plan['resource_drift'] = []
+    for item in plan['resource_changes']:
+        if item['address'].endswith('.google_service_account.runtime'):
+            item['change']['actions'] = ['no-op']
+        if '.google_secret_manager_secret.' not in item['address']:
+            continue
+        item['change']['actions'] = ['no-op']
+        item['change']['after'].update(annotations={}, labels={}, version_aliases={})
+        drift = deepcopy(item)
+        drift['change']['actions'] = ['update']
+        drift['change']['before'] = deepcopy(drift['change']['after'])
+        drift['change']['before'].update(annotations=None, labels=None, version_aliases=None)
+        plan['resource_drift'].append(drift)
+    return plan
+
+
 class FoundationTest(unittest.TestCase):
+    def test_only_empty_map_refreshes_on_existing_noop_secrets_are_admitted(self):
+        self.assertEqual(c.validate_plan(refreshed_metadata_fixture()), {'resources': 8, 'creates': 4})
+        metadata = refreshed_metadata_fixture()
+        metadata['variables']['stage']['value'] = 'foundation_metadata'
+        metadata['resource_changes'] = [x for x in metadata['resource_changes'] if '_iam_member.' not in x['address']]
+        self.assertEqual(c.validate_plan(metadata, 'foundation_metadata'), {'resources': 4, 'creates': 0})
+        no_op = refreshed_metadata_fixture()
+        for item in no_op['resource_changes']:
+            item['change']['actions'] = ['no-op']
+        self.assertEqual(c.validate_plan(no_op), {'resources': 8, 'creates': 0})
+
+    def test_real_drift_unknowns_foreign_resources_and_planned_writes_still_stop(self):
+        mutations = [
+            lambda p: p['resource_drift'][0]['change']['before'].update(labels={'retained': 'value'}),
+            lambda p: p['resource_drift'][0]['change']['after'].update(labels={'unexpected': 'value'}),
+            lambda p: (p['resource_drift'][0]['change']['before'].update(labels={}),
+                       p['resource_drift'][0]['change']['after'].update(labels=None)),
+            lambda p: p['resource_drift'][0]['change']['after'].update(project='youtube-study-space'),
+            lambda p: p['resource_drift'][0]['change']['after'].update(replication=[]),
+            lambda p: p['resource_drift'][0]['change']['after'].update(secret_id='other-secret'),
+            lambda p: p['resource_drift'][0]['change']['after'].update(new_field={}),
+            lambda p: p['resource_drift'][0]['change']['after_unknown'].update(labels=True),
+            lambda p: p['resource_drift'][0].update(address='module.platform[0].google_service_account.runtime'),
+            lambda p: p['resource_drift'][0].update(address='unreviewed-secret'),
+            lambda p: p['resource_drift'][0].update(provider_name='registry.terraform.io/unreviewed/provider'),
+            lambda p: p['resource_drift'][0].update(mode='data'),
+            lambda p: p['resource_drift'][0]['change'].update(actions=['delete', 'create']),
+            lambda p: p['resource_changes'][1]['change'].update(actions=['update']),
+            lambda p: p['resource_changes'][1]['change'].update(actions=['create']),
+            lambda p: p['resource_drift'].append(deepcopy(p['resource_drift'][0])),
+        ]
+        for mutate in mutations:
+            with self.subTest(mutation=mutate), self.assertRaises(ValueError):
+                plan = refreshed_metadata_fixture()
+                mutate(plan)
+                c.validate_plan(plan)
+
+    def test_empty_metadata_refresh_remains_bound_to_independent_plan_commitment(self):
+        plan = refreshed_metadata_fixture()
+        key = 'private-key-for-synthetic-tests-only'
+        self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
+                            c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
+
     def test_rejected_plan_values_never_enter_public_diagnostics(self):
         plan = plan_fixture()
         private = 'private-project-and-secret-payload-marker'

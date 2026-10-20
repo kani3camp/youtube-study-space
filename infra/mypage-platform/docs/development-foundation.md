@@ -20,6 +20,8 @@ MyPage統合PR [#1236](https://github.com/kani3camp/youtube-study-space/pull/123
 - [実metadata Apply run 39452784387](https://github.com/kani3camp/youtube-study-space/actions/runs/39452784387) はPlan/Applyの独立identity、保存PlanのHMAC照合、適用後のState 4資源readbackに成功した。専用runtime SAと3 Secret metadataだけを作成し、Secret version/value・Cloud Run・Firestore writer・Hosting・Productionは作成していない。
 - bootstrap operatorは作成済みruntime SAと3 SecretのIAMをreadbackし、Secret version 0件を確認してから、それぞれの資源だけに専用policy editorを付与した。Apply SAをmetadata read roleへ移し、一時的なproject create role bindingを解除・readbackした。project全域のsetIamPolicyやSecret payload/version操作はCIへ付与していない。
 - 専用Stateの実objectをAWS側から独立確認し、version IDあり・AES256暗号化・metadata Apply後の`.tflock`解放を確認した。State本文・bucket/account/role ID・WIF番号・HMAC keyを公開記録へ載せていない。
+- 8資源へ進む最初の[run 39453504555](https://github.com/kani3camp/youtube-study-space/actions/runs/39453504555)はPlan guardで停止し、Applyはskipした。#1407の安全な検査labelを用いた[run 39454711022](https://github.com/kani3camp/youtube-study-space/actions/runs/39454711022)で`resource-drift`と特定した。
+- S3 Stateのmetadata 4資源だけを一時的なlocal Stateへ複製し、同一ソース/固定providerで**read-only Planのみ**を実行した。3 Secretの`annotations` / `labels` / `version_aliases`が`null`→`{}`へrefreshされることを、値を出さずに属性名と形だけで確認した。一時State/Planは終了時に削除し、S3 StateへのwriteやApplyは行っていない。
 
 ### Bootstrap権限の所有範囲
 
@@ -60,7 +62,9 @@ GCP権限は実inventoryと公式role catalogで確認してから設定する�
 
 ## Plan / Apply境界
 
-`foundation_metadata` は専用runtime SAとSecret metadata 3件だけの4資源、`foundation` はさらにSecret accessor member 3件とruntime signer member 1件を加えた8資源。guardは選んだ段階の正確なresource集合、project、member、role、replication、stageを検証する。create/no-op以外、import/drift/削除・置換、provider action、想定外resource、未知の認可field、条件付きIAMを拒否する。create対象名が既にGCPに存在すれば、State未所有として停止する。
+`foundation_metadata` は専用runtime SAとSecret metadata 3件だけの4資源、`foundation` はさらにSecret accessor member 3件とruntime signer member 1件を加えた8資源。guardは選んだ段階の正確なresource集合、project、member、role、replication、stageを検証する。create/no-op以外、import/削除・置換、provider action、想定外resource、未知の認可field、条件付きIAMを拒否する。create対象名が既にGCPに存在すれば、State未所有として停止する。
+
+refresh差分は原則拒否する。唯一、上記3 Secretの`annotations` / `labels` / `version_aliases`だけの`null`→空mapへの表現正規化を、同じ資源の予定操作が**no-op**の場合だけ許可する。before/afterのfield集合は同一、他fieldの差分なし、unknown/import/replaceなしを要求する。非空mapの追加・消去、逆方向、別資源、IAM/replication/project等の差分、Terraform writeを伴う場合は停止する。この差分をPlanから取り除かず、独立Plan比較のHMACにも含め、許可件数だけを公開ログへ出す。
 
 Plan/Apply jobは別identityでそれぞれnative Planを保存し、全Plan（生成timestampのみ除外）・source SHA・S3 State versionのHMAC一致と30分以内を条件に、Apply job自身が保存したPlanだけを適用する。HMACはGitHub expression内で比較し、生Plan/State/targetはlog/artifactへ出さない。raw evidenceはrunnerのprivate directoryへ置き、成功・失敗の両方で削除する。
 
