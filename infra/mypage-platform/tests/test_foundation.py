@@ -68,6 +68,7 @@ class FoundationTest(unittest.TestCase):
             lambda p: p['resource_drift'][0].update(address='module.platform[0].google_service_account.runtime'),
             lambda p: p['resource_drift'][0].update(address='unreviewed-secret'),
             lambda p: p['resource_drift'][0].update(provider_name='registry.terraform.io/unreviewed/provider'),
+            lambda p: p['resource_drift'][0].update(mode='data'),
             lambda p: p['resource_drift'][0]['change'].update(actions=['delete', 'create']),
             lambda p: p['resource_changes'][1]['change'].update(actions=['update']),
             lambda p: p['resource_changes'][1]['change'].update(actions=['create']),
