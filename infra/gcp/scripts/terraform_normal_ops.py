@@ -31,8 +31,10 @@ REUSABLE = 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authen
 DIAGNOSTIC_SECTIONS = ('source_run_mode', 'inputs', 'review', 'state', 'resource_changes',
                        'planned_values', 'prior_state', 'checks', 'relevant_attributes', 'other_plan_fields')
 PHASES = frozenset({'identity', 'initial-state', 'source-copy', 'terraform-init',
-                   'native-plan', 'plan-json', 'plan-validation', 'storage-ownership',
+                   'native-plan', 'plan-json', 'plan-schema', 'plan-validation', 'storage-ownership',
                    'state-readback', 'plan-summary', 'plan-binding'})
+PLAN_REJECTIONS = frozenset({'format', 'incomplete', 'deferred', 'refresh-drift',
+                            'checks', 'resource-contract'})
 PRIVATE = 'gcp-normal-private'
 MODES = {'normal-plan', 'normal-apply', 'normal-e2e'}
 ACTIONS = {('no-op',), ('read',), ('create',), ('update',), ('delete',),
@@ -48,6 +50,18 @@ class SavedPlan(NamedTuple):
 def need(value):
     if not value:
         raise ValueError('normal Terraform operation rejected')
+
+
+class PlanRejected(ValueError):
+    def __init__(self, reason):
+        need(reason in PLAN_REJECTIONS)
+        self.reason = reason
+        super().__init__('normal Plan validation rejected')
+
+
+def plan_need(value, reason):
+    if not value:
+        raise PlanRejected(reason)
 
 
 def target_project(env):
@@ -210,13 +224,67 @@ def verify_storage_ownership(env, plan):
         need(observed.get('name') == bucket and str(observed.get('projectNumber')) == number)
 
 
-def validate(plan, approved, *, post=False, project=PROJECT, project_number=None):
-    need(type(plan) is dict and plan.get('format_version') == '1.2'
-         and plan.get('terraform_version') == common.VERSION)
-    need(plan.get('errored') is False and plan.get('complete') is True)
-    need(not plan.get('deferred_changes') and not plan.get('resource_drift'))
+def validate_observation_drift(plan, state, provider_schema):
+    """Bind only computed BigQuery observations to native State and refresh.
+
+    Configurable fields, identities, masks, unknowns and other resource types
+    never qualify. The complete drift remains inside the private Plan HMAC.
+    """
+    drift = plan.get('resource_drift', [])
+    need(type(drift) is list)
+    if not drift:
+        return
+    need(type(state) is dict and type(state.get('resources')) is list)
+    native = {}
+    for resource in state['resources']:
+        if resource.get('mode') != 'managed':
+            continue
+        address = ((resource['module'] + '.') if resource.get('module') else '')
+        address += resource['type'] + '.' + resource['name']
+        for instance in resource['instances']:
+            key = instance.get('index_key')
+            need('index_key' not in instance or type(key) is str or type(key) is int and key >= 0)
+            name = address + ('[' + common.canonical(key).decode() + ']' if 'index_key' in instance else '')
+            need(name not in native)
+            native[name] = instance
+    changes = {item['address']: item for item in plan['resource_changes']}
+    seen = set()
+    for item in drift:
+        need(type(item) is dict and set(item) <= common.contract.RESOURCE_KEYS | {'change', 'action_reason'})
+        address = item['address']
+        need(address not in seen and address in native and address in changes)
+        seen.add(address)
+        current = changes[address]
+        need(item.get('type') == 'google_bigquery_table' and item.get('mode') == 'managed'
+             and item.get('provider_name') == 'registry.terraform.io/hashicorp/google')
+        for key in ('address', 'module_address', 'mode', 'type', 'name', 'index', 'provider_name'):
+            need(item.get(key) == current.get(key))
+        change, planned = item['change'], current['change']
+        need(type(change) is dict and set(change) <= common.contract.CHANGE_KEYS)
+        need(change.get('actions') == ['update'] and not change.get('importing')
+             and not change.get('replace_paths'))
+        before, after = change['before'], change['after']
+        need(type(before) is dict and type(after) is dict and set(before) == set(after))
+        differing = {key for key in before if common.canonical(before[key]) != common.canonical(after[key])}
+        need(bool(differing) and differing <= common.contract.observation_keys(provider_schema, item['type']))
+        need(common.canonical(before) == common.canonical(native[address]['attributes'])
+             and common.canonical(after) == common.canonical(planned['before']))
+        # The shared mask validator rejects every unknown leaf, including nested ones.
+        common.contract._mask(change.get('after_unknown', {}), unknown=True)
+        for key in ('before_sensitive', 'after_sensitive'):
+            need(common.canonical(change.get(key, {})) == common.canonical(planned.get('before_sensitive', {})))
+        for key in ('before_identity', 'after_identity'):
+            need(change.get(key) == planned.get('before_identity') == native[address].get('identity'))
+
+
+def validate(plan, approved, *, post=False, project=PROJECT, project_number=None,
+             state=None, provider_schema=None):
+    plan_need(type(plan) is dict and plan.get('format_version') == '1.2'
+              and plan.get('terraform_version') == common.VERSION, 'format')
+    plan_need(plan.get('errored') is False and plan.get('complete') is True, 'incomplete')
+    plan_need(not plan.get('deferred_changes'), 'deferred')
     for check in plan.get('checks', []):
-        need(check.get('status') == 'pass')
+        plan_need(check.get('status') == 'pass', 'checks')
     changes = plan.get('resource_changes', [])
     need(type(changes) is list)
     destructive, seen, counts = {}, set(), {k: 0 for k in ('create', 'update', 'delete', 'replace', 'no-op', 'read')}
@@ -243,6 +311,10 @@ def validate(plan, approved, *, post=False, project=PROJECT, project_number=None
         need(destructive == approved)
     if post:
         need(all(tuple(c['actions']) == ('no-op',) for c in plan.get('output_changes', {}).values()))
+    try:
+        validate_observation_drift(plan, state, provider_schema)
+    except Exception:
+        raise PlanRejected('refresh-drift') from None
     return counts
 
 
@@ -503,16 +575,26 @@ def setup(env, root, tfvars):
     return tfroot
 
 
-def plan(env, root, tfroot, name, approved, *, post=False):
+def plan(env, root, tfroot, name, approved, *, post=False, state=None):
     binary = root / (name + '.tfplan')
     phase('native-plan')
     result = common.terraform(env, root, tfroot, name, ['plan', '-input=false', '-detailed-exitcode', '-lock-timeout=60s',
         '-var-file=' + str(root / 'inputs.tfvars.json'), '-out=' + str(binary)], codes=(0, 2))
     phase('plan-json')
     value = common.decode(common.terraform(env, root, tfroot, name + '-show', ['show', '-json', str(binary)]).stdout)
+    schema = None
+    if value.get('resource_drift'):
+        phase('plan-schema')
+        schema = common.decode(common.terraform(env, root, tfroot, name + '-schema',
+                                               ['providers', 'schema', '-json']).stdout)
     phase('plan-validation')
-    counts = validate(value, approved, post=post, project=target_project(env),
-                      project_number=env.get('NORMAL_PROJECT_NUMBER'))
+    try:
+        counts = validate(value, approved, post=post, project=target_project(env),
+                          project_number=env.get('NORMAL_PROJECT_NUMBER'), state=state, provider_schema=schema)
+    except PlanRejected:
+        raise
+    except Exception:
+        raise PlanRejected('resource-contract') from None
     phase('storage-ownership')
     verify_storage_ownership(env, value)
     if post:
@@ -528,7 +610,7 @@ def apply_saved(env, root, tfroot, binary, before, name):
     after = snapshot(env, root, name + '-after')
     need(after['state']['lineage'] == before['state']['lineage']
          and after['state']['serial'] >= before['state']['serial'])
-    plan(env, root, tfroot, name + '-post', {}, post=True)
+    plan(env, root, tfroot, name + '-post', {}, post=True, state=after['state'])
     need(snapshot(env, root, name + '-verified') == after)
     return after
 
@@ -554,7 +636,7 @@ def e2e(env, root, tfroot, before):
                     probe.unlink()
                 common.write(probe, common.canonical(value))
             approved = {} if phase in {'create', 'update'} else {address: ['delete', 'create'] if phase == 'replace' else ['delete']}
-            binary, value, counts = plan(env, root, tfroot, phase, approved)
+            binary, value, counts = plan(env, root, tfroot, phase, approved, state=before['state'])
             changed = [c for c in value.get('resource_changes', []) if c['change']['actions'] != ['no-op']]
             need(len(changed) == 1 and changed[0]['address'] == address and counts[expected] == 1)
             before = apply_saved(env, root, tfroot, binary, before, phase)
@@ -565,11 +647,11 @@ def e2e(env, root, tfroot, before):
         if probe.exists():
             probe.unlink()
         try:
-            binary, value, _ = plan(env, root, tfroot, 'recovery', {address: ['delete']})
+            current = snapshot(env, root, 'recovery-current')
+            binary, value, _ = plan(env, root, tfroot, 'recovery', {address: ['delete']}, state=current['state'])
             changed = [c for c in value.get('resource_changes', []) if c['change']['actions'] != ['no-op']]
             need(len(changed) == 1 and changed[0]['address'] == address
                  and changed[0]['change']['actions'] == ['delete'])
-            current = snapshot(env, root, 'recovery-current')
             apply_saved(env, root, tfroot, binary, current, 'recovery')
             print('GCP_NORMAL_E2E: recovery_probe_deleted=true')
         except Exception as error:
@@ -621,7 +703,7 @@ def execute(env, *, prepare_only=False):
     before = snapshot(env, root, 'before')
     need(before['state'] is not None)
     tfroot = setup(env, root, tfvars)
-    binary, value, counts = plan(env, root, tfroot, 'normal', review(env['NORMAL_TARGET']))
+    binary, value, counts = plan(env, root, tfroot, 'normal', review(env['NORMAL_TARGET']), state=before['state'])
     phase('state-readback')
     need(snapshot(env, root, 'after-plan') == before)
     phase('plan-summary')
@@ -719,6 +801,8 @@ def main():
         return 0
     except Exception as error:
         common.close_http_error(error)
+        if isinstance(error, PlanRejected):
+            print('GCP_NORMAL_VALIDATION: STOP; reason=' + error.reason)
         # Constant diagnostics: provider/API stderr and exception values are private.
         print('GCP_NORMAL: STOP; operation failed; provider output suppressed; use the documented recovery procedure')
         return 1
