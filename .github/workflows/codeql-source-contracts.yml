@@ -49,7 +49,7 @@ jobs:
         run: python .github/codeql/validate-source.py && python -m unittest discover -s .github/codeql -p 'test_*.py' -v
       - name: Install pinned actionlint
         run: bash .github/codeql/install-actionlint.sh "$RUNNER_TEMP/codeql-source-tools"
-      - name: Lint staged workflows and local reusable reference
+      - name: Lint workflows and local reusable reference
         run: python .github/codeql/lint-workflows.py --actionlint "$RUNNER_TEMP/codeql-source-tools/actionlint"
       - name: Check shell syntax and existing CI routing
         run: |

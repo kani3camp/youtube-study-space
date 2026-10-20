@@ -16,10 +16,7 @@ TARGETS = (
     "system/AI_COLLABORATION_GUIDE.md",
     "youtube-monitor/README.md",
     "system/README.md",
-    "firebase/README.md",
-    "docs-site/README.md",
-    "docs/development/architecture.md",
-    "docs/design/DESIGN.md",
+    "aws-cdk/README.md",
     "mypage/README.md",
     "docs/mypage/README.md",
     "docs/mypage/service-access-control.md",
@@ -30,6 +27,11 @@ TARGETS = (
     "docs/mypage/release/owner-packet.md",
     "docs/mypage/release/e2e.md",
     "infra/mypage-oauth-ttl/README.md",
+    "infra/mypage-platform/README.md",
+    "firebase/README.md",
+    "docs-site/README.md",
+    "docs/development/architecture.md",
+    "docs/design/DESIGN.md",
 )
 
 LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
