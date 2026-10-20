@@ -220,6 +220,63 @@ class Contracts(unittest.TestCase):
                 self.assertEqual(ops.main(), 0)
             self.assertFalse(root.exists())
 
+    def test_phase_diagnostics_reject_private_or_injected_names_before_output(self):
+        for value in (CANARY, 'native-plan\n::warning::' + CANARY, '', None):
+            with self.subTest(value=value), redirect_stdout(io.StringIO()) as output:
+                with self.assertRaises(ValueError):
+                    ops.phase(value)
+                self.assertEqual(output.getvalue(), '')
+
+    def test_plan_faults_identify_the_boundary_without_private_output_or_success(self):
+        from contextlib import ExitStack
+        failures = {
+            'identity': 'identity', 'snapshot': 'initial-state',
+            'source': 'source-copy', 'init': 'terraform-init',
+            'native': 'native-plan', 'show': 'plan-json',
+            'validate': 'plan-validation', 'verify_storage_ownership': 'storage-ownership',
+            'readback': 'state-readback', 'report_plan': 'plan-summary',
+            'output_commitments': 'plan-binding',
+        }
+        for failure, expected in failures.items():
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
+                e = env('plan') | {'RUNNER_TEMP': temporary, 'NORMAL_TARGET': 'prod',
+                    'NORMAL_MODE': 'normal-plan', 'GITHUB_REF': 'refs/heads/main',
+                    'GITHUB_WORKFLOW_REF': ops.CALLER + 'refs/heads/main',
+                    'STATE_BUCKET': 'fixture-state', 'STATE_ACCOUNT_ID': '123456789012'}
+                root = ops.private(e); root.mkdir(mode=0o700)
+                (root / 'normal.tfplan').write_text(CANARY)
+                state = {'state': {'resources': []}, 'raw': CANARY}
+                p = plan(('no-op',)); p['variables'] = {'private': CANARY}
+                output = io.StringIO()
+                with ExitStack() as stack:
+                    m = {name: stack.enter_context(patch.object(ops, name)) for name in (
+                        'inputs', 'identity', 'snapshot', 'source', 'review', 'validate',
+                        'verify_storage_ownership', 'report_plan', 'output_commitments', 'apply_saved')}
+                    m['inputs'].return_value = ({'project_id': ops.PROJECTS['prod']}, b'b' * 32)
+                    m['source'].return_value = root
+                    m['snapshot'].return_value = state
+                    m['review'].return_value = {}
+                    m['validate'].return_value = {'no-op': 1}
+                    results = [Mock(stdout=b'', returncode=0), Mock(stdout=b'', returncode=0),
+                               Mock(stdout=json.dumps(p).encode(), returncode=0)]
+                    if failure in ('init', 'native', 'show'):
+                        results[('init', 'native', 'show').index(failure)] = RuntimeError(CANARY)
+                    elif failure == 'readback':
+                        m['snapshot'].side_effect = [state, {'private': CANARY}]
+                    else:
+                        m[failure].side_effect = RuntimeError(CANARY)
+                    stack.enter_context(patch.object(ops.common, 'terraform', side_effect=results))
+                    with patch.dict(os.environ, e, clear=True), patch.object(sys, 'argv', ['ops', 'execute']), redirect_stdout(output):
+                        self.assertEqual(ops.main(), 1)
+                    text = output.getvalue()
+                    phases = [line for line in text.splitlines() if line.startswith('GCP_NORMAL: phase=')]
+                    self.assertEqual(phases[-1], 'GCP_NORMAL: phase=' + expected)
+                    self.assertIn('GCP_NORMAL: STOP;', text)
+                    self.assertNotIn(CANARY, text)
+                    self.assertNotIn('PASS;', text)
+                    self.assertNotIn('GCP_PROD_INITIAL_NOOP:', text)
+                    m['apply_saved'].assert_not_called()
+
     def test_permission_provider_state_and_mismatch_failures_do_not_leak_or_apply(self):
         for failure in ('identity', 'snapshot', 'setup', 'plan', 'commitment'):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
