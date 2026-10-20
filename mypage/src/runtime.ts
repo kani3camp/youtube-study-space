@@ -77,8 +77,9 @@ export class BrowserRuntime {
 		intakeEnabled = false,
 	) {
 		this.session = session
+		this.observedUID = session?.currentUID() ?? null
 		this.policy = policy
-		this.request = request
+		this.request = (input, init) => request(input, init)
 		this.unavailable = unavailable
 		this.intakeEnabled = intakeEnabled
 		this.memory = new MyPageMemory(
