@@ -245,6 +245,25 @@ class ProductionBootstrap(unittest.TestCase):
             with self.subTest(account=account), self.assertRaises(ValueError):
                 prod.verify_account(account, email)
 
+    def test_new_account_readback_retries_only_absence_and_is_bounded(self):
+        email = "terraform-prod-normal-plan@" + prod.PROJECT + ".iam.gserviceaccount.com"
+        with patch.object(prod, "gcloud", side_effect=[None, None, {"email": email}]) as read, \
+             patch.object(prod.time, "sleep") as sleep:
+            prod.wait_for_account(email)
+            self.assertEqual(read.call_count, 3)
+            self.assertEqual(sleep.call_count, 2)
+        for result in (RuntimeError("permission denied"), {"email": email, "disabled": True}):
+            with self.subTest(result=result), patch.object(prod, "gcloud", side_effect=[result]) as read, \
+                 patch.object(prod.time, "sleep") as sleep, self.assertRaises((RuntimeError, ValueError)):
+                prod.wait_for_account(email)
+            self.assertEqual(read.call_count, 1)
+            sleep.assert_not_called()
+        with patch.object(prod, "gcloud", return_value=None) as read, \
+             patch.object(prod.time, "sleep") as sleep, self.assertRaises(ValueError):
+            prod.wait_for_account(email)
+        self.assertEqual(read.call_count, 12)
+        self.assertEqual(sleep.call_count, 11)
+
     def test_backend_policies_include_inline_and_attached_and_exact_prod_scope(self):
         for kind in ("plan", "apply"):
             expected = prod.backend.permissions_policy("fixture-state-bucket", kind)

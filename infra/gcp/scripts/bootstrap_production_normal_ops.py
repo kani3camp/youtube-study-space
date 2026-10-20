@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import sys
 import subprocess
+import time
 
 import bootstrap_normal_ops as dev
 import production_backend_packet as backend
@@ -280,6 +281,18 @@ def verify_no_user_keys(email):
     need(type(keys) is list and all(key.get("keyType") != "USER_MANAGED" for key in keys))
 
 
+def wait_for_account(email):
+    # Newly created IAM accounts can briefly return NOT_FOUND. Retry only
+    # absence; permission failures and identity/disabled drift stop immediately.
+    for attempt in range(12):
+        account = gcloud("iam", "service-accounts", "describe", email, missing=True)
+        if account is not None:
+            verify_account(account, email)
+            return
+        need(attempt < 11)
+        time.sleep(5)
+
+
 def verify_pool_providers(number, expected):
     # A principalSet grants trust across the entire pool, not one provider.
     # Include soft-deleted providers so an unreviewed identity cannot be restored.
@@ -381,7 +394,7 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
     verify_provider(provider)
     verify_pool_providers(number, provider)
     if enable_apply:
-        verify_account(gcloud("iam", "service-accounts", "describe", runtime), runtime)
+        wait_for_account(runtime)
         verify_no_user_keys(runtime)
 
     for kind in kinds:
@@ -389,7 +402,7 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
         if exists is None:
             gcloud("iam", "service-accounts", "create", "terraform-prod-normal-" + kind,
                    "--display-name=Terraform PROD normal " + kind)
-        verify_account(gcloud("iam", "service-accounts", "describe", account), account)
+        wait_for_account(account)
         verify_no_user_keys(account)
         trust = gcloud("iam", "service-accounts", "get-iam-policy", account)
         if approved_grant not in check_policy(trust, {approved_grant}):
