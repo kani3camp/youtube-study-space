@@ -142,6 +142,8 @@ class ProductionNormalOps(unittest.TestCase):
                 self.assertNotIn("youtube-study-space/" + ("dev" if target == "prod" else "prod") +
                                  "/terraform.tfstate", backend)
                 terraform.assert_called_once()
+                for temporary in ("terraform.rc", "inputs.tfvars.json", "backend.hcl"):
+                    (root / temporary).unlink()
 
     def test_commitment_binds_target(self):
         value = native_plan()
