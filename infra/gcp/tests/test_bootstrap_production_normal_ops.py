@@ -139,6 +139,64 @@ class ProductionBootstrap(unittest.TestCase):
         with patch.object(prod, "gh", side_effect=gh), self.assertRaises(ValueError):
             prod.preflight_github()
 
+    def test_existing_production_trust_and_project_grants_are_exact(self):
+        expected = ("roles/iam.workloadIdentityUser", "principalSet://valid")
+        good = {"bindings": [{"role": expected[0], "members": [expected[1]]}]}
+        self.assertEqual(prod.check_policy(good, {expected}), {expected})
+        self.assertEqual(prod.check_policy({"bindings": []}, {expected}), set())
+        for invalid in (
+            {"bindings": [{"role": expected[0], "members": ["attacker"]}]},
+            {"bindings": [{"role": expected[0], "members": [expected[1], "attacker"]}]},
+            {"bindings": [{"role": expected[0], "members": [expected[1]],
+                            "condition": {"expression": "true"}}]},
+            {"bindings": [{"role": expected[0], "members": [expected[1]]},
+                           {"role": "roles/iam.serviceAccountTokenCreator",
+                            "members": ["serviceAccount:attacker@example.com"]}]},
+        ):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                prod.check_policy(invalid, {expected})
+        member = "serviceAccount:terraform-prod-normal-plan@youtube-study-space.iam.gserviceaccount.com"
+        scoped = "projects/youtube-study-space/roles/terraformNormalPlan"
+        self.assertFalse(prod.check_project_grants({"bindings": []}, member, scoped))
+        self.assertTrue(prod.check_project_grants({
+            "bindings": [{"role": scoped, "members": [member]}]
+        }, member, scoped))
+        for forbidden in (
+            {"role": "roles/editor", "members": [member]},
+            {"role": scoped, "members": [member], "condition": {"expression": "true"}},
+        ):
+            with self.subTest(forbidden=forbidden), self.assertRaises(ValueError):
+                prod.check_project_grants({"bindings": [forbidden]}, member, scoped)
+
+    def test_existing_unexpected_production_provider_stops_before_any_write(self):
+        calls = []
+        def gcloud(*args, missing=False):
+            calls.append(args)
+            if args[:3] == ("iam", "roles", "describe"):
+                return None
+            if args[:3] == ("iam", "service-accounts", "describe"):
+                return None
+            if args[:3] == ("iam", "workload-identity-pools", "describe"):
+                return {"state": "ACTIVE"}
+            if args[:4] == ("iam", "workload-identity-pools", "providers", "describe"):
+                return {"state": "ACTIVE", "oidc": {"issuerUri": "https://" + prod.ISSUER},
+                        "attributeMapping": prod.MAPPING, "attributeCondition": "unreviewed"}
+            raise AssertionError("unexpected write or read " + repr(args))
+        with patch.object(prod, "gcloud", side_effect=gcloud), self.assertRaises(ValueError):
+            prod.bootstrap("12345", {"plan": [], "apply": []})
+        self.assertFalse(any("create" in args or "update" in args for args in calls))
+
+    def test_existing_role_permission_mismatch_stops_before_mutation(self):
+        calls = []
+        def gcloud(*args, missing=False):
+            calls.append(args)
+            if args[:3] == ("iam", "roles", "describe"):
+                return {"stage": "GA", "includedPermissions": ["pubsub.topics.delete"]}
+            raise AssertionError("unexpected read/write " + repr(args))
+        with patch.object(prod, "gcloud", side_effect=gcloud), self.assertRaises(ValueError):
+            prod.bootstrap("12345", {"plan": ["resourcemanager.projects.get"], "apply": []})
+        self.assertEqual(len(calls), 1)
+
     def test_check_mode_is_read_only_and_does_not_bootstrap(self):
         args = ["script", "--check"]
         permitted = {"plan": ["resourcemanager.projects.get"],
