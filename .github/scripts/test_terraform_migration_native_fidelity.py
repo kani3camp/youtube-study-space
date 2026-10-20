@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from threading import Thread
 import unittest
@@ -23,6 +24,8 @@ import unittest
 import terraform_migration_contract as contract
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'infra/gcp/scripts'))
+import terraform_normal_ops as normal
 PROJECT = contract.ENVIRONMENTS['dev'][0]
 ADDRESS = 'google_bigquery_table.retained[0]'
 IDENTIFIER = f'projects/{PROJECT}/datasets/fixture/tables/native_identity_witness'
@@ -265,6 +268,11 @@ output "environment" { value = "development" }
                 self.assertEqual(change['before_sensitive'], change['after_sensitive'])
                 self.assertEqual(bool(change['after_sensitive'].get('schema', False)), marked)
                 self.assertEqual(self.validate(plan, before)['raw_observation_drift'], 1)
+                # Ordinary operations must admit the same State-bound,
+                # computed-only observations without admitting managed drift.
+                normal.validate_observation_drift(plan, before, self.schema)
+                self.assertEqual(normal.validate(plan, {}, project=PROJECT,
+                    state=before, provider_schema=self.schema)['no-op'], 1)
                 self.command(directory, 'apply', '-input=false', str(directory/'saved.tfplan'))
                 after = self.state(directory)
                 contract.validate_state_delta(before, after, manifest=self.manifest, environment='dev',
