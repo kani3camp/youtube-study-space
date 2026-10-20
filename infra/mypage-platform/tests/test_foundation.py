@@ -58,6 +58,15 @@ class FoundationTest(unittest.TestCase):
         for changed, version, sha in ((plan | {'applyable': False}, 'absent', 'a' * 40), (plan, 'new-version', 'a' * 40), (plan, 'absent', 'b' * 40)):
             self.assertNotEqual(digest, c.commitment(changed, version, sha, key))
 
+    def test_nested_false_unknown_masks_are_known_but_nested_true_is_rejected(self):
+        plan = plan_fixture()
+        secret = next(x for x in plan['resource_changes'] if '.google_secret_manager_secret.' in x['address'])
+        secret['change']['after_unknown']['replication'] = [{'auto': [{'customer_managed_encryption': []}]}]
+        c.validate_plan(plan)
+        secret['change']['after_unknown']['replication'][0]['auto'][0]['customer_managed_encryption'] = True
+        with self.assertRaises(ValueError):
+            c.validate_plan(plan)
+
     def test_exact_actor_ref_and_sha_before_credentials(self):
         env = {'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
                'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_EVENT_NAME': 'workflow_dispatch',

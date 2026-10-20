@@ -87,6 +87,15 @@ def resource_contract():
     return {"module.platform[0]." + key: value for key, value in resources.items()}
 
 
+def has_unknown(value):
+    if isinstance(value, dict):
+        return any(has_unknown(child) for child in value.values())
+    if isinstance(value, list):
+        return any(has_unknown(child) for child in value)
+    need(value is None or type(value) is bool)
+    return value is True
+
+
 def validate_plan(plan):
     need(plan.get("format_version") == "1.2" and plan.get("complete") is True and plan.get("errored") is False)
     need(not plan.get("resource_drift") and not plan.get("deferred_changes"))
@@ -111,7 +120,7 @@ def validate_plan(plan):
                 need(not replication[0]["auto"][0].get("customer_managed_encryption"))
             else:
                 need(after.get(key) == value)
-            need(not change.get("after_unknown", {}).get(key))
+            need(not has_unknown(change.get("after_unknown", {}).get(key)))
         if address.endswith("google_service_account.runtime"):
             need(after.get("disabled") in {None, False})
     need(seen == set(contract))
