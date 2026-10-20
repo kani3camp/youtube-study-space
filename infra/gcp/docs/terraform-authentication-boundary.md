@@ -45,6 +45,8 @@ Productionは `normal-plan` / `normal-apply` を `refs/heads/main` と完全一�
 
 GitHubの `terraform-prod-plan` / `terraform-prod-apply` はmain-only Selected branches、別GCP normal WIF/SA、既存のPROD AWS backend role、同runの独立再Plan/HMAC一致・saved plan seal、明示的な破壊的操作review、適用後のfull-root no-opとnative S3 lockを要求します。source+inputs+target+State/HEAD+全planのHMACは値をstep envやshell commandへ渡さずGitHub式で比較します。既存migration controller/identityの権限は変えません。
 
+本番用の通常Applyカスタムロールは資源単位の `*.setIamPolicy` を除外し、コード変更だけで公開grantや他identityへの権限昇格を認めません。必要なgrantは独立した権限審査を前提に追加します。
+
 管理端末で既存PROD AWS Roleのnative owner actor_id/main trust、GitHub Environmentのmain-only branch rule、GCPの専用identity/permissionのreadbackを先に行ってください。コードの合格だけでは実PROD認証成功ではありません。実mainリリース後に本番full-root no-op Planを確認し、必要な変更について別途Applyを検証します。詳細は[README](../README.md#通常のprod-terraform開発main固定)。
 
 ## 既存import専用経路

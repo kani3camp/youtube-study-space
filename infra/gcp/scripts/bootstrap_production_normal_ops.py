@@ -133,6 +133,14 @@ def preflight_github():
              <= {s.get("name") for s in secrets.get("secrets", [])})
 
 
+def production_permissions(catalog):
+    """Allow general infrastructure changes but never delegate resource IAM."""
+    roles = dev.selected_permissions(catalog, BASELINE)
+    roles["apply"] = [p for p in roles["apply"] if not p.endswith(".setIamPolicy")]
+    need(not any(p.endswith(".setIamPolicy") for p in roles["apply"]))
+    return roles
+
+
 def permissions():
     project = gcloud("projects", "describe", PROJECT)
     need(project.get("projectId") == PROJECT and project.get("lifecycleState") == "ACTIVE")
@@ -141,7 +149,7 @@ def permissions():
     catalog = set()
     for role in dev.CATALOGS:
         catalog.update(gcloud("iam", "roles", "describe", role)["includedPermissions"])
-    allowed = dev.selected_permissions(catalog, BASELINE)
+    allowed = production_permissions(catalog)
     return str(number), allowed
 
 

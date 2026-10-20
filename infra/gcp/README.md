@@ -131,6 +131,7 @@ Productionの通常Plan/Applyは既存DEVと同じ `normal-plan` / `normal-apply
 
 **コードをdevへマージするだけではPRODの認証付きPlan/Applyは有効になりません。** 既存PROD移行用AWS S3 backend Roleを再利用し、通常専用のGCP Plan/Apply SA・カスタムロール・WIF pool/provider・runtime SAを追加します。移行用GCP WIF/SA、S3 State、既存workloadは変更しません。
 
+- PROD用の通常Apply権限はDEVのカタログを基礎としつつ、資源別IAMの付与による自己昇格を防ぐため `*.setIamPolicy` はデフォルトで除外します。Bucket/Secret/Cloud Run等の公開・他主体へのgrantは別途IAMレビューの対象です。
 - PROD AWSの既存Plan/Apply Roleは、repository-wide GitHub OIDCの7 claims（`terraform-prod-plan/apply`、`ref=refs/heads/main`、固定caller/reusable）に加え、native `actor_id=54093651` が必要です。予期しないAllow、旧integration branch trust、wildcardが残ればSTOPします。AWSのtrust調整は管理者が差分を独立レビューしてから実施し、このbootstrapではAWSを変更しません。
 - GitHub `terraform-prod-plan` / `terraform-prod-apply` のSelected branchesは**完全一致の `main` のみ**とします。既存managed入力・S3 role/bucket/account秘密参照を維持します。旧integration branchの認可は本番運用切替時に整理します。
 - AWS・GCP・GitHubで必要な管理者権限を持つ短期認証済み端末で以下を実行します。

@@ -91,17 +91,19 @@ class ProductionBootstrap(unittest.TestCase):
 
     def test_production_permissions_exclude_content_secrets_and_global_iam(self):
         catalog = {
-            "run.services.create", "run.services.get", "pubsub.topics.create",
+            "run.services.create", "run.services.get", "run.services.setIamPolicy", "pubsub.topics.create",
             "pubsub.topics.get", "storage.objects.get",
             "bigquery.tables.getData", "bigquery.tables.updateData",
-            "secretmanager.versions.access", "iam.workloadIdentityPools.setIamPolicy",
+            "secretmanager.versions.access", "secretmanager.secrets.setIamPolicy",
+            "storage.buckets.setIamPolicy", "iam.workloadIdentityPools.setIamPolicy",
             "resourcemanager.projects.setIamPolicy", "iam.serviceAccounts.create",
         }
-        permissions = dev.selected_permissions(catalog, prod.BASELINE)
+        permissions = prod.production_permissions(catalog)
         self.assertIn("pubsub.topics.create", permissions["apply"])
         self.assertIn("run.services.create", permissions["apply"])
         self.assertNotIn("run.services.create", permissions["plan"])
-        for secret in ("storage.objects.get", "bigquery.tables.getData",
+        for secret in ("run.services.setIamPolicy", "secretmanager.secrets.setIamPolicy",
+                       "storage.buckets.setIamPolicy", "storage.objects.get", "bigquery.tables.getData",
                        "bigquery.tables.updateData", "secretmanager.versions.access",
                        "iam.workloadIdentityPools.setIamPolicy",
                        "resourcemanager.projects.setIamPolicy"):
