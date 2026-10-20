@@ -112,6 +112,8 @@ def load_backend(path):
          and re.fullmatch(r"[0-9]+(?:\.[0-9]+){3}", bucket) is None)
     names = [value[f"production_{kind}_role_name"] for kind in ("plan", "apply")]
     need(len(set(names)) == 2 and all(re.fullmatch(r"[A-Za-z0-9+=,.@_-]{1,64}", n) for n in names))
+    # Match the normal controller's identity() role-purpose contract.
+    need(all(name.endswith("-" + kind) for name, kind in zip(names, ("plan", "apply"))))
     return value
 
 

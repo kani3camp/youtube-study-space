@@ -301,6 +301,12 @@ class ProductionBootstrap(unittest.TestCase):
                  "production_plan_role_name": "existing-prod-plan", "production_apply_role_name": "existing-prod-apply"}
         with patch.object(prod.backend, "private_file", return_value=value):
             self.assertEqual(prod.load_backend(Path("/private/config.json")), value)
+        for changed in ({"production_plan_role_name": "ProdRead"},
+                        {"production_apply_role_name": "ProdWrite"},
+                        {"production_plan_role_name": "existing-prod-apply",
+                         "production_apply_role_name": "existing-prod-plan"}):
+            with self.subTest(changed=changed), patch.object(prod.backend, "private_file", return_value=value | changed), self.assertRaises(ValueError):
+                prod.load_backend(Path("/private/config.json"))
         calls = []
         def aws(*args):
             calls.append(args)
