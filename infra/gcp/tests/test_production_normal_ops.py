@@ -146,6 +146,33 @@ class ProductionNormalOps(unittest.TestCase):
                             with self.assertRaises(ValueError):
                                 ops.validate(plan, {}, project=PROD, project_number="12345")
 
+    def test_app_engine_default_account_is_scoped_to_its_exact_project(self):
+        for project in (PROD, DEV, "foreign-project", PROD + "-other"):
+            email = project + "@appspot.gserviceaccount.com"
+            for attributes in (
+                {"service_account_email": email},
+                {"service_account_id": "projects/" + PROD + "/serviceAccounts/" + email,
+                 "member": "serviceAccount:" + email},
+                {"service_account_id": "projects/-/serviceAccounts/" + email},
+                {"template": [{"service_account": email}]},
+            ):
+                for side in ("before", "after"):
+                    candidate = native_plan()
+                    candidate["resource_changes"][0]["change"][side] = attributes
+                    with self.subTest(project=project, attributes=attributes, side=side):
+                        if project == PROD:
+                            self.assertEqual(ops.validate(candidate, {}, project=PROD)["create"], 1)
+                        else:
+                            with self.assertRaises(ValueError):
+                                ops.validate(candidate, {}, project=PROD)
+        for reference in (
+            "worker@" + PROD + ".appspot.gserviceaccount.com",
+            "projects/foreign-project/serviceAccounts/" + PROD + "@appspot.gserviceaccount.com",
+            "projects/-/serviceAccounts/12345",
+        ):
+            with self.subTest(reference=reference), self.assertRaises(ValueError):
+                ops.production_references(reference, PROD, "12345")
+
     def test_globally_named_storage_references_require_live_prod_ownership(self):
         plan = native_plan()
         plan['resource_changes'][0]['type'] = 'google_storage_bucket_iam_member'
@@ -179,7 +206,12 @@ class ProductionNormalOps(unittest.TestCase):
         item = native_plan()['resource_changes'][0]
         item['change']['actions'] = ['no-op']
         value = {'resource_changes': [deepcopy(item) for _ in range(30)]}
-        before = {'state': {'resources': [{} for _ in range(30)]}}
+        # Native State groups for_each/count instances under one resource.
+        before = {'state': {'resources': [
+            {'mode': 'managed', 'instances': [{} for _ in range(12)]},
+            {'mode': 'managed', 'instances': [{} for _ in range(7)]},
+            *[{'mode': 'managed', 'instances': [{}]} for _ in range(11)],
+        ]}}
         counts = {'no-op': 30, 'create': 0, 'update': 0, 'delete': 0, 'replace': 0, 'read': 0}
         env = context() | {'NORMAL_MODE': 'normal-plan'}
         self.assertTrue(ops.initial_production_noop(env, before, value, counts))
@@ -189,6 +221,10 @@ class ProductionNormalOps(unittest.TestCase):
         self.assertFalse(ops.initial_production_noop(env, {'state': {'resources': []}}, value, counts))
         self.assertFalse(ops.initial_production_noop(env, before, value | {'resource_changes': []}, counts))
         self.assertFalse(ops.initial_production_noop(env, before, value | {'output_changes': {'v': {'actions': ['update']}}}, counts))
+        partial = {'state': {'resources': [
+            {'mode': 'managed', 'instances': [{}]} for _ in range(29)
+        ] + [{'mode': 'data', 'instances': [{}]}]}}
+        self.assertFalse(ops.initial_production_noop(env, partial, value, counts))
 
     def test_prod_private_inputs_cannot_select_dev_project(self):
         with patch.object(ops.common, "decode_input_transport",
