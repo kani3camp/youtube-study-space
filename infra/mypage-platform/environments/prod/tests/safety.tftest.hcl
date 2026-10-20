@@ -53,7 +53,7 @@ run "runtime_private_is_not_public" {
     }
   }
   assert {
-    condition     = module.platform[0].runtime_enabled && !module.platform[0].public_invoker_enabled
+    condition     = module.platform[0].runtime_enabled && !module.platform[0].public_invoker_enabled && module.platform[0].max_instances == 3
     error_message = "Private runtime must not grant allUsers."
   }
 }
@@ -75,7 +75,7 @@ run "public_invoker_requires_explicit_stage" {
     }
   }
   assert {
-    condition     = module.platform[0].runtime_enabled && module.platform[0].public_invoker_enabled
+    condition     = module.platform[0].runtime_enabled && module.platform[0].public_invoker_enabled && module.platform[0].max_instances == 3
     error_message = "Only the explicit public stage can grant allUsers."
   }
 }
