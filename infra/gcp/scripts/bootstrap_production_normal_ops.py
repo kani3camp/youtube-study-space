@@ -165,69 +165,139 @@ def verify_provider(details):
          and details.get("attributeCondition") == CONDITION)
 
 
+def check_policy(policy, approved):
+    """Only a single narrow principal may be bound at the target SA scope.
+
+    Never ignore conditioned/extra grants when checking for privilege
+    escalation. Empty policies are acceptable before initial provisioning.
+    """
+    need(type(policy) is dict and type(policy.get("bindings", [])) is list)
+    actual = set()
+    for binding in policy.get("bindings", []):
+        need(type(binding) is dict and "condition" not in binding
+             and set(binding) == {"role", "members"})
+        role, members = binding["role"], binding["members"]
+        need(type(role) is str and type(members) is list and len(members) == 1
+             and type(members[0]) is str)
+        actual.add((role, members[0]))
+    need(actual <= approved)
+    return actual
+
+
+def check_project_grants(policy, member, expected_role):
+    """Reject even conditional extra project IAM grants on a normal SA."""
+    need(type(policy) is dict and type(policy.get("bindings", [])) is list)
+    allowed = []
+    for binding in policy["bindings"]:
+        need(type(binding) is dict and type(binding.get("members", [])) is list)
+        if member in binding["members"]:
+            need("condition" not in binding and binding.get("role") == expected_role)
+            allowed.append(binding)
+    need(len(allowed) <= 1)
+    return bool(allowed)
+
+
 def bootstrap(number, allowed):
+    # Validate *all existing* target resources before writing anything. A
+    # bootstrap rerun must not overwrite an unexpected production role or WIF.
+    roles = {}
     for kind, included in allowed.items():
         name = "terraformNormal" + kind.title()
-        existing = gcloud("iam", "roles", "describe", name, missing=True)
-        gcloud("iam", "roles", "update" if existing else "create", name,
-               "--permissions=" + ",".join(included), "--stage=GA",
-               "--title=Terraform PROD normal " + kind)
-        need(sorted(gcloud("iam", "roles", "describe", name)["includedPermissions"]) == included)
-
+        current = gcloud("iam", "roles", "describe", name, missing=True)
+        if current is not None:
+            need(sorted(current.get("includedPermissions", [])) == included
+                 and current.get("stage") == "GA")
+        roles[kind] = (name, current)
     runtime = "terraform-prod-workload@" + PROJECT + ".iam.gserviceaccount.com"
-    if not gcloud("iam", "service-accounts", "describe", runtime, missing=True):
-        gcloud("iam", "service-accounts", "create", "terraform-prod-workload",
-               "--display-name=Terraform PROD workload runtime")
+    runtime_exists = gcloud("iam", "service-accounts", "describe", runtime, missing=True)
     pool = gcloud("iam", "workload-identity-pools", "describe", POOL,
                   "--location=global", missing=True)
-    if not pool:
+    if pool is not None:
+        need(pool.get("state") == "ACTIVE")
+    current_provider = gcloud("iam", "workload-identity-pools", "providers", "describe",
+                             "github-actions", "--workload-identity-pool=" + POOL,
+                             "--location=global", missing=True)
+    if current_provider is not None:
+        verify_provider(current_provider)
+    project_policy = gcloud("projects", "get-iam-policy", PROJECT)
+    need(type(project_policy) is dict and type(project_policy.get("bindings", [])) is list
+         and not any("serviceAccount:" + runtime in b.get("members", [])
+                     for b in project_policy["bindings"]))
+    runtime_grant = ("roles/iam.serviceAccountUser",
+                     "serviceAccount:terraform-prod-normal-apply@" + PROJECT + ".iam.gserviceaccount.com")
+    if runtime_exists is not None:
+        check_policy(gcloud("iam", "service-accounts", "get-iam-policy", runtime), {runtime_grant})
+    accounts = {}
+    for kind in ("plan", "apply"):
+        email = "terraform-prod-normal-" + kind + "@" + PROJECT + ".iam.gserviceaccount.com"
+        exists = gcloud("iam", "service-accounts", "describe", email, missing=True)
+        principal = (f"principalSet://iam.googleapis.com/projects/{number}/locations/global/"
+                     f"workloadIdentityPools/{POOL}/attribute.environment/terraform-prod-{kind}")
+        approved_grant = ("roles/iam.workloadIdentityUser", principal)
+        project_role = f"projects/{PROJECT}/roles/terraformNormal" + kind.title()
+        check_project_grants(project_policy, "serviceAccount:" + email, project_role)
+        if exists is not None:
+            need(exists.get("email") == email)
+            keys = gcloud("iam", "service-accounts", "keys", "list", "--iam-account=" + email)
+            need(all(key.get("keyType") != "USER_MANAGED" for key in keys))
+            check_policy(gcloud("iam", "service-accounts", "get-iam-policy", email), {approved_grant})
+        accounts[kind] = (email, exists, principal, approved_grant, project_role)
+
+    # Only absent resources are created; matching existing resources stay intact.
+    for kind, included in allowed.items():
+        name, existing = roles[kind]
+        if existing is None:
+            gcloud("iam", "roles", "create", name,
+                   "--permissions=" + ",".join(included), "--stage=GA",
+                   "--title=Terraform PROD normal " + kind)
+        updated = gcloud("iam", "roles", "describe", name)
+        need(sorted(updated.get("includedPermissions", [])) == included
+             and updated.get("stage") == "GA")
+
+    if runtime_exists is None:
+        gcloud("iam", "service-accounts", "create", "terraform-prod-workload",
+               "--display-name=Terraform PROD workload runtime")
+    if pool is None:
         gcloud("iam", "workload-identity-pools", "create", POOL,
                "--location=global", "--display-name=Terraform PROD normal")
-    current = gcloud("iam", "workload-identity-pools", "providers", "describe",
-                     "github-actions", "--workload-identity-pool=" + POOL,
-                     "--location=global", missing=True)
-    gcloud("iam", "workload-identity-pools", "providers",
-           "update-oidc" if current else "create-oidc", "github-actions",
-           "--workload-identity-pool=" + POOL, "--location=global",
-           "--issuer-uri=https://" + ISSUER,
-           "--attribute-mapping=" + ",".join(k + "=" + v for k, v in MAPPING.items()),
-           "--attribute-condition=" + CONDITION)
+    if current_provider is None:
+        gcloud("iam", "workload-identity-pools", "providers",
+               "create-oidc", "github-actions",
+               "--workload-identity-pool=" + POOL, "--location=global",
+               "--issuer-uri=https://" + ISSUER,
+               "--attribute-mapping=" + ",".join(k + "=" + v for k, v in MAPPING.items()),
+               "--attribute-condition=" + CONDITION)
     provider = provider_details()
     verify_provider(provider)
-    policy = gcloud("projects", "get-iam-policy", PROJECT)
-    need(not any("serviceAccount:" + runtime in b.get("members", [])
-                 for b in policy.get("bindings", [])))
 
     for kind in ("plan", "apply"):
-        account = "terraform-prod-normal-" + kind + "@" + PROJECT + ".iam.gserviceaccount.com"
-        if not gcloud("iam", "service-accounts", "describe", account, missing=True):
+        account, exists, principal, approved_grant, project_role = accounts[kind]
+        if exists is None:
             gcloud("iam", "service-accounts", "create", "terraform-prod-normal-" + kind,
                    "--display-name=Terraform PROD normal " + kind)
         need(gcloud("iam", "service-accounts", "describe", account)["email"] == account)
         keys = gcloud("iam", "service-accounts", "keys", "list", "--iam-account=" + account)
         need(all(key.get("keyType") != "USER_MANAGED" for key in keys))
-        principal = (f"principalSet://iam.googleapis.com/projects/{number}/locations/global/"
-                     f"workloadIdentityPools/{POOL}/attribute.environment/terraform-prod-{kind}")
-        gcloud("iam", "service-accounts", "add-iam-policy-binding", account,
-               "--member=" + principal, "--role=roles/iam.workloadIdentityUser")
         trust = gcloud("iam", "service-accounts", "get-iam-policy", account)
-        need(any(b.get("role") == "roles/iam.workloadIdentityUser"
-                 and b.get("members") == [principal] for b in trust.get("bindings", [])))
-        project_role = f"projects/{PROJECT}/roles/terraformNormal" + kind.title()
-        gcloud("projects", "add-iam-policy-binding", PROJECT,
-               "--member=serviceAccount:" + account, "--role=" + project_role,
-               "--condition=None")
+        if approved_grant not in check_policy(trust, {approved_grant}):
+            gcloud("iam", "service-accounts", "add-iam-policy-binding", account,
+                   "--member=" + principal, "--role=roles/iam.workloadIdentityUser")
+        need(check_policy(gcloud("iam", "service-accounts", "get-iam-policy", account),
+                          {approved_grant}) == {approved_grant})
+        member = "serviceAccount:" + account
+        project_policy = gcloud("projects", "get-iam-policy", PROJECT)
+        if not check_project_grants(project_policy, member, project_role):
+            gcloud("projects", "add-iam-policy-binding", PROJECT,
+                   "--member=" + member, "--role=" + project_role, "--condition=None")
+        need(check_project_grants(gcloud("projects", "get-iam-policy", PROJECT),
+                                  member, project_role))
         if kind == "apply":
-            gcloud("iam", "service-accounts", "add-iam-policy-binding", runtime,
-                   "--member=serviceAccount:" + account, "--role=roles/iam.serviceAccountUser")
-            access = gcloud("iam", "service-accounts", "get-iam-policy", runtime)
-            need(any(b.get("role") == "roles/iam.serviceAccountUser"
-                     and b.get("members") == ["serviceAccount:" + account]
-                     for b in access.get("bindings", [])))
-        policy = gcloud("projects", "get-iam-policy", PROJECT)
-        actual = {b.get("role") for b in policy.get("bindings", [])
-                  if "serviceAccount:" + account in b.get("members", []) and "condition" not in b}
-        need(actual == {project_role})
+            runtime_policy = gcloud("iam", "service-accounts", "get-iam-policy", runtime)
+            if runtime_grant not in check_policy(runtime_policy, {runtime_grant}):
+                gcloud("iam", "service-accounts", "add-iam-policy-binding", runtime,
+                       "--member=" + member, "--role=roles/iam.serviceAccountUser")
+            need(check_policy(gcloud("iam", "service-accounts", "get-iam-policy", runtime),
+                              {runtime_grant}) == {runtime_grant})
         env = "terraform-prod-" + kind
         dev.run(["gh", "secret", "set", "GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT",
                  "--repo", REPO, "--env", env], data=account)
