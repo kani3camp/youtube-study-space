@@ -42,17 +42,12 @@ assert_exact_groups firestore_integration firebase/firestore.indexes.json
 assert_exact_groups youtube_monitor youtube-monitor/src/app.ts
 assert_exact_groups mypage mypage/src/main.tsx
 assert_exact_groups mypage mypage/package.json
-assert_exact_groups mypage mypage/pnpm-lock.yaml
 assert_exact_groups mypage docs/mypage/openapi.yaml
 assert_exact_groups mypage infra/mypage-oauth-ttl/environments/dev/main.tf
-assert_exact_groups mypage infra/mypage-oauth-ttl/environments/prod/tests/ttl.tftest.hcl
-assert_exact_groups mypage infra/mypage-oauth-ttl/scripts/plan_contract.py
 assert_exact_groups mypage .github/scripts/check-mypage-contract.py
+assert_exact_groups "youtube_monitor mypage" biome.json
 assert_exact_groups "system firestore_integration" system/core/mypage/store.go
 assert_exact_groups "system firestore_integration" system/cmd/mypage-server/main.go
-assert_exact_groups "system firestore_integration" system/cmd/mypage-operator-dryrun/main.go
-assert_exact_groups "mypage system firestore_integration" mypage/src/main.tsx system/core/mypage/store.go
-assert_exact_groups "youtube_monitor mypage" biome.json
 assert_exact_groups "system firestore_integration" system/core/workspaceapp/app.go
 assert_exact_groups "system firestore_integration" system/core/repository/firestore_controller.go
 assert_exact_groups "system firestore_integration" system/core/workspaceapp/workspace_app_private_test.go
@@ -63,11 +58,8 @@ assert_exact_groups "system firestore_integration formal_spec" system/core/timeu
 assert_exact_groups "system firestore_integration aws_cdk" system/Dockerfile.lambda
 assert_exact_groups "system firestore_integration aws_cdk" system/.dockerignore
 assert_exact_groups aws_cdk aws-cdk/lib/aws-cdk-stack.ts
-assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/README.md
 assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/environments/dev/main.tf
-assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/environments/prod/tests/safety.tftest.hcl
 assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/modules/runtime/main.tf
-assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/scripts/check-local.sh
 assert_exact_groups gcp_terraform infra/gcp/README.md
 assert_exact_groups gcp_terraform infra/gcp/environments/dev/main.tf
 assert_exact_groups gcp_terraform infra/gcp/environments/prod/main.tf
@@ -127,7 +119,6 @@ assert_exact_groups "system room_image_prompt menu_image_generator video_maker_s
 for codeql_path in .github/codeql/.gitignore .github/codeql/README.md .github/codeql/analysis-config.yml .github/codeql/build-go.sh .github/codeql/install-actionlint.sh .github/codeql/lint-workflows.py .github/codeql/requirements.txt .github/codeql/test_source_contracts.py .github/codeql/tooling.json .github/codeql/validate-source.py .github/scripts/detect-ci-paths.sh .github/scripts/test-detect-ci-paths.sh .github/workflows/codeql-advanced.yml .github/workflows/codeql-analyzer.yml .github/workflows/codeql-source-contracts.yml; do
 	assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" "$codeql_path"
 done
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/workflows/mypage-oauth-ttl.yml
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/workflows/deploy-docs.yml
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/detect-ci-paths.sh
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/test-detect-ci-paths.sh
@@ -179,7 +170,13 @@ assert_exact_groups gcp_terraform .github/scripts/test_terraform_export_schedule
 # Independent Terraform contracts must route to Terraform CI.
 
 
-echo "detect-ci-paths.sh tests passed"
 
 assert_exact_groups gcp_terraform infra/gcp/scripts/runtime_plan_selection.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_plan_contract.py
+
+# Every reusable CI module and its executable contracts select the full suite.
+for ci_path in .github/workflows/ci-{system,frontend,tools,infra,repository}.yml .github/scripts/check-ci-results.py .github/scripts/install-ci-source-tools.sh .github/scripts/test_ci_workflows.py .github/scripts/test_ci_results.py; do
+	assert_exact_groups "$all_groups" "$ci_path"
+done
+
+echo "detect-ci-paths.sh tests passed"

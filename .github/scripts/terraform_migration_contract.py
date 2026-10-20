@@ -310,20 +310,21 @@ def _change_identity(change, planned, descriptor, manifest, provider_schema, *, 
         _same(existing["identity"], before, "STATE")
 
 
-def _observation_keys(provider_schema, resource_type):
+def observation_keys(provider_schema, resource_type, fields=OBSERVATIONAL):
+    """Read-only metadata shared by migration and normal Plan validation."""
     if resource_type != "google_bigquery_table":
         return frozenset()
     attrs = _schema(provider_schema, resource_type)["block"].get("attributes", {})
-    for name in OBSERVATIONAL:
+    for name in fields:
         item = attrs.get(name)
         need(type(item) is dict and item.get("computed") is True
              and item.get("optional", False) is False and item.get("required", False) is False, "SCHEMA")
-    return OBSERVATIONAL
+    return frozenset(fields)
 
 
 def _stable_values(value, resource_type, provider_schema):
     need(type(value) is dict, "VALUE")
-    omitted = _observation_keys(provider_schema, resource_type)
+    omitted = observation_keys(provider_schema, resource_type)
     return {key: item for key, item in value.items() if key not in omitted}
 
 
@@ -372,7 +373,7 @@ def _values(value, descriptor, manifest, provider_schema):
                  and attribute.get("computed", False) is False
                  and attribute.get("required", False) is False, "SCHEMA")
             need(field in value and (value[field] is None or value[field] is False), "VALUE")
-    for name in _observation_keys(provider_schema, descriptor["type"]):
+    for name in observation_keys(provider_schema, descriptor["type"]):
         if name in value and value[name] is not None:
             need((type(value[name]) is str and bool(value[name])) if name == "etag"
                  else (type(value[name]) is int and value[name] >= 0), "VALUE")
@@ -826,7 +827,7 @@ def validate_plan(plan, *, manifest, environment, provider_schema, state=None, p
             _values(value, descriptor, manifest, provider_schema)
         need(set(change["before"]) == set(change["after"]), "DRIFT")
         differing = {key for key in change["before"] if canonical(change["before"][key]) != canonical(change["after"][key])}
-        need(bool(differing) and differing <= _observation_keys(provider_schema, descriptor["type"]), "DRIFT")
+        need(bool(differing) and differing <= observation_keys(provider_schema, descriptor["type"]), "DRIFT")
         _same(change["before"], native[address][1]["attributes"], "DRIFT")
         _same(change["after"], found[address]["before"], "DRIFT")
         _same(change.get("before_sensitive", {}), found[address].get("before_sensitive", {}), "MASK")

@@ -119,7 +119,8 @@ def context(env, role=None):
     if target == 'dev':
         need(isinstance(expected_ref, str)
              and re.fullmatch(r'refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*', expected_ref) is not None
-             and expected_ref not in {'refs/heads/main', 'refs/heads/feature/gcp-terraform-iac'})
+             and expected_ref in {'refs/heads/dev',
+                                  'refs/heads/integration/mypage-canon-20261006'})
     exact = {
         'GITHUB_EVENT_NAME': 'workflow_dispatch',
         'GITHUB_REPOSITORY': 'kani3camp/youtube-study-space',

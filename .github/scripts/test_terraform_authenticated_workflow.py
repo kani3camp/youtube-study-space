@@ -28,6 +28,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         values.update(changes)
         values['MIGRATION_TARGET'] = values['TARGET']
         values['MIGRATION_MODE'] = values['MODE']
+        values['NORMAL_TARGET'] = values['TARGET']
+        values['NORMAL_MODE'] = values['MODE']
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / 'outputs'
             result = subprocess.run(['bash', '-c', script], cwd=ROOT,
@@ -35,6 +37,21 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                 capture_output=True, text=True)
             result.outputs = output.read_text() if output.exists() else ''
             return result
+
+    def test_display_names_describe_existing_resource_boundary_without_mode_changes(self):
+        self.assertIn('name: "Terraform Existing Resources Plan (${{ inputs.target }})"', self.text)
+        self.assertIn('name: "Terraform Existing Resources Apply (${{ inputs.target }})"', self.text)
+        self.assertIn('name: Validate bounded existing-resource Terraform plan', self.text)
+        self.assertIn('name: Validate bounded existing-resource Terraform apply', self.text)
+        self.assertIn('description: Terraform operation', self.text)
+        self.assertIn('description: Authenticated Terraform', self.caller)
+        self.assertNotIn('name: "Import-only migration plan', self.text)
+        self.assertNotIn('name: "Import-only migration apply', self.text)
+        # Keep the public dispatch values and fail-closed controller selectors stable.
+        self.assertIn('default: migration-plan', self.caller)
+        self.assertIn('migration-plan|migration-apply) ;;', self.text)
+        self.assertIn('  migration_plan:', self.text)
+        self.assertIn('  migration_apply:', self.text)
 
     def test_current_modes_admit_same_branch_dev_and_main_only_prod(self):
         for mode in ('migration-plan', 'migration-apply'):
@@ -45,6 +62,42 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                         result = self.run_preflight(TARGET=target, MODE=mode, GITHUB_REF=ref,
                             GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref)
                         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_normal_branch_authorization_does_not_expand_legacy_import(self):
+        for branch in ('feature/arbitrary', 'integration/gcp-terraform-normal-ops'):
+            ref = 'refs/heads/' + branch
+            context = {'GITHUB_REF': ref,
+                       'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref}
+            for mode in ('normal-plan', 'normal-apply', 'normal-e2e'):
+                self.assertEqual(self.run_preflight(MODE=mode,
+                    NORMAL_EXPECTED_SHA='a' * 40, **context).returncode, 0)
+            for mode in ('migration-plan', 'migration-apply'):
+                self.assertNotEqual(self.run_preflight(MODE=mode, **context).returncode, 0)
+
+    def test_production_normal_requires_main_and_disallows_cloud_e2e(self):
+        ref = 'refs/heads/main'
+        context = {'TARGET': 'prod', 'GITHUB_REF': ref,
+                   'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref,
+                   'NORMAL_EXPECTED_SHA': 'a' * 40}
+        for mode in ('normal-plan', 'normal-apply'):
+            with self.subTest(mode=mode):
+                result = self.run_preflight(MODE=mode, **context)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotEqual(self.run_preflight(MODE='normal-e2e', **context).returncode, 0)
+        self.assertNotEqual(self.run_preflight(MODE='normal-plan', TARGET='prod',
+            GITHUB_REF='refs/heads/dev',
+            GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
+            NORMAL_EXPECTED_SHA='a' * 40).returncode, 0)
+
+    def test_normal_oidc_targets_correct_gcp_project(self):
+        for role in ('normal_plan', 'normal_apply'):
+            block = self.text.split('  ' + role + ':', 1)[1]
+            self.assertIn("project_id: $", block, role)
+            self.assertIn("'test-youtube-study-space'", block, role)
+            self.assertIn("'youtube-study-space'", block, role)
+            self.assertIn('GCP_TERRAFORM_NORMAL_WIF_PROVIDER', block, role)
+            self.assertIn('GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', block, role)
+            self.assertNotIn('project_id: test-youtube-study-space', block, role)
 
     def test_retired_modes_cannot_reach_credentials_even_with_old_gates_enabled(self):
         modes = ('plan', 'apply', 'history_post_noop', 'security-probe', 'email-adoption',
@@ -61,7 +114,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(result.outputs, '')
         inputs = self.text.split('    # Explicit names', 1)[0]
-        self.assertEqual(re.findall(r'^      ([a-z_]+):', inputs, re.M), ['target', 'mode'])
+        self.assertEqual(re.findall(r'^      ([a-z_]+):', inputs, re.M), ['target', 'mode', 'expected_sha'])
         caller_inputs = self.caller.split('\npermissions:', 1)[0]
         self.assertNotRegex(caller_inputs, r'terraform_(history|current_state|ownership|plan_cost)')
 
@@ -91,7 +144,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
 
     def test_credentials_and_apply_require_independent_environments_and_preflight(self):
         jobs = dict(re.findall(r'^  ([a-z_]+):\n(.*?)(?=^  [a-z_]+:|\Z)', self.text.split('jobs:\n', 1)[1], re.M | re.S))
-        self.assertEqual(set(jobs), {'preflight', 'migration_plan', 'migration_apply'})
+        self.assertEqual(set(jobs), {'preflight', 'migration_plan', 'migration_apply', 'normal_plan', 'normal_apply'})
         self.assertNotIn('id-token: write', jobs['preflight'])
         self.assertNotIn('secrets.', jobs['preflight'])
         self.assertIn('needs: [preflight, migration_plan]', jobs['migration_apply'])
