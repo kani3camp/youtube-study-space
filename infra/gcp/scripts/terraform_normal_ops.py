@@ -30,6 +30,9 @@ CALLER = 'kani3camp/youtube-study-space/.github/workflows/ci.yml@'
 REUSABLE = 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@'
 DIAGNOSTIC_SECTIONS = ('source_run_mode', 'inputs', 'review', 'state', 'resource_changes',
                        'planned_values', 'prior_state', 'checks', 'relevant_attributes', 'other_plan_fields')
+PHASES = frozenset({'identity', 'initial-state', 'source-copy', 'terraform-init',
+                   'native-plan', 'plan-json', 'plan-validation', 'storage-ownership',
+                   'state-readback', 'plan-summary', 'plan-binding'})
 PRIVATE = 'gcp-normal-private'
 MODES = {'normal-plan', 'normal-apply', 'normal-e2e'}
 ACTIONS = {('no-op',), ('read',), ('create',), ('update',), ('delete',),
@@ -407,6 +410,12 @@ def snapshot(env, root, name):
     return common.snapshot(env | {'MIGRATION_TARGET': env['NORMAL_TARGET']}, root, name)
 
 
+def phase(name):
+    # Only fixed labels reach public logs; never an exception, path or value.
+    need(name in PHASES)
+    print('GCP_NORMAL: phase=' + name, flush=True)
+
+
 def identity(env):
     role = env['NORMAL_ROLE']
     account, arn = env['STATE_ACCOUNT_ID'], env['BACKEND_ROLE_ARN']
@@ -479,6 +488,7 @@ def source(env, root):
 
 
 def setup(env, root, tfvars):
+    phase('source-copy')
     tfroot = source(env, root)
     common.write(root / 'terraform.rc', b'disable_checkpoint = true\n')
     common.write(root / 'inputs.tfvars.json', common.canonical(tfvars))
@@ -488,17 +498,22 @@ def setup(env, root, tfvars):
                    workspace_key_prefix=f'youtube-study-space/{target}/workspaces',
                    allowed_account_ids=[env['STATE_ACCOUNT_ID']])
     common.write(root / 'backend.hcl', ''.join(f'{k} = {json.dumps(v)}\n' for k, v in backend.items()).encode())
+    phase('terraform-init')
     common.terraform(env, root, tfroot, 'init', ['init', '-input=false', '-lockfile=readonly', '-backend-config=' + str(root / 'backend.hcl')])
     return tfroot
 
 
 def plan(env, root, tfroot, name, approved, *, post=False):
     binary = root / (name + '.tfplan')
+    phase('native-plan')
     result = common.terraform(env, root, tfroot, name, ['plan', '-input=false', '-detailed-exitcode', '-lock-timeout=60s',
         '-var-file=' + str(root / 'inputs.tfvars.json'), '-out=' + str(binary)], codes=(0, 2))
+    phase('plan-json')
     value = common.decode(common.terraform(env, root, tfroot, name + '-show', ['show', '-json', str(binary)]).stdout)
+    phase('plan-validation')
     counts = validate(value, approved, post=post, project=target_project(env),
                       project_number=env.get('NORMAL_PROJECT_NUMBER'))
+    phase('storage-ownership')
     verify_storage_ownership(env, value)
     if post:
         need(result.returncode == 0)
@@ -600,20 +615,23 @@ def execute(env, *, prepare_only=False):
          (role == 'apply' and prepare_only))
     root = private(env)
     tfvars, key = inputs(env)
-    print('GCP_NORMAL: phase=identity')
+    phase('identity')
     identity(env)
-    print('GCP_NORMAL: phase=state-and-plan')
+    phase('initial-state')
     before = snapshot(env, root, 'before')
     need(before['state'] is not None)
     tfroot = setup(env, root, tfvars)
     binary, value, counts = plan(env, root, tfroot, 'normal', review(env['NORMAL_TARGET']))
+    phase('state-readback')
     need(snapshot(env, root, 'after-plan') == before)
+    phase('plan-summary')
     report_plan(env, root, tfroot, value)
     if initial_production_noop(env, before, value, counts):
         # Emitted only after native full-root validation and State readback.
         print(f"GCP_PROD_INITIAL_NOOP: PASS; source={env['GITHUB_SHA']}; run={env['GITHUB_RUN_ID']}; managed=30; state_unchanged=true")
     if env['NORMAL_MODE'] == 'normal-e2e':
         need(all(k in {'no-op', 'read'} or v == 0 for k, v in counts.items()))
+    phase('plan-binding')
     digest = output_commitments(env, tfvars, before, value, key,
                                 include_time=(role == 'plan'))
     if role == 'apply':
