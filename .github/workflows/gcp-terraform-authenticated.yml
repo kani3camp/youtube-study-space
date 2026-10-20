@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       expected_sha:
-        description: Reviewed dev SHA for normal operations
+        description: Exact selected branch SHA for normal operations
         required: false
         type: string
     # Explicit names allow Environment secret resolution in called jobs without
@@ -374,7 +374,7 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
-          project_id: test-youtube-study-space
+          project_id: ${{ inputs.target == 'dev' && 'test-youtube-study-space' || 'youtube-study-space' }}
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
@@ -456,7 +456,7 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
-          project_id: test-youtube-study-space
+          project_id: ${{ inputs.target == 'dev' && 'test-youtube-study-space' || 'youtube-study-space' }}
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true

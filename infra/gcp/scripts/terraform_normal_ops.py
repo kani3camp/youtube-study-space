@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DEV native Terraform operations. Raw evidence stays on the ephemeral runner.
+"""Environment-scoped GCP native Terraform operations. Raw evidence stays private.
 
 No resource-type allowlist or per-change receipt. Jobs compare a private keyed
 hash of the complete plan (except its generation timestamp), source, inputs and
@@ -23,7 +23,8 @@ REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / '.github/scripts'))
 import terraform_migration as common
 
-PROJECT = 'test-youtube-study-space'
+PROJECT = 'test-youtube-study-space'  # Backwards-compatible DEV test fixture
+PROJECTS = {'dev': PROJECT, 'prod': 'youtube-study-space'}
 BRANCH_REF = re.compile(r'refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*')
 CALLER = 'kani3camp/youtube-study-space/.github/workflows/ci.yml@'
 REUSABLE = 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@'
@@ -46,6 +47,12 @@ def need(value):
         raise ValueError('normal Terraform operation rejected')
 
 
+def target_project(env):
+    target = env.get('NORMAL_TARGET')
+    need(target in PROJECTS)
+    return PROJECTS[target]
+
+
 def development_ref(value):
     need(type(value) is str and BRANCH_REF.fullmatch(value) is not None
          and value != 'refs/heads/main')
@@ -57,19 +64,24 @@ def context(env, role=None):
              'GITHUB_REPOSITORY': 'kani3camp/youtube-study-space',
              'GITHUB_REPOSITORY_ID': '340900071', 'GITHUB_REPOSITORY_OWNER_ID': '54093651',
              'GITHUB_ACTOR': 'kani3camp', 'GITHUB_ACTOR_ID': '54093651',
-             'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1',
-             'NORMAL_TARGET': 'dev'}
+             'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1'}
     need(all(env.get(k) == v for k, v in exact.items()))
-    ref = development_ref(env.get('GITHUB_REF'))
+    target = env.get('NORMAL_TARGET')
+    need(target in PROJECTS and env.get('NORMAL_MODE') in MODES)
+    if target == 'dev':
+        ref = development_ref(env.get('GITHUB_REF'))
+    else:
+        # No feature/integration branch may ever operate on Production.
+        ref = 'refs/heads/main'
+        need(env.get('GITHUB_REF') == ref and env['NORMAL_MODE'] != 'normal-e2e')
     need(env.get('GITHUB_WORKFLOW_REF') == CALLER + ref)
-    need(env.get('NORMAL_MODE') in MODES)
     need(re.fullmatch('[0-9a-f]{40}', env.get('GITHUB_SHA', '')) is not None)
     need(env.get('NORMAL_EXPECTED_SHA') == env['GITHUB_SHA'])
     if role is not None:
         need(role in {'plan', 'apply'} and env.get('GITHUB_JOB') == 'normal_' + role)
         need(role != 'apply' or env['NORMAL_MODE'] in {'normal-apply', 'normal-e2e'})
         need(env.get('TF_WORKSPACE') == 'default' and env.get('STATE_AWS_REGION') == 'ap-northeast-1')
-    return 'dev'
+    return target
 
 
 def private(env):
@@ -84,19 +96,21 @@ def private(env):
 def inputs(env):
     # Keep the adopted 31-resource selection/private inventory, without coupling
     # ordinary development to the migration manifest or resource-type catalog.
+    project = target_project(env)
     value = common.decode_input_transport(env.get('NORMAL_INPUTS_JSON', '').encode())
-    need(type(value['tfvars']) is dict and value['tfvars'].get('project_id') == PROJECT)
+    need(type(value['tfvars']) is dict and value['tfvars'].get('project_id') == project)
     need(re.fullmatch('[0-9a-f]{64}', value.get('plan_integrity_key', '')) is not None)
-    overlay = REPO / 'infra/gcp/environments/dev/normal.tfvars.json'
+    overlay = REPO / 'infra/gcp/environments' / env['NORMAL_TARGET'] / 'normal.tfvars.json'
     additions = common.decode(overlay.read_bytes()) if overlay.exists() else {}
     need(type(additions) is dict)
     tfvars = value['tfvars'] | additions
-    need(tfvars.get('project_id') == PROJECT)
+    need(tfvars.get('project_id') == project)
     return tfvars, bytes.fromhex(value['plan_integrity_key'])
 
 
-def review():
-    value = common.decode((REPO / 'infra/gcp/environments/dev/normal-operations.json').read_bytes())
+def review(target='dev'):
+    need(target in PROJECTS)
+    value = common.decode((REPO / 'infra/gcp/environments' / target / 'normal-operations.json').read_bytes())
     need(type(value) is dict and set(value) == {'destructive_changes'})
     changes = value['destructive_changes']
     need(type(changes) is dict and all(type(a) is str and type(v) is list
@@ -104,7 +118,7 @@ def review():
     return changes
 
 
-def validate(plan, approved, *, post=False):
+def validate(plan, approved, *, post=False, project=PROJECT):
     need(type(plan) is dict and plan.get('format_version') == '1.2'
          and plan.get('terraform_version') == common.VERSION)
     need(plan.get('errored') is False and plan.get('complete') is True)
@@ -125,7 +139,7 @@ def validate(plan, approved, *, post=False):
         need(item.get('mode') in {'managed', 'data'})
         for values in (change.get('before'), change.get('after')):
             if isinstance(values, dict) and values.get('project') is not None:
-                need(values['project'] == PROJECT)
+                need(values['project'] == project)
         if post:
             need(action == ('no-op',))
         if 'delete' in action:
@@ -240,7 +254,8 @@ def replan_projection(plan):
 
 def commitment_payload(env, tfvars, state, plan):
     return {'sha': env['GITHUB_SHA'], 'run': env['GITHUB_RUN_ID'],
-            'mode': env['NORMAL_MODE'], 'tfvars': tfvars, 'review': review(),
+            'mode': env['NORMAL_MODE'], 'target': env['NORMAL_TARGET'],
+            'tfvars': tfvars, 'review': review(env['NORMAL_TARGET']),
             'state': state, 'plan': replan_projection(plan)}
 
 
@@ -254,7 +269,7 @@ def commitment_components(env, tfvars, state, plan, key):
     payload = commitment_payload(env, tfvars, state, plan)
     planned = payload['plan']
     sections = {
-        'source_run_mode': {k: payload[k] for k in ('sha', 'run', 'mode')},
+        'source_run_mode': {k: payload[k] for k in ('sha', 'run', 'mode', 'target')},
         'inputs': payload['tfvars'],
         'review': payload['review'],
         'state': payload['state'],
@@ -298,7 +313,7 @@ def match(env, digest, now):
 
 def snapshot(env, root, name):
     # Reuse bounded native-S3 state/lock/workspace checks, not migration contracts.
-    return common.snapshot(env | {'MIGRATION_TARGET': 'dev'}, root, name)
+    return common.snapshot(env | {'MIGRATION_TARGET': env['NORMAL_TARGET']}, root, name)
 
 
 def identity(env):
@@ -310,15 +325,17 @@ def identity(env):
     need(result.get('Account') == account
          and result.get('UserId', '').startswith(env['BACKEND_ROLE_ID'] + ':')
          and result.get('Arn', '').startswith('arn:aws:sts::' + account + ':assumed-role/' + arn.rsplit('/', 1)[1] + '/'))
-    need(env['GCP_SERVICE_ACCOUNT'] == f'terraform-dev-normal-{role}@{PROJECT}.iam.gserviceaccount.com')
-    current = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + PROJECT)
-    need(current.get('projectId') == PROJECT and current.get('state') == 'ACTIVE')
+    target, project = env['NORMAL_TARGET'], target_project(env)
+    need(env['GCP_SERVICE_ACCOUNT'] == f'terraform-{target}-normal-{role}@{project}.iam.gserviceaccount.com')
+    current = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + project)
+    need(current.get('projectId') == project and current.get('state') == 'ACTIVE')
     permissions = ['resourcemanager.projects.get', 'pubsub.topics.create', 'pubsub.topics.update', 'pubsub.topics.delete']
-    own = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + PROJECT + ':testIamPermissions', {'permissions': permissions})
+    own = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + project + ':testIamPermissions', {'permissions': permissions})
     need(set(own.get('permissions', [])) == set(permissions if role == 'apply' else permissions[:1]))
-    # Explicitly probe the production boundary, without reading production state.
+    # Fail closed if the normal identity has control-plane rights in the other project.
+    other_project = PROJECTS['prod' if target == 'dev' else 'dev']
     try:
-        other = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/youtube-study-space:testIamPermissions', {'permissions': permissions})
+        other = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + other_project + ':testIamPermissions', {'permissions': permissions})
     except common.urllib.error.HTTPError as error:
         need(error.code == 403)
         error.close()
@@ -336,10 +353,11 @@ def oidc(env):
         token = json.load(response)['value']
     part = token.split('.')[1]
     claims = common.decode(common.base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))
-    ref = development_ref(env['GITHUB_REF'])
+    target = env['NORMAL_TARGET']
+    ref = development_ref(env['GITHUB_REF']) if target == 'dev' else 'refs/heads/main'
     expected = {
         'repository_id': '340900071', 'repository_owner_id': '54093651',
-        'environment': 'terraform-dev-' + env['NORMAL_ROLE'], 'ref': ref,
+        'environment': 'terraform-' + target + '-' + env['NORMAL_ROLE'], 'ref': ref,
         'workflow_ref': CALLER + ref,
         'job_workflow_ref': REUSABLE + ref,
         'event_name': 'workflow_dispatch',
@@ -362,16 +380,17 @@ def source(env, root):
         raw = common.run(['git', 'show', 'HEAD:' + name], cwd=REPO).stdout
         need(path.read_bytes() == raw)
         common.write(root / 'checkout' / name, raw)
-    return root / 'checkout/infra/gcp/environments/dev'
+    return root / 'checkout/infra/gcp/environments' / env['NORMAL_TARGET']
 
 
 def setup(env, root, tfvars):
     tfroot = source(env, root)
     common.write(root / 'terraform.rc', b'disable_checkpoint = true\n')
     common.write(root / 'inputs.tfvars.json', common.canonical(tfvars))
-    backend = dict(bucket=env['STATE_BUCKET'], key='youtube-study-space/dev/terraform.tfstate',
+    target = env['NORMAL_TARGET']
+    backend = dict(bucket=env['STATE_BUCKET'], key=f'youtube-study-space/{target}/terraform.tfstate',
                    region='ap-northeast-1', encrypt=True, use_lockfile=True,
-                   workspace_key_prefix='youtube-study-space/dev/workspaces',
+                   workspace_key_prefix=f'youtube-study-space/{target}/workspaces',
                    allowed_account_ids=[env['STATE_ACCOUNT_ID']])
     common.write(root / 'backend.hcl', ''.join(f'{k} = {json.dumps(v)}\n' for k, v in backend.items()).encode())
     common.terraform(env, root, tfroot, 'init', ['init', '-input=false', '-lockfile=readonly', '-backend-config=' + str(root / 'backend.hcl')])
@@ -383,7 +402,7 @@ def plan(env, root, tfroot, name, approved, *, post=False):
     result = common.terraform(env, root, tfroot, name, ['plan', '-input=false', '-detailed-exitcode', '-lock-timeout=60s',
         '-var-file=' + str(root / 'inputs.tfvars.json'), '-out=' + str(binary)], codes=(0, 2))
     value = common.decode(common.terraform(env, root, tfroot, name + '-show', ['show', '-json', str(binary)]).stdout)
-    counts = validate(value, approved, post=post)
+    counts = validate(value, approved, post=post, project=target_project(env))
     if post:
         need(result.returncode == 0)
     return SavedPlan(binary, hashlib.sha256(binary.read_bytes()).digest()), value, counts
@@ -403,6 +422,7 @@ def apply_saved(env, root, tfroot, binary, before, name):
 
 
 def e2e(env, root, tfroot, before):
+    need(env['NORMAL_TARGET'] == 'dev')
     # Only a generated, uniquely named DEV topic; no workload is altered for tests.
     probe = tfroot / 'normal_probe.tf.json'
     address = 'google_pubsub_topic.normal_ops_probe'
@@ -476,7 +496,7 @@ def execute(env, *, prepare_only=False):
     before = snapshot(env, root, 'before')
     need(before['state'] is not None)
     tfroot = setup(env, root, tfvars)
-    binary, value, counts = plan(env, root, tfroot, 'normal', review())
+    binary, value, counts = plan(env, root, tfroot, 'normal', review(env['NORMAL_TARGET']))
     need(snapshot(env, root, 'after-plan') == before)
     report_plan(env, root, tfroot, value)
     if env['NORMAL_MODE'] == 'normal-e2e':
@@ -521,7 +541,7 @@ def apply_prepared(env):
     binary = SavedPlan(root_plan, bytes.fromhex(prepared['binary_sha256']))
     need(binary.path.is_file() and not binary.path.is_symlink() and
          hashlib.sha256(binary.path.read_bytes()).digest() == binary.digest)
-    tfroot = root / 'checkout/infra/gcp/environments/dev'
+    tfroot = root / 'checkout/infra/gcp/environments' / env['NORMAL_TARGET']
     need(tfroot.is_dir() and not tfroot.is_symlink())
     print('GCP_NORMAL: phase=apply-and-verify')
     after = apply_saved(env, root, tfroot, binary, before, 'normal')
@@ -547,7 +567,7 @@ def main():
         elif operation == 'stage':
             context(env, env['NORMAL_ROLE'])
             inputs(env)
-            review()
+            review(env['NORMAL_TARGET'])
             root = private(env)
             need(not root.exists())
             root.mkdir(mode=0o700)
