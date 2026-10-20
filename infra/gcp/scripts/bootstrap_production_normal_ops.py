@@ -269,6 +269,30 @@ def check_project_grants(policy, member, expected_role):
     return bool(allowed)
 
 
+def verify_account(account, email):
+    need(type(account) is dict and account.get("email") == email
+         and account.get("disabled", False) is False)
+
+
+def verify_no_user_keys(email):
+    keys = gcloud("iam", "service-accounts", "keys", "list", "--iam-account=" + email)
+    need(type(keys) is list and all(key.get("keyType") != "USER_MANAGED" for key in keys))
+
+
+def verify_pool_providers(number, expected):
+    # A principalSet grants trust across the entire pool, not one provider.
+    # Include soft-deleted providers so an unreviewed identity cannot be restored.
+    providers = gcloud("iam", "workload-identity-pools", "providers", "list",
+                       "--workload-identity-pool=" + POOL, "--location=global",
+                       "--show-deleted")
+    name = (f"projects/{number}/locations/global/workloadIdentityPools/{POOL}"
+            "/providers/github-actions")
+    need(type(providers) is list and len(providers) == (1 if expected is not None else 0))
+    if expected is not None:
+        need(providers[0].get("name") == name)
+        verify_provider(providers[0])
+
+
 def bootstrap(number, allowed, *, enable_apply=False, check=False):
     kinds = ("plan", "apply") if enable_apply else ("plan",)
     # Validate *all existing* target resources before writing anything. A
@@ -284,6 +308,8 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
         roles[kind] = (name, current)
     runtime = "terraform-prod-workload@" + PROJECT + ".iam.gserviceaccount.com"
     runtime_exists = gcloud("iam", "service-accounts", "describe", runtime, missing=True)
+    if runtime_exists is not None:
+        verify_account(runtime_exists, runtime)
     pool = gcloud("iam", "workload-identity-pools", "describe", POOL,
                   "--location=global", missing=True)
     if pool is not None:
@@ -293,6 +319,8 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
                              "--location=global", missing=True)
     if current_provider is not None:
         verify_provider(current_provider)
+    if pool is not None:
+        verify_pool_providers(number, current_provider)
     project_policy = gcloud("projects", "get-iam-policy", PROJECT)
     need(type(project_policy) is dict and type(project_policy.get("bindings", [])) is list
          and not any("serviceAccount:" + runtime in b.get("members", [])
@@ -300,6 +328,7 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
     runtime_grant = ("roles/iam.serviceAccountUser",
                      "serviceAccount:terraform-prod-normal-apply@" + PROJECT + ".iam.gserviceaccount.com")
     if runtime_exists is not None:
+        verify_no_user_keys(runtime)
         check_policy(gcloud("iam", "service-accounts", "get-iam-policy", runtime),
                      {runtime_grant} if enable_apply else set())
     accounts = {}
@@ -313,9 +342,8 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
         granted = check_project_grants(project_policy, "serviceAccount:" + email, project_role)
         need(enable_apply or kind == "plan" or not granted)
         if exists is not None:
-            need(exists.get("email") == email)
-            keys = gcloud("iam", "service-accounts", "keys", "list", "--iam-account=" + email)
-            need(all(key.get("keyType") != "USER_MANAGED" for key in keys))
+            verify_account(exists, email)
+            verify_no_user_keys(email)
             check_policy(gcloud("iam", "service-accounts", "get-iam-policy", email),
                          {approved_grant} if kind in kinds else set())
         accounts[kind] = (email, exists, principal, approved_grant, project_role)
@@ -350,15 +378,18 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
                "--attribute-condition=" + CONDITION)
     provider = provider_details()
     verify_provider(provider)
+    verify_pool_providers(number, provider)
+    if enable_apply:
+        verify_account(gcloud("iam", "service-accounts", "describe", runtime), runtime)
+        verify_no_user_keys(runtime)
 
     for kind in kinds:
         account, exists, principal, approved_grant, project_role = accounts[kind]
         if exists is None:
             gcloud("iam", "service-accounts", "create", "terraform-prod-normal-" + kind,
                    "--display-name=Terraform PROD normal " + kind)
-        need(gcloud("iam", "service-accounts", "describe", account)["email"] == account)
-        keys = gcloud("iam", "service-accounts", "keys", "list", "--iam-account=" + account)
-        need(all(key.get("keyType") != "USER_MANAGED" for key in keys))
+        verify_account(gcloud("iam", "service-accounts", "describe", account), account)
+        verify_no_user_keys(account)
         trust = gcloud("iam", "service-accounts", "get-iam-policy", account)
         if approved_grant not in check_policy(trust, {approved_grant}):
             gcloud("iam", "service-accounts", "add-iam-policy-binding", account,

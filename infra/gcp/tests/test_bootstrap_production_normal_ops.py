@@ -199,6 +199,51 @@ class ProductionBootstrap(unittest.TestCase):
             prod.bootstrap("12345", {"plan": ["resourcemanager.projects.get"], "apply": []})
         self.assertEqual(len(calls), 1)
 
+    def test_existing_identity_drift_stops_before_any_write(self):
+        runtime = "terraform-prod-workload@" + prod.PROJECT + ".iam.gserviceaccount.com"
+        normal = "terraform-prod-normal-plan@" + prod.PROJECT + ".iam.gserviceaccount.com"
+        provider = {"name": "projects/12345/locations/global/workloadIdentityPools/terraform-normal/providers/github-actions",
+                    "state": "ACTIVE", "oidc": {"issuerUri": "https://" + prod.ISSUER},
+                    "attributeMapping": prod.MAPPING, "attributeCondition": prod.CONDITION}
+        for defect in ("runtime-key", "runtime-disabled", "plan-disabled", "apply-disabled",
+                       "extra-provider", "deleted-provider"):
+            calls = []
+            def gcloud(*args, missing=False):
+                calls.append(args)
+                if args[:3] == ("iam", "roles", "describe"):
+                    return None
+                if args[:3] == ("iam", "service-accounts", "describe"):
+                    return {"email": args[3], "disabled": (
+                        args[3] == runtime and defect == "runtime-disabled"
+                        or args[3] == normal and defect == "plan-disabled"
+                        or "normal-apply@" in args[3] and defect == "apply-disabled")}
+                if args[:3] == ("iam", "service-accounts", "keys"):
+                    return [{"keyType": "USER_MANAGED"}] if args[4] == "--iam-account=" + runtime and defect == "runtime-key" else []
+                if args[:3] == ("iam", "service-accounts", "get-iam-policy"):
+                    return {"bindings": []}
+                if args[:3] == ("iam", "workload-identity-pools", "describe"):
+                    return {"state": "ACTIVE"}
+                if args[:4] == ("iam", "workload-identity-pools", "providers", "describe"):
+                    return provider
+                if args[:4] == ("iam", "workload-identity-pools", "providers", "list"):
+                    self.assertIn("--show-deleted", args)
+                    return [provider, provider | {"name": "other", "state": "DELETED" if defect == "deleted-provider" else "ACTIVE"}] if defect.endswith("provider") else [provider]
+                if args[:2] == ("projects", "get-iam-policy"):
+                    return {"bindings": []}
+                raise AssertionError("unexpected mutation " + repr(args))
+            with self.subTest(defect=defect), patch.object(prod, "gcloud", side_effect=gcloud), self.assertRaises(ValueError):
+                prod.bootstrap("12345", {"plan": [], "apply": []})
+            self.assertFalse(any("create" in a or "add-iam-policy-binding" in a for a in calls))
+
+    def test_account_readback_rejects_disabled_and_wrong_identity(self):
+        email = "terraform-prod-normal-plan@" + prod.PROJECT + ".iam.gserviceaccount.com"
+        prod.verify_account({"email": email}, email)
+        prod.verify_account({"email": email, "disabled": False}, email)
+        for account in ({"email": email, "disabled": True}, {"email": "other"},
+                        {"email": email, "disabled": "false"}):
+            with self.subTest(account=account), self.assertRaises(ValueError):
+                prod.verify_account(account, email)
+
     def test_backend_policies_include_inline_and_attached_and_exact_prod_scope(self):
         for kind in ("plan", "apply"):
             expected = prod.backend.permissions_policy("fixture-state-bucket", kind)
@@ -344,6 +389,8 @@ class ProductionBootstrap(unittest.TestCase):
                                                        "members": [args[4].split("=", 1)[1]]}]}
                     return {}
             if args[:3] == ("iam", "workload-identity-pools", "providers"):
+                if args[3] == "list":
+                    return [provider] if provider else []
                 if args[3] == "create-oidc":
                     provider = {"name": "projects/12345/locations/global/workloadIdentityPools/terraform-normal/providers/github-actions",
                                 "state": "ACTIVE", "oidc": {"issuerUri": "https://" + prod.ISSUER},
