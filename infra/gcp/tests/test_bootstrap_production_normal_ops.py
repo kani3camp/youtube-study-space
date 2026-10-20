@@ -85,6 +85,7 @@ class ProductionBootstrap(unittest.TestCase):
         prod.verify_provider(provider)
         for bad in (
             {"state": "DISABLED"},
+            {"disabled": True},
             {"attributeCondition": prod.CONDITION.replace("refs/heads/main", "refs/heads/dev")},
             {"attributeMapping": {}},
         ):
@@ -206,7 +207,7 @@ class ProductionBootstrap(unittest.TestCase):
                     "state": "ACTIVE", "oidc": {"issuerUri": "https://" + prod.ISSUER},
                     "attributeMapping": prod.MAPPING, "attributeCondition": prod.CONDITION}
         for defect in ("runtime-key", "runtime-disabled", "plan-disabled", "apply-disabled",
-                       "extra-provider", "deleted-provider"):
+                       "extra-provider", "deleted-provider", "pool-disabled"):
             calls = []
             def gcloud(*args, missing=False):
                 calls.append(args)
@@ -222,7 +223,7 @@ class ProductionBootstrap(unittest.TestCase):
                 if args[:3] == ("iam", "service-accounts", "get-iam-policy"):
                     return {"bindings": []}
                 if args[:3] == ("iam", "workload-identity-pools", "describe"):
-                    return {"state": "ACTIVE"}
+                    return {"state": "ACTIVE", "disabled": defect == "pool-disabled"}
                 if args[:4] == ("iam", "workload-identity-pools", "providers", "describe"):
                     return provider
                 if args[:4] == ("iam", "workload-identity-pools", "providers", "list"):

@@ -232,6 +232,7 @@ def provider_details():
 
 def verify_provider(details):
     need(details.get("state") == "ACTIVE"
+         and details.get("disabled", False) is False
          and details.get("oidc", {}).get("issuerUri") == "https://" + ISSUER
          and details.get("attributeMapping") == MAPPING
          and details.get("attributeCondition") == CONDITION)
@@ -313,7 +314,7 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
     pool = gcloud("iam", "workload-identity-pools", "describe", POOL,
                   "--location=global", missing=True)
     if pool is not None:
-        need(pool.get("state") == "ACTIVE")
+        need(pool.get("state") == "ACTIVE" and pool.get("disabled", False) is False)
     current_provider = gcloud("iam", "workload-identity-pools", "providers", "describe",
                              "github-actions", "--workload-identity-pool=" + POOL,
                              "--location=global", missing=True)
