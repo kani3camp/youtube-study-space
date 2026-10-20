@@ -1,4 +1,4 @@
-"""Validate staged-disabled CodeQL source; never execute analysis or read settings."""
+"""Validate bounded active CodeQL source; never execute analysis or read settings."""
 import copy
 import hashlib
 import json
@@ -14,7 +14,6 @@ WORKFLOWS = ROOT / ".github/workflows"
 CALLER = "codeql-advanced.yml"
 CALLEE = "codeql-analyzer.yml"
 STATIC = "codeql-source-contracts.yml"
-DISABLED = "${{ false }}"
 PUSH_BRANCHES = ["dev", "main", "feature/gcp-terraform-iac", "integration/mypage-canon-20261006"]
 ANALYSIS_PERMISSIONS = {"contents": "read", "security-events": "write", "id-token": "none"}
 STATIC_PERMISSIONS = {"contents": "read", "security-events": "none", "id-token": "none"}
@@ -97,18 +96,18 @@ def validate(caller, callee, static, active, config):
                                      "cancel-in-progress": True}, "Reviewed caller concurrency")
     require(set(caller["jobs"]) == {"analyze"}, "Caller has only reusable analysis job")
     job = caller["jobs"]["analyze"]
-    require(job.get("if") == DISABLED, "Caller must remain explicitly disabled")
+    require("if" not in job, "Caller must analyze every configured event without a job condition")
     require(job.get("uses") == "./.github/workflows/" + CALLEE, "Same-tree local reusable analyzer required")
     require(job.get("permissions") == ANALYSIS_PERMISSIONS, "Caller job permissions required")
-    require(set(job) == {"name", "if", "uses", "permissions"}, "No caller inputs/secrets/runner/environment")
+    require(set(job) == {"name", "uses", "permissions"}, "No caller inputs/secrets/runner/environment")
     require(set(callee) == {"name", "on", "permissions", "jobs"}, "No extra callee configuration")
     require(callee["on"] == {"workflow_call": None}, "Callee has no direct trigger or configurable inputs")
     require(set(callee["jobs"]) == {"analyze"}, "Single analyzer job")
     job = callee["jobs"]["analyze"]
-    require(job.get("if") == DISABLED, "Callee must remain explicitly disabled even under another caller")
+    require("if" not in job, "Analyzer must analyze every selected language without a job condition")
     require(job.get("environment") == "codeql-analysis", "Fixed dedicated Environment required")
     require(job.get("permissions") == ANALYSIS_PERMISSIONS, "Callee job permissions required")
-    require(set(job) == {"name", "if", "runs-on", "timeout-minutes", "environment", "permissions", "strategy", "steps"},
+    require(set(job) == {"name", "runs-on", "timeout-minutes", "environment", "permissions", "strategy", "steps"},
             "No extra analyzer jobs/services/env/configuration")
     require(job["runs-on"] == "ubuntu-latest" and job["timeout-minutes"] == 40, "Standard GitHub-hosted Linux runner")
     require(job["strategy"] == {"fail-fast": False, "matrix": {"include": [
@@ -153,7 +152,7 @@ def validate(caller, callee, static, active, config):
     for index, step in enumerate(steps):
         require(set(step) == ({"name", "uses", "with"} if index < 2 else {"name", "run"}),
                 "Static CI cannot bypass checks or add hidden commands")
-    require(all(name in active for name in [CALLER, CALLEE, STATIC]), "All staged workflows must exist in the same tree")
+    require(all(name in active for name in [CALLER, CALLEE, STATIC]), "All CodeQL workflows must exist in the same tree")
     require(active[CALLER] == caller and active[CALLEE] == callee and active[STATIC] == static,
             "Validate the actual workflow files, not templates or substitutes")
     for name, document in active.items():
@@ -212,7 +211,7 @@ def validate_tree(root):
                 require(tuple(parts) in sum_pairs, "Dependency checksum missing for " + "@".join(parts) + " in " + sum_name)
     require(all(version <= versions["system/go.mod"] for version in versions.values()),
             "Canonical setup-go version must cover every tracked module")
-    require(not list((root / ".github/codeql").glob("templates/*.template")), "No stale template alternative to the staged workflow")
+    require(not list((root / ".github/codeql").glob("templates/*.template")), "No stale template alternative to the validated workflow")
     return manifests
 
 
@@ -220,7 +219,7 @@ def main():
     active = {path.name: load_yaml(path) for path in sorted(WORKFLOWS.glob("*")) if path.suffix in {".yml", ".yaml"}}
     validate(active[CALLER], active[CALLEE], active[STATIC], active, load_yaml(SOURCE / "analysis-config.yml"))
     modules = validate_tree(ROOT)
-    print("Staged-disabled contracts PASS: caller + callee gates, default/remote scope, same-tree dependencies: " + ", ".join(modules))
+    print("CodeQL source contracts PASS: unconditional caller + analyzer, default/remote scope, same-tree dependencies: " + ", ".join(modules))
 
 
 if __name__ == "__main__":

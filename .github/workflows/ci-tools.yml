@@ -1,0 +1,176 @@
+name: CI Tools
+
+on:
+  workflow_call:
+    inputs:
+      formal_spec:
+        required: true
+        type: boolean
+      room_image_prompt:
+        required: true
+        type: boolean
+      menu_image_generator:
+        required: true
+        type: boolean
+      video_maker_simulator:
+        required: true
+        type: boolean
+      figma_plugin:
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  formal-spec:
+    name: Formal Spec (FSL)
+    if: ${{ inputs.formal_spec }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Cache pinned FSL tool
+        uses: actions/cache@v6
+        with:
+          path: formal-spec/fsl/.tools
+          key: ${{ runner.os }}-fsl-${{ hashFiles('formal-spec/fsl/VERSION', 'formal-spec/fsl/SHA256SUMS') }}
+
+      - name: Verify formal specifications
+        run: bash .github/scripts/run-formal-spec-tests.sh
+
+  room-image-prompt-go-lint:
+    name: Room Image Prompt Go Lint
+    if: ${{ inputs.room_image_prompt }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/room-image-prompt/go.mod
+          cache: true
+          cache-dependency-path: tools/room-image-prompt/go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11.3
+          working-directory: tools/room-image-prompt
+          args: --timeout=5m --config=.golangci.yml
+
+  room-image-prompt-go-test:
+    name: Room Image Prompt Go Test
+    if: ${{ inputs.room_image_prompt }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/room-image-prompt
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/room-image-prompt/go.mod
+          cache: true
+          cache-dependency-path: tools/room-image-prompt/go.mod
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -shuffle=on -v ./...
+
+      - name: Build CLI
+        run: go build -o /dev/null ./cmd/room-image-prompt
+
+  menu-image-generator-lint-build:
+    name: Menu Image Generator Lint & Build
+    if: ${{ inputs.menu_image_generator }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tools/menu-image-generator
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: tools/menu-image-generator/package.json
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: tools/menu-image-generator/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          # 依存関係インストール時（lint/build 用）はブラウザ不要のため Chromium ダウンロードをスキップ（タイムアウト防止）
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 1
+          PUPPETEER_SKIP_DOWNLOAD: 1
+      - name: Run lint
+        run: pnpm lint
+      - name: Run build
+        run: pnpm build
+
+  video-maker-simulator-check:
+    name: Video Maker Simulator Lint, Typecheck & Build
+    if: ${{ inputs.video_maker_simulator }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tools/video-maker/1000-minutes-simulator
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.4.0
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: tools/video-maker/1000-minutes-simulator/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run lint
+        run: pnpm lint
+      - name: Run typecheck
+        run: pnpm typecheck
+      - name: Run build
+        run: pnpm build
+
+  figma-plugin-room-layout-analyzer-build:
+    name: Figma Room Layout Analyzer Build
+    if: ${{ inputs.figma_plugin }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/figma-plugin/room-layout-analyzer
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: tools/figma-plugin/room-layout-analyzer/package.json
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: tools/figma-plugin/room-layout-analyzer/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run build
+        run: pnpm build
