@@ -129,6 +129,7 @@ class ProductionNormalOps(unittest.TestCase):
             root = Path(folder)
             for target in ("prod", "dev"):
                 env = context(target)
+                env.update({"STATE_BUCKET": "fixture-terraform-state", "STATE_ACCOUNT_ID": "123456789012"})
                 tfroot = root / target
                 tfroot.mkdir()
                 with patch.object(ops, "source", return_value=tfroot), \
@@ -177,9 +178,9 @@ class ProductionNormalOps(unittest.TestCase):
                     "Arn": "arn:aws:sts::123456789012:assumed-role/youtube-study-space-terraform-prod-plan/session"}), \
              patch.object(ops.common, "google", side_effect=google):
             ops.identity(e)
-        e["GCP_SERVICE_ACCOUNT"] = "terraform-dev-normal-plan@" + DEV + ".iam.gserviceaccount.com"
-        with self.assertRaises(ValueError):
-            ops.identity(e)
+            e["GCP_SERVICE_ACCOUNT"] = "terraform-dev-normal-plan@" + DEV + ".iam.gserviceaccount.com"
+            with self.assertRaises(ValueError):
+                ops.identity(e)
 
     def test_prod_normal_inputs_are_repository_only_not_migration(self):
         self.assertEqual(json.loads((ops.REPO / "infra/gcp/environments/prod/normal-operations.json").read_text()),
