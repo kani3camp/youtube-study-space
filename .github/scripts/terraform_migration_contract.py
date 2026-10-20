@@ -310,16 +310,16 @@ def _change_identity(change, planned, descriptor, manifest, provider_schema, *, 
         _same(existing["identity"], before, "STATE")
 
 
-def observation_keys(provider_schema, resource_type):
+def observation_keys(provider_schema, resource_type, fields=OBSERVATIONAL):
     """Read-only metadata shared by migration and normal Plan validation."""
     if resource_type != "google_bigquery_table":
         return frozenset()
     attrs = _schema(provider_schema, resource_type)["block"].get("attributes", {})
-    for name in OBSERVATIONAL:
+    for name in fields:
         item = attrs.get(name)
         need(type(item) is dict and item.get("computed") is True
              and item.get("optional", False) is False and item.get("required", False) is False, "SCHEMA")
-    return OBSERVATIONAL
+    return frozenset(fields)
 
 
 def _stable_values(value, resource_type, provider_schema):

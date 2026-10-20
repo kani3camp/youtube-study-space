@@ -34,7 +34,11 @@ PHASES = frozenset({'identity', 'initial-state', 'source-copy', 'terraform-init'
                    'native-plan', 'plan-json', 'plan-schema', 'plan-validation', 'storage-ownership',
                    'state-readback', 'plan-summary', 'plan-binding'})
 PLAN_REJECTIONS = frozenset({'format', 'incomplete', 'deferred', 'refresh-drift',
-                            'checks', 'resource-contract'})
+                            'checks', 'resource-contract', 'refresh-kind', 'refresh-actions',
+                            'refresh-fields', 'refresh-state-before', 'refresh-plan-before',
+                            'refresh-unknowns', 'refresh-masks', 'refresh-identity'})
+NORMAL_OBSERVATIONS = frozenset({'etag', 'last_modified_time', 'num_bytes',
+                                'num_long_term_bytes', 'num_rows'})
 PRIVATE = 'gcp-normal-private'
 MODES = {'normal-plan', 'normal-apply', 'normal-e2e'}
 ACTIONS = {('no-op',), ('read',), ('create',), ('update',), ('delete',),
@@ -255,31 +259,35 @@ def validate_observation_drift(plan, state, provider_schema):
         need(address not in seen and address in native and address in changes)
         seen.add(address)
         current = changes[address]
-        need(item.get('type') == 'google_bigquery_table' and item.get('mode') == 'managed'
-             and item.get('provider_name') == 'registry.terraform.io/hashicorp/google')
+        plan_need(item.get('type') == 'google_bigquery_table' and item.get('mode') == 'managed'
+                  and item.get('provider_name') == 'registry.terraform.io/hashicorp/google', 'refresh-kind')
         for key in ('address', 'module_address', 'mode', 'type', 'name', 'index', 'provider_name'):
             need(item.get(key) == current.get(key))
         change, planned = item['change'], current['change']
         need(type(change) is dict and set(change) <= common.contract.CHANGE_KEYS)
-        need(change.get('actions') == ['update'] and not change.get('importing')
-             and not change.get('replace_paths'))
+        plan_need(change.get('actions') == ['update'] and not change.get('importing')
+                  and not change.get('replace_paths'), 'refresh-actions')
         before, after = change['before'], change['after']
         need(type(before) is dict and type(after) is dict and set(before) == set(after))
         differing = {key for key in before if common.canonical(before[key]) != common.canonical(after[key])}
-        need(bool(differing) and differing <= common.contract.observation_keys(provider_schema, item['type']))
-        need(common.canonical(before) == common.canonical(native[address]['attributes'])
-             and common.canonical(after) == common.canonical(planned['before']))
+        plan_need(bool(differing) and differing <= common.contract.observation_keys(
+            provider_schema, item['type'], NORMAL_OBSERVATIONS), 'refresh-fields')
+        plan_need(common.canonical(before) == common.canonical(native[address]['attributes']), 'refresh-state-before')
+        plan_need(common.canonical(after) == common.canonical(planned['before']), 'refresh-plan-before')
         # The shared mask validator rejects every unknown leaf, including nested ones.
-        common.contract._mask(change.get('after_unknown', {}), unknown=True)
+        try:
+            common.contract._mask(change.get('after_unknown', {}), unknown=True)
+        except Exception:
+            raise PlanRejected('refresh-unknowns') from None
         for key in ('before_sensitive', 'after_sensitive'):
-            need(common.canonical(change.get(key, {})) == common.canonical(planned.get('before_sensitive', {})))
+            plan_need(common.canonical(change.get(key, {})) == common.canonical(planned.get('before_sensitive', {})), 'refresh-masks')
         identity = native[address].get('identity')
-        need(planned.get('before_identity') == identity)
+        plan_need(planned.get('before_identity') == identity, 'refresh-identity')
         # Core omits unchanged identity metadata from resource_drift. Its
         # continuity is still proven by the native State and Plan before.
         if 'before_identity' in change or 'after_identity' in change:
-            need({'before_identity', 'after_identity'} <= set(change))
-            need(change['before_identity'] == change['after_identity'] == identity)
+            plan_need({'before_identity', 'after_identity'} <= set(change), 'refresh-identity')
+            plan_need(change['before_identity'] == change['after_identity'] == identity, 'refresh-identity')
 
 
 def validate(plan, approved, *, post=False, project=PROJECT, project_number=None,
@@ -318,6 +326,8 @@ def validate(plan, approved, *, post=False, project=PROJECT, project_number=None
         need(all(tuple(c['actions']) == ('no-op',) for c in plan.get('output_changes', {}).values()))
     try:
         validate_observation_drift(plan, state, provider_schema)
+    except PlanRejected:
+        raise
     except Exception:
         raise PlanRejected('refresh-drift') from None
     return counts
@@ -592,6 +602,14 @@ def plan(env, root, tfroot, name, approved, *, post=False, state=None):
         phase('plan-schema')
         schema = common.decode(common.terraform(env, root, tfroot, name + '-schema',
                                                ['providers', 'schema', '-json']).stdout)
+        # This uses the same schema-pinned, value-free projection as desired
+        # changes. Malformed/untrusted drift never produces dynamic output.
+        try:
+            changes = summarize_changes({'resource_changes': value['resource_drift']}, schema)
+        except Exception:
+            changes = None
+        if changes is not None:
+            print('GCP_NORMAL_DRIFT: ' + json.dumps({'changes': changes}, sort_keys=True))
     phase('plan-validation')
     try:
         counts = validate(value, approved, post=post, project=target_project(env),

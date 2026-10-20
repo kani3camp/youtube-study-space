@@ -59,6 +59,7 @@ class NativeMigrationFidelity(unittest.TestCase):
         if cls.binary is None:
             raise AssertionError('Pinned Terraform is required; native witness must not skip')
         cls.api_version, cls.requests, cls.blocked_egress = 1, [], []
+        cls.metric_growth = False
 
         class DummyAPI(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -98,7 +99,9 @@ class NativeMigrationFidelity(unittest.TestCase):
                     'creationTime': '1700000000000',
                     'lastModifiedTime': str(1700000000000 + cls.api_version),
                     'etag': 'DUMMY_ETAG_' + str(cls.api_version),
-                    'numBytes': '0', 'numRows': '0', 'location': 'asia-southeast2',
+                    'numBytes': str(cls.api_version * 128 if cls.metric_growth else 0),
+                    'numLongTermBytes': str(cls.api_version * 64 if cls.metric_growth else 0),
+                    'numRows': str(cls.api_version if cls.metric_growth else 0), 'location': 'asia-southeast2',
                     'type': 'TABLE', 'schema': {'fields': [
                         {'name': 'fixture', 'type': 'STRING', 'mode': 'NULLABLE'}]},
                 })
@@ -249,6 +252,24 @@ output "environment" { value = "development" }
         contract.validate_state_delta(self.before_import, self.after_import, manifest=self.manifest,
             environment='dev', provider_schema=self.schema, expected_imports={ADDRESS}, plan=self.import_plan)
         self.assertEqual(set(self.requests), {'GET'})
+
+    def test_native_normal_plan_with_row_and_storage_growth(self):
+        directory = self.directory('normal-metric-growth')
+        self.command(directory, 'init', '-backend=false', '-input=false', '-lockfile=readonly')
+        before = deepcopy(self.after_import)
+        (directory/'terraform.tfstate').write_text(json.dumps(before))
+        type(self).metric_growth = True
+        self.addCleanup(setattr, type(self), 'metric_growth', False)
+        value = self.plan(directory)
+        self.assertEqual(value['resource_changes'][0]['change']['actions'], ['no-op'])
+        change = value['resource_drift'][0]['change']
+        differing = {key for key in change['before'] if change['before'][key] != change['after'][key]}
+        self.assertTrue({'num_bytes', 'num_long_term_bytes', 'num_rows'} <= differing)
+        self.assertEqual(normal.validate(value, {}, project=PROJECT,
+            state=before, provider_schema=self.schema)['no-op'], 1)
+        # The legacy import-only contract keeps its original narrower policy.
+        with self.assertRaises(contract.ContractError):
+            self.validate(value, before)
 
     def test_native_noop_observations_and_both_sensitivity_seeds(self):
         for marked in (False, True):

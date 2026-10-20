@@ -44,8 +44,10 @@ class Contracts(unittest.TestCase):
     def observation_fixture(self):
         address = 'module.table[0].google_bigquery_table.retained'
         old = {'project': ops.PROJECT, 'id': 'fixture', 'etag': 'old',
-               'last_modified_time': 1, 'schema': CANARY}
-        refreshed = old | {'etag': 'new', 'last_modified_time': 2}
+               'last_modified_time': 1, 'num_bytes': 0, 'num_long_term_bytes': 0,
+               'num_rows': 0, 'schema': CANARY}
+        refreshed = old | {'etag': 'new', 'last_modified_time': 2,
+                           'num_bytes': 128, 'num_long_term_bytes': 64, 'num_rows': 1}
         p = plan(('no-op',), address)
         item = p['resource_changes'][0]
         item.update(type='google_bigquery_table', name='retained', module_address='module.table[0]')
@@ -59,7 +61,7 @@ class Contracts(unittest.TestCase):
         schema = {'format_version': '1.0', 'provider_schemas': {'registry.terraform.io/hashicorp/google': {
             'resource_schemas': {'google_bigquery_table': {'version': 0, 'block': {
                 'attributes': {k: {'computed': True, 'type': 'string'}
-                               for k in ('etag', 'last_modified_time')}}}}}}}
+                               for k in ops.NORMAL_OBSERVATIONS}}}}}}}
         return p, state, schema
 
     def test_computed_observations_require_exact_native_state_and_refreshed_plan(self):
@@ -68,6 +70,7 @@ class Contracts(unittest.TestCase):
         self.assertEqual(ops.validate(p, {}, state=state, provider_schema=schema, post=True)['no-op'], 1)
         for mutate in (
             lambda p, s, sc: p['resource_drift'][0]['change']['after'].update(schema='changed'),
+            lambda p, s, sc: p['resource_drift'][0]['change']['after'].update(creation_time=999),
             lambda p, s, sc: p['resource_drift'][0]['change'].update(actions=['delete']),
             lambda p, s, sc: p['resource_drift'][0]['change'].update(importing={'id': CANARY}),
             lambda p, s, sc: p['resource_drift'][0]['change'].update(after_unknown={'etag': True}),
@@ -114,6 +117,23 @@ class Contracts(unittest.TestCase):
             a = ops.commitment(env(), {}, state, p, b'x' * 32)
             p['resource_drift'][0]['change']['before']['etag'] = 'other'
             self.assertNotEqual(a, ops.commitment(env(), {}, state, p, b'x' * 32))
+
+    def test_native_plan_drift_diagnostic_omits_values_and_field_names(self):
+        p, state, schema = self.observation_fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'fixture.tfplan').write_text(CANARY)
+            replies = [Mock(stdout=b'', returncode=0), Mock(stdout=json.dumps(p).encode()),
+                       Mock(stdout=json.dumps(schema).encode())]
+            with patch.object(ops.common, 'terraform', side_effect=replies), patch.object(
+                    ops, 'verify_storage_ownership'), redirect_stdout(io.StringIO()) as output:
+                ops.plan(env(), root, root, 'fixture', {}, state=state)
+            diagnostic = next(line for line in output.getvalue().splitlines() if line.startswith('GCP_NORMAL_DRIFT:'))
+            self.assertEqual(json.loads(diagnostic.removeprefix('GCP_NORMAL_DRIFT: ')), {'changes': [
+                {'resource_type': 'google_bigquery_table', 'actions': ['update'], 'count': 1}]})
+            self.assertNotIn(CANARY, output.getvalue())
+            self.assertNotIn('etag', output.getvalue())
+            self.assertNotIn('num_rows', output.getvalue())
 
     def test_plan_rejection_diagnostics_are_fixed_codes_only(self):
         with self.assertRaises(ValueError):
