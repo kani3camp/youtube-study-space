@@ -43,6 +43,46 @@ def refreshed_metadata_fixture():
 
 
 class FoundationTest(unittest.TestCase):
+    def test_dependency_source_order_does_not_change_independent_plan_commitment(self):
+        plan = plan_fixture() | {'relevant_attributes': [
+            {'resource': 'module.platform[0].google_service_account.runtime', 'attribute': ['account_id']},
+            {'resource': 'module.platform[0].google_secret_manager_secret.oauth_client_id', 'attribute': ['secret_id']},
+        ]}
+        original = deepcopy(plan)
+        reordered = deepcopy(plan)
+        reordered['relevant_attributes'].reverse()
+        key = 'private-key-for-synthetic-tests-only'
+        self.assertEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
+                         c.commitment(reordered, 'state-version', 'a' * 40, key))
+        self.assertEqual(plan, original)
+
+    def test_dependency_source_contents_and_multiplicity_remain_bound(self):
+        plan = plan_fixture() | {'relevant_attributes': [
+            {'resource': 'synthetic-resource', 'attribute': ['items', 0, 'name']},
+        ]}
+        key = 'private-key-for-synthetic-tests-only'
+        expected = c.commitment(plan, 'state-version', 'a' * 40, key)
+        for change in (
+            lambda p: p['relevant_attributes'][0].update(resource='other-resource'),
+            lambda p: p['relevant_attributes'].append(deepcopy(p['relevant_attributes'][0])),
+            lambda p: p['relevant_attributes'].clear(),
+            lambda p: p['relevant_attributes'][0]['attribute'].reverse(),
+        ):
+            mutated = deepcopy(plan)
+            change(mutated)
+            self.assertNotEqual(c.commitment(mutated, 'state-version', 'a' * 40, key), expected)
+        with self.assertRaises(ValueError):
+            c.commitment(plan | {'relevant_attributes': {}}, 'state-version', 'a' * 40, key)
+
+    def test_action_sequence_order_is_not_canonicalized(self):
+        plan = plan_fixture()
+        plan['resource_changes'][0]['change']['actions'] = ['delete', 'create']
+        other = deepcopy(plan)
+        other['resource_changes'][0]['change']['actions'].reverse()
+        key = 'private-key-for-synthetic-tests-only'
+        self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
+                            c.commitment(other, 'state-version', 'a' * 40, key))
+
     def test_only_empty_map_refreshes_on_existing_noop_secrets_are_admitted(self):
         self.assertEqual(c.validate_plan(refreshed_metadata_fixture()), {'resources': 8, 'creates': 4})
         metadata = refreshed_metadata_fixture()

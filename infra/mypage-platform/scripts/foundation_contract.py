@@ -174,6 +174,12 @@ def validate_plan(plan, stage="foundation"):
 
 def commitment(plan, state_version, sha, key):
     need(type(key) is str and len(key) >= 32)
-    # Only the native generation timestamp varies between the independent jobs.
+    # Terraform lists dependency sources as an unordered relevant_attributes
+    # collection. Repeated native plans can emit it in a different order.
+    # Preserve every entry, its contents and multiplicity; other arrays retain
+    # their ordering (in particular action sequences and attribute paths).
     stable = {k: v for k, v in plan.items() if k != "timestamp"}
+    if "relevant_attributes" in stable:
+        need(type(stable["relevant_attributes"]) is list, "plan-relevant-attributes")
+        stable["relevant_attributes"] = sorted(stable["relevant_attributes"], key=canonical)
     return hmac.new(key.encode(), canonical({"plan": stable, "state_version": state_version, "source": sha}), hashlib.sha256).hexdigest()
