@@ -167,7 +167,7 @@ def verify_storage_ownership(env, plan):
     if env['NORMAL_TARGET'] != 'prod':
         return
     number = env['NORMAL_PROJECT_NUMBER']
-    created, references = set(), set()
+    created, existing, references = set(), set(), set()
 
     def collect(value):
         if isinstance(value, dict):
@@ -184,14 +184,18 @@ def verify_storage_ownership(env, plan):
     for item in plan.get('resource_changes', []):
         change = item['change']
         after = change.get('after') or {}
-        if item.get('type') == 'google_storage_bucket' and change['actions'] == ['create']:
-            need(after.get('project') == PROJECTS['prod'] and type(after.get('name')) is str)
-            created.add(after['name'])
+        if item.get('type') == 'google_storage_bucket':
+            if 'create' in change['actions']:
+                need(after.get('project') == PROJECTS['prod'] and type(after.get('name')) is str)
+                created.add(after['name'])
+            before = change.get('before') or {}
+            if before.get('name'):
+                existing.add(before['name'])
         for values in (change.get('before'), change.get('after')):
             collect(values)
             if item.get('type') == 'google_storage_bucket' and isinstance(values, dict) and values.get('name'):
                 references.add(values['name'])
-    for bucket in sorted(references - created):
+    for bucket in sorted(references - (created - existing)):
         need(re.fullmatch(r'[a-z0-9][a-z0-9._-]{1,221}[a-z0-9]', bucket) is not None)
         observed = common.google(env, 'storage.googleapis.com', 'storage/v1/b/' + bucket)
         need(observed.get('name') == bucket and str(observed.get('projectNumber')) == number)

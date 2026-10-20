@@ -144,6 +144,14 @@ class ProductionNormalOps(unittest.TestCase):
         plan['resource_changes'][0]['change']['after'] = {'name': 'fixture-bucket', 'project': PROD}
         with patch.object(ops.common, 'google', side_effect=AssertionError('new bucket is not created yet')):
             ops.verify_storage_ownership(env, plan)
+        plan['resource_changes'][0]['change']['actions'] = ['delete', 'create']
+        plan['resource_changes'][0]['change']['before'] = {'name': 'fixture-old-bucket', 'project': PROD}
+        with patch.object(ops.common, 'google', return_value={'name': 'fixture-old-bucket', 'projectNumber': '12345'}) as google:
+            ops.verify_storage_ownership(env, plan)
+            google.assert_called_once_with(env, 'storage.googleapis.com', 'storage/v1/b/fixture-old-bucket')
+        plan['resource_changes'][0]['change']['after']['name'] = 'fixture-old-bucket'
+        with patch.object(ops.common, 'google', return_value={'name': 'fixture-old-bucket', 'projectNumber': '67890'}), self.assertRaises(ValueError):
+            ops.verify_storage_ownership(env, plan)
         plan['resource_changes'][0]['type'] = 'google_cloudfunctions_function'
         plan['resource_changes'][0]['change']['after'] = {'project': PROD, 'source_archive_bucket': 'fixture-bucket'}
         with patch.object(ops.common, 'google', return_value={'name': 'fixture-bucket', 'projectNumber': '67890'}), self.assertRaises(ValueError):
