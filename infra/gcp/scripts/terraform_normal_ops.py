@@ -139,6 +139,9 @@ def production_references(values, project, project_number=None):
             production_references(value, project, project_number)
     elif isinstance(values, str):
         need(re.search(r"(?<![a-z0-9-])test-youtube-study-space(?![a-z0-9-])", values) is None)
+        # Container registry paths encode a project without a projects/ prefix.
+        for found in re.finditer(r'''(?:^|[/\s"':=])(?:[a-z0-9-]+-docker\.pkg\.dev|(?:[a-z0-9-]+\.)?gcr\.io)\.?(?::[0-9]+)?/([^/\s"':@]+)''', values, re.IGNORECASE):
+            need(found.group(1) in aliases)
         for found in re.finditer(r'''(?:^|[/\s"':=])projects/([^/\s"':]+)''', values):
             identifier = found.group(1)
             # IAM allows '-' only for an unambiguous SA email in this project.

@@ -8,6 +8,7 @@ Existing migration WIF, GCP SA, State, workloads and AWS roles are untouched.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -309,7 +310,7 @@ def verify_pool_providers(number, expected):
         verify_provider(providers[0])
 
 
-def policy_analysis_scope(number):
+def project_ancestors(number):
     ancestors = gcloud("projects", "get-ancestors", PROJECT)
     need(type(ancestors) is list and ancestors
          and ancestors[0].get("type") == "project"
@@ -317,8 +318,74 @@ def policy_analysis_scope(number):
     for ancestor in ancestors[1:]:
         need(ancestor.get("type") in ("folder", "organization")
              and re.fullmatch(r"[0-9]+", str(ancestor.get("id"))) is not None)
-    root = ancestors[-1]
+    return ancestors
+
+
+def policy_analysis_scope(number):
+    root = project_ancestors(number)[-1]
     return root["type"], str(root["id"])
+
+
+IMPERSONATION_PERMISSIONS = {
+    "iam.serviceAccounts.getAccessToken", "iam.serviceAccounts.getOpenIdToken",
+    "iam.serviceAccounts.signBlob", "iam.serviceAccounts.signJwt",
+    "iam.serviceAccounts.implicitDelegation", "iam.serviceAccountKeys.create",
+    "iam.serviceAccounts.actAs",
+}
+
+
+def role_permissions(role):
+    if role.startswith("roles/"):
+        args = [role]
+    else:
+        parts = role.split("/")
+        need(len(parts) == 4 and parts[0] in ("projects", "organizations") and parts[2] == "roles")
+        args = [parts[3], "--" + ("project" if parts[0] == "projects" else "organization") + "=" + parts[1]]
+    value = dev.run(["gcloud", "iam", "roles", "describe", *args, "--format=json", "--quiet"])
+    included = value.get("includedPermissions")
+    need(type(included) is list and all(type(x) is str for x in included))
+    return set(included)
+
+
+def hierarchy_impersonation_inventory(number):
+    """Inventory reverse impersonation paths, including custom/conditional roles.
+
+    Owners, legacy workloads and Google service agents are not silently exempt:
+    an operator must explicitly review the complete existing delegation set.
+    """
+    cache, grants = {}, []
+    for ancestor in project_ancestors(number):
+        kind, identifier = ancestor["type"], str(ancestor["id"])
+        if kind == "project":
+            policy = gcloud("projects", "get-iam-policy", identifier)
+        elif kind == "folder":
+            policy = gcloud("resource-manager", "folders", "get-iam-policy", identifier)
+        else:
+            policy = gcloud("organizations", "get-iam-policy", identifier)
+        need(type(policy) is dict and type(policy.get("bindings")) is list)
+        for binding in policy["bindings"]:
+            role = binding.get("role")
+            need(type(role) is str and type(binding.get("members")) is list)
+            if role not in cache:
+                cache[role] = role_permissions(role) & IMPERSONATION_PERMISSIONS
+            if cache[role]:
+                for member in binding["members"]:
+                    need(type(member) is str)
+                    grants.append({"scope": kind + "s/" + identifier, "role": role,
+                                   "member": member, "condition": binding.get("condition"),
+                                   "credential_permissions": sorted(cache[role])})
+    return sorted(grants, key=lambda item: json.dumps(item, sort_keys=True))
+
+
+def impersonation_review_digest(grants):
+    return hashlib.sha256(json.dumps(grants, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def verify_hierarchy_impersonation(grants, approved_sha256):
+    digest = impersonation_review_digest(grants)
+    need((not grants and approved_sha256 is None)
+         or (type(approved_sha256) is str and re.fullmatch(r"[0-9a-f]{64}", approved_sha256)
+             and approved_sha256 == digest))
 
 
 def verify_effective_grants(response, member, scope, approved, required):
@@ -368,7 +435,7 @@ def allowed_account_grants(number, kind, runtime=None):
     return approved
 
 
-def bootstrap(number, allowed, *, enable_apply=False, check=False):
+def bootstrap(number, allowed, *, enable_apply=False, check=False, impersonation_review_sha256=None):
     kinds = ("plan", "apply") if enable_apply else ("plan",)
     # Validate *all existing* target resources before writing anything. A
     # bootstrap rerun must not overwrite an unexpected production role or WIF.
@@ -425,6 +492,7 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
 
     # Analyze from the highest ancestor so resource-level, inherited and
     # group-derived grants cannot bypass the narrow Project policy check.
+    verify_hierarchy_impersonation(hierarchy_impersonation_inventory(number), impersonation_review_sha256)
     scope = policy_analysis_scope(number)
     if runtime_exists is not None:
         audit_effective_grants(runtime, scope, {})
@@ -556,10 +624,20 @@ def main():
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--apply", action="store_true")
-    parser.add_argument("--backend-config", type=Path, required=True)
+    mode.add_argument("--impersonation-inventory", action="store_true")
+    parser.add_argument("--backend-config", type=Path)
     parser.add_argument("--enable-apply", action="store_true")
     parser.add_argument("--noop-run-id")
+    parser.add_argument("--impersonation-review-sha256")
     args = parser.parse_args()
+    if args.impersonation_inventory:
+        need(not args.enable_apply and args.noop_run_id is None
+             and args.impersonation_review_sha256 is None)
+        number = gcloud("projects", "describe", PROJECT)["projectNumber"]
+        grants = hierarchy_impersonation_inventory(str(number))
+        print(json.dumps({"delegations": grants, "review_sha256": impersonation_review_digest(grants)}, sort_keys=True))
+        return
+    need(args.backend_config is not None)
     need(args.enable_apply == (args.noop_run_id is not None))
     config = load_backend(args.backend_config)
     preflight_cloud(config)
@@ -567,7 +645,8 @@ def main():
     if args.enable_apply:
         verify_initial_noop(args.noop_run_id)
     number, roles = permissions()
-    bootstrap(number, roles, enable_apply=args.enable_apply, check=args.check)
+    bootstrap(number, roles, enable_apply=args.enable_apply, check=args.check,
+              impersonation_review_sha256=args.impersonation_review_sha256)
     print(json.dumps({"project": PROJECT, "phase": "apply" if args.enable_apply else "plan",
                       "read_only": args.check, "permission_counts": {k: len(v) for k, v in roles.items()},
                       "state_mutations": 0, "production_apply_not_run": True}, sort_keys=True))

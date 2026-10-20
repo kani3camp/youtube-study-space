@@ -128,6 +128,24 @@ class ProductionNormalOps(unittest.TestCase):
         with self.assertRaises(ValueError):
             ops.production_references({"secret_id": "projects/-/secrets/example"}, PROD, "12345")
 
+    def test_container_image_projects_cannot_cross_production_boundary(self):
+        for registry in ("asia-northeast1-docker.pkg.dev", "gcr.io", "asia.gcr.io", "us.gcr.io",
+                         "gcr.io:443", "ASIA-NORTHEAST1-DOCKER.PKG.DEV:443", "gcr.io."):
+            for project in (PROD, "12345", DEV, "foreign-project", "67890"):
+                for suffix in (":stable", "@sha256:" + "a" * 64):
+                    plan = native_plan()
+                    item = plan["resource_changes"][0]
+                    item["type"] = "google_cloud_run_v2_service"
+                    item["change"] = {"actions": ["update"], "before": {"project": PROD},
+                        "after": {"project": PROD, "template": [{"containers": [{
+                            "image": registry + "/" + project + "/repo/image" + suffix}]}]}}
+                    with self.subTest(registry=registry, project=project, suffix=suffix):
+                        if project in (PROD, "12345"):
+                            self.assertEqual(ops.validate(plan, {}, project=PROD, project_number="12345")["update"], 1)
+                        else:
+                            with self.assertRaises(ValueError):
+                                ops.validate(plan, {}, project=PROD, project_number="12345")
+
     def test_globally_named_storage_references_require_live_prod_ownership(self):
         plan = native_plan()
         plan['resource_changes'][0]['type'] = 'google_storage_bucket_iam_member'

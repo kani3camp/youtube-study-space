@@ -272,12 +272,41 @@ class ProductionBootstrap(unittest.TestCase):
             changed["mainAnalysis"]["analysisResults"] = [result | change]
             with self.subTest(change=change), self.assertRaises(ValueError):
                 prod.verify_effective_grants(changed, member, "projects/" + prod.PROJECT, approved, {role})
+
         for change in ({"fullyExplored": False}, {"analysisResults": []},
                        {"nonCriticalErrors": [{"code": "PERMISSION_DENIED"}]}):
             changed = deepcopy(response)
             changed["mainAnalysis"].update(change)
             with self.subTest(change=change), self.assertRaises(ValueError):
                 prod.verify_effective_grants(changed, member, "projects/" + prod.PROJECT, approved, {role})
+
+    def test_hierarchy_impersonation_requires_explicit_review_and_detects_drift(self):
+        grants = [{"scope": "projects/fixture", "role": "roles/iam.serviceAccountTokenCreator",
+                   "member": "serviceAccount:legacy@fixture.iam.gserviceaccount.com", "condition": None,
+                   "credential_permissions": ["iam.serviceAccounts.getAccessToken"]}]
+        digest = prod.hashlib.sha256(json.dumps(grants, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        prod.verify_hierarchy_impersonation(grants, digest)
+        prod.verify_hierarchy_impersonation([], None)
+        with self.assertRaises(ValueError):
+            prod.verify_hierarchy_impersonation(grants, None)
+        for field, value in (("member", "user:other@example.com"), ("scope", "folders/123"),
+                             ("condition", {"expression": "true"}),
+                             ("credential_permissions", ["iam.serviceAccountKeys.create"])):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                prod.verify_hierarchy_impersonation([grants[0] | {field: value}], digest)
+
+    def test_hierarchy_inventory_finds_custom_roles_and_all_ancestor_grants(self):
+        ancestors = [{"type": "project", "id": prod.PROJECT}, {"type": "folder", "id": "123"},
+                     {"type": "organization", "id": "456"}]
+        policy = {"bindings": [{"role": "projects/" + prod.PROJECT + "/roles/customMint",
+                                "members": ["group:operators@example.com"], "condition": {"expression": "false"}},
+                               {"role": "roles/reader", "members": ["user:reader@example.com"]}]}
+        with patch.object(prod, "project_ancestors", return_value=ancestors), \
+             patch.object(prod, "gcloud", return_value=policy), \
+             patch.object(prod, "role_permissions", side_effect=lambda role: {"iam.serviceAccountKeys.create"} if "customMint" in role else set()):
+            grants = prod.hierarchy_impersonation_inventory("12345")
+        self.assertEqual({item["scope"] for item in grants}, {"projects/" + prod.PROJECT, "folders/123", "organizations/456"})
+        self.assertTrue(all(item["condition"] == {"expression": "false"} for item in grants))
 
     def test_ancestor_inventory_uses_highest_scope_before_any_write(self):
         calls = []
@@ -310,6 +339,7 @@ class ProductionBootstrap(unittest.TestCase):
                         "attachedResourceFullName": "//secretmanager.googleapis.com/projects/12345/secrets/private",
                         "iamBinding": {"role": "roles/secretmanager.secretAccessor", "members": [member]}}]}}
         with patch.object(prod, "gcloud", side_effect=gcloud), \
+             patch.object(prod, "hierarchy_impersonation_inventory", return_value=[]), \
              patch.object(prod.dev, "run", side_effect=run), self.assertRaises(ValueError):
             prod.bootstrap("12345", {"plan": [], "apply": []})
         self.assertFalse(any("create" in a or "add-iam-policy-binding" in a for a in calls))
@@ -445,7 +475,8 @@ class ProductionBootstrap(unittest.TestCase):
              patch.object(prod, "permissions", return_value=("12345", permitted)), \
              patch.object(prod, "bootstrap") as bootstrap:
             prod.main()
-            bootstrap.assert_called_once_with("12345", permitted, enable_apply=False, check=True)
+            bootstrap.assert_called_once_with("12345", permitted, enable_apply=False, check=True,
+                                              impersonation_review_sha256=None)
         with patch.object(sys, "argv", args + ["--enable-apply"]), self.assertRaises(ValueError):
             prod.main()
 
@@ -498,6 +529,7 @@ class ProductionBootstrap(unittest.TestCase):
             return {"secrets": [{"name": key} for key in ("GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT", "GCP_TERRAFORM_NORMAL_WIF_PROVIDER")]}
         with patch.object(prod, "gcloud", side_effect=gcloud), patch.object(prod, "gh", side_effect=gh), \
              patch.object(prod, "policy_analysis_scope", return_value=("project", prod.PROJECT)), \
+             patch.object(prod, "hierarchy_impersonation_inventory", return_value=[]), \
              patch.object(prod, "audit_effective_grants"), \
              patch.object(prod.dev, "run") as run:
             prod.bootstrap("12345", {"plan": [], "apply": []})
@@ -512,6 +544,7 @@ class ProductionBootstrap(unittest.TestCase):
         provider = None
         with patch.object(prod, "gcloud", side_effect=gcloud), \
              patch.object(prod, "policy_analysis_scope", return_value=("project", prod.PROJECT)), \
+             patch.object(prod, "hierarchy_impersonation_inventory", return_value=[]), \
              patch.object(prod, "audit_effective_grants", side_effect=ValueError("incomplete inventory")), \
              patch.object(prod.dev, "run") as run, self.assertRaises(ValueError):
             prod.bootstrap("12345", {"plan": [], "apply": []})

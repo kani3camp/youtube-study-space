@@ -135,17 +135,21 @@ Productionの通常Plan/Applyは既存DEVと同じ `normal-plan` / `normal-apply
 - PROD AWSの既存Plan/Apply Roleは、repository-wide GitHub OIDCの7 claims（`terraform-prod-plan/apply`、`ref=refs/heads/main`、固定caller/reusable）に加え、native `actor_id=54093651` が必要です。予期しないAllow、旧integration branch trust、wildcardが残ればSTOPします。AWSのtrust調整は管理者が差分を独立レビューしてから実施し、このbootstrapではAWSを変更しません。
 - GitHub `terraform-prod-plan` / `terraform-prod-apply` のSelected branchesは**完全一致の `main` のみ**とします。既存managed入力・S3 role/bucket/account秘密参照を維持します。旧integration branchの認可は本番運用切替時に整理します。
 - 管理端末にはCloud Asset Inventory APIとPolicy Analyzerの読み取り権限が必要です。bootstrapはProjectの最上位祖先を取得し、そのscopeで通常SA/runtime SAの資源別・継承・グループ経由grantを監査します。想定外のrole/resource、条件付きgrant、不完全な解析、既知grantの欠落は書込み前にSTOPします。通常SAへ監査用権限は追加しません。
+- `--impersonation-inventory` でProject/folder/organizationからの資格発行・署名・鍵作成・actAs権限を列挙し、既存管理主体を確認した `review_sha256` を `--impersonation-review-sha256` に渡します。custom roleや条件付きgrantも対象とし、主体・条件・資格発行権限が変われば再レビューまでSTOPします。生の委任先一覧は管理端末で扱い、公開ログへ出しません。
+- main固定はGitHub/AWS/WIFのCI実行入口の制約です。既存Owner・Google制御プレーン・既存の特権workloadによるGCP直接操作まで禁止するものではありません。bootstrapは既存階層IAMを剥奪せず、その委任を上記fingerprintへ明示的に束縛します。既存アプリ権限の最小化は別途の運用変更です。
 - AWS・GCP・GitHubで必要な管理者権限を持つ短期認証済み端末で以下を実行します。
 
 ```bash
 # Checkout外のowner-only (0600) JSON。値は実設定から確認し、公開しない。
 # keys: state_account_id, state_bucket,
 #       production_plan_role_name, production_apply_role_name
-python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --check --backend-config /private/prod-backend.json
-python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply --backend-config /private/prod-backend.json
+# 管理端末で既存の偽装経路を確認し、review_sha256を控える（生出力は非公開）:
+python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --impersonation-inventory
+python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --check --backend-config /private/prod-backend.json --impersonation-review-sha256 "$IMPERSONATION_REVIEW_SHA256"
+python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply --backend-config /private/prod-backend.json --impersonation-review-sha256 "$IMPERSONATION_REVIEW_SHA256"
 # mainの初回 normal-plan が既存30資源・outputともno-opで成功した後のみ:
-python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --check --enable-apply --noop-run-id <run-id> --backend-config /private/prod-backend.json
-python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply --enable-apply --noop-run-id <run-id> --backend-config /private/prod-backend.json
+python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --check --enable-apply --noop-run-id <run-id> --backend-config /private/prod-backend.json --impersonation-review-sha256 "$IMPERSONATION_REVIEW_SHA256"
+python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply --enable-apply --noop-run-id <run-id> --backend-config /private/prod-backend.json --impersonation-review-sha256 "$IMPERSONATION_REVIEW_SHA256"
 ```
 
 `--check` はAWS Roleのtrustと全inline/attached権限、GitHub OIDC/Environment、GCPの現行権限カタログと既存通常identityをread-only検査します。backendの既存role名・bucket/accountはprivate設定から読み、新しい名前を推測しません。S3権限は既存 `production_backend_packet.py` のPROD state/lock/限定prefixへ完全一致させ、DEV keyや追加AWS権限を拒否します。
