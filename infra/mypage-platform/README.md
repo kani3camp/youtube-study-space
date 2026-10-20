@@ -1,6 +1,6 @@
-# MyPage Platform Terraform（新規基盤・未適用）
+# MyPage Platform Terraform
 
-マイページの新規Cloud Run API基盤と実行権限を、既存GCP Terraformの**既存資源import-only運用とは別State**で準備する。2026-10-18時点ではsource-onlyで、**いずれの環境でもMyPage Cloud Run/Secret/IAMの実作成・適用・公開を行っていない**。
+マイページの新規Cloud Run API基盤と実行権限を、既存GCP Terraformの**既存資源import-only運用とは別State**で管理する。2026-10-21 JSTにDevelopmentの専用SAと3 Secret metadataを実作成し、専用Stateへ保存した。段階別の適用結果は[実構築記録](docs/development-foundation.md)と[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)の現行記録を参照する。**Cloud Run/Hosting・Secret値・Production・公開Readyの完了を意味しない**。
 
 - プロダクト / 環境配置: [Notion 07｜技術アーキテクチャ](https://app.notion.com/p/3ef357a8d0ce81b5892ac1dc2c99e587)
 - API・OAuth cookie・release設計: [Notion 08｜API・デプロイ設計](https://app.notion.com/p/3ef357a8d0ce81cbbce9c2ae948ebfb3)
@@ -13,16 +13,16 @@
 
 既存 `infra/gcp/environments/{dev,prod}` はDev31/Prod30件を管理する固定baselineで、認証workflowは **import-only/no-op**。そこで新規リソースを作れるようにIAMやapply guardを緩めない。MyPage新規作成は別の**normal-change運用契約**を要求するため、このrootはState keyも実行identityも分離する。OAuth TTLの小さな専用Stateは既存のplan contractを維持し、ここへ統合・移管しない。既存GCP所有資源・Cloud Run/Firebase管理対象との二重ownershipを発見したら停止する。
 
-| Root | Cloud target | 新State key（案。実backendは未設定） |
+| Root | Cloud target | 独立State key（Productionは未構築） |
 | --- | --- | --- |
 | `environments/dev` | `test-youtube-study-space` / `asia-southeast2` | `youtube-study-space/mypage-platform/dev/terraform.tfstate` |
 | `environments/prod` | `youtube-study-space` / `asia-northeast2` | `youtube-study-space/mypage-platform/prod/terraform.tfstate` |
 
-Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-platform provider lockを使用する。2026-10-20にDevelopment専用のAWS backend Plan/Apply roleを新規作成・readbackした。GCP WIF/SA、GitHub Environment、実Stateと実Plan/Applyは未完了。[Development Foundation構築](docs/development-foundation.md)を参照し、既存 `infra/gcp` 用のState roleを流用しない。Private `backend.hcl` と認証情報をcommitしない。
+Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-platform provider lockを使用する。Development専用のAWS backend Plan/Apply role、GCP WIF/構築SA、GitHub Environmentを接続し、metadata段階の実Plan/ApplyとState readbackが成功した。[Development Foundation構築](docs/development-foundation.md)を参照し、既存 `infra/gcp` 用のState roleを流用しない。Private `backend.hcl` と認証情報をcommitしない。
 
-## 実装する責務（現状すべてdefault off）
+## 段階ごとの責務
 
-Rootの `stage = "disabled"` が既定で、**Module count=0／新GCP resource=0**。次の段階へ進むには対象・plan・権限を独立にレビューする。
+ソースの `stage = "disabled"` は未構築rootの既定で、**Module count=0／新GCP resource=0**。構築済みDevelopmentでは実行workflowが当該段階を明示する。既定値を実Stateの状態と混同せず、次の段階へ進むには対象・plan・権限を独立にレビューする。
 
 | Stage | Terraformが管理するもの | 意図的に含めないもの |
 | --- | --- | --- |
@@ -61,7 +61,7 @@ bash infra/mypage-platform/scripts/check-local.sh
 ## 実適用までの作業と停止条件
 
 1. **Live inventory**：Dev/ProdのSA名、Cloud Runサービス名、Secret ID、Firestore、Firebase Hosting、Google APIsとIAM既存値をread-only収集。既存作成物があれば「新規create」で上書きしない。特に他のTerraform State ownerの有無を確認する。
-2. **Backend/権限準備**：MyPage専用S3 keyと `.tflock`、AWS identity、GCP Workload Identityの**正確なref / workflow / target / principal**を確認。GitHub public PRや任意branchには認証を渡さない。[Development Foundation経路](docs/development-foundation.md)は8資源だけを許可する専用workflowとguardを持つ。AWS roleは作成済みだがGCP/GitHub側の接続設定は未完了で、実行成功は未証明。RuntimeとProductionは引き続き別経路の実装・reviewが必要。
+2. **Backend/権限準備**：MyPage専用S3 keyと `.tflock`、AWS identity、GCP Workload Identityの**正確なref / workflow / target / principal**を確認。GitHub public PRや任意branchには認証を渡さない。[Development Foundation経路](docs/development-foundation.md)は8資源だけを許可する専用workflowとguardを持つ。専用AWS/GCP/GitHub接続とmetadata段階の実適用は成功済み。RuntimeとProductionは引き続き別経路の実装・reviewが必要。
 3. **Foundation Dev**：private `backend.hcl` で正確な空Stateを初期化し、レビュー済み `stage="foundation"` の実plan・plan jsonをprivateに保全、差分type/action/IAM/コストを確認。独立reviewと実行承認後にのみ保存済みplanをapply。secret versionはTerraform外でprivate投入し、metadataとIAMをreadback。
 4. **Private runtime Dev**：digestを持つ実Goイメージ、project number、Web App ID、origin、規約version、**固定secret version番号**を一致確認。 `runtime_private` へ段階適用。Service起動/keyless signer/Firestore/App Check/Auth/ヘルスと本番同等経路を観測。条件不成立・権限拡張・unknown/driftは停止し、差分をplan修正して再レビュー。
 5. **Public runtime Dev**：Hosting `/api/**` rewrite、OAuth callback、CSP/cookie/Originとrate limiting等を実機で検証し、`runtime_public` でInvoker公開を明示承認。公開URLが機密アクセス制御の代替ではない。Frontend Hostingは別デプロイ操作・別release record。
@@ -69,4 +69,4 @@ bash infra/mypage-platform/scripts/check-local.sh
 
 異常時は先に後続apply/一般告知を停止する。Cloud Runは `deletion_protection` と `prevent_destroy` があるため、事故対応を安易な `destroy` としない。新規Secretの値を消したり、TTLや既存GCP管理資源を巻き戻したりしない。Release対（Frontend commit/Hosting release、Backend image digest/Run revision、同意版、検証証拠）と**前世代互換**を記録し、必要時は前のreview済みimage/revisionへforward-fixまたは明示rollbackする。公開権限の取り消しは別途明示的に実施できる。
 
-Terraform資源は引き続き未作成。Development専用AWS backend roleの作成・readback以外は、実State、GCP IAM/WIF、Secret version、Cloud Run/Hosting、OAuth、release gateの完了を示さない。各段階の実施記録は[Development Foundation構築](docs/development-foundation.md)を更新する。
+DevelopmentのFoundation metadataは実作成・State readback済み。Secret version、Cloud Run/Hosting、OAuth、release gateは未完了。各段階の実施記録は[Development Foundation構築](docs/development-foundation.md)と統合PRへ残す。
