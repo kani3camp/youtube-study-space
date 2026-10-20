@@ -97,6 +97,16 @@ class Contracts(unittest.TestCase):
                 item['address'] += '[' + ops.common.canonical(key).decode() + ']'
                 item['index'] = key
             self.assertEqual(ops.validate(q, {}, state=s, provider_schema=sc)['no-op'], 1)
+        q, s, sc = deepcopy((p, state, schema))
+        identity = {'project': ops.PROJECT, 'table_id': 'fixture'}
+        s['resources'][0]['instances'][0]['identity'] = identity
+        q['resource_changes'][0]['change'].update(before_identity=identity, after_identity=identity)
+        self.assertEqual(ops.validate(q, {}, state=s, provider_schema=sc)['no-op'], 1)
+        for key in ('before_identity', 'after_identity'):
+            bad = deepcopy(q)
+            bad['resource_drift'][0]['change'][key] = None
+            with self.subTest(identity_key=key), self.assertRaises(ValueError):
+                ops.validate(bad, {}, state=s, provider_schema=sc)
 
     def test_observation_drift_remains_in_plan_commitment(self):
         p, state, _ = self.observation_fixture()

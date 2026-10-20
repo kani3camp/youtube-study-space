@@ -270,6 +270,7 @@ output "environment" { value = "development" }
                 self.assertEqual(self.validate(plan, before)['raw_observation_drift'], 1)
                 # Ordinary operations must admit the same State-bound,
                 # computed-only observations without admitting managed drift.
+                normal.validate_observation_drift(plan, before, self.schema)
                 self.assertEqual(normal.validate(plan, {}, project=PROJECT,
                     state=before, provider_schema=self.schema)['no-op'], 1)
                 self.command(directory, 'apply', '-input=false', str(directory/'saved.tfplan'))

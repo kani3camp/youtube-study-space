@@ -273,8 +273,13 @@ def validate_observation_drift(plan, state, provider_schema):
         common.contract._mask(change.get('after_unknown', {}), unknown=True)
         for key in ('before_sensitive', 'after_sensitive'):
             need(common.canonical(change.get(key, {})) == common.canonical(planned.get('before_sensitive', {})))
-        for key in ('before_identity', 'after_identity'):
-            need(change.get(key) == planned.get('before_identity') == native[address].get('identity'))
+        identity = native[address].get('identity')
+        need(planned.get('before_identity') == identity)
+        # Core omits unchanged identity metadata from resource_drift. Its
+        # continuity is still proven by the native State and Plan before.
+        if 'before_identity' in change or 'after_identity' in change:
+            need({'before_identity', 'after_identity'} <= set(change))
+            need(change['before_identity'] == change['after_identity'] == identity)
 
 
 def validate(plan, approved, *, post=False, project=PROJECT, project_number=None,
