@@ -2,12 +2,37 @@
 
 MyPage統合PR [#1236](https://github.com/kani3camp/youtube-study-space/pull/1236) 内の最初の構築段階。既存 `infra/gcp` のimport-only経路とは独立し、**DevelopmentのFoundationだけ**を扱う。Cloud Run、Firestore書込み権限、public invoker、Hosting、Secret値、Productionはこの経路に含めない。
 
-## 実施記録（2026-10-20）
+## 構築準備の記録（2026-10-20）
 
 - AWS State専用アカウントに `youtube-study-space-mypage-dev-plan` / `youtube-study-space-mypage-dev-apply` を新規作成し、trust/inline policyのreadback一致、追加managed policyなしを確認した。既存ロールとbucket policyは変更していない。
 - 両ロールの許可対象は `youtube-study-space/mypage-platform/dev/terraform.tfstate` と `.tflock`。PlanはState読取りのみ、ApplyはState読書き。State削除は禁止、ロックの作成・削除は両者に許可する。18組のIAM模擬判定で別StateへのアクセスとState削除の拒否を確認した。これはGitHub OIDCからの実AssumeRoleの証拠ではない。
 - State bucketはversioning有効、AES256暗号化、TLS強制。MyPage Development prefixにはState objectを確認していない。空のState JSONやロックを手書きで投入しない。最初のTerraform ApplyでStateを作成する。
 - GCP DevのSA全12件、WIF pool全4件の一覧にMyPage専用資源なし、Cloud Runサービス一覧は空をブラウザで確認した。Secret/Firebase/他環境のinventoryは未完了。GCP WIF/SAのbootstrap、GitHub Environment設定・secret投入、実Plan/Applyも未実施。実施前にその時点のinventoryを再確認する。
+
+## Development実構築（2026-10-21 JST）
+
+実行ソースは `df69028252c5e7f5f31e10da14bef5b619c15d8e`（#1405 / #1406統合後）。このソースの通常CI Gate・CodeQLは成功し、最新devに対してbehind 0を確認した。以下は模擬検証ではなく、Developmentへの実操作である。
+
+- 開始前に専用SA・WIF pool・Secretが存在しないことを再確認し、Secret Manager APIを有効化した。既存GCP rootのowned APIとは分離したbootstrap管理で、同じAPIを重複してTerraformへ追加していない。
+- 専用WIF pool `mypage-foundation` / provider `github-actions` と、`mypage-foundation-plan` / `mypage-foundation-apply` の2 SAを作成・readbackした。repository/owner/actorの固定ID、統合ref、caller/reusable、event、attempt 1、workflow SHA一致、Environmentと完全一致するsubjectをprovider条件に含める。`google.subject` はrepository ID・Environment・actor IDの短い組合せへmappingし、各SAのimpersonationは自分のEnvironmentだけに限定する。user-managed SA keyは0件。
+- GitHub `mypage-dev-plan` / `mypage-dev-apply` は各7 secretを設定した。Plan/ApplyのAWS RoleIdとSAは別、Plan commitment用HMAC keyだけを両Environmentで共有する。統合branch 1件・tag 0件の許可を維持し、既存Terraform用のsecret/Environment/subject templateは変更していない。
+- [実metadata Plan run 39452570203](https://github.com/kani3camp/youtube-study-space/actions/runs/39452570203) は専用OIDC、AWS STS、GCP WIF/SA、Terraform native plan/guardを通過し、**4 resources / 4 creates / no apply**。
+- [実metadata Apply run 39452784387](https://github.com/kani3camp/youtube-study-space/actions/runs/39452784387) はPlan/Applyの独立identity、保存PlanのHMAC照合、適用後のState 4資源readbackに成功した。専用runtime SAと3 Secret metadataだけを作成し、Secret version/value・Cloud Run・Firestore writer・Hosting・Productionは作成していない。
+- bootstrap operatorは作成済みruntime SAと3 SecretのIAMをreadbackし、Secret version 0件を確認してから、それぞれの資源だけに専用policy editorを付与した。Apply SAをmetadata read roleへ移し、一時的なproject create role bindingを解除・readbackした。project全域のsetIamPolicyやSecret payload/version操作はCIへ付与していない。
+- 専用Stateの実objectをAWS側から独立確認し、version IDあり・AES256暗号化・metadata Apply後の`.tflock`解放を確認した。State本文・bucket/account/role ID・WIF番号・HMAC keyを公開記録へ載せていない。
+
+### Bootstrap権限の所有範囲
+
+専用WIF、構築用2 SA、4 custom roleとbootstrap IAM bindingはoperator bootstrap管理で、runtimeのTerraform Stateには含めない。project IAMをauthoritative管理せず、以下のmemberだけを加減する。
+
+| Custom role | Permission | 付与範囲 |
+| --- | --- | --- |
+| `mypageFoundationRead` | `resourcemanager.projects.get`、`iam.serviceAccounts.get/getIamPolicy`、`secretmanager.secrets.get/getIamPolicy` | Development projectのmetadata読取り |
+| `mypageFoundationCreate` | 上記read + `iam.serviceAccounts.create`、`secretmanager.secrets.create` | 初回metadata作成時だけApply SAに一時付与 |
+| `mypageFoundationSAPolicy` | `iam.serviceAccounts.getIamPolicy/setIamPolicy` | 作成済みruntime SAだけ |
+| `mypageFoundationSecretPolicy` | `secretmanager.secrets.get/getIamPolicy/setIamPolicy` | 作成済みの3 Secretそれぞれだけ |
+
+read roleはSecret payloadを読めない。資源単位のpolicy editorは当該資源の権限を変更できるため、単なるread権限とは扱わず、専用WIF・Environment・実行ソース・plan guardの制限を維持する。create roleの定義自体はbootstrap記録として残し、器の作成後はproject bindingを外す。将来の再作成は自動的に権限を復活させず、対象とownershipの再確認を必要とする。
 
 ## 実行条件
 

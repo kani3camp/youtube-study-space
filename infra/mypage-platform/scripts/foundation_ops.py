@@ -193,6 +193,10 @@ def main():
         else:
             need(False)
         return 0
+    except contract.ContractError as error:
+        # ContractError contains only source-defined labels, not rejected data.
+        print("MyPage foundation STOP at " + PHASE + "; check=" + str(error) + ".", file=sys.stderr)
+        return 1
     except Exception:
         # Native Terraform/API diagnostics can contain private values.
         print("MyPage foundation STOP at " + PHASE + "; private diagnostics suppressed.", file=sys.stderr)
