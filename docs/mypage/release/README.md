@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | OAuth / identity | [AuthService](../../../system/core/mypage/auth.go)、atomic claim/consume、channel確認、短命token、purpose分離 | 実Google account/Brand Account/channel選択・審査 |
 | OAuth transaction TTL | [MyPage専用Terraform](../../../infra/mypage-oauth-ttl/README.md)、dev/prod定義、credential不要mock/限定plan contract | owner-approved target/state、別途承認したplan/apply、両環境のTTL ACTIVE・自然削除観測。applicationの10分失効は維持 |
+| MyPage Cloud Run platform IaC | [専用Terraform source](../../../infra/mypage-platform/README.md) は dev/prod 別root、段階有効化、Secret metadata/Runtime SA/Cloud Run/Invoker候補をdefault-offで定義。credentialless mock CI成功まではsource-only | 専用State・短期OIDC/WIF・最小IAM/API、Secret実version・immutable image、実plan/apply、Hosting実経路、費用/rollback/Privacy公開Gateは未実施 |
 | API / Firebase | [server assembly](../../../system/core/mypage/server.go)、keyless SDK、署名/claim、Origin、6 endpoints | [entrypoint](../../../system/cmd/mypage-server/main.go)のkeyless/Firestore/provider/HTTP bootstrap成功、実App Check/Auth、runtime signer/IAM、Hosting経路/Host |
 | metadata | refresh、正常なchannel不在のclear、29日cleanup、[定期呼出しrunner・durable監視・期限付きalert source](metadata-monitoring.md)、23時間heartbeat判定 | 実scheduler/独立watchdog/監視sink/alert宛先の結線、実inventory、自然実行 |
 | 作業集計 | Firestore snapshot/readTime、JST境界、小数秒fixture、欠損/partial | history coverage・writer atomicity・query indexの実証跡 |
