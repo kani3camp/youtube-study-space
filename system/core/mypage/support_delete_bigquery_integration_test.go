@@ -248,9 +248,23 @@ func TestBigQueryEmulatorEngineBlocksUnknownAndResumesLostCheckpointWithoutDelet
 	adapters["bigquery"] = a
 	adapters["derived-vendor"] = emptyDerivedAdapter(s, a.Clock())
 	checkpoint := &bigQueryCheckpointFailures{Store: s, loseBQCommit: true, failFinalize: true}
-	engine := &supportdelete.Engine{Store: checkpoint, Effects: supportdelete.Registry{Adapters: adapters}, Manifest: start.Manifest, Clock: a.Clock}
+	var registrations []supportdelete.AdapterRegistration
+	for _, scope := range append(supportdelete.RuntimeScopes(), supportdelete.DeletionScopes()...) {
+		var actions []string
+		for _, step := range supportdelete.Steps() {
+			if step.Scope == scope {
+				actions = append(actions, step.Action)
+			}
+		}
+		registrations = append(registrations, supportdelete.AdapterRegistration{Scope: scope, Target: start.Selector.Target, Mode: start.Manifest.Mode, Actions: actions, Effects: adapters[scope]})
+	}
+	prepared, err := supportdelete.PrepareDeletion(ctx, start.Selector, start.OwnerRef, supportdelete.SyntheticCatalog{Selector: start.Selector, Manifest: start.Manifest, Registrations: registrations}, func(_ context.Context, target supportdelete.Target) (supportdelete.Store, error) {
+		require.Equal(t, start.Selector.Target, target)
+		return checkpoint, nil
+	}, a.Clock)
+	require.NoError(t, err)
 	remote.pending = true
-	out, err := engine.Run(ctx, start.Selector, start.OwnerRef)
+	out, err := prepared.Run(ctx)
 	require.Error(t, err)
 	require.Equal(t, "WORKFLOW_BLOCKED", out.Code)
 	require.Empty(t, tracked.calls, "unknown BQ job cannot reach Auth delete, resume or finalize")
@@ -263,14 +277,14 @@ func TestBigQueryEmulatorEngineBlocksUnknownAndResumesLostCheckpointWithoutDelet
 	result.Terminal = true
 	remote.jobs[first.Identity.JobID] = result
 	remote.removeTarget(first.Table, first.ChannelID)
-	_, err = engine.Run(ctx, start.Selector, start.OwnerRef)
+	_, err = prepared.Run(ctx)
 	require.Error(t, err, "lost BQ checkpoint acknowledgement interrupts this run")
 	require.Empty(t, tracked.calls)
 	current, err = s.Acquire(ctx, start)
 	require.NoError(t, err)
 	require.Equal(t, e.Cursor+1, current.Cursor)
 	remote.lookupUnknown = true
-	_, err = engine.Run(ctx, start.Selector, start.OwnerRef)
+	_, err = prepared.Run(ctx)
 	require.Error(t, err)
 	for _, step := range tracked.calls {
 		require.NotEqual(t, "resume", step.Action)
@@ -283,11 +297,11 @@ func TestBigQueryEmulatorEngineBlocksUnknownAndResumesLostCheckpointWithoutDelet
 	tracked.onResume = func() {
 		remote.rows[fresh.key()] = append(remote.rows[fresh.key()], map[string]string{fresh.TargetField: start.Selector.Target.ChannelID})
 	}
-	_, err = engine.Run(ctx, start.Selector, start.OwnerRef)
+	_, err = prepared.Run(ctx)
 	require.Error(t, err, "finalization failure retains durable resume intent")
 	calls := remote.submitCalls
 	rows := len(remote.rows[fresh.key()])
-	out, err = engine.Run(ctx, start.Selector, start.OwnerRef)
+	out, err = prepared.Run(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "COMPLETED", out.Code)
 	require.True(t, out.Offline)

@@ -172,38 +172,6 @@ func TestMockCompletionIsIdempotentButCannotBeRecovered(t *testing.T) {
 	}
 }
 
-func TestRegistryMissingAnyRequiredScopeStopsWorkflow(t *testing.T) {
-	scopes := append(RuntimeScopes(), DeletionScopes()...)
-	for _, missing := range scopes {
-		t.Run(missing, func(t *testing.T) {
-			store := &mockStore{}
-			start := mockStart()
-			effects := newScriptedEffects()
-			registry := Registry{Adapters: map[string]Effects{}}
-			for _, scope := range scopes {
-				if scope != missing {
-					registry.Adapters[scope] = effects
-				}
-			}
-			engine := &Engine{Store: store, Effects: registry, Manifest: start.Manifest, Clock: syntheticTime}
-			out, err := engine.Run(context.Background(), start.Selector, start.OwnerRef)
-			if !errors.Is(err, ErrUnavailable) || out.Code != "WORKFLOW_BLOCKED" || store.completed {
-				t.Fatalf("missing %s adapter authorized completion: %#v %v", missing, out, err)
-			}
-			firstMissing := 0
-			for cursor, step := range Steps() {
-				if step.Scope == missing {
-					firstMissing = cursor
-					break
-				}
-			}
-			if store.execution.Cursor != firstMissing || len(effects.operations()) != firstMissing {
-				t.Fatalf("missing adapter did not block before its first required effect: checkpoint=%d calls=%d", store.execution.Cursor, len(effects.operations()))
-			}
-		})
-	}
-}
-
 func TestRunMockClearlyLabelsFixedSyntheticExecutionAndRecovery(t *testing.T) {
 	for _, recoverExecution := range []bool{false, true} {
 		out, err := RunMock(context.Background(), MockSelector(), recoverExecution)

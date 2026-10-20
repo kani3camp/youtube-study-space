@@ -185,7 +185,15 @@ func (r *JSONMetadataCleanupRecorder) Record(ctx context.Context, value Metadata
 	default:
 		return ErrMetadataCleanupIncomplete
 	}
-	sink, ok := r.Writer.(cleanupDeadlineWriter)
+	return writeMetadataCleanupJSON(ctx, r.Writer, value)
+}
+
+// Both run and health records use the same bounded, deadline-capable sink.
+func writeMetadataCleanupJSON(ctx context.Context, writer io.Writer, value any) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("cleanup observation canceled: %w", err)
+	}
+	sink, ok := writer.(cleanupDeadlineWriter)
 	if !ok {
 		return ErrMetadataCleanupIncomplete
 	}

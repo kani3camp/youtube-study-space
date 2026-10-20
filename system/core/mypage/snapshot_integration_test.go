@@ -12,6 +12,7 @@ import (
 	"app.modules/core/repository"
 
 	"cloud.google.com/go/firestore"
+	"github.com/stretchr/testify/require"
 )
 
 func snapshotFixture(t *testing.T) (*FirestoreSnapshotReader, string) {
@@ -23,6 +24,50 @@ func snapshotFixture(t *testing.T) (*FirestoreSnapshotReader, string) {
 	}
 	reader := &FirestoreSnapshotReader{Client: store.Client, Coverage: []Interval{{now.AddDate(0, 0, -30), now.Add(time.Hour)}}}
 	return reader, uid
+}
+
+func TestSnapshotExplicitCoveragePreservesUnknownAndGaps(t *testing.T) {
+	r, uid := snapshotFixture(t)
+	ctx := context.Background()
+	_, err := r.Client.Collection("users").Doc(uid).Set(ctx, repository.UserDoc{TotalStudySec: 600})
+	require.NoError(t, err)
+	// Only public dummy data in the guarded Emulator; each fixture owns its UID.
+	t.Cleanup(func() {
+		_, err := r.Client.Collection("users").Doc(uid).Delete(context.Background())
+		require.NoError(t, err)
+	})
+	now := time.Now().UTC()
+	windows := StatisticsWindows(now)
+	gapStart := windows.Recent.AddDate(0, 0, 2).Add(time.Hour)
+	gapEnd := gapStart.Add(time.Nanosecond)
+	for _, tc := range []struct {
+		name     string
+		coverage []Interval
+	}{
+		{"unset", nil},
+		{"complete", []Interval{{Start: windows.Recent.AddDate(0, 0, -1), End: now.Add(time.Hour)}}},
+		{"gap", []Interval{{Start: windows.Recent.AddDate(0, 0, -1), End: gapStart}, {Start: gapEnd, End: now.Add(time.Hour)}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r.Coverage = tc.coverage
+			snapshot, err := r.Read(ctx, uid)
+			require.NoError(t, err)
+			require.Equal(t, tc.coverage, snapshot.Coverage)
+			response, err := Aggregate(snapshot, fixtureAccount())
+			require.NoError(t, err)
+			require.Equal(t, snapshot.AsOf, response.GeneratedAt)
+			expectSeconds(t, response.Summary.Data.Lifetime, 600)
+			for _, day := range response.Recent7Days.Data {
+				if tc.name == "unset" || (tc.name == "gap" && day.Date == gapStart.In(windows.Recent.Location()).Format("2006-01-02")) {
+					require.Equal(t, Unavailable, day.Availability)
+					require.Equal(t, HistoryIncomplete, *day.ReasonCode)
+					require.Nil(t, day.WorkSec)
+				} else {
+					expectSeconds(t, day.Metric, 0)
+				}
+			}
+		})
+	}
 }
 
 func TestSnapshotMissingUserSkipsCorruptSeatAndHistory(t *testing.T) {

@@ -91,41 +91,52 @@ func (mockEffects) Apply(_ context.Context, op Operation) (Evidence, error) {
 	return Evidence{Selector: e.Selector, ManifestRef: e.Manifest.Ref, OperationID: op.ID, Action: op.Step.Action, Scope: op.Step.Scope, Mode: "mock", TraceRef: strings.Repeat("e", 64), Generation: e.Generation, Cutoff: e.Cutoff, ObservedAt: op.ObservedAfter, Known: true, Complete: true, AllInstances: true, OldQueueRejected: true, RestoreExcluded: true}, nil
 }
 
+// mockCatalog is independently seeded source, never populated from CLI fields.
+func mockCatalog() SyntheticCatalog {
+	selector := MockSelector()
+	catalog := SyntheticCatalog{Selector: selector, Manifest: Manifest{Ref: strings.Repeat("b", 64), Mode: "mock"}}
+	for _, scope := range RuntimeScopes() {
+		catalog.Registrations = append(catalog.Registrations, AdapterRegistration{Scope: scope, Target: selector.Target, Mode: "mock", Actions: []string{"pause", "drain", "resume"}, Effects: mockEffects{}})
+	}
+	for _, scope := range DeletionScopes() {
+		actions := []string{"delete", "inspect"}
+		if scope == "firebase-auth" {
+			actions = []string{"revoke", "delete", "inspect"}
+		}
+		catalog.Registrations = append(catalog.Registrations, AdapterRegistration{Scope: scope, Target: selector.Target, Mode: "mock", Actions: actions, Effects: mockEffects{}})
+	}
+	return catalog
+}
+
 func RunMock(ctx context.Context, selector Selector, recoverExecution bool) (Outcome, error) {
 	if selector != MockSelector() {
 		return Outcome{}, ErrInvalid
 	}
 	now := time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC)
-	manifest := Manifest{Ref: strings.Repeat("b", 64), Mode: "mock"}
+	catalog := mockCatalog()
 	owner := strings.Repeat("c", 64)
-	store := &mockStore{}
+	initialOwner := owner
 	if recoverExecution {
-		old := strings.Repeat("d", 64)
-		e, err := store.Acquire(ctx, Start{Selector: MockSelector(), Manifest: manifest, OwnerRef: old, Now: now})
+		initialOwner = strings.Repeat("d", 64)
+	}
+	var store *mockStore
+	prepared, err := PrepareDeletion(ctx, selector, initialOwner, catalog, func(context.Context, Target) (Store, error) {
+		store = &mockStore{}
+		return store, nil
+	}, func() time.Time { return now })
+	if err != nil {
+		return Outcome{}, fmt.Errorf("prepare synthetic deletion: %w", err)
+	}
+	if recoverExecution {
+		e, err := store.Acquire(ctx, Start{Selector: selector, Manifest: catalog.Manifest, OwnerRef: initialOwner, Now: now})
 		if err != nil {
-			return Outcome{}, err
+			return Outcome{}, fmt.Errorf("seed synthetic stopped checkpoint: %w", err)
 		}
 		// The built-in stopped-worker fixture supplies evidence; no CLI field is
 		// interpreted as an assertion about a real previous process.
-		if err = store.Recover(ctx, Recovery{Selector: MockSelector(), PreviousOwnerRef: old, NewOwnerRef: owner, ManifestRef: manifest.Ref, TraceRef: strings.Repeat("e", 64), Revision: e.Revision, Generation: e.Generation, Stopped: true, ObservedAt: now}, now); err != nil {
-			return Outcome{}, err
+		if err = prepared.Recover(ctx, Recovery{Selector: selector, PreviousOwnerRef: initialOwner, NewOwnerRef: owner, ManifestRef: catalog.Manifest.Ref, TraceRef: strings.Repeat("e", 64), Revision: e.Revision, Generation: e.Generation, Stopped: true, ObservedAt: now}); err != nil {
+			return Outcome{}, fmt.Errorf("recover synthetic checkpoint: %w", err)
 		}
 	}
-	return (&Engine{Store: store, Effects: mockEffects{}, Manifest: manifest, Clock: func() time.Time { return now }}).Run(ctx, selector, owner)
-}
-
-// Registry dispatches required scopes only to explicitly injected adapters.
-// Missing Auth/BQ/backups/vendor/log/runtime adapters always stop the workflow.
-type Registry struct{ Adapters map[string]Effects }
-
-func (r Registry) Apply(ctx context.Context, op Operation) (Evidence, error) {
-	adapter := r.Adapters[op.Step.Scope]
-	if adapter == nil {
-		return Evidence{}, ErrUnavailable
-	}
-	v, err := adapter.Apply(ctx, op)
-	if err != nil {
-		return Evidence{}, fmt.Errorf("apply required deletion adapter: %w", err)
-	}
-	return v, nil
+	return prepared.Run(ctx)
 }

@@ -1,8 +1,9 @@
-// mypage-support-operator validates a private operator proposal offline. No
-// identity adapter or credentials are linked; --execute is always denied.
+// mypage-support-operator validates private proposals offline; --mock checks a
+// fixed human-desk receipt. No live identity or credentials: execute is denied.
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -36,6 +38,8 @@ type proposal struct {
 	ActionEvidence   string
 	DeliveryAck      string
 	Execute          bool
+	Mock             bool
+	RequestFile      string
 }
 
 type report struct {
@@ -53,6 +57,13 @@ func parse(args []string, get func(string) string) (proposal, error) {
 	}
 	values := map[string]string{}
 	for i := 0; i < len(args); i++ {
+		if args[i] == "--mock" {
+			if p.Mock {
+				return proposal{}, fmt.Errorf("duplicate")
+			}
+			p.Mock = true
+			continue
+		}
 		if args[i] == "--execute" {
 			if p.Execute {
 				return proposal{}, fmt.Errorf("duplicate")
@@ -66,7 +77,7 @@ func parse(args []string, get func(string) string) (proposal, error) {
 		values[args[i]] = args[i+1]
 		i++
 	}
-	allowed := map[string]bool{"--action": true, "--environment": true, "--project": true, "--purpose": true, "--request-ref": true, "--proof-ref": true, "--operation-id": true, "--expected-revision": true, "--reply-file": true, "--reply-operation-id": true, "--action-evidence": true, "--delivery-ack": true}
+	allowed := map[string]bool{"--action": true, "--environment": true, "--project": true, "--purpose": true, "--request-ref": true, "--proof-ref": true, "--operation-id": true, "--expected-revision": true, "--reply-file": true, "--reply-operation-id": true, "--action-evidence": true, "--delivery-ack": true, "--request-file": true}
 	for key := range values {
 		if !allowed[key] {
 			return proposal{}, fmt.Errorf("unknown")
@@ -76,11 +87,10 @@ func parse(args []string, get func(string) string) (proposal, error) {
 	p.Purpose = mypage.SupportPurpose(values["--purpose"])
 	p.RequestRef, p.ProofRef, p.OperationID = values["--request-ref"], values["--proof-ref"], values["--operation-id"]
 	p.ReplyFile, p.ReplyOperationID, p.ActionEvidence, p.DeliveryAck = values["--reply-file"], values["--reply-operation-id"], values["--action-evidence"], values["--delivery-ack"]
-	revision, err := strconv.ParseInt(values["--expected-revision"], 10, 64)
-	if err != nil || revision < 0 || (p.Environment != "development" && p.Environment != "production") || !project.MatchString(p.Project) || p.Environment != get("MYPAGE_ENVIRONMENT") || p.Project != get("GOOGLE_CLOUD_PROJECT") || !opaque.MatchString(p.RequestRef) || !opaque.MatchString(p.ProofRef) || !opaque.MatchString(p.OperationID) {
+	p.RequestFile = values["--request-file"]
+	if (p.Environment != "development" && p.Environment != "production") || !project.MatchString(p.Project) || p.Environment != get("MYPAGE_ENVIRONMENT") || p.Project != get("GOOGLE_CLOUD_PROJECT") || (p.Mock && p.Execute) {
 		return proposal{}, fmt.Errorf("binding")
 	}
-	p.ExpectedRevision = revision
 	for _, alias := range []string{"GCLOUD_PROJECT", "GCP_PROJECT", "FIREBASE_PROJECT_ID", "CLOUDSDK_CORE_PROJECT"} {
 		if value := get(alias); value != "" && value != p.Project {
 			return proposal{}, fmt.Errorf("project alias")
@@ -91,6 +101,25 @@ func parse(args []string, get func(string) string) (proposal, error) {
 			return proposal{}, fmt.Errorf("live configuration")
 		}
 	}
+	if humanAction(p.Action) {
+		if p.RequestFile == "" || !intakePurpose(p.Purpose) {
+			return proposal{}, fmt.Errorf("intake")
+		}
+		for key := range values {
+			if key != "--action" && key != "--environment" && key != "--project" && key != "--purpose" && key != "--request-file" {
+				return proposal{}, fmt.Errorf("intake")
+			}
+		}
+		return p, nil
+	}
+	if p.Mock || p.RequestFile != "" {
+		return proposal{}, fmt.Errorf("action")
+	}
+	revision, err := strconv.ParseInt(values["--expected-revision"], 10, 64)
+	if err != nil || revision < 0 || !opaque.MatchString(p.RequestRef) || !opaque.MatchString(p.ProofRef) || !opaque.MatchString(p.OperationID) {
+		return proposal{}, fmt.Errorf("binding")
+	}
+	p.ExpectedRevision = revision
 	switch p.Action {
 	case "reply":
 		if p.Purpose != mypage.SupportDelete && p.Purpose != mypage.SupportRevoke && p.Purpose != mypage.SupportDisclosure {
@@ -112,23 +141,31 @@ func parse(args []string, get func(string) string) (proposal, error) {
 	return p, nil
 }
 
-func privateReply(path string) error {
+func privateFile(path string, limit int64) ([]byte, error) {
 	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 || info.Size() < 1 || info.Size() > 2000 {
-		return fmt.Errorf("private file")
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 || info.Size() < 1 || info.Size() > limit {
+		return nil, fmt.Errorf("private file")
 	}
 	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
-		return fmt.Errorf("private file")
+		return nil, fmt.Errorf("private file")
 	}
 	defer f.Close() //nolint:errcheck // Read-only close; never expose filesystem diagnostics.
 	opened, err := f.Stat()
 	if err != nil || !opened.Mode().IsRegular() || opened.Mode().Perm() != 0o600 || !os.SameFile(info, opened) {
-		return fmt.Errorf("private file")
+		return nil, fmt.Errorf("private file")
 	}
-	data, err := io.ReadAll(io.LimitReader(f, 2001))
-	if err != nil || len(data) < 1 || len(data) > 2000 {
-		return fmt.Errorf("private file")
+	data, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil || len(data) < 1 || int64(len(data)) > limit {
+		return nil, fmt.Errorf("private file")
+	}
+	return data, nil
+}
+
+func privateReply(path string) error {
+	data, err := privateFile(path, 2000)
+	if err != nil {
+		return err
 	}
 	// Validation stays local; neither the body nor raw errors reach output.
 	body := string(data)
@@ -144,6 +181,12 @@ func privateReply(path string) error {
 }
 
 func command(args []string, get func(string) string, out io.Writer) int {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return commandWithIntake(ctx, args, get, out, mockIntakeFactory)
+}
+
+func commandWithIntake(ctx context.Context, args []string, get func(string) string, out io.Writer, factory intakeFactory) int {
 	r := report{Mode: "preview", Status: "refused", Code: "INVALID_INPUT", ReadOnly: true, ActualExecution: false}
 	finish := func(code int) int {
 		if json.NewEncoder(out).Encode(r) != nil {
@@ -158,9 +201,29 @@ func command(args []string, get func(string) string, out io.Writer) int {
 	if p.Action == "reply" && privateReply(p.ReplyFile) != nil {
 		return finish(2)
 	}
+	var input humanRequest
+	if humanAction(p.Action) {
+		input, err = readHumanRequest(p.RequestFile, p.Action)
+		if err != nil {
+			return finish(2)
+		}
+	}
 	if p.Execute {
 		r.Mode, r.Code, r.Status = "execute", "TRUSTED_OPERATOR_ADAPTER_UNAVAILABLE", "blocked"
 		return finish(1)
+	}
+	if p.Mock {
+		r.Mode, r.Status, r.Code, r.ReadOnly = "mock", "blocked", "MOCK_TARGET_REQUIRED", false
+		if !fixedMockIntake(p, input) {
+			return finish(2)
+		}
+		r.Code = runHumanIntake(ctx, p, input, factory)
+		if r.Code != "MOCK_AWAITING_PROOF" && r.Code != "MOCK_RECEIPT_MATCHED" {
+			return finish(1)
+		}
+		r.Status = "mock-only"
+		r.ReadOnly = p.Action == "inspect"
+		return finish(0)
 	}
 	r.Status, r.Code = "proposal-valid", "READ_ONLY_PREVIEW"
 	return finish(0)

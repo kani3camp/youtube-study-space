@@ -51,6 +51,16 @@ Registry の未注入 scope は常に unavailable。legacy mapping の逆/重複
 
 [synthetic derived/vendor adapter](support-delete-derived-adapter.md) adds exact object/owner/disposition inventory, temporary execution-bound state, stable mutation identity and synthetic readback. The actual OpenAI response and Discord message IDs are not stored by the inspected writers, so live attribution and disposal remain blocked. D02's no-refresh-token/no-polling design choice was settled on 2026-10-09, while its policy compliance and treatment of retained API data after cancellation remain unconfirmed. D03 public values remain undecided; this package supplies no proxy decision or public value.
 
+## Synthetic Registry と開始前 assembly
+
+[Registry](../../system/core/supportdelete/registry.go)はtrusted fixtureから渡された接続を開始前に検査する。runtime 2件とdeletion 11件、既存29 stepの必要actionがすべてあり、scope重複・未知action・欠落・nil/typed-nil adapter・target/mode不一致がない場合だけ、privateな接続mapへコピーする。呼出し元の登録slice/actionを書き換えても選択済みadapterは変わらない。adapter内部のmutable stateを複製・静止する機能ではなく、各adapter自身のguard/fenceを必要とする。
+
+[PrepareDeletion](../../system/core/supportdelete/prepare.go)は独立した合成catalogとselector/manifestを照合し、Registry検査後だけ明示注入されたStore factoryを呼ぶ。不足時はfactory/Acquire/recovery/effectを実行しない。prepare成功自体もproof claimや削除ではない。manifestのRefはtrusted fixtureが供給し、このsource inventory JSONやoperator入力からlive証跡を発行しない。`development`の`demo-` projectと`mock`/`emulator`に限り、`live`は完全なfake接続でも拒否する。SDK constructor、ADC discovery、実endpoint選択は追加しない。注入factoryのclient lifetimeはcallerが管理する。
+
+戻るPreparedDeletionはselector/manifest/接続を公開変更可能にせず、Runと明示Recoverを同じbound executionへ限定する。同一assemblyの同時呼出しはbusyで拒否する。このprocess内lockはfleet停止・drainの証拠ではない。Recoverのproposalだけではownerを移さず、Storeがstopped traceとdurable revision/generationを検査した後だけownerを更新する。Recoverのtimeout/ACK喪失は未確認として返し、ownerが移ったと推測しない。明示した新ownerの同一bindingで別assemblyを作り、authoritativeなAcquireの結果で再開可否を確認する。
+
+RunMockの通常fixtureとstopped-worker fixtureは両方この経路で組み立てる。既存29 step、stable operation ID、acceptedAtからの7日、proof/generation/checkpoint、再開後の正当な新規data保護はEngine/Storeの既存契約を維持する。CLI schema/flags/reportは変更せず、`--execute`はSDK/bootstrapやmock runnerへ到達せず従来の`LIVE_ADAPTERS_UNAVAILABLE`で拒否する。live catalog発行、operator削除権限、全fleetと各実storeのadapterは未接続のまま。
+
 ## offline CLI
 
 `MYPAGE_ENVIRONMENT` と `GOOGLE_CLOUD_PROJECT` を明示する。alias project env に不一致がある場合や live credential/endpoint env がある場合は拒否する。対象を stdin または exact 0600 regular file の `--manifest` で渡す。最終 symlink/FIFO、16 KiB 超過、duplicate / case-variant / unknown / missing JSON field、確認の不一致を拒否する。report に target、ref、path、raw error は出力しない。
