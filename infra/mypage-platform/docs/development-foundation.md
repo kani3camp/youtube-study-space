@@ -22,6 +22,7 @@ MyPage統合PR [#1236](https://github.com/kani3camp/youtube-study-space/pull/123
 - 専用Stateの実objectをAWS側から独立確認し、version IDあり・AES256暗号化・metadata Apply後の`.tflock`解放を確認した。State本文・bucket/account/role ID・WIF番号・HMAC keyを公開記録へ載せていない。
 - 8資源へ進む最初の[run 39453504555](https://github.com/kani3camp/youtube-study-space/actions/runs/39453504555)はPlan guardで停止し、Applyはskipした。#1407の安全な検査labelを用いた[run 39454711022](https://github.com/kani3camp/youtube-study-space/actions/runs/39454711022)で`resource-drift`と特定した。
 - S3 Stateのmetadata 4資源だけを一時的なlocal Stateへ複製し、同一ソース/固定providerで**read-only Planのみ**を実行した。3 Secretの`annotations` / `labels` / `version_aliases`が`null`→`{}`へrefreshされることを、値を出さずに属性名と形だけで確認した。一時State/Planは終了時に削除し、S3 StateへのwriteやApplyは行っていない。
+- #1408統合後の[run 39456968440](https://github.com/kani3camp/youtube-study-space/actions/runs/39456968440)では両identityのnative Plan guardが**8 resources / 4 creates**に成功したが、独立PlanのHMAC不一致でApplyをskipした。同一Stateを使った複数のread-only native Planを値なしで比較し、`relevant_attributes`の順序だけが変わることを再現した。
 
 ### Bootstrap権限の所有範囲
 
@@ -66,6 +67,6 @@ GCP権限は実inventoryと公式role catalogで確認してから設定する�
 
 refresh差分は原則拒否する。唯一、上記3 Secretの`annotations` / `labels` / `version_aliases`だけの`null`→空mapへの表現正規化を、同じ資源の予定操作が**no-op**の場合だけ許可する。before/afterのfield集合は同一、他fieldの差分なし、unknown/import/replaceなしを要求する。非空mapの追加・消去、逆方向、別資源、IAM/replication/project等の差分、Terraform writeを伴う場合は停止する。この差分をPlanから取り除かず、独立Plan比較のHMACにも含め、許可件数だけを公開ログへ出す。
 
-Plan/Apply jobは別identityでそれぞれnative Planを保存し、全Plan（生成timestampのみ除外）・source SHA・S3 State versionのHMAC一致と30分以内を条件に、Apply job自身が保存したPlanだけを適用する。HMACはGitHub expression内で比較し、生Plan/State/targetはlog/artifactへ出さない。raw evidenceはrunnerのprivate directoryへ置き、成功・失敗の両方で削除する。
+Plan/Apply jobは別identityでそれぞれnative Planを保存し、全Plan・source SHA・S3 State versionのHMAC一致と30分以内を条件に、Apply job自身が保存したPlanだけを適用する。生成timestampだけを除外し、順序に意味を持たないdependency source一覧`relevant_attributes`だけは、全entryの内容・件数・重複を保持したまま整列する（[Terraform JSON format](https://developer.hashicorp.com/terraform/internals/json-format)）。配列を一律にsortせず、action sequence、attribute path、before/afterの値、drift、unknown、その他のPlan fieldは引き続き照合する。HMACはGitHub expression内で比較し、生Plan/State/targetはlog/artifactへ出さない。raw evidenceはrunnerのprivate directoryへ置き、成功・失敗の両方で削除する。
 
 Apply後はStateに選択段階の4件または8件だけが存在することをreadbackする。GCP実物のIAM/Secret metadataも別途readbackし、その証跡を残す。これだけではRuntime起動、公開Ready、実OAuthの成立を示さない。次はSecretの安全な投入と固定version、digest固定image、App Check/Auth/Hosting inventoryを確認し、別のRuntime段階へ進む。
