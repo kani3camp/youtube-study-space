@@ -147,13 +147,16 @@ def production_references(values, project, project_number=None):
             # IAM allows '-' only for an unambiguous SA email in this project.
             if identifier == "-":
                 suffix = values[found.end():]
-                need(re.match(r"/serviceAccounts/[A-Za-z0-9._-]+@" + re.escape(project) +
-                              r'''\.iam\.gserviceaccount\.com(?:$|[/\s"'])''', suffix))
+                # Require an email; the ownership check below also covers the
+                # App Engine default account's project-ID local part.
+                need(re.match(r"/serviceAccounts/[A-Za-z0-9._-]+@[A-Za-z0-9.-]+" +
+                              r'''\.gserviceaccount\.com(?:$|[/\s"'])''', suffix))
             else:
                 need(identifier in aliases)
         for email in re.findall(r"[A-Za-z0-9._-]+@[A-Za-z0-9.-]+\.gserviceaccount\.com", values):
             local, domain = email.split("@")
-            if domain in {project + ".iam.gserviceaccount.com", project + ".appspot.gserviceaccount.com"}:
+            if (domain == project + ".iam.gserviceaccount.com"
+                    or (domain == "appspot.gserviceaccount.com" and local == project)):
                 continue
             if project_number is not None:
                 if domain in {"developer.gserviceaccount.com", "cloudservices.gserviceaccount.com"}:
@@ -580,7 +583,11 @@ def output_commitments(env, tfvars, before, plan_json, key, *, include_time=Fals
 def initial_production_noop(env, before, value, counts):
     if env['NORMAL_TARGET'] != 'prod' or env['NORMAL_MODE'] != 'normal-plan':
         return False
-    return (len(before['state']['resources']) == 30
+    # Native State groups for_each/count instances under one resource block.
+    managed = sum(len(resource.get('instances', []))
+                  for resource in before['state']['resources']
+                  if resource.get('mode') == 'managed')
+    return (managed == 30
             and sum(item.get('mode') == 'managed' for item in value.get('resource_changes', [])) == 30
             and counts['no-op'] == 30 and sum(counts.values()) == 30
             and all(c.get('actions') == ['no-op'] for c in value.get('output_changes', {}).values()))
