@@ -16,6 +16,7 @@ TARGETS = (
     "system/AI_COLLABORATION_GUIDE.md",
     "youtube-monitor/README.md",
     "system/README.md",
+    "aws-cdk/README.md",
     "firebase/README.md",
     "docs-site/README.md",
     "docs/development/architecture.md",
