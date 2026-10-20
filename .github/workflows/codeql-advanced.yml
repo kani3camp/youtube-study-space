@@ -1,4 +1,4 @@
-# Staged-disabled source. Enabling either analysis gate requires separate approval.
+# Same-tree CodeQL analysis uses a fixed secretless Environment in the callee.
 name: CodeQL Advanced
 
 on:
@@ -14,7 +14,7 @@ on:
     - cron: "23 4 * * 1"
   workflow_dispatch:
 
-# No workflow-wide grant. Planned analysis permissions live only on the skipped job.
+# No workflow-wide grant. Analysis permissions remain bounded to the job.
 permissions: {}
 
 concurrency:
@@ -24,8 +24,6 @@ concurrency:
 jobs:
   analyze:
     name: CodeQL
-    # Applies to dispatch, push, PR, and schedule. No inputs can enable this job.
-    if: ${{ false }}
     uses: ./.github/workflows/codeql-analyzer.yml
     permissions:
       contents: read

@@ -1,0 +1,6 @@
+# Default; no resources created. Do not put secret values in Terraform variables.
+stage = "disabled"
+
+# Later, after exact target / state / IAM review: "foundation",
+# "runtime_private" or "runtime_public". Populate runtime_settings from
+# reviewed private/public identifiers and PINNED secret VERSION NUMBERS only.
