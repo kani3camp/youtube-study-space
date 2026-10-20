@@ -45,6 +45,7 @@ locals {
   deploy_api        = contains(["runtime_private", "runtime_public"], var.stage)
   public_api        = var.stage == "runtime_public"
   runtime_principal = "serviceAccount:${google_service_account.runtime.email}"
+  max_instances     = var.environment == "development" ? 1 : 3
 }
 
 # These resources are created only when the caller leaves the default disabled
@@ -150,7 +151,7 @@ resource "google_cloud_run_v2_service" "api" {
 
     scaling {
       min_instance_count = 0
-      max_instance_count = 2
+      max_instance_count = local.max_instances
     }
 
     containers {
@@ -276,4 +277,9 @@ output "service_name" {
 
 output "service_url" {
   value = local.deploy_api ? google_cloud_run_v2_service.api[0].uri : null
+}
+
+# Enforce the environment-specific capacity bounds from Security Current Canon.
+output "max_instances" {
+  value = local.max_instances
 }
