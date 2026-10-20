@@ -44,7 +44,7 @@ class Contracts(unittest.TestCase):
     def observation_fixture(self):
         address = 'module.table[0].google_bigquery_table.retained'
         old = {'project': ops.PROJECT, 'id': 'fixture', 'etag': 'old',
-               'last_modified_time': 1, 'num_bytes': 0, 'num_long_term_bytes': 0,
+               'creation_time': 0, 'last_modified_time': 1, 'num_bytes': 0, 'num_long_term_bytes': 0,
                'num_rows': 0, 'schema': CANARY}
         refreshed = old | {'etag': 'new', 'last_modified_time': 2,
                            'num_bytes': 128, 'num_long_term_bytes': 64, 'num_rows': 1}
@@ -61,7 +61,7 @@ class Contracts(unittest.TestCase):
         schema = {'format_version': '1.0', 'provider_schemas': {'registry.terraform.io/hashicorp/google': {
             'resource_schemas': {'google_bigquery_table': {'version': 0, 'block': {
                 'attributes': {k: {'computed': True, 'type': 'string'}
-                               for k in ops.NORMAL_OBSERVATIONS}}}}}}}
+                               for k in (ops.NORMAL_OBSERVATIONS | {'creation_time'})}}}}}}}
         return p, state, schema
 
     def test_computed_observations_require_exact_native_state_and_refreshed_plan(self):
