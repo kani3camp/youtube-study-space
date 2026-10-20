@@ -19,9 +19,13 @@ SECRET_IDS = dict(zip(SECRETS, ("mypage-oauth-client-id", "mypage-oauth-client-s
 CLAIM_KEYS = ("repository_id", "repository_owner_id", "environment", "ref", "workflow_ref", "job_workflow_ref", "event_name")
 
 
-def need(value):
+class ContractError(ValueError):
+    """Only fixed source-defined check labels; never include rejected values."""
+
+
+def need(value, check="contract"):
     if not value:
-        raise ValueError("MyPage foundation contract rejected")
+        raise ContractError(check)
 
 
 def canonical(value):
@@ -107,34 +111,38 @@ def has_unknown(value):
 
 
 def validate_plan(plan, stage="foundation"):
-    need(plan.get("format_version") == "1.2" and plan.get("complete") is True and plan.get("errored") is False)
-    need(not plan.get("resource_drift") and not plan.get("deferred_changes"))
-    need(not plan.get("action_invocations") and not plan.get("deferred_action_invocations"))
-    need(all(item.get("status") == "pass" for item in plan.get("checks", []) or []))
-    need(plan.get("variables", {}).get("stage", {}).get("value") == stage)
+    need(plan.get("format_version") == "1.2", "plan-format")
+    need(plan.get("complete") is True, "plan-complete")
+    need(plan.get("errored") is False, "plan-errored")
+    need(not plan.get("resource_drift"), "resource-drift")
+    need(not plan.get("deferred_changes"), "deferred-changes")
+    need(not plan.get("action_invocations") and not plan.get("deferred_action_invocations"), "provider-actions")
+    need(all(item.get("status") == "pass" for item in plan.get("checks", []) or []), "plan-checks")
+    need(plan.get("variables", {}).get("stage", {}).get("value") == stage, "plan-stage")
     contract, seen = resource_contract(stage), set()
     for item in plan.get("resource_changes", []):
         address = item.get("address")
-        need(address in contract and address not in seen and item.get("mode") == "managed")
+        need(address in contract and address not in seen and item.get("mode") == "managed", "resource-address-mode")
         seen.add(address)
-        need(item.get("provider_name") == "registry.terraform.io/hashicorp/google")
+        need(item.get("provider_name") == "registry.terraform.io/hashicorp/google", "resource-provider")
         change = item["change"]
-        need(change.get("actions") in [["create"], ["no-op"]] and not change.get("importing") and not change.get("replace_paths"))
+        need(change.get("actions") in [["create"], ["no-op"]] and not change.get("importing") and not change.get("replace_paths"), "resource-action")
         after = change.get("after")
-        need(type(after) is dict and not after.get("condition"))
+        need(type(after) is dict and not after.get("condition"), "resource-after-condition")
         for key, value in contract[address].items():
             if key == "replication":
                 # Auto replication only; provider versions may omit empty lists.
                 replication = after.get(key)
-                need(type(replication) is list and len(replication) == 1)
-                need(not replication[0].get("user_managed") and len(replication[0].get("auto", [])) == 1)
-                need(not replication[0]["auto"][0].get("customer_managed_encryption"))
+                need(type(replication) is list and len(replication) == 1, "secret-replication")
+                need(not replication[0].get("user_managed") and len(replication[0].get("auto", [])) == 1, "secret-auto-replication")
+                need(not replication[0]["auto"][0].get("customer_managed_encryption"), "secret-encryption")
             else:
-                need(after.get(key) == value)
-            need(not has_unknown(change.get("after_unknown", {}).get(key)))
+                # key is from the fixed resource contract, never the Plan.
+                need(after.get(key) == value, "resource-value-" + key)
+            need(not has_unknown(change.get("after_unknown", {}).get(key)), "resource-unknown-" + key)
         if address.endswith("google_service_account.runtime"):
-            need(after.get("disabled") in {None, False})
-    need(seen == set(contract))
+            need(after.get("disabled") in {None, False}, "runtime-disabled")
+    need(seen == set(contract), "resource-set")
     return {"resources": len(seen), "creates": sum(x["change"]["actions"] == ["create"] for x in plan["resource_changes"])}
 
 

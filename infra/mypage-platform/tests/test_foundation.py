@@ -1,6 +1,8 @@
 """Observable admission, native Plan and isolated backend permission boundaries."""
 from copy import deepcopy
+from contextlib import redirect_stderr
 import importlib.util
+import io
 import json
 from pathlib import Path
 import sys
@@ -23,6 +25,18 @@ def plan_fixture():
 
 
 class FoundationTest(unittest.TestCase):
+    def test_rejected_plan_values_never_enter_public_diagnostics(self):
+        plan = plan_fixture()
+        private = 'private-project-and-secret-payload-marker'
+        plan['resource_changes'][0]['change']['after']['project'] = private
+        output = io.StringIO()
+        with patch.object(sys, 'argv', ['foundation_ops.py', 'execute']), \
+                patch.object(ops, 'prepare', side_effect=lambda env: c.validate_plan(plan)), \
+                redirect_stderr(output):
+            self.assertEqual(ops.main(), 1)
+        self.assertIn('check=resource-value-project', output.getvalue())
+        self.assertNotIn(private, output.getvalue())
+
     def test_only_eight_expected_private_resources_are_admitted(self):
         self.assertEqual(c.validate_plan(plan_fixture()), {'resources': 8, 'creates': 8})
         changes = plan_fixture()['resource_changes']
