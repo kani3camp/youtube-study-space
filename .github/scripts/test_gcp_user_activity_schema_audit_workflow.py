@@ -177,7 +177,9 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
         self.assertIn("gcp_user_activity_schema_audit:", self.caller)
         self.assertIn("inputs.gcp_user_activity_schema_audit == true", self.caller)
         self.assertIn("uses: ./.github/workflows/gcp-user-activity-schema-audit.yml", self.caller)
-        call = self.caller.split("  gcp-user-activity-schema-audit:\n", 1)[1].split("\n  ci-gate:\n", 1)[0]
+        # Stop at any next top-level job; another operation must not make this
+        # audit appear to inherit that operation's unrelated secrets.
+        call = re.split(r"\n  [a-z][a-z0-9-]*:\n", self.caller.split("  gcp-user-activity-schema-audit:\n", 1)[1], maxsplit=1)[0]
         expected = {"GCP_TERRAFORM_WIF_PROVIDER", "GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT"}
         declared = self.text.split("    secrets:\n", 1)[1].split("\npermissions:", 1)[0]
         self.assertEqual(set(re.findall(r"^      ([A-Z_]+):$", declared, re.MULTILINE)), expected)

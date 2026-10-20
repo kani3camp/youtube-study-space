@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'infra/mypage-platform/**'
+      - '.github/workflows/mypage-foundation-authenticated.yml'
       - '.github/workflows/mypage-platform.yml'
       - '.github/scripts/detect-ci-paths.sh'
       - '.github/scripts/test-detect-ci-paths.sh'

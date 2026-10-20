@@ -88,6 +88,16 @@ class GateResultsTest(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 gate.validate(needs, bad)
 
+    def test_requested_foundation_cannot_skip_or_fail(self):
+        needs = self.fixture()
+        with self.assertRaises(ValueError):
+            gate.validate(needs, 'false', 'true')
+        needs['mypage-foundation-authenticated']['result'] = 'success'
+        gate.validate(needs, 'false', 'true')
+        for bad in ('', 'TRUE', '1'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                gate.validate(needs, 'false', bad)
+
     def test_real_gate_entrypoint_returns_nonzero_on_bad_or_missing_json(self):
         for payload, expected in ((json.dumps(self.fixture()), 0), ('{}', 1), ('not-json', 1), ('[]', 1)):
             env = dict(os.environ, CI_NEEDS=payload, CI_SCHEMA_AUDIT_REQUESTED='false')

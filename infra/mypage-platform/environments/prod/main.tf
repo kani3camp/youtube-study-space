@@ -22,7 +22,7 @@ variable "stage" {
   type        = string
   default     = "disabled"
   validation {
-    condition     = contains(["disabled", "foundation", "runtime_private", "runtime_public"], var.stage)
+    condition     = contains(["disabled", "foundation_metadata", "foundation", "runtime_private", "runtime_public"], var.stage)
     error_message = "Invalid MyPage stage."
   }
 }
