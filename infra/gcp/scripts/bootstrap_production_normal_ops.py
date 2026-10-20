@@ -309,6 +309,65 @@ def verify_pool_providers(number, expected):
         verify_provider(providers[0])
 
 
+def policy_analysis_scope(number):
+    ancestors = gcloud("projects", "get-ancestors", PROJECT)
+    need(type(ancestors) is list and ancestors
+         and ancestors[0].get("type") == "project"
+         and str(ancestors[0].get("id")) in (PROJECT, str(number)))
+    for ancestor in ancestors[1:]:
+        need(ancestor.get("type") in ("folder", "organization")
+             and re.fullmatch(r"[0-9]+", str(ancestor.get("id"))) is not None)
+    root = ancestors[-1]
+    return root["type"], str(root["id"])
+
+
+def verify_effective_grants(response, member, scope, approved, required):
+    """Accept only fully explored, unconditioned grants at exact resources."""
+    need(type(response) is dict and response.get("fullyExplored") is True)
+    main = response.get("mainAnalysis", {})
+    need(main.get("fullyExplored") is True and not main.get("nonCriticalErrors"))
+    query = main.get("analysisQuery", {})
+    need(query.get("scope") == scope
+         and query.get("identitySelector") == {"identity": member}
+         and query.get("options", {}).get("expandGroups") is True
+         and not query.get("resourceSelector") and not query.get("accessSelector"))
+    results = main.get("analysisResults", [])
+    need(type(results) is list)
+    observed = set()
+    for result in results:
+        need(result.get("fullyExplored") is True)
+        binding = result.get("iamBinding", {})
+        role = binding.get("role")
+        need("condition" not in binding and member in binding.get("members", [])
+             and role in approved
+             and result.get("attachedResourceFullName") in approved[role])
+        observed.add(role)
+    need(required <= observed)
+
+
+def audit_effective_grants(email, scope, approved, required=frozenset()):
+    kind, identifier = scope
+    member = "serviceAccount:" + email
+    response = dev.run(["gcloud", "asset", "analyze-iam-policy", "--" + kind + "=" + identifier,
+                        "--billing-project=" + PROJECT, "--identity=" + member,
+                        "--expand-groups", "--show-response", "--format=json", "--quiet"])
+    verify_effective_grants(response, member, kind + "s/" + identifier, approved, required)
+
+
+def allowed_account_grants(number, kind, runtime=None):
+    role = f"projects/{PROJECT}/roles/terraformNormal" + kind.title()
+    approved = {role: {"//cloudresourcemanager.googleapis.com/projects/" + value
+                       for value in (PROJECT, str(number))}}
+    if kind == "apply" and runtime is not None:
+        email = "terraform-prod-workload@" + PROJECT + ".iam.gserviceaccount.com"
+        verify_account(runtime, email)
+        identifiers = {email, runtime.get("uniqueId", email)}
+        approved["roles/iam.serviceAccountUser"] = {
+            f"//iam.googleapis.com/projects/{project}/serviceAccounts/{identity}"
+            for project in (PROJECT, str(number)) for identity in identifiers}
+    return approved
+
+
 def bootstrap(number, allowed, *, enable_apply=False, check=False):
     kinds = ("plan", "apply") if enable_apply else ("plan",)
     # Validate *all existing* target resources before writing anything. A
@@ -364,6 +423,15 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
                          {approved_grant} if kind in kinds else set())
         accounts[kind] = (email, exists, principal, approved_grant, project_role)
 
+    # Analyze from the highest ancestor so resource-level, inherited and
+    # group-derived grants cannot bypass the narrow Project policy check.
+    scope = policy_analysis_scope(number)
+    audit_effective_grants(runtime, scope, {})
+    for kind, (email, _, _, _, project_role) in accounts.items():
+        approved = allowed_account_grants(number, kind, runtime_exists if enable_apply else None) if kind in kinds else {}
+        required = {project_role} if check_project_grants(project_policy, "serviceAccount:" + email, project_role) else set()
+        audit_effective_grants(email, scope, approved, required)
+
     if check:
         return
 
@@ -398,6 +466,8 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
     if enable_apply:
         wait_for_account(runtime)
         verify_no_user_keys(runtime)
+        runtime_exists = gcloud("iam", "service-accounts", "describe", runtime)
+        audit_effective_grants(runtime, scope, {})
 
     for kind in kinds:
         account, exists, principal, approved_grant, project_role = accounts[kind]
@@ -426,6 +496,8 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
                        "--member=" + member, "--role=roles/iam.serviceAccountUser")
             need(check_policy(gcloud("iam", "service-accounts", "get-iam-policy", runtime),
                               {runtime_grant}) == {runtime_grant})
+        required = {project_role} | ({"roles/iam.serviceAccountUser"} if kind == "apply" else set())
+        audit_effective_grants(account, scope, allowed_account_grants(number, kind, runtime_exists), required)
         env = "terraform-prod-" + kind
         dev.run(["gh", "secret", "set", "GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT",
                  "--repo", REPO, "--env", env], data=account)

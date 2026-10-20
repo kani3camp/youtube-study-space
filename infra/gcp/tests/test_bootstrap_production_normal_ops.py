@@ -245,6 +245,67 @@ class ProductionBootstrap(unittest.TestCase):
             with self.subTest(account=account), self.assertRaises(ValueError):
                 prod.verify_account(account, email)
 
+    def test_effective_grants_reject_resource_inherited_group_and_partial_results(self):
+        email = "terraform-prod-normal-plan@" + prod.PROJECT + ".iam.gserviceaccount.com"
+        member = "serviceAccount:" + email
+        role = "projects/" + prod.PROJECT + "/roles/terraformNormalPlan"
+        resource = "//cloudresourcemanager.googleapis.com/projects/" + prod.PROJECT
+        result = {"fullyExplored": True, "attachedResourceFullName": resource,
+                  "iamBinding": {"role": role, "members": [member]}}
+        response = {"fullyExplored": True, "mainAnalysis": {"fullyExplored": True,
+                    "analysisQuery": {"scope": "projects/" + prod.PROJECT,
+                                      "identitySelector": {"identity": member},
+                                      "options": {"expandGroups": True}},
+                    "analysisResults": [result]}}
+        approved = prod.allowed_account_grants("12345", "plan")
+        prod.verify_effective_grants(response, member, "projects/" + prod.PROJECT, approved, {role})
+        for change in (
+            {"iamBinding": {"role": "roles/secretmanager.secretAccessor", "members": [member]},
+             "attachedResourceFullName": "//secretmanager.googleapis.com/projects/12345/secrets/private"},
+            {"iamBinding": {"role": "roles/owner", "members": [member]},
+             "attachedResourceFullName": "//cloudresourcemanager.googleapis.com/folders/456"},
+            {"iamBinding": {"role": role, "members": ["group:operators@example.com"]}},
+            {"iamBinding": {"role": role, "members": [member], "condition": {"expression": "false"}}},
+            {"fullyExplored": False},
+        ):
+            changed = deepcopy(response)
+            changed["mainAnalysis"]["analysisResults"] = [result | change]
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                prod.verify_effective_grants(changed, member, "projects/" + prod.PROJECT, approved, {role})
+        for change in ({"fullyExplored": False}, {"analysisResults": []},
+                       {"nonCriticalErrors": [{"code": "PERMISSION_DENIED"}]}):
+            changed = deepcopy(response)
+            changed["mainAnalysis"].update(change)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                prod.verify_effective_grants(changed, member, "projects/" + prod.PROJECT, approved, {role})
+
+    def test_ancestor_inventory_uses_highest_scope_before_any_write(self):
+        calls = []
+        def gcloud(*args, missing=False):
+            calls.append(args)
+            if args[:2] == ("projects", "get-ancestors"):
+                return [{"type": "project", "id": prod.PROJECT},
+                        {"type": "folder", "id": "456"}, {"type": "organization", "id": "789"}]
+            if args[:2] == ("projects", "get-iam-policy"):
+                return {"bindings": []}
+            if "describe" in args:
+                return None
+            raise AssertionError("unexpected mutation " + repr(args))
+        def run(args, **kwargs):
+            self.assertIn("--organization=789", args)
+            self.assertNotIn("--project=" + prod.PROJECT, args)
+            member = next(x.split("=", 1)[1] for x in args if x.startswith("--identity="))
+            return {"fullyExplored": True, "mainAnalysis": {"fullyExplored": True,
+                    "analysisQuery": {"scope": "organizations/789", "identitySelector": {"identity": member},
+                                      "options": {"expandGroups": True}},
+                    "analysisResults": [{"fullyExplored": True,
+                        "attachedResourceFullName": "//secretmanager.googleapis.com/projects/12345/secrets/private",
+                        "iamBinding": {"role": "roles/secretmanager.secretAccessor", "members": [member]}}]}}
+        with patch.object(prod, "gcloud", side_effect=gcloud), \
+             patch.object(prod.dev, "run", side_effect=run), self.assertRaises(ValueError):
+            prod.bootstrap("12345", {"plan": [], "apply": []})
+        self.assertFalse(any("create" in a or "add-iam-policy-binding" in a for a in calls))
+
     def test_new_account_readback_retries_only_absence_and_is_bounded(self):
         email = "terraform-prod-normal-plan@" + prod.PROJECT + ".iam.gserviceaccount.com"
         with patch.object(prod, "gcloud", side_effect=[None, None, {"email": email}]) as read, \
@@ -428,6 +489,8 @@ class ProductionBootstrap(unittest.TestCase):
         def gh(endpoint):
             return {"secrets": [{"name": key} for key in ("GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT", "GCP_TERRAFORM_NORMAL_WIF_PROVIDER")]}
         with patch.object(prod, "gcloud", side_effect=gcloud), patch.object(prod, "gh", side_effect=gh), \
+             patch.object(prod, "policy_analysis_scope", return_value=("project", prod.PROJECT)), \
+             patch.object(prod, "audit_effective_grants"), \
              patch.object(prod.dev, "run") as run:
             prod.bootstrap("12345", {"plan": [], "apply": []})
             self.assertEqual(len(run.call_args_list), 2)
