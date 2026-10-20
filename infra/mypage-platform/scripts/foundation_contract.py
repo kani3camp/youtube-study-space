@@ -40,7 +40,10 @@ def trust_policy(account, kind):
         "Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity",
         "Principal": {"Federated": f"arn:aws:iam::{account}:oidc-provider/token.actions.githubusercontent.com"},
         "Condition": {"StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                                        "token.actions.githubusercontent.com:sub": subject(kind)}},
+                                        "token.actions.githubusercontent.com:sub": subject(kind),
+                                        # Enforce the immutable actor at STS too; a
+                                        # workflow-local check alone is mutable.
+                                        "token.actions.githubusercontent.com:actor_id": "54093651"}},
     }]}
 
 
