@@ -39,6 +39,7 @@ variable "runtime_settings" {
     oauth_client_id_version     = string
     oauth_client_secret_version = string
     youtube_api_key_version     = string
+    history_coverage_json       = optional(string, "")
   })
   default = {
     image_digest                = ""
@@ -50,6 +51,14 @@ variable "runtime_settings" {
     oauth_client_id_version     = ""
     oauth_client_secret_version = ""
     youtube_api_key_version     = ""
+  }
+
+  validation {
+    condition = var.runtime_settings.history_coverage_json == "" || (
+      length(var.runtime_settings.history_coverage_json) <= 16384 &&
+      can(tolist(jsondecode(var.runtime_settings.history_coverage_json)))
+    )
+    error_message = "History coverage must be absent or an at-most-16KiB JSON array of reviewed intervals."
   }
 
   validation {

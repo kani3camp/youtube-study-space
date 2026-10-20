@@ -31,7 +31,9 @@ Rootの `stage = "disabled"` が既定で、**Module count=0／新GCP resource=0
 | `runtime_private` | 上記 + `roles/datastore.user` の新SAに対する**additive project IAM member** + Cloud Run v2 API本体 | Cloud Runの `allUsers` invoker、Hosting公開、scheduler/alert |
 | `runtime_public` | 上記 + 当該Cloud Runサービスだけに `roles/run.invoker` / `allUsers` memberを追加 | ログイン必須APIのID token/App Check免除、一般告知 |
 
-Cloud Runは `mypage-api`、専用SA/ADC、`min_instance_count=0`、`max_instance_count=1`（Dev）/ `3`（Production）、CPU 1 / RAM 512Mi、port 8080、30秒timeout。Revision imageは**Artifact Registry digest固定**（`@sha256:...`）、tagやlatestで不用意に差し替えない。実費は起動回数、Secret Manager、ログ量、API呼出等で変わるため、**未計測で月額1ドル未満と断定しない**。<https://cloud.google.com/run/pricing> と <https://cloud.google.com/secret-manager/pricing> を参考に実target/estimateを別途レビューする。
+Cloud Runは `mypage-api`、専用SA/ADC、`min_instance_count=0`、`max_instance_count=1`（Dev）/ `3`（Production）、CPU 1 / RAM 512Mi、port 8080、30秒timeout。
+
+作業履歴の完全性は実データの確認済み区間だけで宣言する。`runtime_settings.history_coverage_json` は**既定が空文字の任意設定**で、空文字ならCloud Runに`MYPAGE_HISTORY_COVERAGE`は存在しない。指定する場合は最大16KiBのJSON配列を渡し、Goの[厳格parser](../../system/cmd/mypage-server/coverage.go)がUTC時刻・順序・重複・上限を起動前に検証する。`[]`や未指定は完全な履歴を表さない。実際のwriterと履歴のRead-only inventoryに基づく区間以外は指定せず、実Deploy/rollbackの設定値と欠損の扱いを照合する。Revision imageは**Artifact Registry digest固定**（`@sha256:...`）、tagやlatestで不用意に差し替えない。実費は起動回数、Secret Manager、ログ量、API呼出等で変わるため、**未計測で月額1ドル未満と断定しない**。<https://cloud.google.com/run/pricing> と <https://cloud.google.com/secret-manager/pricing> を参考に実target/estimateを別途レビューする。
 
 ### Secret / IAM境界
 

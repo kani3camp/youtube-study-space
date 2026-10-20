@@ -38,6 +38,7 @@ variable "runtime_settings" {
     oauth_client_id_version     = string
     oauth_client_secret_version = string
     youtube_api_key_version     = string
+    history_coverage_json       = optional(string, "")
   })
 }
 
@@ -205,6 +206,15 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "MYPAGE_TERMS_VERSION"
         value = var.runtime_settings.terms_version
       }
+      # No historical completeness is assumed without an inventory-backed
+      # explicit interval list. The server validates the intervals at startup.
+      dynamic "env" {
+        for_each = var.runtime_settings.history_coverage_json == "" ? [] : [var.runtime_settings.history_coverage_json]
+        content {
+          name  = "MYPAGE_HISTORY_COVERAGE"
+          value = env.value
+        }
+      }
       env {
         name  = "MYPAGE_INFRASTRUCTURE_READY"
         value = "true"
@@ -282,4 +292,12 @@ output "service_url" {
 # Enforce the environment-specific capacity bounds from Security Current Canon.
 output "max_instances" {
   value = local.max_instances
+}
+
+# Expose only a boolean-like count of the actual planned Cloud Run env entry.
+output "history_coverage_env_count" {
+  value = local.deploy_api ? length([
+    for item in google_cloud_run_v2_service.api[0].template[0].containers[0].env : item
+    if item.name == "MYPAGE_HISTORY_COVERAGE"
+  ]) : 0
 }
