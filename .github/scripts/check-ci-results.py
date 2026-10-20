@@ -17,14 +17,16 @@ DOMAIN_GROUPS = {
     'infra': ('aws_cdk', 'node_projects'),
     'gcp-terraform-validate': ('gcp_terraform',),
 }
-DEPENDENCIES = {'changes', 'repository', 'gcp-user-activity-schema-audit', *DOMAIN_GROUPS}
+DEPENDENCIES = {'changes', 'repository', 'gcp-user-activity-schema-audit', 'mypage-foundation-authenticated', *DOMAIN_GROUPS}
 
 
-def validate(needs, audit_requested):
+def validate(needs, audit_requested, foundation_requested='false'):
     if set(needs) != DEPENDENCIES:
         raise ValueError('CI Gate must receive every expected dependency')
     if audit_requested not in ('true', 'false'):
         raise ValueError('Schema audit selection must be an explicit boolean')
+    if foundation_requested not in ('true', 'false'):
+        raise ValueError('MyPage foundation selection must be an explicit boolean')
     for name, job in needs.items():
         result = job.get('result')
         if result not in ('success', 'skipped'):
@@ -41,11 +43,13 @@ def validate(needs, audit_requested):
             raise ValueError(f'{name}: selected validation must succeed')
     if audit_requested == 'true' and needs['gcp-user-activity-schema-audit']['result'] != 'success':
         raise ValueError('Requested schema audit must succeed')
+    if foundation_requested == 'true' and needs['mypage-foundation-authenticated']['result'] != 'success':
+        raise ValueError('Requested MyPage foundation must succeed')
 
 
 def main():
     try:
-        validate(json.loads(os.environ['CI_NEEDS']), os.environ['CI_SCHEMA_AUDIT_REQUESTED'])
+        validate(json.loads(os.environ['CI_NEEDS']), os.environ['CI_SCHEMA_AUDIT_REQUESTED'], os.environ.get('CI_MYPAGE_FOUNDATION_REQUESTED', 'false'))
     except (KeyError, TypeError, ValueError, AttributeError) as error:
         print(f'::error::{error}', file=sys.stderr)
         return 1

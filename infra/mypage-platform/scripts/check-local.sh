@@ -3,6 +3,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../../.."
+python3 -m unittest discover -s infra/mypage-platform/tests -p 'test_*.py' -v
 terraform fmt -check -diff -recursive infra/mypage-platform
 
 cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/mypage-platform/environments/dev/.terraform.lock.hcl
@@ -15,4 +16,5 @@ for environment in dev prod; do
   terraform -chdir="$root" test -no-color
 done
 
+python3 infra/mypage-platform/scripts/check-foundation-native.py
 echo "MyPage platform: credentialless validation and mocks passed."

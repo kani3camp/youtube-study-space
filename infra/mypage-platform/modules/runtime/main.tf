@@ -45,7 +45,8 @@ variable "runtime_settings" {
 locals {
   deploy_api        = contains(["runtime_private", "runtime_public"], var.stage)
   public_api        = var.stage == "runtime_public"
-  runtime_principal = "serviceAccount:${google_service_account.runtime.email}"
+  runtime_email     = "${google_service_account.runtime.account_id}@${var.project_id}.iam.gserviceaccount.com"
+  runtime_principal = "serviceAccount:${local.runtime_email}"
   max_instances     = var.environment == "development" ? 1 : 3
 }
 
@@ -122,7 +123,7 @@ resource "google_secret_manager_secret_iam_member" "youtube_api_key_runtime" {
 # Firebase Custom Token signing uses IAM signBlob; bind only the dedicated
 # runtime service account resource, never all service accounts in the project.
 resource "google_service_account_iam_member" "runtime_signer" {
-  service_account_id = google_service_account.runtime.name
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.runtime_email}"
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = local.runtime_principal
 }

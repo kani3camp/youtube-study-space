@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""Run an isolated DEV foundation plan; all raw cloud evidence stays private."""
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+
+import foundation_contract as contract
+
+REPO = Path(__file__).resolve().parents[3]
+PHASE = "context"
+
+
+def need(value):
+    contract.need(value)
+
+
+def run(args, *, cwd=None, codes=(0,)):
+    result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=600)
+    need(result.returncode in codes)
+    return result.stdout
+
+
+def request(url, token):
+    req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token})
+    with urllib.request.urlopen(req, timeout=30) as response:
+        return json.load(response)
+
+
+def directory(env):
+    parent = Path(env["RUNNER_TEMP"]).resolve()
+    path = parent / "mypage-foundation-private"
+    need(not path.is_symlink() and not path.resolve().is_relative_to(REPO))
+    return path
+
+
+def stage(env):
+    kind = env["MYPAGE_ROLE"]
+    contract.context(env, kind)
+    need(re.fullmatch(r"[0-9]{12}", env.get("MYPAGE_STATE_ACCOUNT", "")))
+    bucket = env.get("MYPAGE_STATE_BUCKET", "")
+    contract.backend_policy(bucket, kind)
+    need(env.get("MYPAGE_BACKEND_ROLE_ARN") == "arn:aws:iam::" + env["MYPAGE_STATE_ACCOUNT"] + ":role/youtube-study-space-mypage-dev-" + kind)
+    need(re.fullmatch(r"AROA[A-Z0-9]{17}", env.get("MYPAGE_BACKEND_ROLE_ID", "")))
+    expected_sa = "mypage-foundation-" + kind + "@" + contract.PROJECT + ".iam.gserviceaccount.com"
+    need(env.get("MYPAGE_GCP_SERVICE_ACCOUNT") == expected_sa)
+    need(re.fullmatch(r"projects/[0-9]+/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions", env.get("MYPAGE_GCP_WIF_PROVIDER", "")))
+    need(len(env.get("MYPAGE_PLAN_HMAC_KEY", "")) >= 32)
+    root = directory(env)
+    need(not root.exists())
+    root.mkdir(mode=0o700)
+    shutil.copytree(REPO / "infra/mypage-platform", root / "source", ignore=shutil.ignore_patterns(".terraform", "*.tfstate*", "backend.hcl", "terraform.tfvars", "*.tfplan"))
+    backend = {"bucket": bucket, "key": contract.STATE_KEY, "region": "ap-northeast-1",
+               "encrypt": True, "use_lockfile": True, "workspace_key_prefix": contract.WORKSPACE_PREFIX,
+               "allowed_account_ids": [env["MYPAGE_STATE_ACCOUNT"]]}
+    (root / "backend.json").write_bytes(contract.canonical(backend))
+    print("Development foundation preflight passed; no cloud credentials requested yet.")
+
+
+def oidc(env):
+    kind = env["MYPAGE_ROLE"]
+    contract.context(env, kind)
+    url = env["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=sts.amazonaws.com"
+    token = request(url, env["ACTIONS_ID_TOKEN_REQUEST_TOKEN"])["value"]
+    encoded = token.split(".")[1]
+    claims = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+    exact = {"aud": "sts.amazonaws.com", "iss": "https://token.actions.githubusercontent.com",
+             "sub": contract.subject(kind), "repository_id": "340900071", "repository_owner_id": "54093651",
+             "ref": contract.REF, "workflow_ref": contract.CALLER, "job_workflow_ref": contract.REUSABLE,
+             "workflow_sha": env["GITHUB_SHA"], "job_workflow_sha": env["GITHUB_SHA"],
+             "actor_id": "54093651", "actor": "kani3camp", "run_attempt": "1",
+             "environment": "mypage-dev-" + kind, "event_name": "workflow_dispatch"}
+    need(all(claims.get(k) == v for k, v in exact.items()))
+    print("Exact development OIDC claims verified; AWS/GCP still validate the signed token.")
+
+
+def state_version(env):
+    result = subprocess.run(["aws", "s3api", "head-object", "--bucket", env["MYPAGE_STATE_BUCKET"],
+        "--key", contract.STATE_KEY, "--expected-bucket-owner", env["MYPAGE_STATE_ACCOUNT"], "--output", "json"],
+        capture_output=True, text=True, timeout=30)
+    if result.returncode:
+        need("(404)" in result.stderr)
+        return "absent"
+    metadata = json.loads(result.stdout)
+    need(metadata.get("VersionId") not in {None, "null", ""} and metadata.get("ServerSideEncryption") == "AES256")
+    return {k: metadata[k] for k in ("VersionId", "ETag", "ContentLength")}
+
+
+def reject_unowned_resources(env, plan):
+    # A matching name outside this State must never be adopted by a new create.
+    urls = {"module.platform[0].google_service_account.runtime":
+            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/" + contract.EMAIL}
+    urls.update({"module.platform[0].google_secret_manager_secret." + name:
+                 "https://secretmanager.googleapis.com/v1/projects/" + contract.PROJECT + "/secrets/" + secret_id
+                 for name, secret_id in contract.SECRET_IDS.items()})
+    for item in plan["resource_changes"]:
+        if item["address"] not in urls or item["change"]["actions"] != ["create"]:
+            continue
+        try:
+            request(urls[item["address"]], env["MYPAGE_GCP_ACCESS_TOKEN"])
+        except urllib.error.HTTPError as error:
+            need(error.code == 404)
+        else:
+            need(False)
+
+
+def prepare(env):
+    global PHASE
+    kind = env["MYPAGE_ROLE"]
+    contract.context(env, kind)
+    root = directory(env)
+    need(root.is_dir() and not root.is_symlink())
+    PHASE = "identity"
+    identity = json.loads(run(["aws", "sts", "get-caller-identity", "--output", "json"]))
+    need(identity["Account"] == env["MYPAGE_STATE_ACCOUNT"] and identity["UserId"].split(":")[0] == env["MYPAGE_BACKEND_ROLE_ID"])
+    need(identity["Arn"].startswith("arn:aws:sts::" + env["MYPAGE_STATE_ACCOUNT"] + ":assumed-role/youtube-study-space-mypage-dev-" + kind + "/"))
+    version = state_version(env)
+    work = root / "source/environments/dev"
+    PHASE = "init"
+    expected_version = (REPO / "infra/mypage-platform/.terraform-version").read_text().strip()
+    need(json.loads(run(["terraform", "version", "-json"]))["terraform_version"] == expected_version)
+    run(["terraform", "init", "-input=false", "-lockfile=readonly", "-no-color", "-backend-config=" + str(root / "backend.json")], cwd=work)
+    PHASE = "plan"
+    saved = root / "foundation.tfplan"
+    run(["terraform", "plan", "-input=false", "-no-color", "-lock-timeout=60s", "-var=stage=foundation", "-out=" + str(saved)], cwd=work)
+    plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work))
+    PHASE = "plan-contract"
+    summary = contract.validate_plan(plan)
+    reject_unowned_resources(env, plan)
+    need(state_version(env) == version)
+    digest = contract.commitment(plan, version, env["GITHUB_SHA"], env["MYPAGE_PLAN_HMAC_KEY"])
+    (root / "prepared.json").write_bytes(contract.canonical({"sha256": hashlib.sha256(saved.read_bytes()).hexdigest(), "source": env["GITHUB_SHA"]}))
+    with open(env["GITHUB_OUTPUT"], "a") as output:
+        output.write("commitment=" + digest + "\nplan_time=" + str(time.time()) + "\n")
+    print("Development foundation plan accepted: " + str(summary["resources"]) + " resources, " + str(summary["creates"]) + " creates. No apply.")
+
+
+def apply_saved(env):
+    global PHASE
+    contract.context(env, "apply")
+    need(env["MYPAGE_ROLE"] == "apply")
+    age = time.time() - float(env["MYPAGE_PLAN_TIME"])
+    need(0 <= age <= 1800)
+    root = directory(env)
+    saved = root / "foundation.tfplan"
+    receipt = json.loads((root / "prepared.json").read_text())
+    need(receipt == {"sha256": hashlib.sha256(saved.read_bytes()).hexdigest(), "source": env["GITHUB_SHA"]})
+    work = root / "source/environments/dev"
+    PHASE = "apply"
+    run(["terraform", "apply", "-input=false", "-no-color", str(saved)], cwd=work)
+    PHASE = "readback"
+    state = json.loads(run(["terraform", "show", "-json"], cwd=work))
+    addresses = set()
+    def walk(module):
+        addresses.update(x["address"] for x in module.get("resources", []))
+        for child in module.get("child_modules", []):
+            walk(child)
+    walk(state["values"]["root_module"])
+    need(addresses == set(contract.resource_contract()))
+    need(state_version(env) != "absent")
+    print("Development foundation saved Plan applied and eight State resources read back.")
+
+
+def main():
+    global PHASE
+    os.umask(0o077)
+    try:
+        command = sys.argv[1]
+        if command == "cleanup":
+            path = directory(os.environ)
+            if path.exists():
+                shutil.rmtree(path)
+        elif command == "stage":
+            stage(os.environ)
+        elif command == "oidc":
+            oidc(os.environ)
+        elif command == "execute":
+            prepare(os.environ)
+        elif command == "apply":
+            apply_saved(os.environ)
+        else:
+            need(False)
+        return 0
+    except Exception:
+        # Native Terraform/API diagnostics can contain private values.
+        print("MyPage foundation STOP at " + PHASE + "; private diagnostics suppressed.", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -33,12 +33,14 @@ NODE = {'youtube_monitor', 'mypage', 'docs_site', 'menu_image_generator', 'video
 GROUPS = ('system', 'room_image_prompt', 'menu_image_generator', 'video_maker_simulator',
           'figma_plugin', 'youtube_monitor', 'mypage', 'docs_site', 'aws_cdk', 'gcp_terraform',
           'node_projects', 'firestore_integration', 'formal_spec', 'all')
-DEPENDENCIES = {'changes', *MODULES, 'gcp-terraform-validate', 'gcp-user-activity-schema-audit'}
+DEPENDENCIES = {'changes', *MODULES, 'gcp-terraform-validate', 'gcp-user-activity-schema-audit', 'mypage-foundation-authenticated'}
 AUTH_SECRETS = ('GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', 'GCP_TERRAFORM_NORMAL_WIF_PROVIDER', 'AWS_TERRAFORM_BACKEND_ROLE_ARN', 'AWS_TERRAFORM_BACKEND_ROLE_ID',
                 'AWS_TERRAFORM_STATE_BUCKET', 'AWS_TERRAFORM_STATE_ACCOUNT_ID',
                 'GCP_TERRAFORM_WIF_PROVIDER', 'GCP_TERRAFORM_SERVICE_ACCOUNT',
                 'GCP_TERRAFORM_MANAGED_INPUTS_JSON')
 AUDIT_SECRETS = ('GCP_TERRAFORM_WIF_PROVIDER', 'GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT')
+FOUNDATION_SECRETS = ('MYPAGE_STATE_BUCKET', 'MYPAGE_STATE_ACCOUNT', 'MYPAGE_BACKEND_ROLE_ARN',
+                      'MYPAGE_BACKEND_ROLE_ID', 'MYPAGE_GCP_WIF_PROVIDER', 'MYPAGE_GCP_SERVICE_ACCOUNT', 'MYPAGE_PLAN_HMAC_KEY')
 
 
 def selected(expression, flags, inputs=None):
@@ -70,6 +72,7 @@ def validate(caller, modules):
     require(check['run'] == 'python3 .github/scripts/check-ci-results.py' and 'if' not in check,
             'Execute the tested result gate unconditionally')
     require(check['env'] == {'CI_NEEDS': '${{ toJSON(needs) }}',
+            'CI_MYPAGE_FOUNDATION_REQUESTED': "${{ github.event_name == 'workflow_dispatch' && inputs.mypage_foundation == true }}",
             'CI_SCHEMA_AUDIT_REQUESTED': "${{ github.event_name == 'workflow_dispatch' && inputs.gcp_user_activity_schema_audit == true }}"},
             'Gate receives real results and typed audit selection')
     require(jobs['gcp-terraform-validate']['name'] == 'GCP Terraform Validate'
@@ -112,6 +115,8 @@ def validate(caller, modules):
         ('gcp-terraform-authenticated', 'terraform_authenticated', AUTH_SECRETS,
          {'target': '${{ inputs.terraform_target }}', 'mode': '${{ inputs.terraform_mode }}', 'expected_sha': '${{ inputs.terraform_expected_sha }}'}),
         ('gcp-user-activity-schema-audit', 'gcp_user_activity_schema_audit', AUDIT_SECRETS, {'target': 'dev'}),
+        ('mypage-foundation-authenticated', 'mypage_foundation', FOUNDATION_SECRETS,
+         {'mode': '${{ inputs.mypage_foundation_mode }}', 'expected_sha': '${{ inputs.mypage_foundation_expected_sha }}'}),
     ):
         call = jobs[name]
         require(set(call) == {'name', 'if', 'permissions', 'uses', 'secrets', 'with'}, 'Operational caller stays direct')
@@ -122,18 +127,20 @@ def validate(caller, modules):
         require(call['secrets'] == {s: '${{ secrets.' + s + ' }}' for s in secrets}, 'Explicit operational secrets')
         require(call['with'] == arguments, 'Operational inputs stay fixed')
     dispatch = caller['on']['workflow_dispatch']['inputs']
-    require(set(dispatch) == {'terraform_authenticated', 'terraform_target', 'terraform_mode', 'terraform_expected_sha', 'gcp_user_activity_schema_audit'},
+    require(set(dispatch) == {'terraform_authenticated', 'terraform_target', 'terraform_mode', 'terraform_expected_sha', 'gcp_user_activity_schema_audit',
+                             'mypage_foundation', 'mypage_foundation_mode', 'mypage_foundation_expected_sha'},
             'No retired operational mode/input returns')
-    for toggle in ('terraform_authenticated', 'gcp_user_activity_schema_audit'):
+    for toggle in ('terraform_authenticated', 'gcp_user_activity_schema_audit', 'mypage_foundation'):
         require(dispatch[toggle]['type'] == 'boolean' and dispatch[toggle]['default'] is False
                 and dispatch[toggle]['required'] is False, 'Operations remain opt-in')
     for key, default, options in (('terraform_target', 'dev', ['dev', 'prod']),
+                                  ('mypage_foundation_mode', 'foundation-plan', ['foundation-plan', 'foundation-apply']),
                                   ('terraform_mode', 'migration-plan', ['migration-plan', 'migration-apply', 'normal-plan', 'normal-apply', 'normal-e2e'])):
         require(dispatch[key]['type'] == 'choice' and dispatch[key]['default'] == default
                 and dispatch[key]['options'] == options and dispatch[key]['required'] is False, 'Dispatch choices stay fixed')
     require(caller['concurrency'] == {
         'group': '${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}',
-        'cancel-in-progress': "${{ !(github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true) }}"},
+        'cancel-in-progress': "${{ !(github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.mypage_foundation == true)) }}"},
         'Authenticated execution cannot be auto-cancelled')
 
 
