@@ -101,6 +101,26 @@ class Contracts(unittest.TestCase):
             with self.subTest(key=k), self.assertRaises(ValueError):
                 ops.context(env() | {k: v}, 'plan')
 
+    def test_any_non_main_branch_context_is_allowed_only_with_matching_caller(self):
+        for branch in ("dev", "integration/gcp-terraform-normal-ops",
+                       "feature/arbitrary-normal-change"):
+            ref = "refs/heads/" + branch
+            for role in ("plan", "apply"):
+                v = env(role)
+                v["GITHUB_REF"] = ref
+                v["GITHUB_WORKFLOW_REF"] = ops.CALLER + ref
+                self.assertEqual(ops.context(v, role), "dev")
+                with self.assertRaises(ValueError):
+                    ops.context(v | {"GITHUB_WORKFLOW_REF":
+                                      ops.CALLER + "refs/heads/other"}, role)
+        for bad in ("refs/heads/main", "refs/tags/v1", "refs/pull/1/merge",
+                    "refs/heads/-bad"):
+            v = env("plan") | {"GITHUB_REF": bad,
+                               "GITHUB_WORKFLOW_REF": ops.CALLER + bad}
+            with self.assertRaises(ValueError):
+                ops.context(v, "plan")
+
+
     def test_apply_is_not_authorized_by_plan_mode(self):
         with self.assertRaises(ValueError):
             ops.context(env('apply') | {'NORMAL_MODE': 'normal-plan'}, 'apply')
@@ -121,6 +141,68 @@ class Contracts(unittest.TestCase):
         with patch.object(ops, 'review', return_value={'changed': ['delete']}):
             self.assertNotEqual(original, ops.commitment(e, tfvars, state, p, key))
 
+    def test_replan_projection_normalizes_only_order_insensitive_collections(self):
+        with patch.object(ops, 'review', return_value={}):
+            key = b'x' * 32
+            e = env()
+            baseline = plan()
+            baseline['resource_changes'].extend([{
+                'address': 'google_pubsub_topic.z', 'mode': 'managed',
+                'provider_name': 'registry.terraform.io/hashicorp/google',
+                'change': {'actions': ['no-op'], 'before': {'enabled': True},
+                           'after': {'enabled': True}}}])
+            baseline['relevant_attributes'] = [
+                {'resource': 'google_pubsub_topic.z', 'attribute': ['labels', 'a']},
+                {'resource': 'google_pubsub_topic.example', 'attribute': ['name']}]
+            baseline['checks'] = [
+                {'status': 'pass', 'address': {'kind': 'var', 'to_display': 'var.z'},
+                 'instances': [{'status': 'pass', 'address': {'to_display': 'var.z[1]'}},
+                               {'status': 'pass', 'address': {'to_display': 'var.z[0]'}}]},
+                {'status': 'pass', 'address': {'kind': 'var', 'to_display': 'var.a'}}]
+            baseline['planned_values'] = {'root_module': {
+                'resources': [{'address': 'google_pubsub_topic.z', 'values': {'labels': ['a', 'b']}},
+                              {'address': 'google_pubsub_topic.example', 'values': {}}],
+                'child_modules': [
+                    {'address': 'module.z', 'resources': [{'address': 'module.z.google_pubsub_topic.a', 'values': {}}]},
+                    {'address': 'module.a', 'resources': []}]}}
+            baseline['prior_state'] = {'format_version': '1.0', 'values': deepcopy(baseline['planned_values'])}
+            changed_order = deepcopy(baseline)
+            for keyname in ('resource_changes', 'relevant_attributes', 'checks'):
+                changed_order[keyname].reverse()
+            changed_order['checks'][1]['instances'].reverse()
+            for phase in ('planned_values',):
+                changed_order[phase]['root_module']['resources'].reverse()
+                changed_order[phase]['root_module']['child_modules'].reverse()
+            changed_order['prior_state']['values']['root_module']['resources'].reverse()
+            changed_order['prior_state']['values']['root_module']['child_modules'].reverse()
+            changed_order['timestamp'] = 'different-creation-time'
+            tfvars = {'project_id': ops.PROJECT}
+            state = {'head': {'VersionId': 'fixed-s3-version'}}
+            self.assertEqual(ops.commitment(e, tfvars, state, baseline, key),
+                             ops.commitment(e, tfvars, state, changed_order, key))
+            self.assertEqual(ops.commitment_components(e, tfvars, state, baseline, key),
+                             ops.commitment_components(e, tfvars, state, changed_order, key))
+            # Values within provider attributes are ordered when expressed as JSON lists.
+            changed_values = deepcopy(changed_order)
+            for resource in changed_values['planned_values']['root_module']['resources']:
+                if resource['address'] == 'google_pubsub_topic.z':
+                    resource['values']['labels'] = ['b', 'a']
+            self.assertNotEqual(ops.commitment(e, tfvars, state, baseline, key),
+                                ops.commitment(e, tfvars, state, changed_values, key))
+
+    def test_replan_diagnostics_print_boolean_section_labels_not_hmacs(self):
+        flags = {f'NORMAL_MISMATCH_{name.upper()}': 'false' for name in ops.DIAGNOSTIC_SECTIONS}
+        flags['NORMAL_MISMATCH_STATE'] = 'true'
+        with redirect_stdout(io.StringIO()) as output:
+            ops.report_replan_mismatch(flags)
+        self.assertIn('sections=state', output.getvalue())
+        self.assertNotIn(CANARY, output.getvalue())
+        with self.assertRaises(ValueError):
+            ops.report_replan_mismatch(flags | {'NORMAL_MISMATCH_INPUTS': 'secret'})
+        with self.assertRaises(ValueError):
+            ops.report_replan_mismatch({})
+
+
     def test_stale_future_missing_and_different_plan_rejected(self):
         e = env() | {'NORMAL_EXPECTED_DIGEST': 'a' * 64, 'NORMAL_PLAN_TIME': '100'}
         ops.match(e, 'a' * 64, 100 + ops.MAX_AGE)
@@ -139,12 +221,12 @@ class Contracts(unittest.TestCase):
             self.assertFalse(root.exists())
 
     def test_permission_provider_state_and_mismatch_failures_do_not_leak_or_apply(self):
-        for failure in ('identity', 'snapshot', 'setup', 'plan', 'match'):
+        for failure in ('identity', 'snapshot', 'setup', 'plan', 'commitment'):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
                 e = env('apply') | {'RUNNER_TEMP': temporary}
                 root = ops.private(e); root.mkdir(mode=0o700)
                 mocks = {k: patch.object(ops, k) for k in ('inputs', 'identity', 'snapshot', 'setup', 'plan',
-                         'review', 'report_plan', 'commitment', 'match', 'apply_saved')}
+                         'review', 'report_plan', 'commitment', 'apply_saved')}
                 from contextlib import ExitStack
                 with ExitStack() as stack:
                     m = {k: stack.enter_context(v) for k, v in mocks.items()}
@@ -153,11 +235,38 @@ class Contracts(unittest.TestCase):
                     m['plan'].return_value = (root / 'plan', plan(), {})
                     m[failure].side_effect = RuntimeError(CANARY)
                     output = io.StringIO()
-                    with patch.dict(os.environ, e, clear=True), patch.object(sys, 'argv', ['ops', 'execute']), redirect_stdout(output):
+                    with patch.dict(os.environ, e, clear=True), patch.object(sys, 'argv', ['ops', 'prepare']), redirect_stdout(output):
                         self.assertEqual(ops.main(), 1)
                     self.assertNotIn(CANARY, output.getvalue())
                     m[failure].assert_called_once()
                     m['apply_saved'].assert_not_called()
+
+    def test_apply_requires_sealed_private_plan_and_fresh_time(self):
+        with tempfile.TemporaryDirectory() as directory:
+            e = env('apply') | {'RUNNER_TEMP': directory, 'NORMAL_PLAN_TIME': '10'}
+            private = ops.private(e)
+            private.mkdir(mode=0o700)
+            prepared = {'source_sha': e['GITHUB_SHA'], 'run_id': e['GITHUB_RUN_ID'],
+                        'mode': e['NORMAL_MODE'], 'digest': 'a' * 64,
+                        'binary_sha256': 'b' * 64,
+                        'before': {'state': {'resources': []}},
+                        'counts': {'create': 0, 'no-op': 1}}
+            ops.common.write(private / 'normal-prepared.json', ops.common.canonical(prepared))
+            with patch.object(ops, 'identity'), patch.object(
+                    ops, 'inputs', return_value=({'project_id': ops.PROJECT}, b'x' * 32)), patch.object(
+                    ops, 'apply_saved') as applied:
+                with self.assertRaises(ValueError):
+                    ops.apply_prepared(e)
+                applied.assert_not_called()
+
+    def test_workflow_never_interpolates_hmac_as_step_environment(self):
+        text = (ops.REPO / '.github/workflows/gcp-terraform-authenticated.yml').read_text()
+        self.assertNotIn('NORMAL_EXPECTED_DIGEST: ${{ needs.normal_plan.outputs.digest }}', text)
+        self.assertNotIn('NORMAL_EXPECTED_COMPONENTS: ${{ needs.normal_plan.outputs.components }}', text)
+        self.assertIn('steps.prepared.outputs.digest == needs.normal_plan.outputs.digest', text)
+        for cmd in ('prepare', 'apply', 'mismatch'):
+            self.assertIn('terraform_normal_ops.py ' + cmd, text)
+        self.assertIn("steps.normal.outcome != 'success'", text)
 
     def test_stale_state_stops_saved_apply(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -186,11 +295,14 @@ class Contracts(unittest.TestCase):
         for mode in ('normal-plan', 'normal-apply', 'normal-e2e'):
             good = runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='a' * 40)
             self.assertEqual(good.returncode, 0, good.stdout + good.stderr)
+            for branch in ('integration/gcp-terraform-normal-ops', 'feature/arbitrary'):
+                ref = 'refs/heads/' + branch
+                integrated = runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='a' * 40,
+                    GITHUB_REF=ref, GITHUB_WORKFLOW_REF=ops.CALLER + ref)
+                self.assertEqual(integrated.returncode, 0, integrated.stdout + integrated.stderr)
             for change in ({'NORMAL_EXPECTED_SHA': 'b' * 40}, {'NORMAL_EXPECTED_SHA': ''},
-                {'GITHUB_REF': 'refs/heads/integration/mypage-canon-20261006',
-                 'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/integration/mypage-canon-20261006'},
-                {'TARGET': 'prod', 'GITHUB_REF': 'refs/heads/main',
-                 'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/main'}):
+                {'GITHUB_REF': 'refs/tags/v1',
+                 'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/tags/v1'}):
                 bad = runner.run_preflight(MODE=mode, **({'NORMAL_EXPECTED_SHA': 'a' * 40} | change))
                 self.assertNotEqual(bad.returncode, 0)
 

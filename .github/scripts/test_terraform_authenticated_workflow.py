@@ -63,6 +63,42 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                             GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref)
                         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_normal_branch_authorization_does_not_expand_legacy_import(self):
+        for branch in ('feature/arbitrary', 'integration/gcp-terraform-normal-ops'):
+            ref = 'refs/heads/' + branch
+            context = {'GITHUB_REF': ref,
+                       'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref}
+            for mode in ('normal-plan', 'normal-apply', 'normal-e2e'):
+                self.assertEqual(self.run_preflight(MODE=mode,
+                    NORMAL_EXPECTED_SHA='a' * 40, **context).returncode, 0)
+            for mode in ('migration-plan', 'migration-apply'):
+                self.assertNotEqual(self.run_preflight(MODE=mode, **context).returncode, 0)
+
+    def test_production_normal_requires_main_and_disallows_cloud_e2e(self):
+        ref = 'refs/heads/main'
+        context = {'TARGET': 'prod', 'GITHUB_REF': ref,
+                   'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref,
+                   'NORMAL_EXPECTED_SHA': 'a' * 40}
+        for mode in ('normal-plan', 'normal-apply'):
+            with self.subTest(mode=mode):
+                result = self.run_preflight(MODE=mode, **context)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotEqual(self.run_preflight(MODE='normal-e2e', **context).returncode, 0)
+        self.assertNotEqual(self.run_preflight(MODE='normal-plan', TARGET='prod',
+            GITHUB_REF='refs/heads/dev',
+            GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
+            NORMAL_EXPECTED_SHA='a' * 40).returncode, 0)
+
+    def test_normal_oidc_targets_correct_gcp_project(self):
+        for role in ('normal_plan', 'normal_apply'):
+            block = self.text.split('  ' + role + ':', 1)[1]
+            self.assertIn("project_id: $", block, role)
+            self.assertIn("'test-youtube-study-space'", block, role)
+            self.assertIn("'youtube-study-space'", block, role)
+            self.assertIn('GCP_TERRAFORM_NORMAL_WIF_PROVIDER', block, role)
+            self.assertIn('GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', block, role)
+            self.assertNotIn('project_id: test-youtube-study-space', block, role)
+
     def test_retired_modes_cannot_reach_credentials_even_with_old_gates_enabled(self):
         modes = ('plan', 'apply', 'history_post_noop', 'security-probe', 'email-adoption',
                  'quota-plan', 'quota-create', 'quota-refresh', 'current-state-read',

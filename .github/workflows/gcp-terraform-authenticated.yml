@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       expected_sha:
-        description: Reviewed dev SHA for normal operations
+        description: Exact selected branch SHA for normal operations
         required: false
         type: string
     # Explicit names allow Environment secret resolution in called jobs without
@@ -57,7 +57,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout trusted migration preflight source
-        if: ${{ (inputs.mode == 'migration-plan' || inputs.mode == 'migration-apply' || inputs.mode == 'normal-plan' || inputs.mode == 'normal-apply' || inputs.mode == 'normal-e2e') && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && ((inputs.target == 'dev' && startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/feature/gcp-terraform-iac') || (inputs.target == 'prod' && github.ref == 'refs/heads/main')) }}
+        if: ${{ (inputs.mode == 'migration-plan' || inputs.mode == 'migration-apply' || inputs.mode == 'normal-plan' || inputs.mode == 'normal-apply' || inputs.mode == 'normal-e2e') && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && ((inputs.target == 'dev' && startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main') || (inputs.target == 'prod' && github.ref == 'refs/heads/main')) }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -106,8 +106,7 @@ jobs:
           case "${TARGET}" in
             dev)
               [[ "${GITHUB_REF:-}" =~ ^refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*$ &&
-                 "${GITHUB_REF}" != "refs/heads/main" &&
-                 "${GITHUB_REF}" != "refs/heads/feature/gcp-terraform-iac" ]] || {
+                 "${GITHUB_REF}" != "refs/heads/main" ]] || {
                 echo "::error::Development requires a valid non-production branch ref."
                 exit 1
               }
@@ -319,6 +318,7 @@ jobs:
     outputs:
       digest: ${{ steps.normal.outputs.digest }}
       plan_time: ${{ steps.normal.outputs.plan_time }}
+      components: ${{ steps.normal.outputs.components }}
     env:
       NORMAL_TARGET: ${{ inputs.target }}
       NORMAL_MODE: ${{ inputs.mode }}
@@ -374,7 +374,7 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
-          project_id: test-youtube-study-space
+          project_id: ${{ inputs.target == 'dev' && 'test-youtube-study-space' || 'youtube-study-space' }}
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
@@ -456,20 +456,47 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
-          project_id: test-youtube-study-space
+          project_id: ${{ inputs.target == 'dev' && 'test-youtube-study-space' || 'youtube-study-space' }}
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
           token_format: access_token
           access_token_lifetime: 1800s
-      - name: Apply Terraform
-        id: normal
+      - name: Prepare independent native Plan
+        id: prepared
         env:
           NORMAL_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
           GCP_ACCESS_TOKEN: ${{ steps.normal_gcp.outputs.access_token }}
-          NORMAL_EXPECTED_DIGEST: ${{ needs.normal_plan.outputs.digest }}
+        run: python3 infra/gcp/scripts/terraform_normal_ops.py prepare
+      # Compare per-job HMAC outputs in the GitHub expression engine only.
+      # NEVER pass digest/components as env/with/run inputs: runner logs them.
+      - name: Explain mismatched Plans without HMAC exposure
+        if: ${{ steps.prepared.outputs.digest != needs.normal_plan.outputs.digest || steps.prepared.outputs.digest == '' || needs.normal_plan.outputs.digest == '' }}
+        env:
+          NORMAL_MISMATCH_SOURCE_RUN_MODE: ${{ fromJSON(steps.prepared.outputs.components).source_run_mode != fromJSON(needs.normal_plan.outputs.components).source_run_mode }}
+          NORMAL_MISMATCH_INPUTS: ${{ fromJSON(steps.prepared.outputs.components).inputs != fromJSON(needs.normal_plan.outputs.components).inputs }}
+          NORMAL_MISMATCH_REVIEW: ${{ fromJSON(steps.prepared.outputs.components).review != fromJSON(needs.normal_plan.outputs.components).review }}
+          NORMAL_MISMATCH_STATE: ${{ fromJSON(steps.prepared.outputs.components).state != fromJSON(needs.normal_plan.outputs.components).state }}
+          NORMAL_MISMATCH_RESOURCE_CHANGES: ${{ fromJSON(steps.prepared.outputs.components).resource_changes != fromJSON(needs.normal_plan.outputs.components).resource_changes }}
+          NORMAL_MISMATCH_PLANNED_VALUES: ${{ fromJSON(steps.prepared.outputs.components).planned_values != fromJSON(needs.normal_plan.outputs.components).planned_values }}
+          NORMAL_MISMATCH_PRIOR_STATE: ${{ fromJSON(steps.prepared.outputs.components).prior_state != fromJSON(needs.normal_plan.outputs.components).prior_state }}
+          NORMAL_MISMATCH_CHECKS: ${{ fromJSON(steps.prepared.outputs.components).checks != fromJSON(needs.normal_plan.outputs.components).checks }}
+          NORMAL_MISMATCH_RELEVANT_ATTRIBUTES: ${{ fromJSON(steps.prepared.outputs.components).relevant_attributes != fromJSON(needs.normal_plan.outputs.components).relevant_attributes }}
+          NORMAL_MISMATCH_OTHER_PLAN_FIELDS: ${{ fromJSON(steps.prepared.outputs.components).other_plan_fields != fromJSON(needs.normal_plan.outputs.components).other_plan_fields }}
+        run: python3 infra/gcp/scripts/terraform_normal_ops.py mismatch
+      - name: Apply independently verified saved Plan
+        id: normal
+        if: ${{ steps.prepared.outputs.digest == needs.normal_plan.outputs.digest && steps.prepared.outputs.digest != '' }}
+        env:
+          NORMAL_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
+          GCP_ACCESS_TOKEN: ${{ steps.normal_gcp.outputs.access_token }}
           NORMAL_PLAN_TIME: ${{ needs.normal_plan.outputs.plan_time }}
-        run: python3 infra/gcp/scripts/terraform_normal_ops.py execute
+        run: python3 infra/gcp/scripts/terraform_normal_ops.py apply
+      - name: Fail closed when Apply did not complete
+        if: ${{ always() && steps.prepared.outcome == 'success' && steps.normal.outcome != 'success' }}
+        run: |
+          echo "::error::Independent Plan agreement or Apply incomplete."
+          exit 1
       - name: Remove private Terraform files
         if: ${{ always() }}
         run: python3 infra/gcp/scripts/terraform_normal_ops.py cleanup

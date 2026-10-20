@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DEV native Terraform operations. Raw evidence stays on the ephemeral runner.
+"""Environment-scoped GCP native Terraform operations. Raw evidence stays private.
 
 No resource-type allowlist or per-change receipt. Jobs compare a private keyed
 hash of the complete plan (except its generation timestamp), source, inputs and
@@ -7,6 +7,7 @@ S3 version, then apply the freshly saved, matching native plan once.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 import hashlib
 import hmac
 import json
@@ -22,7 +23,13 @@ REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / '.github/scripts'))
 import terraform_migration as common
 
-PROJECT = 'test-youtube-study-space'
+PROJECT = 'test-youtube-study-space'  # Backwards-compatible DEV test fixture
+PROJECTS = {'dev': PROJECT, 'prod': 'youtube-study-space'}
+BRANCH_REF = re.compile(r'refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*')
+CALLER = 'kani3camp/youtube-study-space/.github/workflows/ci.yml@'
+REUSABLE = 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@'
+DIAGNOSTIC_SECTIONS = ('source_run_mode', 'inputs', 'review', 'state', 'resource_changes',
+                       'planned_values', 'prior_state', 'checks', 'relevant_attributes', 'other_plan_fields')
 PRIVATE = 'gcp-normal-private'
 MODES = {'normal-plan', 'normal-apply', 'normal-e2e'}
 ACTIONS = {('no-op',), ('read',), ('create',), ('update',), ('delete',),
@@ -40,24 +47,41 @@ def need(value):
         raise ValueError('normal Terraform operation rejected')
 
 
+def target_project(env):
+    target = env.get('NORMAL_TARGET')
+    need(target in PROJECTS)
+    return PROJECTS[target]
+
+
+def development_ref(value):
+    need(type(value) is str and BRANCH_REF.fullmatch(value) is not None
+         and value != 'refs/heads/main')
+    return value
+
+
 def context(env, role=None):
     exact = {'GITHUB_EVENT_NAME': 'workflow_dispatch',
              'GITHUB_REPOSITORY': 'kani3camp/youtube-study-space',
              'GITHUB_REPOSITORY_ID': '340900071', 'GITHUB_REPOSITORY_OWNER_ID': '54093651',
              'GITHUB_ACTOR': 'kani3camp', 'GITHUB_ACTOR_ID': '54093651',
-             'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1',
-             'GITHUB_REF': 'refs/heads/dev',
-             'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
-             'NORMAL_TARGET': 'dev'}
+             'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1'}
     need(all(env.get(k) == v for k, v in exact.items()))
-    need(env.get('NORMAL_MODE') in MODES)
+    target = env.get('NORMAL_TARGET')
+    need(target in PROJECTS and env.get('NORMAL_MODE') in MODES)
+    if target == 'dev':
+        ref = development_ref(env.get('GITHUB_REF'))
+    else:
+        # No feature/integration branch may ever operate on Production.
+        ref = 'refs/heads/main'
+        need(env.get('GITHUB_REF') == ref and env['NORMAL_MODE'] != 'normal-e2e')
+    need(env.get('GITHUB_WORKFLOW_REF') == CALLER + ref)
     need(re.fullmatch('[0-9a-f]{40}', env.get('GITHUB_SHA', '')) is not None)
     need(env.get('NORMAL_EXPECTED_SHA') == env['GITHUB_SHA'])
     if role is not None:
         need(role in {'plan', 'apply'} and env.get('GITHUB_JOB') == 'normal_' + role)
         need(role != 'apply' or env['NORMAL_MODE'] in {'normal-apply', 'normal-e2e'})
         need(env.get('TF_WORKSPACE') == 'default' and env.get('STATE_AWS_REGION') == 'ap-northeast-1')
-    return 'dev'
+    return target
 
 
 def private(env):
@@ -72,19 +96,21 @@ def private(env):
 def inputs(env):
     # Keep the adopted 31-resource selection/private inventory, without coupling
     # ordinary development to the migration manifest or resource-type catalog.
+    project = target_project(env)
     value = common.decode_input_transport(env.get('NORMAL_INPUTS_JSON', '').encode())
-    need(type(value['tfvars']) is dict and value['tfvars'].get('project_id') == PROJECT)
+    need(type(value['tfvars']) is dict and value['tfvars'].get('project_id') == project)
     need(re.fullmatch('[0-9a-f]{64}', value.get('plan_integrity_key', '')) is not None)
-    overlay = REPO / 'infra/gcp/environments/dev/normal.tfvars.json'
+    overlay = REPO / 'infra/gcp/environments' / env['NORMAL_TARGET'] / 'normal.tfvars.json'
     additions = common.decode(overlay.read_bytes()) if overlay.exists() else {}
     need(type(additions) is dict)
     tfvars = value['tfvars'] | additions
-    need(tfvars.get('project_id') == PROJECT)
+    need(tfvars.get('project_id') == project)
     return tfvars, bytes.fromhex(value['plan_integrity_key'])
 
 
-def review():
-    value = common.decode((REPO / 'infra/gcp/environments/dev/normal-operations.json').read_bytes())
+def review(target='dev'):
+    need(target in PROJECTS)
+    value = common.decode((REPO / 'infra/gcp/environments' / target / 'normal-operations.json').read_bytes())
     need(type(value) is dict and set(value) == {'destructive_changes'})
     changes = value['destructive_changes']
     need(type(changes) is dict and all(type(a) is str and type(v) is list
@@ -92,7 +118,93 @@ def review():
     return changes
 
 
-def validate(plan, approved, *, post=False):
+def production_references(values, project, project_number=None):
+    """Check project-bearing IDs at every nesting level, not only `project`.
+
+    Google full/relative resource names, principalSet IDs and service-account
+    emails carry their own project. Numeric aliases come only from the live
+    authenticated Resource Manager response, never private input assertions.
+    """
+    aliases = {project}
+    if project_number is not None:
+        need(type(project_number) is str and re.fullmatch(r"[0-9]+", project_number))
+        aliases.add(project_number)
+    if isinstance(values, dict):
+        for key, value in values.items():
+            if key in {"project", "project_id", "project_number", "billing_project"} and value is not None:
+                need(str(value) in aliases)
+            production_references(value, project, project_number)
+    elif isinstance(values, list):
+        for value in values:
+            production_references(value, project, project_number)
+    elif isinstance(values, str):
+        need(re.search(r"(?<![a-z0-9-])test-youtube-study-space(?![a-z0-9-])", values) is None)
+        # Container registry paths encode a project without a projects/ prefix.
+        for found in re.finditer(r'''(?:^|[/\s"':=])(?:[a-z0-9-]+-docker\.pkg\.dev|(?:[a-z0-9-]+\.)?gcr\.io)\.?(?::[0-9]+)?/([^/\s"':@]+)''', values, re.IGNORECASE):
+            need(found.group(1) in aliases)
+        for found in re.finditer(r'''(?:^|[/\s"':=])projects/([^/\s"':]+)''', values):
+            identifier = found.group(1)
+            # IAM allows '-' only for an unambiguous SA email in this project.
+            if identifier == "-":
+                suffix = values[found.end():]
+                need(re.match(r"/serviceAccounts/[A-Za-z0-9._-]+@" + re.escape(project) +
+                              r'''\.iam\.gserviceaccount\.com(?:$|[/\s"'])''', suffix))
+            else:
+                need(identifier in aliases)
+        for email in re.findall(r"[A-Za-z0-9._-]+@[A-Za-z0-9.-]+\.gserviceaccount\.com", values):
+            local, domain = email.split("@")
+            if domain in {project + ".iam.gserviceaccount.com", project + ".appspot.gserviceaccount.com"}:
+                continue
+            if project_number is not None:
+                if domain in {"developer.gserviceaccount.com", "cloudservices.gserviceaccount.com"}:
+                    need(local == (project_number + '-compute' if domain == 'developer.gserviceaccount.com' else project_number))
+                    continue
+                if domain.startswith("gcp-sa-") and domain.endswith(".iam.gserviceaccount.com"):
+                    need(local == "service-" + project_number)
+                    continue
+            need(False)
+
+
+def verify_storage_ownership(env, plan):
+    """Resolve globally named buckets; their names do not encode a project."""
+    if env['NORMAL_TARGET'] != 'prod':
+        return
+    number = env['NORMAL_PROJECT_NUMBER']
+    created, existing, references = set(), set(), set()
+
+    def collect(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key in {'bucket', 'bucket_name', 'source_archive_bucket'} and type(child) is str:
+                    references.add(child)
+                collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+        elif isinstance(value, str):
+            references.update(re.findall(r'gs://([^/\s]+)', value))
+
+    for item in plan.get('resource_changes', []):
+        change = item['change']
+        after = change.get('after') or {}
+        if item.get('type') == 'google_storage_bucket':
+            if 'create' in change['actions']:
+                need(after.get('project') == PROJECTS['prod'] and type(after.get('name')) is str)
+                created.add(after['name'])
+            before = change.get('before') or {}
+            if before.get('name'):
+                existing.add(before['name'])
+        for values in (change.get('before'), change.get('after')):
+            collect(values)
+            if item.get('type') == 'google_storage_bucket' and isinstance(values, dict) and values.get('name'):
+                references.add(values['name'])
+    for bucket in sorted(references - (created - existing)):
+        need(re.fullmatch(r'[a-z0-9][a-z0-9._-]{1,221}[a-z0-9]', bucket) is not None)
+        observed = common.google(env, 'storage.googleapis.com', 'storage/v1/b/' + bucket)
+        need(observed.get('name') == bucket and str(observed.get('projectNumber')) == number)
+
+
+def validate(plan, approved, *, post=False, project=PROJECT, project_number=None):
     need(type(plan) is dict and plan.get('format_version') == '1.2'
          and plan.get('terraform_version') == common.VERSION)
     need(plan.get('errored') is False and plan.get('complete') is True)
@@ -113,7 +225,9 @@ def validate(plan, approved, *, post=False):
         need(item.get('mode') in {'managed', 'data'})
         for values in (change.get('before'), change.get('after')):
             if isinstance(values, dict) and values.get('project') is not None:
-                need(values['project'] == PROJECT)
+                need(values['project'] == project)
+            if project == PROJECTS['prod']:
+                production_references(values, project, project_number)
         if post:
             need(action == ('no-op',))
         if 'delete' in action:
@@ -173,24 +287,121 @@ def report_plan(env, root, tfroot, value):
     publish_plan_summary(env, summarize_changes(value, schema))
 
 
+def replan_projection(plan):
+    """Normalize only documented order-insensitive JSON-plan collections.
+
+    Retain every value, mask, action, configuration, dependency and check.
+    Terraform Core emits relevant_attributes using heuristic collection order.
+    Resource/module/check/instance collections are address-keyed, not ordered.
+    Never sort values inside provider-managed resource attributes.
+    """
+    projection = deepcopy(plan)
+    projection.pop('timestamp', None)
+    if 'relevant_attributes' in projection:
+        refs = projection['relevant_attributes']
+        need(type(refs) is list and all(type(x) is dict for x in refs))
+        projection['relevant_attributes'] = sorted(refs, key=common.canonical)
+    if 'checks' in projection:
+        checks = projection['checks']
+        need(type(checks) is list and all(type(x) is dict for x in checks))
+        for check in checks:
+            if 'instances' in check and check['instances'] is not None:
+                instances = check['instances']
+                need(type(instances) is list and all(type(x) is dict for x in instances))
+                check['instances'] = sorted(instances, key=common.canonical)
+        projection['checks'] = sorted(checks, key=common.canonical)
+    if 'resource_changes' in projection:
+        changes = projection['resource_changes']
+        need(type(changes) is list and all(type(x) is dict and type(x.get('address')) is str for x in changes))
+        projection['resource_changes'] = sorted(changes, key=lambda x: x['address'])
+
+    def sort_module(module):
+        need(type(module) is dict)
+        if 'resources' in module:
+            resources = module['resources']
+            need(type(resources) is list and all(type(x) is dict and type(x.get('address')) is str for x in resources))
+            module['resources'] = sorted(resources, key=lambda x: x['address'])
+        if 'child_modules' in module:
+            children = module['child_modules']
+            need(type(children) is list and all(type(x) is dict and type(x.get('address')) is str for x in children))
+            for child in children:
+                sort_module(child)
+            module['child_modules'] = sorted(children, key=lambda x: x['address'])
+
+    for section in ('planned_values', 'prior_state'):
+        value = projection.get(section)
+        if value is None:
+            continue
+        need(type(value) is dict)
+        shown = value if section == 'planned_values' else value.get('values')
+        need(type(shown) is dict)
+        if 'root_module' in shown:
+            sort_module(shown['root_module'])
+    return projection
+
+
+def commitment_payload(env, tfvars, state, plan):
+    return {'sha': env['GITHUB_SHA'], 'run': env['GITHUB_RUN_ID'],
+            'mode': env['NORMAL_MODE'], 'target': env['NORMAL_TARGET'],
+            'tfvars': tfvars, 'review': review(env['NORMAL_TARGET']),
+            'state': state, 'plan': replan_projection(plan)}
+
+
 def commitment(env, tfvars, state, plan, key):
-    projection = {k: v for k, v in plan.items() if k != 'timestamp'}
-    payload = {'sha': env['GITHUB_SHA'], 'run': env['GITHUB_RUN_ID'],
-               'mode': env['NORMAL_MODE'], 'tfvars': tfvars, 'review': review(),
-               'state': state, 'plan': projection}
-    return hmac.new(key, common.canonical(payload), hashlib.sha256).hexdigest()
+    return hmac.new(key, common.canonical(commitment_payload(env, tfvars, state, plan)),
+                    hashlib.sha256).hexdigest()
 
 
-def match(env, digest, now):
-    need(re.fullmatch('[0-9a-f]{64}', env.get('NORMAL_EXPECTED_DIGEST', '')) is not None)
-    need(hmac.compare_digest(digest, env['NORMAL_EXPECTED_DIGEST']))
+def commitment_components(env, tfvars, state, plan, key):
+    """Per-section keyed diagnostics. Values and HMACs are never printed."""
+    payload = commitment_payload(env, tfvars, state, plan)
+    planned = payload['plan']
+    sections = {
+        'source_run_mode': {k: payload[k] for k in ('sha', 'run', 'mode', 'target')},
+        'inputs': payload['tfvars'],
+        'review': payload['review'],
+        'state': payload['state'],
+        'resource_changes': planned.get('resource_changes'),
+        'planned_values': planned.get('planned_values'),
+        'prior_state': planned.get('prior_state'),
+        'checks': planned.get('checks'),
+        'relevant_attributes': planned.get('relevant_attributes'),
+        'other_plan_fields': {k: v for k, v in planned.items() if k not in {
+            'resource_changes', 'planned_values', 'prior_state', 'checks', 'relevant_attributes'}},
+    }
+    return {name: hmac.new(key, b'gcp-normal-diagnostic-v1\0' + name.encode() +
+                          b'\0' + common.canonical(value), hashlib.sha256).hexdigest()
+            for name, value in sections.items()}
+
+
+def report_replan_mismatch(env):
+    """GitHub expression comparisons provide booleans, never private HMACs."""
+    flags = []
+    for section in DIAGNOSTIC_SECTIONS:
+        flag = env.get('NORMAL_MISMATCH_' + section.upper())
+        need(flag in {'true', 'false'})
+        if flag == 'true':
+            flags.append(section)
+    print('GCP_NORMAL_REPLAN: STOP; sections=' +
+          (','.join(flags) if flags else 'commitment_only'))
+
+
+def check_plan_time(env, now):
     issued = int(env.get('NORMAL_PLAN_TIME', '0'))
     need(0 <= now - issued <= MAX_AGE)
 
 
+def match(env, digest, now):
+    # Credentialless unit-test helper only. No expected digest is passed to
+    # authenticated Apply as a step environment variable.
+    need(re.fullmatch('[0-9a-f]{64}', env.get('NORMAL_EXPECTED_DIGEST', '')) is not None)
+    need(hmac.compare_digest(digest, env['NORMAL_EXPECTED_DIGEST']))
+    check_plan_time(env, now)
+
+
 def snapshot(env, root, name):
     # Reuse bounded native-S3 state/lock/workspace checks, not migration contracts.
-    return common.snapshot(env | {'MIGRATION_TARGET': 'dev'}, root, name)
+    return common.snapshot(env | {'MIGRATION_TARGET': env['NORMAL_TARGET']}, root, name)
 
 
 def identity(env):
@@ -202,15 +413,21 @@ def identity(env):
     need(result.get('Account') == account
          and result.get('UserId', '').startswith(env['BACKEND_ROLE_ID'] + ':')
          and result.get('Arn', '').startswith('arn:aws:sts::' + account + ':assumed-role/' + arn.rsplit('/', 1)[1] + '/'))
-    need(env['GCP_SERVICE_ACCOUNT'] == f'terraform-dev-normal-{role}@{PROJECT}.iam.gserviceaccount.com')
-    current = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + PROJECT)
-    need(current.get('projectId') == PROJECT and current.get('state') == 'ACTIVE')
+    target, project = env['NORMAL_TARGET'], target_project(env)
+    need(env['GCP_SERVICE_ACCOUNT'] == f'terraform-{target}-normal-{role}@{project}.iam.gserviceaccount.com')
+    current = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + project)
+    need(current.get('projectId') == project and current.get('state') == 'ACTIVE')
+    if target == 'prod':
+        name = current.get('name', '')
+        need(re.fullmatch(r'projects/[0-9]+', name) is not None)
+        env['NORMAL_PROJECT_NUMBER'] = name.split('/')[1]
     permissions = ['resourcemanager.projects.get', 'pubsub.topics.create', 'pubsub.topics.update', 'pubsub.topics.delete']
-    own = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + PROJECT + ':testIamPermissions', {'permissions': permissions})
+    own = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + project + ':testIamPermissions', {'permissions': permissions})
     need(set(own.get('permissions', [])) == set(permissions if role == 'apply' else permissions[:1]))
-    # Explicitly probe the production boundary, without reading production state.
+    # Fail closed if the normal identity has control-plane rights in the other project.
+    other_project = PROJECTS['prod' if target == 'dev' else 'dev']
     try:
-        other = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/youtube-study-space:testIamPermissions', {'permissions': permissions})
+        other = common.google(env, 'cloudresourcemanager.googleapis.com', 'v3/projects/' + other_project + ':testIamPermissions', {'permissions': permissions})
     except common.urllib.error.HTTPError as error:
         need(error.code == 403)
         error.close()
@@ -228,11 +445,13 @@ def oidc(env):
         token = json.load(response)['value']
     part = token.split('.')[1]
     claims = common.decode(common.base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))
+    target = env['NORMAL_TARGET']
+    ref = development_ref(env['GITHUB_REF']) if target == 'dev' else 'refs/heads/main'
     expected = {
         'repository_id': '340900071', 'repository_owner_id': '54093651',
-        'environment': 'terraform-dev-' + env['NORMAL_ROLE'], 'ref': 'refs/heads/dev',
-        'workflow_ref': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
-        'job_workflow_ref': 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/dev',
+        'environment': 'terraform-' + target + '-' + env['NORMAL_ROLE'], 'ref': ref,
+        'workflow_ref': CALLER + ref,
+        'job_workflow_ref': REUSABLE + ref,
         'event_name': 'workflow_dispatch',
     }
     subject = ':'.join(f'{k}:{v.replace(":", "%3A")}' for k, v in expected.items())
@@ -253,16 +472,17 @@ def source(env, root):
         raw = common.run(['git', 'show', 'HEAD:' + name], cwd=REPO).stdout
         need(path.read_bytes() == raw)
         common.write(root / 'checkout' / name, raw)
-    return root / 'checkout/infra/gcp/environments/dev'
+    return root / 'checkout/infra/gcp/environments' / env['NORMAL_TARGET']
 
 
 def setup(env, root, tfvars):
     tfroot = source(env, root)
     common.write(root / 'terraform.rc', b'disable_checkpoint = true\n')
     common.write(root / 'inputs.tfvars.json', common.canonical(tfvars))
-    backend = dict(bucket=env['STATE_BUCKET'], key='youtube-study-space/dev/terraform.tfstate',
+    target = env['NORMAL_TARGET']
+    backend = dict(bucket=env['STATE_BUCKET'], key=f'youtube-study-space/{target}/terraform.tfstate',
                    region='ap-northeast-1', encrypt=True, use_lockfile=True,
-                   workspace_key_prefix='youtube-study-space/dev/workspaces',
+                   workspace_key_prefix=f'youtube-study-space/{target}/workspaces',
                    allowed_account_ids=[env['STATE_ACCOUNT_ID']])
     common.write(root / 'backend.hcl', ''.join(f'{k} = {json.dumps(v)}\n' for k, v in backend.items()).encode())
     common.terraform(env, root, tfroot, 'init', ['init', '-input=false', '-lockfile=readonly', '-backend-config=' + str(root / 'backend.hcl')])
@@ -274,7 +494,9 @@ def plan(env, root, tfroot, name, approved, *, post=False):
     result = common.terraform(env, root, tfroot, name, ['plan', '-input=false', '-detailed-exitcode', '-lock-timeout=60s',
         '-var-file=' + str(root / 'inputs.tfvars.json'), '-out=' + str(binary)], codes=(0, 2))
     value = common.decode(common.terraform(env, root, tfroot, name + '-show', ['show', '-json', str(binary)]).stdout)
-    counts = validate(value, approved, post=post)
+    counts = validate(value, approved, post=post, project=target_project(env),
+                      project_number=env.get('NORMAL_PROJECT_NUMBER'))
+    verify_storage_ownership(env, value)
     if post:
         need(result.returncode == 0)
     return SavedPlan(binary, hashlib.sha256(binary.read_bytes()).digest()), value, counts
@@ -294,6 +516,7 @@ def apply_saved(env, root, tfroot, binary, before, name):
 
 
 def e2e(env, root, tfroot, before):
+    need(env['NORMAL_TARGET'] == 'dev')
     # Only a generated, uniquely named DEV topic; no workload is altered for tests.
     probe = tfroot / 'normal_probe.tf.json'
     address = 'google_pubsub_topic.normal_ops_probe'
@@ -340,9 +563,34 @@ def e2e(env, root, tfroot, before):
     print('GCP_NORMAL_E2E: PASS; baseline_restored=true')
 
 
-def execute(env):
+def output_commitments(env, tfvars, before, plan_json, key, *, include_time=False):
+    # The runner only logs output names. HMACs must never be placed into step
+    # env or interpolated shell commands. GitHub expressions compare them.
+    digest = commitment(env, tfvars, before, plan_json, key)
+    values = commitment_components(env, tfvars, before, plan_json, key)
+    need(set(values) == set(DIAGNOSTIC_SECTIONS))
+    with open(env['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+        output.write('digest=' + digest + '\ncomponents=' +
+                     json.dumps(values, sort_keys=True, separators=(',', ':')) + '\n')
+        if include_time:
+            output.write('plan_time=' + str(int(time.time())) + '\n')
+    return digest
+
+
+def initial_production_noop(env, before, value, counts):
+    if env['NORMAL_TARGET'] != 'prod' or env['NORMAL_MODE'] != 'normal-plan':
+        return False
+    return (len(before['state']['resources']) == 30
+            and sum(item.get('mode') == 'managed' for item in value.get('resource_changes', [])) == 30
+            and counts['no-op'] == 30 and sum(counts.values()) == 30
+            and all(c.get('actions') == ['no-op'] for c in value.get('output_changes', {}).values()))
+
+
+def execute(env, *, prepare_only=False):
     role = env['NORMAL_ROLE']
     context(env, role)
+    need((role == 'plan' and not prepare_only) or
+         (role == 'apply' and prepare_only))
     root = private(env)
     tfvars, key = inputs(env)
     print('GCP_NORMAL: phase=identity')
@@ -351,24 +599,65 @@ def execute(env):
     before = snapshot(env, root, 'before')
     need(before['state'] is not None)
     tfroot = setup(env, root, tfvars)
-    binary, value, counts = plan(env, root, tfroot, 'normal', review())
+    binary, value, counts = plan(env, root, tfroot, 'normal', review(env['NORMAL_TARGET']))
     need(snapshot(env, root, 'after-plan') == before)
     report_plan(env, root, tfroot, value)
-    digest = commitment(env, tfvars, before, value, key)
-    if role == 'plan':
-        if env['NORMAL_MODE'] == 'normal-e2e':
-            need(all(k in {'no-op', 'read'} or v == 0 for k, v in counts.items()))
-        with open(env['GITHUB_OUTPUT'], 'a') as output:
-            output.write('digest=' + digest + '\nplan_time=' + str(int(time.time())) + '\n')
+    if initial_production_noop(env, before, value, counts):
+        # Emitted only after native full-root validation and State readback.
+        print(f"GCP_PROD_INITIAL_NOOP: PASS; source={env['GITHUB_SHA']}; run={env['GITHUB_RUN_ID']}; managed=30; state_unchanged=true")
+    if env['NORMAL_MODE'] == 'normal-e2e':
+        need(all(k in {'no-op', 'read'} or v == 0 for k, v in counts.items()))
+    digest = output_commitments(env, tfvars, before, value, key,
+                                include_time=(role == 'plan'))
+    if role == 'apply':
+        # Save all private material solely inside this job's 0700 runner dir.
+        # The next step can apply the *same sealed* native plan only after
+        # Actions checks both jobs' HMACs without logging either HMAC.
+        prepared = {'source_sha': env['GITHUB_SHA'], 'run_id': env['GITHUB_RUN_ID'],
+                    'mode': env['NORMAL_MODE'], 'digest': digest,
+                    'binary_sha256': binary.digest.hex(), 'before': before,
+                    'counts': counts}
+        common.write(root / 'normal-prepared.json', common.canonical(prepared))
+        print('GCP_NORMAL: PASS; phase=apply-prepared')
     else:
-        print('GCP_NORMAL: phase=replan-match')
-        match(env, digest, int(time.time()))
-        print('GCP_NORMAL: phase=apply-and-verify')
-        after = apply_saved(env, root, tfroot, binary, before, 'normal')
-        if env['NORMAL_MODE'] == 'normal-e2e':
-            need(all(k in {'no-op', 'read'} or v == 0 for k, v in counts.items()))
-            e2e(env, root, tfroot, after)
-    print('GCP_NORMAL: PASS; role=' + role + '; counts=' + json.dumps(counts, sort_keys=True))
+        print('GCP_NORMAL: PASS; role=plan; counts=' + json.dumps(counts, sort_keys=True))
+
+
+def apply_prepared(env):
+    context(env, 'apply')
+    root = private(env)
+    path = root / 'normal-prepared.json'
+    need(path.is_file() and not path.is_symlink())
+    prepared = common.decode(path.read_bytes())
+    need(type(prepared) is dict and
+         set(prepared) == {'source_sha', 'run_id', 'mode', 'digest',
+                           'binary_sha256', 'before', 'counts'})
+    need(prepared['source_sha'] == env['GITHUB_SHA'] and
+         prepared['run_id'] == env['GITHUB_RUN_ID'] and
+         prepared['mode'] == env['NORMAL_MODE'])
+    need(re.fullmatch('[0-9a-f]{64}', prepared['binary_sha256']) is not None)
+    need(re.fullmatch('[0-9a-f]{64}', prepared['digest']) is not None)
+    check_plan_time(env, int(time.time()))
+    tfvars, key = inputs(env)
+    identity(env)
+    before = prepared['before']
+    root_plan = root / 'normal.tfplan'
+    shown = common.decode((root / 'normal-show.stdout').read_bytes())
+    need(commitment(env, tfvars, before, shown, key) == prepared['digest'])
+    binary = SavedPlan(root_plan, bytes.fromhex(prepared['binary_sha256']))
+    need(binary.path.is_file() and not binary.path.is_symlink() and
+         hashlib.sha256(binary.path.read_bytes()).digest() == binary.digest)
+    tfroot = root / 'checkout/infra/gcp/environments' / env['NORMAL_TARGET']
+    need(tfroot.is_dir() and not tfroot.is_symlink())
+    print('GCP_NORMAL: phase=apply-and-verify')
+    after = apply_saved(env, root, tfroot, binary, before, 'normal')
+    if env['NORMAL_MODE'] == 'normal-e2e':
+        counts = prepared['counts']
+        need(type(counts) is dict and
+             all(k in {'no-op', 'read'} or v == 0 for k, v in counts.items()))
+        e2e(env, root, tfroot, after)
+    print('GCP_NORMAL: PASS; role=apply; counts=' +
+          json.dumps(prepared['counts'], sort_keys=True))
 
 
 def main():
@@ -384,7 +673,7 @@ def main():
         elif operation == 'stage':
             context(env, env['NORMAL_ROLE'])
             inputs(env)
-            review()
+            review(env['NORMAL_TARGET'])
             root = private(env)
             need(not root.exists())
             root.mkdir(mode=0o700)
@@ -392,6 +681,14 @@ def main():
             oidc(env)
         elif operation == 'execute':
             execute(env)
+        elif operation == 'prepare':
+            execute(env, prepare_only=True)
+        elif operation == 'apply':
+            apply_prepared(env)
+        elif operation == 'mismatch':
+            context(env, 'apply')
+            report_replan_mismatch(env)
+            need(False)
         else:
             need(False)
         return 0

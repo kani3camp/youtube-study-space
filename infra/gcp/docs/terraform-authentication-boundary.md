@@ -21,16 +21,16 @@ controllerは `infra/gcp/scripts/terraform_normal_ops.py`、運用入口と設�
 
 | 境界 | 実装 |
 | --- | --- |
-| PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・`dev`固定・正確なexpected SHA・same-SHA caller/reusableをcredentials前に検査 |
-| Environment/OIDC | 既存DEV Plan/Apply EnvironmentとAWS backend roleを再利用。新規のDEV固定WIF poolと通常専用GCP SAを分離。旧providerと同poolを共有すると旧integration claimsから通常SAへ到達し得るため、poolも分離 |
+| PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・有効な非`main` branch ref・正確なexpected SHA・same-ref/same-SHA caller/reusableをcredentials前に検査。どのbranchを認証付き実行へ許可するかはGitHub Environmentが決定 |
+| Environment/OIDC | 既存DEV Plan/Apply EnvironmentとAWS backend roleを再利用。AWSは既存7-claim subjectとネイティブactor_idの完全一致で本人に固定。通常専用GCP WIF/SAはrepository・owner・actor・Environment・workflow path・branch-shaped same-ref・same-SHAを検証するが**branch名をallowlistしない**。通常Plan/Applyを許可するbranch名はGitHub EnvironmentのSelected branchesだけで管理 |
 | 入力 | 既存private baselineのtfvarsへcommit-bound `normal.tfvars.json`を重ねる。manifestは通常変更の型/件数制限に使わない。projectはDEV固定 |
 | Plan | refresh付きfull-root native saved plan。Coreのcomplete/errored/checksとdriftを検査。create/updateのcomputed unknownはTerraformに委ねる |
 | delete/replace | commit内`normal-operations.json`のaddress/actions完全一致が必須。未使用指定も拒否。忘却操作・importは通常経路では拒否 |
-| Apply binding | 同runの独立Apply identityで同SHA/入力を再Plan。timestampだけを除く全Plan JSON、SHA、run ID、mode、入力、破壊的review、State本文/HEADをprivate keyのHMACで照合。30分の期限、未来時刻・欠落も拒否 |
+| Apply binding | 同runの独立Apply identityで同SHA/入力を再Plan。timestampと順序のない配列のみ正規化し、全Plan JSON、SHA、run ID、mode、入力、破壊的review、State本文/HEADをprivate keyのHMACで照合。GitHub Actionsのstep `if`でHMAC一致だけを評価し値をstep環境・ログに展開しない。30分の期限、未来時刻・欠落も拒否 |
 | saved plan | 新しく生成した一致Planだけを適用。公開artifactへの生Plan転送はしない。Apply直前にState/保存Planを再確認し、native S3 lockとCoreのstale-plan検査を使う |
 | State | DEV固定key、account制限、AES256、VersionId、lineage/serial、lock/workspace不在。State欠損時は停止し、自動初期化しない |
 | 事後確認 | lineage維持・serial単調増加、refresh付きfull-root no-op、State前後照合とlock解放。エラーを無視せず停止 |
-| 出力/cleanup | stdout/stderr/Plan/State/API例外はprivate runnerへ。公開は固定phase・件数・provider schemaで照合した変更リソース種別/操作別件数とHMAC/time。address/for_eachキー/属性名/値は出さず、ログとjob summaryへ同じ変更一覧を表示。alwaysでprivate filesを削除。強制unlock/自動State巻戻しなし |
+| 出力/cleanup | stdout/stderr/Plan/State/API例外はprivate runnerへ。公開は固定phase・件数・provider schemaで照合した変更リソース種別/操作別件数・プラン時刻・HMAC不一致セクション名のみ。address/for_eachキー/属性名/値は出さず、ログとjob summaryへ同じ変更一覧を表示。alwaysでprivate filesを削除。強制unlock/自動State巻戻しなし |
 
 HMACは同runのPlan/Apply比較に限った小さな整合検査です。独自の発行サービス、durable receipt、
 承認台帳、履歴chain、per-resource attestationは作りません。
@@ -38,6 +38,16 @@ Plan用SAにはリソースの読取りとmetadataだけ、Applyには限定し�
 新規リソース型を追加しても通常実行器の改修は不要です。未知の権限領域は同bootstrapの権限審査で扱います。
 公式の[S3 locking](https://developer.hashicorp.com/terraform/language/backend/s3)と
 [saved-plan apply](https://developer.hashicorp.com/terraform/cli/commands/apply)を基本にします。
+
+## PRODの通常Plan/Apply（main固定）
+
+Productionは `normal-plan` / `normal-apply` を `refs/heads/main` と完全一致する同SHA caller/reusableだけに許可します。`normal-e2e` はPRODでは拒否します。GCP Projectは `youtube-study-space`、State keyは `youtube-study-space/prod/terraform.tfstate`、Terraform root/private inputsは `infra/gcp/environments/prod/` 専用です。DEV Root/Stateを使い回しません。
+
+GitHubの `terraform-prod-plan` / `terraform-prod-apply` はmain-only Selected branches、別GCP normal WIF/SA、既存のPROD AWS backend role、同runの独立再Plan/HMAC一致・saved plan seal、明示的な破壊的操作review、適用後のfull-root no-opとnative S3 lockを要求します。source+inputs+target+State/HEAD+全planのHMACは値をstep envやshell commandへ渡さずGitHub式で比較します。既存migration controller/identityの権限は変えません。
+
+本番用の通常Applyカスタムロールは資源単位の `*.setIamPolicy` を除外し、コード変更だけで公開grantや他identityへの権限昇格を認めません。必要なgrantは独立した権限審査を前提に追加します。
+
+管理端末で既存PROD AWS Roleのnative owner actor_id/main trust、GitHub Environmentのmain-only branch rule、GCPの専用identity/permissionのreadbackを先に行ってください。コードの合格だけでは実PROD認証成功ではありません。実mainリリース後に本番full-root no-op Planを確認し、必要な変更について別途Applyを検証します。初回bootstrapはPlan identityだけを作り、現在のmainで既存30資源の通常full-root no-op実績をAPI/ログで検証する別操作までApply identityを作りません。AWS backendの全inline/attached policyをPROD State/lock/prefixへ完全照合し、Plan内のproject-bearing ID/SA参照もPRODへ制限します。詳細は[README](../README.md#通常のprod-terraform開発main固定)。
 
 ## 既存import専用経路
 
@@ -53,14 +63,14 @@ Applyでは同runのPlan成功後、独立identityで同SHAを再Planし、sourc
 
 | 経路 | 許可するref |
 | --- | --- |
-| DEV通常操作 | `dev`固定。通常専用WIF poolも同じrefへ限定 |
-| DEV既存import | 各Environmentで明示許可したbranch。`main`・旧移行branch・tag・PR refは拒否 |
+| DEV通常操作 | GitHub Environmentで明示選択した任意の非`main` branch。AWS/GCPはbranch名allowlistを持たず、同一refの正規workflowであることだけを検証 |
+| DEV既存import | 従来の`dev` / `integration/mypage-canon-20261006`のみ。共有Environmentへの通常用branch追加ではimportの認可を広げない |
 | Production既存import | `main`固定 |
+| Production通常操作 | **`main`固定**。GCP通常専用WIF/SA、PROD backend role・GitHub 2 Environmentの独立保護と実Plan/Apply認証が必要 |
 
 Environmentのbranch policyはcredentialed jobの最終認可を行います。preflightだけで許可一覧を取得・代替しません。
 Environmentの許可branch・required reviewers・admin bypass等の実設定は、管理APIで実行時に確認してください。
-許可branchを追加しても、そのbranchのworkflow/controllerやクラウド側trustが自動更新されるわけではありません。
-通常DEV操作はEnvironmentへのbranch追加だけでは他branchへ開放されません。
+許可branchを追加しても、そのbranchのworkflow/controllerの安全性が自動的に保証されるわけではありません。一方、AWS/GCPの恒久trustはbranch追加のたびに変更しません。`enable_normal_integration.py --apply --branch <branch>`が変更するのはDEV Plan/Apply GitHub EnvironmentのSelected branchesだけです。AWS/GCPは必要時に`--verify-aws` / `--verify-gcp`でread-only監査できます。
 
 Selected branches方式のEnvironmentはref名を検査します。許可branch内のコード改変経路には、PRレビュー・必須CI・force-push/deletion禁止を適用します。
 同SHAのcaller/reusableであることは、内容が安全にレビュー済みであることまで保証しません。
@@ -71,7 +81,7 @@ Environment reviewは実行時の確認を加える別の制御です。必要�
 ## 設定変更時の確認
 
 1. 対象project/account/ref/Environmentと、Plan/Applyの実identityを確認する。
-2. GCP WIFのissuer・attribute mapping/condition、SA trust、project roleをbootstrap定義と照合する。
+2. GCP WIFのissuer・attribute mapping/condition、SA trust、project roleをbootstrap定義と照合する。WIF conditionに個別branch名を入れず、same-ref workflow条件とbranch-shaped refだけを保持する。
    user-managed keyがないこと、runtime SAに不要なproject roleがないこと、actAsの付与先が限定されていることも確認する。
    権限数やpermission一覧は `bootstrap_normal_ops.py --check` とIAMの実値から確認する。
 3. AWS backend roleの対象State/lock key、PlanのState書込禁止、Applyの環境限定書込、S3のVersioning・暗号化・公開アクセス遮断を確認する。
