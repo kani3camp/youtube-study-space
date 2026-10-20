@@ -288,6 +288,14 @@ class ProductionBootstrap(unittest.TestCase):
                         {"type": "folder", "id": "456"}, {"type": "organization", "id": "789"}]
             if args[:2] == ("projects", "get-iam-policy"):
                 return {"bindings": []}
+            if args[:3] == ("iam", "service-accounts", "describe"):
+                if "normal-plan@" in args[3]:
+                    return {"email": args[3]}
+                return None
+            if args[:3] == ("iam", "service-accounts", "keys"):
+                return []
+            if args[:3] == ("iam", "service-accounts", "get-iam-policy"):
+                return {"bindings": []}
             if "describe" in args:
                 return None
             raise AssertionError("unexpected mutation " + repr(args))
@@ -498,6 +506,18 @@ class ProductionBootstrap(unittest.TestCase):
         self.assertEqual(set(accounts), {"terraform-prod-normal-plan@" + prod.PROJECT + ".iam.gserviceaccount.com"})
         self.assertEqual(set(roles), {"terraformNormalPlan"})
         self.assertFalse(any("terraform-prod-normal-apply" == a or "terraform-prod-workload" == a for call in calls for a in call))
+        # A fresh identity that is not fully indexed must remain untrusted.
+        calls.clear(); roles.clear(); accounts.clear(); policies.clear()
+        project_policy["bindings"].clear()
+        provider = None
+        with patch.object(prod, "gcloud", side_effect=gcloud), \
+             patch.object(prod, "policy_analysis_scope", return_value=("project", prod.PROJECT)), \
+             patch.object(prod, "audit_effective_grants", side_effect=ValueError("incomplete inventory")), \
+             patch.object(prod.dev, "run") as run, self.assertRaises(ValueError):
+            prod.bootstrap("12345", {"plan": [], "apply": []})
+        run.assert_not_called()
+        self.assertEqual(project_policy["bindings"], [])
+        self.assertEqual(policies, {})
 
 
 if __name__ == "__main__":

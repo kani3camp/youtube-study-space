@@ -426,8 +426,11 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
     # Analyze from the highest ancestor so resource-level, inherited and
     # group-derived grants cannot bypass the narrow Project policy check.
     scope = policy_analysis_scope(number)
-    audit_effective_grants(runtime, scope, {})
-    for kind, (email, _, _, _, project_role) in accounts.items():
+    if runtime_exists is not None:
+        audit_effective_grants(runtime, scope, {})
+    for kind, (email, exists, _, _, project_role) in accounts.items():
+        if exists is None:
+            continue  # No identity can authenticate; audit after creation below.
         approved = allowed_account_grants(number, kind, runtime_exists if enable_apply else None) if kind in kinds else {}
         required = {project_role} if check_project_grants(project_policy, "serviceAccount:" + email, project_role) else set()
         audit_effective_grants(email, scope, approved, required)
@@ -476,6 +479,10 @@ def bootstrap(number, allowed, *, enable_apply=False, check=False):
                    "--display-name=Terraform PROD normal " + kind)
         wait_for_account(account)
         verify_no_user_keys(account)
+        if exists is None:
+            # Do not grant federation/project authority before the newly
+            # created identity is visible to the effective-grant inventory.
+            audit_effective_grants(account, scope, {})
         trust = gcloud("iam", "service-accounts", "get-iam-policy", account)
         if approved_grant not in check_policy(trust, {approved_grant}):
             gcloud("iam", "service-accounts", "add-iam-policy-binding", account,
