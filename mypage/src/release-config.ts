@@ -530,7 +530,7 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 				add(
 					'hosting',
 					'INVALID_FIELD',
-					'Check environment region, project/service/target IDs, exact HTTPS origin and reviewed nonempty HTTPS source lists; do not use wildcards, unsafe directives or credential/query/fragment URLs.',
+					'Check environment region, project/service/target IDs, exact HTTPS origin and reviewed nonempty HTTPS source lists, including both YouTube channel image origins in img-src (yt3.ggpht.com and yt3.googleusercontent.com); do not use wildcards, unsafe directives or credential/query/fragment URLs.',
 				)
 			}
 		}

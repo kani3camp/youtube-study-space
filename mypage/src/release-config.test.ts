@@ -77,7 +77,11 @@ function fixture(): ReleaseConfig {
 				script: ['https://scripts.example.invalid/enterprise.js'],
 				connect: ['https://api.example.invalid'],
 				frame: ['https://frames.example.invalid'],
-				image: ['https://images.example.invalid'],
+				image: [
+					'https://images.example.invalid',
+					'https://yt3.ggpht.com',
+					'https://yt3.googleusercontent.com',
+				],
 				analyticsApproved: false,
 			},
 		},
@@ -141,6 +145,17 @@ describe('offline public release configuration', () => {
 		}
 		for (const value of Object.values(input.deployment))
 			expect(JSON.stringify(production)).not.toContain(value)
+	})
+	it('rejects a Hosting manifest that blocks channel avatars', () => {
+		const input = fixture()
+		if (!input.hosting) throw new Error('missing fixture Hosting companion')
+		input.hosting.inventory.image = ['https://www.gstatic.com/recaptcha/']
+		const result = checkReleaseConfig(input)
+		expect(result.configurationValid).toBe(false)
+		expect(result.checks.hostingCandidate).toBe('invalid')
+		expect(result.diagnostics).toContainEqual(
+			expect.objectContaining({ field: 'hosting', code: 'INVALID_FIELD' }),
+		)
 	})
 	it('keeps absent backend and Hosting companions explicitly unverified', () => {
 		const input = fixture()

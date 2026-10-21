@@ -18,7 +18,11 @@ function fixture(): HostingInputs {
 			script: ['https://scripts.example.invalid/enterprise.js'],
 			connect: ['https://api.example.invalid'],
 			frame: ['https://frames.example.invalid'],
-			image: ['https://images.example.invalid'],
+			image: [
+				'https://images.example.invalid',
+				'https://yt3.ggpht.com',
+				'https://yt3.googleusercontent.com',
+			],
 			analyticsApproved: false,
 		},
 	}
@@ -52,6 +56,42 @@ describe('Hosting candidate without deployment', () => {
 		expect(
 			hostingCandidate(input).firebase.hosting.rewrites[0]?.run?.region,
 		).toBe('asia-northeast2')
+	})
+	it('requires both reviewed channel image origins in img-src only', () => {
+		const input = fixture()
+		const csp = hostingCandidate(
+			input,
+		).firebase.hosting.headers[0]?.headers.find(
+			(x) => x.key === 'Content-Security-Policy',
+		)?.value
+		const directives = csp?.split('; ')
+		expect(directives).toContain(
+			"img-src 'self' https://images.example.invalid https://yt3.ggpht.com https://yt3.googleusercontent.com",
+		)
+		expect(
+			directives?.filter((x) => !x.startsWith('img-src ')).join('; '),
+		).not.toMatch(/yt3\.(ggpht|googleusercontent)\.com/)
+		for (const missing of [
+			'https://yt3.ggpht.com',
+			'https://yt3.googleusercontent.com',
+		]) {
+			for (const replacement of [
+				'https://www.gstatic.com/recaptcha/',
+				`${missing}/restricted/`,
+				`${missing}.example.invalid`,
+			]) {
+				const incomplete = fixture()
+				incomplete.inventory.image = incomplete.inventory.image.filter(
+					(source) => source !== missing,
+				)
+				incomplete.inventory.image.push(replacement)
+				expect(() => hostingCandidate(incomplete)).toThrow(
+					'Hosting account image inventory unavailable',
+				)
+			}
+		}
+		input.inventory.image = input.inventory.image.map((source) => `${source}/`)
+		expect(() => hostingCandidate(input)).not.toThrow()
 	})
 	it('rejects incomplete inventory, wrong region/origin and source injection', () => {
 		for (const source of [
