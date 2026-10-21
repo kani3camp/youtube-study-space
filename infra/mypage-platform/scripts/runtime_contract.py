@@ -226,11 +226,15 @@ def validate_owner_hosting_image_refresh(item, planned, value):
            and added[0].get("value") == value["hosting_backend_host"] and not added[0].get("value_source"), "runtime-owner-refresh-host")
     c.need([x for x in new_env if x.get("name") != "MYPAGE_HOSTING_BACKEND_HOST"] == old_env, "runtime-owner-refresh-env")
     old_container["env"] = deepcopy(new_env)
-    revision = new_template.get("revision")
-    c.need(type(revision) is str and re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", revision)
-           and after.get("latest_ready_revision", "").split("/")[-1] == revision
-           and after.get("latest_created_revision") == after.get("latest_ready_revision"), "runtime-owner-refresh-ready")
-    old_template["revision"] = revision
+    # Auto-generated revision names are observed on latest_ready_revision;
+    # Run leaves the optional desired template.revision empty before and after.
+    ready = after.get("latest_ready_revision")
+    ready_match = re.fullmatch(r"(?:projects/" + re.escape(c.PROJECT) + r"/locations/asia-southeast2/services/mypage-api/revisions/)?(mypage-api-[a-z0-9-]{1,50})", ready) if type(ready) is str else None
+    c.need(ready_match is not None and after.get("latest_created_revision") == ready, "runtime-owner-refresh-ready")
+    revision = ready_match[1]
+    desired_revision = new_template.get("revision")
+    c.need(desired_revision == revision or (desired_revision == "" and old_template.get("revision") == ""), "runtime-owner-refresh-ready")
+    old_template["revision"] = desired_revision
     terminal = one(after.get("terminal_condition"), "runtime-owner-refresh-ready")
     c.need(terminal.get("state") == "CONDITION_SUCCEEDED" and not after.get("reconciling"), "runtime-owner-refresh-ready")
     traffic = one(after.get("traffic_statuses"), "runtime-owner-refresh-traffic")

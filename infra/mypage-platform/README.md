@@ -103,3 +103,5 @@ CIに `run.services.update` を与えず、ownerがetag付きで既存serviceの
 2026-10-21 11:16 UTCの合成callbackをCloud Run request logで観測し、code/state queryが保存されることを確認した（実OAuthは未実施）。`environments/dev/request-log-exclusion.json` はowner管理の `_Default` sink exclusionのreview済み入力で、Terraform Stateの追加資源ではない。ownerが既存sink inventoryとfilter previewを確認して作成し、readbackと別合成markerで再確認する。CIのIAMや既存State管理範囲を増やさない。
 
 filterはtest projectのmypage-apiの標準request logのうちcallback URLまたはquery付きAPI URLだけに限定する。通常のqueryなしAPI request、application/security log、監査・system log、他service/projectは対象外。既存の合成記録は削除せず、保持期間中は既存の閲覧境界内に残る。今後別sink/ancestor routingを増やす場合は同じprivacy境界を検証する。Hosting/CDNや実OAuth部分を含む全層のS04完了をこの局所修正だけでは宣言しない。実Auth、実データ削除、Production、先行ログ基盤追加は対象外。
+
+2026-10-21のowner更新後、実serviceは `mypage-api-00002-qcs` Readyとなり、Hosting GET/POSTのApp Check欠落403、不正Origin400、method405を確認した。run 39592888606のPlanはplanned no-opだが `runtime-owner-refresh-ready` で変更前停止。owner API metadataのtemplate.revisionは更新前後とも空で、実revisionはlatestReady/latestCreatedにだけ現れた。自動命名時の空template.revisionは前後不変の場合だけ認め、固定serviceのlatest Ready/Created一致、成功condition、最新100% traffic、generation+1の検証は維持する。非空の旧revision・他service・未知値は拒否する。
