@@ -29,6 +29,7 @@ Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-
 | `disabled` | 新resourceなし | 運用中のTerraform State変更 |
 | `foundation_metadata` | 新専用SAと3個のSecret metadataのみ | IAM member変更・Secret値・Cloud Run |
 | `foundation` | 新専用 user-managed SA `mypage-api`、Secret Managerの3個の**secret metadata**、SA単位のFirebase Custom Token用signer IAM、各secret単位のAccessor IAM | secret version/value、Firestore権限、Cloud Run、公開Invoker |
+| `registry`（Devのみ） | 上記8資源 + `asia-southeast2`の専用Docker repository `mypage`。immutable tags、cleanup dry-run、prevent_destroy | image push、Cloud Run、Firestore権限、公開Invoker、Production |
 | `runtime_private` | 上記 + `roles/datastore.user` の新SAに対する**additive project IAM member** + Cloud Run v2 API本体 | Cloud Runの `allUsers` invoker、Hosting公開、scheduler/alert |
 | `runtime_public` | 上記 + 当該Cloud Runサービスだけに `roles/run.invoker` / `allUsers` memberを追加 | ログイン必須APIのID token/App Check免除、一般告知 |
 

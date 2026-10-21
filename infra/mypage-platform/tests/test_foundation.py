@@ -43,6 +43,39 @@ def refreshed_metadata_fixture():
 
 
 class FoundationTest(unittest.TestCase):
+    def test_registry_stage_adds_only_the_immutable_dev_repository(self):
+        plan = plan_fixture()
+        plan['variables']['stage']['value'] = 'registry'
+        for item in plan['resource_changes']:
+            item['change']['actions'] = ['no-op']
+        address = 'module.platform[0].google_artifact_registry_repository.mypage[0]'
+        plan['resource_changes'].append({
+            'address': address, 'mode': 'managed', 'provider_name': 'registry.terraform.io/hashicorp/google',
+            'change': {'actions': ['create'], 'after': deepcopy(c.resource_contract('registry')[address]), 'after_unknown': {}},
+        })
+        self.assertEqual(c.stage_for_mode('registry-plan'), 'registry')
+        self.assertEqual(c.stage_for_mode('registry-apply'), 'registry')
+        self.assertEqual(c.validate_plan(plan, 'registry'), {'resources': 9, 'creates': 1})
+        for key, bad in (
+            ('project', 'youtube-study-space'), ('location', 'asia-northeast2'), ('repository_id', 'gcf-artifacts'),
+            ('format', 'NPM'), ('mode', 'REMOTE_REPOSITORY'), ('cleanup_policy_dry_run', False),
+            ('docker_config', [{'immutable_tags': False}]), ('remote_repository_config', [{'description': 'unreviewed'}]),
+            ('virtual_repository_config', [{'upstream_policies': []}]), ('cleanup_policies', [{'id': 'delete'}]),
+        ):
+            rejected = deepcopy(plan)
+            rejected['resource_changes'][-1]['change']['after'][key] = bad
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                c.validate_plan(rejected, 'registry')
+        for actions in (['update'], ['delete'], ['delete', 'create']):
+            rejected = deepcopy(plan)
+            rejected['resource_changes'][-1]['change']['actions'] = actions
+            with self.subTest(actions=actions), self.assertRaises(ValueError):
+                c.validate_plan(rejected, 'registry')
+        # An opt-in stage cannot leak the repository into the old Foundation mode.
+        plan['variables']['stage']['value'] = 'foundation'
+        with self.assertRaises(ValueError):
+            c.validate_plan(plan)
+
     def test_post_apply_noop_accepts_only_the_same_secret_resource_name(self):
         plan = plan_fixture()
         for item in plan['resource_changes']:
