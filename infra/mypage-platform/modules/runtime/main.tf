@@ -176,6 +176,11 @@ resource "google_cloud_run_v2_service" "api" {
     scaling_mode       = "AUTOMATIC"
   }
 
+  traffic {
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+    percent = 100
+  }
+
   template {
     service_account                  = local.runtime_email
     timeout                          = "30s"
