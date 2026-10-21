@@ -77,3 +77,7 @@ DevelopmentのFoundation metadataは実作成・State readback済み。Secret ve
 runtime設定の任意 `image_source_sha`（既定は空文字）は、既存の不変tagを作成した40桁commit SHAを示す。空文字なら従来どおり実行元SHAのtagを要求する。別SHAの場合はpublic repositoryからそのcommitを取得し、実行元とbuild元の `system` tree全体が一致することを、Plan/Applyの双方で確認する。Docker contextは `system/` 全体であり、Dockerfile、依存lock、ignore設定とGoソースを含む。tagの作り替え、出所不明digest、アプリ変更後の旧image流用は拒否する。これはinfra診断だけの変更で既存revisionを更新する必要をなくすためで、Cloud Runのupdate/delete/replaceは引き続き拒否する。
 
 Cloud Runのdrift診断は、固定allowlistに含まれる変更field名、その他fieldの件数、planned no-opの真偽だけを公開する。値、未知のfield名、State/Plan本文は公開せず、診断を理由にadmissionを緩めない。private runtimeの初回適用はrun 39566961739で成功した。続くpublic Planは `runtime-drift-address` で変更前に停止し、付与済みの一時権限3件は全て解除した。公開接続とHosting releaseは未実施。
+
+### 初回Cloud Run readの空値補完
+
+実Plan run 39571661136 で、planned no-opのCloud Runに対し、root `annotations` / `labels`、revision templateの同2 fieldがnull→{}、root `custom_audiences`、唯一のcontainerの `args` / `command` / `depends_on` がnull→[]となる8 pathだけを観測した。この8 pathだけを、known・同じschema・同じ固定service boundary・planned afterがrefresh afterと同一の場合に受理する。8 pathを補完したbeforeがafterと完全一致することを要求し、追加field、非空値、逆方向変化、アプリ/認証/secret/scale/traffic変更、unknown、update/delete/replace/importは受理しない。native driftを消さず、HMACには従来どおり含める。

@@ -143,6 +143,48 @@ def validate_service(after, unknown, value):
         c.need(one(source.get("secret_key_ref"), "runtime-secret-ref") == {"secret": secret_id, "version": value[field]}, "runtime-secret-pinned")
 
 
+def validate_service_empty_refresh(item, planned, value):
+    """Only the eight observed null-to-empty defaults, with no serving write."""
+    c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "runtime-refresh-provider")
+    change = item.get("change", {})
+    c.need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths"), "runtime-refresh-action")
+    c.need(not c.has_unknown(change.get("after_unknown")), "runtime-refresh-unknown")
+    before, after = change.get("before"), change.get("after")
+    c.need(type(before) is dict and type(after) is dict, "runtime-refresh-shape")
+    plan = planned.get(SERVICE, {}).get("change", {})
+    c.need(plan.get("actions") == ["no-op"] and plan.get("after") == after
+           and not c.has_unknown(plan.get("after_unknown")), "runtime-refresh-planned-noop")
+    normalized = deepcopy(before)
+    paths = [("annotations",), ("labels",), ("custom_audiences",),
+             ("template", 0, "annotations"), ("template", 0, "labels"),
+             ("template", 0, "containers", 0, "args"),
+             ("template", 0, "containers", 0, "command"),
+             ("template", 0, "containers", 0, "depends_on")]
+    for path in paths:
+        old_parent, new_parent = normalized, after
+        for key in path[:-1]:
+            if isinstance(key, int):
+                c.need(type(old_parent) is list and type(new_parent) is list
+                       and len(old_parent) == len(new_parent) == 1, "runtime-refresh-shape")
+            else:
+                c.need(type(old_parent) is dict and type(new_parent) is dict
+                       and key in old_parent and key in new_parent, "runtime-refresh-shape")
+            old_parent, new_parent = old_parent[key], new_parent[key]
+        key = path[-1]
+        c.need(type(old_parent) is dict and type(new_parent) is dict
+               and key in old_parent and key in new_parent, "runtime-refresh-shape")
+        old, new = old_parent[key], new_parent[key]
+        if old != new:
+            empty_type = dict if key in {"annotations", "labels"} else list
+            c.need(old is None and type(new) is empty_type and not new, "runtime-refresh-empty-only")
+            old_parent[key] = deepcopy(new)
+    c.need(normalized != before and normalized == after, "runtime-refresh-fields")
+    for candidate in (before, after):
+        for key, expected in resource_contract("runtime_private")[SERVICE].items():
+            c.need(candidate.get(key) == expected, "runtime-refresh-boundary")
+        validate_service(candidate, {}, value)
+
+
 def validate_plan(plan, stage):
     value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
     c.need(plan.get("variables", {}).get("stage", {}).get("value") == stage, "runtime-plan-stage")
@@ -162,6 +204,8 @@ def validate_plan(plan, stage):
         drift_seen.add(address)
         if address in base:
             foundation["resource_drift"].append(item)
+        elif address == SERVICE:
+            validate_service_empty_refresh(item, planned, value)
         else:
             # Removing temporary bootstrap access changes the same shared
             # policy etag, while these fixed managed members stay unchanged.

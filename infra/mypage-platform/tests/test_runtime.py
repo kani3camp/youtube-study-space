@@ -73,6 +73,47 @@ class RuntimeTest(unittest.TestCase):
             self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
                                 c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
 
+    def test_initial_service_refresh_accepts_only_observed_empty_defaults_on_noop(self):
+        for stage, size in (("runtime_private", 11), ("runtime_public", 12)):
+            plan = fixture(stage)
+            for item in plan['resource_changes']:
+                item['change']['actions'] = ['no-op']
+            after = service(plan)['after']
+            after.update(annotations={}, labels={}, custom_audiences=[])
+            after['template'][0].update(annotations={}, labels={})
+            after['template'][0]['containers'][0].update(args=[], command=[], depends_on=[])
+            drift = deepcopy(next(x for x in plan['resource_changes'] if x['address'] == r.SERVICE))
+            before = deepcopy(after)
+            before.update(annotations=None, labels=None, custom_audiences=None)
+            before['template'][0].update(annotations=None, labels=None)
+            before['template'][0]['containers'][0].update(args=None, command=None, depends_on=None)
+            drift['change'].update(actions=['update'], before=before)
+            plan['resource_drift'] = [drift]
+            original = deepcopy(plan)
+            self.assertEqual(r.validate_plan(plan, stage), {'resources': size, 'creates': 0})
+            self.assertEqual(plan, original)
+            for mutate in (
+                lambda p: p['resource_drift'][0]['change']['after'].update(labels={'unexpected': 'private-value'}),
+                lambda p: p['resource_drift'][0]['change']['before'].update(labels={'retained': 'private-value'}),
+                lambda p: p['resource_drift'][0]['change']['after']['template'][0]['containers'][0].update(command=['/other']),
+                lambda p: p['resource_drift'][0]['change']['after']['template'][0]['containers'][0].update(image=r.REPOSITORY + '@sha256:' + 'b' * 64),
+                lambda p: p['resource_drift'][0]['change']['after'].update(invoker_iam_disabled=True),
+                lambda p: p['resource_drift'][0]['change']['after'].update(new_field=[]),
+                lambda p: p['resource_drift'][0]['change']['after_unknown'].update(labels=True),
+                lambda p: service(p).update(actions=['update']),
+                lambda p: service(p)['after'].update(labels=None),
+                lambda p: p['resource_drift'][0]['change'].update(actions=['delete', 'create']),
+                lambda p: p['resource_drift'][0].update(provider_name='registry.terraform.io/other/provider'),
+                lambda p: p['resource_drift'].append(deepcopy(p['resource_drift'][0])),
+            ):
+                rejected = deepcopy(plan)
+                mutate(rejected)
+                with self.subTest(stage=stage, mutation=mutate), self.assertRaises(ValueError):
+                    r.validate_plan(rejected, stage)
+            key = 'private-key-for-synthetic-tests-only'
+            self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
+                                c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
+
     def test_private_and_public_have_exact_resources_and_pinned_secrets(self):
         for stage, size in (("runtime_private", 11), ("runtime_public", 12)):
             plan = fixture(stage)
