@@ -4,7 +4,7 @@
 	"cssSource": "https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap",
 	"license": "SIL Open Font License 1.1",
 	"licenseSource": "https://raw.githubusercontent.com/google/fonts/main/ofl/roundedmplus1c/OFL.txt",
-	"conversion": "TTF to WOFF2 only; no subsetting; glyph order/cmap/hmtx/name records verified",
+	"conversion": "TTF to WOFF2 without subsetting; local gasp v1/0x000A smoothing patch; all other tables preserved except head.checkSumAdjustment",
 	"faces": [
 		{
 			"weight": 400,
@@ -17,9 +17,11 @@
 			"glyphs": 8532,
 			"license": ["http://scripts.sil.org/OFL"],
 			"woff2File": "m-plus-rounded-1c-400.woff2",
-			"woff2Bytes": 1016084,
-			"woff2SHA256": "1386cac8d1f86cd111ed72606777a12810b304d83ff7b6812f8a01165870e748",
-			"glyphsAndMetricsPreserved": true
+			"woff2Bytes": 1015652,
+			"woff2SHA256": "cc16cfd1344cc05255fe04a51c940ce37ae37a3a8c96fca8a1d19cf375ba0152",
+			"glyphsAndMetricsPreserved": true,
+			"originalWOFF2SHA256": "1386cac8d1f86cd111ed72606777a12810b304d83ff7b6812f8a01165870e748",
+			"preservedTablesSHA256": "9d88d61c66673a2e4d651632d7fced3d26606e59da61a063012ff95b86b7d968"
 		},
 		{
 			"weight": 500,
@@ -32,9 +34,11 @@
 			"glyphs": 8532,
 			"license": ["http://scripts.sil.org/OFL"],
 			"woff2File": "m-plus-rounded-1c-500.woff2",
-			"woff2Bytes": 1024132,
-			"woff2SHA256": "2fbace72e75e4fd56140b9ee1daac27bb192f409681e4b3e52e0efbb9dbabbbb",
-			"glyphsAndMetricsPreserved": true
+			"woff2Bytes": 1024248,
+			"woff2SHA256": "6b6e363dde863a902ac4c5ceee1ddc3064d086eefeb2a89e8ba9a3452f05c7cc",
+			"glyphsAndMetricsPreserved": true,
+			"originalWOFF2SHA256": "2fbace72e75e4fd56140b9ee1daac27bb192f409681e4b3e52e0efbb9dbabbbb",
+			"preservedTablesSHA256": "a9437817dd3b1c2d8927d5ef64c466f3a06e9222ca9dfae1e12c0bf1fdd36f9a"
 		},
 		{
 			"weight": 700,
@@ -47,9 +51,11 @@
 			"glyphs": 8532,
 			"license": ["http://scripts.sil.org/OFL"],
 			"woff2File": "m-plus-rounded-1c-700.woff2",
-			"woff2Bytes": 1107744,
-			"woff2SHA256": "35750e4a464edfb95c4904633b03c9e502e03873f458c220e9b5e7337c78560d",
-			"glyphsAndMetricsPreserved": true
+			"woff2Bytes": 1107876,
+			"woff2SHA256": "9c94ce6ec2d6bc510d98c43ae8e2a2b6acdf857f72d4c4c77548927c5f2c7d5d",
+			"glyphsAndMetricsPreserved": true,
+			"originalWOFF2SHA256": "35750e4a464edfb95c4904633b03c9e502e03873f458c220e9b5e7337c78560d",
+			"preservedTablesSHA256": "6584cf2870996248dd3df127693d2aa94ccaf5f5fe6783deaf51ee13f9925ba4"
 		},
 		{
 			"weight": 800,
@@ -62,9 +68,20 @@
 			"glyphs": 8532,
 			"license": ["http://scripts.sil.org/OFL"],
 			"woff2File": "m-plus-rounded-1c-800.woff2",
-			"woff2Bytes": 1130468,
-			"woff2SHA256": "1c6525d34a4dbc1fd90ed4d297e84be9ffe7b381e63621ea497d635003e343e4",
-			"glyphsAndMetricsPreserved": true
+			"woff2Bytes": 1131152,
+			"woff2SHA256": "310090d7290cc873b861a0213e6468ce50031b1fc37b2bb845278c87f9137305",
+			"glyphsAndMetricsPreserved": true,
+			"originalWOFF2SHA256": "1c6525d34a4dbc1fd90ed4d297e84be9ffe7b381e63621ea497d635003e343e4",
+			"preservedTablesSHA256": "e4eb7c4d01faebc28ede243b74ba204fd67583069a5e6b3175e737c01a0900f8"
 		}
-	]
+	],
+	"renderingPatch": {
+		"table": "gasp",
+		"version": 1,
+		"rangeMaxPPEM": 65535,
+		"behavior": "0x000A",
+		"fontTools": "4.61.1",
+		"brotli": "1.2.0",
+		"selection": "2026-10-21 user comparison, column 2 (symmetric smoothing without added hinting)"
+	}
 }
