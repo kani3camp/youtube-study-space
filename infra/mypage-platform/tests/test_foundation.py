@@ -44,6 +44,40 @@ def refreshed_metadata_fixture():
 
 
 class FoundationTest(unittest.TestCase):
+    def test_registry_first_read_accepts_only_absent_label_representation(self):
+        plan = refreshed_metadata_fixture()
+        plan['variables']['stage']['value'] = 'registry'
+        for item in plan['resource_changes']:
+            item['change']['actions'] = ['no-op']
+        address = 'module.platform[0].google_artifact_registry_repository.mypage[0]'
+        item = {'address': address, 'mode': 'managed', 'provider_name': 'registry.terraform.io/hashicorp/google',
+                'change': {'actions': ['no-op'], 'after': deepcopy(c.resource_contract('registry')[address]) | {'labels': {}},
+                           'after_unknown': {}}}
+        plan['resource_changes'].append(item)
+        drift = deepcopy(item)
+        drift['change'].update(actions=['update'], before=deepcopy(drift['change']['after']) | {'labels': None})
+        plan['resource_drift'].append(drift)
+        original = deepcopy(plan)
+        self.assertEqual(c.validate_plan(plan, 'registry'), {'resources': 9, 'creates': 0})
+        self.assertEqual(plan, original)
+        for mutate in (
+            lambda p: p['resource_drift'][-1]['change']['after'].update(labels={'changed': 'value'}),
+            lambda p: p['resource_drift'][-1]['change']['before'].update(labels={}),
+            lambda p: p['resource_drift'][-1]['change']['after'].update(update_time='synthetic-new-time'),
+            lambda p: p['resource_drift'][-1]['change']['after_unknown'].update(labels=True),
+            lambda p: p['resource_changes'][-1]['change'].update(actions=['update']),
+            lambda p: p['resource_drift'][-1].update(address='unreviewed-repository'),
+            lambda p: (p['resource_drift'][-1]['change']['before'].update(repository_id='other'),
+                       p['resource_drift'][-1]['change']['after'].update(repository_id='other')),
+        ):
+            rejected = deepcopy(plan)
+            mutate(rejected)
+            with self.subTest(mutation=mutate), self.assertRaises(ValueError):
+                c.validate_plan(rejected, 'registry')
+        key = 'private-key-for-synthetic-tests-only'
+        self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
+                            c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
+
     def test_shared_policy_etag_refresh_preserves_the_exact_managed_member(self):
         plan = refreshed_metadata_fixture()
         for item in plan['resource_changes']:

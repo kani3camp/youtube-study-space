@@ -21,6 +21,8 @@ Runtime準備では、project上のmetadata-only custom role（Registry tag、Cl
 
 IAM memberのreadは共有policyのetagを返すため、当該4 memberの予定操作がno-opで、before/afterが非空etag以外は完全一致するrefreshだけを許可する。member/role/condition/id/Secret/projectの変更、unknown、予定write、別resourceは拒否する。生driftは全Plan HMACへ保持し、operator管理のbinding全体をTerraform-ownedに読み替えない。旧guardの[実Plan run 39527611450](https://github.com/kani3camp/youtube-study-space/actions/runs/39527611450)はmetadata-refresh-addressで停止した（Applyなし）。修正後の実Planは別runで再検証する。
 
+etag対応後の[実Plan run 39528628841](https://github.com/kani3camp/youtube-study-space/actions/runs/39528628841)もmetadata-refresh-addressで停止し、Applyは行っていない。独立したState readbackでserial=3、専用Registryのlabels=nullを確認した。Registryについても、固定9資源契約に一致する同一resourceのlabels=null→{}だけを予定no-op時に受理する。timestamp、tag policy、scanning、他default、非空label、unknownや予定writeは引き続き拒否する。この限定対応が当該実Planの停止原因を解消するかは、新runでのnative Plan成功まで未確認とする。
+
 ### イメージとRuntimeの実行順序
 
 Registryの実適用後、同じ専用reusable workflowで`image-build`を明示dispatchする。exact actor/ref/workflow/SHAのOIDCを維持し、Apply identityに当該Registry単位のupload権限だけを別途接続する。image jobはAWS認証もTerraform/State操作も行わない。digest固定baseからlinux/amd64 imageを作り、nonroot・network無効の設定検査後、40桁source SHAのimmutable tagへpushし、local RepoDigestとRegistry tagのdigestを照合する。既存tagの上書きは拒否する。
