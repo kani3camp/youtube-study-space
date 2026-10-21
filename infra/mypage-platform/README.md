@@ -96,7 +96,7 @@ CIの権限を広げず、承認済みの `mypage-api` / `roles/run.invoker` / `
 
 public releaseの4値だけを `environments/dev/runtime-release.json` に記録できる（image_digest/image_source_sha/hosting_backend_host/previous_image_digest）。Secret参照番号・同意版・project等は上書きできない。先にコードをreview/mergeしてそのSHAでimage-buildし、次のsource-only PRでdigestとbuild SHAを固定する。full system tree一致とimmutable digest検証を維持する。
 
-CIに `run.services.update` を与えず、ownerがetag付きで既存serviceのcontainer imageと固定host env 1個だけを更新する。その後のpublic applyはplanned no-opのみを認める。旧digestの明示、同一service境界、env追加1個、Ready/最新revision100%、generation+1、増加したupdate_timeを照合し、観測済みcomputed metadata以外の差を拒否する。native driftはHMACへ含めて独立Applyが再現し、更新ではなくState refreshだけを実行する。
+CIに `run.services.update` を与えず、ownerがetag付きで既存serviceのcontainer imageを更新する。初回のHosting接続時だけ固定host env 1個を追加し、以後のimage更新では全envをそのまま保持する。その後のpublic applyはplanned no-opのみを認める。旧digestの明示、同一service境界、初回の固定host env追加1個または全env不変、Ready/最新revision100%、generation+1、増加したupdate_timeを照合し、観測済みcomputed metadata以外の差を拒否する。native driftはHMACへ含めて独立Applyが再現し、更新ではなくState refreshだけを実行する。
 
 ### S04の実測後のDEV request URL保存抑止
 

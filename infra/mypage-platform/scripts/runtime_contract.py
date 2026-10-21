@@ -198,7 +198,7 @@ def validate_service_empty_refresh(item, planned, value):
 
 
 def validate_owner_hosting_image_refresh(item, planned, value):
-    """Read back one declared owner image/Hosting-host fix; CI never updates Run."""
+    """Read back owner image/fixed-host releases; CI never updates Run."""
     change = item.get("change", {})
     before, after = change.get("before"), change.get("after")
     c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "runtime-owner-refresh-provider")
@@ -209,7 +209,12 @@ def validate_owner_hosting_image_refresh(item, planned, value):
     c.need(plan.get("actions") == ["no-op"] and plan.get("after") == after and not c.has_unknown(plan.get("after_unknown")), "runtime-owner-refresh-noop")
     previous = value["previous_image_digest"]
     c.need(previous and previous != value["image_digest"] and value["hosting_backend_host"], "runtime-owner-refresh-declaration")
-    old_value = value | {"image_digest": previous, "hosting_backend_host": ""}
+    before_container = one(one(before.get("template"), "runtime-owner-refresh-template").get("containers"), "runtime-owner-refresh-container")
+    c.need(type(before_container) is dict, "runtime-owner-refresh-container")
+    before_env = before_container.get("env")
+    c.need(type(before_env) is list and all(type(x) is dict for x in before_env), "runtime-owner-refresh-env")
+    old_host = [x for x in before_env if x.get("name") == "MYPAGE_HOSTING_BACKEND_HOST"]
+    old_value = value | {"image_digest": previous, "hosting_backend_host": value["hosting_backend_host"] if old_host else ""}
     for candidate, config in ((before, old_value), (after, value)):
         for key, expected in resource_contract("runtime_private")[SERVICE].items():
             c.need(candidate.get(key) == expected, "runtime-owner-refresh-boundary")
@@ -220,11 +225,15 @@ def validate_owner_hosting_image_refresh(item, planned, value):
     c.need(old_container.get("image") == previous and new_container.get("image") == value["image_digest"], "runtime-owner-refresh-image")
     old_container["image"] = value["image_digest"]
     old_env, new_env = old_container.get("env"), new_container.get("env")
-    c.need(type(old_env) is list and type(new_env) is list and len(new_env) == len(old_env) + 1, "runtime-owner-refresh-env")
+    c.need(type(old_env) is list and type(new_env) is list, "runtime-owner-refresh-env")
     added = [x for x in new_env if x.get("name") == "MYPAGE_HOSTING_BACKEND_HOST"]
     c.need(len(added) == 1 and set(added[0]) <= {"name", "value", "value_source"}
            and added[0].get("value") == value["hosting_backend_host"] and not added[0].get("value_source"), "runtime-owner-refresh-host")
-    c.need([x for x in new_env if x.get("name") != "MYPAGE_HOSTING_BACKEND_HOST"] == old_env, "runtime-owner-refresh-env")
+    if old_host:
+        c.need(old_env == new_env, "runtime-owner-refresh-env")
+    else:
+        c.need(len(new_env) == len(old_env) + 1
+               and [x for x in new_env if x.get("name") != "MYPAGE_HOSTING_BACKEND_HOST"] == old_env, "runtime-owner-refresh-env")
     old_container["env"] = deepcopy(new_env)
     # Auto-generated revision names are observed on latest_ready_revision;
     # Run leaves the optional desired template.revision empty before and after.

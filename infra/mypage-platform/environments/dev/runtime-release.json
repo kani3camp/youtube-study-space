@@ -1,6 +1,6 @@
 {
-  "image_digest": "asia-southeast2-docker.pkg.dev/test-youtube-study-space/mypage/mypage-api@sha256:ef81de6391cf0ffe60df033e4cfb781315cc30dbad927fb44196bab2553de01d",
-  "image_source_sha": "836a437fa6c7d4d2a37fb492b0226c1b5d798d88",
+  "image_digest": "asia-southeast2-docker.pkg.dev/test-youtube-study-space/mypage/mypage-api@sha256:109650577ab51595dbcf54d13eb548e015b87afae9d78ee07e526e27bbb1e9e2",
+  "image_source_sha": "a0f93caa1acf16bda433132c5fe9a6e657816419",
   "hosting_backend_host": "mypage-api-eu5mhkcewq-et.a.run.app",
-  "previous_image_digest": "asia-southeast2-docker.pkg.dev/test-youtube-study-space/mypage/mypage-api@sha256:1c664fbf89133ae7ce607623d1ba2fd6aeb71cc33e8d98d6344ce39bbfb910f7"
+  "previous_image_digest": "asia-southeast2-docker.pkg.dev/test-youtube-study-space/mypage/mypage-api@sha256:ef81de6391cf0ffe60df033e4cfb781315cc30dbad927fb44196bab2553de01d"
 }
