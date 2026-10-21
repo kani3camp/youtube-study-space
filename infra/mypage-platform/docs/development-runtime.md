@@ -15,6 +15,18 @@ bash system/scripts/check-mypage-image.sh mypage-api:ci
 
 ## 実環境の現在地
 
+### イメージとRuntimeの実行順序
+
+Registryの実適用後、同じ専用reusable workflowで`image-build`を明示dispatchする。exact actor/ref/workflow/SHAのOIDCを維持し、Apply identityに当該Registry単位のupload権限だけを別途接続する。image jobはAWS認証もTerraform/State操作も行わない。digest固定baseからlinux/amd64 imageを作り、nonroot・network無効の設定検査後、40桁source SHAのimmutable tagへpushし、local RepoDigestとRegistry tagのdigestを照合する。既存tagの上書きは拒否する。
+
+Runtime初回は`runtime-private-plan` / `runtime-private-apply`で11資源（Registry段階9 + 当該SAのFirestore member + Cloud Run 1）だけを許可する。その後、Hosting経路へ接続する段階で`runtime-public-plan` / `runtime-public-apply`を使い、当該serviceだけの`allUsers` invoker memberを追加した12資源に進む。初回create/no-opだけを受理し、update/delete/replace/import、別principal、別Cloud Run/Registry、未知のenvや生Secret値を拒否する。修正revisionへの更新は、この初回guardを無制限に緩めず別のreview済みtransitionで扱う。
+
+両Environmentの追加secret `MYPAGE_RUNTIME_SETTINGS_JSON`へ、`runtime_settings`と同じkeyのJSON objectを設定する。含めるのはimage digest、project番号/Web app ID、固定origin、同意版、3個の番号固定Secret version、任意の確認済みhistory coverageだけ。OAuth client secret/API key/tokenは含めない。重複key、未知field、別Registry/origin、`latest`をpreflightで拒否する。project番号は実WIF providerと一致させ、Planでは当該SHAのimmutable tagと3個のENABLEDなSecret version metadataを照合する。
+
+image-buildとRuntime Plan/Applyのsource SHAは同一とする。間にcodeを変えた場合は、新SHAでimageを作り直してdigest設定を更新する。前後1世代互換やrollbackは[実経路E2E](../../../docs/mypage/release/e2e.md)で別途確認し、初回guardの成功だけで成立と扱わない。
+
+Cloud RunはGen2、service/revisionの両方でDev max=1/min=0、CPU 1/512Mi、request-based billing、startup boostなし、TCP startup probe、固定runtime SAを使う。Cloud Run側のInvoker IAM checkは無効化せず、アプリのAuth/App Check/Origin/同意/ServiceAccessControlを維持する。Firestore `roles/datastore.user`はcollection限定ではなくDEV projectのDB全体へ及ぶため、その付与は実target/権限レビューで明示する。必要なCIのrun/create/actAs/当該IAM member変更権限も、Foundation/Registryのmetadata権限と区別して用意する。
+
 ### 専用Registryの段階
 
 `CI`の明示dispatch `mypage_foundation=true` / `mypage_foundation_mode=registry-plan`または`registry-apply`で、同じ独立DEV Stateを使ってFoundation8資源と専用Registry1資源だけをPlanする。既存のexact actor/ref/workflow/SHA、2 identityの独立Plan照合、HMAC、native lock、private raw evidence、保存Plan適用の契約を維持する。旧4/8資源modeの許可範囲は増やさない。

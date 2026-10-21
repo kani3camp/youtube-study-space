@@ -40,7 +40,7 @@ AUTH_SECRETS = ('GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', 'GCP_TERRAFORM_NORMAL_WI
                 'GCP_TERRAFORM_MANAGED_INPUTS_JSON')
 AUDIT_SECRETS = ('GCP_TERRAFORM_WIF_PROVIDER', 'GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT')
 FOUNDATION_SECRETS = ('MYPAGE_STATE_BUCKET', 'MYPAGE_STATE_ACCOUNT', 'MYPAGE_BACKEND_ROLE_ARN',
-                      'MYPAGE_BACKEND_ROLE_ID', 'MYPAGE_GCP_WIF_PROVIDER', 'MYPAGE_GCP_SERVICE_ACCOUNT', 'MYPAGE_PLAN_HMAC_KEY')
+                      'MYPAGE_BACKEND_ROLE_ID', 'MYPAGE_GCP_WIF_PROVIDER', 'MYPAGE_GCP_SERVICE_ACCOUNT', 'MYPAGE_PLAN_HMAC_KEY', 'MYPAGE_RUNTIME_SETTINGS_JSON')
 
 
 def selected(expression, flags, inputs=None):
@@ -134,7 +134,7 @@ def validate(caller, modules):
         require(dispatch[toggle]['type'] == 'boolean' and dispatch[toggle]['default'] is False
                 and dispatch[toggle]['required'] is False, 'Operations remain opt-in')
     for key, default, options in (('terraform_target', 'dev', ['dev', 'prod']),
-                                  ('mypage_foundation_mode', 'foundation-metadata-plan', ['foundation-metadata-plan', 'foundation-metadata-apply', 'foundation-plan', 'foundation-apply', 'registry-plan', 'registry-apply']),
+                                  ('mypage_foundation_mode', 'foundation-metadata-plan', ['foundation-metadata-plan', 'foundation-metadata-apply', 'foundation-plan', 'foundation-apply', 'registry-plan', 'registry-apply', 'image-build', 'runtime-private-plan', 'runtime-private-apply', 'runtime-public-plan', 'runtime-public-apply']),
                                   ('terraform_mode', 'migration-plan', ['migration-plan', 'migration-apply', 'normal-plan', 'normal-apply', 'normal-e2e'])):
         require(dispatch[key]['type'] == 'choice' and dispatch[key]['default'] == default
                 and dispatch[key]['options'] == options and dispatch[key]['required'] is False, 'Dispatch choices stay fixed')

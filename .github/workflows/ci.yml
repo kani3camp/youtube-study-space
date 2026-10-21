@@ -21,6 +21,11 @@ on:
           - foundation-apply
           - registry-plan
           - registry-apply
+          - image-build
+          - runtime-private-plan
+          - runtime-private-apply
+          - runtime-public-plan
+          - runtime-public-apply
       mypage_foundation_expected_sha:
         description: Exact MyPage integration branch SHA
         required: false
@@ -282,6 +287,7 @@ jobs:
       MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
       MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
       MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
     with:
       mode: ${{ inputs.mypage_foundation_mode }}
       expected_sha: ${{ inputs.mypage_foundation_expected_sha }}

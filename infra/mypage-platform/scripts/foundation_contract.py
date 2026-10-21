@@ -63,13 +63,16 @@ def backend_policy(bucket, kind):
 
 
 def stage_for_mode(mode):
+    from runtime_contract import MODES
+    if mode in MODES:
+        return MODES[mode]
     need(mode in {"foundation-plan", "foundation-apply", "foundation-metadata-plan", "foundation-metadata-apply", "registry-plan", "registry-apply"})
     if mode.startswith("registry-"):
         return "registry"
     return "foundation_metadata" if mode.startswith("foundation-metadata-") else "foundation"
 
 
-def context(env, kind):
+def context(env, kind, *, image=False):
     need(kind in {"plan", "apply"})
     expected = {"GITHUB_REPOSITORY": REPOSITORY, "GITHUB_REPOSITORY_ID": "340900071",
                 "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_EVENT_NAME": "workflow_dispatch",
@@ -79,8 +82,11 @@ def context(env, kind):
     need(all(env.get(k) == v for k, v in expected.items()))
     sha = env.get("GITHUB_SHA", "")
     need(re.fullmatch(r"[a-f0-9]{40}", sha) and env.get("MYPAGE_EXPECTED_SHA") == sha)
-    stage_for_mode(env.get("MYPAGE_MODE"))
-    need(kind != "apply" or env["MYPAGE_MODE"].endswith("-apply"))
+    if image:
+        need(kind == "apply" and env.get("MYPAGE_MODE") == "image-build")
+    else:
+        stage_for_mode(env.get("MYPAGE_MODE"))
+        need(kind != "apply" or env["MYPAGE_MODE"].endswith("-apply"))
 
 
 def resource_contract(stage="foundation"):
