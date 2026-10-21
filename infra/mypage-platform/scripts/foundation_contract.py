@@ -136,12 +136,13 @@ def validate_computed_metadata_refresh(plan):
     an IAM member read; that is not a change to the managed member itself.
     """
     secrets = {"module.platform[0].google_secret_manager_secret." + name for name in SECRET_IDS}
+    registry = "module.platform[0].google_artifact_registry_repository.mypage[0]"
     members = {address: values for address, values in resource_contract("foundation").items() if "_iam_member." in address}
     planned = {item.get("address"): item for item in plan.get("resource_changes", [])}
     seen = set()
     for item in plan.get("resource_drift", []) or []:
         address = item.get("address")
-        need(address in secrets | set(members) and address not in seen, "metadata-refresh-address")
+        need(address in secrets | set(members) | {registry} and address not in seen, "metadata-refresh-address")
         seen.add(address)
         need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "metadata-refresh-provider")
         change = item["change"]
@@ -151,6 +152,15 @@ def validate_computed_metadata_refresh(plan):
         need(type(before) is dict and type(after) is dict and set(before) == set(after), "metadata-refresh-shape")
         changed = {key for key in before if before[key] != after[key]}
         need(planned.get(address, {}).get("change", {}).get("actions") == ["no-op"], "metadata-refresh-planned-noop")
+        if address == registry:
+            # The first persisted repository has unset labels=null. Its first
+            # provider Read represents that same absent label map as {}.
+            # Do not admit timestamps, tag policy, scanning, or other defaults.
+            need(changed == {"labels"} and before["labels"] is None
+                 and type(after["labels"]) is dict and not after["labels"], "registry-refresh-empty-labels-only")
+            need(all(after.get(key) == value for key, value in resource_contract("registry")[registry].items()),
+                 "registry-refresh-boundary")
+            continue
         if address in members:
             need(changed == {"etag"}, "iam-refresh-etag-only")
             need(all(type(value.get("etag")) is str and 0 < len(value["etag"]) <= 512 for value in (before, after)), "iam-refresh-etag-value")
