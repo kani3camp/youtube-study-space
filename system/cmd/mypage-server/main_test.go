@@ -12,7 +12,11 @@ func TestBootstrapRequiresExplicitReadinessAndRejectsUnsafeConfigurationWithoutA
 	config, err := configurationFrom(get)
 	require.NoError(t, err)
 	require.Equal(t, "8080", config.port)
-	for _, tc := range []struct{ key, value string }{{"MYPAGE_INFRASTRUCTURE_READY", ""}, {"FIRESTORE_EMULATOR_HOST", "127.0.0.1:8080"}, {"FIREBASE_AUTH_EMULATOR_HOST", "127.0.0.1:9099"}, {"GOOGLE_APPLICATION_CREDENTIALS", "synthetic-key-file"}, {"MYPAGE_ENVIRONMENT", "unknown"}, {"MYPAGE_REGION", "asia-northeast2"}, {"MYPAGE_PUBLIC_ORIGIN", "http://example.invalid"}, {"MYPAGE_SIGNER_EMAIL", "synthetic@demo-other.iam.gserviceaccount.com"}, {"MYPAGE_OAUTH_CLIENT_SECRET", ""}, {"MYPAGE_WEB_APP_ID", "1:987654321:web:synthetic"}, {"PORT", "synthetic"}, {"PORT", "65536"}, {"GOOGLE_CLOUD_PROJECT", "invalid project"}} {
+	values["MYPAGE_HOSTING_BACKEND_HOST"] = "mypage-api-observed-et.a.run.app"
+	config, err = configurationFrom(get)
+	require.NoError(t, err)
+	require.Equal(t, values["MYPAGE_HOSTING_BACKEND_HOST"], config.server.HostingBackendHost)
+	for _, tc := range []struct{ key, value string }{{"MYPAGE_INFRASTRUCTURE_READY", ""}, {"FIRESTORE_EMULATOR_HOST", "127.0.0.1:8080"}, {"FIREBASE_AUTH_EMULATOR_HOST", "127.0.0.1:9099"}, {"GOOGLE_APPLICATION_CREDENTIALS", "synthetic-key-file"}, {"MYPAGE_ENVIRONMENT", "unknown"}, {"MYPAGE_REGION", "asia-northeast2"}, {"MYPAGE_PUBLIC_ORIGIN", "http://example.invalid"}, {"MYPAGE_HOSTING_BACKEND_HOST", "other.example.test"}, {"MYPAGE_SIGNER_EMAIL", "synthetic@demo-other.iam.gserviceaccount.com"}, {"MYPAGE_OAUTH_CLIENT_SECRET", ""}, {"MYPAGE_WEB_APP_ID", "1:987654321:web:synthetic"}, {"PORT", "synthetic"}, {"PORT", "65536"}, {"GOOGLE_CLOUD_PROJECT", "invalid project"}} {
 		t.Run(tc.key, func(t *testing.T) {
 			old := values[tc.key]
 			values[tc.key] = tc.value

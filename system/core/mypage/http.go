@@ -32,6 +32,9 @@ type HTTPHandler struct {
 	// One fixed HTTPS origin per environment. Never derive it from request
 	// headers; actual Hosting/proxy host forwarding must be verified at deploy.
 	PublicOrigin string
+	// Fixed backend host observed for Hosting rewrites. Forwarded headers are
+	// routing metadata, never proof of identity or a replacement for Auth/App Check.
+	HostingBackendHost string
 	// A deployment may inject an extractor only after verifying its actual
 	// trusted proxy chain. Default ignores all client forwarding headers.
 	RequestIP func(*http.Request) (string, error)
@@ -306,7 +309,16 @@ func (h *HTTPHandler) checkRequestOrigin(r *http.Request) error {
 	if err != nil || configured.Scheme != "https" || configured.Host == "" || configured.User != nil || configured.Path != "" || configured.RawQuery != "" || configured.Fragment != "" {
 		return apiError("TEMPORARY_UNAVAILABLE")
 	}
-	if !strings.EqualFold(r.Host, configured.Host) || (r.URL.Host != "" && !strings.EqualFold(r.URL.Host, configured.Host)) {
+	requestHost := r.Host
+	if !strings.EqualFold(requestHost, configured.Host) {
+		forwardedHosts, forwardedProtocols := r.Header.Values("X-Forwarded-Host"), r.Header.Values("X-Forwarded-Proto")
+		if h.HostingBackendHost == "" || !validHostingBackendHost(h.HostingBackendHost) || !strings.EqualFold(requestHost, h.HostingBackendHost) ||
+			len(forwardedHosts) != 1 || !strings.EqualFold(forwardedHosts[0], configured.Host) ||
+			len(forwardedProtocols) != 1 || forwardedProtocols[0] != "https" {
+			return apiError("INVALID_REQUEST")
+		}
+	}
+	if r.URL.Host != "" && !strings.EqualFold(r.URL.Host, configured.Host) {
 		return apiError("INVALID_REQUEST")
 	}
 	origins := r.Header.Values("Origin")

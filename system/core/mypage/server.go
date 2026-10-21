@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -47,12 +48,22 @@ func NewKeylessFirebaseClient(ctx context.Context, projectID, signerEmail string
 type ServerConfig struct {
 	Environment, ProjectID, ProjectNumber, WebAppID, PublicOrigin string
 	Policy                                                        Policy
+	HostingBackendHost                                            string
 	// Default off. Enable only after the reply operator and no-session
 	// exception contact are operational and D02/D03 are resolved.
 	EnablePrivacyIntake bool
 	PrivacyIntakeSecret []byte
 	// Supply only verified historical coverage; nil means unavailable history.
 	Coverage []Interval
+}
+
+// Only a literal Cloud Run service hostname is configurable, with no scheme,
+// port, path, wildcard or user-controlled suffix. The caller pins the observed
+// service hostname; the header never selects a backend or a redirect target.
+var hostingBackendHostPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,61}\.a\.run\.app$`)
+
+func validHostingBackendHost(host string) bool {
+	return hostingBackendHostPattern.MatchString(host)
 }
 
 // ValidateRuntime checks fixed environment/project/app/origin and signer before
@@ -74,6 +85,9 @@ func validateKeylessSigner(projectID, signerEmail string) error {
 
 func (config ServerConfig) validate() error {
 	if !validSupportEnvironment(config.Environment) || !firebaseProjectID.MatchString(config.ProjectID) || config.Policy.Privacy == "" || config.Policy.Terms == "" {
+		return apiError("TEMPORARY_UNAVAILABLE")
+	}
+	if config.HostingBackendHost != "" && !validHostingBackendHost(config.HostingBackendHost) {
 		return apiError("TEMPORARY_UNAVAILABLE")
 	}
 	if config.EnablePrivacyIntake && len(config.PrivacyIntakeSecret) < 32 {
@@ -119,7 +133,7 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 	}
 
 	handler := &HTTPHandler{
-		PublicOrigin: config.PublicOrigin, Verifier: boundary,
+		PublicOrigin: config.PublicOrigin, HostingBackendHost: config.HostingBackendHost, Verifier: boundary,
 		Auth: &AuthService{Access: access, Store: store, Provider: deps.OAuth, Minter: boundary, Policy: config.Policy, Now: now, Support: &FirestoreSupportStore{Client: deps.Firestore, Environment: config.Environment}},
 		BFF:  &BFF{Access: access, Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Coverage: append([]Interval(nil), config.Coverage...)}, Environment: config.Environment, Now: now, Metadata: metadata},
 	}

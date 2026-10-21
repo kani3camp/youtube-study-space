@@ -87,3 +87,53 @@ func TestHTTPIPLimitBoundsRejectedVerificationAndIgnoresForwardedIP(t *testing.T
 		}
 	}
 }
+
+func TestHostingRewriteRequiresPinnedBackendAndSingleFixedForwardedOrigin(t *testing.T) {
+	for _, tc := range []struct {
+		name, backend, host, method, origin string
+		hosts, protocols                    []string
+		want                                int
+	}{
+		{"forwarded-get", "mypage-api-observed-et.a.run.app", "mypage-api-observed-et.a.run.app", "GET", "", []string{"mypage.example.test"}, []string{"https"}, 403},
+		{"forwarded-post", "mypage-api-observed-et.a.run.app", "mypage-api-observed-et.a.run.app", "POST", "https://mypage.example.test", []string{"mypage.example.test"}, []string{"https"}, 403},
+		{"off-by-default", "", "mypage-api-observed-et.a.run.app", "GET", "", []string{"mypage.example.test"}, []string{"https"}, 400},
+		{"other-backend", "mypage-api-observed-et.a.run.app", "other.a.run.app", "GET", "", []string{"mypage.example.test"}, []string{"https"}, 400},
+		{"direct-backend", "mypage-api-observed-et.a.run.app", "mypage-api-observed-et.a.run.app", "GET", "", nil, []string{"https"}, 400},
+		{"foreign-host", "mypage-api-observed-et.a.run.app", "mypage-api-observed-et.a.run.app", "GET", "", []string{"other.example.test"}, []string{"https"}, 400},
+		{"duplicate-host", "mypage-api-observed-et.a.run.app", "mypage-api-observed-et.a.run.app", "GET", "", []string{"mypage.example.test", "mypage.example.test"}, []string{"https"}, 400},
+		{"host-list", "mypage-api-observed-et.a.run.app", "mypage-api-observed-et.a.run.app", "GET", "", []string{"mypage.example.test,other.example.test"}, []string{"https"}, 400},
+		{"http-forwarded", "mypage-api-observed-et.a.run.app", "mypage-api-observed-et.a.run.app", "GET", "", []string{"mypage.example.test"}, []string{"http"}, 400},
+		{"duplicate-proto", "mypage-api-observed-et.a.run.app", "mypage-api-observed-et.a.run.app", "GET", "", []string{"mypage.example.test"}, []string{"https", "https"}, 400},
+		{"foreign-origin", "mypage-api-observed-et.a.run.app", "mypage-api-observed-et.a.run.app", "POST", "https://other.example.test", []string{"mypage.example.test"}, []string{"https"}, 400},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, store, verifier, reads := boundaryFixture()
+			h.HostingBackendHost = tc.backend
+			path := "/api/mypage"
+			body := ""
+			if tc.method == "POST" {
+				path, body = "/api/auth/youtube/start", `{}`
+			}
+			r := httptest.NewRequest(tc.method, path, strings.NewReader(body))
+			r.Host = tc.host
+			r.Header.Set("Content-Type", "application/json")
+			if tc.origin != "" {
+				r.Header.Set("Origin", tc.origin)
+			}
+			for _, host := range tc.hosts {
+				r.Header.Add("X-Forwarded-Host", host)
+			}
+			for _, proto := range tc.protocols {
+				r.Header.Add("X-Forwarded-Proto", proto)
+			}
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			if w.Code != tc.want || store.reads != 0 || verifier.appCalls != 0 || verifier.tokenCalls != 0 || *reads != 0 {
+				t.Fatalf("status=%d expected=%d", w.Code, tc.want)
+			}
+			if tc.want == 403 && !strings.Contains(w.Body.String(), "APP_CHECK_REQUIRED") {
+				t.Fatal("routing metadata bypassed App Check")
+			}
+		})
+	}
+}

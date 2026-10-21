@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -44,6 +45,32 @@ def refreshed_metadata_fixture():
 
 
 class FoundationTest(unittest.TestCase):
+    def test_public_release_manifest_overrides_only_reviewed_release_fields(self):
+        fixture = ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json'
+        value = json.loads(fixture.read_text())
+        env = {'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(value), 'MYPAGE_GCP_WIF_PROVIDER':
+               'projects/' + value['project_number'] + '/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions'}
+        release = {'image_digest': ops.runtime_contract.REPOSITORY + '@sha256:' + 'b' * 64,
+                   'image_source_sha': 'c' * 40, 'hosting_backend_host': 'mypage-api-observed-et.a.run.app',
+                   'previous_image_digest': value['image_digest']}
+        with tempfile.TemporaryDirectory() as directory, patch.object(ops, 'REPO', Path(directory)):
+            file = Path(directory) / 'infra/mypage-platform/environments/dev/runtime-release.json'
+            file.parent.mkdir(parents=True)
+            self.assertEqual(ops.runtime_settings(env)['image_digest'], value['image_digest'])
+            file.write_text(json.dumps(release))
+            actual = ops.runtime_settings(env)
+            self.assertEqual({k: actual[k] for k in release}, release)
+            self.assertEqual(actual['privacy_version'], value['privacy_version'])
+            for invalid in (release | {'privacy_version': 'other'}, release | {'image_source_sha': ''},
+                            release | {'hosting_backend_host': 'other.example.test'},
+                            release | {'image_digest': release['previous_image_digest']}):
+                file.write_text(json.dumps(invalid))
+                with self.assertRaises(ValueError):
+                    ops.runtime_settings(env)
+            file.write_text(json.dumps(release)[:-1] + ',"image_digest":"duplicate"}')
+            with self.assertRaises(ValueError):
+                ops.runtime_settings(env)
+
     def test_native_plan_failures_publish_only_fixed_diagnostic_labels(self):
         private = 'private-command-output-and-credential-marker'
         cases = (

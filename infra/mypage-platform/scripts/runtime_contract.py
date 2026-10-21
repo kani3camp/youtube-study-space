@@ -17,12 +17,12 @@ MODES = {"runtime-private-plan": "runtime_private", "runtime-private-apply": "ru
 PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/asia-southeast2/services/mypage-api"
 PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
 FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "privacy_version", "terms_version",
-          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha"}
+          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest"}
 
 
 def settings(value):
-    c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= FIELDS - {"history_coverage_json", "image_source_sha"}, "runtime-settings-fields")
-    value = value | {"history_coverage_json": value.get("history_coverage_json", ""), "image_source_sha": value.get("image_source_sha", "")}
+    c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= FIELDS - {"history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest"}, "runtime-settings-fields")
+    value = value | {"history_coverage_json": value.get("history_coverage_json", ""), "image_source_sha": value.get("image_source_sha", ""), "hosting_backend_host": value.get("hosting_backend_host", ""), "previous_image_digest": value.get("previous_image_digest", "")}
     c.need(all(type(v) is str for v in value.values()), "runtime-settings-types")
     c.need(re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["image_digest"]), "runtime-image")
     c.need(re.fullmatch(r"[0-9]{6,20}", value["project_number"]), "runtime-project-number")
@@ -33,6 +33,8 @@ def settings(value):
     for field in ("oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version"):
         c.need(re.fullmatch(r"[1-9][0-9]*", value[field]), "runtime-secret-version")
     c.need(value["image_source_sha"] == "" or re.fullmatch(r"[a-f0-9]{40}", value["image_source_sha"]), "runtime-image-source-sha")
+    c.need(value["hosting_backend_host"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]+\.a\.run\.app", value["hosting_backend_host"]), "runtime-hosting-backend")
+    c.need(value["previous_image_digest"] == "" or re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["previous_image_digest"]), "runtime-previous-image")
     coverage = value["history_coverage_json"]
     c.need(len(coverage.encode()) <= 16384, "runtime-coverage-size")
     if coverage:
@@ -67,6 +69,8 @@ def plain_environment(value):
         env[name] = value[field]
     if value["history_coverage_json"]:
         env["MYPAGE_HISTORY_COVERAGE"] = value["history_coverage_json"]
+    if value["hosting_backend_host"]:
+        env["MYPAGE_HOSTING_BACKEND_HOST"] = value["hosting_backend_host"]
     return env
 
 
@@ -192,6 +196,57 @@ def validate_service_empty_refresh(item, planned, value):
         validate_service(candidate, {}, value)
 
 
+
+def validate_owner_hosting_image_refresh(item, planned, value):
+    """Read back one declared owner image/Hosting-host fix; CI never updates Run."""
+    change = item.get("change", {})
+    before, after = change.get("before"), change.get("after")
+    c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "runtime-owner-refresh-provider")
+    c.need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths")
+           and not c.has_unknown(change.get("after_unknown")), "runtime-owner-refresh-action")
+    c.need(type(before) is dict and type(after) is dict and set(before) == set(after), "runtime-owner-refresh-shape")
+    plan = planned.get(SERVICE, {}).get("change", {})
+    c.need(plan.get("actions") == ["no-op"] and plan.get("after") == after and not c.has_unknown(plan.get("after_unknown")), "runtime-owner-refresh-noop")
+    previous = value["previous_image_digest"]
+    c.need(previous and previous != value["image_digest"] and value["hosting_backend_host"], "runtime-owner-refresh-declaration")
+    old_value = value | {"image_digest": previous, "hosting_backend_host": ""}
+    for candidate, config in ((before, old_value), (after, value)):
+        for key, expected in resource_contract("runtime_private")[SERVICE].items():
+            c.need(candidate.get(key) == expected, "runtime-owner-refresh-boundary")
+        validate_service(candidate, {}, config)
+    normalized = deepcopy(before)
+    old_template, new_template = one(normalized.get("template"), "runtime-owner-refresh-template"), one(after.get("template"), "runtime-owner-refresh-template")
+    old_container, new_container = one(old_template.get("containers"), "runtime-owner-refresh-container"), one(new_template.get("containers"), "runtime-owner-refresh-container")
+    c.need(old_container.get("image") == previous and new_container.get("image") == value["image_digest"], "runtime-owner-refresh-image")
+    old_container["image"] = value["image_digest"]
+    old_env, new_env = old_container.get("env"), new_container.get("env")
+    c.need(type(old_env) is list and type(new_env) is list and len(new_env) == len(old_env) + 1, "runtime-owner-refresh-env")
+    added = [x for x in new_env if x.get("name") == "MYPAGE_HOSTING_BACKEND_HOST"]
+    c.need(len(added) == 1 and set(added[0]) <= {"name", "value", "value_source"}
+           and added[0].get("value") == value["hosting_backend_host"] and not added[0].get("value_source"), "runtime-owner-refresh-host")
+    c.need([x for x in new_env if x.get("name") != "MYPAGE_HOSTING_BACKEND_HOST"] == old_env, "runtime-owner-refresh-env")
+    old_container["env"] = deepcopy(new_env)
+    revision = new_template.get("revision")
+    c.need(type(revision) is str and re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", revision)
+           and after.get("latest_ready_revision", "").split("/")[-1] == revision
+           and after.get("latest_created_revision") == after.get("latest_ready_revision"), "runtime-owner-refresh-ready")
+    old_template["revision"] = revision
+    terminal = one(after.get("terminal_condition"), "runtime-owner-refresh-ready")
+    c.need(terminal.get("state") == "CONDITION_SUCCEEDED" and not after.get("reconciling"), "runtime-owner-refresh-ready")
+    traffic = one(after.get("traffic_statuses"), "runtime-owner-refresh-traffic")
+    c.need(traffic.get("percent") == 100 and traffic.get("type") == "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+           and traffic.get("revision", "").split("/")[-1] == revision and not traffic.get("tag"), "runtime-owner-refresh-traffic")
+    c.need(re.fullmatch(r"[1-9][0-9]*", str(before.get("generation")))
+           and int(after.get("generation", 0)) == int(before["generation"]) + 1
+           and str(after.get("observed_generation")) == str(after.get("generation")), "runtime-owner-refresh-generation")
+    c.need(c.registry_timestamp(after.get("update_time")) > c.registry_timestamp(before.get("update_time")), "runtime-owner-refresh-time")
+    computed = {"etag", "generation", "observed_generation", "update_time", "last_modifier", "latest_created_revision", "latest_ready_revision", "terminal_condition", "conditions", "traffic_statuses", "reconciling"}
+    for key in computed:
+        if key in after:
+            normalized[key] = deepcopy(after[key])
+    c.need(normalized == after, "runtime-owner-refresh-fields")
+
+
 def validate_plan(plan, stage):
     value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
     c.need(plan.get("variables", {}).get("stage", {}).get("value") == stage, "runtime-plan-stage")
@@ -212,7 +267,13 @@ def validate_plan(plan, stage):
         if address in base:
             foundation["resource_drift"].append(item)
         elif address == SERVICE:
-            validate_service_empty_refresh(item, planned, value)
+            before = item.get("change", {}).get("before", {})
+            template = one(before.get("template"), "runtime-refresh-template") if type(before) is dict else {}
+            container = one(template.get("containers"), "runtime-refresh-container")
+            if value["previous_image_digest"] and container.get("image") == value["previous_image_digest"]:
+                validate_owner_hosting_image_refresh(item, planned, value)
+            else:
+                validate_service_empty_refresh(item, planned, value)
         else:
             # Removing temporary bootstrap access changes the same shared
             # policy etag, while these fixed managed members stay unchanged.

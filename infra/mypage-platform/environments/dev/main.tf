@@ -41,6 +41,8 @@ variable "runtime_settings" {
     youtube_api_key_version     = string
     history_coverage_json       = optional(string, "")
     image_source_sha            = optional(string, "")
+    hosting_backend_host        = optional(string, "")
+    previous_image_digest       = optional(string, "")
   })
   default = {
     image_digest                = ""
