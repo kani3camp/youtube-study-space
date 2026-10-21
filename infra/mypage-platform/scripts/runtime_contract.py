@@ -14,7 +14,8 @@ FIRESTORE = "module.platform[0].google_project_iam_member.firestore_user[0]"
 INVOKER = "module.platform[0].google_cloud_run_v2_service_iam_member.public_invoker[0]"
 MODES = {"runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
          "runtime-public-plan": "runtime_public", "runtime-public-apply": "runtime_public"}
-PUBLIC_INVOKER_IMPORT_ID = "projects/" + c.PROJECT + "/locations/asia-southeast2/services/mypage-api roles/run.invoker allUsers"
+PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/asia-southeast2/services/mypage-api"
+PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
 FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "privacy_version", "terms_version",
           "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha"}
 
@@ -216,7 +217,10 @@ def validate_plan(plan, stage):
             # Removing temporary bootstrap access changes the same shared
             # policy etag, while these fixed managed members stay unchanged.
             c.need(address in {FIRESTORE, INVOKER} and address in expected, "runtime-drift-address")
-            c.validate_iam_etag_refresh(item, planned, expected[address])
+            member_values = expected[address]
+            if address == INVOKER and item.get("change", {}).get("after", {}).get("name") == PUBLIC_INVOKER_NAME:
+                member_values = member_values | {"name": PUBLIC_INVOKER_NAME}
+            c.validate_iam_etag_refresh(item, planned, member_values)
     c.validate_plan(foundation, "registry")
     seen = set()
     for item in changes:
@@ -240,7 +244,10 @@ def validate_plan(plan, stage):
         after, unknown = change.get("after"), change.get("after_unknown", {})
         c.need(type(after) is dict and not after.get("condition"), "runtime-resource-after")
         for key, expected_value in expected[address].items():
-            c.need(after.get(key) == expected_value and not c.has_unknown(unknown.get(key)), "runtime-resource-value")
+            allowed = {expected_value}
+            if address == INVOKER and key == "name":
+                allowed.add(PUBLIC_INVOKER_NAME)  # The provider importer stores the full fixed service name.
+            c.need(after.get(key) in allowed and not c.has_unknown(unknown.get(key)), "runtime-resource-value")
         if address == SERVICE:
             validate_service(after, unknown, value)
     c.need(seen == set(expected), "runtime-resource-set")

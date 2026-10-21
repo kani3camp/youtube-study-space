@@ -130,7 +130,11 @@ class RuntimeTest(unittest.TestCase):
     def test_only_exact_owner_public_member_can_be_imported_without_cloud_writes(self):
         plan = fixture('runtime_public')
         self.assertEqual(r.public_invoker_import_config(), 'import {\n  to = ' + r.INVOKER + '\n  id = "' + r.PUBLIC_INVOKER_IMPORT_ID + '"\n}\n')
+        qualified = deepcopy(plan)
+        next(x['change'] for x in qualified['resource_changes'] if x['address'] == r.INVOKER)['after']['name'] = r.PUBLIC_INVOKER_NAME
+        self.assertEqual(r.validate_plan(qualified, 'runtime_public'), {'resources': 12, 'creates': 11})
         for mutate in (
+            lambda p: next(x['change'] for x in p['resource_changes'] if x['address'] == r.INVOKER)['after'].update(name='projects/other/locations/asia-southeast2/services/mypage-api'),
             lambda p: next(x['change'] for x in p['resource_changes'] if x['address'] == r.INVOKER).update(actions=['create']),
             lambda p: next(x['change'] for x in p['resource_changes'] if x['address'] == r.INVOKER).update(importing={'id': 'private-other-resource'}),
             lambda p: next(x['change'] for x in p['resource_changes'] if x['address'] == r.INVOKER).update(importing={'id': r.PUBLIC_INVOKER_IMPORT_ID, 'unknown': True}),
