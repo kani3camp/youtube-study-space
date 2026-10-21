@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import re
+from datetime import datetime
 
 PROJECT = "test-youtube-study-space"
 REF = "refs/heads/integration/mypage-canon-20261006"
@@ -126,6 +127,17 @@ def has_unknown(value):
     return value is True
 
 
+def registry_timestamp(value):
+    need(type(value) is str, "registry-refresh-time-format")
+    match = re.fullmatch(r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?:\.([0-9]{1,9}))?Z", value)
+    need(match is not None, "registry-refresh-time-format")
+    try:
+        seconds = datetime.strptime(match[1], "%Y-%m-%dT%H:%M:%S")
+    except ValueError:
+        need(False, "registry-refresh-time-format")
+    return seconds, int((match[2] or "").ljust(9, "0"))
+
+
 def validate_computed_metadata_refresh(plan):
     """Admit only bounded computed metadata refreshes on planned no-op resources.
 
@@ -155,9 +167,15 @@ def validate_computed_metadata_refresh(plan):
         if address == registry:
             # The first persisted repository has unset labels=null. Its first
             # provider Read represents that same absent label map as {}.
-            # Do not admit timestamps, tag policy, scanning, or other defaults.
-            need(changed == {"labels"} and before["labels"] is None
-                 and type(after["labels"]) is dict and not after["labels"], "registry-refresh-empty-labels-only")
+            # An artifact push also advances the computed repository update
+            # time. No writable configuration or scanning change is admitted.
+            need(bool(changed) and changed <= {"labels", "update_time"}, "registry-refresh-fields")
+            if "labels" in changed:
+                need(before["labels"] is None and type(after["labels"]) is dict
+                     and not after["labels"], "registry-refresh-empty-labels-only")
+            if "update_time" in changed:
+                need(registry_timestamp(after["update_time"]) >= registry_timestamp(before["update_time"]),
+                     "registry-refresh-time-backwards")
             need(all(after.get(key) == value for key, value in resource_contract("registry")[registry].items()),
                  "registry-refresh-boundary")
             continue
