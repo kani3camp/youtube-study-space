@@ -5,12 +5,12 @@ on:
   workflow_dispatch:
     inputs:
       mypage_foundation:
-        description: Run isolated MyPage DEV foundation only
+        description: Run isolated MyPage DEV provisioning
         required: false
         default: false
         type: boolean
       mypage_foundation_mode:
-        description: MyPage foundation operation
+        description: MyPage development provisioning operation
         required: false
         default: foundation-metadata-plan
         type: choice
@@ -19,6 +19,8 @@ on:
           - foundation-metadata-apply
           - foundation-plan
           - foundation-apply
+          - registry-plan
+          - registry-apply
       mypage_foundation_expected_sha:
         description: Exact MyPage integration branch SHA
         required: false

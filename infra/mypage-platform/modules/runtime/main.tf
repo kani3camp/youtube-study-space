@@ -22,8 +22,8 @@ variable "environment" {
 variable "stage" {
   type = string
   validation {
-    condition     = contains(["foundation_metadata", "foundation", "runtime_private", "runtime_public"], var.stage)
-    error_message = "Module stages are foundation_metadata, foundation, runtime_private or runtime_public."
+    condition     = contains(["foundation_metadata", "foundation", "registry", "runtime_private", "runtime_public"], var.stage)
+    error_message = "Invalid MyPage module stage."
   }
 }
 
@@ -57,6 +57,25 @@ resource "google_service_account" "runtime" {
   account_id   = "mypage-api"
   display_name = "YouTube Study Space MyPage API"
   description  = "Keyless Cloud Run BFF runtime; no service account JSON key."
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# DEV image storage is provisioned before building a digest for Cloud Run.
+# Existing Functions repositories and production ownership are untouched.
+resource "google_artifact_registry_repository" "mypage" {
+  count                  = var.environment == "development" && contains(["registry", "runtime_private", "runtime_public"], var.stage) ? 1 : 0
+  project                = var.project_id
+  location               = var.region
+  repository_id          = "mypage"
+  description            = "YouTube Study Space MyPage development images"
+  format                 = "DOCKER"
+  mode                   = "STANDARD_REPOSITORY"
+  cleanup_policy_dry_run = true
+  docker_config {
+    immutable_tags = true
+  }
   lifecycle {
     prevent_destroy = true
   }

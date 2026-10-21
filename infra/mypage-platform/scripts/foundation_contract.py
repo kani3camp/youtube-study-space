@@ -63,7 +63,9 @@ def backend_policy(bucket, kind):
 
 
 def stage_for_mode(mode):
-    need(mode in {"foundation-plan", "foundation-apply", "foundation-metadata-plan", "foundation-metadata-apply"})
+    need(mode in {"foundation-plan", "foundation-apply", "foundation-metadata-plan", "foundation-metadata-apply", "registry-plan", "registry-apply"})
+    if mode.startswith("registry-"):
+        return "registry"
     return "foundation_metadata" if mode.startswith("foundation-metadata-") else "foundation"
 
 
@@ -82,7 +84,7 @@ def context(env, kind):
 
 
 def resource_contract(stage="foundation"):
-    need(stage in {"foundation_metadata", "foundation"})
+    need(stage in {"foundation_metadata", "foundation", "registry"})
     resources = {"google_service_account.runtime": {"project": PROJECT, "account_id": "mypage-api"}}
     for name, secret_id in SECRET_IDS.items():
         resources["google_secret_manager_secret." + name] = {
@@ -97,8 +99,16 @@ def resource_contract(stage="foundation"):
         "service_account_id": "projects/" + PROJECT + "/serviceAccounts/" + EMAIL,
         "role": "roles/iam.serviceAccountTokenCreator", "member": "serviceAccount:" + EMAIL,
     }
+    if stage == "registry":
+        resources["google_artifact_registry_repository.mypage[0]"] = {
+            "project": PROJECT, "location": "asia-southeast2", "repository_id": "mypage",
+            "description": "YouTube Study Space MyPage development images",
+            "format": "DOCKER", "mode": "STANDARD_REPOSITORY",
+            "cleanup_policy_dry_run": True, "docker_config": [{"immutable_tags": True}],
+            "remote_repository_config": [], "virtual_repository_config": [], "cleanup_policies": [],
+        }
     return {"module.platform[0]." + key: value for key, value in resources.items()
-            if stage == "foundation" or "_iam_member." not in key}
+            if stage != "foundation_metadata" or "_iam_member." not in key}
 
 
 def has_unknown(value):

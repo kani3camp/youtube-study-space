@@ -18,11 +18,11 @@ provider "google" {
 }
 
 variable "stage" {
-  description = "disabled -> foundation -> runtime_private -> runtime_public; default makes no cloud resources."
+  description = "disabled -> foundation -> registry -> runtime_private -> runtime_public; default makes no cloud resources."
   type        = string
   default     = "disabled"
   validation {
-    condition     = contains(["disabled", "foundation_metadata", "foundation", "runtime_private", "runtime_public"], var.stage)
+    condition     = contains(["disabled", "foundation_metadata", "foundation", "registry", "runtime_private", "runtime_public"], var.stage)
     error_message = "Invalid MyPage stage."
   }
 }

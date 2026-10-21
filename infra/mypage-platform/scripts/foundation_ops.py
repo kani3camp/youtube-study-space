@@ -104,6 +104,9 @@ def reject_unowned_resources(env, plan):
     urls.update({"module.platform[0].google_secret_manager_secret." + name:
                  "https://secretmanager.googleapis.com/v1/projects/" + contract.PROJECT + "/secrets/" + secret_id
                  for name, secret_id in contract.SECRET_IDS.items()})
+    urls["module.platform[0].google_artifact_registry_repository.mypage[0]"] = (
+        "https://artifactregistry.googleapis.com/v1/projects/" + contract.PROJECT +
+        "/locations/asia-southeast2/repositories/mypage")
     for item in plan["resource_changes"]:
         if item["address"] not in urls or item["change"]["actions"] != ["create"]:
             continue
