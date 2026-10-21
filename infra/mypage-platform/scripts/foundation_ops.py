@@ -26,9 +26,35 @@ def need(value):
     contract.need(value)
 
 
-def run(args, *, cwd=None, codes=(0,)):
+def run(args, *, cwd=None, codes=(0,), check="native-command"):
     result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=600)
-    need(result.returncode in codes)
+    if result.returncode not in codes and check == "terraform-plan":
+        # Publish only source-defined labels. Never print native diagnostics,
+        # command arguments or a permission name extracted from rejected data.
+        diagnostics = result.stdout + result.stderr
+        for permission in (
+            "artifactregistry.repositories.get", "iam.serviceAccounts.get", "iam.serviceAccounts.getIamPolicy",
+            "resourcemanager.projects.get", "resourcemanager.projects.getIamPolicy",
+            "run.services.get", "run.services.getIamPolicy", "run.services.list",
+            "secretmanager.secrets.get", "secretmanager.secrets.getIamPolicy",
+            "serviceusage.services.get", "serviceusage.services.use",
+        ):
+            if re.search(r"Permission ['\"]" + re.escape(permission) + r"['\"] denied", diagnostics):
+                check = "terraform-plan-permission-" + permission
+                break
+        else:
+            for marker, label in (
+                ("SERVICE_DISABLED", "terraform-plan-api-disabled"),
+                ("Error acquiring the state lock", "terraform-plan-state-lock"),
+                ("Error: Invalid value for variable", "terraform-plan-variable-validation"),
+                ("Error: Invalid function argument", "terraform-plan-function-argument"),
+                ("Error: Invalid provider configuration", "terraform-plan-provider-configuration"),
+                ("Error: Unsupported argument", "terraform-plan-unsupported-argument"),
+            ):
+                if marker in diagnostics:
+                    check = label
+                    break
+    contract.need(result.returncode in codes, check)
     return result.stdout
 
 
@@ -146,13 +172,13 @@ def verify_runtime_inputs(env, value):
     prefix = "projects/" + contract.PROJECT + "/locations/asia-southeast2/repositories/mypage/packages/mypage-api"
     tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + env["GITHUB_SHA"], env["MYPAGE_GCP_ACCESS_TOKEN"])
     expected = prefix + "/versions/sha256:" + value["image_digest"].split("@sha256:")[1]
-    need(tag.get("version") == expected)
+    contract.need(tag.get("version") == expected, "runtime-source-image-digest")
     for name, field in (("mypage-oauth-client-id", "oauth_client_id_version"),
                         ("mypage-oauth-client-secret", "oauth_client_secret_version"),
                         ("mypage-youtube-api-key", "youtube_api_key_version")):
         metadata = request("https://secretmanager.googleapis.com/v1/projects/" + contract.PROJECT + "/secrets/" + name + "/versions/" + value[field],
                            env["MYPAGE_GCP_ACCESS_TOKEN"])
-        need(metadata.get("state") == "ENABLED")
+        contract.need(metadata.get("state") == "ENABLED", "runtime-secret-version-enabled")
 
 
 def prepare(env):
@@ -177,11 +203,13 @@ def prepare(env):
     arguments = ["terraform", "plan", "-input=false", "-no-color", "-lock-timeout=60s", "-var=stage=" + stage, "-out=" + str(saved)]
     value = None
     if stage.startswith("runtime_"):
+        PHASE = "runtime-inputs"
         value = runtime_settings(env)
-        need(json.loads((root / "runtime-settings.json").read_text()) == {"runtime_settings": value})
+        contract.need(json.loads((root / "runtime-settings.json").read_text()) == {"runtime_settings": value}, "runtime-staged-settings")
         verify_runtime_inputs(env, value)
         arguments.append("-var-file=" + str(root / "runtime-settings.json"))
-    run(arguments, cwd=work)
+    PHASE = "terraform-plan"
+    run(arguments, cwd=work, check="terraform-plan")
     plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work))
     PHASE = "plan-contract"
     if value is not None:
