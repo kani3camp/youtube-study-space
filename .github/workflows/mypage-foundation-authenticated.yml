@@ -24,6 +24,8 @@ on:
         required: false
       MYPAGE_PLAN_HMAC_KEY:
         required: false
+      MYPAGE_RUNTIME_SETTINGS_JSON:
+        required: false
 
 permissions:
   contents: read
@@ -35,6 +37,7 @@ concurrency:
 
 jobs:
   foundation_plan:
+    if: ${{ inputs.mode != 'image-build' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: mypage-dev-plan
@@ -55,6 +58,7 @@ jobs:
       MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
       MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
       MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
       TF_WORKSPACE: default
       AWS_MAX_ATTEMPTS: "1"
       AWS_RETRY_MODE: standard
@@ -103,7 +107,7 @@ jobs:
 
   foundation_apply:
     needs: foundation_plan
-    if: ${{ inputs.mode == 'foundation-apply' || inputs.mode == 'foundation-metadata-apply' || inputs.mode == 'registry-apply' }}
+    if: ${{ inputs.mode == 'foundation-apply' || inputs.mode == 'foundation-metadata-apply' || inputs.mode == 'registry-apply' || inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: mypage-dev-apply
@@ -121,6 +125,7 @@ jobs:
       MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
       MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
       MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
       TF_WORKSPACE: default
       AWS_MAX_ATTEMPTS: "1"
       AWS_RETRY_MODE: standard
@@ -176,3 +181,43 @@ jobs:
       - name: Remove private evidence
         if: ${{ always() }}
         run: python3 infra/mypage-platform/scripts/foundation_ops.py cleanup
+
+  image_build:
+    if: ${{ inputs.mode == 'image-build' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: mypage-dev-apply
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MYPAGE_MODE: ${{ inputs.mode }}
+      MYPAGE_ROLE: apply
+      MYPAGE_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+      TF_WORKSPACE: default
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Image preflight without credentials
+        run: python3 infra/mypage-platform/scripts/image_ops.py preflight
+      - name: Verify exact OIDC source and actor
+        run: python3 infra/mypage-platform/scripts/image_ops.py oidc
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        id: gcp
+        with:
+          workload_identity_provider: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+          project_id: test-youtube-study-space
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+          token_format: access_token
+          access_token_lifetime: 1800s
+      - name: Build, offline-check and push the immutable DEV image
+        env:
+          MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+        run: python3 infra/mypage-platform/scripts/image_ops.py build-push

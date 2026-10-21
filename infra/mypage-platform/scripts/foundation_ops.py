@@ -16,6 +16,7 @@ import urllib.error
 import urllib.request
 
 import foundation_contract as contract
+import runtime_contract
 
 REPO = Path(__file__).resolve().parents[3]
 PHASE = "context"
@@ -64,12 +65,15 @@ def stage(env):
                "encrypt": True, "use_lockfile": True, "workspace_key_prefix": contract.WORKSPACE_PREFIX,
                "allowed_account_ids": [env["MYPAGE_STATE_ACCOUNT"]]}
     (root / "backend.json").write_bytes(contract.canonical(backend))
+    if contract.stage_for_mode(env["MYPAGE_MODE"]).startswith("runtime_"):
+        value = runtime_settings(env)
+        (root / "runtime-settings.json").write_bytes(contract.canonical({"runtime_settings": value}))
     print("Development foundation preflight passed; no cloud credentials requested yet.")
 
 
-def oidc(env):
+def oidc(env, *, image=False):
     kind = env["MYPAGE_ROLE"]
-    contract.context(env, kind)
+    contract.context(env, kind, image=image)
     url = env["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=sts.amazonaws.com"
     token = request(url, env["ACTIONS_ID_TOKEN_REQUEST_TOKEN"])["value"]
     encoded = token.split(".")[1]
@@ -107,6 +111,8 @@ def reject_unowned_resources(env, plan):
     urls["module.platform[0].google_artifact_registry_repository.mypage[0]"] = (
         "https://artifactregistry.googleapis.com/v1/projects/" + contract.PROJECT +
         "/locations/asia-southeast2/repositories/mypage")
+    urls[runtime_contract.SERVICE] = (
+        "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/asia-southeast2/services/mypage-api")
     for item in plan["resource_changes"]:
         if item["address"] not in urls or item["change"]["actions"] != ["create"]:
             continue
@@ -116,6 +122,37 @@ def reject_unowned_resources(env, plan):
             need(error.code == 404)
         else:
             need(False)
+
+
+def runtime_settings(env):
+    raw = env.get("MYPAGE_RUNTIME_SETTINGS_JSON", "")
+    need(0 < len(raw.encode()) <= 65536)
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            need(key not in result)
+            result[key] = value
+        return result
+    value = runtime_contract.settings(json.loads(raw, object_pairs_hook=pairs))
+    provider = re.fullmatch(r"projects/([0-9]+)/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions",
+                            env.get("MYPAGE_GCP_WIF_PROVIDER", ""))
+    need(provider and value["project_number"] == provider[1])
+    return value
+
+
+def verify_runtime_inputs(env, value):
+    # The immutable tag is created by the exact-source image job, not a user
+    # supplied mutable image tag. Only metadata is requested here.
+    prefix = "projects/" + contract.PROJECT + "/locations/asia-southeast2/repositories/mypage/packages/mypage-api"
+    tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + env["GITHUB_SHA"], env["MYPAGE_GCP_ACCESS_TOKEN"])
+    expected = prefix + "/versions/sha256:" + value["image_digest"].split("@sha256:")[1]
+    need(tag.get("version") == expected)
+    for name, field in (("mypage-oauth-client-id", "oauth_client_id_version"),
+                        ("mypage-oauth-client-secret", "oauth_client_secret_version"),
+                        ("mypage-youtube-api-key", "youtube_api_key_version")):
+        metadata = request("https://secretmanager.googleapis.com/v1/projects/" + contract.PROJECT + "/secrets/" + name + "/versions/" + value[field],
+                           env["MYPAGE_GCP_ACCESS_TOKEN"])
+        need(metadata.get("state") == "ENABLED")
 
 
 def prepare(env):
@@ -137,10 +174,21 @@ def prepare(env):
     PHASE = "plan"
     saved = root / "foundation.tfplan"
     stage = contract.stage_for_mode(env["MYPAGE_MODE"])
-    run(["terraform", "plan", "-input=false", "-no-color", "-lock-timeout=60s", "-var=stage=" + stage, "-out=" + str(saved)], cwd=work)
+    arguments = ["terraform", "plan", "-input=false", "-no-color", "-lock-timeout=60s", "-var=stage=" + stage, "-out=" + str(saved)]
+    value = None
+    if stage.startswith("runtime_"):
+        value = runtime_settings(env)
+        need(json.loads((root / "runtime-settings.json").read_text()) == {"runtime_settings": value})
+        verify_runtime_inputs(env, value)
+        arguments.append("-var-file=" + str(root / "runtime-settings.json"))
+    run(arguments, cwd=work)
     plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work))
     PHASE = "plan-contract"
-    summary = contract.validate_plan(plan, stage)
+    if value is not None:
+        need(plan.get("variables", {}).get("runtime_settings", {}).get("value") == value)
+        summary = runtime_contract.validate_plan(plan, stage)
+    else:
+        summary = contract.validate_plan(plan, stage)
     reject_unowned_resources(env, plan)
     need(state_version(env) == version)
     digest = contract.commitment(plan, version, env["GITHUB_SHA"], env["MYPAGE_PLAN_HMAC_KEY"])
@@ -172,7 +220,9 @@ def apply_saved(env):
         for child in module.get("child_modules", []):
             walk(child)
     walk(state["values"]["root_module"])
-    need(addresses == set(contract.resource_contract(contract.stage_for_mode(env["MYPAGE_MODE"]))))
+    stage = contract.stage_for_mode(env["MYPAGE_MODE"])
+    resources = runtime_contract.resource_contract(stage) if stage.startswith("runtime_") else contract.resource_contract(stage)
+    need(addresses == set(resources))
     need(state_version(env) != "absent")
     print("Development foundation saved Plan applied and expected State resources read back.")
 

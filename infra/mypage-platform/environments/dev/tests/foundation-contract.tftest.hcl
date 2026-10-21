@@ -25,3 +25,19 @@ run "registry_contract" {
     error_message = "Registry provisioning cannot activate the API."
   }
 }
+
+run "runtime_private_contract" {
+  command = plan
+  variables {
+    stage            = "runtime_private"
+    runtime_settings = jsondecode(file("tests/runtime-settings.fixture.json"))
+  }
+}
+
+run "runtime_public_contract" {
+  command = plan
+  variables {
+    stage            = "runtime_public"
+    runtime_settings = jsondecode(file("tests/runtime-settings.fixture.json"))
+  }
+}

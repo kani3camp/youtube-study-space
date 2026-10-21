@@ -59,7 +59,8 @@ class FoundationTest(unittest.TestCase):
             admitted.add(match[1])
         self.assertEqual(admitted, {mode for mode in modes if mode.endswith('-apply')})
         for mode in modes:
-            c.stage_for_mode(mode)
+            if mode != "image-build":
+                c.stage_for_mode(mode)
 
     def test_registry_stage_adds_only_the_immutable_dev_repository(self):
         plan = plan_fixture()

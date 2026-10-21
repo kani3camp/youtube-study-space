@@ -162,17 +162,25 @@ resource "google_project_iam_member" "firestore_user" {
 }
 
 resource "google_cloud_run_v2_service" "api" {
-  count               = local.deploy_api ? 1 : 0
-  project             = var.project_id
-  name                = "mypage-api"
-  location            = var.region
-  ingress             = "INGRESS_TRAFFIC_ALL"
-  deletion_protection = true
+  count                = local.deploy_api ? 1 : 0
+  project              = var.project_id
+  name                 = "mypage-api"
+  location             = var.region
+  ingress              = "INGRESS_TRAFFIC_ALL"
+  deletion_protection  = true
+  invoker_iam_disabled = false
+
+  scaling {
+    min_instance_count = 0
+    max_instance_count = local.max_instances
+    scaling_mode       = "AUTOMATIC"
+  }
 
   template {
-    service_account                  = google_service_account.runtime.email
+    service_account                  = local.runtime_email
     timeout                          = "30s"
     max_instance_request_concurrency = 40
+    execution_environment            = "EXECUTION_ENVIRONMENT_GEN2"
 
     scaling {
       min_instance_count = 0
@@ -184,6 +192,7 @@ resource "google_cloud_run_v2_service" "api" {
 
       ports {
         container_port = 8080
+        name           = "http1"
       }
 
       resources {
@@ -191,7 +200,18 @@ resource "google_cloud_run_v2_service" "api" {
           cpu    = "1"
           memory = "512Mi"
         }
-        cpu_idle = true
+        cpu_idle          = true
+        startup_cpu_boost = false
+      }
+
+      startup_probe {
+        initial_delay_seconds = 0
+        timeout_seconds       = 1
+        period_seconds        = 10
+        failure_threshold     = 3
+        tcp_socket {
+          port = 8080
+        }
       }
 
       env {
@@ -220,7 +240,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
       env {
         name  = "MYPAGE_SIGNER_EMAIL"
-        value = google_service_account.runtime.email
+        value = local.runtime_email
       }
       env {
         name  = "MYPAGE_PRIVACY_VERSION"
