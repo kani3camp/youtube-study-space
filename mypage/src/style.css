@@ -500,7 +500,9 @@ h2 {
 	font-size: 12px;
 	font-weight: 500;
 	margin-top: 10px;
-	white-space: nowrap;
+	max-width: 100%;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 .today-label {
 	font-size: 11px;
