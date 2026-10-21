@@ -44,6 +44,63 @@ def refreshed_metadata_fixture():
 
 
 class FoundationTest(unittest.TestCase):
+    def test_native_plan_failures_publish_only_fixed_diagnostic_labels(self):
+        private = 'private-command-output-and-credential-marker'
+        cases = (
+            ("Permission 'run.services.get' denied", 'terraform-plan-permission-run.services.get'),
+            ("Permission 'private.unreviewed.permission' denied", 'terraform-plan'),
+            ('SERVICE_DISABLED', 'terraform-plan-api-disabled'),
+            ('Error acquiring the state lock', 'terraform-plan-state-lock'),
+            ('Error: Invalid value for variable', 'terraform-plan-variable-validation'),
+            ('Error: Invalid function argument', 'terraform-plan-function-argument'),
+            ('Error: Invalid provider configuration', 'terraform-plan-provider-configuration'),
+            ('Error: Unsupported argument', 'terraform-plan-unsupported-argument'),
+            ('unclassified native error', 'terraform-plan'),
+        )
+        for native, expected in cases:
+            with self.subTest(native=native):
+                result = ops.subprocess.CompletedProcess(['terraform', private], 1, private, native + '\n' + private)
+                output = io.StringIO()
+                with patch.object(sys, 'argv', ['foundation_ops.py', 'execute']), \
+                        patch.object(ops.subprocess, 'run', return_value=result), \
+                        patch.object(ops, 'prepare', side_effect=lambda env: ops.run(['terraform', private], check='terraform-plan')), \
+                        redirect_stderr(output):
+                    self.assertEqual(ops.main(), 1)
+                self.assertIn('check=' + expected + '.', output.getvalue())
+                self.assertNotIn(private, output.getvalue())
+                self.assertNotIn('private.unreviewed.permission', output.getvalue())
+        success = ops.subprocess.CompletedProcess(['terraform'], 0, private, '')
+        with patch.object(ops.subprocess, 'run', return_value=success):
+            self.assertEqual(ops.run(['terraform'], check='terraform-plan'), private)
+
+    def test_runtime_inputs_match_exact_source_digest_and_enabled_metadata_only(self):
+        value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
+        env = {'GITHUB_SHA': 'a' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}
+        prefix = 'projects/' + c.PROJECT + '/locations/asia-southeast2/repositories/mypage/packages/mypage-api'
+        tag = {'version': prefix + '/versions/sha256:' + value['image_digest'].split('@sha256:')[1]}
+        with patch.object(ops, 'request', side_effect=[tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
+            ops.verify_runtime_inputs(env, value)
+        urls = [call.args[0] for call in request.call_args_list]
+        self.assertEqual(urls[0], 'https://artifactregistry.googleapis.com/v1/' + prefix + '/tags/' + env['GITHUB_SHA'])
+        self.assertEqual(urls[1:], [
+            'https://secretmanager.googleapis.com/v1/projects/' + c.PROJECT + '/secrets/' + secret + '/versions/' + value[field]
+            for secret, field in [('mypage-oauth-client-id', 'oauth_client_id_version'),
+                                  ('mypage-oauth-client-secret', 'oauth_client_secret_version'),
+                                  ('mypage-youtube-api-key', 'youtube_api_key_version')]])
+        self.assertTrue(all(':access' not in url for url in urls))
+        for responses, expected in (
+            ([{'version': 'private-rejected-image-marker'}], 'runtime-source-image-digest'),
+            ([tag, {'state': 'private-rejected-state-marker'}], 'runtime-secret-version-enabled'),
+        ):
+            output = io.StringIO()
+            with patch.object(sys, 'argv', ['foundation_ops.py', 'execute']), \
+                    patch.object(ops, 'request', side_effect=responses), \
+                    patch.object(ops, 'prepare', side_effect=lambda ignored: ops.verify_runtime_inputs(env, value)), \
+                    redirect_stderr(output):
+                self.assertEqual(ops.main(), 1)
+            self.assertIn('check=' + expected + '.', output.getvalue())
+            self.assertNotIn('private-', output.getvalue())
+
     def test_registry_artifact_push_refresh_preserves_configuration_and_time_order(self):
         plan = refreshed_metadata_fixture()
         plan['variables']['stage']['value'] = 'registry'

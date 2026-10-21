@@ -21,6 +21,10 @@ bash system/scripts/check-mypage-image.sh mypage-api:ci
 
 Plan/Applyの両専用Environmentへ`MYPAGE_RUNTIME_SETTINGS_JSON`を接続した。中身は公開設定、draft同意版、image digestと番号固定Secret参照だけで、payloadは含めない。実OAuth/E2Eや文面公開承認を完了した意味ではない。
 
+Runtime publicの実Plan [39546080459](https://github.com/kani3camp/youtube-study-space/actions/runs/39546080459)と[39547114678](https://github.com/kani3camp/youtube-study-space/actions/runs/39547114678)は、native Plan完了前の汎用`check=contract`で停止し、Applyなし。同じsourceのimage tag/digestと3個のENABLEDなversion metadataはoperatorが独立照合した。切り分け用の空local Stateでは同じsource/configのnative Plan生成が成功したが、実StateとCI identityでのPlan成功を代替しない。
+
+実Plan経路はRuntime入力照合とTerraform実行のphaseを区別し、source image digest不一致・version無効・既知のnative失敗を固定source labelで報告する。native stdout/stderr、command引数、rejected value、未知のpermission名は出力しない。診断の追加でadmission、権限、独立Plan/HMAC、cleanupの許可範囲を広げない。
+
 初回[Runtime private Plan 39543529630](https://github.com/kani3camp/youtube-study-space/actions/runs/39543529630)は`registry-refresh-empty-labels-only`で停止し、Applyなし。独立State serial=3のRegistry作成時刻と更新時刻は同一だったが、GCPの更新時刻は検証済みimage push時刻へ進んでいた。guardは同一固定Registryの予定no-opで、空labels表現差とcomputed `update_time`の単調なRFC3339 UTC更新だけを受理する。nanosecond精度の逆行、他field、unknown、予定writeは拒否し、全driftをHMACへ保持する。修正後は新source imageとnative Planで再確認する。
 
 一時bootstrap権限の解除も共有IAM policyのetagを変えるため、Runtimeの固定Firestore memberとpublic stageの固定invoker memberには、Foundationと同じ「同一managed member・予定no-op・非空etag以外の全field一致」の判定を使う。実際のrole/member/condition変更、duplicate、unknown、予定write、Cloud Run本体やprivate stageへのpublic member追加は拒否する。この2 memberのcleanup後live確認は実Runtime Apply後に行う。追加の権限付与や実Applyをこのsource変更で行うものではない。
