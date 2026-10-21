@@ -8,7 +8,12 @@ export type ReasonCode =
 
 export type Metric =
 	| { availability: 'available'; workSec: number; reasonCode: null }
-	| { availability: 'unavailable'; workSec: null; reasonCode: ReasonCode }
+	| {
+			availability: 'unavailable'
+			workSec: null
+			reasonCode: ReasonCode
+			recordedWorkSec?: number
+	  }
 
 export type Section<T> =
 	| { availability: 'available'; reasonCode: null; data: T }

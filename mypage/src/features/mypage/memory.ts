@@ -12,6 +12,7 @@ export type Retained<T> = {
 	asOf: string | null
 	stale: boolean
 	reason: ReasonCode | null
+	recorded?: { data: T; asOf: string }
 }
 export type ViewData = {
 	current: Retained<Current>
@@ -97,6 +98,11 @@ function retainMetric(
 		asOf: previous?.asOf ?? null,
 		stale: true,
 		reason: metric?.reasonCode ?? 'SOURCE_UNAVAILABLE',
+		...(metric?.availability === 'unavailable' &&
+		metric.reasonCode === 'HISTORY_INCOMPLETE' &&
+		metric.recordedWorkSec !== undefined
+			? { recorded: { data: metric.recordedWorkSec, asOf } }
+			: {}),
 	}
 }
 

@@ -29,6 +29,9 @@ type Metric struct {
 	Availability Availability `json:"availability"`
 	ReasonCode   *string      `json:"reasonCode"`
 	WorkSec      *int64       `json:"workSec"`
+
+	// Positive recorded work only; never an assertion of complete coverage.
+	RecordedWorkSec *int64 `json:"recordedWorkSec,omitempty"`
 }
 
 type Current struct {

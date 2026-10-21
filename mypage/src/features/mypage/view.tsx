@@ -84,6 +84,25 @@ function DurationValue({ seconds }: { seconds: number | null }) {
 	)
 }
 
+function historySeconds(value?: Retained<number>) {
+	return value?.data ?? value?.recorded?.data ?? null
+}
+
+function historyText(value?: Retained<number>) {
+	if (value?.data === null && value.recorded) {
+		const seconds = value.recorded.data
+		const text = seconds < 60 ? '1分未満' : formatWorkSeconds(seconds)
+		return `記録済み ${text}（集計未確定）`
+	}
+	return formatWorkSeconds(value?.data ?? null)
+}
+
+function MetricValue({ value }: { value?: Retained<number> }) {
+	if (value?.data === null && value.recorded)
+		return <span className="recorded-value">{historyText(value)}</span>
+	return <DurationValue seconds={value?.data ?? null} />
+}
+
 function Skeleton({ area }: { area: 'current' | 'summary' | 'recent' }) {
 	return (
 		<div className={`skeleton skeleton-${area}`} aria-hidden="true">
@@ -126,6 +145,13 @@ function StaleNote({ value }: { value: Retained<unknown> }) {
 			</p>
 		)
 	if (value.data === null) {
+		if (value.recorded)
+			return (
+				<p className="stale-note">
+					記録済み分を表示しています。この期間の記録がそろっているか確認できないため、合計は未確定です。
+					{timestamp(value.recorded.asOf)}時点
+				</p>
+			)
 		const explanations: Partial<Record<ReasonCode, string>> = {
 			HISTORY_INCOMPLETE:
 				'この期間の作業記録がそろっていないため、集計を表示できません。',
@@ -341,7 +367,7 @@ function SummaryCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 										)}
 								</dt>
 								<dd>
-									<DurationValue seconds={value?.data ?? null} />
+									<MetricValue value={value} />
 								</dd>
 								{value && <StaleNote value={value} />}
 							</div>
@@ -359,7 +385,7 @@ function RecentCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 	const days = data?.recent ?? []
 	const selected =
 		days.find((item) => item.date === selectedDate) ?? days.at(-1)
-	const max = Math.max(1, ...days.map((item) => item.data ?? 0))
+	const max = Math.max(1, ...days.map((item) => historySeconds(item) ?? 0))
 	const today = data ? day.format(new Date(data.generatedAt)) : null
 	return (
 		<section
@@ -373,7 +399,7 @@ function RecentCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 			{days.length > 0 ? (
 				<>
 					<p className="selected-day" aria-live="polite">
-						{selected?.date}: {formatWorkSeconds(selected?.data ?? null)}
+						{selected?.date}: {historyText(selected)}
 					</p>
 					<div className="bar-chart">
 						{days.map((item) => (
@@ -382,20 +408,20 @@ function RecentCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 								key={item.date}
 								type="button"
 								aria-pressed={item.date === selected?.date}
-								aria-label={`${item.date}: ${formatWorkSeconds(item.data)}`}
+								aria-label={`${item.date}: ${historyText(item)}`}
 								onClick={() => setSelectedDate(item.date)}
 								onFocus={() => setSelectedDate(item.date)}
 							>
 								<span className="bar-track" aria-hidden="true">
 									<span
-										className={`bar ${item.data === null ? 'unknown-bar' : ''}`}
+										className={`bar ${historySeconds(item) === null ? 'unknown-bar' : item.data === null ? 'recorded-bar' : ''}`}
 										style={{
 											height:
-												item.data === null
+												historySeconds(item) === null
 													? '2px'
-													: item.data === 0
+													: historySeconds(item) === 0
 														? '4px'
-														: `${(item.data / max) * 100}%`,
+														: `${((historySeconds(item) ?? 0) / max) * 100}%`,
 										}}
 									/>
 								</span>
@@ -408,6 +434,11 @@ function RecentCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 							</button>
 						))}
 					</div>
+					{days.some((item) => item.data === null && item.recorded) && (
+						<p className="muted recorded-legend">
+							斜線の棒は記録済み分です。合計は未確定です。
+						</p>
+					)}
 					{selected && <StaleNote value={selected} />}
 				</>
 			) : busy ? (

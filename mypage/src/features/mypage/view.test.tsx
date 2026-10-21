@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import fixture from '../../../../docs/mypage/fixtures/available.json'
+import recorded from '../../../../docs/mypage/fixtures/recorded-history.json'
 import type { MyPage } from './contract'
 import { type MemoryState, mergeResponse } from './memory'
 import { MyPageView } from './view'
@@ -26,6 +27,21 @@ function state(): MemoryState {
 }
 
 describe('MyPage observable display', () => {
+	it('graphs recorded positive work with a tentative label while unknown days remain unavailable', () => {
+		const s = state()
+		s.data = mergeResponse(null, recorded as MyPage)
+		const html = markup(s)
+		expect(html).toContain(
+			'aria-label="2026-10-06: 記録済み 0時間 50分（集計未確定）"',
+		)
+		expect(html).toContain('recorded-bar')
+		expect(html).toContain('height:100%')
+		expect(html).toContain('合計は未確定です')
+		expect(html).toContain('aria-label="2026-09-30: 取得できません"')
+		expect(html).not.toMatch(/aria-label="[^"]+: 0時間 0分"/)
+		s.data.recent[6].recorded = { data: 30, asOf: recorded.generatedAt }
+		expect(markup(s)).toContain('記録済み 1分未満（集計未確定）')
+	})
 	it('keeps work name during break and never infers a state transition from time', () => {
 		const s = state()
 		if (!s.data?.current.data) throw new Error('synthetic current missing')

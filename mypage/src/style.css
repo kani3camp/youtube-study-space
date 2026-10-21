@@ -496,6 +496,23 @@ h2 {
 	height: 2px;
 	background: oklch(68% 0.01 70);
 }
+.bar.recorded-bar {
+	background: repeating-linear-gradient(
+		135deg,
+		var(--color-accent) 0 4px,
+		transparent 4px 7px
+	);
+	border: 1px solid var(--color-accent);
+}
+.recorded-value {
+	display: block;
+	font-size: 16px;
+	font-weight: 700;
+	line-height: 1.6;
+}
+.recorded-legend {
+	margin-top: 16px;
+}
 .day-label {
 	font-size: 12px;
 	font-weight: 500;
