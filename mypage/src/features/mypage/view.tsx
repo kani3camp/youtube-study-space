@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { formatWorkSeconds } from '../../lib/format'
-import type { Account, Current } from './contract'
+import type { Account, Current, ReasonCode } from './contract'
 import type { MemoryState, Retained, ViewData } from './memory'
 
 export const guideURL =
@@ -125,6 +125,18 @@ function StaleNote({ value }: { value: Retained<unknown> }) {
 				チャンネル情報の有効期限が切れました。再取得まで表示できません。
 			</p>
 		)
+	if (value.data === null) {
+		const explanations: Partial<Record<ReasonCode, string>> = {
+			HISTORY_INCOMPLETE:
+				'この期間の作業記録がそろっていないため、集計を表示できません。',
+			HISTORY_LIMIT_EXCEEDED:
+				'この期間の作業記録が多いため、集計を表示できません。',
+			DATA_INCONSISTENT:
+				'作業記録の整合性を確認できないため、集計を表示できません。',
+		}
+		const explanation = value.reason ? explanations[value.reason] : undefined
+		if (explanation) return <p className="stale-note">{explanation}</p>
+	}
 	return (
 		<p className="stale-note">
 			{value.data === null
