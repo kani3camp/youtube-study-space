@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import re
 import sys
 import unittest
 from unittest.mock import patch
@@ -43,6 +44,23 @@ def refreshed_metadata_fixture():
 
 
 class FoundationTest(unittest.TestCase):
+    def test_every_dispatch_apply_mode_reaches_the_independent_apply_job(self):
+        spec = importlib.util.spec_from_file_location('workflow_yaml', ROOT / '.github/codeql/validate-source.py')
+        loader = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(loader)
+        dispatch = loader.load_yaml(ROOT / '.github/workflows/ci.yml')['on']['workflow_dispatch']['inputs']
+        modes = dispatch['mypage_foundation_mode']['options']
+        jobs = loader.load_yaml(ROOT / '.github/workflows/mypage-foundation-authenticated.yml')['jobs']
+        expression = jobs['foundation_apply']['if'].removeprefix('${{').removesuffix('}}').strip()
+        admitted = set()
+        for term in expression.split(' || '):
+            match = re.fullmatch(r"inputs.mode == '([^']+)'", term)
+            self.assertIsNotNone(match)
+            admitted.add(match[1])
+        self.assertEqual(admitted, {mode for mode in modes if mode.endswith('-apply')})
+        for mode in modes:
+            c.stage_for_mode(mode)
+
     def test_registry_stage_adds_only_the_immutable_dev_repository(self):
         plan = plan_fixture()
         plan['variables']['stage']['value'] = 'registry'

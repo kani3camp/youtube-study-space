@@ -103,7 +103,7 @@ jobs:
 
   foundation_apply:
     needs: foundation_plan
-    if: ${{ inputs.mode == 'foundation-apply' || inputs.mode == 'foundation-metadata-apply' }}
+    if: ${{ inputs.mode == 'foundation-apply' || inputs.mode == 'foundation-metadata-apply' || inputs.mode == 'registry-apply' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: mypage-dev-apply
