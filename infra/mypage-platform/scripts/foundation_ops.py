@@ -94,6 +94,8 @@ def stage(env):
     if contract.stage_for_mode(env["MYPAGE_MODE"]).startswith("runtime_"):
         value = runtime_settings(env)
         (root / "runtime-settings.json").write_bytes(contract.canonical({"runtime_settings": value}))
+        if contract.stage_for_mode(env["MYPAGE_MODE"]) == "runtime_public":
+            (root / "source/environments/dev/owner-public-invoker-import.tf").write_text(runtime_contract.public_invoker_import_config())
     print("Development foundation preflight passed; no cloud credentials requested yet.")
 
 
@@ -190,6 +192,15 @@ def verify_runtime_inputs(env, value):
         contract.need(metadata.get("state") == "ENABLED", "runtime-secret-version-enabled")
 
 
+def verify_owner_public_invoker(env):
+    url = "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/asia-southeast2/services/mypage-api:getIamPolicy?options.requestedPolicyVersion=3"
+    policy = request(url, env["MYPAGE_GCP_ACCESS_TOKEN"])
+    public = [b for b in policy.get("bindings", []) if "allUsers" in b.get("members", [])]
+    contract.need(len(public) == 1 and public[0].get("role") == "roles/run.invoker"
+                  and not public[0].get("condition"), "runtime-owner-public-invoker")
+    contract.need(not any("allAuthenticatedUsers" in b.get("members", []) for b in policy.get("bindings", [])), "runtime-owner-public-invoker")
+
+
 def describe_runtime_drift(plan):
     """Publish only fixed schema labels, never State/Plan values or paths."""
     # Fixed schema labels from google provider 8.5.0; no rejected names.
@@ -250,6 +261,8 @@ def prepare(env):
         value = runtime_settings(env)
         contract.need(json.loads((root / "runtime-settings.json").read_text()) == {"runtime_settings": value}, "runtime-staged-settings")
         verify_runtime_inputs(env, value)
+        if stage == "runtime_public":
+            verify_owner_public_invoker(env)
         arguments.append("-var-file=" + str(root / "runtime-settings.json"))
     PHASE = "terraform-plan"
     run(arguments, cwd=work, check="terraform-plan")
