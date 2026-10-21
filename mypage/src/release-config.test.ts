@@ -232,6 +232,30 @@ describe('offline public release configuration', () => {
 		input.frontend[key] = value
 		diagnostic(checkReleaseConfig(input), `frontend.${key}`, 'MISMATCH')
 	})
+	it.each([
+		'linked-synthetic-site.firebaseapp.com',
+		'linked-synthetic-site.web.app',
+	])('accepts a Hosting site ID distinct from the project ID: %s', (authDomain) => {
+		const input = fixture()
+		input.deployment.publicOrigin = 'https://linked-synthetic-site.web.app'
+		if (!input.backend || !input.hosting)
+			throw new Error('Synthetic fixture unavailable')
+		input.backend.publicOrigin = input.deployment.publicOrigin
+		input.hosting.publicOrigin = input.deployment.publicOrigin
+		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = authDomain
+		const result = checkReleaseConfig(input)
+		expect(result.configurationValid).toBe(true)
+		expect(result.releaseReady).toBe(false)
+		expect(result.pendingGates).toContain(
+			'project-app-auth-domain-registration',
+		)
+		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = 'other-site.firebaseapp.com'
+		diagnostic(
+			checkReleaseConfig(input),
+			'frontend.VITE_FIREBASE_AUTH_DOMAIN',
+			'MISMATCH',
+		)
+	})
 	it('rejects app/project-number mismatch and leaves custom-domain registration pending', () => {
 		const input = fixture()
 		input.deployment.webAppID = '1:987654321:web:synthetic'
