@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import re
+from datetime import datetime
 
 PROJECT = "test-youtube-study-space"
 REF = "refs/heads/integration/mypage-canon-20261006"
@@ -126,6 +127,33 @@ def has_unknown(value):
     return value is True
 
 
+def registry_timestamp(value):
+    need(type(value) is str, "registry-refresh-time-format")
+    match = re.fullmatch(r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?:\.([0-9]{1,9}))?Z", value)
+    need(match is not None, "registry-refresh-time-format")
+    try:
+        seconds = datetime.strptime(match[1], "%Y-%m-%dT%H:%M:%S")
+    except ValueError:
+        need(False, "registry-refresh-time-format")
+    return seconds, int((match[2] or "").ljust(9, "0"))
+
+
+def validate_iam_etag_refresh(item, planned, expected):
+    need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "iam-refresh-provider")
+    change = item.get("change", {})
+    need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths"), "iam-refresh-action")
+    need(not has_unknown(change.get("after_unknown")), "iam-refresh-unknown")
+    before, after = change.get("before"), change.get("after")
+    need(type(before) is dict and type(after) is dict and set(before) == set(after), "iam-refresh-shape")
+    need(planned.get(item.get("address"), {}).get("change", {}).get("actions") == ["no-op"], "iam-refresh-planned-noop")
+    need({key for key in before if before[key] != after[key]} == {"etag"}, "iam-refresh-etag-only")
+    need(all(type(value.get("etag")) is str and 0 < len(value["etag"]) <= 512 for value in (before, after)), "iam-refresh-etag-value")
+    need(not after.get("condition"), "iam-refresh-condition")
+    for key, value in expected.items():
+        allowed = {value, "projects/" + PROJECT + "/secrets/" + value} if key == "secret_id" else {value}
+        need(after.get(key) in allowed, "iam-refresh-member-boundary")
+
+
 def validate_computed_metadata_refresh(plan):
     """Admit only bounded computed metadata refreshes on planned no-op resources.
 
@@ -155,19 +183,20 @@ def validate_computed_metadata_refresh(plan):
         if address == registry:
             # The first persisted repository has unset labels=null. Its first
             # provider Read represents that same absent label map as {}.
-            # Do not admit timestamps, tag policy, scanning, or other defaults.
-            need(changed == {"labels"} and before["labels"] is None
-                 and type(after["labels"]) is dict and not after["labels"], "registry-refresh-empty-labels-only")
+            # An artifact push also advances the computed repository update
+            # time. No writable configuration or scanning change is admitted.
+            need(bool(changed) and changed <= {"labels", "update_time"}, "registry-refresh-fields")
+            if "labels" in changed:
+                need(before["labels"] is None and type(after["labels"]) is dict
+                     and not after["labels"], "registry-refresh-empty-labels-only")
+            if "update_time" in changed:
+                need(registry_timestamp(after["update_time"]) >= registry_timestamp(before["update_time"]),
+                     "registry-refresh-time-backwards")
             need(all(after.get(key) == value for key, value in resource_contract("registry")[registry].items()),
                  "registry-refresh-boundary")
             continue
         if address in members:
-            need(changed == {"etag"}, "iam-refresh-etag-only")
-            need(all(type(value.get("etag")) is str and 0 < len(value["etag"]) <= 512 for value in (before, after)), "iam-refresh-etag-value")
-            need(not after.get("condition"), "iam-refresh-condition")
-            for key, value in members[address].items():
-                allowed = {value, "projects/" + PROJECT + "/secrets/" + value} if key == "secret_id" else {value}
-                need(after.get(key) in allowed, "iam-refresh-member-boundary")
+            validate_iam_etag_refresh(item, planned, members[address])
             continue
         need(bool(changed) and changed <= {"annotations", "labels", "version_aliases"}, "metadata-refresh-fields")
         need(all(before[key] is None and type(after[key]) is dict and not after[key] for key in changed), "metadata-refresh-empty-only")

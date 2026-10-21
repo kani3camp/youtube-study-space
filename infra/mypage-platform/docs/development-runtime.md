@@ -15,6 +15,16 @@ bash system/scripts/check-mypage-image.sh mypage-api:ci
 
 ## 実環境の現在地
 
+### DEV認証情報の接続
+
+2026-10-21に利用者の実行時確認を受け、MyPage専用のOAuth Web client（固定Hosting callback）とYouTube APIだけに制限したserver keyを作成した。同じDEV projectの既存3 Secretへ値を保存し、すべてversion `1` / `ENABLED`をmetadata-onlyの独立readbackで確認した。値をGitHub/チャット/CIへ渡していない。API Keys / YouTube APIの有効化とSecret version lifecycleはoperator管理であり、既存9資源Stateへpayloadを追加しない。
+
+Plan/Applyの両専用Environmentへ`MYPAGE_RUNTIME_SETTINGS_JSON`を接続した。中身は公開設定、draft同意版、image digestと番号固定Secret参照だけで、payloadは含めない。実OAuth/E2Eや文面公開承認を完了した意味ではない。
+
+初回[Runtime private Plan 39543529630](https://github.com/kani3camp/youtube-study-space/actions/runs/39543529630)は`registry-refresh-empty-labels-only`で停止し、Applyなし。独立State serial=3のRegistry作成時刻と更新時刻は同一だったが、GCPの更新時刻は検証済みimage push時刻へ進んでいた。guardは同一固定Registryの予定no-opで、空labels表現差とcomputed `update_time`の単調なRFC3339 UTC更新だけを受理する。nanosecond精度の逆行、他field、unknown、予定writeは拒否し、全driftをHMACへ保持する。修正後は新source imageとnative Planで再確認する。
+
+一時bootstrap権限の解除も共有IAM policyのetagを変えるため、Runtimeの固定Firestore memberとpublic stageの固定invoker memberには、Foundationと同じ「同一managed member・予定no-op・非空etag以外の全field一致」の判定を使う。実際のrole/member/condition変更、duplicate、unknown、予定write、Cloud Run本体やprivate stageへのpublic member追加は拒否する。この2 memberのcleanup後live確認は実Runtime Apply後に行う。追加の権限付与や実Applyをこのsource変更で行うものではない。
+
 ### Bootstrap metadataの追従
 
 Runtime準備では、project上のmetadata-only custom role（Registry tag、Cloud Run/operation、project IAM、Secret version metadataのget）をPlan/Applyへ、download/uploadだけのcustom roleを専用RegistryのApplyへ、actAsを専用runtime SAのApplyへ限定した。Secret payload、Cloud Run create、project IAM editorは付与していない。専用SAへのactAs追加で共有IAM policyのetagが変わることをGCP readbackで確認した。Registry IAM変更によるrepository updateTime変更はなかった。

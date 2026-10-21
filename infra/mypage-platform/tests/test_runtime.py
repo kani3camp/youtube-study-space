@@ -40,6 +40,39 @@ def service(plan):
 
 
 class RuntimeTest(unittest.TestCase):
+    def test_bootstrap_cleanup_refreshes_only_the_same_noop_iam_members(self):
+        for stage, size in (("runtime_private", 11), ("runtime_public", 12)):
+            plan = fixture(stage)
+            plan['resource_drift'] = []
+            for item in plan['resource_changes']:
+                item['change']['actions'] = ['no-op']
+                if item['address'] not in {r.FIRESTORE, r.INVOKER}:
+                    continue
+                item['change']['after']['etag'] = 'synthetic-new-etag'
+                drift = deepcopy(item)
+                drift['change'].update(actions=['update'], before=deepcopy(drift['change']['after']) | {'etag': 'synthetic-old-etag'})
+                plan['resource_drift'].append(drift)
+            original = deepcopy(plan)
+            self.assertEqual(r.validate_plan(plan, stage), {'resources': size, 'creates': 0})
+            self.assertEqual(plan, original)
+            for mutate in (
+                lambda p: p['resource_drift'][0]['change']['after'].update(member='allUsers'),
+                lambda p: (p['resource_drift'][0]['change']['before'].update(member='allUsers'),
+                           p['resource_drift'][0]['change']['after'].update(member='allUsers')),
+                lambda p: p['resource_drift'][0]['change']['after'].update(condition=[{'expression': 'true'}]),
+                lambda p: p['resource_drift'][0]['change']['after_unknown'].update(etag=True),
+                lambda p: next(x for x in p['resource_changes'] if x['address'] == r.FIRESTORE)['change'].update(actions=['update']),
+                lambda p: p['resource_drift'].append(deepcopy(p['resource_drift'][0])),
+                lambda p: p['resource_drift'][0].update(address=r.SERVICE),
+            ):
+                rejected = deepcopy(plan)
+                mutate(rejected)
+                with self.subTest(stage=stage, mutation=mutate), self.assertRaises(ValueError):
+                    r.validate_plan(rejected, stage)
+            key = 'private-key-for-synthetic-tests-only'
+            self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
+                                c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
+
     def test_private_and_public_have_exact_resources_and_pinned_secrets(self):
         for stage, size in (("runtime_private", 11), ("runtime_public", 12)):
             plan = fixture(stage)

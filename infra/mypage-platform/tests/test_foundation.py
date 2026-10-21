@@ -44,6 +44,51 @@ def refreshed_metadata_fixture():
 
 
 class FoundationTest(unittest.TestCase):
+    def test_registry_artifact_push_refresh_preserves_configuration_and_time_order(self):
+        plan = refreshed_metadata_fixture()
+        plan['variables']['stage']['value'] = 'registry'
+        for item in plan['resource_changes']:
+            item['change']['actions'] = ['no-op']
+        address = 'module.platform[0].google_artifact_registry_repository.mypage[0]'
+        after = deepcopy(c.resource_contract('registry')[address]) | {
+            'labels': {}, 'update_time': '2000-01-01T01:00:00.123456789Z'}
+        item = {'address': address, 'mode': 'managed', 'provider_name': 'registry.terraform.io/hashicorp/google',
+                'change': {'actions': ['no-op'], 'after': after, 'after_unknown': {}}}
+        plan['resource_changes'].append(item)
+        drift = deepcopy(item)
+        drift['change'].update(actions=['update'], before=deepcopy(after) | {
+            'labels': None, 'update_time': '2000-01-01T00:00:00Z'})
+        plan['resource_drift'].append(drift)
+        original = deepcopy(plan)
+        self.assertEqual(c.validate_plan(plan, 'registry'), {'resources': 9, 'creates': 0})
+        self.assertEqual(plan, original)
+        timestamp_only = deepcopy(plan)
+        timestamp_only['resource_drift'][-1]['change']['before']['labels'] = {}
+        self.assertEqual(c.validate_plan(timestamp_only, 'registry'), {'resources': 9, 'creates': 0})
+        for bad in ('1999-12-31T23:59:59Z', '2000-13-01T01:00:00Z', '2000-01-01T01:00:00+00:00',
+                    '2000-01-01T01:00:00.1234567890Z', None, 'private-invalid-value'):
+            rejected = deepcopy(plan)
+            rejected['resource_drift'][-1]['change']['after']['update_time'] = bad
+            with self.subTest(timestamp=bad), self.assertRaises(ValueError):
+                c.validate_plan(rejected, 'registry')
+        nanos = deepcopy(plan)
+        nanos['resource_drift'][-1]['change']['before']['update_time'] = '2000-01-01T01:00:00.123456790Z'
+        with self.assertRaises(ValueError):
+            c.validate_plan(nanos, 'registry')
+        for mutate in (
+            lambda p: p['resource_drift'][-1]['change']['after'].update(labels={'unexpected': 'value'}),
+            lambda p: p['resource_drift'][-1]['change']['after'].update(docker_config=[{'immutable_tags': False}]),
+            lambda p: p['resource_drift'][-1]['change']['after_unknown'].update(update_time=True),
+            lambda p: p['resource_changes'][-1]['change'].update(actions=['update']),
+        ):
+            rejected = deepcopy(plan)
+            mutate(rejected)
+            with self.subTest(mutation=mutate), self.assertRaises(ValueError):
+                c.validate_plan(rejected, 'registry')
+        key = 'private-key-for-synthetic-tests-only'
+        self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
+                            c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
+
     def test_registry_first_read_accepts_only_absent_label_representation(self):
         plan = refreshed_metadata_fixture()
         plan['variables']['stage']['value'] = 'registry'
