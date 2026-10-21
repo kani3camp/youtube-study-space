@@ -116,6 +116,48 @@ class RuntimeTest(unittest.TestCase):
             self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
                                 c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
 
+    def test_later_owner_image_release_preserves_every_environment_value(self):
+        plan = fixture('runtime_public')
+        for item in plan['resource_changes']:
+            item['change']['actions'] = ['no-op']
+            item['change'].pop('importing', None)
+        value = plan['variables']['runtime_settings']['value']
+        value.update(previous_image_digest=value['image_digest'],
+                     image_digest=r.REPOSITORY + '@sha256:' + 'b' * 64,
+                     hosting_backend_host='mypage-api-observed-et.a.run.app')
+        before = deepcopy(service(plan)['after'])
+        before['template'][0]['containers'][0]['env'].append(
+            {'name': 'MYPAGE_HOSTING_BACKEND_HOST', 'value': value['hosting_backend_host']})
+        before['template'][0]['revision'] = ''
+        before.update(generation='2', observed_generation='2', update_time='2026-10-21T00:00:00Z',
+                      latest_ready_revision='mypage-api-old', latest_created_revision='mypage-api-old',
+                      terminal_condition=[{'state': 'CONDITION_SUCCEEDED'}], reconciling=False,
+                      traffic_statuses=[{'type': 'TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST', 'percent': 100, 'revision': 'mypage-api-old'}])
+        after = deepcopy(before)
+        after['template'][0]['containers'][0]['image'] = value['image_digest']
+        after.update(generation='3', observed_generation='3', update_time='2026-10-22T00:00:00Z',
+                     latest_ready_revision='mypage-api-new', latest_created_revision='mypage-api-new',
+                     traffic_statuses=[{'type': 'TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST', 'percent': 100, 'revision': 'mypage-api-new'}])
+        service(plan)['after'] = after
+        drift = deepcopy(next(x for x in plan['resource_changes'] if x['address'] == r.SERVICE))
+        drift['change'].update(actions=['update'], before=before)
+        plan['resource_drift'] = [drift]
+        original = deepcopy(plan)
+        self.assertEqual(r.validate_plan(plan, 'runtime_public'), {'resources': 12, 'creates': 0})
+        self.assertEqual(plan, original)
+        for mutate in (
+            lambda p: p['resource_drift'][0]['change']['before']['template'][0]['containers'][0]['env'][-1].update(value='other-et.a.run.app'),
+            lambda p: p['resource_drift'][0]['change']['before']['template'][0]['containers'][0]['env'].pop(0),
+            lambda p: p['resource_drift'][0]['change']['before']['template'][0]['containers'][0]['env'][0].update(value='other'),
+            lambda p: p['resource_drift'][0]['change']['before']['template'][0]['containers'][0].update(env=None),
+            lambda p: service(p).update(actions=['update']),
+            lambda p: p['resource_drift'][0]['change'].update(after_unknown={'template': True}),
+        ):
+            rejected = deepcopy(plan)
+            mutate(rejected)
+            with self.subTest(mutation=mutate), self.assertRaises(ValueError):
+                r.validate_plan(rejected, 'runtime_public')
+
     def test_bootstrap_cleanup_refreshes_only_the_same_noop_iam_members(self):
         for stage, size in (("runtime_private", 11), ("runtime_public", 12)):
             plan = fixture(stage)
