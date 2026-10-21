@@ -47,8 +47,8 @@ func NewKeylessFirebaseClient(ctx context.Context, projectID, signerEmail string
 
 type ServerConfig struct {
 	Environment, ProjectID, ProjectNumber, WebAppID, PublicOrigin string
-	Policy                                                     Policy
-	HostingBackendHost                                         string
+	Policy                                                        Policy
+	HostingBackendHost                                            string
 	// Default off. Enable only after the reply operator and no-session
 	// exception contact are operational and D02/D03 are resolved.
 	EnablePrivacyIntake bool

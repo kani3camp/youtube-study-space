@@ -92,7 +92,7 @@ func TestHostingRewriteRequiresPinnedBackendAndSingleFixedForwardedOrigin(t *tes
 	for _, tc := range []struct {
 		name, backend, host, method, origin string
 		hosts, protocols                    []string
-		want                               int
+		want                                int
 	}{
 		{"forwarded-get", "mypage-api-observed-et.a.run.app", "mypage-api-observed-et.a.run.app", "GET", "", []string{"mypage.example.test"}, []string{"https"}, 403},
 		{"forwarded-post", "mypage-api-observed-et.a.run.app", "mypage-api-observed-et.a.run.app", "POST", "https://mypage.example.test", []string{"mypage.example.test"}, []string{"https"}, 403},
