@@ -121,7 +121,8 @@ h2 {
 }
 .refresh-button {
 	min-height: 44px;
-	font-size: 13px;
+	font-size: 14px;
+	font-weight: 500;
 	color: var(--color-muted);
 }
 .main-content {
@@ -133,6 +134,7 @@ h2 {
 .greeting {
 	color: var(--color-muted);
 	font-size: 14px;
+	font-weight: 500;
 	margin-bottom: 18px;
 }
 .mypage-grid {
@@ -247,7 +249,8 @@ h2 {
 	text-align: right;
 }
 .time-row p {
-	font-size: 12px;
+	font-size: 13px;
+	font-weight: 500;
 	color: var(--color-muted);
 }
 .time-row strong {
@@ -305,7 +308,8 @@ h2 {
 	white-space: nowrap;
 }
 .overdue-note {
-	font-size: 12px;
+	font-size: 13px;
+	font-weight: 500;
 	text-align: right;
 	color: var(--color-muted);
 }
@@ -353,6 +357,7 @@ h2 {
 .muted {
 	color: var(--color-muted);
 	font-size: 14px;
+	font-weight: 500;
 }
 .empty-title {
 	font-size: 26px;
@@ -384,8 +389,8 @@ h2 {
 	color: var(--color-muted);
 }
 .metric dt span {
-	font-size: 11px;
-	font-weight: 400;
+	font-size: 12px;
+	font-weight: 500;
 	margin-left: 3px;
 }
 .metric dd {
@@ -434,14 +439,16 @@ h2 {
 }
 .jst-note {
 	margin-top: 12px;
-	font-size: 11px;
+	font-size: 13px;
+	font-weight: 500;
 	color: var(--color-muted);
 }
 .current-card .jst-note {
 	margin-top: 8px;
 }
 .stale-note {
-	font-size: 12px;
+	font-size: 14px;
+	font-weight: 500;
 	color: oklch(38% 0.04 55);
 	margin-top: 12px;
 }
@@ -449,7 +456,7 @@ h2 {
 	grid-area: recent;
 }
 .chart-label {
-	font-size: 12px;
+	font-size: 13px;
 	margin-block: 8px 0;
 }
 .bar-chart {
@@ -490,17 +497,19 @@ h2 {
 	background: oklch(68% 0.01 70);
 }
 .day-label {
-	font-size: 11px;
+	font-size: 12px;
+	font-weight: 500;
 	margin-top: 10px;
 	white-space: nowrap;
 }
 .today-label {
-	font-size: 10px;
+	font-size: 11px;
 	font-weight: 700;
 	color: var(--color-accent);
 }
 .selected-day {
 	font-size: 14px;
+	font-weight: 500;
 	margin-block: 6px 10px;
 	font-variant-numeric: tabular-nums;
 }
@@ -667,10 +676,6 @@ h2 {
 	h1 {
 		font-size: 22px;
 	}
-	.greeting {
-		font-size: 12px;
-		margin-bottom: 18px;
-	}
 	.card {
 		padding: 20px;
 		border-radius: 22px;
@@ -712,9 +717,6 @@ h2 {
 	}
 	.metric .duration-value {
 		gap: 0 4px;
-	}
-	.metric .stale-note {
-		font-size: 11px;
 	}
 	.bar-chart {
 		gap: 2px;
