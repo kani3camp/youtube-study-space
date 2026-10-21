@@ -87,3 +87,13 @@ Cloud Runのdrift診断は、固定allowlistに含まれる変更field名、そ�
 実Apply run 39572740715 は `run.services.setIamPolicy` のauthorization拒否で停止した。IAM条件の `modifiedGrantsByRole` を持つbindingの配置先はproject/folder/organizationに限られ、Cloud Runサービス上に置く方法は適用できなかった。実readではversion省略でも条件が保持され、providerによる条件消失という仮説は否定された。診断用一時bindingは全て解除済み。
 
 CIの権限を広げず、承認済みの `mypage-api` / `roles/run.invoker` / `allUsers` 1 memberだけをownerがetag保護で追加する。public pipelineはversion3のpolicyを読み、その無条件memberと、その他のpublic broadeningがないことを確認する。private runner workspaceへ固定target/idのimport blockを生成し、Plan/Applyで同じ内容を再現する。public invokerはno-opだけを認め、importがある場合もこのexact idだけに限る。他resource/import id/role/principal/condition、Cloud Runの更新・削除・置換は拒否する。native Plan/HMAC/State version/readback/cleanupは維持。CIにIAM setterを付与しない。既存Stateに取り込み済みの場合、import blockはno-opとなる。
+
+### Hosting転送の固定ホストとowner image更新
+
+2026-10-21にownerのpublic invokerをrun 39587793777で取り込み、12資源・create/updateなしでState readbackを確認。Hosting release `1792580103818000` を公開し、8ファイルの実配信内容一致を確認した。画面は表示できたが、Hosting経由のAPIはOrigin境界で400となったため、OAuth実試験の前に転送先ホストの明示設定を追加する。S01/S04の合格を意味しない。
+
+`MYPAGE_HOSTING_BACKEND_HOST` は実metadataから得たCloud Run hostnameを固定する。未設定時は従来どおり公開Hostのみを認める。設定時も一致するbackend Host、単一の公開 `X-Forwarded-Host`、単一の `X-Forwarded-Proto: https` を要求する。転送情報は認証根拠とせず、Auth/App Check/Origin/cookie検証とIP判定を維持する。
+
+public releaseの4値だけを `environments/dev/runtime-release.json` に記録できる（image_digest/image_source_sha/hosting_backend_host/previous_image_digest）。Secret参照番号・同意版・project等は上書きできない。先にコードをreview/mergeしてそのSHAでimage-buildし、次のsource-only PRでdigestとbuild SHAを固定する。full system tree一致とimmutable digest検証を維持する。
+
+CIに `run.services.update` を与えず、ownerがetag付きで既存serviceのcontainer imageと固定host env 1個だけを更新する。その後のpublic applyはplanned no-opのみを認める。旧digestの明示、同一service境界、env追加1個、Ready/最新revision100%、generation+1、増加したupdate_timeを照合し、観測済みcomputed metadata以外の差を拒否する。native driftはHMACへ含めて独立Applyが再現し、更新ではなくState refreshだけを実行する。

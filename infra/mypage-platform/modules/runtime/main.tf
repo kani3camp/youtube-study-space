@@ -40,6 +40,8 @@ variable "runtime_settings" {
     youtube_api_key_version     = string
     history_coverage_json       = optional(string, "")
     image_source_sha            = optional(string, "")
+    hosting_backend_host        = optional(string, "")
+    previous_image_digest       = optional(string, "")
   })
 }
 
@@ -294,6 +296,13 @@ resource "google_cloud_run_v2_service" "api" {
             secret  = google_secret_manager_secret.youtube_api_key.secret_id
             version = var.runtime_settings.youtube_api_key_version
           }
+        }
+      }
+      dynamic "env" {
+        for_each = var.runtime_settings.hosting_backend_host == "" ? [] : [var.runtime_settings.hosting_backend_host]
+        content {
+          name  = "MYPAGE_HOSTING_BACKEND_HOST"
+          value = env.value
         }
       }
     }

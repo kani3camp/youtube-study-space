@@ -110,6 +110,16 @@ func TestMyPageServerValidatesConfigurationAndConstructsWithoutBootstrapIO(t *te
 	require.Equal(t, "development", server.Auth.Support.Environment)
 	require.Same(t, server.Verifier, server.Auth.Minter)
 	require.Nil(t, server.Intake)
+	config.HostingBackendHost = "mypage-api-observed-et.a.run.app"
+	server, err = NewMyPageServer(config, deps)
+	require.NoError(t, err)
+	require.Equal(t, config.HostingBackendHost, server.HostingBackendHost)
+	for _, invalid := range []string{"https://mypage-api-observed-et.a.run.app", "other.example.test", "*.a.run.app", "mypage-api-observed-et.a.run.app:443", "mypage-api-observed-et.a.run.app/", "mypage-api-observed-et.a.run.app.evil.test"} {
+		config.HostingBackendHost = invalid
+		_, err = NewMyPageServer(config, deps)
+		require.Error(t, err)
+	}
+	config.HostingBackendHost = ""
 	config.EnablePrivacyIntake = true
 	_, err = NewMyPageServer(config, deps)
 	require.Error(t, err)

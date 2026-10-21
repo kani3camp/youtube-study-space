@@ -162,6 +162,13 @@ def runtime_settings(env):
             result[key] = value
         return result
     value = runtime_contract.settings(json.loads(raw, object_pairs_hook=pairs))
+    release_file = REPO / "infra/mypage-platform/environments/dev/runtime-release.json"
+    if release_file.exists():
+        contract.need(release_file.is_file() and not release_file.is_symlink(), "runtime-release-file")
+        release = json.loads(release_file.read_text(), object_pairs_hook=pairs)
+        contract.need(type(release) is dict and set(release) == {"image_digest", "image_source_sha", "hosting_backend_host", "previous_image_digest"}, "runtime-release-fields")
+        value = runtime_contract.settings(value | release)
+        contract.need(all(release.values()) and release["previous_image_digest"] != release["image_digest"], "runtime-release-values")
     provider = re.fullmatch(r"projects/([0-9]+)/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions",
                             env.get("MYPAGE_GCP_WIF_PROVIDER", ""))
     need(provider and value["project_number"] == provider[1])

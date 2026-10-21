@@ -13,7 +13,7 @@ import runtime_contract as r
 
 
 def fixture(stage="runtime_private"):
-    value = json.loads((ROOT / "infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json").read_text())
+    value = r.settings(json.loads((ROOT / "infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json").read_text()))
     after = r.resource_contract(stage)
     container = {"image": value["image_digest"], "ports": [{"name": "http1", "container_port": 8080}],
                  "resources": [{"limits": {"cpu": "1", "memory": "512Mi"}, "cpu_idle": True, "startup_cpu_boost": False}],
@@ -44,6 +44,67 @@ def service(plan):
 
 
 class RuntimeTest(unittest.TestCase):
+    def test_owner_hosting_image_refresh_is_exact_ready_noop_and_committed(self):
+        for stage, size in (("runtime_private", 11), ("runtime_public", 12)):
+            plan = fixture(stage)
+            for item in plan['resource_changes']:
+                item['change']['actions'] = ['no-op']
+                item['change'].pop('importing', None)
+            after = service(plan)['after']
+            before = deepcopy(after)
+            before.update(generation='1', observed_generation='1', update_time='2026-10-21T00:00:00Z',
+                          latest_ready_revision='mypage-api-old', latest_created_revision='mypage-api-old',
+                          terminal_condition=[{'state': 'CONDITION_SUCCEEDED'}], reconciling=False,
+                          traffic_statuses=[{'type': 'TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST', 'percent': 100, 'revision': 'mypage-api-old'}])
+            before['template'][0]['revision'] = 'mypage-api-old'
+            after.clear()
+            after.update(deepcopy(before))
+            value = plan['variables']['runtime_settings']['value']
+            value.update(previous_image_digest=value['image_digest'], image_digest=r.REPOSITORY + '@sha256:' + 'b' * 64,
+                         hosting_backend_host='mypage-api-observed-et.a.run.app')
+            after['template'][0]['containers'][0]['image'] = value['image_digest']
+            after['template'][0]['containers'][0]['env'].append({'name': 'MYPAGE_HOSTING_BACKEND_HOST', 'value': value['hosting_backend_host']})
+            after['template'][0]['revision'] = 'mypage-api-new'
+            after.update(generation='2', observed_generation='2', update_time='2026-10-21T01:00:00Z',
+                         latest_ready_revision='mypage-api-new', latest_created_revision='mypage-api-new',
+                         traffic_statuses=[{'type': 'TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST', 'percent': 100, 'revision': 'mypage-api-new'}])
+            drift = deepcopy(next(x for x in plan['resource_changes'] if x['address'] == r.SERVICE))
+            drift['change'].update(actions=['update'], before=before)
+            plan['resource_drift'] = [drift]
+            original = deepcopy(plan)
+            self.assertEqual(r.validate_plan(plan, stage), {'resources': size, 'creates': 0})
+            self.assertEqual(plan, original)
+            for mutate in (
+                lambda p: service(p).update(actions=['update']),
+                lambda p: p['variables']['runtime_settings']['value'].update(previous_image_digest=r.REPOSITORY + '@sha256:' + 'c' * 64),
+                lambda p: p['resource_drift'][0]['change'].update(after_unknown={'generation': True}),
+                lambda p: p['resource_drift'][0]['change'].update(actions=['delete', 'create']),
+                lambda p: p['resource_drift'][0]['change']['before']['template'][0].update(service_account='other@example.test'),
+                lambda p: p['resource_drift'][0]['change']['before']['template'][0]['containers'][0]['env'].pop(),
+                lambda p: p['resource_drift'][0]['change']['before'].update(generation='9'),
+                lambda p: p['resource_drift'][0]['change']['before'].update(update_time='2026-10-22T00:00:00Z'),
+                lambda p: p['resource_drift'][0]['change']['before'].update(invoker_iam_disabled=True),
+                lambda p: p['resource_drift'][0]['change']['before'].update(ingress='INGRESS_TRAFFIC_INTERNAL_ONLY'),
+                lambda p: p['resource_drift'][0]['change']['before']['template'][0].update(timeout='60s'),
+            ):
+                rejected = deepcopy(plan)
+                mutate(rejected)
+                with self.subTest(stage=stage, mutation=mutate), self.assertRaises(ValueError):
+                    r.validate_plan(rejected, stage)
+            # Keep planned/observed values equal to test the admission itself.
+            for field, invalid in (('generation', '3'), ('observed_generation', '1'),
+                                   ('latest_ready_revision', 'mypage-api-old'), ('reconciling', True),
+                                   ('terminal_condition', [{'state': 'CONDITION_FAILED'}]),
+                                   ('traffic_statuses', [{'type': 'TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST', 'percent': 50, 'revision': 'mypage-api-new'}])):
+                rejected = deepcopy(plan)
+                service(rejected)['after'][field] = invalid
+                rejected['resource_drift'][0]['change']['after'][field] = invalid
+                with self.subTest(stage=stage, field=field), self.assertRaises(ValueError):
+                    r.validate_plan(rejected, stage)
+            key = 'private-key-for-synthetic-tests-only'
+            self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
+                                c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
+
     def test_bootstrap_cleanup_refreshes_only_the_same_noop_iam_members(self):
         for stage, size in (("runtime_private", 11), ("runtime_public", 12)):
             plan = fixture(stage)
