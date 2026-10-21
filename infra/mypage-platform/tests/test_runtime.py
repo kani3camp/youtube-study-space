@@ -74,6 +74,17 @@ class RuntimeTest(unittest.TestCase):
             original = deepcopy(plan)
             self.assertEqual(r.validate_plan(plan, stage), {'resources': size, 'creates': 0})
             self.assertEqual(plan, original)
+            automatic = deepcopy(plan)
+            service(automatic)['after']['template'][0]['revision'] = ''
+            automatic['resource_drift'][0]['change']['after']['template'][0]['revision'] = ''
+            automatic['resource_drift'][0]['change']['before']['template'][0]['revision'] = ''
+            self.assertEqual(r.validate_plan(automatic, stage), {'resources': size, 'creates': 0})
+            for invalid_revision in ('mypage-api-old', 'other-service-new', None):
+                rejected = deepcopy(automatic)
+                service(rejected)['after']['template'][0]['revision'] = invalid_revision
+                rejected['resource_drift'][0]['change']['after']['template'][0]['revision'] = invalid_revision
+                with self.assertRaises(ValueError):
+                    r.validate_plan(rejected, stage)
             for mutate in (
                 lambda p: service(p).update(actions=['update']),
                 lambda p: p['variables']['runtime_settings']['value'].update(previous_image_digest=r.REPOSITORY + '@sha256:' + 'c' * 64),
