@@ -162,6 +162,14 @@ def validate_plan(plan, stage="foundation"):
                 need(type(replication) is list and len(replication) == 1, "secret-replication")
                 need(not replication[0].get("user_managed") and len(replication[0].get("auto", [])) == 1, "secret-auto-replication")
                 need(not replication[0]["auto"][0].get("customer_managed_encryption"), "secret-encryption")
+            elif key == "secret_id" and address in {
+                "module.platform[0].google_secret_manager_secret_iam_member." + name + "_runtime[0]"
+                for name in SECRET_IDS
+            }:
+                # Google 8.5.0 stores the IAM resource's Secret identifier as
+                # a full resource name after create/refresh. Accept only the
+                # exact same project and Secret, never an arbitrary suffix.
+                need(after.get(key) in {value, "projects/" + PROJECT + "/secrets/" + value}, "resource-value-secret_id")
             else:
                 # key is from the fixed resource contract, never the Plan.
                 need(after.get(key) == value, "resource-value-" + key)
