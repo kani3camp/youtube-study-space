@@ -126,12 +126,13 @@ class FoundationTest(unittest.TestCase):
         plan = {'resource_changes': [{'address': ops.runtime_contract.SERVICE, 'change': {'actions': ['no-op']}}],
                 'resource_drift': [{'address': ops.runtime_contract.SERVICE, 'change': {
                     'before': {'etag': 'private-before', 'private-field-name': 'private-before'},
-                    'after': {'etag': 'private-after', 'private-field-name': 'private-after'}, 'actions': ['update']}}]}
+                    'after': {'etag': 'private-after', 'private-field-name': 'private-after', 'template': [{'annotations': {}, 'labels': {}}]}, 'actions': ['update']}}]}
         original = deepcopy(plan)
         output = io.StringIO()
         with redirect_stdout(output):
             ops.describe_runtime_drift(plan)
-        self.assertIn('"fields": ["etag"]', output.getvalue())
+        self.assertIn('"fields": ["etag", "template"]', output.getvalue())
+        self.assertIn('"after": "array"', output.getvalue())
         self.assertIn('"otherFields": 1', output.getvalue())
         self.assertIn('"plannedNoop": true', output.getvalue())
         self.assertNotIn('private-', output.getvalue())
