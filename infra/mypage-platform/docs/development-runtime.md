@@ -15,6 +15,12 @@ bash system/scripts/check-mypage-image.sh mypage-api:ci
 
 ## 実環境の現在地
 
+### Bootstrap metadataの追従
+
+Runtime準備では、project上のmetadata-only custom role（Registry tag、Cloud Run/operation、project IAM、Secret version metadataのget）をPlan/Applyへ、download/uploadだけのcustom roleを専用RegistryのApplyへ、actAsを専用runtime SAのApplyへ限定した。Secret payload、Cloud Run create、project IAM editorは付与していない。専用SAへのactAs追加で共有IAM policyのetagが変わることをGCP readbackで確認した。Registry IAM変更によるrepository updateTime変更はなかった。
+
+IAM memberのreadは共有policyのetagを返すため、当該4 memberの予定操作がno-opで、before/afterが非空etag以外は完全一致するrefreshだけを許可する。member/role/condition/id/Secret/projectの変更、unknown、予定write、別resourceは拒否する。生driftは全Plan HMACへ保持し、operator管理のbinding全体をTerraform-ownedに読み替えない。旧guardの[実Plan run 39527611450](https://github.com/kani3camp/youtube-study-space/actions/runs/39527611450)はmetadata-refresh-addressで停止した（Applyなし）。修正後の実Planは別runで再検証する。
+
 ### イメージとRuntimeの実行順序
 
 Registryの実適用後、同じ専用reusable workflowで`image-build`を明示dispatchする。exact actor/ref/workflow/SHAのOIDCを維持し、Apply identityに当該Registry単位のupload権限だけを別途接続する。image jobはAWS認証もTerraform/State操作も行わない。digest固定baseからlinux/amd64 imageを作り、nonroot・network無効の設定検査後、40桁source SHAのimmutable tagへpushし、local RepoDigestとRegistry tagのdigestを照合する。既存tagの上書きは拒否する。

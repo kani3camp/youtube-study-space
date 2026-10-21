@@ -196,7 +196,7 @@ def prepare(env):
     with open(env["GITHUB_OUTPUT"], "a") as output:
         output.write("commitment=" + digest + "\nplan_time=" + str(time.time()) + "\n")
     print("Development foundation plan accepted: " + str(summary["resources"]) + " resources, " + str(summary["creates"]) +
-          " creates; normalized empty metadata refreshes: " + str(len(plan.get("resource_drift", []) or [])) + ". No apply.")
+          " creates; accepted computed metadata refreshes: " + str(len(plan.get("resource_drift", []) or [])) + ". No apply.")
 
 
 def apply_saved(env):

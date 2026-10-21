@@ -44,6 +44,42 @@ def refreshed_metadata_fixture():
 
 
 class FoundationTest(unittest.TestCase):
+    def test_shared_policy_etag_refresh_preserves_the_exact_managed_member(self):
+        plan = refreshed_metadata_fixture()
+        for item in plan['resource_changes']:
+            item['change']['actions'] = ['no-op']
+            if '_iam_member.' not in item['address']:
+                continue
+            item['change']['after']['etag'] = 'synthetic-new-etag'
+            drift = deepcopy(item)
+            drift['change']['actions'] = ['update']
+            drift['change']['before'] = deepcopy(drift['change']['after'])
+            drift['change']['before']['etag'] = 'synthetic-old-etag'
+            plan['resource_drift'].append(drift)
+        original = deepcopy(plan)
+        self.assertEqual(c.validate_plan(plan), {'resources': 8, 'creates': 0})
+        self.assertEqual(plan, original)
+        key = 'private-key-for-synthetic-tests-only'
+        self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
+                            c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
+        index = next(i for i, item in enumerate(plan['resource_drift']) if '_iam_member.' in item['address'])
+        for mutate in (
+            lambda p: p['resource_drift'][index]['change']['after'].update(member='allUsers'),
+            lambda p: p['resource_drift'][index]['change']['after'].update(role='roles/owner'),
+            lambda p: (p['resource_drift'][index]['change']['before'].update(member='allUsers'),
+                       p['resource_drift'][index]['change']['after'].update(member='allUsers')),
+            lambda p: p['resource_drift'][index]['change']['after'].update(condition=[{'expression': 'true'}]),
+            lambda p: p['resource_drift'][index]['change']['after'].update(etag=''),
+            lambda p: p['resource_drift'][index]['change']['before'].update(etag=None),
+            lambda p: p['resource_drift'][index]['change']['after_unknown'].update(etag=True),
+            lambda p: p['resource_drift'][index].update(address='unreviewed-iam-member'),
+            lambda p: next(x for x in p['resource_changes'] if x['address'] == p['resource_drift'][index]['address'])['change'].update(actions=['update']),
+        ):
+            rejected = deepcopy(plan)
+            mutate(rejected)
+            with self.subTest(mutation=mutate), self.assertRaises(ValueError):
+                c.validate_plan(rejected)
+
     def test_every_dispatch_apply_mode_reaches_the_independent_apply_job(self):
         spec = importlib.util.spec_from_file_location('workflow_yaml', ROOT / '.github/codeql/validate-source.py')
         loader = importlib.util.module_from_spec(spec)
