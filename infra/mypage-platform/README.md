@@ -81,3 +81,9 @@ Cloud Runのdrift診断は、固定allowlistに含まれる変更field名、そ�
 ### 初回Cloud Run readの空値補完
 
 実Plan run 39571661136 で、planned no-opのCloud Runに対し、root `annotations` / `labels`、revision templateの同2 fieldがnull→{}、root `custom_audiences`、唯一のcontainerの `args` / `command` / `depends_on` がnull→[]となる8 pathだけを観測した。この8 pathだけを、known・同じschema・同じ固定service boundary・planned afterがrefresh afterと同一の場合に受理する。8 pathを補完したbeforeがafterと完全一致することを要求し、追加field、非空値、逆方向変化、アプリ/認証/secret/scale/traffic変更、unknown、update/delete/replace/importは受理しない。native driftを消さず、HMACには従来どおり含める。
+
+### 公開Invokerをownerが追加し、CIは固定memberだけを取り込む
+
+実Apply run 39572740715 は `run.services.setIamPolicy` のauthorization拒否で停止した。IAM条件の `modifiedGrantsByRole` を持つbindingの配置先はproject/folder/organizationに限られ、Cloud Runサービス上に置く方法は適用できなかった。実readではversion省略でも条件が保持され、providerによる条件消失という仮説は否定された。診断用一時bindingは全て解除済み。
+
+CIの権限を広げず、承認済みの `mypage-api` / `roles/run.invoker` / `allUsers` 1 memberだけをownerがetag保護で追加する。public pipelineはversion3のpolicyを読み、その無条件memberと、その他のpublic broadeningがないことを確認する。private runner workspaceへ固定target/idのimport blockを生成し、Plan/Applyで同じ内容を再現する。public invokerはno-opだけを認め、importがある場合もこのexact idだけに限る。他resource/import id/role/principal/condition、Cloud Runの更新・削除・置換は拒否する。native Plan/HMAC/State version/readback/cleanupは維持。CIにIAM setterを付与しない。既存Stateに取り込み済みの場合、import blockはno-opとなる。

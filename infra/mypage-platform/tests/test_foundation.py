@@ -138,6 +138,18 @@ class FoundationTest(unittest.TestCase):
         self.assertNotIn('private-', output.getvalue())
         self.assertEqual(plan, original)
 
+    def test_public_invoker_preflight_requires_the_exact_unconditional_owner_binding(self):
+        env = {'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}
+        valid = {'bindings': [{'role': 'roles/run.invoker', 'members': ['allUsers']}]}
+        with patch.object(ops, 'request', return_value=valid) as request:
+            ops.verify_owner_public_invoker(env)
+        self.assertTrue(request.call_args.args[0].endswith('/services/mypage-api:getIamPolicy?options.requestedPolicyVersion=3'))
+        for policy in ({}, {'bindings': [{'role': 'roles/run.admin', 'members': ['allUsers']}]},
+                       {'bindings': [{'role': 'roles/run.invoker', 'members': ['allUsers'], 'condition': {'expression': 'true'}}]},
+                       {'bindings': valid['bindings'] + [{'role': 'roles/run.admin', 'members': ['allAuthenticatedUsers']}]}):
+            with self.subTest(policy=policy), patch.object(ops, 'request', return_value=policy), self.assertRaisesRegex(c.ContractError, '^runtime-owner-public-invoker$'):
+                ops.verify_owner_public_invoker(env)
+
     def test_registry_artifact_push_refresh_preserves_configuration_and_time_order(self):
         plan = refreshed_metadata_fixture()
         plan['variables']['stage']['value'] = 'registry'

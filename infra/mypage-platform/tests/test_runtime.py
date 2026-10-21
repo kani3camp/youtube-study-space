@@ -29,10 +29,14 @@ def fixture(stage="runtime_private"):
                             template=[{"service_account": c.EMAIL, "timeout": "30s", "max_instance_request_concurrency": 40,
                                        "execution_environment": "EXECUTION_ENVIRONMENT_GEN2", "scaling": [{"min_instance_count": 0, "max_instance_count": 1}],
                                        "containers": [container]}])
-    return {"format_version": "1.2", "complete": True, "errored": False,
+    result = {"format_version": "1.2", "complete": True, "errored": False,
             "variables": {"stage": {"value": stage}, "runtime_settings": {"value": value}},
             "resource_changes": [{"address": address, "mode": "managed", "provider_name": "registry.terraform.io/hashicorp/google",
                                   "change": {"actions": ["create"], "after": values, "after_unknown": {}}} for address, values in after.items()]}
+    if stage == "runtime_public":
+        change = next(x['change'] for x in result['resource_changes'] if x['address'] == r.INVOKER)
+        change.update(actions=['no-op'], importing={'id': r.PUBLIC_INVOKER_IMPORT_ID})
+    return result
 
 
 def service(plan):
@@ -46,6 +50,7 @@ class RuntimeTest(unittest.TestCase):
             plan['resource_drift'] = []
             for item in plan['resource_changes']:
                 item['change']['actions'] = ['no-op']
+                item['change'].pop('importing', None)  # Already managed members in this State-refresh scenario.
                 if item['address'] not in {r.FIRESTORE, r.INVOKER}:
                     continue
                 item['change']['after']['etag'] = 'synthetic-new-etag'
@@ -117,10 +122,35 @@ class RuntimeTest(unittest.TestCase):
     def test_private_and_public_have_exact_resources_and_pinned_secrets(self):
         for stage, size in (("runtime_private", 11), ("runtime_public", 12)):
             plan = fixture(stage)
-            self.assertEqual(r.validate_plan(plan, stage), {"resources": size, "creates": size})
+            self.assertEqual(r.validate_plan(plan, stage), {"resources": size, "creates": size - (stage == "runtime_public")})
             for item in plan["resource_changes"]:
                 item["change"]["actions"] = ["no-op"]
             self.assertEqual(r.validate_plan(plan, stage), {"resources": size, "creates": 0})
+
+    def test_only_exact_owner_public_member_can_be_imported_without_cloud_writes(self):
+        plan = fixture('runtime_public')
+        self.assertEqual(r.public_invoker_import_config(), 'import {\n  to = ' + r.INVOKER + '\n  id = "' + r.PUBLIC_INVOKER_IMPORT_ID + '"\n}\n')
+        qualified = deepcopy(plan)
+        next(x['change'] for x in qualified['resource_changes'] if x['address'] == r.INVOKER)['after']['name'] = r.PUBLIC_INVOKER_NAME
+        self.assertEqual(r.validate_plan(qualified, 'runtime_public'), {'resources': 12, 'creates': 11})
+        for mutate in (
+            lambda p: next(x['change'] for x in p['resource_changes'] if x['address'] == r.INVOKER)['after'].update(name='projects/other/locations/asia-southeast2/services/mypage-api'),
+            lambda p: next(x['change'] for x in p['resource_changes'] if x['address'] == r.INVOKER).update(actions=['create']),
+            lambda p: next(x['change'] for x in p['resource_changes'] if x['address'] == r.INVOKER).update(importing={'id': 'private-other-resource'}),
+            lambda p: next(x['change'] for x in p['resource_changes'] if x['address'] == r.INVOKER).update(importing={'id': r.PUBLIC_INVOKER_IMPORT_ID, 'unknown': True}),
+            lambda p: service(p).update(importing={'id': r.PUBLIC_INVOKER_IMPORT_ID}),
+            lambda p: next(x['change'] for x in p['resource_changes'] if x['address'] == r.INVOKER)['after'].update(role='roles/run.admin'),
+            lambda p: next(x['change'] for x in p['resource_changes'] if x['address'] == r.INVOKER)['after'].update(member='allAuthenticatedUsers'),
+        ):
+            rejected = deepcopy(plan)
+            mutate(rejected)
+            with self.subTest(mutation=mutate), self.assertRaises(ValueError):
+                r.validate_plan(rejected, 'runtime_public')
+        key = 'private-key-for-synthetic-tests-only'
+        other = deepcopy(plan)
+        next(x['change'] for x in other['resource_changes'] if x['address'] == r.INVOKER).pop('importing')
+        self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
+                            c.commitment(other, 'state-version', 'a' * 40, key))
 
     def test_security_capacity_image_and_environment_changes_are_rejected(self):
         changes = [

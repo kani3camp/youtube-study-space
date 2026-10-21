@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import subprocess
 
-from foundation_contract import need, validate_plan
+from foundation_contract import ContractError, need, validate_plan
 import runtime_contract
 
 root = Path(__file__).resolve().parents[1] / "environments/dev"
@@ -29,6 +29,18 @@ for rendered, stage, creates in zip(plans, ("foundation_metadata", "foundation",
                          "resource_drift": rendered.get("resource_drift", []),
                          "deferred_changes": rendered.get("deferred_changes", [])}
     validator = runtime_contract.validate_plan if stage.startswith("runtime_") else validate_plan
-    summary = validator(envelope, stage)
-    need(summary == {"resources": creates, "creates": creates})
-print("Native mocked Plans accepted: four / eight / nine / private eleven / public twelve; no cloud I/O.")
+    if stage == "runtime_public":
+        # Canonical HCL describes a new member, while the authenticated public
+        # path requires an owner-existing member and generates an exact import.
+        # Preserve this provider-generated create Plan and prove its rejection;
+        # do not rewrite native actions into a fabricated import/no-op.
+        try:
+            validator(envelope, stage)
+        except ContractError as error:
+            need(str(error) == "runtime-invoker-owner-managed")
+        else:
+            need(False)
+    else:
+        summary = validator(envelope, stage)
+        need(summary == {"resources": creates, "creates": creates})
+print("Native mocked Plans accepted: four / eight / nine / private eleven; public member creation correctly rejected; no cloud I/O.")
