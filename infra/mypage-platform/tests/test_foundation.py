@@ -1,6 +1,6 @@
 """Observable admission, native Plan and isolated backend permission boundaries."""
 from copy import deepcopy
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 import importlib.util
 import io
 import json
@@ -100,6 +100,42 @@ class FoundationTest(unittest.TestCase):
                 self.assertEqual(ops.main(), 1)
             self.assertIn('check=' + expected + '.', output.getvalue())
             self.assertNotIn('private-', output.getvalue())
+
+    def test_retained_image_requires_identical_entire_build_context(self):
+        value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
+        value['image_source_sha'] = 'b' * 40
+        env = {'GITHUB_SHA': 'a' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}
+        prefix = 'projects/' + c.PROJECT + '/locations/asia-southeast2/repositories/mypage/packages/mypage-api'
+        tag = {'version': prefix + '/versions/sha256:' + value['image_digest'].split('@sha256:')[1]}
+        with patch.object(ops, 'run', side_effect=['', 'c' * 40, 'c' * 40]) as run, \
+                patch.object(ops, 'request', side_effect=[tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
+            ops.verify_runtime_inputs(env, value)
+        self.assertEqual(run.call_args_list[0].args[0], ['git', 'fetch', '--no-tags', '--depth=1', 'origin', 'b' * 40])
+        self.assertTrue(request.call_args_list[0].args[0].endswith('/tags/' + 'b' * 40))
+        with patch.object(ops, 'run', side_effect=['', 'c' * 40, 'd' * 40]), patch.object(ops, 'request') as request:
+            with self.assertRaisesRegex(c.ContractError, '^runtime-image-source-tree$'):
+                ops.verify_runtime_inputs(env, value)
+            request.assert_not_called()
+        for source in ['--upload-pack=private', 'b' * 39, 'B' * 40]:
+            with self.subTest(source=source), patch.object(ops, 'run') as run:
+                with self.assertRaisesRegex(c.ContractError, '^runtime-image-source-sha$'):
+                    ops.verify_runtime_inputs(env, value | {'image_source_sha': source})
+                run.assert_not_called()
+
+    def test_runtime_drift_diagnostic_does_not_publish_values_or_unreviewed_field_names(self):
+        plan = {'resource_changes': [{'address': ops.runtime_contract.SERVICE, 'change': {'actions': ['no-op']}}],
+                'resource_drift': [{'address': ops.runtime_contract.SERVICE, 'change': {
+                    'before': {'etag': 'private-before', 'private-field-name': 'private-before'},
+                    'after': {'etag': 'private-after', 'private-field-name': 'private-after'}, 'actions': ['update']}}]}
+        original = deepcopy(plan)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ops.describe_runtime_drift(plan)
+        self.assertIn('"fields": ["etag"]', output.getvalue())
+        self.assertIn('"otherFields": 1', output.getvalue())
+        self.assertIn('"plannedNoop": true', output.getvalue())
+        self.assertNotIn('private-', output.getvalue())
+        self.assertEqual(plan, original)
 
     def test_registry_artifact_push_refresh_preserves_configuration_and_time_order(self):
         plan = refreshed_metadata_fixture()

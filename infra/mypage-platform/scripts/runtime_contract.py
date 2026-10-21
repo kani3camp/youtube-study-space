@@ -15,12 +15,12 @@ INVOKER = "module.platform[0].google_cloud_run_v2_service_iam_member.public_invo
 MODES = {"runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
          "runtime-public-plan": "runtime_public", "runtime-public-apply": "runtime_public"}
 FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "privacy_version", "terms_version",
-          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json"}
+          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha"}
 
 
 def settings(value):
-    c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= FIELDS - {"history_coverage_json"}, "runtime-settings-fields")
-    value = value | {"history_coverage_json": value.get("history_coverage_json", "")}
+    c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= FIELDS - {"history_coverage_json", "image_source_sha"}, "runtime-settings-fields")
+    value = value | {"history_coverage_json": value.get("history_coverage_json", ""), "image_source_sha": value.get("image_source_sha", "")}
     c.need(all(type(v) is str for v in value.values()), "runtime-settings-types")
     c.need(re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["image_digest"]), "runtime-image")
     c.need(re.fullmatch(r"[0-9]{6,20}", value["project_number"]), "runtime-project-number")
@@ -30,6 +30,7 @@ def settings(value):
         c.need(re.fullmatch(r"[A-Za-z0-9._-]{1,64}", value[field]), "runtime-policy-version")
     for field in ("oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version"):
         c.need(re.fullmatch(r"[1-9][0-9]*", value[field]), "runtime-secret-version")
+    c.need(value["image_source_sha"] == "" or re.fullmatch(r"[a-f0-9]{40}", value["image_source_sha"]), "runtime-image-source-sha")
     coverage = value["history_coverage_json"]
     c.need(len(coverage.encode()) <= 16384, "runtime-coverage-size")
     if coverage:

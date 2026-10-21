@@ -40,6 +40,7 @@ variable "runtime_settings" {
     oauth_client_secret_version = string
     youtube_api_key_version     = string
     history_coverage_json       = optional(string, "")
+    image_source_sha            = optional(string, "")
   })
   default = {
     image_digest                = ""
