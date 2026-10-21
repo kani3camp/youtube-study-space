@@ -23,6 +23,8 @@ Plan/Applyの両専用Environmentへ`MYPAGE_RUNTIME_SETTINGS_JSON`を接続し�
 
 初回[Runtime private Plan 39543529630](https://github.com/kani3camp/youtube-study-space/actions/runs/39543529630)は`registry-refresh-empty-labels-only`で停止し、Applyなし。独立State serial=3のRegistry作成時刻と更新時刻は同一だったが、GCPの更新時刻は検証済みimage push時刻へ進んでいた。guardは同一固定Registryの予定no-opで、空labels表現差とcomputed `update_time`の単調なRFC3339 UTC更新だけを受理する。nanosecond精度の逆行、他field、unknown、予定writeは拒否し、全driftをHMACへ保持する。修正後は新source imageとnative Planで再確認する。
 
+一時bootstrap権限の解除も共有IAM policyのetagを変えるため、Runtimeの固定Firestore memberとpublic stageの固定invoker memberには、Foundationと同じ「同一managed member・予定no-op・非空etag以外の全field一致」の判定を使う。実際のrole/member/condition変更、duplicate、unknown、予定write、Cloud Run本体やprivate stageへのpublic member追加は拒否する。この2 memberのcleanup後live確認は実Runtime Apply後に行う。追加の権限付与や実Applyをこのsource変更で行うものではない。
+
 ### Bootstrap metadataの追従
 
 Runtime準備では、project上のmetadata-only custom role（Registry tag、Cloud Run/operation、project IAM、Secret version metadataのget）をPlan/Applyへ、download/uploadだけのcustom roleを専用RegistryのApplyへ、actAsを専用runtime SAのApplyへ限定した。Secret payload、Cloud Run create、project IAM editorは付与していない。専用SAへのactAs追加で共有IAM policyのetagが変わることをGCP readbackで確認した。Registry IAM変更によるrepository updateTime変更はなかった。

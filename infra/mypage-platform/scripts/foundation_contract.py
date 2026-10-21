@@ -138,6 +138,22 @@ def registry_timestamp(value):
     return seconds, int((match[2] or "").ljust(9, "0"))
 
 
+def validate_iam_etag_refresh(item, planned, expected):
+    need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "iam-refresh-provider")
+    change = item.get("change", {})
+    need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths"), "iam-refresh-action")
+    need(not has_unknown(change.get("after_unknown")), "iam-refresh-unknown")
+    before, after = change.get("before"), change.get("after")
+    need(type(before) is dict and type(after) is dict and set(before) == set(after), "iam-refresh-shape")
+    need(planned.get(item.get("address"), {}).get("change", {}).get("actions") == ["no-op"], "iam-refresh-planned-noop")
+    need({key for key in before if before[key] != after[key]} == {"etag"}, "iam-refresh-etag-only")
+    need(all(type(value.get("etag")) is str and 0 < len(value["etag"]) <= 512 for value in (before, after)), "iam-refresh-etag-value")
+    need(not after.get("condition"), "iam-refresh-condition")
+    for key, value in expected.items():
+        allowed = {value, "projects/" + PROJECT + "/secrets/" + value} if key == "secret_id" else {value}
+        need(after.get(key) in allowed, "iam-refresh-member-boundary")
+
+
 def validate_computed_metadata_refresh(plan):
     """Admit only bounded computed metadata refreshes on planned no-op resources.
 
@@ -180,12 +196,7 @@ def validate_computed_metadata_refresh(plan):
                  "registry-refresh-boundary")
             continue
         if address in members:
-            need(changed == {"etag"}, "iam-refresh-etag-only")
-            need(all(type(value.get("etag")) is str and 0 < len(value["etag"]) <= 512 for value in (before, after)), "iam-refresh-etag-value")
-            need(not after.get("condition"), "iam-refresh-condition")
-            for key, value in members[address].items():
-                allowed = {value, "projects/" + PROJECT + "/secrets/" + value} if key == "secret_id" else {value}
-                need(after.get(key) in allowed, "iam-refresh-member-boundary")
+            validate_iam_etag_refresh(item, planned, members[address])
             continue
         need(bool(changed) and changed <= {"annotations", "labels", "version_aliases"}, "metadata-refresh-fields")
         need(all(before[key] is None and type(after[key]) is dict and not after[key] for key in changed), "metadata-refresh-empty-only")

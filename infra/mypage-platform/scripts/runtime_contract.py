@@ -152,6 +152,20 @@ def validate_plan(plan, stage):
     foundation = deepcopy(plan)
     foundation["variables"]["stage"]["value"] = "registry"
     foundation["resource_changes"] = [item for item in changes if item.get("address") in base]
+    foundation["resource_drift"] = []
+    drift_seen = set()
+    planned = {item.get("address"): item for item in changes}
+    for item in plan.get("resource_drift", []) or []:
+        address = item.get("address")
+        c.need(address not in drift_seen, "runtime-duplicate-drift")
+        drift_seen.add(address)
+        if address in base:
+            foundation["resource_drift"].append(item)
+        else:
+            # Removing temporary bootstrap access changes the same shared
+            # policy etag, while these fixed managed members stay unchanged.
+            c.need(address in {FIRESTORE, INVOKER} and address in expected, "runtime-drift-address")
+            c.validate_iam_etag_refresh(item, planned, expected[address])
     c.validate_plan(foundation, "registry")
     seen = set()
     for item in changes:
