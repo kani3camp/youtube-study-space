@@ -59,6 +59,10 @@ def rejects(mutator):
     assert not validator.is_valid(data), "invalid public response was accepted"
 
 
+rejects(lambda x: x["summary"]["data"]["today"].update(recordedWorkSec=60))
+for recorded in [None, 0, -1, 1.5, 9007199254740992]:
+    rejects(lambda x: x["summary"]["data"]["today"].update(availability="unavailable", reasonCode="HISTORY_INCOMPLETE", workSec=None, recordedWorkSec=recorded))
+rejects(lambda x: x["recent7Days"]["data"][0].update(availability="unavailable", reasonCode="SOURCE_UNAVAILABLE", workSec=None, recordedWorkSec=60))
 rejects(lambda x: x.update(uid="synthetic-internal-id"))
 rejects(lambda x: x.update(timezone="UTC"))
 rejects(lambda x: x["recent7Days"]["data"].pop())

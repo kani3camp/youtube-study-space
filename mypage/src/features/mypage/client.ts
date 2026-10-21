@@ -60,6 +60,16 @@ function nullableString(value: unknown) {
 }
 function metric(value: unknown) {
 	const v = object(value)
+	if (v && 'recordedWorkSec' in v) {
+		if (
+			v.availability !== 'unavailable' ||
+			v.reasonCode !== 'HISTORY_INCOMPLETE' ||
+			typeof v.recordedWorkSec !== 'number' ||
+			!Number.isSafeInteger(v.recordedWorkSec) ||
+			v.recordedWorkSec <= 0
+		)
+			return false
+	}
 	return (
 		v !== null &&
 		((v.availability === 'available' &&

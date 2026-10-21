@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import availableWire from '../../../../docs/mypage/fixtures/available.json'
+import recordedWire from '../../../../docs/mypage/fixtures/recorded-history.json'
 import terminalUnavailable from '../../../../docs/mypage/fixtures/terminal-account-source-unavailable.json'
 import { createLoader } from './client'
 import type { MyPage } from './contract'
@@ -69,6 +70,32 @@ async function settle() {
 describe('private MyPage memory', () => {
 	beforeEach(() => vi.useFakeTimers())
 	afterEach(() => vi.useRealTimers())
+	it('keeps recorded evidence separate from exact or retained values and clears it on source failure', () => {
+		const response = structuredClone(recordedWire) as MyPage
+		const first = mergeResponse(null, response)
+		expect(first.recent[6]).toMatchObject({
+			data: null,
+			asOf: null,
+			stale: true,
+			recorded: { data: 3000, asOf: response.generatedAt },
+		})
+		expect(first.recent[0].recorded).toBeUndefined()
+		const failed = structuredClone(response)
+		failed.recent7Days.data[6] = {
+			date: failed.recent7Days.data[6].date,
+			availability: 'unavailable',
+			reasonCode: 'SOURCE_UNAVAILABLE',
+			workSec: null,
+		}
+		const next = mergeResponse(first, failed)
+		expect(next.recent[6].data).toBeNull()
+		expect(next.recent[6].recorded).toBeUndefined()
+		const prior = mergeResponse(null, availableWire as MyPage)
+		const retained = mergeResponse(prior, response)
+		expect(retained.recent[6].data).toBe(prior.recent[6].data)
+		expect(retained.recent[6].asOf).toBe(prior.recent[6].asOf)
+		expect(retained.recent[6].recorded?.data).toBe(3000)
+	})
 
 	it('drops previously displayed account metadata when the server reports expiration', () => {
 		const first = mergeResponse(null, sample())

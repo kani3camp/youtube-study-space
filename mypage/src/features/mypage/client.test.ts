@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import available from '../../../../docs/mypage/fixtures/available.json'
 import partial from '../../../../docs/mypage/fixtures/partial.json'
+import recorded from '../../../../docs/mypage/fixtures/recorded-history.json'
 import {
 	checkedJSON,
 	createLoader,
@@ -21,6 +22,26 @@ describe('same-origin MyPage client boundary', () => {
 	it('accepts canonical available and partial fixtures without filling missing data', () => {
 		expect(parseMyPage(available)).toEqual(available)
 		expect(parseMyPage(partial)).toEqual(partial)
+		expect(parseMyPage(recorded)).toEqual(recorded)
+	})
+	it('accepts recorded evidence only as positive safe seconds with unknown completeness', () => {
+		for (const value of [null, 0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+			const input = structuredClone(recorded)
+			Object.assign(input.recent7Days.data[6], { recordedWorkSec: value })
+			expect(() => parseMyPage(input)).toThrow(RequestError)
+		}
+		for (const reason of [
+			'SOURCE_UNAVAILABLE',
+			'DATA_INCONSISTENT',
+			'HISTORY_LIMIT_EXCEEDED',
+		]) {
+			const input = structuredClone(recorded)
+			input.recent7Days.data[6].reasonCode = reason
+			expect(() => parseMyPage(input)).toThrow(RequestError)
+		}
+		const exact = structuredClone(available)
+		Object.assign(exact.summary.data.today, { recordedWorkSec: 60 })
+		expect(() => parseMyPage(exact)).toThrow(RequestError)
 	})
 	it('rejects unsafe seconds, malformed availability, date gaps and wrong snapshot day', () => {
 		for (const mutate of [

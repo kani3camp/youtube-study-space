@@ -241,9 +241,6 @@ func (m historyModel) metric(s WorkSnapshot, start, end time.Time) Metric {
 			return missingMetric(DataInconsistent)
 		}
 	}
-	if !covered(s.Coverage, start, end) {
-		return missingMetric(HistoryIncomplete)
-	}
 	var total int64
 	for _, span := range m.work {
 		seconds := secondsWithin(span, start, end)
@@ -251,6 +248,13 @@ func (m historyModel) metric(s WorkSnapshot, start, end time.Time) Metric {
 			return missingMetric(DataInconsistent)
 		}
 		total += seconds
+	}
+	if !covered(s.Coverage, start, end) {
+		metric := missingMetric(HistoryIncomplete)
+		if total > 0 {
+			metric.RecordedWorkSec = ptr(total)
+		}
+		return metric
 	}
 	return valueMetric(total)
 }

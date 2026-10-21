@@ -37,7 +37,7 @@ Google provider と Firebase token mint は interface として分離し、demo 
 
 現行 writer は退室時に `users.TotalStudySec` へ入室セッション分を転記する。そのため入室中の lifetime は `TotalStudySec + SeatDoc.CumulativeWorkSec + work 状態の経過秒`。履歴の ongoing 区間は `CurrentSegmentStartedAt` を使い、作業名変更による closed segment と重ねない。break 中もすでに完了した session work は lifetime に残す。
 
-1001件・取得失敗・重複/未来/負の区間・coverage 欠損を正常な0へ変換しない。独立して正しい current / lifetime / account は保持する。この slice は pure calculation の検証であり、実 DB の read-only snapshot adapter と既存 writer の競合整合性検証は次の slice。
+1001件・取得失敗・重複/未来/負の区間・coverage 欠損を正常な0へ変換しない。coverage欠損だけの場合、有効な区間から確認できた正の合計を任意の`recordedWorkSec`として返す。完全な合計`workSec`はnull/unavailableのままで、UIは記録済み分・集計未確定と区別する。0、取得障害、上限、整合性不良には記録済み値を付与しない。独立して正しい current / lifetime / account は保持する。この slice は pure calculation の検証であり、実 DB の read-only snapshot adapter と既存 writer の競合整合性検証は次の slice。
 
 ## Contract completeness
 

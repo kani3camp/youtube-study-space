@@ -128,8 +128,22 @@ def main():
             if scenario == "unknown":
                 assert today["workSec"] is None and today["reasonCode"] == "HISTORY_INCOMPLETE"
                 assert all(day["workSec"] is None for day in recent)
-                assert page.locator(".metric-today .duration-unavailable").inner_text() == "取得できません"
-                assert page.locator(".unknown-bar").count() == 7
+                recorded = [day for day in recent if "recordedWorkSec" in day]
+                assert sum(day["recordedWorkSec"] for day in recorded) == 600
+                assert page.locator(".recorded-bar").count() == len(recorded)
+                assert page.locator(".unknown-bar").count() == 7 - len(recorded)
+                assert page.locator(".recorded-legend").inner_text() == "斜線の棒は記録済み分です。合計は未確定です。"
+                # The real Firestore readTime can cross JST midnight; inspect
+                # the positive day actually returned rather than assuming today.
+                first = recorded[0]
+                minutes = first["recordedWorkSec"] // 60
+                duration = "1分未満" if minutes == 0 else f"{minutes // 60}時間 {minutes % 60}分"
+                label = first["date"] + ": 記録済み " + duration + "（集計未確定）"
+                page.get_by_role("button", name=label, exact=True).click()
+                assert page.locator(".selected-day").inner_text() == label
+                page.locator(".day-button").filter(has=page.locator(".unknown-bar")).first.click()
+                assert page.locator(".selected-day").inner_text().endswith("取得できません")
+                assert "recordedWorkSec" not in recent[0]
             elif scenario == "complete":
                 assert today["availability"] == "available"
                 assert all(day["availability"] == "available" for day in recent)
