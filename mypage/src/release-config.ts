@@ -326,16 +326,28 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 					`Match deployment.${companion} for this release; do not mix environment configurations.`,
 				)
 			const authDomain = frontend.VITE_FIREBASE_AUTH_DOMAIN
+			const hostingHostname =
+				typeof selected.publicOrigin === 'string' &&
+				origin(selected.publicOrigin)
+					? new URL(selected.publicOrigin).hostname
+					: ''
+			// A linked Firebase Hosting site ID may differ from its project ID.
+			// This checks manifest consistency; registration remains a live gate.
+			const hostingAuthDomain = /^[a-z0-9-]+\.web\.app$/.test(hostingHostname)
+				? hostingHostname.replace(/\.web\.app$/, '.firebaseapp.com')
+				: ''
 			if (
 				typeof authDomain === 'string' &&
 				/\.(firebaseapp\.com|web\.app)$/.test(authDomain) &&
 				authDomain !== `${selected.projectID}.firebaseapp.com` &&
-				authDomain !== `${selected.projectID}.web.app`
+				authDomain !== `${selected.projectID}.web.app` &&
+				authDomain !== hostingAuthDomain &&
+				authDomain !== hostingHostname
 			)
 				add(
 					'frontend.VITE_FIREBASE_AUTH_DOMAIN',
 					'MISMATCH',
-					'Use the default auth domain of the selected project or a separately verified custom auth domain.',
+					'Use the selected project or public Hosting site domain; confirm the site/project link and authorized-domain registration separately.',
 				)
 		}
 		const analytics = frontend.VITE_MYPAGE_ANALYTICS_READY
