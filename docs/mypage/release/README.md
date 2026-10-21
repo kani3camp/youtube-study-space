@@ -48,6 +48,8 @@ manifestのtop levelは `schemaVersion: 1`, `deployment`, `frontend`、任意の
 
 ### 設定の受け渡し
 
+Hosting image inventoryにはチャンネル画像用の `https://yt3.ggpht.com` と `https://yt3.googleusercontent.com` の両originを明示する。reCAPTCHA用画像だけのinventoryはpreflightで拒否する。確認元とDEVでの配信検証は[channel avatar check](development-avatar-check.md)を参照。これらはimg-src専用で、script/connect/frameを広げない。将来別の画像originが返る場合は実配信元を確認し、inventoryを再レビューする。
+
 | boundary | 項目 | 受け渡し・検証 |
 | --- | --- | --- |
 | public browser | `VITE_FIREBASE_API_KEY/AUTH_DOMAIN/PROJECT_ID/APP_ID`, `VITE_APP_CHECK_SITE_KEY` | 公開Web app設定。secret/admin key/debug tokenではない。project番号とapp、登録domainは別途照合 |

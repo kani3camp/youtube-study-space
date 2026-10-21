@@ -80,6 +80,15 @@ export function hostingCandidate(input: HostingInputs) {
 		image.length === 0
 	)
 		throw new Error('Hosting inventory unavailable')
+	// Reviewed public YouTube channel image origins. Require explicit inventory
+	// entries so a reCAPTCHA-only list cannot silently block AccountAvatar.
+	for (const origin of [
+		'https://yt3.ggpht.com',
+		'https://yt3.googleusercontent.com',
+	]) {
+		if (!image.some((source) => source === origin || source === `${origin}/`))
+			throw new Error('Hosting account image inventory unavailable')
+	}
 	const analytics = (value: string) =>
 		/(^|\.)(googletagmanager\.com|google-analytics\.com|analytics\.google\.com)$/.test(
 			new URL(value).hostname,
