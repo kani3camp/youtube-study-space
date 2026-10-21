@@ -167,10 +167,19 @@ def runtime_settings(env):
 
 
 def verify_runtime_inputs(env, value):
-    # The immutable tag is created by the exact-source image job, not a user
-    # supplied mutable image tag. Only metadata is requested here.
+    # Infrastructure-only changes may retain a reviewed image. Its immutable
+    # build commit must have the identical full Docker context, including its
+    # Dockerfile, dependencies, ignore rules and source. Never retag an image.
+    source = value.get("image_source_sha") or env["GITHUB_SHA"]
+    if source != env["GITHUB_SHA"]:
+        contract.need(re.fullmatch(r"[a-f0-9]{40}", source), "runtime-image-source-sha")
+        run(["git", "fetch", "--no-tags", "--depth=1", "origin", source], cwd=REPO, check="runtime-image-source-fetch")
+        current_tree = run(["git", "rev-parse", env["GITHUB_SHA"] + ":system"], cwd=REPO).strip()
+        image_tree = run(["git", "rev-parse", source + ":system"], cwd=REPO).strip()
+        contract.need(re.fullmatch(r"[a-f0-9]{40}", current_tree) and current_tree == image_tree,
+                      "runtime-image-source-tree")
     prefix = "projects/" + contract.PROJECT + "/locations/asia-southeast2/repositories/mypage/packages/mypage-api"
-    tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + env["GITHUB_SHA"], env["MYPAGE_GCP_ACCESS_TOKEN"])
+    tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source, env["MYPAGE_GCP_ACCESS_TOKEN"])
     expected = prefix + "/versions/sha256:" + value["image_digest"].split("@sha256:")[1]
     contract.need(tag.get("version") == expected, "runtime-source-image-digest")
     for name, field in (("mypage-oauth-client-id", "oauth_client_id_version"),
@@ -179,6 +188,27 @@ def verify_runtime_inputs(env, value):
         metadata = request("https://secretmanager.googleapis.com/v1/projects/" + contract.PROJECT + "/secrets/" + name + "/versions/" + value[field],
                            env["MYPAGE_GCP_ACCESS_TOKEN"])
         contract.need(metadata.get("state") == "ENABLED", "runtime-secret-version-enabled")
+
+
+def describe_runtime_drift(plan):
+    """Publish only fixed schema labels, never State/Plan values or paths."""
+    fields = {"annotations", "labels", "effective_annotations", "effective_labels", "terraform_labels",
+              "etag", "generation", "observed_generation", "update_time", "create_time",
+              "terminal_condition", "conditions", "latest_created_revision", "latest_ready_revision",
+              "traffic_statuses", "uri", "urls", "template", "traffic", "scaling", "reconciling"}
+    planned = {x.get("address"): x for x in plan.get("resource_changes", [])}
+    for item in plan.get("resource_drift", []) or []:
+        if item.get("address") != runtime_contract.SERVICE:
+            continue
+        change = item.get("change", {})
+        before, after = change.get("before"), change.get("after")
+        if type(before) is not dict or type(after) is not dict:
+            print("Runtime service drift diagnostic: unavailable.")
+            continue
+        changed = {k for k in set(before) | set(after) if before.get(k) != after.get(k) or (k in before) != (k in after)}
+        labels = sorted(changed & fields)
+        noop = planned.get(runtime_contract.SERVICE, {}).get("change", {}).get("actions") == ["no-op"]
+        print("Runtime service drift diagnostic: " + json.dumps({"fields": labels, "otherFields": len(changed - fields), "plannedNoop": noop}, sort_keys=True) + ".")
 
 
 def prepare(env):
@@ -214,6 +244,7 @@ def prepare(env):
     PHASE = "plan-contract"
     if value is not None:
         need(plan.get("variables", {}).get("runtime_settings", {}).get("value") == value)
+        describe_runtime_drift(plan)
         summary = runtime_contract.validate_plan(plan, stage)
     else:
         summary = contract.validate_plan(plan, stage)

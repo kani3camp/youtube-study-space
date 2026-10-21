@@ -71,3 +71,9 @@ bash infra/mypage-platform/scripts/check-local.sh
 異常時は先に後続apply/一般告知を停止する。Cloud Runは `deletion_protection` と `prevent_destroy` があるため、事故対応を安易な `destroy` としない。新規Secretの値を消したり、TTLや既存GCP管理資源を巻き戻したりしない。Release対（Frontend commit/Hosting release、Backend image digest/Run revision、同意版、検証証拠）と**前世代互換**を記録し、必要時は前のreview済みimage/revisionへforward-fixまたは明示rollbackする。公開権限の取り消しは別途明示的に実施できる。
 
 DevelopmentのFoundation metadataは実作成・State readback済み。Secret version、Cloud Run/Hosting、OAuth、release gateは未完了。各段階の実施記録は[Development Foundation構築](docs/development-foundation.md)と統合PRへ残す。
+
+### Runtimeの診断と既存イメージの出所
+
+runtime設定の任意 `image_source_sha`（既定は空文字）は、既存の不変tagを作成した40桁commit SHAを示す。空文字なら従来どおり実行元SHAのtagを要求する。別SHAの場合はpublic repositoryからそのcommitを取得し、実行元とbuild元の `system` tree全体が一致することを、Plan/Applyの双方で確認する。Docker contextは `system/` 全体であり、Dockerfile、依存lock、ignore設定とGoソースを含む。tagの作り替え、出所不明digest、アプリ変更後の旧image流用は拒否する。これはinfra診断だけの変更で既存revisionを更新する必要をなくすためで、Cloud Runのupdate/delete/replaceは引き続き拒否する。
+
+Cloud Runのdrift診断は、固定allowlistに含まれる変更field名、その他fieldの件数、planned no-opの真偽だけを公開する。値、未知のfield名、State/Plan本文は公開せず、診断を理由にadmissionを緩めない。private runtimeの初回適用はrun 39566961739で成功した。続くpublic Planは `runtime-drift-address` で変更前に停止し、付与済みの一時権限3件は全て解除した。公開接続とHosting releaseは未実施。
