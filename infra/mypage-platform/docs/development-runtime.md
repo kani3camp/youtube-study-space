@@ -21,7 +21,7 @@ bash system/scripts/check-mypage-image.sh mypage-api:ci
 
 Registryは固定project/region/ID、DOCKER、STANDARD_REPOSITORY、immutable tags、cleanup dry-run・自動削除なし。guardは9資源のcreate/no-opだけを許可し、既存の同名RepositoryがState外にあればcreateを拒否する。source追加だけでは実Registry・image・Cloud Runを作成しない。RegistryをStateへ追加した後は、旧foundation段階へ戻さず`registry-plan`でno-opを検証する。
 
-実適用前にDEVの既存SAへ必要最小限のRegistry metadata readを追加し、Applyだけに初回Repository createを一時付与する。`repositories.get` / `operations.get`の読取りと`repositories.create`はmetadata作成権限であり、upload、delete、repository IAM、project IAM、Secret payloadは含めない。create grantは1資源の作成とreadback後に解除する。image pushに必要な資源単位権限は、別の実build/deploy接続時に確認する。既存Foundation bootstrap roleへSecret値・Cloud Run・project IAMを混在させない。
+実適用前にDEVの既存SAへ必要最小限のRegistry metadata readを追加し、Applyだけに初回Repository createを一時付与する。`artifactregistry.repositories.get`の読取りと`artifactregistry.repositories.create`はmetadata作成権限であり、upload、delete、repository IAM、project IAM、Secret payloadは含めない。create grantは1資源の作成とreadback後に解除する。image pushに必要な資源単位権限は、別の実build/deploy接続時に確認する。既存Foundation bootstrap roleへSecret値・Cloud Run・project IAMを混在させない。
 
 2026-10-21 JSTにCloud Shellを再接続し、GCPからFoundationのIAMを独立に再取得した。runtime自身のsigner、3 Secret単位のAccessor、bootstrap用の資源単位editor、Plan/Apply SAのproject metadata-read-onlyとWIF memberが想定どおり。project create grantなし、3 Secretのversionなし、3 SAのuser-managed keyなしを確認した。DEV Cloud Runは0件、同regionのArtifact Registryは既存`gcf-artifacts`のみ。
 
