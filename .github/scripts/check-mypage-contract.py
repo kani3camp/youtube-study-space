@@ -8,6 +8,17 @@ import jsonschema
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+# A valid query fixture is insufficient when its live composite index was
+# never added to the repository's Firebase deployment source.
+required_index = json.loads((ROOT / "docs/mypage/query-index.json").read_text())
+def normalized_index(value):
+    return {"collectionGroup": value["collectionGroup"], "queryScope": value["queryScope"],
+            "fields": [{"fieldPath": field["fieldPath"].strip("`"), "order": field["order"]}
+                       for field in value["fields"]]}
+indexes = json.loads((ROOT / "firebase/firestore.indexes.json").read_text())["indexes"]
+assert sum(normalized_index(index) == normalized_index(required_index) for index in indexes) == 1
+print("MyPage snapshot query has exactly one repository-managed composite index")
+
 api = yaml.safe_load((ROOT / "docs/mypage/openapi.yaml").read_text())
 schema = {"$ref": "#/components/schemas/MyPage", "components": api["components"]}
 jsonschema.Draft202012Validator.check_schema(schema)

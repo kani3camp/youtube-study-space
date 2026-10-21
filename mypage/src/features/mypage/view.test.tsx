@@ -87,4 +87,38 @@ describe('MyPage observable display', () => {
 		expect(html).toContain('最近の積み重ね')
 		expect(html).not.toContain('現在は入室していません')
 	})
+	it.each([
+		['HISTORY_INCOMPLETE', 'この期間の作業記録がそろっていないため'],
+		['HISTORY_LIMIT_EXCEEDED', 'この期間の作業記録が多いため'],
+		['DATA_INCONSISTENT', '作業記録の整合性を確認できないため'],
+	] as const)('explains %s without inventing zero or a fetch failure', (reason, message) => {
+		const s = state()
+		if (!s.data) throw new Error('synthetic data missing')
+		for (const key of ['today', 'week', 'lifetime'] as const)
+			s.data.summary[key] = { data: null, asOf: null, stale: true, reason }
+		s.data.recent = s.data.recent.map((item) => ({
+			...item,
+			data: null,
+			stale: true,
+			reason,
+		}))
+		const html = markup(s)
+		expect(html).toContain(message)
+		expect(html).not.toContain('情報を取得できませんでした')
+		expect(html).not.toContain('0時間 0分')
+	})
+	it('keeps the last verified value and timestamp when later history is incomplete', () => {
+		const s = state()
+		if (!s.data) throw new Error('synthetic data missing')
+		s.data.summary.today = {
+			data: 3600,
+			asOf: '2026-10-21T00:00:00Z',
+			stale: true,
+			reason: 'HISTORY_INCOMPLETE',
+		}
+		const html = markup(s)
+		expect(html).toContain('1時間 0分')
+		expect(html).toContain('更新できませんでした')
+		expect(html).toContain('10/21')
+	})
 })
