@@ -43,6 +43,35 @@ def refreshed_metadata_fixture():
 
 
 class FoundationTest(unittest.TestCase):
+    def test_post_apply_noop_accepts_only_the_same_secret_resource_name(self):
+        plan = plan_fixture()
+        for item in plan['resource_changes']:
+            item['change']['actions'] = ['no-op']
+            if '.google_secret_manager_secret_iam_member.' in item['address']:
+                short = item['change']['after']['secret_id']
+                item['change']['after']['secret_id'] = 'projects/' + c.PROJECT + '/secrets/' + short
+        original = deepcopy(plan)
+        self.assertEqual(c.validate_plan(plan), {'resources': 8, 'creates': 0})
+        self.assertEqual(plan, original)
+        iam = next(i for i, item in enumerate(plan['resource_changes'])
+                   if '.google_secret_manager_secret_iam_member.' in item['address'])
+        for rejected in (
+            'projects/youtube-study-space/secrets/mypage-oauth-client-id',
+            'projects/' + c.PROJECT + '/secrets/other-secret',
+            'projects/' + c.PROJECT + '/secrets/mypage-oauth-client-id/versions/1',
+            'untrusted/prefix/mypage-oauth-client-id',
+            'projects/123456789/secrets/mypage-oauth-client-id',
+        ):
+            changed = deepcopy(plan)
+            changed['resource_changes'][iam]['change']['after']['secret_id'] = rejected
+            with self.subTest(rejected=rejected), self.assertRaises(ValueError):
+                c.validate_plan(changed)
+        # Do not broaden the Secret metadata resource's short-name contract.
+        metadata = next(item for item in plan['resource_changes'] if '.google_secret_manager_secret.' in item['address'])
+        metadata['change']['after']['secret_id'] = 'projects/' + c.PROJECT + '/secrets/mypage-oauth-client-id'
+        with self.assertRaises(ValueError):
+            c.validate_plan(plan)
+
     def test_dependency_source_order_does_not_change_independent_plan_commitment(self):
         plan = plan_fixture() | {'relevant_attributes': [
             {'resource': 'module.platform[0].google_service_account.runtime', 'attribute': ['account_id']},

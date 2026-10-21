@@ -1,5 +1,7 @@
 # Development Foundation構築
 
+2026-10-21 JSTの適用後no-op [run 39522369969](https://github.com/kani3camp/youtube-study-space/actions/runs/39522369969)は、IAM memberの`secret_id`がprovider refresh後に短名から完全resource nameとなるため、Plan guardで停止した（Applyなし）。独立したState readbackで3件とも同じDEV project/Secretの完全名と確認した。IAM memberの当該3 fieldだけ、固定短名または`projects/test-youtube-study-space/secrets/<固定名>`の完全一致を受理する。別project・project番号・別Secret・version path・任意prefixは拒否し、Secret metadataの短名契約、予定操作、unknown、drift、全Plan HMACを維持する。修正後の正規no-opは別の実行証跡で確認する。
+
 MyPage統合PR [#1236](https://github.com/kani3camp/youtube-study-space/pull/1236) 内の最初の構築段階。既存 `infra/gcp` のimport-only経路とは独立し、**DevelopmentのFoundationだけ**を扱う。Cloud Run、Firestore書込み権限、public invoker、Hosting、Secret値、Productionはこの経路に含めない。
 
 ## 構築準備の記録（2026-10-20）
