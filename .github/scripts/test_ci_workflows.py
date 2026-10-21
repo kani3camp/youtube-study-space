@@ -14,7 +14,7 @@ load = yaml_source.load_yaml
 require = yaml_source.require
 
 MODULES = {
-    'system': {'check-i18n-generate': 'system', 'go-lint': 'system', 'system-go-test': 'system',
+    'system': {'mypage-container': 'system', 'check-i18n-generate': 'system', 'go-lint': 'system', 'system-go-test': 'system',
                'system-firestore-emulator-test': 'firestore_integration'},
     'frontend': {'biome-lint': 'youtube_monitor', 'youtube-monitor-test': 'youtube_monitor',
                  'youtube-monitor-build': 'youtube_monitor', 'mypage-check': 'mypage', 'docs-site-check': 'docs_site',

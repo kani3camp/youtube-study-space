@@ -1,0 +1,17 @@
+FROM golang:1.27@sha256:f44f6e88636cfb311f9ebace870ded69d943f227bb3cb27d32ffd84ea18c43ea AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
+ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -tags timetzdata -trimpath -ldflags="-s -w" -o /out/mypage-server ./cmd/mypage-server
+
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+WORKDIR /app
+ENV TZ=Asia/Tokyo PORT=8080
+COPY --from=build /out/mypage-server /app/mypage-server
+USER nonroot:nonroot
+EXPOSE 8080
+ENTRYPOINT ["/app/mypage-server"]
