@@ -175,7 +175,7 @@ assert_exact_groups gcp_terraform infra/gcp/scripts/runtime_plan_selection.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_plan_contract.py
 
 # Every reusable CI module and its executable contracts select the full suite.
-for ci_path in .github/workflows/ci-{system,frontend,tools,infra,repository}.yml .github/scripts/check-ci-results.py .github/scripts/install-ci-source-tools.sh .github/scripts/test_ci_workflows.py .github/scripts/test_ci_results.py; do
+for ci_path in .github/dependabot.yml .github/scripts/test_ci_security.py .github/workflows/ci-{system,frontend,tools,infra,repository}.yml .github/scripts/check-ci-results.py .github/scripts/install-ci-source-tools.sh .github/scripts/test_ci_workflows.py .github/scripts/test_ci_results.py; do
 	assert_exact_groups "$all_groups" "$ci_path"
 done
 

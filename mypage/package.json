@@ -17,7 +17,7 @@
 		"test:watch": "vitest"
 	},
 	"engines": {
-		"node": ">=24.0.0 <25"
+		"node": ">=24.22.1 <25"
 	},
 	"dependencies": {
 		"@tanstack/react-router": "^1.169.2",
@@ -29,14 +29,19 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.15",
 		"@tailwindcss/vite": "4",
-		"@tanstack/router-plugin": "^1.167.35",
 		"@types/node": "^24.12.3",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
 		"@vitejs/plugin-react": "^6.0.1",
 		"tailwindcss": "4",
 		"typescript": "~6.0.2",
-		"vite": "^8.0.12",
-		"vitest": "^3.2.4"
+		"vite": "^8.3.5",
+		"vitest": "^4.1.12"
+	},
+	"pnpm": {
+		"overrides": {
+			"@firebase/firestore>@grpc/grpc-js": "~1.13.6",
+			"vite>esbuild": "~0.28.1"
+		}
 	}
 }
