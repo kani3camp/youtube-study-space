@@ -48,7 +48,7 @@ manifestのtop levelは `schemaVersion: 1`, `deployment`, `frontend`、任意の
 
 ### 設定の受け渡し
 
-Hosting image inventoryにはチャンネル画像用の `https://yt3.ggpht.com` と `https://yt3.googleusercontent.com` の両originを明示する。reCAPTCHA用画像だけのinventoryはpreflightで拒否する。確認元とDEVでの配信検証は[channel avatar check](development-avatar-check.md)を参照。これらはimg-src専用で、script/connect/frameを広げない。将来別の画像originが返る場合は実配信元を確認し、inventoryを再レビューする。
+Hosting image inventoryにはチャンネル画像用の `https://yt3.ggpht.com` と `https://yt3.googleusercontent.com` の両originを明示する。reCAPTCHA用画像だけのinventoryはpreflightで拒否する。許可元は[Hosting候補](../../../mypage/src/hosting.ts)と[設定検証](../../../mypage/src/release-config.ts)で検査する。過去の確認経緯は[Archive](../archive/development-avatar-check.md)を参照。これらはimg-src専用で、script/connect/frameを広げない。将来別の画像originが返る場合は実配信元を確認し、inventoryを再レビューする。
 
 | boundary | 項目 | 受け渡し・検証 |
 | --- | --- | --- |

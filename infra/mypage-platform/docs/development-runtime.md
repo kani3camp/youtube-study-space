@@ -1,5 +1,7 @@
 # Development Runtimeの配備準備
 
+構築時の手順・診断履歴を保持する文書。最新のimage設定は[固定release設定](../environments/dev/runtime-release.json)、配備・実試験の状態は[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)を参照する。過去の未配備・再確認待ちを現在状態へ読み替えず、公開Gateは対象releaseごとの証跡で確認する。
+
 対象は`test-youtube-study-space` / `asia-southeast2`だけ。Foundationの8資源とRuntime配備を区別し、実ユーザー公開のGateは[release手順](../../../docs/mypage/release/README.md)を維持する。
 
 ## コンテナ

@@ -1,5 +1,7 @@
 # MyPage Platform Terraform
 
+DEV配備・適用・試験の最新状態は[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)を参照する。以下の構築記録は各段階の観測であり、過去の失敗・未配備の記述で現在状態を判断しない。公開前の未検証項目は[release Gate](../../docs/mypage/release/README.md)で個別に確認する。
+
 マイページの新規Cloud Run API基盤と実行権限を、既存GCP Terraformの**既存資源import-only運用とは別State**で管理する。2026-10-21 JSTにDevelopmentの専用SAと3 Secret metadataを実作成し、専用Stateへ保存した。段階別の適用結果は[実構築記録](docs/development-foundation.md)と[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)の現行記録を参照する。**Cloud Run/Hosting・Secret値・Production・公開Readyの完了を意味しない**。
 
 - プロダクト / 環境配置: [Notion 07｜技術アーキテクチャ](https://app.notion.com/p/3ef357a8d0ce81b5892ac1dc2c99e587)

@@ -1,136 +1,40 @@
-# MyPage Approved Visual Reference
+# MyPage visual reference and acceptance
 
-Status: **Approved**  
-Approved date: **2026-10-03**
+Phase 1のデザイン方針は[Notion 01｜画面・機能仕様](https://app.notion.com/p/3ec357a8d0ce81e293d1d4cb739d3063)、現在の表示は[React component](../../../mypage/src/features/mypage/view.tsx)と[stylesheet](../../../mypage/src/style.css)を参照する。デザイン承認は公開文面・実認証・一般公開の承認とは別に扱う。
 
-このディレクトリは、マイページPhase 1 UIの視覚・インタラクション参照を保持する。
+## 表示の原則
 
-## Source of Truth
+- flat cream背景と、明るいsurface・薄いborderを使う。通常cardに常設shadowを付けない。
+- 現在の作業を主役とし、作業中は暖色、休憩中はセージ色で区別する。色だけに状態を依存させない。
+- 休憩中も通常の`workName`を保持し、「いまの作業」「休憩開始」「休憩終了予定」を表示する。
+- 未入室・未登録・正常0・不明・取得障害を区別する。不完全履歴の記録済み分は、確定合計と混同させない。
+- Accountはヘッダーから開き、mobileではbottom sheet、広い幅ではpopoverとして表示する。
+- keyboard focus、modalのfocus循環と背景inert、Escape、triggerへのfocus復帰、status/alert、reduced motion、約44pxの操作対象を維持する。
+- 自己配信fontの由来・license・描画table・再現方法は[font README](../../../mypage/src/assets/fonts/README.md)を正本とする。
 
-- **画面・機能要件 / UX semantics**: Notion `01｜画面・機能仕様`
-- **API wire contract**: GitHub `docs/mypage/openapi.yaml`（API契約PRで追加）
-- **Visual / interaction reference**: このディレクトリ
-- **実装コード・実装済み状態**: GitHub
+## 視覚・操作確認
 
-Visual Reference内のサンプルデータや仮の技術実装を、業務仕様・API仕様として扱わない。
-プロダクト動作はNotion Current CanonとGitHub API contract / 現行ドメインモデルを優先する。
+代表幅は320 / 390 / 768 / 1024 / 1440px。これらは観測点であり、CSS breakpointの固定値ではない。
 
-## Approved files
+- 作業中・休憩中・未入室・未登録・0時間・長い作業名・終了予定超過。
+- 初回loading、初回取得失敗、部分障害、更新失敗時の直前成功data保持。
+- YouTubeログイン、チャンネル確認、期限切れや競合からのやり直し。
+- Accountの開閉・管理・logout、画像欠落時の代替表示。
+- Privacy / Terms / Cookie / Contact、利用制限、削除処理中。
+- 直近7日のfocus/tap選択、正常0分の選択、グラフ外の説明、時刻ラベルの収まり。
 
-### `approved-prototype.dc.html`
+表示単体は[visual entrypoint](../../../mypage/src/visual.tsx)と[visual QA](../../../mypage/scripts/visual-qa.py)、認証・routeを含む操作は[runtime QA](../../../mypage/scripts/runtime-qa.py)を使用する。これらはdev専用の合成検証で、productionの入口に含めない。
 
-確定したメインprototype。
+```sh
+cd mypage
+pnpm dev --host 127.0.0.1
+# 別shell、Playwright/Chromiumを利用できる環境
+python -m pip install -r visual-requirements.txt
+python scripts/visual-qa.py --output /tmp/mypage-visual-qa
+python scripts/runtime-qa.py --output /tmp/mypage-runtime-qa
+python scripts/font-qa.py --output /tmp/mypage-font-qa
+```
 
-SHA-256（元のApproved export）:
+外部requestを遮断し、撮影前にfont loadを待つ。実ユーザーdataをpublic artifactへ保存しない。合成fixtureの成功やprototypeとの比較を、実OAuth・Hosting・公開Readyの証拠へ読み替えない。
 
-`5a1413c1c3ba88d3297e540699d765f5a4a40a52b935dc5ef4b5a3b456bfbc68`
-
-### `verification.dc.html`
-
-レスポンシブ・状態別の視覚確認用gallery。
-
-SHA-256（元のApproved export）:
-
-`317f5350a4c2c8f9df745a902bec292577783cdd683bfbb3f7235141c030dd28`
-
-## Required visual coverage
-
-最低限、以下のviewportを確認する。
-
-- 320px
-- 390px
-- 768px
-- 1024px
-- 1440px
-
-主な状態:
-
-- 作業中
-- 休憩中
-- 未入室
-- 0時間
-- Study Space未登録
-- 長い作業名
-- 終了予定超過
-- 初回loading
-- 初回取得失敗
-- 更新失敗（最後の成功data保持）
-- YouTube再認証
-- Googleログイン
-- YouTubeチャンネル確認
-- channel mapping競合
-- アカウントパネル / 管理
-- Privacy / Cookie / Contact / データ削除導線
-
-## Important semantics
-
-### 休憩
-
-休憩専用の作業内容は存在しない。
-
-- `workName` を休憩中も保持する
-- 作業名のlabelは「いまの作業」
-- 状態は「休憩中」
-- 時刻は「休憩開始」「休憩終了予定」として表示する
-
-### Account
-
-ヘッダーのavatarからaccount panelを開く。
-Mobileではbottom sheet、広いviewportではavatar付近のpopoverとして扱う。
-
-### Accessibility
-
-prototypeに含まれる以下の性質を実装でも維持する。
-
-- keyboard focus
-- modal / dialog focus trap
-- Escapeで閉じる
-- status / alert / aria-live
-- `prefers-reduced-motion`
-- 44px程度のinteractive target
-- 色だけに依存しない状態表現
-
-## Not approved as final content
-
-以下の文面はVisualの配置・導線確認用Draftであり、公開文面の承認を意味しない。
-
-- Privacy Policy本文
-- 利用規約本文
-- Contact受付文面
-- データ削除依頼の最終運用文面
-
-公開時はNotionのPrivacy / 利用規約 Current CanonとGitHub実装を照合する。
-
-## Implementation rule
-
-このHTMLをproduction codeへそのままコピーしない。
-
-Codex / 実装者は、
-
-1. 現行 `dev` のdomain modelを確認する
-2. Notion Current Canonを確認する
-3. GitHubのAPI contractを確認する
-4. 現行React / TypeScript構成へ再実装する
-5. このApproved Visualと主要状態を視覚QAする
-
-という順で扱う。
-
-> `.dc.html` はClaude Design由来の参照sourceであり、実行runtime自体をproduct dependencyにはしない。
-
-## Current Canon reconciliation
-
-追跡済みの参照HTMLはfeature/mypageのbyte列を変更せず取り込んだ。最新仕様により背景はflat cream、通常cardは常時shadowなし、状態・集計・YouTube確認は最新contractを優先する。実装側は合成fixtureで320/390/768/1024/1440pxとkeyboardを実browserで検証する。
-
-追跡済みfeature exportのSHA-256は approved-prototype: `cb7e6c373ee38a58aafeb2c3bc826222670d0ba1f3bfb70ad6fc66f0193c5108`、verification: `0bf10a1c8c624a9c8fbf269d0191ba0004ce7950f276b11c84dcb4fbb9e6c768`。上記historical Approved hashとは一致しないため、追跡済みHTMLだけを元Approved exportのbyte正本とは扱わない。
-
-## Supplied Approved runtime comparison (2026-10-06)
-
-ユーザーが単体で提供した `マイページ.dc.html`（74,955 bytes）と `マイページ デザイン案.dc.html`（7,067 bytes）は、Libraryの全文text readを連結してbyte数を確認し、上記historical Approved SHA-256の双方と一致した。併せて `support.js`（69,150 bytes、SHA-256 `8fe7df74405f3c55f49b7249c74ea1397e65d07dea2b1bd3b4a489bec2e28cbe`）を受領した。提供ファイルはconsumer-localの確認用に保持し、公開repositoryへ追加しない。
-
-原本を隔離したlocalhostのChromiumで実行し、PC 1440×960 / Mobile 390×960の作業中・チャンネル確認・初回取得失敗を現行React画面と比較した。原本runtimeのReact 18.3.1 / React DOM 18.3.1 / Babel standalone 7.29.0はnpm package内の配布物をlocalで解決し、browserから外部へのrequestは遮断する。原本に秘密情報の既知patternや実認証呼出しは見つからず、prototypeのstate切替とmock dataだけを確認に使用する。
-
-原本に合わせてカード・時間軸の余白、数字と単位の階層、補助指標の配置、セージ色、チャンネル確認のidentity中心の配置を調整した。Notion Current Canonで固定されたheader / greeting / 見出し・flat背景・shadowなし・snapshot時刻・本人確認の文言とflowは原本より優先する。全体初回取得失敗は単一のerror card、partial取得失敗は利用可能sectionを維持する。loadingは同じ3領域のSkeletonを表示する。
-
-初回比較では外部font通信を遮断したため、原本の英字はLiberation Sans、実装の英字はNoto Sans CJK JPへfallbackしていた。実装はfamily名だけを指定しfontを配信していなかった。現在は原本が指定するM PLUS Rounded 1cの400/500/700/800を公式Google Fonts配布からWOFF2化してlocal配信し、原本にも同一byte列をlocalで解決して再比較する。Chromium CDPで英字・日本語の実rendered fontとRegular/Medium/Bold/ExtraBoldを確認し、font load失敗時のfallbackも検証する。配布元・hash・OFLは `mypage/src/assets/fonts/` と `mypage/public/fonts/mplus-rounded-1c/OFL.txt` に保持する。
-
-原本と製品fixtureのsample値・時刻は異なるため、データ差をpixel不一致の根拠にはしない。完全pixel parityや実OAuth・Hosting E2E・公開readyの確認は含めない。
+承認原本のhash・比較記録と旧HTML exportは[Archive](../archive/README.md)に保持する。旧exportはApproved原本とbyteが一致せず、欠落した`support.js`に依存するため、現行の実行可能な視覚基準として使わない。
