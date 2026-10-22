@@ -228,7 +228,10 @@ export function renderReport(entries) {
       lines.push("");
     }
     if (hubUrl) {
-      lines.push(`🔗 [View \`${newImage.taggedRef}\` in Docker Hub](${hubUrl})`);
+      const hubTarget = matches && dockerHubManifestDigest
+        ? `image details${dockerHubManifestDigest !== newImage.digest ? " (linux/amd64)" : ""}`
+        : "tag details";
+      lines.push(`🔗 [View \`${newImage.taggedRef}\` ${hubTarget} in Docker Hub](${hubUrl})`);
       lines.push("");
     }
     if (artifactRegistryUrl) {
