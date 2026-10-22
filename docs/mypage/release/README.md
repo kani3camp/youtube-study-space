@@ -1,6 +1,6 @@
 # MyPage release preparation
 
-このrunbookはインフラ待ち・本人判断待ちを残したまま、コード・設定・試験の準備を進める入口。設定検査の成功は公開承認やlive E2Eの成功ではない。見た目・Phase 1のread-only scope・既存identity/data契約は維持する。
+このrunbookは未完の実経路Gate・本人判断を残したまま、コード・設定・試験を進める入口。DEVの2026-10-22時点の限定確認は[E2E実測記録](e2e.md#2026-10-22-devの限定確認)を参照する。設定検査や匿名拒否試験の成功は公開承認や実account E2Eの成功ではない。見た目・Phase 1のread-only scope・既存identity/data契約は維持する。
 
 プロダクト方針の正本はCurrent Canonの[04 認証](https://app.notion.com/p/3ec357a8d0ce812f8520f787fedcc6bd)、[05 Privacy](https://app.notion.com/p/3ed357a8d0ce81e7b7d2cc85ec8ab4cf)、[06 Security](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634)、[09 判断記録](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)。実装・CI・配備状態はGitHubを正とし、設計の確定を実経路PASSへ読み替えない。wire/実装は[実装contract](../README.md)、[OpenAPI](../openapi.yaml)を参照する。本人への準備事項は[owner packet](owner-packet.md)、実経路の試験・release対・rollbackは[E2E手順](e2e.md)にまとめる。
 
@@ -10,8 +10,8 @@
 | --- | --- | --- |
 | OAuth / identity | [AuthService](../../../system/core/mypage/auth.go)、atomic claim/consume、channel確認、短命token、purpose分離 | 実Google account/Brand Account/channel選択・審査 |
 | OAuth transaction TTL | [MyPage専用Terraform](../../../infra/mypage-oauth-ttl/README.md)、dev/prod定義、credential不要mock/限定plan contract | owner-approved target/state、別途承認したplan/apply、両環境のTTL ACTIVE・自然削除観測。applicationの10分失効は維持 |
-| MyPage Cloud Run platform IaC | [専用Terraform source](../../../infra/mypage-platform/README.md) は dev/prod 別root、段階有効化、Secret metadata/Runtime SA/Cloud Run/Invoker候補をdefault-offで定義。credentialless mock CI成功まではsource-only | 専用State・短期OIDC/WIF・最小IAM/API、Secret実version・immutable image、実plan/apply、Hosting実経路、費用/rollback/Privacy公開Gateは未実施 |
-| API / Firebase | [server assembly](../../../system/core/mypage/server.go)、keyless SDK、署名/claim、Origin、6 endpoints | [entrypoint](../../../system/cmd/mypage-server/main.go)のkeyless/Firestore/provider/HTTP bootstrap成功、実App Check/Auth、runtime signer/IAM、Hosting経路/Host |
+| MyPage Cloud Run platform IaC | [専用Terraform](../../../infra/mypage-platform/README.md)はdev/prod別root。DEVの配信revision/固定digest、Hosting経由の匿名拒否を2026-10-22にread-only確認 | Production、完全なFE/BE release対、費用/rollback、S01/S04全層、Privacy公開Gateは未完了 |
+| API / Firebase | [server assembly](../../../system/core/mypage/server.go)、keyless SDK、署名/claim、Origin、6 endpoints。DEVのApp Check欠落/不正・別Origin・直接Runを限定確認 | 有効App Check/Auth、複数account隔離、実OAuth/cookie、runtime signer/Firestoreの正常経路、緊急遮断/復旧 |
 | metadata | refresh、正常なchannel不在のclear、29日cleanup、[定期呼出しrunner・durable監視・期限付きalert source](metadata-monitoring.md)、23時間heartbeat判定 | 実scheduler/独立watchdog/監視sink/alert宛先の結線、実inventory、自然実行 |
 | 作業集計 | Firestore snapshot/readTime、JST境界、小数秒fixture、欠損/partial | history coverage・writer atomicity・query indexの実証跡 |
 | ServiceAccessControl | [MyPage guardとtrusted moderation CLI](../service-access-control.md)、独立reasonとtransaction/checkpoint、合成QA | 実environmentの権限・runtime・運用結線、全runtime drainと横断削除B |
@@ -23,7 +23,7 @@
 | Bot入口 | 正本で `!app`/alias・固定public入口/UTMを決定済み。設定・受入条件は本runbookで準備 | runtimeコマンド接続は本PRに含めない。別の実装scope承認、Phase 1の実URL設定・live導線/流入確認 |
 | 表示・操作 | visual/runtime/privacy/font/bfcache合成QA | 実端末・実account差。受容済みMyPage見た目を再設計しない |
 
-support proofやdry-runは削除実行ではない。古い `mypage-users` mapping向け運用コードを、channel UIDの現在契約へ確認なしで流用しない。metadata cleanupは定期呼出しcallback・durable monitor・期限付きJSON health sinkのsourceまでで、実schedulerや監視宛先が作成済みとは扱わない。`mypage-server` の起動もkeyless credential、Firestore client、OAuth provider、HTTP listenに依存し、現行sourceや配置templateだけでは稼働中のdev Hosting→Cloud Run経路を証明できない。[S01/S04実経路手順](e2e.md#canon-s01s04-実経路セキュリティ検証)は配備・bootstrapの存在を先に確認する計画であり、このPRではcloud read・実試験・deployを行わない。
+support proofやdry-runは削除実行ではない。古い `mypage-users` mapping向け運用コードを、channel UIDの現在契約へ確認なしで流用しない。metadata cleanupは定期呼出しcallback・durable monitor・期限付きJSON health sinkのsourceまでで、実schedulerや監視宛先が作成済みとは扱わない。`mypage-server` の起動もkeyless credential、Firestore client、OAuth provider、HTTP listenに依存し、現行sourceや配置templateだけでは稼働中のdev Hosting→Cloud Run経路を証明できない。[2026-10-22のread-only確認](e2e.md#2026-10-22-devの限定確認)は既存DEVの匿名拒否と非機密metadataだけであり、[S01/S04実経路手順](e2e.md#canon-s01s04-実経路セキュリティ検証)の複数回線・全層ログや実OAuthはpending。deployやIAM/ログ設定変更は行っていない。
 
 ## 2. 外部接続なしの設定preflight
 
