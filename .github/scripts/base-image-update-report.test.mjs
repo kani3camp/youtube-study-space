@@ -245,9 +245,11 @@ test("renderReport links to the verified image manifest, falling back to tag det
     /https:\/\/hub\.docker\.com\/layers\/library\/golang\/1\.27\.3\/images\/sha256-8aa2821993207ae840ce09e4223217efcd14e01f71525db734faf4232bd59999/,
   );
   assert.doesNotMatch(report, /\/tags\?name=/);
+  assert.match(report, /image details \(linux\/amd64\) in Docker Hub/);
 
   const fallbackReport = renderReport([{ ...entry, dockerHubManifestDigest: null }]);
   assert.match(fallbackReport, /https:\/\/hub\.docker\.com\/layers\/library\/golang\/1\.27\.3\)/);
+  assert.match(fallbackReport, /tag details in Docker Hub/);
 
   const mismatchReport = renderReport([{ ...entry, resolvedDigest: OLD }]);
   assert.match(mismatchReport, /https:\/\/hub\.docker\.com\/layers\/library\/golang\/1\.27\.3\)/);
