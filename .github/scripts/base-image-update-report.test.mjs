@@ -18,6 +18,7 @@ import {
   registryHost,
   renderReport,
   selectModifiedDockerfiles,
+  selectDockerHubManifestDigest,
 } from "./base-image-update-report.mjs";
 
 const OLD = "sha256:d8d858dc6f7a6552ffc131e029802c28969c8211d311c33f9400449e30cf7442";
@@ -159,41 +160,100 @@ test("publicGalleryUrl returns a stable ECR Public Gallery repository URL", () =
   assert.equal(publicGalleryUrl("golang:1.26"), null);
 });
 
-test("dockerHubUrl maps official and namespaced Docker Hub images to filtered tag pages", () => {
+const AMD64_MANIFEST = "sha256:8aa2821993207ae840ce09e4223217efcd14e01f71525db734faf4232bd59999";
+
+test("dockerHubUrl links directly to image details for official and namespaced images", () => {
   assert.equal(
-    dockerHubUrl("golang", "1.27"),
-    "https://hub.docker.com/_/golang/tags?name=1.27",
+    dockerHubUrl("golang", "1.27.3", AMD64_MANIFEST),
+    "https://hub.docker.com/layers/library/golang/1.27.3/images/sha256-8aa2821993207ae840ce09e4223217efcd14e01f71525db734faf4232bd59999",
   );
   assert.equal(
-    dockerHubUrl("docker.io/library/golang", "1.27"),
-    "https://hub.docker.com/_/golang/tags?name=1.27",
+    dockerHubUrl("docker.io/library/golang", "1.27.3", AMD64_MANIFEST),
+    "https://hub.docker.com/layers/library/golang/1.27.3/images/sha256-8aa2821993207ae840ce09e4223217efcd14e01f71525db734faf4232bd59999",
   );
   assert.equal(
-    dockerHubUrl("docker.io/example/widget", "v1.2.3"),
-    "https://hub.docker.com/r/example/widget/tags?name=v1.2.3",
+    dockerHubUrl("docker.io/example/widget", "v1.2.3", AMD64_MANIFEST),
+    "https://hub.docker.com/layers/example/widget/v1.2.3/images/sha256-8aa2821993207ae840ce09e4223217efcd14e01f71525db734faf4232bd59999",
+  );
+  assert.equal(
+    dockerHubUrl("golang", "1.27.3"),
+    "https://hub.docker.com/layers/library/golang/1.27.3",
+  );
+  assert.equal(
+    dockerHubUrl("golang", "1.27.3", "sha256:invalid"),
+    "https://hub.docker.com/layers/library/golang/1.27.3",
   );
   assert.equal(dockerHubUrl("gcr.io/distroless/static-debian12", "nonroot"), null);
 });
 
-test("renderReport includes Docker Hub link for Docker Hub images", () => {
+test("selectDockerHubManifestDigest chooses linux/amd64 from a multi-platform index", () => {
+  const manifest = {
+    digest: NEW,
+    mediaType: "application/vnd.oci.image.index.v1+json",
+    manifests: [
+      {
+        digest: OLD,
+        mediaType: "application/vnd.oci.image.manifest.v1+json",
+        platform: { os: "linux", architecture: "arm64" },
+      },
+      {
+        digest: AMD64_MANIFEST,
+        mediaType: "application/vnd.oci.image.manifest.v1+json",
+        platform: { os: "linux", architecture: "amd64" },
+      },
+      {
+        digest: NEW,
+        mediaType: "application/vnd.oci.image.manifest.v1+json",
+        platform: { os: "unknown", architecture: "unknown" },
+      },
+    ],
+  };
+  assert.equal(selectDockerHubManifestDigest(manifest), AMD64_MANIFEST);
+  assert.equal(selectDockerHubManifestDigest({ ...manifest, manifests: [manifest.manifests[0]] }), null);
+  assert.equal(selectDockerHubManifestDigest({ ...manifest, manifests: [{ ...manifest.manifests[1], digest: "broken" }] }), null);
+});
+
+test("selectDockerHubManifestDigest handles a single-platform manifest", () => {
+  assert.equal(
+    selectDockerHubManifestDigest({
+      mediaType: "application/vnd.docker.distribution.manifest.v2+json",
+      digest: AMD64_MANIFEST,
+    }),
+    AMD64_MANIFEST,
+  );
+  assert.equal(selectDockerHubManifestDigest({ mediaType: "application/vnd.oci.image.index.v1+json", digest: NEW }), null);
+  assert.equal(selectDockerHubManifestDigest(null), null);
+});
+
+test("renderReport links to the verified image manifest, falling back to tag details", () => {
   const update = detectDigestUpdates(
     `FROM golang:1.26@${OLD}\n`,
-    `FROM golang:1.27@${NEW}\n`,
+    `FROM golang:1.27.3@${NEW}\n`,
   )[0];
 
-  const report = renderReport([
-    {
-      file: "system/Dockerfile.fargate",
-      ...update,
-      resolvedDigest: NEW,
-      verificationError: null,
-    },
-  ]);
+  const entry = {
+    file: "system/Dockerfile.fargate",
+    ...update,
+    resolvedDigest: NEW,
+    verificationError: null,
+    dockerHubManifestDigest: AMD64_MANIFEST,
+  };
 
+  const report = renderReport([entry]);
   assert.match(
     report,
-    /https:\/\/hub\.docker\.com\/_\/golang\/tags\?name=1\.27/,
+    /https:\/\/hub\.docker\.com\/layers\/library\/golang\/1\.27\.3\/images\/sha256-8aa2821993207ae840ce09e4223217efcd14e01f71525db734faf4232bd59999/,
   );
+  assert.doesNotMatch(report, /\/tags\?name=/);
+  assert.match(report, /image details \(linux\/amd64\) in Docker Hub/);
+
+  const fallbackReport = renderReport([{ ...entry, dockerHubManifestDigest: null }]);
+  assert.match(fallbackReport, /https:\/\/hub\.docker\.com\/layers\/library\/golang\/1\.27\.3\)/);
+  assert.match(fallbackReport, /tag details in Docker Hub/);
+
+  const mismatchReport = renderReport([{ ...entry, resolvedDigest: OLD }]);
+  assert.match(mismatchReport, /https:\/\/hub\.docker\.com\/layers\/library\/golang\/1\.27\.3\)/);
+  assert.doesNotMatch(mismatchReport, /\/images\/sha256-/);
 });
 
 test("googleArtifactRegistryUrl maps gcr.io images to the Artifact Registry console", () => {
