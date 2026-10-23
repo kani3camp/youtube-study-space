@@ -78,6 +78,7 @@ def main():
                 event = {"method": response.request.method, "path": path, "status": response.status}
                 if path == "/api/mypage" and response.status == 200:
                     value = response.json()
+                    event["generatedAt"] = value["generatedAt"]
                     event["summary"] = value["summary"]
                     event["recent7Days"] = value["recent7Days"]
                 responses.append(event)
