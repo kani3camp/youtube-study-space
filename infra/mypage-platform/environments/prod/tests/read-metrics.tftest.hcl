@@ -2,7 +2,7 @@
 mock_provider "google" {}
 
 variables {
-  stage            = "runtime_private"
+  stage = "runtime_private"
   runtime_settings = {
     image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     project_number              = "123456789012"
@@ -48,7 +48,7 @@ run "production_metrics_explicit_false_is_off" {
 run "production_refuses_metrics_in_disabled" {
   command = plan
   variables {
-    stage            = "disabled"
+    stage = "disabled"
     runtime_settings = merge({
       image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       project_number              = "123456789012"
@@ -67,7 +67,7 @@ run "production_refuses_metrics_in_disabled" {
 run "production_refuses_metrics_in_foundation_metadata" {
   command = plan
   variables {
-    stage            = "foundation_metadata"
+    stage = "foundation_metadata"
     runtime_settings = merge({
       image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       project_number              = "123456789012"
@@ -86,7 +86,7 @@ run "production_refuses_metrics_in_foundation_metadata" {
 run "production_refuses_metrics_in_foundation" {
   command = plan
   variables {
-    stage            = "foundation"
+    stage = "foundation"
     runtime_settings = merge({
       image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       project_number              = "123456789012"
@@ -105,7 +105,7 @@ run "production_refuses_metrics_in_foundation" {
 run "production_refuses_metrics_in_runtime_private" {
   command = plan
   variables {
-    stage            = "runtime_private"
+    stage = "runtime_private"
     runtime_settings = merge({
       image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       project_number              = "123456789012"
@@ -124,7 +124,7 @@ run "production_refuses_metrics_in_runtime_private" {
 run "production_refuses_metrics_in_runtime_public" {
   command = plan
   variables {
-    stage            = "runtime_public"
+    stage = "runtime_public"
     runtime_settings = merge({
       image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       project_number              = "123456789012"
