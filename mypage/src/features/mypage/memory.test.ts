@@ -429,7 +429,6 @@ describe('private MyPage memory', () => {
 		memory.dispose()
 	})
 
-
 	it('does not fetch again on a quick tab switch, then polls five minutes after last success', async () => {
 		const load = vi.fn().mockResolvedValue(sample())
 		const memory = new MyPageMemory(load, async () => {})
