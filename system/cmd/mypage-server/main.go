@@ -122,7 +122,7 @@ func runWith(ctx context.Context, get func(string) string, deps bootstrapDepende
 	}
 	sdk, err := deps.firebase(bootstrapCtx, config, credentials)
 	if err != nil || bootstrapCtx.Err() != nil {
-		return errors.New("MyPage Firebase bootstrap unavailable")
+		return errors.New("MyPage keyless bootstrap unavailable")
 	}
 	database, closeDatabase, err := deps.database(bootstrapCtx, config, credentials)
 	if err != nil {
