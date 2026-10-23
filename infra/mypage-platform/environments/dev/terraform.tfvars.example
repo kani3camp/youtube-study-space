@@ -4,3 +4,13 @@ stage = "disabled"
 # Later, after exact target / state / IAM review: "foundation",
 # "runtime_private" or "runtime_public". Populate runtime_settings from
 # reviewed private/public identifiers and PINNED secret VERSION NUMBERS only.
+
+# DEV snapshot observation capability (default OFF): inside a complete, reviewed
+# runtime_settings object, set read_metrics_enabled = true. This is a boolean;
+# the JSON manifest uses true, not "true". Do not replace the other required fields.
+# Omission/false leaves MYPAGE_READ_METRICS absent. Production rejects true.
+# The flag does not authorize deployment or any serving-revision update/drift.
+# Existing create/no-op admission stays unchanged: enabling OR disabling metrics
+# on a serving DEV revision requires a separately reviewed release transition.
+# Keep the exact image/config pair and rollback evidence together. This example
+# does not change runtime-release.json or prove live reads, costs or readiness.

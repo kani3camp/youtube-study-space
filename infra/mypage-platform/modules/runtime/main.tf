@@ -42,6 +42,7 @@ variable "runtime_settings" {
     image_source_sha            = optional(string, "")
     hosting_backend_host        = optional(string, "")
     previous_image_digest       = optional(string, "")
+    read_metrics_enabled        = optional(bool, false)
   })
 }
 
@@ -267,6 +268,15 @@ resource "google_cloud_run_v2_service" "api" {
           value = env.value
         }
       }
+      # Opt-in only. Keep production OFF even when the module is called directly.
+      # This source capability does not authorize a serving-revision update.
+      dynamic "env" {
+        for_each = var.environment == "development" && var.runtime_settings.read_metrics_enabled ? [true] : []
+        content {
+          name  = "MYPAGE_READ_METRICS"
+          value = "true"
+        }
+      }
       env {
         name  = "MYPAGE_INFRASTRUCTURE_READY"
         value = "true"
@@ -359,4 +369,12 @@ output "history_coverage_env_count" {
     for item in google_cloud_run_v2_service.api[0].template[0].containers[0].env : item
     if item.name == "MYPAGE_HISTORY_COVERAGE"
   ]) : 0
+}
+
+# Inspect only this fixed, non-identifying env value in credentialless mock tests.
+output "read_metrics_env_values" {
+  value = local.deploy_api ? [
+    for item in google_cloud_run_v2_service.api[0].template[0].containers[0].env : item.value
+    if item.name == "MYPAGE_READ_METRICS"
+  ] : []
 }
