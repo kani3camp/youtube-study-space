@@ -150,6 +150,9 @@ export function mergeResponse(
 
 // Private data lives only in this instance. Epoch changes make delayed responses
 // harmless even when a fetch implementation ignores AbortSignal.
+// Keep regular refresh affordable without delaying first load or manual updates.
+const VISIBLE_POLL_INTERVAL_MS = 5 * 60_000
+
 export class MyPageMemory {
 	private state: MemoryState = {
 		phase: 'bootstrapping',
@@ -241,7 +244,21 @@ export class MyPageMemory {
 		if (!visible) {
 			if (this.timer !== null) clearTimeout(this.timer)
 			this.timer = null
-		} else void this.refresh()
+		} else {
+			// A quick tab switch must not restart the same expensive history read.
+			// Errors still retry via the existing backoff and Retry-After rules.
+			const elapsed =
+				this.state.receivedAt === null
+					? Number.POSITIVE_INFINITY
+					: this.now() - this.state.receivedAt
+			if (
+				this.state.error === null &&
+				elapsed >= 0 &&
+				elapsed < VISIBLE_POLL_INTERVAL_MS
+			)
+				this.schedule(VISIBLE_POLL_INTERVAL_MS - elapsed)
+			else void this.refresh()
+		}
 	}
 
 	// pagehide clears pixels and cached private values before a bfcache snapshot.
@@ -309,7 +326,7 @@ export class MyPageMemory {
 		const controller = new AbortController()
 		this.controller = controller
 		this.publish({ ...this.state, busy: true, error: null })
-		let delay = 60_000
+		let delay = VISIBLE_POLL_INTERVAL_MS
 		try {
 			let forceToken = false
 			let forceAppCheck = false

@@ -404,7 +404,7 @@ describe('private MyPage memory', () => {
 		memory.dispose()
 	})
 
-	it('polls 60s after completion, stops while hidden, refreshes on return without overlap', async () => {
+	it('polls 5m after completion, stops while hidden, refreshes on return without overlap', async () => {
 		const pending = deferred<MyPage>()
 		const load = vi
 			.fn()
@@ -416,7 +416,7 @@ describe('private MyPage memory', () => {
 		expect(load).toHaveBeenCalledTimes(1)
 		pending.resolve(sample())
 		await settle()
-		await vi.advanceTimersByTimeAsync(59_999)
+		await vi.advanceTimersByTimeAsync(299_999)
 		expect(load).toHaveBeenCalledTimes(1)
 		await vi.advanceTimersByTimeAsync(1)
 		expect(load).toHaveBeenCalledTimes(2)
@@ -425,6 +425,39 @@ describe('private MyPage memory', () => {
 		expect(load).toHaveBeenCalledTimes(2)
 		memory.setVisible(true)
 		await settle()
+		expect(load).toHaveBeenCalledTimes(3)
+		memory.dispose()
+	})
+
+	it('does not fetch again on a quick tab switch, then polls five minutes after last success', async () => {
+		const load = vi.fn().mockResolvedValue(sample())
+		const memory = new MyPageMemory(load, async () => {})
+		memory.setIdentity('sample')
+		await settle()
+		expect(load).toHaveBeenCalledTimes(1)
+		await vi.advanceTimersByTimeAsync(30_000)
+		memory.setVisible(false)
+		memory.setVisible(true)
+		await settle()
+		expect(load).toHaveBeenCalledTimes(1)
+		await vi.advanceTimersByTimeAsync(269_999)
+		expect(load).toHaveBeenCalledTimes(1)
+		await vi.advanceTimersByTimeAsync(1)
+		expect(load).toHaveBeenCalledTimes(2)
+		memory.dispose()
+	})
+
+	it('allows manual refresh without waiting five minutes and restarts the timer', async () => {
+		const load = vi.fn().mockResolvedValue(sample())
+		const memory = new MyPageMemory(load, async () => {})
+		memory.setIdentity('sample')
+		await settle()
+		await vi.advanceTimersByTimeAsync(3_000)
+		await memory.refresh(true)
+		expect(load).toHaveBeenCalledTimes(2)
+		await vi.advanceTimersByTimeAsync(299_999)
+		expect(load).toHaveBeenCalledTimes(2)
+		await vi.advanceTimersByTimeAsync(1)
 		expect(load).toHaveBeenCalledTimes(3)
 		memory.dispose()
 	})

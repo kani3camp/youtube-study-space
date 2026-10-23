@@ -71,7 +71,7 @@ HTTP handlerは環境ごとに固定したHTTPS `PublicOrigin` を必須とし�
 
 `MyPageMemory` はuid変更/logout開始/pagehideで個人データを同期clearしてrequestをabortする。epoch照合によりabortを無視する遅延responseも破棄する。logout失敗でもデータは復活せず再試行可能。bootstrap中にlogin画面を出さない。
 
-visible時だけ完了後60秒でpollし、hidden停止・復帰即refresh・request overlap防止・manual debounce・失敗backoff・Retry-Afterを実装する。401はデータを消して同uidで一度だけtoken refresh、App Checkだけは一度再取得し、継続401/再同意/WebAccountなしはsignOutへ戻す。取得不能section/metricは同uidの直前成功だけをmemory保持し、元asOfとstaleを残す。未取得値を0にはしない。
+visible時だけ成功後5分でpollし、hidden停止・短時間のタブ復帰では残り時間だけ待機・5分以上経過した復帰時は即refresh・request overlap防止・manual debounce・失敗backoff・Retry-Afterを実装する。初回取得は即時、手動更新も維持する。401はデータを消して同uidで一度だけtoken refresh、App Checkだけは一度再取得し、継続401/再同意/WebAccountなしはsignOutへ戻す。取得不能section/metricは同uidの直前成功だけをmemory保持し、元asOfとstaleを残す。未取得値を0にはしない。
 
 制限403は個人データを同期clearし、専用表示へ移る。poll/manual/visibility retryを停止し、logout・public法的文面・support・fresh loginを利用できる。通常503のbackoff/stale表示は維持する。
 
