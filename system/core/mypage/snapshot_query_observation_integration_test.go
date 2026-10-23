@@ -4,6 +4,7 @@ package mypage
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
@@ -46,6 +48,16 @@ func (s *snapshotQueryFailureStream) RecvMsg(message any) error {
 	return s.ClientStream.RecvMsg(message)
 }
 
+// Use only after RequireFirestoreEmulator has checked the loopback endpoint.
+// These are the Emulator's synthetic admin credentials, not real credentials.
+type snapshotEmulatorCredentials struct{}
+
+func (snapshotEmulatorCredentials) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
+	return map[string]string{"authorization": "Bearer owner"}, nil
+}
+
+func (snapshotEmulatorCredentials) RequireTransportSecurity() bool { return false }
+
 func TestSnapshotObservationDistinguishesQueryFailureFromEmptySuccess(t *testing.T) {
 	integrationtest.RequireFirestoreEmulator(t)
 	for _, tc := range []struct {
@@ -69,8 +81,15 @@ func TestSnapshotObservationDistinguishesQueryFailureFromEmptySuccess(t *testing
 				}
 				return &snapshotQueryFailureStream{ClientStream: stream, failCollections: tc.failCollections}, nil
 			}
-			client, err := firestore.NewClient(context.Background(), "demo-youtube-study-space-ci",
-				option.WithoutAuthentication(), option.WithGRPCDialOption(grpc.WithChainStreamInterceptor(interceptor)))
+			// Emulator mode supplies a prebuilt connection, so dial options alone
+			// do not install interceptors. Pass our guarded connection explicitly.
+			conn, err := grpc.NewClient("passthrough:///"+os.Getenv("FIRESTORE_EMULATOR_HOST"),
+				grpc.WithTransportCredentials(insecure.NewCredentials()),
+				grpc.WithPerRPCCredentials(snapshotEmulatorCredentials{}),
+				grpc.WithChainStreamInterceptor(interceptor))
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = conn.Close() })
+			client, err := firestore.NewClient(context.Background(), "demo-youtube-study-space-ci", option.WithGRPCConn(conn))
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, client.Close()) })
 			uid, err := opaque()
