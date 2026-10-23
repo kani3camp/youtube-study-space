@@ -17,13 +17,15 @@ MODES = {"runtime-private-plan": "runtime_private", "runtime-private-apply": "ru
 PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/asia-southeast2/services/mypage-api"
 PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
 FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "privacy_version", "terms_version",
-          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest"}
+          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled"}
 
 
 def settings(value):
-    c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= FIELDS - {"history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest"}, "runtime-settings-fields")
-    value = value | {"history_coverage_json": value.get("history_coverage_json", ""), "image_source_sha": value.get("image_source_sha", ""), "hosting_backend_host": value.get("hosting_backend_host", ""), "previous_image_digest": value.get("previous_image_digest", "")}
-    c.need(all(type(v) is str for v in value.values()), "runtime-settings-types")
+    c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= FIELDS - {"history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled"}, "runtime-settings-fields")
+    value = value | {"history_coverage_json": value.get("history_coverage_json", ""), "image_source_sha": value.get("image_source_sha", ""), "hosting_backend_host": value.get("hosting_backend_host", ""), "previous_image_digest": value.get("previous_image_digest", ""), "read_metrics_enabled": value.get("read_metrics_enabled", False)}
+    # JSON admission is deliberately stricter than Terraform's type conversion.
+    c.need(type(value["read_metrics_enabled"]) is bool, "runtime-read-metrics-type")
+    c.need(all(type(v) is str for k, v in value.items() if k != "read_metrics_enabled"), "runtime-settings-types")
     c.need(re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["image_digest"]), "runtime-image")
     c.need(re.fullmatch(r"[0-9]{6,20}", value["project_number"]), "runtime-project-number")
     c.need(re.fullmatch("1:" + value["project_number"] + r":web:[A-Za-z0-9]+", value["web_app_id"]), "runtime-app-project")
@@ -71,6 +73,8 @@ def plain_environment(value):
         env["MYPAGE_HISTORY_COVERAGE"] = value["history_coverage_json"]
     if value["hosting_backend_host"]:
         env["MYPAGE_HOSTING_BACKEND_HOST"] = value["hosting_backend_host"]
+    if value["read_metrics_enabled"]:
+        env["MYPAGE_READ_METRICS"] = "true"
     return env
 
 

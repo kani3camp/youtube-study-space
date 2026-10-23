@@ -43,6 +43,7 @@ variable "runtime_settings" {
     image_source_sha            = optional(string, "")
     hosting_backend_host        = optional(string, "")
     previous_image_digest       = optional(string, "")
+    read_metrics_enabled        = optional(bool, false)
   })
   default = {
     image_digest                = ""

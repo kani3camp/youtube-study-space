@@ -43,6 +43,7 @@ variable "runtime_settings" {
     image_source_sha            = optional(string, "")
     hosting_backend_host        = optional(string, "")
     previous_image_digest       = optional(string, "")
+    read_metrics_enabled        = optional(bool, false)
   })
   default = {
     image_digest                = ""
@@ -54,6 +55,12 @@ variable "runtime_settings" {
     oauth_client_id_version     = ""
     oauth_client_secret_version = ""
     youtube_api_key_version     = ""
+  }
+
+  # Reject even in disabled/foundation stages; do not silently accept a DEV flag.
+  validation {
+    condition     = !var.runtime_settings.read_metrics_enabled
+    error_message = "Snapshot read metrics are development-only and cannot be enabled in production."
   }
 
   validation {
