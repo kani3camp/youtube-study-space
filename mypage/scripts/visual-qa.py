@@ -7,7 +7,7 @@ parser.add_argument('--output',default='/tmp/mypage-visual-qa')
 parser.add_argument('--chromium',default='/usr/bin/chromium')
 args=parser.parse_args()
 out=Path(args.output);out.mkdir(parents=True,exist_ok=True)
-states=['work','break','not-seated','unregistered','long','overdue','zero','loading','failure','refresh-failure','metadata-failure','metadata-expired']
+states=['work','break','member-work','member-break','not-seated','unregistered','long','overdue','zero','loading','failure','refresh-failure','metadata-failure','metadata-expired','recorded']
 results=[]
 with sync_playwright() as p:
  browser=p.chromium.launch(executable_path=args.chromium,headless=True,args=['--no-sandbox'])
@@ -30,6 +30,12 @@ with sync_playwright() as p:
     assert page.locator('.metric-today .duration-number').first.inner_text()=='0'
     assert page.locator('.metric-today .sr-only').inner_text()=='0時間 0分'
    if state=='loading':assert page.locator('.skeleton').count()==3
+   if width in [320,390] and state not in ['loading','failure']:
+    week=page.locator('.metric-week').bounding_box();lifetime=page.locator('.metric-lifetime').bounding_box()
+    assert lifetime['y']>=week['y']+week['height'],(width,state,'mobile metrics must stack')
+   if state=='recorded':
+    assert page.locator('.metric-week').get_by_text('集計未確定',exact=True).count()==1
+    assert page.locator('.metric-week').get_by_text('記録がそろっているか未確認です。',exact=True).is_visible()
    if state=='failure':
     assert page.get_by_text('情報を取得できませんでした',exact=True).count()==1
     assert page.locator('.summary-card,.recent-card,.notice').count()==0
@@ -37,10 +43,13 @@ with sync_playwright() as p:
    if state=='break':
     assert page.get_by_text('休憩中',exact=True).count()==1
     assert page.get_by_text('読書',exact=True).count()==1
+   if state in ['member-work','member-break']:
+    assert page.get_by_text('メンバールーム',exact=True).count()==1
+    assert page.get_by_text('休憩中' if state=='member-break' else '作業中',exact=True).count()==1
    if state=='long':
     assert len(page.locator('.task-name').inner_text())>100
     assert page.locator('.task-name').evaluate('(el)=>el.scrollHeight <= el.clientHeight+1')
-   if state in ['work','break','long','failure'] and width in [320,390,1440]:
+   if state in ['work','break','long','failure','not-seated','recorded'] and width in [320,390,1440]:
     page.screenshot(path=str(out/f'{state}-{width}.png'),full_page=True)
    results.append({'width':width,'state':state,'horizontalOverflow':False,'pageErrors':0})
  # Expired metadata must clear a previous successful value and explain why.
@@ -62,8 +71,8 @@ with sync_playwright() as p:
   page.screenshot(path=str(out/f'account-{width}.png'),full_page=True)
   page.keyboard.press('Escape');assert dialog.count()==0
   assert avatar.evaluate('(el)=>document.activeElement===el')
-  zero=page.get_by_role('button',name='2026-09-30: 0時間 0分');zero.focus()
-  assert '2026-09-30: 0時間 0分' in page.locator('.selected-day').inner_text()
+  zero=page.get_by_role('button',name='9月30日（水）: 0時間 0分');zero.focus()
+  assert '9月30日（水）' in page.locator('.selected-day').inner_text() and '0時間 0分' in page.locator('.selected-day').inner_text()
   assert zero.get_attribute('aria-pressed')=='true'
   avatar.click();page.get_by_role('button',name='ログアウト',exact=True).click()
   assert page.get_by_text('ログアウトしました。',exact=True).count()==1
@@ -76,4 +85,4 @@ with sync_playwright() as p:
  browser.close()
 report={'syntheticOnly':True,'cases':results,'dialogKeyboardAndLogout':[390,1440],'avatarFailureFallback':[390,1440],'externalRequestsBlocked':True,'approvedReference':'Supplied Approved HTML/runtime compared locally with the same self-hosted M PLUS Rounded 1c faces; exact pixel parity is not a target because Current Canon overrides prototype semantics'}
 (out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
-print('PASS: 60 responsive/state cases, bounded timestamp, skeleton/first failure/zero metrics, avatar failure fallback, native modal focus/Escape/zero-selection/logout at 390 and 1440.')
+print(f'PASS: {len(results)} responsive/state cases, mobile stacked metrics and tentative history, bounded timestamp, skeleton/first failure/zero metrics, avatar fallback, modal focus/Escape/zero-selection/logout at 390 and 1440.')

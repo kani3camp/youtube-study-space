@@ -82,6 +82,19 @@ with sync_playwright() as p:
  storage=page.evaluate('({local:Object.keys(localStorage),session:Object.fromEntries(Object.entries(sessionStorage))})');assert storage['local']==[] and all(k=='tsr-scroll-restoration-v1_3' and v=='{}' for k,v in storage['session'].items()),storage
  assert not errors,errors
  page.screenshot(path=str(out/'not-found-390.png'),full_page=True)
+ for width in [320,390,768,1024,1440]:
+  page.set_viewport_size({'width':width,'height':960})
+  for path in ['/mypage/account','/contact','/privacy','/terms']:
+   load(path,'authenticated')
+   page.get_by_role('heading',level=1).wait_for()
+   assert page.locator('.site-header .brand-name').inner_text()=='オンライン作業部屋'
+   assert page.locator('.site-header').count()==1
+   assert page.get_by_role('heading',level=1).count()==1
+   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(width,path,'horizontal overflow')
+   if path=='/mypage/account' and width in [390,1440]:
+    page.evaluate('document.fonts.ready')
+    page.screenshot(path=str(out/f'account-manage-{width}.png'),full_page=True)
+ results.append('shared brand header, one page title, and no overflow on four supporting routes at five widths')
  for path in ['/','/login','/privacy','/terms','/contact']:
   page.goto('http://127.0.0.1:18081'+path);page.get_by_role('heading').first.wait_for();assert page.get_by_text('読書',exact=True).count()==0
  results.append('unconfigured product runtime stays public and unavailable')

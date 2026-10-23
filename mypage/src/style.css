@@ -15,7 +15,18 @@
 }
 body {
 	margin: 0;
-	background: var(--color-page);
+	background:
+		radial-gradient(
+			1100px 560px at 12% -8%,
+			oklch(98.8% 0.018 85 / 0.9),
+			transparent 62%
+		),
+		radial-gradient(
+			900px 520px at 100% 0%,
+			oklch(96.5% 0.026 65 / 0.55),
+			transparent 60%
+		),
+		var(--color-page);
 	color: var(--color-ink);
 	font-family: "M PLUS Rounded 1c", "Noto Sans CJK JP", sans-serif;
 	line-height: 1.6;
@@ -84,6 +95,42 @@ h2 {
 	gap: 12px;
 	padding-block: 16px 10px;
 }
+.brand-lockup {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+}
+.brand-mark {
+	display: grid;
+	place-items: center;
+	width: 34px;
+	height: 36px;
+	flex-shrink: 0;
+	border-radius: 11px;
+	background: var(--color-accent);
+	color: var(--color-surface);
+	font-size: 18px;
+	font-weight: 800;
+}
+.brand-name {
+	font-size: 14px;
+	font-weight: 800;
+	line-height: 1.4;
+}
+.brand-page {
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 1.5;
+	color: var(--color-muted);
+}
+.ui-icon {
+	display: inline-block;
+	width: 17px;
+	height: 17px;
+	flex-shrink: 0;
+	vertical-align: -3px;
+}
 .eyebrow {
 	color: var(--color-muted);
 	font-size: 12px;
@@ -120,6 +167,10 @@ h2 {
 	height: 24px;
 }
 .refresh-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
 	min-height: 44px;
 	font-size: 14px;
 	font-weight: 500;
@@ -150,6 +201,9 @@ h2 {
 	background: var(--color-surface);
 	border: 1px solid var(--color-line);
 	padding: 22px;
+	box-shadow:
+		0 1px 2px oklch(40% 0.03 60 / 0.05),
+		0 12px 28px -18px oklch(40% 0.05 60 / 0.22);
 }
 .current-card {
 	grid-area: current;
@@ -162,6 +216,9 @@ h2 {
 	--state-track: oklch(83% 0.045 65);
 	background: oklch(94.5% 0.028 65);
 	border-color: oklch(88% 0.035 65);
+	box-shadow:
+		0 1px 2px oklch(45% 0.05 60 / 0.06),
+		0 14px 30px -18px oklch(50% 0.08 60 / 0.32);
 }
 .current-card.resting {
 	--state: oklch(38% 0.06 135);
@@ -169,9 +226,12 @@ h2 {
 	--state-track: oklch(82% 0.04 130);
 	background: oklch(94.5% 0.026 130);
 	border-color: oklch(87.5% 0.035 130);
+	box-shadow:
+		0 1px 2px oklch(45% 0.04 135 / 0.06),
+		0 14px 30px -18px oklch(48% 0.06 135 / 0.32);
 }
 .current-card.empty {
-	background: oklch(96% 0.018 70);
+	background: var(--color-surface);
 }
 .current-card h2 {
 	margin-bottom: 12px;
@@ -203,6 +263,15 @@ h2 {
 }
 .resting .state-dot {
 	border-radius: 3px;
+}
+.empty-badge {
+	--state: var(--color-muted);
+	--state-dot: transparent;
+	background: oklch(94% 0.008 65);
+	margin-bottom: 14px;
+}
+.empty-badge .state-dot {
+	border: 2px solid currentColor;
 }
 .seat-location {
 	display: flex;
@@ -388,6 +457,11 @@ h2 {
 	font-weight: 700;
 	color: var(--color-muted);
 }
+.metric dt > .ui-icon {
+	width: 15px;
+	height: 15px;
+	margin-right: 6px;
+}
 .metric dt span {
 	font-size: 12px;
 	font-weight: 500;
@@ -407,6 +481,11 @@ h2 {
 .metric-today dd {
 	font-size: 48px;
 	color: oklch(30% 0.05 55);
+}
+.metric-today dd:has(.duration-unavailable) {
+	font-size: 22px;
+	line-height: 1.4;
+	margin-block: 12px 4px;
 }
 .duration-value {
 	display: flex;
@@ -452,6 +531,29 @@ h2 {
 	color: oklch(38% 0.04 55);
 	margin-top: 12px;
 }
+.history-note {
+	display: grid;
+	gap: 5px;
+}
+.history-status {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 6px;
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--color-accent);
+}
+.note-time {
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--color-muted);
+}
+.summary-timezone {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
 .recent-card {
 	grid-area: recent;
 }
@@ -459,7 +561,23 @@ h2 {
 	font-size: 13px;
 	margin-block: 8px 0;
 }
+.chart-heading {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 4px 12px;
+}
+.chart-range {
+	color: var(--color-muted);
+	font-size: 12px;
+	font-weight: 500;
+}
 .bar-chart {
+	border: 0;
+	padding: 0;
+	margin: 0;
+	min-width: 0;
 	display: grid;
 	grid-template-columns: repeat(7, minmax(0, 1fr));
 	gap: 4px;
@@ -506,14 +624,23 @@ h2 {
 }
 .recorded-value {
 	display: block;
-	font-size: 16px;
+	font-size: inherit;
 	font-weight: 700;
 	line-height: 1.6;
+}
+.recorded-caption {
+	display: block;
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--color-muted);
 }
 .recorded-legend {
 	margin-top: 16px;
 }
 .day-label {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
 	font-size: 12px;
 	font-weight: 500;
 	margin-top: 10px;
@@ -527,10 +654,16 @@ h2 {
 	color: var(--color-accent);
 }
 .selected-day {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 10px;
 	font-size: 14px;
 	font-weight: 500;
 	margin-block: 6px 10px;
 	font-variant-numeric: tabular-nums;
+}
+.selected-date {
+	color: var(--color-muted);
 }
 .initial-failure {
 	grid-template-columns: minmax(0, 1fr);
@@ -662,6 +795,47 @@ h2 {
 	font-weight: 700;
 	overflow-wrap: anywhere;
 }
+.account-identity {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 8px;
+}
+.account-panel {
+	box-shadow:
+		0 1px 2px oklch(40% 0.03 60 / 0.05),
+		0 12px 28px -18px oklch(40% 0.05 60 / 0.22);
+}
+.account-identity-text {
+	min-width: 0;
+	flex: 1;
+}
+.account-avatar {
+	width: 48px;
+	height: 48px;
+	flex-shrink: 0;
+	border-radius: 50%;
+	background: oklch(90% 0.03 60);
+	display: grid;
+	place-items: center;
+	overflow: hidden;
+}
+.account-avatar img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+.account-avatar svg {
+	width: 26px;
+	height: 26px;
+}
+.account-logout,
+.account-manage-link {
+	gap: 8px;
+}
+.account-manage-link {
+	justify-content: flex-end;
+}
 .full-width {
 	width: 100%;
 	margin-top: 22px;
@@ -691,9 +865,30 @@ h2 {
 	}
 	.site-header {
 		padding-top: 16px;
+		gap: 8px;
 	}
 	h1 {
 		font-size: 22px;
+	}
+	.brand-lockup {
+		gap: 7px;
+	}
+	.brand-name {
+		font-size: 12px;
+	}
+	.brand-page {
+		font-size: 11px;
+	}
+	.brand-mark {
+		width: 30px;
+		height: 32px;
+		font-size: 16px;
+	}
+	.refresh-button {
+		font-size: 12px;
+	}
+	.summary-card dl {
+		grid-template-columns: minmax(0, 1fr);
 	}
 	.card {
 		padding: 20px;
@@ -744,7 +939,7 @@ h2 {
 		padding-inline: 2px;
 	}
 	.header-actions {
-		gap: 10px;
+		gap: 7px;
 	}
 	.time-panel {
 		padding: 9px 14px;
@@ -775,10 +970,15 @@ h2 {
 		scroll-behavior: auto;
 	}
 }
+.empty .current-links {
+	justify-content: flex-start;
+	gap: 6px 18px;
+	margin-top: 18px;
+}
 
 .public-page {
 	max-width: 880px;
-	padding-top: 48px;
+	padding-top: 24px;
 }
 .public-page h1 {
 	margin-bottom: 20px;

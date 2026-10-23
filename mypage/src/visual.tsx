@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import fixture from '../../docs/mypage/fixtures/available.json'
+import recordedFixture from '../../docs/mypage/fixtures/recorded-history.json'
 import type { MyPage } from './features/mypage/contract'
 import { type MemoryState, mergeResponse } from './features/mypage/memory'
 import { MyPageView } from './features/mypage/view'
@@ -21,13 +22,18 @@ function VisualApp({ initial }: { initial: MemoryState }) {
 }
 
 if (import.meta.env.DEV) {
-	const sample = structuredClone(fixture) as MyPage
 	const mode = new URLSearchParams(location.search).get('state')
+	const sample = structuredClone(
+		mode === 'recorded' ? recordedFixture : fixture,
+	) as MyPage
 	if (mode === 'avatar-failure' && sample.account.data)
 		sample.account.data.avatarUrl =
 			'https://invalid.example/synthetic-avatar.png'
 	if (sample.current.data) {
-		if (mode === 'break') sample.current.data.state = 'break'
+		if (mode === 'break' || mode === 'member-break')
+			sample.current.data.state = 'break'
+		if (mode === 'member-work' || mode === 'member-break')
+			sample.current.data.roomType = 'member'
 		if (mode === 'not-seated') sample.current.data.state = 'not_seated'
 		if (mode === 'unregistered') sample.current.data.state = 'unregistered'
 		if (mode === 'long')

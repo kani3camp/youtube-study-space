@@ -16,6 +16,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from 'react'
+import { SiteHeader } from './components/site-header'
 import {
 	RequestError,
 	type RestrictionCode,
@@ -176,6 +177,7 @@ export function createApp(
 		const pathname = useRouterState({
 			select: (state) => state.location.pathname,
 		})
+		const publicChrome = pathname !== '/mypage' || auth.phase === 'restricted'
 		useEffect(() => runtime.mount(), [])
 		useEffect(() => privacyServices.analytics.mount(), [])
 		useEffect(() => {
@@ -233,126 +235,133 @@ export function createApp(
 					value={{ value: intakeDraft, set: setIntakeDraft }}
 				>
 					<CookieSettings.Provider value={openCookie}>
-						<Outlet />
-						{consent.value === 'unset' && (
-							<aside
-								className="consent-banner"
-								aria-labelledby="analytics-consent-heading"
-							>
-								<h2 id="analytics-consent-heading">利用状況の計測について</h2>
-								<p>
-									計測は初期設定でオフです。許可しなくても、ログインやマイページを利用できます。
-								</p>
-								<p>
-									Google
-									Analyticsによる任意の計測は公開準備中です。設定だけをこのブラウザに保存します。
-								</p>
-								<div className="hero-links">
-									<button
-										className="button"
-										type="button"
-										onClick={() => privacyServices.consent.set('granted')}
-									>
-										計測を許可
-									</button>
-									<button
-										className="button"
-										type="button"
-										onClick={() => privacyServices.consent.set('denied')}
-									>
-										許可しない
-									</button>
-								</div>
-							</aside>
-						)}
-						{(pathname !== '/mypage' || auth.phase === 'restricted') && (
-							<footer className="site-footer public-footer">
-								<Link to="/privacy">プライバシー</Link>
-								<Link to="/terms">利用規約</Link>
-								<button type="button" onClick={openCookie}>
-									Cookie設定
-								</button>
-								<Link to="/contact">お問い合わせ</Link>
-							</footer>
-						)}
-						{cookieOpen && (
-							<dialog
-								className="account-dialog"
-								ref={cookieDialog}
-								onClose={() => {
-									setCookieOpen(false)
-									queueMicrotask(() => {
-										if (cookieOpener.current?.isConnected)
-											cookieOpener.current.focus()
-										else
-											document
-												.querySelector<HTMLButtonElement>('.site-footer button')
-												?.focus()
-									})
-								}}
-								onKeyDown={(event) => {
-									if (event.key !== 'Tab') return
-									const targets = [
-										...event.currentTarget.querySelectorAll<HTMLElement>(
-											'button:not([disabled]), input:not([disabled]), a[href]',
-										),
-									].filter((item) => item.getClientRects().length > 0)
-									const first = targets[0]
-									const last = targets.at(-1)
-									if (event.shiftKey && document.activeElement === first) {
-										event.preventDefault()
-										last?.focus()
-									} else if (
-										!event.shiftKey &&
-										document.activeElement === last
-									) {
-										event.preventDefault()
-										first?.focus()
-									}
-								}}
-								aria-labelledby="cookie-heading"
-							>
-								<h2 id="cookie-heading">Cookie設定</h2>
-								<p>
-									Google
-									Analyticsの連携は公開準備中です。チャンネル情報・作業内容・本人別のAPI応答は計測へ送りません。
-								</p>
-								<label className="consent-label">
-									<input
-										type="checkbox"
-										role="switch"
-										aria-checked={consent.value === 'granted'}
-										checked={consent.value === 'granted'}
-										onChange={(event) =>
-											privacyServices.consent.set(
-												event.target.checked ? 'granted' : 'denied',
-											)
-										}
-									/>
-									<span>利用状況の計測を許可</span>
-								</label>
-								<p role="status">
-									{consent.value === 'granted'
-										? '任意の計測：許可'
-										: '任意の計測：オフ'}
-								</p>
-								{!consent.saved && (
-									<p role="alert">
-										設定を保存できませんでした。この画面では選択を適用しています。次回はもう一度ご確認ください。
-									</p>
-								)}
-								<p>
-									必須の保存と通信は、認証・セキュリティのため常に有効です。任意の計測は初期設定でオフです。
-								</p>
-								<button
-									type="button"
-									className="button"
-									onClick={() => cookieDialog.current?.close()}
+						<div
+							className={publicChrome ? 'app-shell public-shell' : undefined}
+						>
+							{publicChrome && <SiteHeader />}
+							<Outlet />
+							{consent.value === 'unset' && (
+								<aside
+									className="consent-banner"
+									aria-labelledby="analytics-consent-heading"
 								>
-									閉じる
-								</button>
-							</dialog>
-						)}
+									<h2 id="analytics-consent-heading">利用状況の計測について</h2>
+									<p>
+										計測は初期設定でオフです。許可しなくても、ログインやマイページを利用できます。
+									</p>
+									<p>
+										Google
+										Analyticsによる任意の計測は公開準備中です。設定だけをこのブラウザに保存します。
+									</p>
+									<div className="hero-links">
+										<button
+											className="button"
+											type="button"
+											onClick={() => privacyServices.consent.set('granted')}
+										>
+											計測を許可
+										</button>
+										<button
+											className="button"
+											type="button"
+											onClick={() => privacyServices.consent.set('denied')}
+										>
+											許可しない
+										</button>
+									</div>
+								</aside>
+							)}
+							{publicChrome && (
+								<footer className="site-footer public-footer">
+									<Link to="/privacy">プライバシー</Link>
+									<Link to="/terms">利用規約</Link>
+									<button type="button" onClick={openCookie}>
+										Cookie設定
+									</button>
+									<Link to="/contact">お問い合わせ</Link>
+								</footer>
+							)}
+							{cookieOpen && (
+								<dialog
+									className="account-dialog"
+									ref={cookieDialog}
+									onClose={() => {
+										setCookieOpen(false)
+										queueMicrotask(() => {
+											if (cookieOpener.current?.isConnected)
+												cookieOpener.current.focus()
+											else
+												document
+													.querySelector<HTMLButtonElement>(
+														'.site-footer button',
+													)
+													?.focus()
+										})
+									}}
+									onKeyDown={(event) => {
+										if (event.key !== 'Tab') return
+										const targets = [
+											...event.currentTarget.querySelectorAll<HTMLElement>(
+												'button:not([disabled]), input:not([disabled]), a[href]',
+											),
+										].filter((item) => item.getClientRects().length > 0)
+										const first = targets[0]
+										const last = targets.at(-1)
+										if (event.shiftKey && document.activeElement === first) {
+											event.preventDefault()
+											last?.focus()
+										} else if (
+											!event.shiftKey &&
+											document.activeElement === last
+										) {
+											event.preventDefault()
+											first?.focus()
+										}
+									}}
+									aria-labelledby="cookie-heading"
+								>
+									<h2 id="cookie-heading">Cookie設定</h2>
+									<p>
+										Google
+										Analyticsの連携は公開準備中です。チャンネル情報・作業内容・本人別のAPI応答は計測へ送りません。
+									</p>
+									<label className="consent-label">
+										<input
+											type="checkbox"
+											role="switch"
+											aria-checked={consent.value === 'granted'}
+											checked={consent.value === 'granted'}
+											onChange={(event) =>
+												privacyServices.consent.set(
+													event.target.checked ? 'granted' : 'denied',
+												)
+											}
+										/>
+										<span>利用状況の計測を許可</span>
+									</label>
+									<p role="status">
+										{consent.value === 'granted'
+											? '任意の計測：許可'
+											: '任意の計測：オフ'}
+									</p>
+									{!consent.saved && (
+										<p role="alert">
+											設定を保存できませんでした。この画面では選択を適用しています。次回はもう一度ご確認ください。
+										</p>
+									)}
+									<p>
+										必須の保存と通信は、認証・セキュリティのため常に有効です。任意の計測は初期設定でオフです。
+									</p>
+									<button
+										type="button"
+										className="button"
+										onClick={() => cookieDialog.current?.close()}
+									>
+										閉じる
+									</button>
+								</dialog>
+							)}
+						</div>
 					</CookieSettings.Provider>
 				</IntakeMemory.Provider>
 			</SupportReceipt.Provider>

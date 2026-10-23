@@ -5,6 +5,7 @@ import json
 import re
 import sys
 import traceback
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
 
@@ -132,15 +133,21 @@ def main():
                 assert sum(day["recordedWorkSec"] for day in recorded) == 600
                 assert page.locator(".recorded-bar").count() == len(recorded)
                 assert page.locator(".unknown-bar").count() == 7 - len(recorded)
-                assert page.locator(".recorded-legend").inner_text() == "斜線の棒は記録済み分です。合計は未確定です。"
+                assert page.locator(".recorded-legend").inner_text() == "斜線は記録済み分（集計未確定）"
                 # The real Firestore readTime can cross JST midnight; inspect
                 # the positive day actually returned rather than assuming today.
                 first = recorded[0]
                 minutes = first["recordedWorkSec"] // 60
                 duration = "1分未満" if minutes == 0 else f"{minutes // 60}時間 {minutes % 60}分"
-                label = first["date"] + ": 記録済み " + duration + "（集計未確定）"
+                calendar_day = date.fromisoformat(first["date"])
+                today_jst = datetime.fromisoformat(value["generatedAt"].replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=9))).date()
+                weekday = "月火水木金土日"[calendar_day.weekday()]
+                human_date = f"{calendar_day.month}月{calendar_day.day}日（{weekday}{'・今日' if calendar_day == today_jst else ''}）"
+                label = human_date + ": 記録済み " + duration + "（集計未確定）"
                 page.get_by_role("button", name=label, exact=True).click()
-                assert page.locator(".selected-day").inner_text() == label
+                selected = page.locator(".selected-day").inner_text()
+                assert human_date in selected and "記録済み " + duration in selected
+                assert page.locator(".recent-card").get_by_text("記録がそろっているか未確認です。", exact=True).is_visible()
                 page.locator(".day-button").filter(has=page.locator(".unknown-bar")).first.click()
                 assert page.locator(".selected-day").inner_text().endswith("取得できません")
                 assert "recordedWorkSec" not in recent[0]

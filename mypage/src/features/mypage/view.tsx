@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { Icon, SiteHeader } from '../../components/site-header'
 import { formatWorkSeconds } from '../../lib/format'
 import type { Account, Current, ReasonCode } from './contract'
 import type { MemoryState, Retained, ViewData } from './memory'
@@ -27,6 +28,19 @@ const day = new Intl.DateTimeFormat('sv-SE', {
 	month: '2-digit',
 	day: '2-digit',
 })
+const weekday = new Intl.DateTimeFormat('ja-JP', {
+	timeZone: 'Asia/Tokyo',
+	weekday: 'short',
+})
+function weekdayLabel(date: string) {
+	return weekday.format(new Date(`${date}T00:00:00+09:00`))
+}
+function dateLabel(date: string, today?: string | null) {
+	return `${Number(date.slice(5, 7))}月${Number(date.slice(8))}日（${weekdayLabel(date)}${date === today ? '・今日' : ''}）`
+}
+function shortDate(date: string) {
+	return `${Number(date.slice(5, 7))}/${Number(date.slice(8))}`
+}
 
 function timestamp(value: string | null) {
 	return value && Number.isFinite(Date.parse(value))
@@ -88,18 +102,27 @@ function historySeconds(value?: Retained<number>) {
 	return value?.data ?? value?.recorded?.data ?? null
 }
 
-function historyText(value?: Retained<number>) {
+function historyText(value?: Retained<number>, tentative = true) {
 	if (value?.data === null && value.recorded) {
 		const seconds = value.recorded.data
 		const text = seconds < 60 ? '1分未満' : formatWorkSeconds(seconds)
-		return `記録済み ${text}（集計未確定）`
+		return `記録済み ${text}${tentative ? '（集計未確定）' : ''}`
 	}
 	return formatWorkSeconds(value?.data ?? null)
 }
 
 function MetricValue({ value }: { value?: Retained<number> }) {
 	if (value?.data === null && value.recorded)
-		return <span className="recorded-value">{historyText(value)}</span>
+		return (
+			<span className="recorded-value">
+				<span className="recorded-caption">記録済み</span>
+				{value.recorded.data < 60 ? (
+					'1分未満'
+				) : (
+					<DurationValue seconds={value.recorded.data} />
+				)}
+			</span>
+		)
 	return <DurationValue seconds={value?.data ?? null} />
 }
 
@@ -147,18 +170,21 @@ function StaleNote({ value }: { value: Retained<unknown> }) {
 	if (value.data === null) {
 		if (value.recorded)
 			return (
-				<p className="stale-note">
-					記録済み分を表示しています。この期間の記録がそろっているか確認できないため、合計は未確定です。
-					{timestamp(value.recorded.asOf)}時点
+				<p className="stale-note history-note">
+					<span className="history-status">
+						<Icon name="info" />
+						<span>集計未確定</span>
+						<span className="note-time">
+							{timestamp(value.recorded.asOf)}時点
+						</span>
+					</span>
+					<span>記録がそろっているか未確認です。</span>
 				</p>
 			)
 		const explanations: Partial<Record<ReasonCode, string>> = {
-			HISTORY_INCOMPLETE:
-				'この期間の作業記録がそろっていないため、集計を表示できません。',
-			HISTORY_LIMIT_EXCEEDED:
-				'この期間の作業記録が多いため、集計を表示できません。',
-			DATA_INCONSISTENT:
-				'作業記録の整合性を確認できないため、集計を表示できません。',
+			HISTORY_INCOMPLETE: 'この期間の記録がそろっていません。',
+			HISTORY_LIMIT_EXCEEDED: '記録が多いため集計できません。',
+			DATA_INCONSISTENT: '記録の整合性を確認できません。',
 		}
 		const explanation = value.reason ? explanations[value.reason] : undefined
 		if (explanation) return <p className="stale-note">{explanation}</p>
@@ -231,7 +257,7 @@ function CurrentCard({
 			className={`card current-card ${active ? (resting ? 'resting' : 'working') : 'empty'}`}
 			aria-labelledby="current-heading"
 		>
-			<h2 id="current-heading" className="eyebrow">
+			<h2 id="current-heading" className="sr-only">
 				現在の作業
 			</h2>
 			{active ? (
@@ -308,6 +334,10 @@ function CurrentCard({
 				</>
 			) : (
 				<>
+					<p className="state-badge empty-badge">
+						<span className="state-dot" aria-hidden="true" />
+						{current.state === 'unregistered' ? '未登録' : '未入室'}
+					</p>
 					<p className="empty-title">
 						{current.state === 'unregistered'
 							? 'まだ作業記録がありません'
@@ -323,10 +353,15 @@ function CurrentCard({
 			)}
 			{value && <StaleNote value={value} />}
 			<div className="hero-links current-links">
-				<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
+				{active && (
+					<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
+				)}
 				<ExternalLink href={liveURL} primary={!active}>
 					YouTubeライブを開く
 				</ExternalLink>
+				{!active && (
+					<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
+				)}
 			</div>
 		</section>
 	)
@@ -356,6 +391,7 @@ function SummaryCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 						return (
 							<div className={`metric metric-${key}`} key={key}>
 								<dt>
+									<Icon name={key === 'lifetime' ? 'history' : 'calendar'} />
 									{labels[key]}
 									{key === 'week' && <span>（月曜から）</span>}
 									{key === 'today' &&
@@ -375,7 +411,10 @@ function SummaryCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 					})}
 				</dl>
 			)}
-			<p className="jst-note">日本時間（JST）で集計 · 作業時間のみ</p>
+			<p className="jst-note summary-timezone">
+				<Icon name="clock" />
+				日本時間（JST） · 休憩を除く
+			</p>
 		</section>
 	)
 }
@@ -393,22 +432,36 @@ function RecentCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 			aria-labelledby="recent-heading"
 			aria-busy={busy}
 		>
-			<p className="eyebrow">直近7日</p>
-			<h2 id="recent-heading">最近の積み重ね</h2>
-			<p className="muted chart-label">作業時間</p>
+			<div className="chart-heading">
+				<h2 id="recent-heading" aria-label="直近7日の作業時間">
+					直近7日
+				</h2>
+				{days.length > 0 && (
+					<p className="chart-range">
+						{shortDate(days[0].date)}〜{shortDate(days[days.length - 1].date)}
+					</p>
+				)}
+			</div>
 			{days.length > 0 ? (
 				<>
 					<p className="selected-day" aria-live="polite">
-						{selected?.date}: {historyText(selected)}
+						{selected && (
+							<>
+								<span className="selected-date">
+									{dateLabel(selected.date, today)}
+								</span>
+								<strong>{historyText(selected, false)}</strong>
+							</>
+						)}
 					</p>
-					<div className="bar-chart">
+					<fieldset className="bar-chart" aria-label="日別の作業時間">
 						{days.map((item) => (
 							<button
 								className={`day-button ${item.date === today ? 'is-today' : ''}`}
 								key={item.date}
 								type="button"
 								aria-pressed={item.date === selected?.date}
-								aria-label={`${item.date}: ${historyText(item)}`}
+								aria-label={`${dateLabel(item.date, today)}: ${historyText(item)}`}
 								onClick={() => setSelectedDate(item.date)}
 								onFocus={() => setSelectedDate(item.date)}
 							>
@@ -426,17 +479,19 @@ function RecentCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 									/>
 								</span>
 								<span className="day-label">
-									{Number(item.date.slice(5, 7))}/{Number(item.date.slice(8))}
+									<span
+										className={item.date === today ? 'today-label' : undefined}
+									>
+										{item.date === today ? '今日' : weekdayLabel(item.date)}
+									</span>
+									<span>{Number(item.date.slice(8))}日</span>
 								</span>
-								{item.date === today && (
-									<span className="today-label">今日</span>
-								)}
 							</button>
 						))}
-					</div>
+					</fieldset>
 					{days.some((item) => item.data === null && item.recorded) && (
 						<p className="muted recorded-legend">
-							斜線の棒は記録済み分です。合計は未確定です。
+							斜線は記録済み分（集計未確定）
 						</p>
 					)}
 					{selected && <StaleNote value={selected} />}
@@ -471,7 +526,7 @@ function AccountPanel({
 	}, [])
 	return (
 		<dialog
-			className="account-dialog"
+			className="account-dialog account-panel"
 			ref={dialog}
 			onClose={close}
 			onKeyDown={(event) => {
@@ -497,8 +552,19 @@ function AccountPanel({
 			}}
 			aria-labelledby="account-heading"
 		>
-			<div className="dialog-heading">
-				<h2 id="account-heading">アカウント</h2>
+			<h2 id="account-heading" className="sr-only">
+				アカウント
+			</h2>
+			<div className="account-identity">
+				<div className="account-avatar">
+					<AccountAvatar url={account?.avatarUrl ?? null} />
+				</div>
+				<div className="account-identity-text">
+					<p className="account-name">
+						{account?.displayName ?? 'チャンネル情報を取得できませんでした'}
+					</p>
+					{account?.handle && <p className="muted">{account.handle}</p>}
+				</div>
 				<button
 					className="icon-button"
 					type="button"
@@ -508,22 +574,20 @@ function AccountPanel({
 					×
 				</button>
 			</div>
-			<p className="account-name">
-				{account?.displayName ?? 'チャンネル情報を取得できませんでした'}
-			</p>
-			{account?.handle && <p className="muted">{account.handle}</p>}
 			{value && <StaleNote value={value} />}
 			<button
-				className="button primary full-width"
+				className="button full-width account-logout"
 				type="button"
 				onClick={() => {
 					dialog.current?.close()
 					logout()
 				}}
 			>
+				<Icon name="logout" />
 				ログアウト
 			</button>
-			<a className="manage-link" href="/mypage/account">
+			<a className="manage-link account-manage-link" href="/mypage/account">
+				<Icon name="settings" />
 				アカウント管理
 			</a>
 		</dialog>
@@ -559,42 +623,35 @@ export function MyPageView({
 			<a className="skip-link" href="#main-content">
 				本文へ移動
 			</a>
-			<header className="site-header">
-				<div>
-					<p className="eyebrow">オンライン作業部屋</p>
-					<h1>マイページ</h1>
-				</div>
-				<div className="header-actions">
-					{privateVisible && (
-						<button
-							className="refresh-button"
-							type="button"
-							onClick={refresh}
-							disabled={state.busy}
-							aria-label="最新の情報に更新"
-						>
-							{state.busy ? '更新中…' : '更新'}
-						</button>
-					)}
+			<SiteHeader main>
+				{privateVisible && (
 					<button
+						className="refresh-button"
 						type="button"
-						ref={avatar}
-						className="avatar-button"
-						onClick={() => setPanelOpen(true)}
-						disabled={!privateVisible}
-						aria-label="アカウントを開く"
-						aria-haspopup="dialog"
+						onClick={refresh}
+						disabled={state.busy}
+						aria-label="最新の情報に更新"
 					>
-						<AccountAvatar url={account?.avatarUrl ?? null} />
+						<Icon name="refresh" />
+						{state.busy ? '更新中…' : '更新'}
 					</button>
-				</div>
-			</header>
+				)}
+				<button
+					type="button"
+					ref={avatar}
+					className="avatar-button"
+					onClick={() => setPanelOpen(true)}
+					disabled={!privateVisible}
+					aria-label="アカウントを開く"
+					aria-haspopup="dialog"
+				>
+					<AccountAvatar url={account?.avatarUrl ?? null} />
+				</button>
+			</SiteHeader>
 			<main id="main-content" className="main-content" tabIndex={-1}>
 				{privateVisible ? (
 					<>
-						<p className="greeting">
-							おかえりなさい。今日も、少し進めましょう。
-						</p>
+						<p className="greeting">おかえりなさい。</p>
 						{state.error && data && (
 							<div className="notice" role="status">
 								<p>

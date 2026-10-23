@@ -79,7 +79,7 @@ controllerはsession/API adapterを注入する。browser runtime sliceでFireba
 
 ## Display and visual verification
 
-React表示componentはcurrent / summary / recent7Days / account panelを持ち、snapshotの時刻だけでtimelineを描く。未取得値はunavailable、旧成功値は元asOf付き、休憩でもworkNameを維持。0時間の日もkeyboardで選択できる。native dialogのinertに加えてTab循環・Escape・avatarへのfocus復帰を検証する。最新仕様に合わせflat cream背景と通常cardのshadowなしを使う。
+React表示componentはcurrent / summary / recent7Days / account panelを持ち、snapshotの時刻だけでtimelineを描く。未取得値はunavailable、旧成功値は元asOf付き、休憩でもworkNameを維持。0時間の日もkeyboardで選択できる。native dialogのinertに加えてTab循環・Escape・avatarへのfocus復帰を検証する。2026-10-24のユーザー承認により、淡い光のcream背景と柔らかなshadow、関連画面と共通のブランドヘッダーを使う。視覚方針と確認対象は[design/README.md](design/README.md)を参照する。
 
 `mypage/visual.html` はdev専用の合成fixture入口で、production buildの入口に含めない。product runtimeの結線とは別に、画面コードを独立して実browserで確認する:
 
