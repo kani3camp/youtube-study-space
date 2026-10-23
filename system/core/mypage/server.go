@@ -109,7 +109,7 @@ type ServerDependencies struct {
 	AppCheckHTTP   *http.Client
 	Now            func() time.Time
 	// Optional DEV-only, no-identity cost observation hook.
-	ReadObserver   func(SnapshotReadObservation)
+	ReadObserver func(SnapshotReadObservation)
 }
 
 // NewMyPageServer constructs the handler without bootstrap IO,
