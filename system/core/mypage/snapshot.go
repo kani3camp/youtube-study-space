@@ -11,16 +11,19 @@ import (
 	"cloud.google.com/go/firestore"
 )
 
-// SnapshotReadObservation contains only bounded counters; never store channel
-// identities, document paths, or data. Returned documents are NOT the same as
-// billable reads: missing-query minimums, index entries and retries require
-// Query Explain / Cloud Billing for a complete cost measurement.
+// SnapshotReadObservation contains only bounded counters and a query-error flag;
+// never store channel identities, document paths, data, or error messages.
+// Returned documents are NOT the same as billable reads: missing-query minimums,
+// index entries and retries require Query Explain / Cloud Billing for a complete
+// cost measurement. Query failures must not be interpreted as empty successes.
 type SnapshotReadObservation struct {
 	UserLookups         int
 	SeatQueries         int
 	SeatsReturned       int
+	SeatQueryErrors     int
 	SegmentQueries      int
 	SegmentsReturned    int
+	SegmentQueryError   bool
 	ElapsedMilliseconds int64
 }
 
@@ -72,6 +75,7 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 			attempt.SeatQueries++
 			seats, err := tx.Documents(r.Client.Collection(name).Where("user-id", "==", uid).Limit(2)).GetAll()
 			if err != nil {
+				attempt.SeatQueryErrors++
 				s.SeatUnavailable = true
 				continue
 			}
@@ -96,6 +100,7 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 		attempt.SegmentQueries++
 		segments, err := tx.Documents(query).GetAll()
 		if err != nil {
+			attempt.SegmentQueryError = true
 			s.HistoryUnavailable = true
 		} else {
 			attempt.SegmentsReturned = len(segments)
