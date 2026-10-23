@@ -72,6 +72,12 @@ func TestSnapshotExplicitCoveragePreservesUnknownAndGaps(t *testing.T) {
 
 func TestSnapshotMissingUserSkipsCorruptSeatAndHistory(t *testing.T) {
 	r, uid := snapshotFixture(t)
+	var stats SnapshotReadObservation
+	var reports int
+	r.Observe = func(observation SnapshotReadObservation) {
+		stats = observation
+		reports++
+	}
 	if _, err := r.Client.Collection("seats").Doc(uid).Set(context.Background(), map[string]any{"user-id": uid, "seat-id": "invalid"}); err != nil {
 		t.Fatal(err)
 	}
@@ -82,10 +88,22 @@ func TestSnapshotMissingUserSkipsCorruptSeatAndHistory(t *testing.T) {
 	if s.AsOf.IsZero() || s.User != nil || s.Seat != nil || s.SeatInconsistent || len(s.Segments) != 0 {
 		t.Fatal("unregistered lookup scanned other collections or lost readTime")
 	}
+	require.Equal(t, 1, reports)
+	require.Equal(t, 1, stats.UserLookups)
+	require.Zero(t, stats.SeatQueries)
+	require.Zero(t, stats.SegmentQueries)
+	require.Zero(t, stats.SeatsReturned)
+	require.Zero(t, stats.SegmentsReturned)
 }
 
 func TestSnapshotQueriesOnlyIdentityAndIntersectingWindow(t *testing.T) {
 	r, uid := snapshotFixture(t)
+	var stats SnapshotReadObservation
+	var reports int
+	r.Observe = func(observation SnapshotReadObservation) {
+		stats = observation
+		reports++
+	}
 	capturedAt := time.Now().UTC()
 	if _, err := r.Client.Collection("users").Doc(uid).Set(context.Background(), repository.UserDoc{TotalStudySec: 600}); err != nil {
 		t.Fatal(err)
@@ -103,6 +121,12 @@ func TestSnapshotQueriesOnlyIdentityAndIntersectingWindow(t *testing.T) {
 	if s.HistoryUnavailable || len(s.Segments) != 1 || s.Segments[0].UserID != uid {
 		t.Fatal("snapshot query did not enforce user and bounded overlap window")
 	}
+	require.Equal(t, 1, reports)
+	require.Equal(t, 1, stats.UserLookups)
+	require.Equal(t, 2, stats.SeatQueries)
+	require.Equal(t, 1, stats.SegmentQueries)
+	require.Equal(t, 1, stats.SegmentsReturned)
+	require.Zero(t, stats.SeatsReturned)
 	response, err := Aggregate(s, fixtureAccount())
 	if err != nil {
 		t.Fatal(err)

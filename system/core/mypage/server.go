@@ -108,6 +108,8 @@ type ServerDependencies struct {
 	PublicMetadata PublicMetadataReader
 	AppCheckHTTP   *http.Client
 	Now            func() time.Time
+	// Optional DEV-only, no-identity cost observation hook.
+	ReadObserver func(SnapshotReadObservation)
 }
 
 // NewMyPageServer constructs the handler without bootstrap IO,
@@ -135,7 +137,7 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 	handler := &HTTPHandler{
 		PublicOrigin: config.PublicOrigin, HostingBackendHost: config.HostingBackendHost, Verifier: boundary,
 		Auth: &AuthService{Access: access, Store: store, Provider: deps.OAuth, Minter: boundary, Policy: config.Policy, Now: now, Support: &FirestoreSupportStore{Client: deps.Firestore, Environment: config.Environment}},
-		BFF:  &BFF{Access: access, Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Coverage: append([]Interval(nil), config.Coverage...)}, Environment: config.Environment, Now: now, Metadata: metadata},
+		BFF:  &BFF{Access: access, Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Coverage: append([]Interval(nil), config.Coverage...), Observe: deps.ReadObserver}, Environment: config.Environment, Now: now, Metadata: metadata},
 	}
 	if config.EnablePrivacyIntake {
 		handler.Intake = &FirestorePrivacyIntake{Client: deps.Firestore, Environment: config.Environment, IntakeSecret: append([]byte(nil), config.PrivacyIntakeSecret...)}

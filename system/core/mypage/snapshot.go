@@ -4,11 +4,28 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"app.modules/core/repository"
 
 	"cloud.google.com/go/firestore"
 )
+
+// SnapshotReadObservation contains only bounded counters and a query-error flag;
+// never store channel identities, document paths, data, or error messages.
+// Returned documents are NOT the same as billable reads: missing-query minimums,
+// index entries and retries require Query Explain / Cloud Billing for a complete
+// cost measurement. Query failures must not be interpreted as empty successes.
+type SnapshotReadObservation struct {
+	UserLookups         int
+	SeatQueries         int
+	SeatsReturned       int
+	SeatQueryErrors     int
+	SegmentQueries      int
+	SegmentsReturned    int
+	SegmentQueryError   bool
+	ElapsedMilliseconds int64
+}
 
 type SnapshotReader interface {
 	Read(context.Context, string) (WorkSnapshot, error)
@@ -18,6 +35,8 @@ type FirestoreSnapshotReader struct {
 	Client *firestore.Client
 	// Only verified history coverage may be configured. No default epoch.
 	Coverage []Interval
+	// Optional and called only once after a successful snapshot read.
+	Observe func(SnapshotReadObservation)
 }
 
 func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSnapshot, error) {
@@ -25,7 +44,13 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 		return WorkSnapshot{}, apiError("AUTH_REQUIRED")
 	}
 	var result WorkSnapshot
+	var observation SnapshotReadObservation
+	started := time.Now()
 	err := r.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// Each transaction attempt gets fresh counters. Report once after success;
+		// retries may generate extra billed reads, not included in these counts.
+		attempt := SnapshotReadObservation{UserLookups: 1}
+		defer func() { observation = attempt }()
 		s := WorkSnapshot{UID: uid, Coverage: r.Coverage}
 		// GetAll exposes readTime even for a missing user. Use it to choose the
 		// JST window after the snapshot exists, avoiding request-time boundaries.
@@ -47,11 +72,14 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 		}
 		s.User = &user
 		for _, name := range []string{"seats", "member-seats"} {
+			attempt.SeatQueries++
 			seats, err := tx.Documents(r.Client.Collection(name).Where("user-id", "==", uid).Limit(2)).GetAll()
 			if err != nil {
+				attempt.SeatQueryErrors++
 				s.SeatUnavailable = true
 				continue
 			}
+			attempt.SeatsReturned += len(seats)
 			if len(seats) > 1 || (s.Seat != nil && len(seats) > 0) {
 				s.SeatInconsistent = true
 			}
@@ -69,10 +97,13 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 		query := r.Client.Collection("work-segments").Where("user-id", "==", uid).
 			Where("ended-at", ">", window.QueryStart()).Where("started-at", "<", s.AsOf).
 			OrderBy("ended-at", firestore.Asc).OrderBy("started-at", firestore.Asc).Limit(HistoryReadLimit)
+		attempt.SegmentQueries++
 		segments, err := tx.Documents(query).GetAll()
 		if err != nil {
+			attempt.SegmentQueryError = true
 			s.HistoryUnavailable = true
 		} else {
+			attempt.SegmentsReturned = len(segments)
 			for _, doc := range segments {
 				var segment repository.WorkSegmentDoc
 				if err := doc.DataTo(&segment); err != nil {
@@ -89,6 +120,10 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 	}, firestore.ReadOnly)
 	if err != nil {
 		return WorkSnapshot{}, fmt.Errorf("read work snapshot: %w", err)
+	}
+	if r.Observe != nil {
+		observation.ElapsedMilliseconds = time.Since(started).Milliseconds()
+		r.Observe(observation)
 	}
 	return result, nil
 }

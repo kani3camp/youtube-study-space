@@ -143,7 +143,17 @@ func runWith(ctx context.Context, get func(string) string, deps bootstrapDepende
 			return errors.New("MyPage metadata provider unavailable")
 		}
 	}
-	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Firestore: database, Firebase: sdk, OAuth: provider, PublicMetadata: metadata})
+	// Opt-in only on DEV; never log channel identifiers, document contents or
+	// credentials. These are returned-document counters, not billed reads.
+	var readObserver func(mypage.SnapshotReadObservation)
+	if config.server.Environment == "development" && get("MYPAGE_READ_METRICS") == "true" {
+		readObserver = func(stats mypage.SnapshotReadObservation) {
+			log.Printf("mypage_snapshot_read user_lookups=%d seat_queries=%d seats_returned=%d seat_query_errors=%d segment_queries=%d segments_returned=%d segment_query_error=%t elapsed_ms=%d",
+				stats.UserLookups, stats.SeatQueries, stats.SeatsReturned, stats.SeatQueryErrors,
+				stats.SegmentQueries, stats.SegmentsReturned, stats.SegmentQueryError, stats.ElapsedMilliseconds)
+		}
+	}
+	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Firestore: database, Firebase: sdk, OAuth: provider, PublicMetadata: metadata, ReadObserver: readObserver})
 	if err != nil || bootstrapCtx.Err() != nil {
 		return errors.New("MyPage handler unavailable")
 	}
