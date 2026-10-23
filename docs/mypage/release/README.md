@@ -95,6 +95,18 @@ Go変更の必須checksは[AGENTS.md](../../../AGENTS.md)。生成後の意図�
 
 browserはlocal Viteをport18081で起動し、[runtime](../../../mypage/scripts/runtime-qa.py)・[privacy](../../../mypage/scripts/privacy-qa.py)・[visual](../../../mypage/scripts/visual-qa.py)・[font](../../../mypage/scripts/font-qa.py)を使う。各scriptは外部requestを遮断する。実bfcacheは[専用static build](../../../mypage/scripts/bfcache.vite.config.ts)と[既存QA](../../../mypage/scripts/bfcache-qa.py)を使い、dev HMRを証拠にしない。設定済みpublic文面は専用testとbrowserで匿名到達/安全なlinkを確認する。実ユーザー画面をpublic QA artifactへ保存しない。
 
+### DEV専用：MyPageのFirestore読み取り原価計測
+
+設計候補は[Notion D06](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)。データソースの正本は[03｜統計](https://app.notion.com/p/3ec357a8d0ce81ac94eef9e6ac0c9964)。本PRで収集フックを実装しても、**実DEVでのデプロイ・計測・index適用を行ったことにはならない**。
+
+- DEVの明示環境設定 `MYPAGE_READ_METRICS=true` の時だけ、BFFのCache Missから生じたFirestore snapshotの**成功したread-only transaction**ごとに `mypage_snapshot_read` を出力する。Productionではこの設定があっても無効。設定追加はDEV Cloud Run / Terraformの既存env allowlistとrelease承認を通して行う。
+- 記録内容は `user_lookups`（UserDoc lookup数）、`seat_queries` / `seats_returned`、`segment_queries` / `segments_returned`、`elapsed_ms` の数値のみ。uid/channel ID、氏名、path、作業名、segment本文、OAuth/Cookieなどの秘匿値を記録しない。
+- **この数値をFirestoreの実課金読み取り数と混同しない。** 返却0件のqueryの最低課金、index entry read、transaction retry、アクセス制御の別経路、既存AWS Batch等の利用は含まれない。実請求は選択GCP projectのCloud Billingと[Query Explain](https://firebase.google.com/docs/firestore/query-explain)を参照する。Explain Analyze自体も対象クエリのread料金が発生するため、小規模な合成データで実施する。
+- 合成テスト対象：User不存在、履歴0/10/100/500/1000件（可能なら1001件検知）、同一IDの通常席/メンバー席、JST日曜→月曜・月末境界、coverage欠損、クエリ失敗と認証拒否。受け取った文書数だけでなく、失敗/上限時に履歴を0として表示しないことを確認する。
+- 毎回の処理量（read/write/index read/CPU/latency）と1人・1日あたりのrequest回数を組み合わせて、実測原価を計算する。**現行のQuery `work-segments` は`ended-at`と`started-at`の複数の範囲条件を含むため、index entry readの請求をQuery Explain Analyzeで確認する。** 安全な値として`limit(1001)`があっても、同等数の課金readに収まる保証にはならない。
+- 代表的な2時間滞在なら、定期refreshは旧60秒120回→新5分24回が**目標値**。手動操作/ログイン/再試行は別集計。複数インスタンスのヒット率、App CheckのreCAPTCHA評価回数、追加書き込み/キャッシュ維持費も別途算出する。
+- 既存writer inventory：`workspaceapp/command_seat.go`、`workspaceapp/utils.go`、`workspaceapp/batch.go`、`workspaceapp/command_moderation.go` と `repository.CreateWorkSegmentDoc`。作業区間の確定はtransaction経由が多いが、**writerが全て月次rollupまで同一transactionで更新する保証は未確認**。まずwriter/削除/訂正/既存DailyUserWorkHistoryDocの全経路を検証する。集計documentの採用・backfill・Firestore schema変更は別PRに分離し、未検証の欠損を0にして公開しない。
+
 ## 4. Gateと承認の順序
 
 | checkpoint | 完了を示す証跡 | 未完時 |
