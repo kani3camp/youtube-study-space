@@ -175,6 +175,9 @@ jobs:
         env:
           MYPAGE_PLAN_TIME: ${{ needs.foundation_plan.outputs.plan_time }}
         run: python3 infra/mypage-platform/scripts/foundation_ops.py apply
+      - name: Verify metrics-only serving revision after Apply
+        if: ${{ steps.applied.outcome == 'success' && (inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply') }}
+        run: python3 infra/mypage-platform/scripts/read_metrics_transition.py readback
       - name: Reject missing Plan agreement or incomplete Apply
         if: ${{ always() && steps.prepared.outcome == 'success' && steps.applied.outcome != 'success' }}
         run: exit 1

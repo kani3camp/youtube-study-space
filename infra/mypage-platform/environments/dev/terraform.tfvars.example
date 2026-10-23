@@ -9,8 +9,37 @@ stage = "disabled"
 # runtime_settings object, set read_metrics_enabled = true. This is a boolean;
 # the JSON manifest uses true, not "true". Do not replace the other required fields.
 # Omission/false leaves MYPAGE_READ_METRICS absent. Production rejects true.
-# The flag does not authorize deployment or any serving-revision update/drift.
-# Existing create/no-op admission stays unchanged: enabling OR disabling metrics
-# on a serving DEV revision requires a separately reviewed release transition.
-# Keep the exact image/config pair and rollback evidence together. This example
-# does not change runtime-release.json or prove live reads, costs or readiness.
+# Changing this flag alone still does not authorize a serving update.
+#
+# To change an EXISTING serving DEV revision, use BOTH fields in the existing
+# private settings for mypage-dev-plan AND mypage-dev-apply (not this example):
+#   read_metrics_enabled       = true       # false to turn observation off
+#   read_metrics_from_revision = "mypage-api-<observed-ready-revision>"
+# The revision must be read from DEV, Ready, and receiving 100% of traffic.
+# The Plan must contain exactly one service update: adding/removing the fixed
+# MYPAGE_READ_METRICS=true env. Same image, origin, identity, secret versions,
+# ingress, scaling and every other resource are required; drift/import/delete/
+# replacement and unknown configuration are rejected. Other resources are no-op.
+#
+# Before enabling: build/deploy the #1437-capable image through the existing
+# reviewed image release path, reconcile its State with a no-op Plan, and verify
+# the exact runtime-release.json digest/source pair. This transition does not
+# combine image rollout with logging, and cannot make an old image emit metrics.
+# Verify the DEV apply identity already has the required update permission;
+# do not expand IAM or bypass a rejected Plan as part of the toggle.
+#
+# Use the EXISTING runtime-private/public-plan and matching -apply workflow
+# modes with exact source SHA. Independent Plan agreement, saved Plan hash,
+# State-version binding and the 30-minute age limit remain mandatory.
+# After apply, the readback step must verify a NEW ready revision, target env,
+# unchanged configuration, generation progression and 100% traffic before
+# accepting completion. Failure stops; it does not automatically roll back.
+#
+# Clear read_metrics_from_revision back to "" in both private settings after
+# success, retaining the target read_metrics_enabled value, then confirm no-op.
+# To disable/roll back, use false and the CURRENT newly observed ready revision
+# in a fresh Plan/apply. Never replay the enable Plan or name an old revision.
+# Keep synthetic measurement scope/limits, previous and new revision/digest,
+# evidence and rollback together in the existing release record / Issue #1133.
+# Inspect normal vs failed-query counters separately; returned docs != billed
+# reads. This example does not perform deployment or prove live costs/readiness.

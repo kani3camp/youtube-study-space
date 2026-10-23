@@ -17,4 +17,5 @@ for environment in dev prod; do
 done
 
 python3 infra/mypage-platform/scripts/check-foundation-native.py
+python3 infra/mypage-platform/scripts/check-read-metrics-native.py
 echo "MyPage platform: credentialless validation and mocks passed."

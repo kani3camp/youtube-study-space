@@ -44,6 +44,7 @@ variable "runtime_settings" {
     hosting_backend_host        = optional(string, "")
     previous_image_digest       = optional(string, "")
     read_metrics_enabled        = optional(bool, false)
+    read_metrics_from_revision  = optional(string, "")
   })
   default = {
     image_digest                = ""
@@ -59,8 +60,8 @@ variable "runtime_settings" {
 
   # Reject even in disabled/foundation stages; do not silently accept a DEV flag.
   validation {
-    condition     = !var.runtime_settings.read_metrics_enabled
-    error_message = "Snapshot read metrics are development-only and cannot be enabled in production."
+    condition     = !var.runtime_settings.read_metrics_enabled && var.runtime_settings.read_metrics_from_revision == ""
+    error_message = "Snapshot read metrics and their serving transitions are development-only."
   }
 
   validation {
