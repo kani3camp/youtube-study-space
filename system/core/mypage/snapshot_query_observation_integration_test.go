@@ -122,12 +122,26 @@ func TestSnapshotObservationDistinguishesQueryFailureFromEmptySuccess(t *testing
 			require.Equal(t, tc.segmentQueryError, snapshot.HistoryUnavailable)
 			response, err := Aggregate(snapshot, fixtureAccount())
 			require.NoError(t, err)
-			if tc.seatQueryErrors > 0 || tc.segmentQueryError {
+			switch {
+			case tc.seatQueryErrors > 0:
+				// A missing seat makes every summary metric unavailable, so the
+				// established API contract omits the entire summary payload.
+				require.Equal(t, Unavailable, response.Summary.Availability)
+				require.Nil(t, response.Summary.Data)
+				require.NotNil(t, response.Summary.ReasonCode)
+				require.Equal(t, SourceUnavailable, *response.Summary.ReasonCode)
+			case tc.segmentQueryError:
+				// History failure preserves the independently available lifetime.
+				require.Equal(t, Partial, response.Summary.Availability)
+				require.NotNil(t, response.Summary.Data)
 				require.Equal(t, Unavailable, response.Summary.Data.Today.Availability)
 				require.NotNil(t, response.Summary.Data.Today.ReasonCode)
 				require.Equal(t, SourceUnavailable, *response.Summary.Data.Today.ReasonCode)
 				require.Nil(t, response.Summary.Data.Today.WorkSec)
-			} else {
+				expectSeconds(t, response.Summary.Data.Lifetime, 600)
+			default:
+				require.Equal(t, Available, response.Summary.Availability)
+				require.NotNil(t, response.Summary.Data)
 				expectSeconds(t, response.Summary.Data.Today, 0)
 			}
 		})
