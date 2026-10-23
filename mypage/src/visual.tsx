@@ -29,6 +29,14 @@ if (import.meta.env.DEV) {
 	if (mode === 'avatar-failure' && sample.account.data)
 		sample.account.data.avatarUrl =
 			'https://invalid.example/synthetic-avatar.png'
+	if (
+		(mode === 'long-handle' || mode === 'long-identity') &&
+		sample.account.data
+	) {
+		if (mode === 'long-identity')
+			sample.account.data.displayName = 'LongChannelNameWithoutSpaces'.repeat(3)
+		sample.account.data.handle = `@${'longhandle0123456789'.repeat(2)}`
+	}
 	if (sample.current.data) {
 		if (mode === 'break' || mode === 'member-break')
 			sample.current.data.state = 'break'

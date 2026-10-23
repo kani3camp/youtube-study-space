@@ -809,6 +809,7 @@ h2 {
 .account-identity-text {
 	min-width: 0;
 	flex: 1;
+	overflow-wrap: anywhere;
 }
 .account-avatar {
 	width: 48px;

@@ -59,6 +59,31 @@ with sync_playwright() as p:
  assert page.get_by_text('@sample',exact=True).count()==0
  assert page.get_by_text('チャンネル情報の有効期限が切れました。再取得まで表示できません。',exact=True).count()==1
  page.keyboard.press('Escape')
+ # Long unbroken identity text must stay out of the close control, including
+ # painted glyphs: element boxes alone do not detect overflowing text.
+ for width, identity_state in [(w,s) for w in [320,390,1440] for s in ['long-handle','long-identity']]:
+  page.set_viewport_size({'width':width,'height':960})
+  page.goto('http://127.0.0.1:18081/visual.html?state='+identity_state)
+  page.get_by_role('button',name='アカウントを開く').click()
+  page.evaluate('document.fonts.ready')
+  assert page.locator('.account-identity-text .muted').inner_text()=='@'+'longhandle0123456789'*2
+  text_bounds=page.locator('.account-identity-text').evaluate('''identity => {
+   const limit=identity.getBoundingClientRect();
+   const close=identity.parentElement.querySelector('button').getBoundingClientRect();
+   return Array.from(identity.querySelectorAll('p')).flatMap(text=>{
+    const range=document.createRange();range.selectNodeContents(text);
+    return Array.from(range.getClientRects()).map(r=>({left:r.left,right:r.right,top:r.top,bottom:r.bottom,limitLeft:limit.left,limitRight:limit.right,closeLeft:close.left,closeRight:close.right,closeTop:close.top,closeBottom:close.bottom}));
+   });
+  }''')
+  for rect in text_bounds:
+   assert rect['left']>=rect['limitLeft']-1 and rect['right']<=rect['limitRight']+1,(width,'identity text escaped its column',rect)
+   assert rect['right']<=rect['closeLeft'] or rect['left']>=rect['closeRight'] or rect['bottom']<=rect['closeTop'] or rect['top']>=rect['closeBottom'],(width,'identity text overlaps close',rect)
+  close=page.get_by_role('button',name='アカウントを閉じる')
+  close_box=close.bounding_box()
+  assert close_box['width']>=44 and close_box['height']>=44
+  page.screenshot(path=str(out/f'account-{identity_state}-{width}.png'),full_page=True)
+  close.click();assert page.get_by_role('dialog',name='アカウント').count()==0
+  assert page.get_by_role('button',name='アカウントを開く').evaluate('(el)=>document.activeElement===el')
  # native modal, focus containment, Escape restoration, keyboard-selected zero.
  for width in [390,1440]:
   page.set_viewport_size({'width':width,'height':960})
@@ -83,6 +108,6 @@ with sync_playwright() as p:
   avatar.locator('svg').wait_for();assert avatar.locator('img').count()==0
   avatar.click();page.get_by_role('button',name='ログアウト',exact=True).wait_for()
  browser.close()
-report={'syntheticOnly':True,'cases':results,'dialogKeyboardAndLogout':[390,1440],'avatarFailureFallback':[390,1440],'externalRequestsBlocked':True,'approvedReference':'Supplied Approved HTML/runtime compared locally with the same self-hosted M PLUS Rounded 1c faces; exact pixel parity is not a target because Current Canon overrides prototype semantics'}
+report={'syntheticOnly':True,'cases':results,'longIdentityWithoutCloseOverlap':{'widths':[320,390,1440],'states':['long-handle','long-identity']},'dialogKeyboardAndLogout':[390,1440],'avatarFailureFallback':[390,1440],'externalRequestsBlocked':True,'approvedReference':'Supplied Approved HTML/runtime compared locally with the same self-hosted M PLUS Rounded 1c faces; exact pixel parity is not a target because Current Canon overrides prototype semantics'}
 (out/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 print(f'PASS: {len(results)} responsive/state cases, mobile stacked metrics and tentative history, bounded timestamp, skeleton/first failure/zero metrics, avatar fallback, modal focus/Escape/zero-selection/logout at 390 and 1440.')
