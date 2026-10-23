@@ -4,13 +4,15 @@ Phase 1のデザイン方針は[Notion 01｜画面・機能仕様](https://app.n
 
 ## 表示の原則
 
-- flat cream背景と、明るいsurface・薄いborderを使う。通常cardに常設shadowを付けない。
+- クリーム背景に淡い光のgradientを重ね、明るいsurface・薄いborder・静的な柔らかなshadowを使う。作業中は暖色、休憩中はセージ系のshadow。常時animationは加えない。
 - 現在の作業を主役とし、作業中は暖色、休憩中はセージ色で区別する。色だけに状態を依存させない。
 - 休憩中も通常の`workName`を保持し、「いまの作業」「休憩開始」「休憩終了予定」を表示する。
 - 未入室・未登録・正常0・不明・取得障害を区別する。不完全履歴の記録済み分は、確定合計と混同させない。
 - Accountはヘッダーから開き、mobileではbottom sheet、広い幅ではpopoverとして表示する。
 - keyboard focus、modalのfocus循環と背景inert、Escape、triggerへのfocus復帰、status/alert、reduced motion、約44pxの操作対象を維持する。
 - 自己配信fontの由来・license・描画table・再現方法は[font README](../../../mypage/src/assets/fonts/README.md)を正本とする。
+
+2026-10-24のユーザーとの画面比較で、従来のflat / shadowなしから上記の方針へ変更した。ロゴとサービス名の共通ヘッダー・更新アイコン、短い挨拶、白系未入室カードと状態バッジ・ライブ優先の導線、スマホの縦サマリー、短い常時説明、期間・曜日付きグラフ、本人情報中心のaccount panelを採用する。記録済み分と確定合計、snapshot時刻、休憩中の作業名、認証・公開文面の契約は維持する。
 
 ## 視覚・操作確認
 

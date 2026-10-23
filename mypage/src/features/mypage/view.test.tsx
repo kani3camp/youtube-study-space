@@ -32,12 +32,14 @@ describe('MyPage observable display', () => {
 		s.data = mergeResponse(null, recorded as MyPage)
 		const html = markup(s)
 		expect(html).toContain(
-			'aria-label="2026-10-06: 記録済み 0時間 50分（集計未確定）"',
+			'aria-label="10月6日（火・今日）: 記録済み 0時間 50分（集計未確定）"',
 		)
 		expect(html).toContain('recorded-bar')
 		expect(html).toContain('height:100%')
-		expect(html).toContain('合計は未確定です')
-		expect(html).toContain('aria-label="2026-09-30: 取得できません"')
+		expect(html).toContain('集計未確定')
+		expect(html).toContain('記録がそろっているか未確認です。')
+		expect(html).toContain('10/6 12:00')
+		expect(html).toContain('aria-label="9月30日（水）: 取得できません"')
 		expect(html).not.toMatch(/aria-label="[^"]+: 0時間 0分"/)
 		s.data.recent[6].recorded = { data: 30, asOf: recorded.generatedAt }
 		expect(markup(s)).toContain('記録済み 1分未満（集計未確定）')
@@ -72,7 +74,7 @@ describe('MyPage observable display', () => {
 	})
 	it('gives every day including zero a named selectable button and text outside the graph', () => {
 		const html = markup(state())
-		expect(html).toContain('aria-label="2026-09-30: 0時間 0分"')
+		expect(html).toContain('aria-label="9月30日（水）: 0時間 0分"')
 		expect(html.match(/class="day-button/g)?.length).toBe(7)
 		expect(html).toContain('aria-live="polite"')
 	})
@@ -100,13 +102,13 @@ describe('MyPage observable display', () => {
 		expect(html).toContain('情報を取得できませんでした')
 		expect(html).toContain('作業サマリー')
 		expect(html).toContain('1時間 0分')
-		expect(html).toContain('最近の積み重ね')
+		expect(html).toContain('aria-label="直近7日の作業時間"')
 		expect(html).not.toContain('現在は入室していません')
 	})
 	it.each([
-		['HISTORY_INCOMPLETE', 'この期間の作業記録がそろっていないため'],
-		['HISTORY_LIMIT_EXCEEDED', 'この期間の作業記録が多いため'],
-		['DATA_INCONSISTENT', '作業記録の整合性を確認できないため'],
+		['HISTORY_INCOMPLETE', 'この期間の記録がそろっていません。'],
+		['HISTORY_LIMIT_EXCEEDED', '記録が多いため集計できません。'],
+		['DATA_INCONSISTENT', '記録の整合性を確認できません。'],
 	] as const)('explains %s without inventing zero or a fetch failure', (reason, message) => {
 		const s = state()
 		if (!s.data) throw new Error('synthetic data missing')
@@ -122,6 +124,28 @@ describe('MyPage observable display', () => {
 		expect(html).toContain(message)
 		expect(html).not.toContain('情報を取得できませんでした')
 		expect(html).not.toContain('0時間 0分')
+	})
+	it('labels the calendar range and today in JST across the year boundary', () => {
+		const s = state()
+		if (!s.data) throw new Error('synthetic data missing')
+		s.data.generatedAt = '2026-12-31T15:05:00Z'
+		const dates = [
+			'2026-12-26',
+			'2026-12-27',
+			'2026-12-28',
+			'2026-12-29',
+			'2026-12-30',
+			'2026-12-31',
+			'2027-01-01',
+		]
+		s.data.recent = s.data.recent.map((item, index) => ({
+			...item,
+			date: dates[index],
+		}))
+		const html = markup(s)
+		expect(html).toContain('12/26〜1/1')
+		expect(html).toContain('1月1日（金・今日）')
+		expect(html).toContain('12月31日（木）')
 	})
 	it('keeps the last verified value and timestamp when later history is incomplete', () => {
 		const s = state()
