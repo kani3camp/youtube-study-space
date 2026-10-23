@@ -23,4 +23,4 @@ firebase emulators:exec \
 	--project "$project_id" \
 	--only firestore \
 	--log-verbosity INFO \
-	"cd system && go test -tags=integration -shuffle=on -count=1 -p=1 -v ./core/repository/... ./core/workspaceapp/... ./core/mypage/... ./core/serviceaccess/... ./core/supportdelete/... ./cmd/mypage-operator-dryrun/... ./cmd/service-access-control/... ./cmd/mypage-support-delete/... ./cmd/mypage-support-operator/..."
+	"cd system && go test -tags=integration -count=1 -v -run '^TestSnapshotObservationDistinguishesQueryFailureFromEmptySuccess$' ./core/mypage && go test -tags=integration -shuffle=on -count=1 -p=1 -v ./core/repository/... ./core/workspaceapp/... ./core/mypage/... ./core/serviceaccess/... ./core/supportdelete/... ./cmd/mypage-operator-dryrun/... ./cmd/service-access-control/... ./cmd/mypage-support-delete/... ./cmd/mypage-support-operator/..."
