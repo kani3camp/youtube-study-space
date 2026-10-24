@@ -167,10 +167,14 @@ export class MyPageMemory {
 	private controller: AbortController | null = null
 	private timer: ReturnType<typeof setTimeout> | null = null
 	private visible = true
+	private routeActive = true
+	private online = true
 	private failures = 0
 	private ignoreAuthUntilSignedOut = false
 	private lastManual = Number.NEGATIVE_INFINITY
 	private retryAt = 0
+	private automaticRetryAt = 0
+	private retryUID: string | null = null
 
 	private load: Loader
 	private signOut: () => Promise<void>
@@ -203,7 +207,6 @@ export class MyPageMemory {
 	private clear(phase: MemoryState['phase'], error: string | null = null) {
 		this.epoch++
 		this.stop()
-		this.failures = 0
 		this.publish({
 			phase,
 			data: null,
@@ -222,6 +225,13 @@ export class MyPageMemory {
 			!(freshLogin && this.state.phase === 'restricted')
 		)
 			return
+		if (uid !== null && uid !== this.retryUID) {
+			this.retryUID = uid
+			this.failures = 0
+			this.retryAt = 0
+			this.automaticRetryAt = 0
+			this.lastManual = Number.NEGATIVE_INFINITY
+		}
 		this.uid = uid
 		this.clear(uid === null ? 'anonymous' : 'authenticated')
 		if (uid !== null) void this.refresh()
@@ -241,7 +251,27 @@ export class MyPageMemory {
 	setVisible(visible: boolean) {
 		if (visible === this.visible) return
 		this.visible = visible
-		if (!visible) {
+		this.resumeFetching()
+	}
+
+	setRouteActive(active: boolean) {
+		if (active === this.routeActive) return
+		this.routeActive = active
+		this.resumeFetching()
+	}
+
+	setOnline(online: boolean) {
+		if (online === this.online) return
+		this.online = online
+		this.resumeFetching()
+	}
+
+	private canFetch() {
+		return this.visible && this.routeActive && this.online
+	}
+
+	private resumeFetching() {
+		if (!this.canFetch()) {
 			if (this.timer !== null) clearTimeout(this.timer)
 			this.timer = null
 		} else {
@@ -292,7 +322,11 @@ export class MyPageMemory {
 	}
 
 	private schedule(delay: number) {
-		if (!this.visible || this.uid === null || this.state.phase === 'restricted')
+		if (
+			!this.canFetch() ||
+			this.uid === null ||
+			this.state.phase === 'restricted'
+		)
 			return
 		if (this.timer !== null) clearTimeout(this.timer)
 		this.timer = setTimeout(
@@ -306,13 +340,16 @@ export class MyPageMemory {
 
 	async refresh(manual = false) {
 		if (
-			!this.visible ||
+			!this.canFetch() ||
 			this.uid === null ||
 			this.state.busy ||
 			this.state.phase === 'restricted'
 		)
 			return
-		const remaining = this.retryAt - this.now()
+		// Explicit manual retries may bypass ordinary transport backoff, but
+		// visibility/route/network events must preserve its absolute deadline.
+		const remaining =
+			Math.max(this.retryAt, manual ? 0 : this.automaticRetryAt) - this.now()
 		if (remaining > 0) {
 			this.schedule(remaining)
 			return
@@ -332,6 +369,7 @@ export class MyPageMemory {
 			let forceAppCheck = false
 			let response: MyPage
 			for (;;) {
+				if (!this.canFetch()) return
 				try {
 					response = await this.load(
 						uid,
@@ -365,6 +403,7 @@ export class MyPageMemory {
 			}
 			if (epoch !== this.epoch || uid !== this.uid) return
 			this.failures = 0
+			this.automaticRetryAt = 0
 			this.publish({
 				...this.state,
 				data: mergeResponse(this.state.data, response),
@@ -403,6 +442,7 @@ export class MyPageMemory {
 				this.retryAt = Math.max(this.retryAt, this.now() + cooldown)
 				delay = Math.max(delay, cooldown)
 			}
+			this.automaticRetryAt = this.now() + delay
 			this.publish({
 				...this.state,
 				error:

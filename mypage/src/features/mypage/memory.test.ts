@@ -447,6 +447,116 @@ describe('private MyPage memory', () => {
 		memory.dispose()
 	})
 
+	it.each([
+		'route',
+		'offline',
+	] as const)('fetches only while MyPage is visible and online: %s', async (boundary) => {
+		const load = vi.fn().mockResolvedValue(sample())
+		const memory = new MyPageMemory(load, async () => {})
+		const enable = (active: boolean) =>
+			boundary === 'route'
+				? memory.setRouteActive(active)
+				: memory.setOnline(active)
+		enable(false)
+		memory.setIdentity('sample')
+		await settle()
+		await vi.advanceTimersByTimeAsync(600_000)
+		await memory.refresh(true)
+		expect(load).not.toHaveBeenCalled()
+		enable(true)
+		await settle()
+		expect(load).toHaveBeenCalledTimes(1)
+		await vi.advanceTimersByTimeAsync(30_000)
+		enable(false)
+		enable(true)
+		await vi.advanceTimersByTimeAsync(269_999)
+		expect(load).toHaveBeenCalledTimes(1)
+		await vi.advanceTimersByTimeAsync(1)
+		expect(load).toHaveBeenCalledTimes(2)
+		enable(false)
+		memory.setVisible(false)
+		await vi.advanceTimersByTimeAsync(600_000)
+		enable(true)
+		await settle()
+		expect(load).toHaveBeenCalledTimes(2)
+		memory.setVisible(true)
+		await settle()
+		expect(load).toHaveBeenCalledTimes(3)
+		memory.dispose()
+	})
+
+	it.each([
+		'visibility',
+		'route',
+		'offline',
+		'bfcache',
+	] as const)('preserves automatic 503 backoff through %s and retries once at the deadline', async (boundary) => {
+		const load = vi
+			.fn()
+			.mockRejectedValue(new RequestError(503, 'TEMPORARY_UNAVAILABLE'))
+		const memory = new MyPageMemory(load, async () => {})
+		memory.setIdentity('sample')
+		await settle()
+		await vi.advanceTimersByTimeAsync(60_000)
+		expect(load).toHaveBeenCalledTimes(2)
+		await vi.advanceTimersByTimeAsync(10_000)
+		if (boundary === 'visibility') {
+			memory.setVisible(false)
+			memory.setVisible(true)
+		} else if (boundary === 'route') {
+			memory.setRouteActive(false)
+			memory.setRouteActive(true)
+		} else if (boundary === 'offline') {
+			memory.setOnline(false)
+			memory.setOnline(true)
+		} else {
+			memory.suspend()
+			memory.setIdentity('sample')
+		}
+		await vi.advanceTimersByTimeAsync(109_999)
+		expect(load).toHaveBeenCalledTimes(2)
+		load.mockResolvedValue(sample())
+		await vi.advanceTimersByTimeAsync(1)
+		expect(load).toHaveBeenCalledTimes(3)
+		expect(memory.getSnapshot().error).toBeNull()
+		memory.dispose()
+	})
+
+	it('does not transfer an old UID retry deadline to a different UID', async () => {
+		const load = vi
+			.fn()
+			.mockRejectedValueOnce(new RequestError(429, 'RATE_LIMITED', 120))
+			.mockResolvedValue(sample())
+		const memory = new MyPageMemory(load, async () => {})
+		memory.setIdentity('old')
+		await settle()
+		memory.setIdentity('new')
+		await settle()
+		expect(load).toHaveBeenCalledTimes(2)
+		expect(memory.getSnapshot().data).not.toBeNull()
+		memory.dispose()
+	})
+
+	it('keeps the backoff failure count after bfcache restore to the same UID', async () => {
+		const load = vi
+			.fn()
+			.mockRejectedValue(new RequestError(503, 'TEMPORARY_UNAVAILABLE'))
+		const memory = new MyPageMemory(load, async () => {})
+		memory.setIdentity('sample')
+		await settle()
+		await vi.advanceTimersByTimeAsync(60_000 + 120_000)
+		expect(load).toHaveBeenCalledTimes(3)
+		memory.suspend()
+		memory.setIdentity('sample')
+		await vi.advanceTimersByTimeAsync(240_000)
+		expect(load).toHaveBeenCalledTimes(4)
+		await vi.advanceTimersByTimeAsync(299_999)
+		expect(load).toHaveBeenCalledTimes(4)
+		await vi.advanceTimersByTimeAsync(1)
+		expect(load).toHaveBeenCalledTimes(5)
+		memory.dispose()
+	})
+
 	it('allows manual refresh without waiting five minutes and restarts the timer', async () => {
 		const load = vi.fn().mockResolvedValue(sample())
 		const memory = new MyPageMemory(load, async () => {})
