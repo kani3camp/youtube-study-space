@@ -1,0 +1,2 @@
+This file exists only to check GitHub's commit signature verification for the ChatGPT GitHub connector.
+Created on 2026-10-24. Do not merge this test branch.
