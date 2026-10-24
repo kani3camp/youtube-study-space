@@ -768,9 +768,20 @@
       "finalMetadata": 40087126693
     },
     "stateReadback": {
-      "finalCIPassed": true,
-      "finalOperatorS3IndependentVerified": false,
-      "reason": "existing AWS SSO expired; reauthentication pending"
+      "independentS3ReadbackVerified": true,
+      "serial": 14,
+      "resourceCount": 12,
+      "versionPinned": true,
+      "encrypted": true,
+      "lockAbsent": true,
+      "configurationExactMatch": true,
+      "identityExactMatch": true,
+      "generation": "6",
+      "ready": "mypage-api-00006-xjf",
+      "metricsEnabled": false,
+      "verifiedAt": "2026-10-24T11:25:01.626094+00:00",
+      "source": "connected AWS terraform state, independent of GitHub CI",
+      "finalCIPassed": true
     }
   },
   "appCheck": {
@@ -781,7 +792,6 @@
     "organizationBillingVerified": false
   },
   "remaining": [
-    "final S3 State independent readback (operator SSO expired; final CI State readback passed)",
     "authenticated HTTP raw/month/cache comparison (synthetic fixture window ended before re-login; ordinary zero smoke passed after OFF)",
     "real seat/history dependency-failure injection",
     "Cloud Run CPU/billable wall time attributable to API case",

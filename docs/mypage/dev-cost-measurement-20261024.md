@@ -35,7 +35,7 @@ raw queryの1000文書を月次1文書へ置換した部分だけなら99.9%減�
 
 合成削除後、現在のReadyを元に新しいOFF Planを作り、[観測OFF](https://github.com/kani3camp/youtube-study-space/actions/runs/40086892890)が成功した。実GETでgeneration 6 / Ready `mypage-api-00006-xjf`、imageと他設定不変を確認。その最新完全copyに元ON時`resourceVersion`を付けた設定不変PUTは実APIで409拒否され、送信前後のetag/generation/spec不変も確認した。これは当該実競合の拒否証跡であり、全ての並行変更パターンを証明するものではない。
 
-一時付与していた1権限`run.services.update`を既存CI Apply SAから解除し、試験用custom roleを削除状態にした。元IAM etagを使って他binding不変を照合し、Cloud Run image/spec/Readyも維持した。GitHub Environmentの既存runtime入力は両方とも`read_metrics_enabled=false`、`read_metrics_from_revision=""`へ復元。[最終metadata同期CI](https://github.com/kani3camp/youtube-study-space/actions/runs/40087126693)のPlan/Apply/State readbackは成功した。operator側のAWS SSOが期限切れのため、最終State objectのS3独立読み戻しだけは再認証待ちであり、完了とはしていない。
+一時付与していた1権限`run.services.update`を既存CI Apply SAから解除し、試験用custom roleを削除状態にした。元IAM etagを使って他binding不変を照合し、Cloud Run image/spec/Readyも維持した。GitHub Environmentの既存runtime入力は両方とも`read_metrics_enabled=false`、`read_metrics_from_revision=""`へ復元。[最終metadata同期CI](https://github.com/kani3camp/youtube-study-space/actions/runs/40087126693)のPlan/Apply/State readbackは成功した。2026-10-24 11:25:01 UTCに、AWSプラグインの既存「terraform state」接続から正確なDEV State keyを独立して読み戻した。S3 versionを固定して読み、serial 14・12資源、暗号化、lock不在を確認。既存契約と同じ正規化で、Cloud Runの全設定とUID/generation/observed generation/etag/更新時刻/Ready・created revisionがライブと完全一致した。State本文・bucket/account・credentialを公開していない。
 
 ## 予算と後片付け
 
@@ -58,4 +58,4 @@ cleanup後に別のread-only照合でUser/raw/月次文書/座席不在と元SAC
 
 App Check token TTLは3600秒。key metricsの同じ日単位windowで前後合計66→66を得たが、反映遅延・日粒度のため評価数0の証拠や1 poll単位の帰属ではない。組織共有の請求評価数・SKU ID・Billing実績は未照合。API pollingを1/5にしただけでApp Check費用を1/5にはしない。
 
-残る実証は、直近window内の月跨ぎと実2月lookup、認証付きraw/月次HTTP比較とcache/CPU、母集団分布とbrowser転送量、請求照合、最終S3独立readback、全writer fleetと既存migration、明細index/共有quotaのlive適用。明細の技術上限50/100件・31日は実装済み候補で、商品としての最終枠や690円Premium発売を決めたものではない。再開条件は既存[Issue #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)で追跡し、この部分完了だけでIssueをcloseしない。
+残る実証は、直近window内の月跨ぎと実2月lookup、認証付きraw/月次HTTP比較とcache/CPU、母集団分布とbrowser転送量、請求照合、全writer fleetと既存migration、明細index/共有quotaのlive適用。明細の技術上限50/100件・31日は実装済み候補で、商品としての最終枠や690円Premium発売を決めたものではない。再開条件は既存[Issue #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)で追跡し、この部分完了だけでIssueをcloseしない。
