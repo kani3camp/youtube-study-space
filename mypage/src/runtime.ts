@@ -188,6 +188,8 @@ export class BrowserRuntime {
 		let generation = 0
 		const visible = () =>
 			this.memory.setVisible(document.visibilityState === 'visible')
+		const network = () => this.memory.setOnline(navigator.onLine !== false)
+		network()
 		visible()
 		const unsubscribe = session.subscribe((uid) => {
 			// Track identity transitions even while display/fetch is suspended.
@@ -204,6 +206,7 @@ export class BrowserRuntime {
 			this.memory.suspend()
 		}
 		const show = () => {
+			network()
 			this.memory.setVisible(document.visibilityState === 'visible')
 			active = true
 			this.active = true
@@ -227,6 +230,8 @@ export class BrowserRuntime {
 		document.addEventListener('visibilitychange', visible)
 		window.addEventListener('pagehide', hide)
 		window.addEventListener('pageshow', show)
+		window.addEventListener('online', network)
+		window.addEventListener('offline', network)
 		return () => {
 			this.lifecycleGeneration++
 			this.invalidateSupport()
@@ -238,6 +243,8 @@ export class BrowserRuntime {
 			document.removeEventListener('visibilitychange', visible)
 			window.removeEventListener('pagehide', hide)
 			window.removeEventListener('pageshow', show)
+			window.removeEventListener('online', network)
+			window.removeEventListener('offline', network)
 			this.memory.dispose()
 		}
 	}

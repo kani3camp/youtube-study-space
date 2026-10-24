@@ -177,7 +177,16 @@ export function createApp(
 		const pathname = useRouterState({
 			select: (state) => state.location.pathname,
 		})
+		const myPageActive = useRouterState({
+			select: (state) =>
+				state.matches.some((match) => match.routeId === '/mypage') &&
+				!state.matches.some((match) => match.globalNotFound),
+		})
 		const publicChrome = pathname !== '/mypage' || auth.phase === 'restricted'
+		// Set the initial route before mount can restore an authenticated UID.
+		useEffect(() => {
+			runtime.memory.setRouteActive(myPageActive)
+		}, [myPageActive])
 		useEffect(() => runtime.mount(), [])
 		useEffect(() => privacyServices.analytics.mount(), [])
 		useEffect(() => {

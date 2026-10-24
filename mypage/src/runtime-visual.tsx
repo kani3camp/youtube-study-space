@@ -222,6 +222,13 @@ if (import.meta.env.DEV) {
 						[]
 					</output>
 					<button
+						id="synthetic-account-route"
+						type="button"
+						onClick={() => void router.navigate({ to: '/mypage/account' })}
+					>
+						Open synthetic account route
+					</button>
+					<button
 						id="synthetic-restrict-moderation"
 						type="button"
 						onClick={() => {

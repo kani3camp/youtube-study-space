@@ -53,6 +53,50 @@ afterEach(() => {
 })
 
 describe('browser authentication runtime', () => {
+	it('restores auth on a public route without overview reads and honors network events', async () => {
+		vi.useFakeTimers()
+		const { windowTarget } = browserFixture()
+		vi.stubGlobal('navigator', { onLine: false })
+		const { session, setUID } = sessionFixture()
+		setUID('synthetic')
+		const request = vi.fn<typeof fetch>(async (path) =>
+			path === '/api/mypage'
+				? Response.json(fixture)
+				: new Response(null, { status: 204 }),
+		)
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		runtime.memory.setRouteActive(false)
+		const dispose = runtime.mount()
+		await settle()
+		expect(runtime.memory.getSnapshot().phase).toBe('authenticated')
+		expect(request.mock.calls.map(([path]) => path)).toEqual([
+			'/api/auth/session/complete',
+		])
+		runtime.memory.setRouteActive(true)
+		await vi.advanceTimersByTimeAsync(600_000)
+		expect(request).toHaveBeenCalledTimes(1)
+		vi.stubGlobal('navigator', { onLine: true })
+		windowTarget.dispatchEvent(new Event('online'))
+		await settle()
+		expect(request.mock.calls.map(([path]) => path)).toEqual([
+			'/api/auth/session/complete',
+			'/api/mypage',
+		])
+		vi.stubGlobal('navigator', { onLine: false })
+		windowTarget.dispatchEvent(new Event('offline'))
+		await vi.advanceTimersByTimeAsync(600_000)
+		expect(request).toHaveBeenCalledTimes(2)
+		dispose()
+		vi.stubGlobal('navigator', { onLine: true })
+		windowTarget.dispatchEvent(new Event('online'))
+		await vi.advanceTimersByTimeAsync(600_000)
+		expect(request).toHaveBeenCalledTimes(2)
+	})
+
 	it.each([
 		false,
 		true,
