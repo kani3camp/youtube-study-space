@@ -117,7 +117,21 @@ def match_state(live, state):
     expected["annotations"] = state.get("effective_annotations", state.get("annotations")) or {}
     expected["template"].pop("revision", None)
     observed = api_configuration(live)
-    c.need(compact(expected) == compact({key: observed.get(key) for key in expected}),
+    # The provider canonicalizes named env blocks; REST preserves insertion
+    # order. Compare this one named collection after rejecting duplicate names.
+    # Do not reorder command/args/containers or change the saved Plan itself.
+    def named_environment(config):
+        containers = config.get("template", {}).get("containers")
+        c.need(type(containers) is list, "metrics-live-env-shape")
+        for container in containers:
+            env = container.get("env", [])
+            c.need(type(env) is list and all(type(x) is dict and type(x.get("name")) is str and x["name"] for x in env),
+                   "metrics-live-env-shape")
+            c.need(len({x["name"] for x in env}) == len(env), "metrics-live-env-duplicate")
+            if "env" in container:
+                container["env"] = sorted(env, key=lambda x: x["name"])
+        return config
+    c.need(compact(named_environment(expected)) == compact(named_environment({key: observed.get(key) for key in expected})),
            "metrics-live-config-mismatch")
 
 
