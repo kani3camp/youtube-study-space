@@ -1,5 +1,12 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -38,6 +45,8 @@ it('refuses an empty build and prepares exact public assets only after an index 
 		}
 		const selected = join(temp, 'manifest.json')
 		const output = join(temp, 'firebase.json')
+		const dist = join(temp, 'dist')
+		mkdirSync(dist)
 		writeFileSync(selected, JSON.stringify(manifest))
 		const run = () =>
 			spawnSync(
@@ -47,14 +56,27 @@ it('refuses an empty build and prepares exact public assets only after an index 
 					'--manifest',
 					selected,
 					'--dist',
-					temp,
+					dist,
 					'--output',
 					output,
 				],
 				{ encoding: 'utf8' },
 			)
 		expect(run().status).toBe(1)
-		writeFileSync(join(temp, 'index.html'), '<!doctype html>')
+		writeFileSync(join(dist, 'index.html'), '<!doctype html>')
+		const sibling = join(temp, 'other-release')
+		mkdirSync(sibling)
+		const outside = spawnSync(process.execPath, [
+			join(root, 'mypage/scripts/prepare-hosting.mjs'),
+			'--manifest',
+			selected,
+			'--dist',
+			dist,
+			'--output',
+			join(sibling, 'firebase.json'),
+		])
+		expect(outside.status).toBe(1)
+		expect(existsSync(join(sibling, 'firebase.json'))).toBe(false)
 		expect(run().status).toBe(0)
 		expect(
 			JSON.parse(readFileSync(output, 'utf8')).hosting.headers[0].headers,

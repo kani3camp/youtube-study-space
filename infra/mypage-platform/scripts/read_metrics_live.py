@@ -177,9 +177,32 @@ def request(token, url, body=None):
     return value
 
 
+def environment_payload(entries):
+    """Encode EnvVar's oneof; provider defaults are not both API members."""
+    c.need(type(entries) is list, "metrics-live-env-shape")
+    result, names = [], set()
+    for item in entries:
+        c.need(type(item) is dict and set(item) <= {"name", "value", "value_source"}
+               and type(item.get("name")) is str and item["name"] and item["name"] not in names,
+               "metrics-live-env-shape")
+        names.add(item["name"])
+        source = item.get("value_source")
+        if source:
+            c.need(item.get("value") in (None, ""), "metrics-live-env-oneof")
+            selector = r.one(source, "metrics-live-env-source")
+            c.need(set(selector) == {"secret_key_ref"}, "metrics-live-env-source")
+            ref = r.one(selector["secret_key_ref"], "metrics-live-env-source")
+            c.need(set(ref) == {"secret", "version"} and all(type(x) is str and x for x in ref.values()), "metrics-live-env-source")
+            result.append({"name": item["name"], "valueSource": wire(source, "value_source")})
+        else:
+            c.need(source in (None, []) and type(item.get("value")) is str, "metrics-live-env-oneof")
+            result.append({"name": item["name"], "value": item["value"]})
+    return result
+
+
 def expected_configuration(before, target):
     expected = deepcopy(before)
-    r.one(expected["template"]["containers"], "metrics-live-container")["env"] = wire(m.container(target)["env"])
+    r.one(expected["template"]["containers"], "metrics-live-container")["env"] = environment_payload(m.container(target)["env"])
     return api_configuration(expected)
 
 
@@ -195,7 +218,7 @@ def validate_result(live, before, target):
 def conditional_update(token, before, target):
     """The original ETag, not a freshly accepted competing version, is sent."""
     containers = deepcopy(before["template"]["containers"])
-    r.one(containers, "metrics-live-container")["env"] = wire(m.container(target)["env"])
+    r.one(containers, "metrics-live-container")["env"] = environment_payload(m.container(target)["env"])
     body = {"name": SERVICE_NAME, "etag": before["etag"],
             "template": {"revision": "", "containers": containers}}
     operation = request(token, PATCH_URL, body)
