@@ -18,6 +18,7 @@ import foundation_ops as ops
 import runtime_contract as r
 import read_metrics_transition as m
 import read_metrics_live as live
+import read_metrics_v1 as v1
 from test_read_metrics_transition import fixture as base_fixture, applied_state, actual, service
 
 TOKEN = "synthetic-access-token"
@@ -64,6 +65,22 @@ def api_service(state):
                                      "startupProbe": {"timeoutSeconds": 1, "periodSeconds": 10,
                                                       "failureThreshold": 3, "tcpSocket": {"port": 8080}}}]},
     }
+
+
+def v1_service(state):
+    env=[]
+    for item in state["template"][0]["containers"][0]["env"]:
+        if item.get("value_source"):
+            ref=item["value_source"][0]["secret_key_ref"][0]
+            env.append({"name":item["name"],"valueFrom":{"secretKeyRef":{"name":ref["secret"],"key":ref["version"]}}})
+        else: env.append({"name":item["name"],"value":item["value"]})
+    return {"apiVersion":"serving.knative.dev/v1","kind":"Service",
+            "metadata":{"name":"mypage-api","namespace":c.PROJECT,"uid":state["uid"],"generation":int(state["generation"]),
+                        "resourceVersion":"opaque-"+state["generation"],"labels":{"keep":"label"},"annotations":{"keep":"annotation"}},
+            "spec":{"template":{"spec":{"containers":[{"image":state["template"][0]["containers"][0]["image"],"env":env,"futureField":"keep"}]}},
+                    "futureField":"keep"},
+            "status":{"latestReadyRevisionName":state["latest_ready_revision"],"latestCreatedRevisionName":state["latest_created_revision"],
+                      "conditions":[{"type":"Ready","status":"True"}]}}
 
 
 def refresh_plan(plan, state):
@@ -248,84 +265,79 @@ class MetricsLiveTest(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(c.ContractError):
                 live.match_state(altered, service(plan)["before"])
 
-    def test_single_conditional_patch_preserves_every_other_container_field(self):
+    def setUp(self):
+        # Unit tests can never contact a real Google endpoint.
+        blocked = patch.object(live.urllib.request, "build_opener", side_effect=AssertionError("unexpected live network"))
+        blocked.start(); self.addCleanup(blocked.stop)
+
+    def test_versioned_replace_preserves_full_configuration_and_original_version(self):
         for enabled in (True, False):
             plan, state = fixture(enabled)
             before, after = api_service(service(plan)["before"]), api_service(actual(state))
-            original = deepcopy(before)
-            with patch.object(live, "request", side_effect=[operation(after), after]) as request:
+            old = v1_service(service(plan)["before"])
+            new = v1_service(actual(state))
+            original = deepcopy(old)
+            with patch.object(v1, "request", side_effect=[old, new, new]) as request, patch.object(live, "request", side_effect=[before, after, after]):
                 self.assertEqual(live.conditional_update(TOKEN, before, service(plan)["after"]), after)
-            token, url, body = request.call_args_list[0].args
-            self.assertEqual((token, url), (TOKEN, live.PATCH_URL))
-            self.assertEqual(set(body), {"name", "etag", "template"})
-            self.assertEqual(body["etag"], before["etag"])
-            self.assertEqual(body["template"]["revision"], "")
-            old_container = deepcopy(before["template"]["containers"][0])
-            new_container = deepcopy(body["template"]["containers"][0])
-            old_env, new_env = old_container.pop("env"), new_container.pop("env")
-            self.assertEqual(old_container, new_container)
-            self.assertEqual([x for x in old_env if x["name"] != m.METRICS_ENV],
-                             [x for x in new_env if x["name"] != m.METRICS_ENV])
+            payload = request.call_args_list[1].args[1]
+            self.assertEqual(payload["metadata"]["resourceVersion"], old["metadata"]["resourceVersion"])
+            self.assertNotIn("status", payload)
+            left, right = v1.configuration(old), v1.configuration(payload)
+            old_env = left["spec"]["template"]["spec"]["containers"][0].pop("env")
+            new_env = right["spec"]["template"]["spec"]["containers"][0].pop("env")
+            self.assertEqual(left, right)
+            self.assertEqual({x["name"]:x for x in old_env if x["name"] != m.METRICS_ENV},
+                             {x["name"]:x for x in new_env if x["name"] != m.METRICS_ENV})
             self.assertEqual(any(x["name"] == m.METRICS_ENV for x in new_env), enabled)
-            self.assertEqual(before, original)
-            self.assertEqual(request.call_count, 2)
+            self.assertEqual(old, original)
 
-    def test_external_write_after_get_conflicts_without_retry_or_rebase(self):
-        plan, _ = fixture()
-        before = api_service(service(plan)["before"])
-        current_etag = "external-write-after-get"
-        def server(token, url, body=None):
-            self.assertEqual(url, live.PATCH_URL)
-            self.assertNotEqual(body["etag"], current_etag)
-            raise c.ContractError("metrics-live-conflict")
-        with patch.object(live, "request", side_effect=server) as request, self.assertRaises(c.ContractError):
+    def test_external_write_conflicts_without_put_retry_or_version_rebase(self):
+        plan, _ = fixture(); before = api_service(service(plan)["before"])
+        old = v1_service(service(plan)["before"])
+        with patch.object(v1, "request", side_effect=[old, c.ContractError("metrics-v1-conflict")]) as request, \
+             patch.object(live, "request", return_value=before), self.assertRaises(c.ContractError):
             live.conditional_update(TOKEN, before, service(plan)["after"])
-        self.assertEqual(request.call_count, 1)
+        self.assertEqual(request.call_count, 2)
+        self.assertEqual(request.call_args_list[1].args[1]["metadata"]["resourceVersion"], old["metadata"]["resourceVersion"])
 
-    def test_http_conflict_and_auth_failures_never_echo_payload_or_retry(self):
+    def test_v2_race_after_v1_get_stops_before_any_put(self):
+        plan, _ = fixture(); before = api_service(service(plan)["before"])
+        for mutate in (lambda x:x.update(etag="raced"), lambda x:x.update(uid="recreated"),
+                       lambda x:x["template"]["containers"][0].update(image="other-image")):
+            changed = deepcopy(before); mutate(changed)
+            with patch.object(v1, "request", return_value=v1_service(service(plan)["before"])) as request, \
+                 patch.object(live, "request", return_value=changed), self.assertRaises(c.ContractError):
+                live.conditional_update(TOKEN, before, service(plan)["after"])
+            self.assertEqual(request.call_count, 1)
+
+    def test_versioned_http_conflict_never_echoes_payload_or_retries(self):
         for code in (409, 412, 403, 500):
-            opener = Mock()
-            opener.open.side_effect = urllib.error.HTTPError(live.PATCH_URL, code, "private-error-body", {}, io.BytesIO(b"private"))
-            with patch.object(live.urllib.request, "build_opener", return_value=opener), self.assertRaises(c.ContractError) as caught:
-                live.request(TOKEN, live.PATCH_URL, {"etag": "source", "private": "never-print"})
-            self.assertNotIn("private", str(caught.exception))
-            self.assertEqual(opener.open.call_count, 1)
-            expected = "metrics-live-conflict" if code in (409, 412) else "metrics-live-api-failed"
-            self.assertEqual(str(caught.exception), expected)
+            opener = Mock(); opener.open.side_effect = urllib.error.HTTPError(v1.URL, code, "private", {}, io.BytesIO(b"private"))
+            with patch.object(v1.urllib.request, "build_opener", return_value=opener), self.assertRaises(c.ContractError) as error:
+                v1.request(TOKEN, {"metadata":{"resourceVersion":"opaque"}})
+            self.assertNotIn("private", str(error.exception)); self.assertEqual(opener.open.call_count, 1)
+            self.assertEqual(str(error.exception), "metrics-v1-conflict" if code in (409,412) else "metrics-v1-api-failed")
 
-    def test_redirect_or_foreign_operation_never_receives_credentials(self):
+    def test_redirect_and_foreign_identity_never_receive_a_put(self):
         with self.assertRaises(c.ContractError):
-            live.NoRedirect().redirect_request(None, None, 307, "", {}, "https://example.test")
-        for url in ("https://example.test", live.SERVICE_URL + ":delete", live.SERVICE_URL.replace(c.PROJECT, "youtube-study-space")):
-            with self.subTest(url=url), self.assertRaises(c.ContractError):
-                live.request(TOKEN, url)
-        plan, _ = fixture()
-        before = api_service(service(plan)["before"])
-        with patch.object(live, "request", return_value={"name": "projects/foreign/locations/asia-southeast2/operations/abc"}) as request, self.assertRaises(c.ContractError):
-            live.conditional_update(TOKEN, before, service(plan)["after"])
-        self.assertEqual(request.call_count, 1)
+            live.NoRedirect().redirect_request(None,None,307,"",{},"https://example.test")
+        plan, _ = fixture(); before = api_service(service(plan)["before"])
+        wrong = v1_service(service(plan)["before"]); wrong["metadata"]["uid"] = "other"
+        with patch.object(v1,"request",return_value=wrong) as request, patch.object(live,"request"), self.assertRaises(c.ContractError):
+            live.conditional_update(TOKEN,before,service(plan)["after"])
+        self.assertEqual(request.call_count,1)
 
-    def test_operation_error_and_timeout_do_not_retry_the_patch(self):
-        plan, state = fixture()
-        before, after = api_service(service(plan)["before"]), api_service(actual(state))
-        failed = operation(after)
-        failed.pop("response")
-        failed["error"] = {"code": 10, "message": "private"}
-        with patch.object(live, "request", return_value=failed) as request, self.assertRaises(c.ContractError):
-            live.conditional_update(TOKEN, before, service(plan)["after"])
-        self.assertEqual(request.call_count, 1)
-        pending = {"name": operation(after)["name"]}
-        with patch.object(live, "request", return_value=pending) as request, patch.object(live.time, "monotonic", side_effect=[0, 301]), self.assertRaises(c.ContractError):
-            live.conditional_update(TOKEN, before, service(plan)["after"])
-        self.assertEqual(request.call_count, 1)
-
-    def test_completed_operation_still_requires_current_live_service(self):
-        plan, state = fixture()
-        before, after = api_service(service(plan)["before"]), api_service(actual(state))
-        rolled_back = deepcopy(after)
-        rolled_back["trafficStatuses"][0]["revision"] = "mypage-api-before"
-        with patch.object(live, "request", side_effect=[operation(after), rolled_back]), self.assertRaises(c.ContractError):
-            live.conditional_update(TOKEN, before, service(plan)["after"])
+    def test_returned_service_requires_reconciliation_and_unchanged_other_fields(self):
+        plan,state = fixture(); before,after=api_service(service(plan)["before"]),api_service(actual(state))
+        old,new=v1_service(service(plan)["before"]),v1_service(actual(state))
+        broken=deepcopy(new);broken["spec"]["futureField"]="unexpected"
+        with patch.object(v1,"request",side_effect=[old,new,broken]), patch.object(live,"request",side_effect=[before,after]), self.assertRaises(c.ContractError):
+            live.conditional_update(TOKEN,before,service(plan)["after"])
+        pending=deepcopy(after);pending["reconciling"]=True
+        with patch.object(v1,"request",side_effect=[old,new]) as request, patch.object(live,"request",side_effect=[before,pending]), \
+             patch.object(v1.time,"monotonic",side_effect=[0,301]), self.assertRaises(c.ContractError):
+            live.conditional_update(TOKEN,before,service(plan)["after"])
+        self.assertEqual(request.call_count,2)
 
     def test_refresh_only_rejects_any_unrelated_drift_or_remote_write(self):
         plan, state = fixture()
@@ -367,9 +379,9 @@ class MetricsLiveTest(unittest.TestCase):
                     self.assertEqual(args, ["terraform", "apply", "-input=false", "-no-color", str(root / "metrics-refresh.tfplan")])
                     return ""
                 env = {"MYPAGE_ROLE": "apply", "MYPAGE_GCP_ACCESS_TOKEN": TOKEN, "MYPAGE_PLAN_TIME": str(time.time())}
-                with patch.object(c, "context"), patch.object(ops, "run", side_effect=run), patch.object(ops, "state_version", return_value=VERSION), patch.object(live, "request", side_effect=[before, operation(after), after, after, after]) as request:
+                with patch.object(c, "context"), patch.object(ops, "run", side_effect=run), patch.object(ops, "state_version", return_value=VERSION), patch.object(live, "conditional_update", return_value=after), patch.object(live, "request", side_effect=[before, after, after]) as request:
                     live.apply_saved(env, root, plan, "runtime_private")
-                self.assertEqual(request.call_count, 5)
+                self.assertEqual(request.call_count, 3)
                 self.assertFalse(any("foundation.tfplan" in x for cmd in commands if cmd[1] == "apply" for x in cmd))
 
     def test_state_version_change_stops_before_mutation(self):

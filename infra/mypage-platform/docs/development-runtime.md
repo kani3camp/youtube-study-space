@@ -30,6 +30,14 @@ repoの固定Terraformを用いたcredential不要のnative `terraform_data` fix
 
 復旧は新sourceのfreshな独立Plan/HMACで、Stateが保持する元revisionと現在liveの間に**1回のmetrics toggleだけ**があることを検証する。fresh Planの全actionはno-op、driftは固定Service1件、UID/image/他env/設定不変、元Ready/traffic/世代から+1、現在desired flagと一致する場合だけ、更新済み遷移のcopyを検証用に構成する。native Plan自体とdriftは変更せずHMACへ全量含める。Applyは現在liveとState版を再照合し、新たに作ったrefresh-only Planだけを適用する。recoveryではAPI PATCHを呼ばない。競合・別変更・別世代・不足資源は停止する。OFFはその後の現在状態から別の新Planとする。
 
+[fresh復旧40081768487](https://github.com/kani3camp/youtube-study-space/actions/runs/40081768487)でState-only適用が成功し、独立AWS readbackでもserial 11 / generation 5 / ONを確認した。途中のnative失敗40079459702は固定診断での再現がなく、原因を断定しない。
+
+その後の実API競合試験では、v2のstale etag付き設定不変PATCHが成功Operationまで完了した。updateMaskへetagを含める場合、If-Match header併用でも同様で、generation/revision/設定は不変だがetag/update_time/last_modifierだけが変わった。これを競合拒否済みとしない。v1 resourceVersionはこのno-opでは変わらず、古いversionを作れないため、実OFF後に保持した元versionで拒否を確認する。
+
+利用者からDEV 1サービスの現在設定の完全コピーによるversion付きPUT検証とOFFの追加許可を得た。更新transportだけを公式のv1 resourceVersion付きreplaceへ変更する。元v1 snapshotのUID/世代/Readyをv2 Planと照合し、PUT直前にv2の元etagを再照合する。bodyは現在snapshotのcopyからstatusを除き、元resourceVersionを保持してmetrics env 1個だけを変更する。PUTは1回、競合時にversionを取り直して再実行しない。返却Service・v2のreconcile完了・全設定比較・fresh refresh-only State照合を分ける。Plan/HMAC・image/秘密参照/他設定・IAM・Productionの境界は維持する。
+
+no-op試験で変わった出力metadataは、別の新しい通常no-op PlanでのみStateへ反映する。許可差分はetag/update_time/last_modifierの3出力だけ（既存の観測済みnull正規化を除く）。UID・generation・Ready/revision/traffic・全設定は不変、etag非空かつ変更、update_time前進を要求する。これはmetrics更新の古いetagを受け直して続行する経路ではない。別のFromRevision付き更新Planでは引き続き未反映driftを拒否する。
+
 `system/Dockerfile.mypage`は既存のdigest固定Go / distrolessイメージを使用し、Cloud Run用のlinux/amd64バイナリをビルドする。CGOなし、timezone dataをバイナリへ含め、nonrootで起動する。Secretやローカル環境ファイルをイメージへ渡さない。
 
 ```sh
