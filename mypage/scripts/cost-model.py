@@ -190,9 +190,9 @@ def main():
                   '|---|---:|---:|---:|---:|---:|---:|']
         for row in evidence['cases']:
             raw, monthly, explain = row['raw']['observation'], row['monthly']['observation'], row['queryExplain']
-            label = str(row['sourceDocuments']) + (' (JST boundaries)' if row['fixture'] == 'jst-fractional-boundaries' else '')
+            label = str(row['sourceDocuments']) + (' (day boundary + month rebuild)' if row['fixture'] == 'jst-fractional-boundaries' else '')
             lines.append(f"| {label} | {raw['SegmentsReturned']} | {explain['debug']['documents_scanned']} | {explain['debug']['index_entries_scanned']} | {explain['readOperations']} | {monthly['MonthsReturned']} / {monthly['MonthLookups']} | {raw['ElapsedMilliseconds']} / {monthly['ElapsedMilliseconds']} |")
-        lines += ['', 'Raw 1001 returns HISTORY_LIMIT_EXCEEDED; it is not an exact graph baseline. At 0 docs, unknown coverage stays unavailable for the registered fixture. The separate authenticated unregistered case displays a normal zero.', '',
+        lines += ['', 'Raw 1001 returns HISTORY_LIMIT_EXCEEDED; it is not an exact graph baseline. At 0 docs, unknown coverage stays unavailable for the registered fixture. The separate authenticated unregistered case displays a normal zero. In the boundary fixture, the month-crossing row was outside the recent seven-day window: its rebuild was checked, but a live recent-window month crossing and two-month lookup were not measured.', '',
                   'For the 1000-doc fixture, adding the source-inventory estimate of 10 fixed read equivalents to Analyze gives 1011 versus 11 with one month lookup (about 98.9% fewer). This is a derived Firestore cache-miss comparison, not measured HTTP billing. Writer overhead and other services are included separately in the scenarios. Default raw average 20, average monthly lookups 1.2, cache ratio and billing time remain assumptions.', '']
     lines += ['', '## Architecture and component separation (after monthly + browser cache)', '',
               '| Profile / scale | Run USD | Firestore USD | Hosting USD | Armor variable USD | Network USD | App Check USD | Prod USD | DEV fixed USD | Total USD |',

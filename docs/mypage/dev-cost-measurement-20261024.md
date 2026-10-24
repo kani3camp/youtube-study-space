@@ -4,7 +4,7 @@
 
 ## 結果と確認範囲
 
-同日raw 0/10/100/500/1000/1001件と、秒未満を含むJST日・月跨ぎ2件を、既存SnapshotReaderとAggregateで実Firestoreへ接続して測定した。月次readerは全fixtureでraw query 0、この日付では1月文書を1回lookupした。0～1000件で記録済み秒数はrawと一致し、1001件ではrawの`HISTORY_LIMIT_EXCEEDED`と月次の記録済み1001秒を区別した。coverage不明をexactな今日/今週の0へ変換しない。月跨ぎfixtureは日別丸め後の月内合計0秒、直近週のcarryを含む記録済み1秒、累計2秒で一致した。
+同日raw 0/10/100/500/1000/1001件と、秒未満を含むJST日・月跨ぎ2件を、既存SnapshotReaderとAggregateで実Firestoreへ接続して測定した。月次readerは全fixtureでraw query 0、この日付では1月文書を1回lookupした。0～1000件で記録済み秒数はrawと一致し、1001件ではrawの`HISTORY_LIMIT_EXCEEDED`と月次の記録済み1001秒を区別した。coverage不明をexactな今日/今週の0へ変換しない。境界fixtureの再構築は日別丸め後の月内合計0秒、readerは直近日跨ぎのcarryを含む週の記録済み1秒、累計2秒となった。ただし月跨ぎ原記録は10/1境界で、10/24時点の直近7日window外にある。月跨ぎ原記録の作成・月内再構築は確認できたが、月跨ぎを含む直近windowのraw/月次reader比較と実2月lookupは未実証で、Emulatorの受入とは区別する。
 
 これはowner端末からJakartaへ接続するSDK測定で、HTTP BFF・Cloud Run CPU・課金wall time・cache命中率の計測ではない。raw返却文書数を課金read数と呼ばない。取得失敗・並行writer・Privacy競合・明細の複数instance quotaなどは既存CI/Emulatorの検証で、実DEV障害注入済みとはしていない。
 
@@ -58,4 +58,4 @@ cleanup後に別のread-only照合でUser/raw/月次文書/座席不在と元SAC
 
 App Check token TTLは3600秒。key metricsの同じ日単位windowで前後合計66→66を得たが、反映遅延・日粒度のため評価数0の証拠や1 poll単位の帰属ではない。組織共有の請求評価数・SKU ID・Billing実績は未照合。API pollingを1/5にしただけでApp Check費用を1/5にはしない。
 
-残る実証は、認証付きraw/月次HTTP比較とcache/CPU、母集団分布とbrowser転送量、請求照合、最終S3独立readback、全writer fleetと既存migration、明細index/共有quotaのlive適用。明細の技術上限50/100件・31日は実装済み候補で、商品としての最終枠や690円Premium発売を決めたものではない。再開条件は既存[Issue #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)で追跡し、この部分完了だけでIssueをcloseしない。
+残る実証は、直近window内の月跨ぎと実2月lookup、認証付きraw/月次HTTP比較とcache/CPU、母集団分布とbrowser転送量、請求照合、最終S3独立readback、全writer fleetと既存migration、明細index/共有quotaのlive適用。明細の技術上限50/100件・31日は実装済み候補で、商品としての最終枠や690円Premium発売を決めたものではない。再開条件は既存[Issue #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)で追跡し、この部分完了だけでIssueをcloseしない。

@@ -22,9 +22,9 @@ Jakarta Firestore via local SDK. These are controlled fixtures, not the populati
 | 500 | 500 | 500 | 500 | 501 | 1 / 1 | 988 / 758 |
 | 1000 | 1000 | 1000 | 1000 | 1001 | 1 / 1 | 1173 / 772 |
 | 1001 | 1001 | 1001 | 1001 | 1003 | 1 / 1 | 1064 / 748 |
-| 2 (JST boundaries) | 1 | 1 | 1 | 2 | 1 / 1 | 775 / 753 |
+| 2 (day boundary + month rebuild) | 1 | 1 | 1 | 2 | 1 / 1 | 775 / 753 |
 
-Raw 1001 returns HISTORY_LIMIT_EXCEEDED; it is not an exact graph baseline. At 0 docs, unknown coverage stays unavailable for the registered fixture. The separate authenticated unregistered case displays a normal zero.
+Raw 1001 returns HISTORY_LIMIT_EXCEEDED; it is not an exact graph baseline. At 0 docs, unknown coverage stays unavailable for the registered fixture. The separate authenticated unregistered case displays a normal zero. In the boundary fixture, the month-crossing row was outside the recent seven-day window: its rebuild was checked, but a live recent-window month crossing and two-month lookup were not measured.
 
 For the 1000-doc fixture, adding the source-inventory estimate of 10 fixed read equivalents to Analyze gives 1011 versus 11 with one month lookup (about 98.9% fewer). This is a derived Firestore cache-miss comparison, not measured HTTP billing. Writer overhead and other services are included separately in the scenarios. Default raw average 20, average monthly lookups 1.2, cache ratio and billing time remain assumptions.
 

@@ -734,6 +734,13 @@
         "readOperations": 2,
         "resultsReturned": 1,
         "executionDurationNanoseconds": 6436000
+      },
+      "fixtureScope": {
+        "monthBoundarySourceRebuildVerified": true,
+        "monthBoundarySourceOutsideRecentWindow": true,
+        "recentDayBoundaryReaderComparisonVerified": true,
+        "recentMonthBoundaryReaderComparisonVerified": false,
+        "twoMonthLookupLiveVerified": false
       }
     }
   ],
@@ -759,6 +766,11 @@
       "pretrialMetadata": 40085407554,
       "off": 40086892890,
       "finalMetadata": 40087126693
+    },
+    "stateReadback": {
+      "finalCIPassed": true,
+      "finalOperatorS3IndependentVerified": false,
+      "reason": "existing AWS SSO expired; reauthentication pending"
     }
   },
   "appCheck": {
@@ -776,7 +788,8 @@
     "population distribution, browser transfer/cache ratio and App Check assessments per active hour",
     "billing SKU IDs/invoice and delayed metrics",
     "all writer fleet/drain and existing UID migration",
-    "history-specific index/policy/quota live rollout; feature remains off"
+    "history-specific index/policy/quota live rollout; feature remains off",
+    "recent-window month boundary and two-month live reader comparison (current month-boundary source was outside the seven-day window)"
   ],
   "authenticatedSmoke": {
     "verifiedAt": "2026-10-24T11:06:52.123491Z",
