@@ -311,14 +311,14 @@ def apply_saved(env, root, plan, stage):
              "-var=stage=" + stage, "-var-file=" + str(root / "runtime-settings.json"),
              "-out=" + str(refresh_file)], cwd=work, check="terraform-plan")
     digest = hashlib.sha256(refresh_file.read_bytes()).hexdigest()
-    refresh = json.loads(ops.run(["terraform", "show", "-json", str(refresh_file)], cwd=work))
+    refresh = json.loads(ops.run(["terraform", "show", "-json", str(refresh_file)], cwd=work, check="metrics-refresh-show"))
     state = validate_refresh(refresh, transition, stage)
     match_state(live, state_service(state))
     verify_state_live(env, state, transition, stage)
     c.need(ops.state_version(env) == baseline, "metrics-live-state-version")
     # Keep a byte hash of the independently validated refresh-only file.
     c.need(hashlib.sha256(refresh_file.read_bytes()).hexdigest() == digest, "metrics-refresh-receipt")
-    ops.run(["terraform", "apply", "-input=false", "-no-color", str(refresh_file)], cwd=work)
-    state = json.loads(ops.run(["terraform", "show", "-json"], cwd=work))
+    ops.run(["terraform", "apply", "-input=false", "-no-color", str(refresh_file)], cwd=work, check="metrics-refresh-apply")
+    state = json.loads(ops.run(["terraform", "show", "-json"], cwd=work, check="metrics-final-state-show"))
     verify_state_live(env, state, transition, stage)
     return "state-recovery" if recovered is not None else "updated"

@@ -93,6 +93,24 @@ def operation(after):
 
 
 class MetricsLiveTest(unittest.TestCase):
+    def test_refresh_native_diagnostics_publish_only_fixed_step_labels(self):
+        private = "must-not-appear-in-public-diagnostics"
+        for check, marker, label in (
+            ("metrics-refresh-apply", "Saved plan is stale", "saved-plan-stale"),
+            ("metrics-refresh-show", "Failed to load plugin schemas", "provider-schema"),
+            ("metrics-refresh-apply", "invalid_grant", "identity-expired"),
+            ("metrics-refresh-apply", "Cannot apply failed plan", "failed-plan"),
+            ("state-version-list", "ExpiredToken", "identity-expired"),
+            ("state-version-head", "AccessDenied", "access-denied"),
+            ("saved-runtime-plan-show", "unknown native error", None),
+            ("metrics-final-state-show", "unknown native error", None),
+        ):
+            result = Mock(returncode=1, stdout=private, stderr=marker + private)
+            with self.subTest(check=check, marker=marker), patch.object(ops.subprocess, "run", return_value=result), self.assertRaises(c.ContractError) as error:
+                ops.run(["terraform", "synthetic-command"], check=check)
+            self.assertEqual(str(error.exception), check + ("-" + label if label else ""))
+            self.assertNotIn(private, str(error.exception))
+
     def test_recovery_proves_exact_toggle_without_mutating_native_plan(self):
         for enabled in (True, False):
             for stage in ("runtime_private", "runtime_public"):

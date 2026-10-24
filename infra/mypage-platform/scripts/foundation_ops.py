@@ -28,6 +28,30 @@ def need(value):
 
 def run(args, *, cwd=None, codes=(0,), check="native-command"):
     result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=600)
+    if result.returncode not in codes and check in {"metrics-refresh-show", "metrics-refresh-apply", "metrics-final-state-show", "state-version-list", "state-version-head", "saved-runtime-plan-show"}:
+        # These fixed classifications identify the failing native step without
+        # printing raw Plan/State, arguments, paths, credentials or API errors.
+        diagnostics = result.stdout + result.stderr
+        for marker, label in (
+            ("Saved plan is stale", "saved-plan-stale"),
+            ("Saved plan does not match", "saved-plan-state-mismatch"),
+            ("Cannot apply non-applyable plan", "non-applyable-plan"),
+            ("Cannot apply incomplete plan", "incomplete-plan"),
+            ("Cannot apply failed plan", "failed-plan"),
+            ("Error acquiring the state lock", "state-lock"),
+            ("Failed to save state", "state-save"),
+            ("Error saving state", "state-save"),
+            ("Inconsistent dependency lock file", "provider-lock"),
+            ("Failed to load plugin schemas", "provider-schema"),
+            ("Invalid provider configuration", "provider-configuration"),
+            ("No state file was found", "state-missing"),
+            ("invalid_grant", "identity-expired"),
+            ("ExpiredToken", "identity-expired"),
+            ("AccessDenied", "access-denied"),
+        ):
+            if marker in diagnostics:
+                check += "-" + label
+                break
     if result.returncode not in codes and check == "terraform-plan":
         # Publish only source-defined labels. Never print native diagnostics,
         # command arguments or a permission name extracted from rejected data.
@@ -118,13 +142,13 @@ def oidc(env, *, image=False):
 
 def state_version(env):
     common = ["--bucket", env["MYPAGE_STATE_BUCKET"], "--expected-bucket-owner", env["MYPAGE_STATE_ACCOUNT"], "--output", "json"]
-    listing = json.loads(run(["aws", "s3api", "list-objects-v2", *common, "--prefix", contract.STATE_KEY, "--max-keys", "2", "--no-paginate"]))
+    listing = json.loads(run(["aws", "s3api", "list-objects-v2", *common, "--prefix", contract.STATE_KEY, "--max-keys", "2", "--no-paginate"], check="state-version-list"))
     need(listing.get("IsTruncated") is False and listing.get("Prefix") == contract.STATE_KEY)
     entries = [item for item in listing.get("Contents", []) if item["Key"] == contract.STATE_KEY]
     if not entries:
         return "absent"
     need(len(entries) == 1)
-    metadata = json.loads(run(["aws", "s3api", "head-object", *common, "--key", contract.STATE_KEY]))
+    metadata = json.loads(run(["aws", "s3api", "head-object", *common, "--key", contract.STATE_KEY], check="state-version-head"))
     need(metadata.get("VersionId") not in {None, "null", ""} and metadata.get("ServerSideEncryption") == "AES256")
     return {k: metadata[k] for k in ("VersionId", "ETag", "ContentLength")}
 
@@ -340,7 +364,7 @@ def apply_saved(env):
     stage = contract.stage_for_mode(env["MYPAGE_MODE"])
     recovering = False
     if stage.startswith("runtime_"):
-        plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work))
+        plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work, check="saved-runtime-plan-show"))
         value = runtime_contract.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
         if value["read_metrics_from_revision"]:
             # Provider 8.5.0 omits etag on Update. NEVER apply its update Plan:
