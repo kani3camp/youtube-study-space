@@ -599,11 +599,13 @@ export function MyPageView({
 	refresh,
 	logout,
 	cookieSettings,
+	history,
 }: {
 	state: MemoryState
 	refresh: () => void
 	logout: () => void
 	cookieSettings: () => void
+	history?: ReactNode
 }) {
 	const [panelOpen, setPanelOpen] = useState(false)
 	const avatar = useRef<HTMLButtonElement>(null)
@@ -706,6 +708,7 @@ export function MyPageView({
 						)}
 					</div>
 				)}
+				{privateVisible && history}
 			</main>
 			<footer className="site-footer">
 				<ExternalLink href={guideURL}>使い方</ExternalLink>

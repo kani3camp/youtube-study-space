@@ -1,0 +1,7 @@
+{
+  "enabled": false,
+  "standardDailyUnits": 1000,
+  "premiumDailyUnits": 5000,
+  "maxConcurrent": 2,
+  "maxIndexEntries": 20000
+}

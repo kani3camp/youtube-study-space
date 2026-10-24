@@ -8,7 +8,7 @@ source-onlyの[Privacy request intake](privacy-intake.md)はdefault offで、受
 
 横断削除Bのcheckpoint・offline CLI・adapter境界・未確認gateは[Support deletion runbook](support-delete.md)と[inventory](support-delete-inventory.md)を参照する。
 
-現行仕様から実装に必要な非機密 wire contract だけを抽出したもの。`openapi.yaml` は eight-endpoint API の契約（うちprivacy受付2本はdefault off）、`fixtures/` は実ユーザーに依存しない合成例。
+現行仕様から実装に必要な非機密 wire contract だけを抽出したもの。`openapi.yaml` は nine-endpoint API の契約（privacy受付2本はdefault off、明細1本はDEV限定/default off）、`fixtures/` は実ユーザーに依存しない合成例。
 
 - 本人識別は YouTube channel ID と同じ Firebase custom-provider uid。client から対象 ID を受け取らない。
 - OAuth callback の atomic claim と confirm の atomic consume の後に、外部 API / token mint を transaction callback の外で実行する。
@@ -42,6 +42,22 @@ writerは`PrepareWorkSegmentWrites`でSAC・冪等event・User・現在Seat・�
 snapshot自身はUser 1 lookup、通常/メンバー席各`limit(2)`、月次最大2 lookup。通常はqueryの空結果最低課金を含めsnapshotで4〜5read、壊れた重複席を含む最大は7read相当となる。**APIが2readになるという意味ではない**。metadataがfreshなcache missのleaderでは、既存HTTP/BFFのSAC lookup計6とWebAccount lookup1も加わり、通常11〜12read相当、最大14がソース上の目安。cache hitも認可等4 lookupを維持する。transaction retry・metadata refresh・Auth/App Check・index entry等は別で、これらを実Billingの上限や実測値と呼ばない。
 
 新writerの追加readは通常5（SAC/event/User/Seat/月）、追加writeは月次1と移行済みUserのwatermark最大1。既存Seat/User更新と別に見積もり、retryを加味する。準備対象区間は最大366日、1区間の月数も有限とし、異常に長い区間を黙って捨てない。月次の`days` mapはindex除外候補としてFirebase設定へ記録し、実適用は配備証跡と区別する。移行・復旧・混在writerの手順は[release runbook](release/README.md#月次履歴の明示移行と復旧)を参照する。
+
+## 明細cursorと重い処理の利用予算
+
+`GET /api/mypage/history`はDEV専用・policy未設定ではOFF。public price/Premium発売を意味しない。`mypage-maintenance/history-policy`の[候補](history-policy.example.json)は正式商品枠ではなく、所有者が実費・UXを確認して使う設定例。Productionは拒否する。Frontendも`VITE_HISTORY_DETAILS_ENABLED`が明示trueかつDEV projectの時だけ表示し、既定OFF。
+
+期間は「JSTの[from,to)に完了したwork区間」。日を跨いで開始した区間も完了日に表示する。グラフの期間へのoverlap集計とは別で、グラフのために明細全pageを読み切らない。1request最大31日、初期50/max100件、最大120KiBの明細payload、8秒の処理budget。過去に閲覧できる範囲と1requestの期間を分け、準備済み月次があるrecorded historyを対象にする。未観測の期間を実作業0と確定しない。
+
+sortはended-at＋一意document ID、offsetなし。15分のAES-GCM cursorにverified UID binding、SAC checkpoint、consent、server entitlement/policy revision、期間・page size・固定readTimeを束縛する。原記録のID/UIDをcursorのplaintextやresponseへ出さない。既存server OAuth secretから用途別にkey導出し、新secret/credentialは作らない。page追加の途中でも同じasOfを使うため、同時追加による重複・飛び込みを避ける。
+
+raw query前に、そのsnapshotの月次終了件数と専用indexでscan範囲を限定する。`user-id/segment-type/ended-at` indexのDEV適用とQuery Explain照合は有効化Gateで、Emulatorや件数だけを実index課金の証明にしない。件数上限・欠損月・不正schemaでは通常APIからbackfillしない。明細では重複等のある個々の記録も`sourceConsistent=false`で区別し、グラフのexactな合計へ流用しない。
+
+quotaは`mypage-history-budgets`のUID別singletonに、JST日付・消費単位・opaqueな重複検知・最大4 leaseだけを保存する。新基盤を追加せず、SACとpolicyを同じFirestore transactionで照合して予約する。単位は`page size + sentinel + ceil(maxIndexEntries/1000) + 32`という保守的な技術予算で、quota管理等の費用も含む。原記録のreadより先に判定し、instance/restart/並行requestを跨ぐ。Premiumはtrusted server resolverだけが判定し、既存YouTube会員やclient指定planを自動的にPremiumへしない。既定はStandard、両枠とも有限。
+
+失敗・取消・ACK不明も予約分を消費し、自動refundしない。同じ`Idempotency-Key`は同条件でも409で再実行せず、別条件への転用も拒否する。manual retryは新しいoperationとして予約する。履歴cacheは持たない。重複検知は現在/前JST日の分だけを利用時pruneし、最大2048件。idle singletonは次の利用またはPrivacy削除まで残るため、これをTTL完了や新しい公開retention policyと呼ばない。
+
+leaseはrequest期限より長い15秒で、正常/失敗時に独立1秒budgetで解放する。取消やprocess消失後も期限で回復し、日跨ぎでも旧leaseを維持して同時実行を増やさない。429はRetry-AfterとJST再開時刻を返し、UIは表示済みpageを保持する。Auth/停止/世代変更・pagehideではprivate明細をclearする。overview/logout/Privacyはこの日次枠を消費せず、通常の5分利用を止めない。quotaも既存Privacy primary scopeで消し、旧cursorは元SAC checkpoint不一致で拒否する。
 
 ## Web authentication storage
 

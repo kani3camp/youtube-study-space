@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MyPage internal API
-  version: 0.2.0
+  version: 0.3.0
 servers:
 - url: /
 paths:
@@ -331,6 +331,60 @@ paths:
         '401': *id002
         '403': *id003
         '429': *id009
+        '503': *id011
+  /api/mypage/history:
+    get:
+      operationId: getRecordedWorkHistory
+      description: Development-only, disabled unless an operator policy enables it. Returns
+        recorded work intervals completed in the JST half-open date range. Graphs do not
+        paginate this endpoint. Cursor freezes asOf and is bound to verified uid, consent,
+        access checkpoint, authoritative entitlement revision and query. Fixed conservative
+        work units are reserved before source preflight/read; failed or cancelled work still
+        consumes the reservation. Reusing a consumed Idempotency-Key is 409 without another
+        source read. Ordinary overview/logout/privacy do not consume these daily units.
+      security:
+      - FirebaseAuth: []
+        AppCheck: []
+      parameters:
+      - in: query
+        name: from
+        required: true
+        schema: {type: string, format: date}
+      - in: query
+        name: to
+        required: true
+        description: Exclusive JST date; at most 31 days after from.
+        schema: {type: string, format: date}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      - in: query
+        name: cursor
+        schema: {type: string, maxLength: 2048}
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema: {type: string, minLength: 16, maxLength: 128}
+      responses:
+        '200':
+          description: One bounded page of recorded intervals, not an assertion of complete history.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HistoryPage'}
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '409': *id006
+        '413': *id008
+        '429':
+          description: UID daily work budget or shared concurrent lease limit.
+          headers:
+            Retry-After: {schema: {type: integer, minimum: 1}}
+            X-Quota-Reset: {schema: {type: string, format: date-time}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
         '503': *id011
 components:
   securitySchemes:
@@ -737,6 +791,37 @@ components:
       - availability
       - reasonCode
       - data
+    HistoryPage:
+      type: object
+      additionalProperties: false
+      required: [asOf, timezone, selection, coverage, sourceConsistent, from, to, items, nextCursor]
+      properties:
+        asOf: {type: string, format: date-time}
+        timezone: {const: Asia/Tokyo}
+        selection: {const: completed_work}
+        coverage: {const: recorded_only}
+        sourceConsistent: {type: boolean}
+        from: {type: string, format: date}
+        to: {type: string, format: date}
+        items:
+          type: array
+          maxItems: 100
+          items: {$ref: '#/components/schemas/HistoryEntry'}
+        nextCursor:
+          type: [string, 'null']
+          minLength: 28
+          maxLength: 2048
+          pattern: ^[A-Za-z0-9_-]+$
+    HistoryEntry:
+      type: object
+      additionalProperties: false
+      required: [key, startedAt, endedAt, workSec, workName]
+      properties:
+        key: {type: string, pattern: '^[a-f0-9]{64}$'}
+        startedAt: {type: string, format: date-time}
+        endedAt: {type: string, format: date-time}
+        workSec: {type: integer, minimum: 0, maximum: 9007199254740991}
+        workName: {type: string}
     MyPage:
       type: object
       additionalProperties: false
@@ -918,6 +1003,12 @@ components:
               - CHANNEL_AMBIGUOUS
               - WEB_ACCOUNT_REQUIRED
               - RATE_LIMITED
+              - FEATURE_UNAVAILABLE
+              - INVALID_CURSOR
+              - HISTORY_NOT_READY
+              - HISTORY_LIMIT_EXCEEDED
+              - OPERATION_ALREADY_CONSUMED
+              - ANALYSIS_BUDGET_EXHAUSTED
               - TEMPORARY_UNAVAILABLE
               - INTERNAL_ERROR
             message:

@@ -4,6 +4,10 @@ import {
 	type TokenSource,
 } from './features/mypage/client'
 import {
+	createHistoryLoader,
+	type HistoryInput,
+} from './features/mypage/history'
+import {
 	MyPageMemory,
 	RequestError,
 	restrictionFrom,
@@ -53,6 +57,7 @@ export class BrowserRuntime {
 	readonly policy: { privacy: string; terms: string }
 	readonly unavailable: string | null
 	readonly intakeEnabled: boolean
+	readonly historyEnabled: boolean
 	private request: typeof fetch
 	private completingSession = false
 	private active = false
@@ -75,6 +80,7 @@ export class BrowserRuntime {
 		request: typeof fetch = fetch,
 		unavailable: string | null = null,
 		intakeEnabled = false,
+		historyEnabled = false,
 	) {
 		this.session = session
 		this.observedUID = session?.currentUID() ?? null
@@ -82,6 +88,7 @@ export class BrowserRuntime {
 		this.request = (input, init) => request(input, init)
 		this.unavailable = unavailable
 		this.intakeEnabled = intakeEnabled
+		this.historyEnabled = historyEnabled
 		this.memory = new MyPageMemory(
 			session
 				? createLoader(session, request)
@@ -246,6 +253,47 @@ export class BrowserRuntime {
 			window.removeEventListener('online', network)
 			window.removeEventListener('offline', network)
 			this.memory.dispose()
+		}
+	}
+
+	async historyPage(
+		input: HistoryInput,
+		signal: AbortSignal,
+		requestKey: string = crypto.randomUUID(),
+	) {
+		const uid = this.session?.currentUID()
+		if (!this.historyEnabled || !uid || !this.session)
+			throw new RequestError(401, 'AUTH_REQUIRED')
+		const identity = this.authGeneration
+		const lifecycle = this.lifecycleGeneration
+		const memory = this.memory.generation
+		const owns = () =>
+			!signal.aborted &&
+			identity === this.authGeneration &&
+			lifecycle === this.lifecycleGeneration &&
+			memory === this.memory.generation &&
+			this.session?.currentUID() === uid
+		try {
+			const result = await createHistoryLoader(this.session, this.request)(
+				uid,
+				input,
+				signal,
+				requestKey,
+			)
+			if (!owns()) throw new RequestError(401, 'AUTH_REQUIRED')
+			return result
+		} catch (error) {
+			if (!owns()) throw new RequestError(401, 'AUTH_REQUIRED')
+			const restriction = restrictionFrom(error)
+			if (restriction) this.memory.restrict(restriction, uid)
+			else if (
+				error instanceof RequestError &&
+				(error.status === 401 ||
+					error.code === 'PRIVACY_RECONSENT_REQUIRED' ||
+					error.code === 'WEB_ACCOUNT_REQUIRED')
+			)
+				await this.memory.logout()
+			throw error
 		}
 	}
 

@@ -30,6 +30,7 @@ expected_paths = {
     "/api/auth/youtube/confirm": "post",
     "/api/auth/session/complete": "post",
     "/api/mypage": "get",
+    "/api/mypage/history": "get",
     "/api/privacy/requests": "post",
     "/api/privacy/requests/status": "post",
 }
@@ -37,7 +38,7 @@ assert set(api["paths"]) == set(expected_paths)
 for path, method in expected_paths.items():
     assert set(api["paths"][path]) == {method}
     op = api["paths"][path][method]
-    if path in ("/api/mypage", "/api/auth/session/complete", "/api/privacy/requests", "/api/privacy/requests/status"):
+    if path in ("/api/mypage", "/api/mypage/history", "/api/auth/session/complete", "/api/privacy/requests", "/api/privacy/requests/status"):
         assert op["security"] == [{"FirebaseAuth": [], "AppCheck": []}]
     elif path.endswith("callback"):
         assert op["security"] == []
@@ -47,7 +48,7 @@ assert api["components"]["securitySchemes"]["OAuthTransaction"]["name"] == "__se
 
 fixtures = []
 for path in sorted((ROOT / "docs/mypage/fixtures").glob("*.json")):
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     validator.validate(data)
     fixtures.append(data)
 assert len(fixtures) >= 2
@@ -71,7 +72,7 @@ rejects(lambda x: x["summary"]["data"]["today"].update(workSec=1.5))
 rejects(lambda x: x["summary"]["data"]["today"].update(availability="unavailable", workSec=0))
 rejects(lambda x: x["current"].update(availability="unavailable", reasonCode="SOURCE_UNAVAILABLE"))
 rejects(lambda x: x["current"]["data"].update(breakWorkName="obsolete"))
-print(f"MyPage eight-endpoint schema and {len(fixtures)} synthetic fixtures passed")
+print(f"MyPage nine-endpoint schema and {len(fixtures)} synthetic fixtures passed")
 
 
 # Purpose is authoritative server-side. A support response cannot carry a login
@@ -117,3 +118,14 @@ assert not status_schema.is_valid({"requestRef": "a" * 64, "purpose": "delete", 
 error = contract_validator("Error")
 for code in ["SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS", "TEMPORARY_UNAVAILABLE"]:
     error.validate({"error": {"code": code, "message": code, "requestId": "synthetic-request"}})
+
+# History is separate from graphs and cannot expose source paths or owner IDs.
+history = contract_validator("HistoryPage")
+for path in sorted((ROOT / "docs/mypage/history-fixtures").glob("*.json")):
+    page = json.loads(path.read_text(encoding="utf-8"))
+    history.validate(page)
+    for mutate in [lambda p: p.update(uid="private-owner"), lambda p: p["items"][0].update(workSec=None), lambda p: p["items"][0].update(documentPath="private-source")]:
+        invalid = copy.deepcopy(page)
+        mutate(invalid)
+        assert not history.is_valid(invalid)
+print("Bounded history wire schema passed")

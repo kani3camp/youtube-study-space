@@ -153,7 +153,7 @@ func runWith(ctx context.Context, get func(string) string, deps bootstrapDepende
 				stats.SegmentQueries, stats.SegmentsReturned, stats.SegmentQueryError, stats.ElapsedMilliseconds, stats.MonthLookups, stats.MonthsReturned, stats.MonthReadErrors)
 		}
 	}
-	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Firestore: database, Firebase: sdk, OAuth: provider, PublicMetadata: metadata, ReadObserver: readObserver})
+	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Firestore: database, Firebase: sdk, OAuth: provider, PublicMetadata: metadata, ReadObserver: readObserver, HistorySecret: []byte(config.clientSecret)})
 	if err != nil || bootstrapCtx.Err() != nil {
 		return errors.New("MyPage handler unavailable")
 	}

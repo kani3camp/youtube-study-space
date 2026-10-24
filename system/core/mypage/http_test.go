@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"app.modules/core/serviceaccess"
 )
 
 type boundaryStore struct {
@@ -119,6 +121,40 @@ func TestHTTPAuthorizationBeforeDataAndCache(t *testing.T) {
 	boundaryRequest(h, "GET", "/api/mypage", "")
 	if *reads != 2 {
 		t.Fatal("blocked identity left cached data behind")
+	}
+}
+
+func TestHTTPHistoryUsesTheSameAppCheckCustomUIDConsentAndAccessBoundary(t *testing.T) {
+	for _, fault := range []string{"appcheck", "token", "provider", "consent", "access"} {
+		t.Run(fault, func(t *testing.T) {
+			h, store, verifier, _ := boundaryFixture()
+			h.History = &HistoryService{}
+			want := 403
+			switch fault {
+			case "appcheck":
+				verifier.appErr = errors.New("synthetic app proof failure")
+			case "token":
+				verifier.tokenErr = errors.New("synthetic token failure")
+				want = 401
+			case "provider":
+				verifier.identity.Provider = "google.com"
+				want = 401
+			case "consent":
+				store.account.TermsVersion = "old"
+			case "access":
+				h.Auth.Access = accessReaderFunc(func(context.Context, string) (serviceaccess.Snapshot, error) {
+					return serviceaccess.Snapshot{}, serviceaccess.ErrUnavailable
+				})
+				want = 503
+			}
+			w := boundaryRequest(h, "GET", "/api/mypage/history?from=2026-10-01&to=2026-10-02", "")
+			if w.Code != want {
+				t.Fatalf("history auth boundary status=%d want=%d", w.Code, want)
+			}
+			if w.Header().Get("Cache-Control") != "private, no-store" {
+				t.Fatal("history response lost private no-store")
+			}
+		})
 	}
 }
 

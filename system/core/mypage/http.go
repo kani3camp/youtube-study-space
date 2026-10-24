@@ -28,6 +28,7 @@ type HTTPHandler struct {
 	Auth     *AuthService
 	BFF      *BFF
 	Intake   PrivacyIntake
+	History  *HistoryService
 	Verifier RequestVerifier
 	// One fixed HTTPS origin per environment. Never derive it from request
 	// headers; actual Hosting/proxy host forwarding must be verified at deploy.
@@ -45,6 +46,7 @@ var routeMethods = map[string]string{
 	"/api/auth/youtube/start": "POST", "/api/auth/youtube/callback": "GET",
 	"/api/auth/youtube/channel": "GET", "/api/auth/youtube/confirm": "POST",
 	"/api/auth/session/complete": "POST", "/api/mypage": "GET",
+	"/api/mypage/history":   "GET",
 	"/api/privacy/requests": "POST", "/api/privacy/requests/status": "POST",
 }
 
@@ -65,6 +67,10 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'")
 	w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 	method, known := routeMethods[r.URL.Path]
+	historyRoute := r.URL.Path == "/api/mypage/history"
+	if historyRoute && h.History == nil {
+		known = false
+	}
 	if !known {
 		writeAPIError(w, http.StatusNotFound, "INVALID_REQUEST", requestID)
 		return
@@ -75,7 +81,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	callback := r.URL.Path == "/api/auth/youtube/callback"
-	if !callback && r.URL.RawQuery != "" {
+	if !callback && !historyRoute && r.URL.RawQuery != "" {
 		writeAPIError(w, 400, "INVALID_REQUEST", requestID)
 		return
 	}
@@ -175,7 +181,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, 403, "APP_CHECK_REQUIRED", requestID)
 		return
 	}
-	authenticated := r.URL.Path == "/api/mypage" || r.URL.Path == "/api/auth/session/complete" || privacyRoute
+	authenticated := r.URL.Path == "/api/mypage" || historyRoute || r.URL.Path == "/api/auth/session/complete" || privacyRoute
 	var identity VerifiedIdentity
 	var account WebAccount
 	if authenticated {
@@ -237,6 +243,35 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	switch r.URL.Path {
+	case "/api/mypage/history":
+		q, err := parseHistoryQuery(r.URL.RawQuery)
+		if err != nil {
+			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
+			return
+		}
+		keys := r.Header.Values("Idempotency-Key")
+		if len(keys) != 1 {
+			writeAPIError(w, 400, "INVALID_REQUEST", requestID)
+			return
+		}
+		page, err := h.History.Page(ctx, identity.UID, account, q, keys[0])
+		if err != nil {
+			var wait *HistoryWaitError
+			if errors.As(err, &wait) {
+				delay := max(1, int(time.Until(wait.ResetAt).Seconds())+1)
+				w.Header().Set("Retry-After", strconv.Itoa(delay))
+				w.Header().Set("X-Quota-Reset", wait.ResetAt.UTC().Format(time.RFC3339))
+				code := "RATE_LIMITED"
+				if wait.Daily {
+					code = "ANALYSIS_BUDGET_EXHAUSTED"
+				}
+				writeAPIError(w, 429, code, requestID)
+				return
+			}
+			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
+			return
+		}
+		writeJSON(w, 200, page)
 	case "/api/privacy/requests":
 		response, err := h.Intake.Create(ctx, identity.UID, intake.SubmissionKey, intake.Purpose, intake.Body, now)
 		if err != nil {
@@ -499,6 +534,14 @@ func (h *HTTPHandler) callback(w http.ResponseWriter, r *http.Request, requestID
 
 func statusFor(code string) int {
 	switch code {
+	case "FEATURE_UNAVAILABLE":
+		return 404
+	case "HISTORY_NOT_READY", "OPERATION_ALREADY_CONSUMED":
+		return 409
+	case "HISTORY_LIMIT_EXCEEDED":
+		return 413
+	case "ANALYSIS_BUDGET_EXHAUSTED":
+		return 429
 	case "AUTH_REQUIRED":
 		return 401
 	case "APP_CHECK_REQUIRED", "PRIVACY_RECONSENT_REQUIRED", "SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS":
