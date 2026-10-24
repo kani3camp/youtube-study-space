@@ -3,6 +3,7 @@ package workspaceapp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -66,20 +67,31 @@ func (app *WorkspaceApp) generateWorkNameTrendRankings(ctx context.Context, apiK
 	}
 
 	client := openai.NewClient(option.WithAPIKey(apiKey))
+	return generateWorkNameTrendRankingsWithClient(ctx, client, workNames)
+}
+
+func generateWorkNameTrendRankingsWithClient(ctx context.Context, client openai.Client, workNames []string) ([]repository.WorkNameTrendRanking, error) {
 	userInput := strings.Join(workNames, "\n")
-	slog.Info("userInput", "value", userInput)
+	slog.InfoContext(ctx, "work name trend request started", "work_name_count", len(workNames))
 
 	resp, err := client.Responses.New(ctx, newWorkNameTrendResponseParams(userInput))
 	if err != nil {
-		return nil, fmt.Errorf("in client.Responses.New(): %w", err)
+		slog.WarnContext(ctx, "work name trend request failed", "error_class", "provider_request_failed")
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("work name trend provider request: %w", context.DeadlineExceeded)
+		}
+		if errors.Is(err, context.Canceled) {
+			return nil, fmt.Errorf("work name trend provider request: %w", context.Canceled)
+		}
+		return nil, errors.New("work name trend provider request failed")
 	}
-
-	slog.Info("resp.OutputText()", "value", resp.OutputText())
 
 	rankings, err := parseWorkNameTrendRankings(resp.OutputText())
 	if err != nil {
+		slog.WarnContext(ctx, "work name trend response rejected", "error_class", "invalid_response")
 		return nil, err
 	}
+	slog.InfoContext(ctx, "work name trend rankings parsed", "ranking_count", len(rankings))
 
 	return rankings, nil
 }

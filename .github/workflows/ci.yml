@@ -4,6 +4,32 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      mypage_foundation:
+        description: Run isolated MyPage DEV provisioning
+        required: false
+        default: false
+        type: boolean
+      mypage_foundation_mode:
+        description: MyPage development provisioning operation
+        required: false
+        default: foundation-metadata-plan
+        type: choice
+        options:
+          - foundation-metadata-plan
+          - foundation-metadata-apply
+          - foundation-plan
+          - foundation-apply
+          - registry-plan
+          - registry-apply
+          - image-build
+          - runtime-private-plan
+          - runtime-private-apply
+          - runtime-public-plan
+          - runtime-public-apply
+      mypage_foundation_expected_sha:
+        description: Exact MyPage integration branch SHA
+        required: false
+        type: string
       terraform_authenticated:
         description: Authenticated Terraform
         required: false
@@ -43,7 +69,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true) }}
+  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.mypage_foundation == true)) }}
 
 jobs:
   changes:
@@ -57,6 +83,7 @@ jobs:
       video_maker_simulator: ${{ steps.detect.outputs.video_maker_simulator }}
       figma_plugin: ${{ steps.detect.outputs.figma_plugin }}
       youtube_monitor: ${{ steps.detect.outputs.youtube_monitor }}
+      mypage: ${{ steps.detect.outputs.mypage }}
       docs_site: ${{ steps.detect.outputs.docs_site }}
       aws_cdk: ${{ steps.detect.outputs.aws_cdk }}
       gcp_terraform: ${{ steps.detect.outputs.gcp_terraform }}
@@ -78,7 +105,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CI_AUTHENTICATED_TERRAFORM_DISPATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true }}
+          CI_AUTHENTICATED_TERRAFORM_DISPATCH: ${{ github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.mypage_foundation == true) }}
         run: bash .github/scripts/detect-ci-paths.sh
 
   system:
@@ -93,11 +120,12 @@ jobs:
   frontend:
     name: Frontend
     needs: changes
-    if: ${{ needs.changes.outputs.youtube_monitor == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' || needs.changes.outputs.docs_site == 'true' }}
+    if: ${{ needs.changes.outputs.youtube_monitor == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' || needs.changes.outputs.docs_site == 'true' || needs.changes.outputs.mypage == 'true' }}
     uses: ./.github/workflows/ci-frontend.yml
     with:
       youtube_monitor: ${{ needs.changes.outputs.youtube_monitor == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
       docs_site: ${{ needs.changes.outputs.docs_site == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
+      mypage: ${{ needs.changes.outputs.mypage == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
 
   tools:
     name: Tools
@@ -244,6 +272,26 @@ jobs:
     with:
       target: dev
 
+  mypage-foundation-authenticated:
+    name: MyPage Foundation Authenticated
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.mypage_foundation == true }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-foundation-authenticated.yml
+    secrets:
+      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
+      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
+      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
+      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
+    with:
+      mode: ${{ inputs.mypage_foundation_mode }}
+      expected_sha: ${{ inputs.mypage_foundation_expected_sha }}
+
   ci-gate:
     name: CI Gate
     if: always()
@@ -256,6 +304,7 @@ jobs:
       - repository
       - gcp-terraform-validate
       - gcp-user-activity-schema-audit
+      - mypage-foundation-authenticated
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -265,4 +314,5 @@ jobs:
         env:
           CI_NEEDS: ${{ toJSON(needs) }}
           CI_SCHEMA_AUDIT_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.gcp_user_activity_schema_audit == true }}
+          CI_MYPAGE_FOUNDATION_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.mypage_foundation == true }}
         run: python3 .github/scripts/check-ci-results.py

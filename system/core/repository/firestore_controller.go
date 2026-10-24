@@ -21,7 +21,13 @@ type FirestoreControllerImplements struct {
 }
 
 func NewFirestoreController(ctx context.Context, clientOption option.ClientOption) (*FirestoreControllerImplements, error) {
-	client, err := firestore.NewClient(ctx, firestore.DetectProjectID, clientOption)
+	return NewFirestoreControllerForProject(ctx, firestore.DetectProjectID, clientOption)
+}
+
+// NewFirestoreControllerForProject keeps operator tools bound to an explicit
+// selected project instead of the ambient ADC project.
+func NewFirestoreControllerForProject(ctx context.Context, projectID string, clientOption option.ClientOption) (*FirestoreControllerImplements, error) {
+	client, err := firestore.NewClient(ctx, projectID, clientOption)
 	if err != nil {
 		return nil, fmt.Errorf("in firestore.NewClient: %w", err)
 	}
@@ -174,6 +180,9 @@ func (c *FirestoreControllerImplements) workNameTrendCollection() *firestore.Col
 func (c *FirestoreControllerImplements) DeleteDocRef(ctx context.Context, tx *firestore.Transaction,
 	ref *firestore.DocumentRef,
 ) error {
+	if ref == nil || ref.Parent.ID == WorkSegments || ref.Parent.ID == WorkMonths {
+		return fmt.Errorf("history deletion requires fenced source and aggregate handling: %w", ErrWorkHistoryConflict)
+	}
 	return c.delete(ctx, tx, ref)
 }
 
@@ -264,7 +273,7 @@ func (c *FirestoreControllerImplements) ReadSeat(ctx context.Context, tx *firest
 }
 
 func (c *FirestoreControllerImplements) ReadSeatWithUserID(ctx context.Context, userID string, isMemberSeat bool) (SeatDoc, error) {
-	docs, err := c.seatsCollection(isMemberSeat).Where(UserIDDocProperty, "==", userID).Documents(ctx).GetAll()
+	docs, err := queryDocuments(ctx, c.seatsCollection(isMemberSeat).Where(UserIDDocProperty, "==", userID).Limit(2)).GetAll()
 	if err != nil {
 		return SeatDoc{}, fmt.Errorf("query seat by user ID: %w", err)
 	}
@@ -575,16 +584,15 @@ func (c *FirestoreControllerImplements) GetUsersActiveAfterDate(ctx context.Cont
 }
 
 func (c *FirestoreControllerImplements) CreateWorkSegmentDoc(ctx context.Context, tx *firestore.Transaction, workSegment WorkSegmentDoc) error {
-	ref := c.workSegmentsCollection().NewDoc()
-	return c.create(ctx, tx, ref, workSegment)
+	return c.createWorkSegmentWithMonths(ctx, tx, workSegment)
 }
 
 // ReadWorkStateSegmentsBySessionID returns work-state segments for the given session ID.
 func (c *FirestoreControllerImplements) ReadWorkStateSegmentsBySessionID(ctx context.Context, sessionID string) ([]WorkSegmentDoc, error) {
-	iter := c.workSegmentsCollection().
+	query := c.workSegmentsCollection().
 		Where(SessionIDDocProperty, "==", sessionID).
-		Where(SegmentTypeDocProperty, "==", WorkState).
-		Documents(ctx)
+		Where(SegmentTypeDocProperty, "==", WorkState)
+	iter := queryDocuments(ctx, query)
 	return getDocDataFromIterator[WorkSegmentDoc](iter)
 }
 

@@ -9,6 +9,7 @@ readonly CI_GROUPS=(
 	video_maker_simulator
 	figma_plugin
 	youtube_monitor
+	mypage
 	docs_site
 	aws_cdk
 	gcp_terraform
@@ -24,6 +25,7 @@ menu_image_generator=false
 video_maker_simulator=false
 figma_plugin=false
 youtube_monitor=false
+mypage=false
 docs_site=false
 aws_cdk=false
 gcp_terraform=false
@@ -55,6 +57,7 @@ set_all_groups() {
 	video_maker_simulator=true
 	figma_plugin=true
 	youtube_monitor=true
+	mypage=true
 	docs_site=true
 	aws_cdk=true
 	gcp_terraform=true
@@ -66,7 +69,7 @@ set_all_groups() {
 
 path_is_ci_config() {
 	case "$1" in
-		.github/workflows/*|.github/codeql/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/check-ci-results.py|.github/scripts/install-ci-source-tools.sh|.github/scripts/test_ci_*.py|.github/scripts/run-firestore-integration-tests.sh|.github/scripts/base-image-update-report*.mjs|.github/actions/*)
+		.github/dependabot.yml|.github/workflows/*|.github/codeql/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/check-ci-results.py|.github/scripts/install-ci-source-tools.sh|.github/scripts/test_ci_*.py|.github/scripts/run-firestore-integration-tests.sh|.github/scripts/base-image-update-report*.mjs|.github/actions/*)
 			return 0
 			;;
 		*)
@@ -133,8 +136,17 @@ classify_path() {
 			figma_plugin=true
 			matched=true
 			;;
-		youtube-monitor/*|biome.json)
+		youtube-monitor/*)
 			youtube_monitor=true
+			matched=true
+			;;
+		mypage/*|docs/mypage/*|infra/mypage-oauth-ttl/*|.github/scripts/check-mypage-contract.py)
+			mypage=true
+			matched=true
+			;;
+		biome.json)
+			youtube_monitor=true
+			mypage=true
 			matched=true
 			;;
 		docs-site/*)
@@ -147,6 +159,11 @@ classify_path() {
 			;;
 		aws-cdk/*)
 			aws_cdk=true
+			matched=true
+			;;
+		infra/mypage-platform/*)
+			gcp_terraform=true
+			mypage=true
 			matched=true
 			;;
 		infra/gcp/*)
@@ -227,6 +244,7 @@ group_value() {
 		video_maker_simulator) printf '%s' "$video_maker_simulator" ;;
 		figma_plugin) printf '%s' "$figma_plugin" ;;
 		youtube_monitor) printf '%s' "$youtube_monitor" ;;
+		mypage) printf '%s' "$mypage" ;;
 		docs_site) printf '%s' "$docs_site" ;;
 		aws_cdk) printf '%s' "$aws_cdk" ;;
 		gcp_terraform) printf '%s' "$gcp_terraform" ;;

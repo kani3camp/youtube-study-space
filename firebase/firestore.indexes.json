@@ -163,7 +163,59 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "work-segments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`user-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`ended-at`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`started-at`",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "work-segments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`user-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`segment-type`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`ended-at`",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "work-months",
+      "fieldPath": "days",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "mypage-history-budgets",
+      "fieldPath": "operations",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "mypage-history-budgets",
+      "fieldPath": "leases",
+      "indexes": []
+    }
+  ]
 }

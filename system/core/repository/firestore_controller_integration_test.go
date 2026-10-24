@@ -432,7 +432,9 @@ func TestFirestoreRepository_WorkSegmentQuery(t *testing.T) {
 		},
 	}
 	for _, segment := range segments {
-		require.NoError(t, controller.CreateWorkSegmentDoc(context.Background(), nil, segment))
+		// Historical query fixtures intentionally bypass the live close writer.
+		_, err := controller.FirestoreClient().Collection(repository.WorkSegments).NewDoc().Create(context.Background(), segment)
+		require.NoError(t, err)
 	}
 
 	got, err := controller.ReadWorkStateSegmentsBySessionID(context.Background(), targetSessionID)

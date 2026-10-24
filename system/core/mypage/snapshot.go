@@ -1,0 +1,199 @@
+package mypage
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"app.modules/core/repository"
+	"app.modules/core/timeutil"
+
+	"cloud.google.com/go/firestore"
+)
+
+// SnapshotReadObservation contains only bounded counters and a query-error flag;
+// never store channel identities, document paths, data, or error messages.
+// Returned documents are NOT the same as billable reads: missing-query minimums,
+// index entries and retries require Query Explain / Cloud Billing for a complete
+// cost measurement. Query failures must not be interpreted as empty successes.
+type SnapshotReadObservation struct {
+	UserLookups         int
+	SeatQueries         int
+	SeatsReturned       int
+	SeatQueryErrors     int
+	SegmentQueries      int
+	SegmentsReturned    int
+	SegmentQueryError   bool
+	MonthLookups        int
+	MonthsReturned      int
+	MonthReadErrors     int
+	ElapsedMilliseconds int64
+}
+
+type SnapshotReader interface {
+	Read(context.Context, string) (WorkSnapshot, error)
+}
+
+type FirestoreSnapshotReader struct {
+	Client *firestore.Client
+	// Only verified history coverage may be configured. No default epoch.
+	Coverage []Interval
+	// Empty keeps the previous raw reader for explicit rollout/rollback. The
+	// epoch must match a verified bounded migration after old writers drain.
+	MonthlyEpoch string
+	// Optional and called only once after a successful snapshot read.
+	Observe func(SnapshotReadObservation)
+}
+
+func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSnapshot, error) {
+	if uid == "" || strings.Contains(uid, "/") {
+		return WorkSnapshot{}, apiError("AUTH_REQUIRED")
+	}
+	var result WorkSnapshot
+	var observation SnapshotReadObservation
+	started := time.Now()
+	err := r.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// Each transaction attempt gets fresh counters. Report once after success;
+		// retries may generate extra billed reads, not included in these counts.
+		attempt := SnapshotReadObservation{UserLookups: 1}
+		defer func() { observation = attempt }()
+		s := WorkSnapshot{UID: uid, Coverage: r.Coverage}
+		// GetAll exposes readTime even for a missing user. Use it to choose the
+		// JST window after the snapshot exists, avoiding request-time boundaries.
+		docs, err := tx.GetAll([]*firestore.DocumentRef{r.Client.Collection("users").Doc(uid)})
+		if err != nil {
+			return fmt.Errorf("read snapshot user: %w", err)
+		}
+		if len(docs) != 1 || docs[0].ReadTime.IsZero() {
+			return fmt.Errorf("snapshot user read time missing")
+		}
+		s.AsOf = docs[0].ReadTime.UTC()
+		if !docs[0].Exists() {
+			result = s
+			return nil
+		}
+		var user repository.UserDoc
+		if err := docs[0].DataTo(&user); err != nil {
+			return fmt.Errorf("decode snapshot user: %w", err)
+		}
+		s.User = &user
+		epoch := r.MonthlyEpoch
+		if epoch == "" {
+			epoch = user.WorkHistoryEpoch
+		}
+		userFields := docs[0].Data()
+		if _, ok := userFields["total-study-sec"].(int64); !ok {
+			s.UserTotalInconsistent = true
+		}
+		rawEpoch, hasEpoch := userFields["work-history-epoch"]
+		_, hasActivated := userFields["work-history-activated-at"]
+		_, hasThrough := userFields["work-history-closed-through"]
+		if hasEpoch {
+			if value, ok := rawEpoch.(string); !ok || value != repository.MonthlyWorkEpoch {
+				s.HistoryInconsistent = true
+				epoch = repository.MonthlyWorkEpoch
+			}
+		} else if hasActivated || hasThrough {
+			s.HistoryInconsistent = true
+			epoch = repository.MonthlyWorkEpoch
+		}
+		if user.WorkHistoryEpoch != "" && user.WorkHistoryEpoch != repository.MonthlyWorkEpoch {
+			s.HistoryInconsistent = true
+		}
+		if user.WorkHistoryEpoch == repository.MonthlyWorkEpoch {
+			_, hasWatermark := userFields["work-history-closed-through"]
+			if !hasWatermark || !repository.ValidWorkHistoryWatermark(user, s.AsOf) {
+				s.HistoryInconsistent = true
+			}
+		}
+		for _, name := range []string{"seats", "member-seats"} {
+			attempt.SeatQueries++
+			seats, err := tx.Documents(r.Client.Collection(name).Where("user-id", "==", uid).Limit(2)).GetAll()
+			if err != nil {
+				attempt.SeatQueryErrors++
+				s.SeatUnavailable = true
+				continue
+			}
+			attempt.SeatsReturned += len(seats)
+			if len(seats) > 1 || (s.Seat != nil && len(seats) > 0) {
+				s.SeatInconsistent = true
+			}
+			if len(seats) > 0 {
+				var seat repository.SeatDoc
+				if err := seats[0].DataTo(&seat); err != nil {
+					s.SeatInconsistent = true
+					continue
+				}
+				s.Seat = &seat
+				s.MemberSeat = name == "member-seats"
+			}
+		}
+		window := StatisticsWindows(s.AsOf)
+		if epoch != "" {
+			s.MonthlyEpoch = epoch
+			s.Months = map[string]repository.WorkMonthDoc{}
+			first := window.QueryStart().In(timeutil.JapanLocation())
+			month := time.Date(first.Year(), first.Month(), 1, 0, 0, 0, 0, first.Location())
+			var keys []string
+			var refs []*firestore.DocumentRef
+			for !month.After(s.AsOf) {
+				key := month.Format("2006-01")
+				keys = append(keys, key)
+				refs = append(refs, r.Client.Collection(repository.WorkMonths).Doc(repository.WorkMonthID(uid, key)))
+				month = month.AddDate(0, 1, 0)
+			}
+			attempt.MonthLookups = len(refs)
+			docs, err := tx.GetAll(refs)
+			if err != nil || len(docs) != len(refs) {
+				attempt.MonthReadErrors = len(refs)
+				s.HistoryUnavailable = true
+			} else {
+				for i, doc := range docs {
+					if doc.Exists() {
+						attempt.MonthsReturned++
+						value, err := repository.DecodeWorkMonth(doc, uid, keys[i])
+						if err != nil {
+							s.HistoryInconsistent = true
+						} else {
+							s.Months[keys[i]] = value
+						}
+					}
+				}
+			}
+			result = s
+			return nil
+		}
+		query := r.Client.Collection("work-segments").Where("user-id", "==", uid).
+			Where("ended-at", ">", window.QueryStart()).Where("started-at", "<", s.AsOf).
+			OrderBy("ended-at", firestore.Asc).OrderBy("started-at", firestore.Asc).Limit(HistoryReadLimit)
+		attempt.SegmentQueries++
+		segments, err := tx.Documents(query).GetAll()
+		if err != nil {
+			attempt.SegmentQueryError = true
+			s.HistoryUnavailable = true
+		} else {
+			attempt.SegmentsReturned = len(segments)
+			for _, doc := range segments {
+				segment, err := repository.DecodeWorkSegment(doc, uid)
+				if err != nil {
+					// An unreadable interval may affect any day in the queried
+					// window; do not discard it and report an apparently exact sum.
+					s.HistoryUnavailable = true
+					break
+				}
+				s.Segments = append(s.Segments, segment)
+			}
+		}
+		result = s
+		return nil
+	}, firestore.ReadOnly)
+	if err != nil {
+		return WorkSnapshot{}, fmt.Errorf("read work snapshot: %w", err)
+	}
+	if r.Observe != nil {
+		observation.ElapsedMilliseconds = time.Since(started).Milliseconds()
+		r.Observe(observation)
+	}
+	return result, nil
+}

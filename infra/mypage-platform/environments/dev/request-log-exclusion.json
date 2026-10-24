@@ -1,0 +1,6 @@
+{
+  "name": "mypage-sensitive-request-url",
+  "description": "DEV MyPage callback and API query URLs only; synthetic S04 retention observed 2026-10-21.",
+  "filter": "resource.type=\"cloud_run_revision\"\nresource.labels.project_id=\"test-youtube-study-space\"\nresource.labels.service_name=\"mypage-api\"\nlogName=\"projects/test-youtube-study-space/logs/run.googleapis.com%2Frequests\"\n(httpRequest.requestUrl =~ \"/api/auth/youtube/callback([?]|$)\" OR httpRequest.requestUrl =~ \"/api/[^?]*[?]\")",
+  "disabled": false
+}

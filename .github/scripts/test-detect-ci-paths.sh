@@ -12,7 +12,7 @@ assert_output_groups() {
 	local group
 	local expected
 
-	for group in system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all; do
+	for group in system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all; do
 		expected=false
 		case " $expected_groups " in
 			*" $group "*) expected=true ;;
@@ -40,7 +40,14 @@ assert_exact_groups firestore_integration firebase/firebase.json
 assert_exact_groups firestore_integration firebase/firestore.rules
 assert_exact_groups firestore_integration firebase/firestore.indexes.json
 assert_exact_groups youtube_monitor youtube-monitor/src/app.ts
-assert_exact_groups youtube_monitor biome.json
+assert_exact_groups mypage mypage/src/main.tsx
+assert_exact_groups mypage mypage/package.json
+assert_exact_groups mypage docs/mypage/openapi.yaml
+assert_exact_groups mypage infra/mypage-oauth-ttl/environments/dev/main.tf
+assert_exact_groups mypage .github/scripts/check-mypage-contract.py
+assert_exact_groups "youtube_monitor mypage" biome.json
+assert_exact_groups "system firestore_integration" system/core/mypage/store.go
+assert_exact_groups "system firestore_integration" system/cmd/mypage-server/main.go
 assert_exact_groups "system firestore_integration" system/core/workspaceapp/app.go
 assert_exact_groups "system firestore_integration" system/core/repository/firestore_controller.go
 assert_exact_groups "system firestore_integration" system/core/workspaceapp/workspace_app_private_test.go
@@ -51,6 +58,8 @@ assert_exact_groups "system firestore_integration formal_spec" system/core/timeu
 assert_exact_groups "system firestore_integration aws_cdk" system/Dockerfile.lambda
 assert_exact_groups "system firestore_integration aws_cdk" system/.dockerignore
 assert_exact_groups aws_cdk aws-cdk/lib/aws-cdk-stack.ts
+assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/environments/dev/main.tf
+assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/modules/runtime/main.tf
 assert_exact_groups gcp_terraform infra/gcp/README.md
 assert_exact_groups gcp_terraform infra/gcp/environments/dev/main.tf
 assert_exact_groups gcp_terraform infra/gcp/environments/prod/main.tf
@@ -106,19 +115,19 @@ assert_exact_groups video_maker_simulator tools/video-maker/1000-minutes-simulat
 assert_exact_groups figma_plugin tools/figma-plugin/room-layout-analyzer/code.ts
 assert_exact_groups node_projects .node-version
 assert_exact_groups node_projects .nvmrc
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/workflows/ci.yml
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/workflows/ci.yml
 for codeql_path in .github/codeql/.gitignore .github/codeql/README.md .github/codeql/analysis-config.yml .github/codeql/build-go.sh .github/codeql/install-actionlint.sh .github/codeql/lint-workflows.py .github/codeql/requirements.txt .github/codeql/test_source_contracts.py .github/codeql/tooling.json .github/codeql/validate-source.py .github/scripts/detect-ci-paths.sh .github/scripts/test-detect-ci-paths.sh .github/workflows/codeql-advanced.yml .github/workflows/codeql-analyzer.yml .github/workflows/codeql-source-contracts.yml; do
-	assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" "$codeql_path"
+	assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" "$codeql_path"
 done
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/workflows/deploy-docs.yml
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/detect-ci-paths.sh
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/test-detect-ci-paths.sh
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/run-firestore-integration-tests.sh
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/base-image-update-report.mjs
-assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/base-image-update-report.test.mjs
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/workflows/deploy-docs.yml
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/detect-ci-paths.sh
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/test-detect-ci-paths.sh
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/run-firestore-integration-tests.sh
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/base-image-update-report.mjs
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/base-image-update-report.test.mjs
 assert_exact_groups "system firestore_integration youtube_monitor" system/core/app.go youtube-monitor/src/app.ts
 
-all_groups="system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all"
+all_groups="system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all"
 manual_output="$(env -u CI_AUTHENTICATED_TERRAFORM_DISPATCH GITHUB_EVENT_NAME=workflow_dispatch "$detector")"
 assert_output_groups "$all_groups" "$manual_output" "manual dispatch with absent Terraform marker"
 for marker in "" false FALSE 1 yes malformed; do
@@ -166,7 +175,7 @@ assert_exact_groups gcp_terraform infra/gcp/scripts/runtime_plan_selection.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_plan_contract.py
 
 # Every reusable CI module and its executable contracts select the full suite.
-for ci_path in .github/workflows/ci-{system,frontend,tools,infra,repository}.yml .github/scripts/check-ci-results.py .github/scripts/install-ci-source-tools.sh .github/scripts/test_ci_workflows.py .github/scripts/test_ci_results.py; do
+for ci_path in .github/dependabot.yml .github/scripts/test_ci_security.py .github/workflows/ci-{system,frontend,tools,infra,repository}.yml .github/scripts/check-ci-results.py .github/scripts/install-ci-source-tools.sh .github/scripts/test_ci_workflows.py .github/scripts/test_ci_results.py; do
 	assert_exact_groups "$all_groups" "$ci_path"
 done
 

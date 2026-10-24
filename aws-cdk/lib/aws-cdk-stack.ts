@@ -29,6 +29,8 @@ export type AwsCdkStackProps = cdk.StackProps & {
 const DEFAULT_SYSTEM_DIR = path.resolve(__dirname, '../../system')
 const DOCKERFILE_LAMBDA = 'Dockerfile.lambda'
 const DOCKERFILE_FARGATE = 'Dockerfile.fargate'
+// Local QA receipts and installed tools never belong in a staged image context.
+const LOCAL_CONTEXT_EXCLUDES = ['**/node_modules']
 
 // 全 Lambda で同じ build context / Dockerfile / platform を共有しているため、CDK は
 // 既に asset を de-dup している。ヘルパーは宣言の明確化とビルド時間の予測性向上を
@@ -37,6 +39,7 @@ const DOCKERFILE_FARGATE = 'Dockerfile.fargate'
 const createLambdaImageCode = (systemDir: string, binaryName: string) =>
 	lambda.DockerImageCode.fromImageAsset(systemDir, {
 		file: DOCKERFILE_LAMBDA,
+		exclude: LOCAL_CONTEXT_EXCLUDES,
 		platform: Platform.LINUX_AMD64,
 		entrypoint: [`/app/${binaryName}`],
 	})
@@ -165,6 +168,7 @@ export class AwsCdkStack extends cdk.Stack {
 			{
 				directory: systemDir,
 				file: DOCKERFILE_FARGATE,
+				exclude: LOCAL_CONTEXT_EXCLUDES,
 				platform: Platform.LINUX_ARM64,
 			},
 		)
