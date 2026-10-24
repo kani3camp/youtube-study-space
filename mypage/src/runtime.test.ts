@@ -785,6 +785,92 @@ describe('browser authentication runtime', () => {
 		expect(runtime.memory.getSnapshot().phase).toBe('authenticated')
 		dispose()
 	})
+	it('shares one unfinished restored session check across same-identity auth and pageshow events', async () => {
+		const { windowTarget } = browserFixture()
+		const { session, setUID } = sessionFixture()
+		setUID('synthetic')
+		let release: (response: Response) => void = () => {}
+		const pending = new Promise<Response>((resolve) => {
+			release = resolve
+		})
+		const request = vi.fn<typeof fetch>(async (path) =>
+			path === '/api/auth/session/complete' ? pending : Response.json(fixture),
+		)
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		const dispose = runtime.mount()
+		try {
+			await settle()
+			setUID('synthetic')
+			windowTarget.dispatchEvent(new Event('pageshow'))
+			await settle()
+			expect(request.mock.calls.map(([path]) => path)).toEqual([
+				'/api/auth/session/complete',
+			])
+			expect(runtime.memory.getSnapshot().data).toBeNull()
+			release(new Response(null, { status: 204 }))
+			await settle()
+			await vi.waitFor(() =>
+				expect(runtime.memory.getSnapshot().data).not.toBeNull(),
+			)
+			expect(request.mock.calls.map(([path]) => path)).toEqual([
+				'/api/auth/session/complete',
+				'/api/mypage',
+			])
+		} finally {
+			dispose()
+		}
+	})
+
+	it('pagehide requires a fresh session check even when the restored UID is unchanged', async () => {
+		const { windowTarget } = browserFixture()
+		const { session, setUID } = sessionFixture()
+		setUID('synthetic')
+		const releases: Array<(response: Response) => void> = []
+		const request = vi.fn<typeof fetch>(async (path) =>
+			path === '/api/auth/session/complete'
+				? new Promise<Response>((resolve) => {
+						releases.push(resolve)
+					})
+				: Response.json(fixture),
+		)
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		const dispose = runtime.mount()
+		try {
+			await settle()
+			windowTarget.dispatchEvent(new Event('pagehide'))
+			windowTarget.dispatchEvent(new Event('pageshow'))
+			await settle()
+			expect(request.mock.calls.map(([path]) => path)).toEqual([
+				'/api/auth/session/complete',
+				'/api/auth/session/complete',
+			])
+			releases[0]?.(new Response(null, { status: 204 }))
+			await settle()
+			expect(runtime.memory.getSnapshot().data).toBeNull()
+			expect(
+				request.mock.calls.filter(([path]) => path === '/api/mypage'),
+			).toHaveLength(0)
+			releases[1]?.(new Response(null, { status: 204 }))
+			await settle()
+			await vi.waitFor(() =>
+				expect(runtime.memory.getSnapshot().data).not.toBeNull(),
+			)
+			expect(
+				request.mock.calls.filter(([path]) => path === '/api/mypage'),
+			).toHaveLength(1)
+		} finally {
+			dispose()
+		}
+	})
+
 	it('reconciles an interrupted sign-in before reading MyPage on restored auth', async () => {
 		vi.stubGlobal('window', new EventTarget())
 		vi.stubGlobal(
