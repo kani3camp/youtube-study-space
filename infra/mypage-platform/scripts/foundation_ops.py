@@ -346,8 +346,9 @@ def apply_saved(env):
             # Provider 8.5.0 omits etag on Update. NEVER apply its update Plan:
             # use a conditional API mutation and validated refresh-only State.
             import read_metrics_live
-            read_metrics_live.apply_saved(env, root, plan, stage)
-            print("DEV metrics conditional update and live/State verification passed.")
+            result = read_metrics_live.apply_saved(env, root, plan, stage)
+            print("DEV metrics State-only recovery and live/State verification passed." if result == "state-recovery" else
+                  "DEV metrics conditional update and live/State verification passed.")
             return
         recovery = owner_recovery_receipt()
         runtime_contract.validate_plan(plan, stage, owner_recovery=recovery)
