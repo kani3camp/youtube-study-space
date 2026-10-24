@@ -6,6 +6,16 @@
 
 ## コンテナ
 
+### 2026-10-24：既存Stateの遅れを限定して整合する
+
+Goalは、実読したMyPage専用DEV State serial 8（generation 2/image `ef81de63`）と現在live generation 4/image `4020ade3`を、remote writeなしで整合すること。[run 40065942906](https://github.com/kani3camp/youtube-study-space/actions/runs/40065942906)は旧Stateとの差を`runtime-refresh-fields`で拒否し、Applyなし。開始時liveはgeneration 3だったが、Stateはgeneration 2のままだった。Stateの事前照合不足を修正し、観測OFF・合成未実行の状態で後続を停止した。
+
+Invariantsは、固定DEV 12資源・全planned action no-op・全設定比較・unknown/import/replace拒否、native lock、freshな独立Plan/HMAC、保存Planのhash/期限、元S3版・現在liveのUID/etag/Ready/traffic。Non-goalsは再配備、IAM/Secret変更、State手書き/push、一般的な複数世代差の受理、metrics transitionの条件緩和。受入は同じ正規経路でState-only適用後、Stateとliveが一致し、以後のmetrics Planが通常経路を通ること。
+
+`owner-state-recovery.json`は今回だけのsource固定receipt。既存AWS接続で取得したS3 object版・lineage・serialとservice UID、GCPで取得した現在etagをhashへ拘束する。原文Stateやbucket/role IDは公開しない。中間revisionはownerによる3本のReady/config readbackの補助証跡であり、当時のService generation/trafficをそれだけから推測しない。始点は実State、終点はfresh Planと現在live GETで検証する。State上で中間世代を仮想再現しない。
+
+復旧の有効時だけexactなgeneration/revision/image・State版・UIDを要求し、Apply直前と直後にlive GETで全設定とetag等を照合する。競合・別版・別設定・generation 3/5・未完Planは停止し、再採取して自動継続しない。metrics ON/OFFは従来どおり別のfresh Planと元etag条件付きPATCHであり、このreceiptを流用しない。回帰は`test_owner_state_recovery.py`で正常State-only順序、receipt/State/live不一致とconfig変更の拒否を検査する。実適用成功までは復旧済みとしない。
+
 `system/Dockerfile.mypage`は既存のdigest固定Go / distrolessイメージを使用し、Cloud Run用のlinux/amd64バイナリをビルドする。CGOなし、timezone dataをバイナリへ含め、nonrootで起動する。Secretやローカル環境ファイルをイメージへ渡さない。
 
 ```sh
