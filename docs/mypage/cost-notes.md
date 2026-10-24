@@ -16,20 +16,20 @@
 - 実DEVの同日fixtureではraw返却0/10/100/500/1000/1001に対しAnalyzeのdocument scanも同数、index scanも同数だった。0件queryのreadOperationsは1、1,000件では1,001、1,001件では1,003だった。実利用者の分布は測っていないため、raw平均20文書/miss、index 1,000 entries/missという既定シナリオは比較用仮定として残す。空query最低1 readとindex 1,000件単位の切上げを別計算する。limit=1001をindex scan課金上限とみなさない。Query Explain Analyzeも通常query料金が発生する。
 - 月次writerはcloseあたり追加read 5.05・write 2.05を仮置き（再実行・月跨ぎ比率を含む推定）。raw自体の既存書込費は既存利益側に含め、増分に重ねない。全Bot DAUを対象にする。競合retry、移行・rebuild・削除・障害復旧は通常closeの外で別予算。
 - 明細は既定50/max100件、候補index 20,000 entries、control read推定32、quota reserve/release write 2。Firestore推定はpage size＋sentinel＋controlとindexを別算出。予約103 weighted units（最大pageなら153）は**実課金read数ではない**。複数attempt・失敗・ACK不明の増分は実測が必要。応答32KiBは仮定で、最大側の感度は128KiB。明細費表はRun/WAF/通信/管理費を含む総額差分で、Firestore専用値と区別する。分析・出力機能の実装や無制限Premiumを意味しない。
-- DEV release 1792827165956000では、JS/CSS/4 fontの正確なhash付きpathに1年immutableを配備し、8 filesのbody SHA256一致とHTML/API/未知hashのno-storeを確認した。4 fontのsource合計4,278,928 bytesはwire実測ではない。1 documentあたり4.5MB/7 requests、cache後平均0.2MB/1.2 requestsは未測定の仮定。追加180件cohortの非空overview5回ではRun HTTP request message平均3303 bytes、response平均2092.4 bytesだった（headers込み）。API inboundだけ3303 bytesの測定参照へ更新し、静的requestの1024 bytes仮定へ流用しない。responseの8192 bytes予算は維持し、Hosting最終転送量・人口平均と混同しない。初回訪問・更新releaseでは再downloadがあり、0.2/1.5/4.5MB感度を併記する。
+- DEV release 1792857234818000では、JS/CSS/4 fontの正確なhash付きpathに1年immutableを配備し、8 filesのbody SHA256一致とHTML/API/未知hashのno-storeを確認した。4 fontのsource合計4,278,928 bytesはwire実測ではない。1 documentあたり4.5MB/7 requests、cache後平均0.2MB/1.2 requestsは未測定の仮定。追加180件cohortの非空overview5回ではRun HTTP request message平均3303 bytes、response平均2092.4 bytesだった（headers込み）。API inboundだけ3303 bytesの測定参照へ更新し、静的requestの1024 bytes仮定へ流用しない。responseの8192 bytes予算は維持し、Hosting最終転送量・人口平均と混同しない。初回訪問・更新releaseでは再downloadがあり、0.2/1.5/4.5MB感度を併記する。
 - App Checkは1時間TTLの約半分でrefreshするSDK挙動から2 assessments/滞在時間を仮置きし、pollingと独立計算。既存organization利用10,000を加え、reCAPTCHAのorganization共有課金の**増分**を求める。成長シナリオではこの費用が支配的であり、5分pollだけで1/5としない。
 
 ## 無料枠・未計上・採算
 
 既存利益は利用者申告の新Web前月30,000円を1回だけ使用。候補690円の新規加入は690×手取り率、290円からのupgradeは差額400×手取り率。手取り率0.7・為替150円/USD・税倍率1（税別）は仮定で、実際の手数料・税・返金・事業契約を確認する。維持人数は新Web増分全額を埋め、既存30,000円を維持する人数。
 
-Firestore無料枠はprojectの対象DB・日単位でBot等と共有。Run無料枠は**請求先アカウント全projectで共有**（Tier1換算CPU $4.32、RAM $0.90、requests $0.80/月）。本モデルの利用可能残は既定0で、Production側だけから控除しDEVにも二重適用しない。DEV変動費は独立入力で既定0、今回の合成試験は承認された一時予算で別管理する。
+Firestore無料枠はprojectの対象DB・日単位でBot等と共有。Run無料枠は**請求先アカウント全projectで共有**（Tier1換算CPU $4.32、RAM $0.90、requests $0.80/月）。本モデルの利用可能残は既定0で、Production側だけから控除しDEVにも二重適用しない。DEV変動費は独立入力で、今回追加したwriter 2 imageの保管allowance $0.05/月を含む。既存private ECRの公式$0.10/GB月を参照し、compressed合計160,264,117 bytesではなく未圧縮合計492,453,123 bytesから丸めた保守的上限を採用した。free tier・layer dedupは控除せず、請求実績とはしない。既存workloadの通常費を二重加算しない。合成試験は承認された一時予算で別管理する。
 
 Firebase HostingはGB、LB/FirestoreはGiBで換算。Hosting公式料金表の360MB/日とusage文書の10GB/月に無料転送枠表記の相違があるため、既定0とする。全site/channelと旧release保存量を合算して確認する。Loggingは既存費を差し引いた新規増分だけを計算する。
 
 新規Firestore storage、Hosting release storage、通常追加ログは未測定で既定0。値が0だから無料という意味ではない。index/文書サイズ、旧release保持、30日超ログ保持、backup/PITR、migration/deletion、Auth/Identity Platformの実課金条件、Monitoring custom metrics、YouTube quota、abuse traffic、DEV変動費、税を別途確認する。モデルは記載範囲の増分予算であり、実構成の完全な請求総額ではない。通常既存workloadは既存利益に含む。
 
-DEVのON/OFF・409競合拒否・合成削除・一時権限解除は[実測記録](dev-cost-measurement-20261024.md)を参照。1,000件fixtureのraw query部分を月次1文書へ置換しても、API全体が1 readになるわけではない。owner端末→JakartaのSDK経過時間はCloud Run CPU・課金wall timeではない。追加の認証付き180件はraw/月次どちらも記録済み3分・累計3分のUIと200応答を確認し、元SDKの180秒一致と照合した。raw再取得の前分asOf維持はcache再利用を示すが、内部hit計数/率・response本文全体のbyte比較は未実施。追加分を含めraw2793/write-delete予約5628/read見積19391、合成data window合計約17分31秒で全削除を確認した。
+DEVのON/OFF・409競合拒否・合成削除・一時権限解除は[実測記録](dev-cost-measurement-20261024.md)を参照。1,000件fixtureのraw query部分を月次1文書へ置換しても、API全体が1 readになるわけではない。owner端末→JakartaのSDK経過時間はCloud Run CPU・課金wall timeではない。追加の認証付き180件はraw/月次どちらも記録済み3分・累計3分のUIと200応答を確認し、元SDKの180秒一致と照合した。raw再取得の前分asOf維持はcache再利用を示すが、内部hit計数/率・response本文全体のbyte比較は未実施。追加分を含めraw2793/write-delete予約5628/データ窓終了時read見積19391（追加配備確認allowance込み19424）、合成data window合計約17分31秒で全削除を確認した。
 
 App Checkの1時間TTLを確認し、同じ日単位key集計の前後66→66を取得したが、反映遅延と集計粒度のため評価回数0やpolling別単価の実証とはしない。
 

@@ -749,9 +749,9 @@
     "systemTree": "b484aa740fd4e05c899082d5bc0cfc9deae4b4b1",
     "image": "asia-southeast2-docker.pkg.dev/test-youtube-study-space/mypage/mypage-api@sha256:4020ade3cb0b6114b56f41938620bac253e4951f32d3cff472ec28583312c210",
     "runtimeControlSource": "c7d75127e07dc20097748c3e0425441fd27f4dcf",
-    "hostingSource": "38ae9296e7120902f6f7ec76b66508474bd70ea2",
-    "hostingRelease": "1792827165956000",
-    "hostingVersion": "67e3543a0a31a77b",
+    "hostingSource": "a16dccd672c89228ea3594e211b8125a6cc80722",
+    "hostingRelease": "1792857234818000",
+    "hostingVersion": "722779b155355d62",
     "ready": "mypage-api-00006-xjf",
     "generation": 6,
     "metricsEnabled": false,
@@ -782,7 +782,13 @@
       "verifiedAt": "2026-10-24T11:25:01.626094+00:00",
       "source": "connected AWS terraform state, independent of GitHub CI",
       "finalCIPassed": true
-    }
+    },
+    "previousHostingRelease": {
+      "source": "38ae9296e7120902f6f7ec76b66508474bd70ea2",
+      "release": "1792827165956000",
+      "version": "67e3543a0a31a77b"
+    },
+    "hostingReleaseTime": "2026-10-24T15:53:54.818Z"
   },
   "appCheck": {
     "tokenTtlSeconds": 3600,
@@ -794,11 +800,11 @@
   "remaining": [
     "real seat/history dependency-failure injection",
     "population distribution, browser transfer/cache ratio and App Check assessments per active hour",
-    "billing SKU IDs/invoice and delayed metrics",
+    "actual account billed SKU/invoice and delayed metrics; public SKU IDs verified",
     "history-specific index/policy/quota live rollout; feature remains off",
     "recent-window month boundary and two-month live reader comparison (current month-boundary source was outside the seven-day window)",
     "full authenticated response-body comparison and per-request process CPU/internal cache counters; recorded UI/known-fixture comparison and allocation window passed",
-    "current-source DEV Batch/Lambda image build/deploy receipts and natural execution acceptance; owner confirms no resident DEV Bot",
+    "natural execution acceptance for new Fargate revision 67; Lambda configuration/readback passed; owner confirms no resident DEV Bot",
     "actual account billed SKU/invoice: Billing API disabled and no existing DEV billing export dataset; public SKU identifiers verified",
     "all-writer drain/admission and bounded existing UID migration; no real-user cutover performed"
   ],
@@ -1062,12 +1068,9 @@
     "ecsClustersFound": 1,
     "appImageLambdaFunctions": 7,
     "supportZipFunctions": 2,
-    "currentBatchRevision": 66,
     "sharedFamilyStateMachines": 4,
     "sharedFamilyTaskReferences": 6,
     "runningTasksAtRead": 0,
-    "appLambdaResolvedDigest": "sha256:a7ff7d5651240e11e79783ceadeff6b56bddcf7a695c9ad66b7504be11244dd3",
-    "currentBatchImageAssetTag": "a1f6ab3693c757db696340a88dcc7514564dc5fff3b19fda03f552602745356f",
     "currentSourceAssets": [
       {
         "assetTag": "0b343fadd20e1131c9f92cd42305ab20d3772a0e63108d25baf082b1bba18e9c",
@@ -1080,9 +1083,349 @@
         "platform": "linux/amd64"
       }
     ],
-    "currentSourceAssetMappingToLiveVerified": false,
-    "newImagesBuiltOrPublished": false,
-    "deploymentExecuted": false,
-    "note": "Source asset tags alone do not prove image contents; current-source build/deploy receipts are required. Selected plugin identities did not match the canonical workload account; existing CLI identity was strictly matched before inventory."
+    "currentSourceAssetMappingToLiveVerified": true,
+    "newImagesBuiltOrPublished": true,
+    "deploymentExecuted": true,
+    "note": "Existing canonical CLI identity strictly matched. Two reviewed source images were published to the existing immutable ECR and applied through an independently reviewed saved ChangeSet. No resident DEV Bot; no real UID cutover. New Fargate execution acceptance remains unobserved. Source asset tag, local config digest and registry manifest digest are distinct identifiers.",
+    "baselineBatchRevision": 66,
+    "baselineAppLambdaResolvedDigest": "sha256:a7ff7d5651240e11e79783ceadeff6b56bddcf7a695c9ad66b7504be11244dd3",
+    "baselineBatchRuntimeDigest": "sha256:a1f6ab3693c757db696340a88dcc7514564dc5fff3b19fda03f552602745356f",
+    "currentBatchRevision": 67,
+    "appLambdaResolvedDigest": "sha256:1bb70bf727e7b8d83127fd8a5548649aa880cd5ce30e5e485c6a37d968a2ac2b",
+    "currentBatchRuntimeDigest": "sha256:b182e26f4c740c4595c94c1c649733a4991d23fdfc8ff59022424463cc57af69",
+    "newImagesPublished": 2
+  },
+  "frontendReleaseVerification": {
+    "source": "a16dccd672c89228ea3594e211b8125a6cc80722",
+    "siteOwnerMatchesApprovedDev": true,
+    "cssAndFontSHAEqualToPreviousApprovedRelease": true,
+    "files": [
+      {
+        "path": "assets/index-DjiJpEFS.css",
+        "sha256": "de06f2883c720c544e1d456c15d695aa88341e78beca6db9be9018419fc463c1",
+        "bytes": 22634
+      },
+      {
+        "path": "assets/index-Dz5BpYoa.js",
+        "sha256": "5da43f0af9760725d026967a27b92371c5dc1b076a6c4c76206f4c54628d8b20",
+        "bytes": 481461
+      },
+      {
+        "path": "assets/m-plus-rounded-1c-400-xpk6PQU0.woff2",
+        "sha256": "cc16cfd1344cc05255fe04a51c940ce37ae37a3a8c96fca8a1d19cf375ba0152",
+        "bytes": 1015652
+      },
+      {
+        "path": "assets/m-plus-rounded-1c-500-CPbvdK1a.woff2",
+        "sha256": "6b6e363dde863a902ac4c5ceee1ddc3064d086eefeb2a89e8ba9a3452f05c7cc",
+        "bytes": 1024248
+      },
+      {
+        "path": "assets/m-plus-rounded-1c-700-UH-5K1dN.woff2",
+        "sha256": "9c94ce6ec2d6bc510d98c43ae8e2a2b6acdf857f72d4c4c77548927c5f2c7d5d",
+        "bytes": 1107876
+      },
+      {
+        "path": "assets/m-plus-rounded-1c-800-Br1WVZix.woff2",
+        "sha256": "310090d7290cc873b861a0213e6468ce50031b1fc37b2bb845278c87f9137305",
+        "bytes": 1131152
+      },
+      {
+        "path": "fonts/mplus-rounded-1c/OFL.txt",
+        "sha256": "67f64c5509e5151796599e3ad47c3131cbe0c80c4f9430b90236a1249c2eacc9",
+        "bytes": 4397
+      },
+      {
+        "path": "index.html",
+        "sha256": "65f3acb9e9073e65747f9f99480229e895670ee2e19d5a3e3f43d22b2c38e336",
+        "bytes": 461
+      }
+    ],
+    "historyEnabled": false,
+    "privacyIntakeEnabled": false,
+    "analyticsEnabled": false,
+    "httpVerification": [
+      {
+        "path": "/assets/index-DjiJpEFS.css",
+        "status": 200,
+        "cache": "public, max-age=31536000, immutable",
+        "cspPresent": true,
+        "nosniff": true,
+        "sha256": "de06f2883c720c544e1d456c15d695aa88341e78beca6db9be9018419fc463c1"
+      },
+      {
+        "path": "/assets/index-Dz5BpYoa.js",
+        "status": 200,
+        "cache": "public, max-age=31536000, immutable",
+        "cspPresent": true,
+        "nosniff": true,
+        "sha256": "5da43f0af9760725d026967a27b92371c5dc1b076a6c4c76206f4c54628d8b20"
+      },
+      {
+        "path": "/assets/m-plus-rounded-1c-400-xpk6PQU0.woff2",
+        "status": 200,
+        "cache": "public, max-age=31536000, immutable",
+        "cspPresent": true,
+        "nosniff": true,
+        "sha256": "cc16cfd1344cc05255fe04a51c940ce37ae37a3a8c96fca8a1d19cf375ba0152"
+      },
+      {
+        "path": "/assets/m-plus-rounded-1c-500-CPbvdK1a.woff2",
+        "status": 200,
+        "cache": "public, max-age=31536000, immutable",
+        "cspPresent": true,
+        "nosniff": true,
+        "sha256": "6b6e363dde863a902ac4c5ceee1ddc3064d086eefeb2a89e8ba9a3452f05c7cc"
+      },
+      {
+        "path": "/assets/m-plus-rounded-1c-700-UH-5K1dN.woff2",
+        "status": 200,
+        "cache": "public, max-age=31536000, immutable",
+        "cspPresent": true,
+        "nosniff": true,
+        "sha256": "9c94ce6ec2d6bc510d98c43ae8e2a2b6acdf857f72d4c4c77548927c5f2c7d5d"
+      },
+      {
+        "path": "/assets/m-plus-rounded-1c-800-Br1WVZix.woff2",
+        "status": 200,
+        "cache": "public, max-age=31536000, immutable",
+        "cspPresent": true,
+        "nosniff": true,
+        "sha256": "310090d7290cc873b861a0213e6468ce50031b1fc37b2bb845278c87f9137305"
+      },
+      {
+        "path": "/fonts/mplus-rounded-1c/OFL.txt",
+        "status": 200,
+        "cache": "no-store",
+        "cspPresent": true,
+        "nosniff": true,
+        "sha256": "67f64c5509e5151796599e3ad47c3131cbe0c80c4f9430b90236a1249c2eacc9"
+      },
+      {
+        "path": "/index.html",
+        "status": 200,
+        "cache": "no-store",
+        "cspPresent": true,
+        "nosniff": true,
+        "sha256": "65f3acb9e9073e65747f9f99480229e895670ee2e19d5a3e3f43d22b2c38e336"
+      },
+      {
+        "path": "/",
+        "status": 200,
+        "cache": "no-store",
+        "cspPresent": true,
+        "nosniff": true,
+        "sha256": "65f3acb9e9073e65747f9f99480229e895670ee2e19d5a3e3f43d22b2c38e336"
+      },
+      {
+        "path": "/mypage",
+        "status": 200,
+        "cache": "no-store",
+        "cspPresent": true,
+        "nosniff": true,
+        "sha256": "65f3acb9e9073e65747f9f99480229e895670ee2e19d5a3e3f43d22b2c38e336"
+      },
+      {
+        "path": "/login",
+        "status": 200,
+        "cache": "no-store",
+        "cspPresent": true,
+        "nosniff": true,
+        "sha256": "65f3acb9e9073e65747f9f99480229e895670ee2e19d5a3e3f43d22b2c38e336"
+      },
+      {
+        "path": "/api/mypage",
+        "status": 403,
+        "cache": "private, no-store",
+        "cspPresent": true,
+        "nosniff": true,
+        "sha256": "a472317b2ad877f75bf0ccb532162ed02f293a5d08a6a21ea667e8f609112765"
+      },
+      {
+        "path": "/assets/missing-12345678.js",
+        "status": 200,
+        "cache": "no-store",
+        "cspPresent": true,
+        "nosniff": true,
+        "sha256": "65f3acb9e9073e65747f9f99480229e895670ee2e19d5a3e3f43d22b2c38e336"
+      }
+    ],
+    "authenticatedSmoke": {
+      "checkedAt": "2026-10-24T15:58:25.804355+00:00",
+      "normalChromeAuthAppCheck": true,
+      "state": "unregistered",
+      "todayMinutes": 0,
+      "weekMinutes": 0,
+      "lifetimeMinutes": 0,
+      "recentDays": 7,
+      "loadingCompleted": true,
+      "tabClosed": true,
+      "requestCountOrSessionDedupLiveMeasured": false
+    }
+  },
+  "writerDeployment": {
+    "verifiedAt": "2026-10-24T16:06:37.901006+00:00",
+    "project": "test-youtube-study-space",
+    "region": "ap-northeast-1",
+    "sourceSystemTree": "b484aa740fd4e05c899082d5bc0cfc9deae4b4b1",
+    "stackStatus": "UPDATE_COMPLETE",
+    "candidateSha256": "34f9f33a77d957b4a8f1cd5009cd37d84a3e44e3a787aa918f8382328e66404d",
+    "savedTemplateExactMatch": true,
+    "physicalResourcesUnchangedExceptTaskRevision": true,
+    "lambda": [
+      {
+        "logicalId": "snsnotifydiscordF72A1D21",
+        "state": "Active",
+        "updateStatus": "Successful",
+        "manifestDigest": "sha256:1bb70bf727e7b8d83127fd8a5548649aa880cd5ce30e5e485c6a37d968a2ac2b",
+        "nonImageConfigurationEqual": true
+      },
+      {
+        "logicalId": "startdailybatchA334E498",
+        "state": "Active",
+        "updateStatus": "Successful",
+        "manifestDigest": "sha256:1bb70bf727e7b8d83127fd8a5548649aa880cd5ce30e5e485c6a37d968a2ac2b",
+        "nonImageConfigurationEqual": true
+      },
+      {
+        "logicalId": "setdesiredmaxseats77D5E3F2",
+        "state": "Active",
+        "updateStatus": "Successful",
+        "manifestDigest": "sha256:1bb70bf727e7b8d83127fd8a5548649aa880cd5ce30e5e485c6a37d968a2ac2b",
+        "nonImageConfigurationEqual": true
+      },
+      {
+        "logicalId": "youtubeorganizedatabase6FB356AB",
+        "state": "Active",
+        "updateStatus": "Successful",
+        "manifestDigest": "sha256:1bb70bf727e7b8d83127fd8a5548649aa880cd5ce30e5e485c6a37d968a2ac2b",
+        "nonImageConfigurationEqual": true
+      },
+      {
+        "logicalId": "checklivestreamstatusEAC797E5",
+        "state": "Active",
+        "updateStatus": "Successful",
+        "manifestDigest": "sha256:1bb70bf727e7b8d83127fd8a5548649aa880cd5ce30e5e485c6a37d968a2ac2b",
+        "nonImageConfigurationEqual": true
+      },
+      {
+        "logicalId": "updateworknametrend3D36A6F7",
+        "state": "Active",
+        "updateStatus": "Successful",
+        "manifestDigest": "sha256:1bb70bf727e7b8d83127fd8a5548649aa880cd5ce30e5e485c6a37d968a2ac2b",
+        "nonImageConfigurationEqual": true
+      },
+      {
+        "logicalId": "errorlognotifydiscordD302659E",
+        "state": "Active",
+        "updateStatus": "Successful",
+        "manifestDigest": "sha256:1bb70bf727e7b8d83127fd8a5548649aa880cd5ce30e5e485c6a37d968a2ac2b",
+        "nonImageConfigurationEqual": true
+      }
+    ],
+    "taskRevision": 67,
+    "taskManifestDigest": "sha256:b182e26f4c740c4595c94c1c649733a4991d23fdfc8ff59022424463cc57af69",
+    "taskNonImageConfigurationEqual": true,
+    "iamPoliciesWholeDocumentUnchanged": 4,
+    "schedulesUnchanged": true,
+    "familyTaskReferences": 6,
+    "runningTasksAtRead": 0,
+    "fargateNewImageExecutionObserved": false,
+    "realUIDCutoverPerformed": false,
+    "productionChanged": false,
+    "images": [
+      {
+        "kind": "lambda",
+        "manifestDigest": "sha256:1bb70bf727e7b8d83127fd8a5548649aa880cd5ce30e5e485c6a37d968a2ac2b",
+        "localConfigDigest": "sha256:af4ef8865af248bc072bb63614380dbf6169c80147a655ff6255a066d84bf93a",
+        "assetTag": "53dafbcdc33356bdeee27d81258516588e9ac38eecef4a123db3ea7752862d67",
+        "compressedBytes": 145244396
+      },
+      {
+        "kind": "fargate",
+        "manifestDigest": "sha256:b182e26f4c740c4595c94c1c649733a4991d23fdfc8ff59022424463cc57af69",
+        "localConfigDigest": "sha256:54db1b370685694d36012aca828a73e5fb2c642ecb2e90c96cf05236fb25fb68",
+        "assetTag": "0b343fadd20e1131c9f92cd42305ab20d3772a0e63108d25baf082b1bba18e9c",
+        "compressedBytes": 15019721
+      }
+    ],
+    "activeMonthlyMarkerFoundBeforeExecute": false,
+    "activeMarkerCheckedAt": "2026-10-24T16:00:43.935518+00:00",
+    "existingSchedulesRetainedUnderUnmigratedRawReaderContract": true,
+    "changeSetImageFields": 8,
+    "changeSetDependentIAMPolicies": 4,
+    "noAdditionalIAMGrants": true,
+    "rollbackRequiresNewTaskRevisionWithPreviousImage": true,
+    "previousLambdaManifestDigest": "sha256:a7ff7d5651240e11e79783ceadeff6b56bddcf7a695c9ad66b7504be11244dd3",
+    "previousTaskManifestDigest": "sha256:a1f6ab3693c757db696340a88dcc7514564dc5fff3b19fda03f552602745356f",
+    "localUncompressedBytes": 492453123,
+    "publishedCompressedBytes": 160264117,
+    "conservativeDevImageStorageMonthlyUSD": 0.05,
+    "invoiceVerified": false,
+    "rawRuntimeReceiptPreservedDuringComparison": true,
+    "naturalLambdaMetricWindow": {
+      "windowStart": "2026-10-24T16:00:00+00:00",
+      "windowEnd": "2026-10-24T16:07:00+00:00",
+      "observation": "minute-aligned post-apply aggregate, not per-image/per-request proof; absent samples do not prove successful execution",
+      "manualInvocations": 0,
+      "functions": [
+        {
+          "logicalId": "snsnotifydiscordF72A1D21",
+          "invocations": 0,
+          "errors": 0,
+          "invocationSamples": 0,
+          "errorSamples": 0
+        },
+        {
+          "logicalId": "startdailybatchA334E498",
+          "invocations": 0,
+          "errors": 0,
+          "invocationSamples": 0,
+          "errorSamples": 0
+        },
+        {
+          "logicalId": "setdesiredmaxseats77D5E3F2",
+          "invocations": 0,
+          "errors": 0,
+          "invocationSamples": 0,
+          "errorSamples": 0
+        },
+        {
+          "logicalId": "youtubeorganizedatabase6FB356AB",
+          "invocations": 7.0,
+          "errors": 0.0,
+          "invocationSamples": 7,
+          "errorSamples": 7
+        },
+        {
+          "logicalId": "checklivestreamstatusEAC797E5",
+          "invocations": 7.0,
+          "errors": 0.0,
+          "invocationSamples": 7,
+          "errorSamples": 7
+        },
+        {
+          "logicalId": "updateworknametrend3D36A6F7",
+          "invocations": 1.0,
+          "errors": 0.0,
+          "invocationSamples": 1,
+          "errorSamples": 1
+        },
+        {
+          "logicalId": "errorlognotifydiscordD302659E",
+          "invocations": 0,
+          "errors": 0,
+          "invocationSamples": 0,
+          "errorSamples": 0
+        }
+      ]
+    }
+  },
+  "postTrialOperationalReads": {
+    "baseCumulativeDataTrialReadEstimate": 19391,
+    "estimatedReadsIncludingPostdeployAllowance": 19424,
+    "readLimit": 20000,
+    "extraReadsReserved": 33,
+    "scope": "Active monthly marker existence checks and conservative authenticated postdeploy zero-smoke allowance; no new synthetic data window. One failed local CLI launch was still reserved conservatively."
   }
 }
