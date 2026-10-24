@@ -161,7 +161,7 @@ def validate_service(after, unknown, value):
 
 
 def validate_service_empty_refresh(item, planned, value):
-    """Only the eight observed null-to-empty defaults, with no serving write."""
+    """Observed defaults and same-generation output metadata; no serving write."""
     c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "runtime-refresh-provider")
     change = item.get("change", {})
     c.need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths"), "runtime-refresh-action")
@@ -195,6 +195,20 @@ def validate_service_empty_refresh(item, planned, value):
             empty_type = dict if key in {"annotations", "labels"} else list
             c.need(old is None and type(new) is empty_type and not new, "runtime-refresh-empty-only")
             old_parent[key] = deepcopy(new)
+    metadata = {"etag", "update_time", "last_modifier"}
+    if any(before.get(key) != after.get(key) for key in metadata):
+        # A no-op API request changes these outputs without changing desired
+        # state. This is a NEW no-op Plan, never a stale metrics update retry.
+        import read_metrics_transition as metrics
+        c.need(type(before.get("uid")) is str and before["uid"] == after.get("uid") and before["uid"], "runtime-refresh-identity")
+        c.need(before.get("generation") == after.get("generation") and
+               metrics.ready_revision(before) == metrics.ready_revision(after), "runtime-refresh-generation")
+        c.need(all(type(candidate.get("etag")) is str and candidate["etag"] for candidate in (before, after)) and
+               before["etag"] != after["etag"] and
+               c.registry_timestamp(after.get("update_time")) > c.registry_timestamp(before.get("update_time")), "runtime-refresh-metadata")
+        for key in metadata:
+            c.need(key in before and key in after, "runtime-refresh-shape")
+            normalized[key] = deepcopy(after[key])
     c.need(normalized != before and normalized == after, "runtime-refresh-fields")
     for candidate in (before, after):
         for key, expected in resource_contract("runtime_private")[SERVICE].items():

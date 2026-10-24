@@ -216,28 +216,10 @@ def validate_result(live, before, target):
 
 
 def conditional_update(token, before, target):
-    """The original ETag, not a freshly accepted competing version, is sent."""
-    containers = deepcopy(before["template"]["containers"])
-    r.one(containers, "metrics-live-container")["env"] = environment_payload(m.container(target)["env"])
-    body = {"name": SERVICE_NAME, "etag": before["etag"],
-            "template": {"revision": "", "containers": containers}}
-    operation = request(token, PATCH_URL, body)
-    name = operation.get("name")
-    c.need(type(name) is str and OPERATION.fullmatch(name) is not None, "metrics-live-operation-target")
-    deadline = time.monotonic() + 300
-    while operation.get("done", False) is not True:
-        c.need(time.monotonic() < deadline, "metrics-live-operation-timeout")
-        time.sleep(2)
-        operation = request(token, "https://run.googleapis.com/v2/" + name)
-        c.need(operation.get("name") == name, "metrics-live-operation-target")
-    c.need(not operation.get("error") and type(operation.get("response")) is dict,
-           "metrics-live-operation-failed")
-    result = operation["response"]
-    validate_result(result, before, target)
-    live = request(token, SERVICE_URL)
-    validate_result(live, before, target)
-    c.need(live["etag"] == result["etag"] and ready(live) == ready(result), "metrics-live-superseded")
-    return live
+    # v2 accepts stale-etag no-op requests. Use the explicitly versioned v1
+    # Service contract while retaining the v2 Plan and final live comparisons.
+    import read_metrics_v1
+    return read_metrics_v1.conditional_update(token, before, target)
 
 
 def validate_refresh(refresh, plan, stage):

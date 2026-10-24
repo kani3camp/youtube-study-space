@@ -44,6 +44,40 @@ def service(plan):
 
 
 class RuntimeTest(unittest.TestCase):
+    def test_new_noop_plan_refreshes_only_same_generation_output_metadata(self):
+        from test_read_metrics_transition import fixture as metrics_fixture
+        plan = metrics_fixture()
+        plan['variables']['runtime_settings']['value'].update(read_metrics_enabled=False, read_metrics_from_revision='')
+        before = deepcopy(service(plan)['before'])
+        before.update(uid='synthetic-service', etag='old-etag', last_modifier='old-modifier', annotations=None, labels=None, custom_audiences=None)
+        before['template'][0].update(annotations=None, labels=None)
+        before['template'][0]['containers'][0].update(args=None, command=None, depends_on=None)
+        after = deepcopy(before)
+        after.update(etag='new-etag', last_modifier='new-modifier', update_time='2026-10-23T00:01:00Z')
+        for item in plan['resource_changes']:
+            item['change'].update(actions=['no-op'])
+        service(plan).update(before=deepcopy(after), after=after, after_unknown={})
+        drift = deepcopy(next(x for x in plan['resource_changes'] if x['address'] == r.SERVICE))
+        drift['change'].update(actions=['update'], before=before)
+        plan['resource_drift'] = [drift]
+        original = deepcopy(plan)
+        self.assertEqual(r.validate_plan(plan, 'runtime_private'), {'resources':11,'creates':0})
+        self.assertEqual(plan, original)
+        mutations = (
+            (lambda p: service(p).update(actions=['update']), 'runtime-refresh-planned-noop'),
+            (lambda p: p['resource_drift'][0]['change']['after'].update(generation='8', observed_generation='8'), 'runtime-refresh-generation'),
+            (lambda p: p['resource_drift'][0]['change']['after'].update(uid='other'), 'runtime-refresh-identity'),
+            (lambda p: p['resource_drift'][0]['change']['after'].update(update_time='2026-10-22T00:00:00Z'), 'runtime-refresh-metadata'),
+            (lambda p: p['resource_drift'][0]['change']['after']['template'][0].update(timeout='60s'), 'runtime-refresh-fields'),
+            (lambda p: p['resource_drift'][0]['change']['after'].update(etag='old-etag'), 'runtime-refresh-metadata'),
+        )
+        for mutate, expected_check in mutations:
+            changed=deepcopy(plan); mutate(changed)
+            service(changed)['after'] = deepcopy(changed['resource_drift'][0]['change']['after'])
+            with self.subTest(mutation=mutate), self.assertRaises(ValueError) as error:
+                r.validate_plan(changed,'runtime_private')
+            self.assertEqual(str(error.exception), expected_check)
+
     def test_owner_hosting_image_refresh_is_exact_ready_noop_and_committed(self):
         for stage, size in (("runtime_private", 11), ("runtime_public", 12)):
             plan = fixture(stage)
