@@ -87,3 +87,7 @@ pnpm cdk:deploy AwsCdkStack --profile soraride-prod --require-approval never --p
     pnpm cdk:deploy --profile プロファイル名 --parameters AlarmEmail=notify@example.com
     ```
   - 初回のみ、指定したメールに AWS から届く **Confirm subscription** のリンクを開いて承認する。コンソールから行う場合は **SNS → Topics → `AlarmsTopic` に相当するトピック → Subscriptions** で Pending を Confirm する。
+
+### ローカルQAファイルとimage context
+
+Lambda/FargateのCDK assetは、localにインストールしたtoolやprivate QA receiptを含む`**/node_modules`をstaging時に除外する。GitのignoreだけをDocker contextの境界とみなさない。テストは実stagingにreceiptがないこと、tracked sourceと同じasset tag、writer sourceの変更が両imageへ反映されることを検証する。Source asset tagの一致だけでlive image/sourceの証明やdeploy済みを宣言せず、immutable digestとbuild/deploy receiptを別に照合する。
