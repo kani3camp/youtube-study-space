@@ -275,7 +275,9 @@ unitで同意前/ロード中の非送信、撤回/再同意と古いload、失�
 
 `mypage/src/hosting.ts`のhostingCandidateは明示したenvironment/project/target/Cloud Run service/regionとreview済みSDK接続先から設定候補だけを生成するpure function。developmentはasia-southeast2、productionはasia-northeast2。既存firebase/firebase.jsonを変更せず、CLI init/deployを実行しない。projectIDは別の明示deployment selectorでありfirebase.json本体へ混入しない。候補のpublic=distはmypage directoryを基準とする。
 
-/apiと/api/**をCloud Runへ先にrewriteし、最後にSPAへrewriteする。全static pathへno-store/no-referrer/CSPとsecurity headersを設定する。CSPは明示したHTTPS sourceだけを許し、wildcard/unsafe-inline/eval/credential/query/fragmentを拒否する。Firebase/App Check/reCAPTCHAの実sourceを推測しない。Analytics sourceは別approvalを必要とする。validateHostingAssetsはstatic API衝突・source map・秘密file向けpathを拒否する。Cloud Run APIは自身のresponse headersも保持する。
+/apiと/api/**をCloud Runへ先にrewriteし、最後にSPAへrewriteする。既定は全pathへno-store/no-referrer/CSPとsecurity headersを設定する。`hostingCandidate(input, assetPaths)`に検証済みの実build全file一覧を渡した場合だけ、既知のhash付きJS/CSS/woff2のexact pathをpublic immutableにする。HTML・API・未知hash pathのSPA fallbackはno-store。CSPは明示したHTTPS sourceだけを許し、wildcard/unsafe-inline/eval/credential/query/fragmentを拒否する。Firebase/App Check/reCAPTCHAの実sourceを推測しない。Analytics sourceは別approvalを必要とする。validateHostingAssetsはstatic API衝突・source map・秘密file向けpathを拒否する。Cloud Run APIは自身のresponse headersも保持する。
+
+原価の比較・仮定と除外範囲は[増分原価モデル](cost-notes.md)、再生成した表は[シナリオ比較](cost-scenarios.md)を参照する。実測前の推定を請求削減の実績にしない。
 
 unitで候補/routing/inventory拒否を検証し、synthetic static MyPageを同じCSPのlocal Chromiumでrenderして違反0とtimeline/chart表示を確認した。実SDK/reCAPTCHA/GA4を含むinventory、Hosting経由のHost/headers/callback/query access-log除外、custom-domain HSTSは未検証。CSPはplatform loggingを制御しない。設定候補は公開承認やinfrastructure readinessの代わりではない。
 

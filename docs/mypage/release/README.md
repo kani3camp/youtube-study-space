@@ -95,6 +95,12 @@ Go変更の必須checksは[AGENTS.md](../../../AGENTS.md)。生成後の意図�
 
 browserはlocal Viteをport18081で起動し、[runtime](../../../mypage/scripts/runtime-qa.py)・[privacy](../../../mypage/scripts/privacy-qa.py)・[visual](../../../mypage/scripts/visual-qa.py)・[font](../../../mypage/scripts/font-qa.py)を使う。各scriptは外部requestを遮断する。実bfcacheは[専用static build](../../../mypage/scripts/bfcache.vite.config.ts)と[既存QA](../../../mypage/scripts/bfcache-qa.py)を使い、dev HMRを証拠にしない。設定済みpublic文面は専用testとbrowserで匿名到達/安全なlinkを確認する。実ユーザー画面をpublic QA artifactへ保存しない。
 
+### 静的配信cacheのrelease準備
+
+同じpublic manifestでFrontendをbuildした後、実distからexact asset pathを採取する。`node mypage/scripts/prepare-hosting.mjs --manifest /path/to/reviewed-public-config.json --dist mypage/dist --output /path/to/new/firebase.json` は設定候補だけを書き、deployしない。出力先は未作成fileを指定する。既知hash付きJS/CSS/fontだけが1年immutableとなり、HTML・API・未知hash pathはno-store。buildを差し替えたら必ず再生成する。target/site対応は既存のreview済みDEV selectorを使い、repository共通firebase設定を上書きしない。
+
+Hosting Emulatorで既知asset、`/`、`/mypage`、`/api/mypage`、未知`/assets/missing-12345678.js`のCache-ControlとCSP/nosniffを確認する。API rewriteの実Backend headers、実DEVでの各headerと初回/再訪download量は別のrelease証跡とする。asset cacheでAuth/SAC/cache TTLを変更しない。
+
 ### DEV専用：MyPageのFirestore読み取り原価計測
 
 設計候補は[Notion D06](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)。データソースの正本は[03｜統計](https://app.notion.com/p/3ec357a8d0ce81ac94eef9e6ac0c9964)。本PRで収集フックを実装しても、**実DEVでのデプロイ・計測・index適用を行ったことにはならない**。

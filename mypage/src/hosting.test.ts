@@ -28,6 +28,42 @@ function fixture(): HostingInputs {
 	}
 }
 describe('Hosting candidate without deployment', () => {
+	it('caches only exact known public hash assets and keeps SPA/API/unknown paths no-store', () => {
+		const paths = [
+			'index.html',
+			'assets/index-BRqipLeI.js',
+			'assets/index-DjiJpEFS.css',
+			'assets/m-plus-400-xpk6PQU0.woff2',
+			'assets/config.json',
+			'assets/plain.js',
+		]
+		const result = hostingCandidate(fixture(), paths).firebase.hosting
+		const cache = (path: string) => {
+			let value = ''
+			for (const rule of result.headers)
+				if (rule.source === '**' || rule.source === path)
+					for (const header of rule.headers)
+						if (header.key === 'Cache-Control') value = header.value
+			return value
+		}
+		for (const path of [
+			'/assets/index-BRqipLeI.js',
+			'/assets/index-DjiJpEFS.css',
+			'/assets/m-plus-400-xpk6PQU0.woff2',
+		])
+			expect(cache(path)).toBe('public, max-age=31536000, immutable')
+		for (const path of [
+			'/',
+			'/index.html',
+			'/mypage',
+			'/api/mypage',
+			'/assets/missing-12345678.js',
+			'/assets/config.json',
+			'/assets/plain.js',
+		])
+			expect(cache(path)).toBe('no-store')
+		expect(hostingCandidate(fixture()).firebase.hosting.headers).toHaveLength(1)
+	})
 	it('routes both API root and subtree before SPA and preserves strict static security headers', () => {
 		const input = fixture()
 		const result = hostingCandidate(input)
