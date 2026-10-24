@@ -101,6 +101,8 @@ browserはlocal Viteをport18081で起動し、[runtime](../../../mypage/scripts
 
 同じpublic manifestでFrontendをbuildした後、実distを専用release directory内の`dist/`へ固定コピーし、exact asset pathを採取する。`node mypage/scripts/prepare-hosting.mjs --manifest /path/to/reviewed-public-config.json --dist /path/to/release/dist --output /path/to/release/firebase.json` は設定候補だけを書き、deployしない。出力先は未作成file、親directoryは作成済みとする。Firebase CLIはproject root外のpublicを拒否するため、symlink解決後もdistは出力configの親directoryの内側にある独立subdirectoryを要求する。manifestやprivate運用fileはdistへ置かない。既知hash付きJS/CSS/fontだけが1年immutableとなり、HTML・API・未知hash pathはno-store。buildを差し替えたら必ず再生成する。target/site対応は既存のreview済みDEV selectorを使い、repository共通firebase設定を上書きしない。
 
+build元は追跡済みのclean Git worktreeとし、同じpublic manifest以外のVITE設定を混入させない。ignoredなQA directory内のarchiveをbuild rootにするとTailwindの自動source走査が変わるため使用しない。JSだけの更新では、前のreview済みdistとCSS/全fontの名前・SHA256集合を機械比較し、不一致ならdeploy前に停止する。style変更が意図的ならその差分をレビューする。deploy後は全staged fileのbody SHAと実headersを再照合し、build rootの問題をhash名の変化だけで見過ごさない。
+
 Hosting Emulatorで既知asset、`/`、`/mypage`、`/api/mypage`、未知`/assets/missing-12345678.js`のCache-ControlとCSP/nosniffを確認する。API rewriteの実Backend headers、実DEVでの各headerと初回/再訪download量は別のrelease証跡とする。asset cacheでAuth/SAC/cache TTLを変更しない。
 
 ### DEV専用：MyPageのFirestore読み取り原価計測

@@ -18,14 +18,14 @@ raw queryの1000文書を月次1文書へ置換した部分だけなら99.9%減�
 | --- | --- |
 | image build source | `5803ad18c418307b8fdc7de7f7ce3e0ddc0fe774`、[既存CI image build](https://github.com/kani3camp/youtube-study-space/actions/runs/40064524012) |
 | image digest | `asia-southeast2-docker.pkg.dev/test-youtube-study-space/mypage/mypage-api@sha256:4020ade3cb0b6114b56f41938620bac253e4951f32d3cff472ec28583312c210` |
-| system tree | `b484aa740fd4e05c899082d5bc0cfc9deae4b4b1`。以降の制御修正sourceとも同一で、追加image buildなし |
-| Frontend source | `38ae9296e7120902f6f7ec76b66508474bd70ea2`、DEV site `test--study-space`の所有projectを照合 |
-| Hosting release / version | `1792827165956000` / `67e3543a0a31a77b`（2026-10-24 07:32:45.956 UTC） |
-| Frontend実体 | staged 8 filesをlive body SHA256で照合。JSは`index-CEDAJLCZ.js`、CSSは`index-DjiJpEFS.css`。5分更新・route/online/hidden/backoff修正を含む |
+| system tree | `b484aa740fd4e05c899082d5bc0cfc9deae4b4b1`。以降の制御修正sourceとも同一で、追加Cloud Run image buildなし |
+| Frontend source | `a16dccd672c89228ea3594e211b8125a6cc80722`（PR #1453のAuth復元重複抑止を含む）、DEV site `test--study-space`の所有projectを照合 |
+| Hosting release / version | `1792857234818000` / `722779b155355d62`（2026-10-24 15:53:54.818 UTC） |
+| Frontend実体 | staged 8 filesをlive body SHA256で照合。JSは`index-Dz5BpYoa.js`、CSSは`index-DjiJpEFS.css`。5分更新・route/online/hidden/backoff修正を含む |
 | Cache/security | 正確なhash付きJS/CSS/4 fontは`public, max-age=31536000, immutable`。HTML・SPA未知hash・APIはno-store。CSP/nosniffを維持、匿名APIは403 |
 | 最終Cloud Run | `mypage-api-00006-xjf` / generation 6 / 観測OFF。history details、Privacy intake、analyticsはOFF |
 
-5分更新・monthly writer/reader・明細と予算のsourceを含むAPI imageは配備したが、既存ユーザーを月次へ切り替えていない。月次activationは所有する合成Userだけに限定し、終了時にそのUserごと削除した。全Bot writer fleetの配備・drainや既存migrationを完了した意味ではない。明細用indexやpolicy/quotaは追加・有効化していない。
+5分更新・monthly writer/reader・明細と予算のsourceを含むAPI imageは配備したが、既存ユーザーを月次へ切り替えていない。月次activationは所有する合成Userだけに限定し、終了時にそのUserごと削除した。後段の追加DEV writer配備と、全writerのdrain・既存migrationの受入は別である。明細用indexやpolicy/quotaは追加・有効化していない。
 
 ## 観測ON/OFF、競合とState
 
@@ -76,4 +76,25 @@ raw再取得は次の分に200応答を得てもUIのasOfが21:19のままで、
 
 公開SKUは[公式Firestore ops group](https://cloud.google.com/skus/sku-groups/firestore-ops)のCloud Firestore service `EE2C-7FAC-5E08`でread/write/delete候補を確認した。Jakarta read `8C8F-C8C6-5DC5`はrender表でも$0.038/100000 countと一致。旧App Engine名のSKUやfree-tier付SKUとは区別し、実accountのどのSKUへ計上されたかは未確認。既存APIのCatalog/Project Billing metadataは403、Catalog reasonはSERVICE_DISABLED、DEVの既存BigQuery billing export dataset候補は0だった。API有効化・新key・新exportを作らず、請求照合は別権限のGateとして残す。
 
-writer監査は接続名だけでtargetを決めず、既存CLIの実identityとstackのGCP projectをDEVへ厳密に照合した。canonical AWSの17有効regionにEC2はなく、対象cluster1・Lambda9（application image7、provider Zip2）、Fargate family最新66、共有family参照はStateMachine4/Task6、読取時running task0。ownerはDEV Botが常駐していないと確認した。現sourceのtracked exportからFargate/Lambda asset2個をoffline synthし、liveの設定と対応する現source build/deploy receiptが未成立であることを確認した。tagや更新日時だけでbinary内容を証明しない。追加image publish/配備/既存UID migrationはまだ実行していない。
+writer監査は接続名だけでtargetを決めず、既存CLIの実identityとstackのGCP projectをDEVへ厳密に照合した。canonical AWSの17有効regionにEC2はなく、対象cluster1・Lambda9（application image7、provider Zip2）、Fargate family最新66、共有family参照はStateMachine4/Task6、読取時running task0。ownerはDEV Botが常駐していないと確認した。現sourceのtracked exportからFargate/Lambda asset2個をoffline synthし、liveの設定と対応する現source build/deploy receiptが未成立であることを確認した。tagや更新日時だけでbinary内容を証明しない。この段落は追加配備前のinventoryであり、その後の配備は次節を参照する。既存UID migrationは行っていない。
+
+## 追加承認後のDEV writer配備・Frontend読み戻し（2026-10-25 JST）
+
+ユーザーが追加2 imageとDEV限定適用を許可した。tracked system tree `b484aa740fd4e05c899082d5bc0cfc9deae4b4b1`から既存DockerfileでLinux amd64のLambda7 binary、arm64のFargate1 binaryを作成し、停止containerからELF/Go版/各binary hashを確認した。imageを実行してglobal batchや通知を試すことはしていない。[PR #1452](https://github.com/kani3camp/youtube-study-space/pull/1452)のasset除外により、ignored QA資料はCDK build contextへ入らない。
+
+| 対象 | Source asset tag | Local config digest | Published/runtime manifest digest |
+| --- | --- | --- | --- |
+| Lambda amd64 ×7 | `53dafbcdc33356bdeee27d81258516588e9ac38eecef4a123db3ea7752862d67` | `sha256:af4ef8865af248bc072bb63614380dbf6169c80147a655ff6255a066d84bf93a` | `sha256:1bb70bf727e7b8d83127fd8a5548649aa880cd5ce30e5e485c6a37d968a2ac2b` |
+| Fargate arm64 ×1 family | `0b343fadd20e1131c9f92cd42305ab20d3772a0e63108d25baf082b1bba18e9c` | `sha256:54db1b370685694d36012aca828a73e5fb2c642ecb2e90c96cf05236fb25fb68` | `sha256:b182e26f4c740c4595c94c1c649733a4991d23fdfc8ff59022424463cc57af69` |
+
+既存immutable ECRへ計2 imageを追加し、registry manifestのconfig digestをlocalと照合した。8 image欄だけを差し替えたsaved candidateのraw SHA256は `34f9f33a77d957b4a8f1cd5009cd37d84a3e44e3a787aa918f8382328e66404d`。既存の暗号化CDK transportでbyte読み戻しし、保存ChangeSetのOriginal templateも候補とparsed全文一致を確認した。ChangeSetはTaskDefinition replacement1＋Lambda Modify7と、task revision参照によるIAM policy再評価4だけ。4 policyは新旧revisionで解決した全文・付与先がliveと一致し、独立reviewでも追加grantなしを確認した。
+
+直前に元stack/更新時刻/role/全旧digest、稼働SFN/task0、既存schedule、IAM全文、保存ChangeSet、ECR digestを再確認した。`users`の月次marker存在検査はprojection＋limit1で0。未移行はraw readerを維持し、新writerの月を自動complete/cutoverしない契約のため既存Schedulerを維持した。実UIDの切替をせず、既存定期起動を止める設定変更も行わない。
+
+適用はUPDATE_COMPLETE。16:06:37 UTCの読戻しで7 LambdaがActive/Successful・固定manifest一致、task familyは66→67・固定manifest一致、全Lambda非image設定・task非image設定・IAM4全文・schedule不変を確認した。ECS `compatibilities`は返却順だけ変わったため、enum集合一致を検査し、他項目は全文比較した。4 StateMachine内の6 task参照は同じunqualified familyを使う。新Fargate imageの実実行は未観測で、既存UIDのmigration/全writer drain完了やPrivacy全経路の受入とは区別する。rollbackは保存した旧manifestへLambda7を戻し、Fargateは同じfamilyへ旧imageの新revisionを作る必要がある。古いrevision番号へ戻したと扱わない。
+
+Frontendは表の新releaseを配備し、8 body SHA、6 immutable asset、HTML/API/未知hashのno-store、CSP/nosniff、匿名403を再確認した。CSS/4 fontは前の承認済みbuildとSHA一致。通常Chromeの既存Auth/App Checkでloading完了・未登録・今日/今週/累計0・7日を確認し、確認tabを閉じた。session重複回数をliveで定量した証拠ではない。追加運用確認を含むread見積/allowanceは19424、原記録作成2793・write/delete予約5628は増やしていない。請求書未照合のためUS$1の実請求保証とはしない。
+
+ECRの公表保存単価は[公式料金](https://aws.amazon.com/ecr/pricing/)の$0.10/GB月を参照。公開したcompressed size合計160,264,117 bytesに対し、モデルは未圧縮合計492,453,123 bytesから丸めた保守的DEV allowance $0.05/月を加えた。free tier・共有layer dedup控除は使わず、通常既存workloadを二重加算しない。旧imageはrollback用に保持し、長期retention削除は実施していない。
+
+適用後16:00〜16:07 UTCの分粒度Lambda metricでは、既存定期処理3関数に呼出7/7/1・Errors各0を取得した。他4関数はsampleなしで、成功実行とは数えない。適用開始分を含む集計のため、全sampleが新imageで動いた証拠や個別requestの検証にはしない。手動invokeは0。証跡生成の独立reviewで浅いcopyが比較元taskを改変するP2を検出し、deep copy＋比較前後のraw hash不変＋保存前manifest一致の機械guardへ修正して読み取り直した。実配備の変更は行っていない。
