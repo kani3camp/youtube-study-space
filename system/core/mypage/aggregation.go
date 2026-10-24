@@ -17,16 +17,20 @@ type Interval struct{ Start, End time.Time }
 // WorkSnapshot is populated only from one consistent Firestore snapshot. An
 // empty Coverage deliberately means unknown coverage, never seven fake zeros.
 type WorkSnapshot struct {
-	AsOf               time.Time
-	UID                string
-	User               *repository.UserDoc
-	Seat               *repository.SeatDoc
-	MemberSeat         bool
-	Segments           []repository.WorkSegmentDoc
-	Coverage           []Interval
-	SeatUnavailable    bool
-	SeatInconsistent   bool
-	HistoryUnavailable bool
+	AsOf                  time.Time
+	UID                   string
+	User                  *repository.UserDoc
+	Seat                  *repository.SeatDoc
+	MemberSeat            bool
+	Segments              []repository.WorkSegmentDoc
+	Coverage              []Interval
+	SeatUnavailable       bool
+	SeatInconsistent      bool
+	HistoryUnavailable    bool
+	HistoryInconsistent   bool
+	UserTotalInconsistent bool
+	MonthlyEpoch          string
+	Months                map[string]repository.WorkMonthDoc
 }
 
 type Windows struct{ Today, Week, Recent, End time.Time }
@@ -129,7 +133,7 @@ func lifetimeMetric(s WorkSnapshot) Metric {
 	if s.SeatUnavailable {
 		return missingMetric(SourceUnavailable)
 	}
-	if s.User.TotalStudySec < 0 || !validSeat(s) {
+	if s.UserTotalInconsistent || s.User.TotalStudySec < 0 || !validSeat(s) {
 		return missingMetric(DataInconsistent)
 	}
 	total := int64(s.User.TotalStudySec)
@@ -166,6 +170,10 @@ func history(s WorkSnapshot) historyModel {
 	}
 	if s.SeatUnavailable || s.HistoryUnavailable {
 		m.reason = SourceUnavailable
+		return m
+	}
+	if s.HistoryInconsistent {
+		m.reason = DataInconsistent
 		return m
 	}
 	if len(s.Segments) >= HistoryReadLimit {
@@ -227,6 +235,9 @@ func (m historyModel) metric(s WorkSnapshot, start, end time.Time) Metric {
 	}
 	if m.reason != "" {
 		return missingMetric(m.reason)
+	}
+	if s.MonthlyEpoch != "" {
+		return monthlyMetric(s, start, end)
 	}
 	if m.allBad {
 		return missingMetric(DataInconsistent)

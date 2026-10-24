@@ -148,9 +148,9 @@ func runWith(ctx context.Context, get func(string) string, deps bootstrapDepende
 	var readObserver func(mypage.SnapshotReadObservation)
 	if config.server.Environment == "development" && get("MYPAGE_READ_METRICS") == "true" {
 		readObserver = func(stats mypage.SnapshotReadObservation) {
-			log.Printf("mypage_snapshot_read user_lookups=%d seat_queries=%d seats_returned=%d seat_query_errors=%d segment_queries=%d segments_returned=%d segment_query_error=%t elapsed_ms=%d",
+			log.Printf("mypage_snapshot_read user_lookups=%d seat_queries=%d seats_returned=%d seat_query_errors=%d segment_queries=%d segments_returned=%d segment_query_error=%t elapsed_ms=%d month_lookups=%d months_returned=%d month_read_errors=%d",
 				stats.UserLookups, stats.SeatQueries, stats.SeatsReturned, stats.SeatQueryErrors,
-				stats.SegmentQueries, stats.SegmentsReturned, stats.SegmentQueryError, stats.ElapsedMilliseconds)
+				stats.SegmentQueries, stats.SegmentsReturned, stats.SegmentQueryError, stats.ElapsedMilliseconds, stats.MonthLookups, stats.MonthsReturned, stats.MonthReadErrors)
 		}
 	}
 	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Firestore: database, Firebase: sdk, OAuth: provider, PublicMetadata: metadata, ReadObserver: readObserver})

@@ -95,7 +95,11 @@ func TestWriterIdentityQueriesParticipateInTransaction(t *testing.T) {
 			if err != nil {
 				return fmt.Errorf("emulator fixture transaction: %w", err)
 			}
-			if err := repo.CreateWorkSegmentDoc(ctx, tx, segment); err != nil {
+			prepared, err := repository.PrepareWorkSegmentWrites(ctx, tx, repo.FirestoreClient(), segment)
+			if err != nil {
+				return err
+			}
+			if err := repo.CreateWorkSegmentDoc(prepared, tx, segment); err != nil {
 				return fmt.Errorf("emulator fixture transaction: %w", err)
 			}
 			switch operation {

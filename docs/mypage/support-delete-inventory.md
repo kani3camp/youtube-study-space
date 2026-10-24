@@ -9,7 +9,7 @@
 | `runtime-my-page` | OAuth callback、account consume/session、mint、BFF cache/切断後の flight、metadata refresh/cleanup、support proof | 全 revision/instance/direct runner の admission と SDK/flight/commit/配達 drain |
 | `runtime-legacy` | Bot、独立 force move、organizer、capacity、日次・手動 SFN/Fargate、BQ import、trend、admin、export/restore、通知 | 起動・再試行・再開経路の停止、実行中 task/job の終端、古い queue/snapshot の破棄・封鎖 |
 | `seat-state` | `seats` / `member-seats` の target seat | `user-id` 帰属と revision 再照合、通常 Out/Block の副作用を生成しない専用消去 |
-| `firestore-primary` | `users`、work segment、activity、order、4 種 seat limit、legacy raw history | direct lookup と各 equality query の全件 pagination・再 scan・不存在 |
+| `firestore-primary` | `users`（月次読取markerを含む）、work segment、`work-months`、activity、order、4 種 seat limit、legacy raw history | direct lookup と各 equality query の全件 pagination・再 scan・不存在。月次rebuildはoriginal SAC checkpointを各操作へ束縛 |
 | `firestore-web` | WebAccount、process cache/flight、配達済み private display | account 不存在、全 process の stale publication 拒否、account 再作成との世代分離 |
 | `firestore-oauth` | login/support OAuth、channel 未確定 callback | channel query、receipt relation、明示 transaction、未確定 callback の admission を合わせた閉路 |
 | `firestore-support-relations` | 全 target receipt、challenge/request index、support OAuth | 他 receipt を含む ownership 照合、現在の完了依存を保持した関連 cleanup |

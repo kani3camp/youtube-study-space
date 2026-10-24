@@ -183,5 +183,7 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {"collectionGroup": "work-months", "fieldPath": "days", "indexes": []}
+  ]
 }
