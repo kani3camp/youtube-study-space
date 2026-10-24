@@ -58,4 +58,22 @@ cleanup後に別のread-only照合でUser/raw/月次文書/座席不在と元SAC
 
 App Check token TTLは3600秒。key metricsの同じ日単位windowで前後合計66→66を得たが、反映遅延・日粒度のため評価数0の証拠や1 poll単位の帰属ではない。組織共有の請求評価数・SKU ID・Billing実績は未照合。API pollingを1/5にしただけでApp Check費用を1/5にはしない。
 
-残る実証は、直近window内の月跨ぎと実2月lookup、認証付きraw/月次HTTP比較とcache/CPU、母集団分布とbrowser転送量、請求照合、全writer fleetと既存migration、明細index/共有quotaのlive適用。明細の技術上限50/100件・31日は実装済み候補で、商品としての最終枠や690円Premium発売を決めたものではない。再開条件は既存[Issue #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)で追跡し、この部分完了だけでIssueをcloseしない。
+残る実証は、直近window内の月跨ぎと実2月lookup、認証付きAPIの全文比較・process CPU・内部cache計数（追加UI比較と割当windowは後段参照）、母集団分布とbrowser転送量、請求照合、全writer fleetと既存migration、明細index/共有quotaのlive適用。明細の技術上限50/100件・31日は実装済み候補で、商品としての最終枠や690円Premium発売を決めたものではない。再開条件は既存[Issue #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)で追跡し、この部分完了だけでIssueをcloseしない。
+
+## 継続指示後の180件・認証付きAPI確認
+
+既存上限の残枠で、同じ専用UIDへ180件だけ追加した。新ledgerは旧Finished/checkpoint/累積数の一致を必須とし、raw取得前にUID先頭index・全原記録所有・Analyze成功をguardした。データ窓は12:18:50～12:23:45 UTC（約4分55秒）。原記録/所有User/月次をCASで全削除し、独立readと認証付きの未登録0表示を確認した。累積raw2793、write/delete予約5628、read見積19391、Analyze index scan2792、index allowance22005、不明operation0、データ窓合計約17分31秒である。観測はOFF、image追加0、IAM再付与0を維持した。
+
+SDKではraw180文書/1 query・910ms、月次raw0/1月lookup・762ms、記録済み今日/今週/累計180秒が一致。通常ChromeのAuth/App Check付き実APIでもraw/月次の記録済み今日・今週3分/累計3分を確認した。raw期間の200は205.6/35.0/32.9msの3回、月次は140.6/32.0msの2回。予定2回を超えたraw1回は210 read/2000 index allowanceを保守的に加算した。ログはUID/traceでは紐付けず、phase時刻によるcohort比較である。API本文全体のbyte一致や内部read/hit数を直接取得したとはしない。
+
+raw再取得は次の分に200応答を得てもUIのasOfが21:19のままで、no-store経路のaggregate再利用が見られた。月次のfresh取得は21:22へ進み、値は同じ。内部cache counterと人口hit率は未計測なので、単発latencyをhit率やSLOにしない。
+
+12:18～12:25 UTCの組み込みRun metricは課金対象instance時間1.1秒・CPU割当1.1 vCPU秒・9 requests（overview GET6回、session完了POST3回）。非空overviewは上記5回で、残る1回はcleanup後の正常0表示。1 vCPU/0.5 GiB・Jakarta list priceならRun compute/request分は約US$0.0000425の参考計算だが、請求書と照合した総額ではない。CPU使用率や個々のrequestへの配賦は測っていない。
+
+非空overview5回のHTTP request平均3303 bytes、response平均2092.4 bytes（Cloud Logging message size、headers込み）。browser/Hosting最終wire量とは異なる。モデルではAPI inboundのみ測定参照へ更新し、静的requestの1024 bytes・responseの8192 bytes予算は分離する。session完了もsource上のSAC2+WebAccount2 readと1 documentあたり1回を独立加算し、polling回数とApp Check評価回数へ同じ倍率を掛けない。
+
+実ログには近接したsession完了POSTが2件あった。実イベントへの帰属は断言しないが、同UIDのauth通知とpageshowを重ねる決定的テストで旧コードの二重POSTを再現した。同UID・同auth/confirmation世代・active・未abortに限って未完確認を共有する修正と、pagehide後は新確認を要求する回帰を追加し、全222 Frontend testを確認した。以前のreCAPTCHA失敗の根本原因修正とは扱わない。
+
+公開SKUは[公式Firestore ops group](https://cloud.google.com/skus/sku-groups/firestore-ops)のCloud Firestore service `EE2C-7FAC-5E08`でread/write/delete候補を確認した。Jakarta read `8C8F-C8C6-5DC5`はrender表でも$0.038/100000 countと一致。旧App Engine名のSKUやfree-tier付SKUとは区別し、実accountのどのSKUへ計上されたかは未確認。既存APIのCatalog/Project Billing metadataは403、Catalog reasonはSERVICE_DISABLED、DEVの既存BigQuery billing export dataset候補は0だった。API有効化・新key・新exportを作らず、請求照合は別権限のGateとして残す。
+
+writer監査は接続名だけでtargetを決めず、既存CLIの実identityとstackのGCP projectをDEVへ厳密に照合した。canonical AWSの17有効regionにEC2はなく、対象cluster1・Lambda9（application image7、provider Zip2）、Fargate family最新66、共有family参照はStateMachine4/Task6、読取時running task0。ownerはDEV Botが常駐していないと確認した。現sourceのtracked exportからFargate/Lambda asset2個をoffline synthし、liveの設定と対応する現source build/deploy receiptが未成立であることを確認した。tagや更新日時だけでbinary内容を証明しない。追加image publish/配備/既存UID migrationはまだ実行していない。

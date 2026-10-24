@@ -792,14 +792,15 @@
     "organizationBillingVerified": false
   },
   "remaining": [
-    "authenticated HTTP raw/month/cache comparison (synthetic fixture window ended before re-login; ordinary zero smoke passed after OFF)",
     "real seat/history dependency-failure injection",
-    "Cloud Run CPU/billable wall time attributable to API case",
     "population distribution, browser transfer/cache ratio and App Check assessments per active hour",
     "billing SKU IDs/invoice and delayed metrics",
-    "all writer fleet/drain and existing UID migration",
     "history-specific index/policy/quota live rollout; feature remains off",
-    "recent-window month boundary and two-month live reader comparison (current month-boundary source was outside the seven-day window)"
+    "recent-window month boundary and two-month live reader comparison (current month-boundary source was outside the seven-day window)",
+    "full authenticated response-body comparison and per-request process CPU/internal cache counters; recorded UI/known-fixture comparison and allocation window passed",
+    "current-source DEV Batch/Lambda image build/deploy receipts and natural execution acceptance; owner confirms no resident DEV Bot",
+    "actual account billed SKU/invoice: Billing API disabled and no existing DEV billing export dataset; public SKU identifiers verified",
+    "all-writer drain/admission and bounded existing UID migration; no real-user cutover performed"
   ],
   "authenticatedSmoke": {
     "verifiedAt": "2026-10-24T11:06:52.123491Z",
@@ -811,5 +812,277 @@
     "rawMonthlyHttpComparisonVerified": false,
     "caseReadCountsMeasured": false,
     "extraDocumentReadAllowance": 100
+  },
+  "continuation": {
+    "startedAt": "2026-10-24T21:18:50.275748+09:00",
+    "cleanedAt": "2026-10-24T12:23:45.1612571Z",
+    "probeSHA256": "D454C9DD3C6756B0F3A059BFAA837F01431B8EB3B80451EADE1033288BE31242",
+    "sourceDocuments": 180,
+    "rawSDK": {
+      "historyInconsistent": false,
+      "historyUnavailable": false,
+      "monthly": false,
+      "observation": {
+        "UserLookups": 1,
+        "SeatQueries": 2,
+        "SeatsReturned": 0,
+        "SeatQueryErrors": 0,
+        "SegmentQueries": 1,
+        "SegmentsReturned": 180,
+        "SegmentQueryError": false,
+        "MonthLookups": 0,
+        "MonthsReturned": 0,
+        "MonthReadErrors": 0,
+        "ElapsedMilliseconds": 910
+      },
+      "summary": {
+        "availability": "partial",
+        "reasonCode": "HISTORY_INCOMPLETE",
+        "data": {
+          "today": {
+            "availability": "unavailable",
+            "reasonCode": "HISTORY_INCOMPLETE",
+            "workSec": null,
+            "recordedWorkSec": 180
+          },
+          "week": {
+            "availability": "unavailable",
+            "reasonCode": "HISTORY_INCOMPLETE",
+            "workSec": null,
+            "recordedWorkSec": 180
+          },
+          "lifetime": {
+            "availability": "available",
+            "reasonCode": null,
+            "workSec": 180
+          }
+        }
+      }
+    },
+    "monthlySDK": {
+      "historyInconsistent": false,
+      "historyUnavailable": false,
+      "monthly": true,
+      "observation": {
+        "UserLookups": 1,
+        "SeatQueries": 2,
+        "SeatsReturned": 0,
+        "SeatQueryErrors": 0,
+        "SegmentQueries": 0,
+        "SegmentsReturned": 0,
+        "SegmentQueryError": false,
+        "MonthLookups": 1,
+        "MonthsReturned": 1,
+        "MonthReadErrors": 0,
+        "ElapsedMilliseconds": 762
+      },
+      "summary": {
+        "availability": "partial",
+        "reasonCode": "HISTORY_INCOMPLETE",
+        "data": {
+          "today": {
+            "availability": "unavailable",
+            "reasonCode": "HISTORY_INCOMPLETE",
+            "workSec": null,
+            "recordedWorkSec": 180
+          },
+          "week": {
+            "availability": "unavailable",
+            "reasonCode": "HISTORY_INCOMPLETE",
+            "workSec": null,
+            "recordedWorkSec": 180
+          },
+          "lifetime": {
+            "availability": "available",
+            "reasonCode": null,
+            "workSec": 180
+          }
+        }
+      }
+    },
+    "authenticatedView": {
+      "knownSyntheticSeconds": 180,
+      "rawRecordedMinutes": 3,
+      "monthlyRecordedMinutes": 3,
+      "rawAsOfMinuteObserved": "2026-10-24 21:19 JST",
+      "monthlyAsOfMinuteObserved": "2026-10-24 21:22 JST",
+      "postCleanupUnregisteredZeroVerified": true,
+      "fullResponseBodiesCompared": false,
+      "authAppCheckBypassed": false
+    },
+    "cache": {
+      "responseReuseObserved": true,
+      "basis": "raw UI retained 21:19 asOf after 21:20 requests; all succeeded; no-store HTTP path and bounded server aggregate cache",
+      "internalHitCounterMeasured": false,
+      "populationHitRatioMeasured": false
+    },
+    "httpWindow": {
+      "start": "2026-10-24T12:18:00Z",
+      "end": "2026-10-24T12:25:00Z",
+      "totalRequests": 9,
+      "overviewRequests": 6,
+      "nonemptyOverviewRequests": 5,
+      "sessionCompleteRequests": 3,
+      "billableInstanceSeconds": 1.1,
+      "allocatedCPUSeconds": 1.1,
+      "allocatedVCPU": 1,
+      "allocatedGiB": 0.5,
+      "requestCountMetric": 9,
+      "requests": [
+        {
+          "timestamp": "2026-10-24T12:18:30.399653Z",
+          "path": "/api/auth/session/complete",
+          "status": 204,
+          "latency": "0.099659044s",
+          "requestBytes": 3325,
+          "responseBytes": 344
+        },
+        {
+          "timestamp": "2026-10-24T12:19:48.686693Z",
+          "path": "/api/mypage",
+          "status": 200,
+          "latency": "0.205633205s",
+          "requestBytes": 3350,
+          "responseBytes": 2092
+        },
+        {
+          "timestamp": "2026-10-24T12:20:06.618260Z",
+          "path": "/api/mypage",
+          "status": 200,
+          "latency": "0.034980441s",
+          "requestBytes": 3232,
+          "responseBytes": 2092
+        },
+        {
+          "timestamp": "2026-10-24T12:20:16.334773Z",
+          "path": "/api/mypage",
+          "status": 200,
+          "latency": "0.032873558s",
+          "requestBytes": 3233,
+          "responseBytes": 2092
+        },
+        {
+          "timestamp": "2026-10-24T12:22:13.477297Z",
+          "path": "/api/mypage",
+          "status": 200,
+          "latency": "0.140645760s",
+          "requestBytes": 3350,
+          "responseBytes": 2093
+        },
+        {
+          "timestamp": "2026-10-24T12:22:43.143379Z",
+          "path": "/api/mypage",
+          "status": 200,
+          "latency": "0.031950133s",
+          "requestBytes": 3350,
+          "responseBytes": 2093
+        },
+        {
+          "timestamp": "2026-10-24T12:23:31.723766Z",
+          "path": "/api/auth/session/complete",
+          "status": 204,
+          "latency": "0.081673390s",
+          "requestBytes": 3325,
+          "responseBytes": 344
+        },
+        {
+          "timestamp": "2026-10-24T12:23:31.946715Z",
+          "path": "/api/auth/session/complete",
+          "status": 204,
+          "latency": "0.063637898s",
+          "requestBytes": 3326,
+          "responseBytes": 344
+        },
+        {
+          "timestamp": "2026-10-24T12:24:49.173265Z",
+          "path": "/api/mypage",
+          "status": 200,
+          "latency": "0.105211605s",
+          "requestBytes": 3348,
+          "responseBytes": 1807
+        }
+      ],
+      "attribution": "revision/window-level; phase by timestamps, not UID or trace; one extra raw-phase 200 was conservatively charged 210 read equivalents",
+      "meanNonemptyAPIRequestBytes": 3303,
+      "meanNonemptyAPIResponseBytes": 2092.4,
+      "sizeScope": "Cloud Logging HTTP message sizes include headers; not browser end-to-end transfer",
+      "estimatedRunComputeAndRequestUSD": 4.2485000000000004e-05,
+      "invoiceVerified": false
+    },
+    "cleanup": {
+      "cleanupVerified": true,
+      "userAbsent": true,
+      "rawAbsent": true,
+      "monthlyAbsent": true,
+      "seatsAbsent": true,
+      "originalControlCheckpointUnchanged": true,
+      "extraReadAllowance": 10
+    },
+    "cumulativeBudget": {
+      "rawCreated": 2793,
+      "writeDeleteReserved": 5628,
+      "documentReadEstimate": 19391,
+      "indexEntryAllowance": 22005,
+      "indexEntriesObservedByAnalyze": 2792,
+      "unknownIndexOperations": 0,
+      "totalDataWindowApproximatelySeconds": 1051,
+      "allOwnedSyntheticDataDeleted": true,
+      "imagePublications": 1,
+      "observationReenabled": false
+    }
+  },
+  "publicSkuEvidence": {
+    "verifiedDateJST": "2026-10-24",
+    "serviceId": "EE2C-7FAC-5E08",
+    "source": "https://cloud.google.com/skus/sku-groups/firestore-ops",
+    "ids": {
+      "asia-southeast2": {
+        "read": "8C8F-C8C6-5DC5",
+        "write": "C018-E5F3-98B2",
+        "delete": "1EB6-67D4-A77C"
+      },
+      "asia-northeast2": {
+        "read": "66B2-5FFA-6B08",
+        "write": "F5A5-016F-35FF",
+        "delete": "DC66-CCDF-751A"
+      }
+    },
+    "jakartaReadPriceVerifiedOnRenderedOfficialSkuTableUSDPer100k": 0.038,
+    "accountBilledSkuAssignmentVerified": false,
+    "catalogApiResult": "403 SERVICE_DISABLED; not enabled by this task",
+    "billingMetadataReadable": false,
+    "devBillingExportDatasetCandidates": 0
+  },
+  "writerReadiness": {
+    "ownerConfirmedNoResidentDevBot": true,
+    "canonicalAccountAndProjectVerified": true,
+    "allEnabledAWSRegionsInspected": 17,
+    "ec2InstancesFound": 0,
+    "gcpVMInstancesFound": 0,
+    "ecsClustersFound": 1,
+    "appImageLambdaFunctions": 7,
+    "supportZipFunctions": 2,
+    "currentBatchRevision": 66,
+    "sharedFamilyStateMachines": 4,
+    "sharedFamilyTaskReferences": 6,
+    "runningTasksAtRead": 0,
+    "appLambdaResolvedDigest": "sha256:a7ff7d5651240e11e79783ceadeff6b56bddcf7a695c9ad66b7504be11244dd3",
+    "currentBatchImageAssetTag": "a1f6ab3693c757db696340a88dcc7514564dc5fff3b19fda03f552602745356f",
+    "currentSourceAssets": [
+      {
+        "assetTag": "0b343fadd20e1131c9f92cd42305ab20d3772a0e63108d25baf082b1bba18e9c",
+        "dockerFile": "Dockerfile.fargate",
+        "platform": "linux/arm64"
+      },
+      {
+        "assetTag": "53dafbcdc33356bdeee27d81258516588e9ac38eecef4a123db3ea7752862d67",
+        "dockerFile": "Dockerfile.lambda",
+        "platform": "linux/amd64"
+      }
+    ],
+    "currentSourceAssetMappingToLiveVerified": false,
+    "newImagesBuiltOrPublished": false,
+    "deploymentExecuted": false,
+    "note": "Source asset tags alone do not prove image contents; current-source build/deploy receipts are required. Selected plugin identities did not match the canonical workload account; existing CLI identity was strictly matched before inventory."
   }
 }

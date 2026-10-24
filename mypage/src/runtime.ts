@@ -66,6 +66,11 @@ export class BrowserRuntime {
 	private observedUID: string | null | undefined
 	private reconciledGeneration = -1
 	private restoringController: AbortController | null = null
+	private restoringIdentity: {
+		uid: string
+		auth: number
+		confirmation: number
+	} | null = null
 	private supportController: AbortController | null = null
 	private lifecycleGeneration = 0
 
@@ -147,8 +152,22 @@ export class BrowserRuntime {
 	}
 
 	private restoreIdentity(uid: string | null) {
+		const pending = this.restoringIdentity
+		if (
+			uid &&
+			this.active &&
+			!this.completingSession &&
+			!this.memory.isRestricted(uid) &&
+			this.restoringController &&
+			!this.restoringController.signal.aborted &&
+			pending?.uid === uid &&
+			pending.auth === this.authGeneration &&
+			pending.confirmation === this.confirmationGeneration
+		)
+			return
 		this.restoringController?.abort()
 		this.restoringController = null
+		this.restoringIdentity = null
 		if (!this.active || this.completingSession) return
 		if (this.memory.isRestricted(uid)) return
 		if (!uid) {
@@ -164,6 +183,11 @@ export class BrowserRuntime {
 		this.restoringController = controller
 		const identityGeneration = this.authGeneration
 		const operation = this.confirmationGeneration
+		this.restoringIdentity = {
+			uid,
+			auth: identityGeneration,
+			confirmation: operation,
+		}
 		const ownsSession = () =>
 			this.restoringController === controller &&
 			identityGeneration === this.authGeneration &&
@@ -180,6 +204,12 @@ export class BrowserRuntime {
 					const restriction = restrictionFrom(error)
 					if (restriction) this.memory.restrict(restriction, uid)
 					else await this.memory.logout()
+				}
+			})
+			.finally(() => {
+				if (this.restoringController === controller) {
+					this.restoringController = null
+					this.restoringIdentity = null
 				}
 			})
 	}

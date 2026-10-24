@@ -114,7 +114,7 @@ Hosting Emulatorで既知asset、`/`、`/mypage`、`/api/mypage`、未知`/asset
 - 合成テスト対象：User不存在、履歴0/10/100/500/1000件（可能なら1001件検知）、同一IDの通常席/メンバー席、JST日曜→月曜・月末境界、coverage欠損、クエリ失敗と認証拒否。受け取った文書数だけでなく、失敗/上限時に履歴を0として表示しないことを確認する。
 - 毎回の処理量（read/write/index read/CPU/latency）と1人・1日あたりのrequest回数を組み合わせて、実測原価を計算する。**現行のQuery `work-segments` は`ended-at`と`started-at`の複数の範囲条件を含むため、index entry readの請求をQuery Explain Analyzeで確認する。** 安全な値として`limit(1001)`があっても、同等数の課金readに収まる保証にはならない。
 - 代表的な2時間滞在なら、定期refreshは旧60秒120回→新5分24回が**目標値**。手動操作/ログイン/再試行は別集計。複数インスタンスのヒット率、App CheckのreCAPTCHA評価回数、追加書き込み/キャッシュ維持費も別途算出する。
-- 既存writer inventory：`workspaceapp/command_seat.go`、`workspaceapp/utils.go`、`workspaceapp/batch.go`、`workspaceapp/command_moderation.go` と `repository.CreateWorkSegmentDoc`。作業区間の確定はtransaction経由が多いが、**writerが全て月次rollupまで同一transactionで更新する保証は未確認**。まずwriter/削除/訂正/既存DailyUserWorkHistoryDocの全経路を検証する。集計documentの採用・backfill・Firestore schema変更は別PRに分離し、未検証の欠損を0にして公開しない。
+- writer inventory：`workspaceapp/command_seat.go`、`workspaceapp/utils.go`、`workspaceapp/batch.go`、`workspaceapp/command_moderation.go` と中央の`PrepareWorkSegmentWrites`/commitをPR #1442で接続し、月次rollupとrawのatomicity・重複・rollbackをCI/Emulatorで検証した。旧dailyを正本へ復活させない。source実装の確認と全runtimeへの実配備は区別する。DEVには常駐Botがないとownerが確認し、既存Batch/Lambdaの固定imageは監査できたが、現sourceのbuild/deploy receipt照合と切替は別Gate。
 
 ### 月次履歴の明示移行と復旧
 

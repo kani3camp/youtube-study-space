@@ -25,6 +25,8 @@ def scenario(model, case, mode='monthly', region='asia-northeast2', static_cache
     p = model['prices'][region]
     seconds = a['pollSecondsBefore'] if mode == 'before' else a['pollSecondsAfter']
     requests = case['dau'] * a['days'] * (1 + case['hours'] * 3600 / seconds)
+    documents = case['dau'] * a['days'] * a['staticDocumentLoadsPerDAUDay']
+    session_requests = documents * a.get('sessionCompletionsPerDocument', 0)
     h = a['cacheHitRatio']
     if not 0 <= h <= 1:
         raise ValueError('cache hit ratio must be 0..1')
@@ -37,7 +39,7 @@ def scenario(model, case, mode='monthly', region='asia-northeast2', static_cache
     details = case['dau'] * a['detailOperationsPerDAUMonth']
     detail_reads = a['detailPageSize'] + 1 + a['detailControlReadsEstimate']
     detail_index = math.ceil(a['detailIndexEntriesEstimate'] / 1000)
-    reads += writer_reads + details * detail_reads
+    reads += writer_reads + details * detail_reads + session_requests * a.get('sessionCompleteReads', 0)
     index_reads += details * detail_index
     writes = writer_writes + details * a['detailWritesPerOperation']
     # Firestore is per project/day and shared with the existing workload.
@@ -48,22 +50,22 @@ def scenario(model, case, mode='monthly', region='asia-northeast2', static_cache
     if profile not in ('hosting-run', 'armor-run'):
         raise ValueError('unknown architecture profile')
     static_bytes = a['staticBytesPerDocumentAfterCacheAverage'] if static_cache else a['staticBytesPerDocumentBefore']
-    documents = case['dau'] * a['days'] * a['staticDocumentLoadsPerDAUDay']
     # The proposed WAF architecture has a separate Run web service, no CDN.
     # A browser-cache hit avoids a transfer; it does not eliminate the HTML load.
     static_requests = documents * (a['staticRequestsPerDocumentAfterCache'] if static_cache else a['staticRequestsPerDocumentBefore'])
     web_seconds = static_requests * a['effectiveWebBilledSecondsPerRequest'] if profile == 'armor-run' else 0
-    billed_seconds = (requests + details) * a['effectiveBilledSecondsPerRequest'] + web_seconds
+    api_requests = requests + details + session_requests
+    billed_seconds = api_requests * a['effectiveBilledSecondsPerRequest'] + web_seconds
     cpu = max(0, billed_seconds * a['allocatedVCPU'] * p['cpuSecond'] - a['availableRunCPUDiscountUSDPerBillingAccountMonth'])
     ram = max(0, billed_seconds * a['allocatedGiB'] * p['gibSecond'] - a['availableRunRAMDiscountUSDPerBillingAccountMonth'])
-    public_requests = requests + details + (static_requests if profile == 'armor-run' else 0)
+    public_requests = api_requests + (static_requests if profile == 'armor-run' else 0)
     run_requests = max(0, public_requests * p['requestsMillion'] / 1000000 - a['availableRunRequestDiscountUSDPerBillingAccountMonth'])
     fixed = (model['prices']['armorPolicyMonthly'] + a['rules'] * model['prices']['armorRuleMonthly'] + a['hoursPerMonth'] * model['prices']['globalForwardingHour']) if profile == 'armor-run' else 0
-    api_bytes = requests * a['apiResponseBytes'] + details * a['detailResponseBytesAverage']
+    api_bytes = requests * a['apiResponseBytes'] + details * a['detailResponseBytesAverage'] + session_requests * a.get('sessionCompleteResponseBytes', 0)
     api_gib = api_bytes / 2**30
     armor = public_requests * model['prices']['armorGlobalRequestsMillion'] / 1000000 if profile == 'armor-run' else 0
     static_total = documents * static_bytes
-    inbound_gib = public_requests * a['requestBytesAverage'] / 2**30
+    inbound_gib = (api_requests * a.get('apiRequestBytesAverage', a['requestBytesAverage']) + (static_requests * a['requestBytesAverage'] if profile == 'armor-run' else 0)) / 2**30
     outbound_gib = api_gib + (static_total / 2**30 if profile == 'armor-run' else 0)
     network = ((inbound_gib + outbound_gib) * p['lbGiBEachDirection'] + outbound_gib * p['japanEgressGiB']) if profile == 'armor-run' else 0
     # Hosting rewrites transfer API responses too; Run->Hosting is not charged
@@ -83,7 +85,7 @@ def scenario(model, case, mode='monthly', region='asia-northeast2', static_cache
     contribution = premium_delta(a, case['newPremium'], case['upgrades'])
     unit_new = a['candidatePremiumJPY'] * a['effectiveNetCollectionRatio']
     unit_upgrade = (a['candidatePremiumJPY'] - a['existingMemberJPY']) * a['effectiveNetCollectionRatio']
-    return dict(name=case['name'], profile=profile, mode=mode, requests=requests, webRequests=static_requests, reads=reads, indexReads=index_reads, extraWrites=writes,
+    return dict(name=case['name'], profile=profile, mode=mode, requests=requests, sessionRequests=session_requests, allAPIRequests=api_requests, webRequests=static_requests, reads=reads, indexReads=index_reads, extraWrites=writes,
                 productionUSD=production, devFixedUSD=dev_fixed, totalUSD=total, totalJPY=yen,
                 firestoreUSD=firestore, runUSD=cpu + ram + run_requests, hostingUSD=hosting, appCheckUSD=app_check,
                 armorUSD=armor, networkUSD=network, loggingUSD=logging,
@@ -155,6 +157,15 @@ def self_test():
     hosted = scenario(model,c,profile='hosting-run')
     assert hosted['armorUSD'] == hosted['networkUSD'] == hosted['devFixedUSD'] == 0 and hosted['hostingUSD'] > 0
     assert post['hostingUSD'] == 0 and post['armorUSD'] > 0
+    with_session = copy.deepcopy(model); with_session['assumptions'].update(sessionCompletionsPerDocument=1, sessionCompleteReads=4, sessionCompleteResponseBytes=344)
+    auth = scenario(with_session, c)
+    assert auth['sessionRequests'] == 6000 and auth['allAPIRequests'] == 156000
+    assert scenario(with_session,c,'before')['sessionRequests'] == auth['sessionRequests'], 'poll frequency does not determine session completions'
+    assert auth['reads'] - post['reads'] == 24000, 'session transaction reads are separate from overview authorization reads'
+    assert math.isclose(auth['runUSD'] - post['runUSD'], 6000 * (0.2 * (0.000024 + 0.5 * 0.0000025) + 0.4 / 1000000))
+    assert auth['appCheckUSD'] == post['appCheckUSD'], 'session requests can reuse App Check proof'
+    larger_headers=copy.deepcopy(with_session); larger_headers['assumptions']['apiRequestBytesAverage']=3303
+    assert math.isclose(scenario(larger_headers,c)['networkUSD']-auth['networkUSD'], 156000*(3303-1024)/2**30*0.012), 'API header size must not be applied to static requests'
     changed = copy.deepcopy(model); changed['assumptions']['detailOperationsPerDAUMonth'] = 1
     assert math.isclose(scenario(changed,c)['armorUSD'] - post['armorUSD'], 200 * 0.75 / 1000000)
 
@@ -194,6 +205,12 @@ def main():
             lines.append(f"| {label} | {raw['SegmentsReturned']} | {explain['debug']['documents_scanned']} | {explain['debug']['index_entries_scanned']} | {explain['readOperations']} | {monthly['MonthsReturned']} / {monthly['MonthLookups']} | {raw['ElapsedMilliseconds']} / {monthly['ElapsedMilliseconds']} |")
         lines += ['', 'Raw 1001 returns HISTORY_LIMIT_EXCEEDED; it is not an exact graph baseline. At 0 docs, unknown coverage stays unavailable for the registered fixture. The separate authenticated unregistered case displays a normal zero. In the boundary fixture, the month-crossing row was outside the recent seven-day window: its rebuild was checked, but a live recent-window month crossing and two-month lookup were not measured.', '',
                   'For the 1000-doc fixture, adding the source-inventory estimate of 10 fixed read equivalents to Analyze gives 1011 versus 11 with one month lookup (about 98.9% fewer). This is a derived Firestore cache-miss comparison, not measured HTTP billing. Writer overhead and other services are included separately in the scenarios. Default raw average 20, average monthly lookups 1.2, cache ratio and billing time remain assumptions.', '']
+    if model.get('measuredLiveApiEvidence'):
+        live = json.loads((ROOT/'docs/mypage'/model['measuredLiveApiEvidence']).read_text(encoding='utf-8'))['continuation']
+        lines += ['', '## Authenticated DEV cohort and Run allocation', '',
+                  f"Same owned 180-row fixture: raw and monthly showed recorded today/week and lifetime 3 minutes; SDK comparison was 180 seconds. {live['httpWindow']['overviewRequests']} overview GETs (including post-cleanup zero) and {live['httpWindow']['sessionCompleteRequests']} separate session-completion POSTs were observed in the allocation window. Full response bodies and internal cache-hit counters were not collected.", '',
+                  f"Run billed allocation: {live['httpWindow']['billableInstanceSeconds']} instance seconds / {live['httpWindow']['totalRequests']} requests, 1 vCPU and 0.5 GiB. This is not per-request process CPU. Raw requests: 205.6 / 35.0 / 32.9 ms; monthly: 140.6 / 32.0 ms. These few samples are not percentiles or population latency.", '',
+                  'API request messages averaged 3303 bytes and responses 2092.4 bytes for the five nonempty overview requests (Cloud Logging sizes include headers). The model uses the measured API inbound reference separately from static request bytes, retains an 8192-byte response budget, and adds one source-estimated session completion per document with four Firestore read equivalents. Initial OAuth/new-account writes, retries and organization billing remain separate.', '']
     lines += ['', '## Architecture and component separation (after monthly + browser cache)', '',
               '| Profile / scale | Run USD | Firestore USD | Hosting USD | Armor variable USD | Network USD | App Check USD | Prod USD | DEV fixed USD | Total USD |',
               '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|']
