@@ -1,6 +1,6 @@
 // Offline preparation only: no environment discovery, auth or deploy.
-import { lstat, readdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join, relative, resolve } from 'node:path'
+import { lstat, readdir, readFile, realpath, writeFile } from 'node:fs/promises'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { hostingCandidate, validateHostingAssets } from '../src/hosting.ts'
 import {
 	checkReleaseConfigJSON,
@@ -19,6 +19,19 @@ try {
 	const manifest = resolve(args[1])
 	const dist = resolve(args[3])
 	const output = resolve(args[5])
+	// Deploy requires public inside this config's project root. Keep the build
+	// in a distinct subdirectory so manifests/config never become public files.
+	const publicPath = relative(
+		await realpath(dirname(output)),
+		await realpath(dist),
+	)
+	if (
+		!publicPath ||
+		isAbsolute(publicPath) ||
+		publicPath === '..' ||
+		publicPath.startsWith(`..${sep}`)
+	)
+		throw new Error()
 	const stat = await lstat(manifest)
 	if (!stat.isFile() || stat.size > releaseConfigMaxBytes) throw new Error()
 	const source = await readFile(manifest, 'utf8')
@@ -45,9 +58,7 @@ try {
 	await walk(dist)
 	validateHostingAssets(paths)
 	const candidate = hostingCandidate(JSON.parse(source).hosting, paths.sort())
-	candidate.firebase.hosting.public = relative(dirname(output), dist)
-		.split('\\')
-		.join('/')
+	candidate.firebase.hosting.public = publicPath.split('\\').join('/')
 	// Never replace an existing release config accidentally.
 	await writeFile(output, `${JSON.stringify(candidate.firebase, null, 2)}\n`, {
 		flag: 'wx',

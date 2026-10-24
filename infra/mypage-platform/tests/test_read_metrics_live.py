@@ -81,6 +81,29 @@ def operation(after):
 
 
 class MetricsLiveTest(unittest.TestCase):
+    def test_provider_defaults_encode_exactly_one_envvar_value_member(self):
+        entries = [
+            {"name":"PLAIN", "value":"public", "value_source":[]},
+            {"name":"EMPTY", "value":"", "value_source":[]},
+            {"name":"SECRET", "value":"", "value_source":[{"secret_key_ref":[{"secret":"synthetic-secret", "version":"1"}]}]},
+        ]
+        original = deepcopy(entries)
+        self.assertEqual(live.environment_payload(entries), [
+            {"name":"PLAIN", "value":"public"},
+            {"name":"EMPTY", "value":""},
+            {"name":"SECRET", "valueSource":{"secretKeyRef":{"secret":"synthetic-secret", "version":"1"}}},
+        ])
+        self.assertEqual(entries, original)
+        for mutate in (
+            lambda xs: xs[-1].update(value="conflicting"),
+            lambda xs: xs[0].update(value_source={}),
+            lambda xs: xs[0].update(unknown="rejected"),
+            lambda xs: xs.append(deepcopy(xs[0])),
+        ):
+            changed = deepcopy(entries); mutate(changed)
+            with self.subTest(mutation=mutate), self.assertRaises(c.ContractError):
+                live.environment_payload(changed)
+
     def test_named_environment_order_preserves_exact_values_and_secret_references(self):
         plan, state = fixture()
         expected = actual(state)

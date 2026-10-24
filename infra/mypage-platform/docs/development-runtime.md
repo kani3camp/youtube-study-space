@@ -18,6 +18,10 @@ Invariantsは、固定DEV 12資源・全planned action no-op・全設定比較�
 
 復旧sourceの[実Plan 40072743264](https://github.com/kani3camp/youtube-study-space/actions/runs/40072743264)はState版/世代の照合を通過した後、`metrics-live-config-mismatch`でApply前に停止した。値を公開せず実Stateとliveの全設定を比較し、providerのenv block正規化順とRESTの挿入順だけが異なり、全name/value/Secret参照が一致すると確認した。`match_state`だけで重複・空nameを拒否してenvを名前順に比較し、保存Plan・API mutation・他のlist順序は変更しない。値/参照変更、重複名、args順序変更を回帰で拒否する。新sourceのfresh Planで再検証する。
 
+[復旧run 40073932938](https://github.com/kani3camp/youtube-study-space/actions/runs/40073932938)は独立Plan/HMAC・保存Planの適用・live照合まで成功。独立AWS readbackでも12資源・serial 9・generation 4/image `4020ade3`、元service UID不変を確認した。続く[metrics ON試行40075166738](https://github.com/kani3camp/youtube-study-space/actions/runs/40075166738)はPlan成功後にAPI呼出で停止し、liveはgeneration 4・OFFのまま。sourceの同じwire形をCloud Run公式`validateOnly=true`で400として再現した。providerが補う空の`value`/`value_source`を両方JSON oneofへ入れていたため、選択した片方だけを送るencoderへ局所修正し、保存なし検証200を確認。空のplain文字列は保持し、未知field・競合するoneof・重複名は拒否する。
+
+別にIAMを読み、既存Apply SAが`run.services.update`を持たないことを確認した。利用者から、今回のUS$1以内のDEV試験のため、同permission 1個だけの一時custom roleを固定`mypage-api`のApply SAに限定して付与・試験後解除する追加承認を得た。これはCloud IAM上ではサービス更新権限であり、metrics env以外の拒否はレビュー済みPlan/conditional PATCH guardが担う。権限追加を一般許可に読み替えず、既存binding・Invoker・credential・Productionを変更しない。IAM memberのetagだけのState refreshを通常経路で完了してから、freshなON/OFF Planを行う。終了後はbinding/一時roleを解除し、そのIAM metadataのState整合も確認する。実試験成功・解除完了は別のrelease証跡に残す。
+
 `system/Dockerfile.mypage`は既存のdigest固定Go / distrolessイメージを使用し、Cloud Run用のlinux/amd64バイナリをビルドする。CGOなし、timezone dataをバイナリへ含め、nonrootで起動する。Secretやローカル環境ファイルをイメージへ渡さない。
 
 ```sh

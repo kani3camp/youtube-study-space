@@ -97,7 +97,7 @@ browserはlocal Viteをport18081で起動し、[runtime](../../../mypage/scripts
 
 ### 静的配信cacheのrelease準備
 
-同じpublic manifestでFrontendをbuildした後、実distからexact asset pathを採取する。`node mypage/scripts/prepare-hosting.mjs --manifest /path/to/reviewed-public-config.json --dist mypage/dist --output /path/to/new/firebase.json` は設定候補だけを書き、deployしない。出力先は未作成fileを指定する。既知hash付きJS/CSS/fontだけが1年immutableとなり、HTML・API・未知hash pathはno-store。buildを差し替えたら必ず再生成する。target/site対応は既存のreview済みDEV selectorを使い、repository共通firebase設定を上書きしない。
+同じpublic manifestでFrontendをbuildした後、実distを専用release directory内の`dist/`へ固定コピーし、exact asset pathを採取する。`node mypage/scripts/prepare-hosting.mjs --manifest /path/to/reviewed-public-config.json --dist /path/to/release/dist --output /path/to/release/firebase.json` は設定候補だけを書き、deployしない。出力先は未作成file、親directoryは作成済みとする。Firebase CLIはproject root外のpublicを拒否するため、symlink解決後もdistは出力configの親directoryの内側にある独立subdirectoryを要求する。manifestやprivate運用fileはdistへ置かない。既知hash付きJS/CSS/fontだけが1年immutableとなり、HTML・API・未知hash pathはno-store。buildを差し替えたら必ず再生成する。target/site対応は既存のreview済みDEV selectorを使い、repository共通firebase設定を上書きしない。
 
 Hosting Emulatorで既知asset、`/`、`/mypage`、`/api/mypage`、未知`/assets/missing-12345678.js`のCache-ControlとCSP/nosniffを確認する。API rewriteの実Backend headers、実DEVでの各headerと初回/再訪download量は別のrelease証跡とする。asset cacheでAuth/SAC/cache TTLを変更しない。
 
