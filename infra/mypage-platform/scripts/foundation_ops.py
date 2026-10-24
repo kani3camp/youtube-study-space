@@ -28,6 +28,29 @@ def need(value):
 
 def run(args, *, cwd=None, codes=(0,), check="native-command"):
     result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=600)
+    if result.returncode not in codes and check in {"metrics-refresh-show", "metrics-refresh-apply", "metrics-final-state-show"}:
+        # These fixed classifications identify the failing native step without
+        # printing raw Plan/State, arguments, paths, credentials or API errors.
+        diagnostics = result.stdout + result.stderr
+        for marker, label in (
+            ("Saved plan is stale", "saved-plan-stale"),
+            ("Saved plan does not match", "saved-plan-state-mismatch"),
+            ("Cannot apply non-applyable plan", "non-applyable-plan"),
+            ("Cannot apply incomplete plan", "incomplete-plan"),
+            ("Error acquiring the state lock", "state-lock"),
+            ("Failed to save state", "state-save"),
+            ("Error saving state", "state-save"),
+            ("Inconsistent dependency lock file", "provider-lock"),
+            ("Failed to load plugin schemas", "provider-schema"),
+            ("Invalid provider configuration", "provider-configuration"),
+            ("No state file was found", "state-missing"),
+            ("invalid_grant", "identity-expired"),
+            ("ExpiredToken", "identity-expired"),
+            ("AccessDenied", "access-denied"),
+        ):
+            if marker in diagnostics:
+                check += "-" + label
+                break
     if result.returncode not in codes and check == "terraform-plan":
         # Publish only source-defined labels. Never print native diagnostics,
         # command arguments or a permission name extracted from rejected data.
