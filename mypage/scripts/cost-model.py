@@ -172,7 +172,7 @@ def main():
         print('Cost model invariants passed')
         return
     lines = ['# MyPage incremental cost scenarios', '',
-             f"Official prices checked {model['verifiedAtJST']} JST. Scenario values below are estimates, not measured invoices.", '',
+             f"Official prices checked {model['verifiedAtJST']} JST. Scenario prices use Production Osaka (asia-northeast2); controlled DEV measurements use Jakarta (asia-southeast2). Scenario values below are estimates, not measured invoices.", '',
              'See [assumptions and exclusions](cost-notes.md). Main table: proposed Armor + global LB + Run Web/API, no CDN. Current Hosting + Run is a separate profile below.', '',
              '| Scale | 60s/raw USD | 5m/raw USD | 5m/month no-cache USD | +static cache USD | JPY cost | Profit JPY | New members to cover | Upgrades to cover |',
              '|---|---:|---:|---:|---:|---:|---:|---:|---:|']
@@ -182,6 +182,18 @@ def main():
         monthly_no_cache = scenario(model, case, static_cache=False)
         after = scenario(model, case)
         lines.append(f"| {case['name']} | {before['totalUSD']:.2f} | {poll['totalUSD']:.2f} | {monthly_no_cache['totalUSD']:.2f} | {after['totalUSD']:.2f} | {after['totalJPY']:.0f} | {after['projectedProfitJPY']:.0f} | {after['newPremiumToMaintainBase']} | {after['upgradesToMaintainBase']} |")
+    if model.get('measuredFixtureEvidence'):
+        evidence = json.loads((ROOT/'docs/mypage'/model['measuredFixtureEvidence']).read_text(encoding='utf-8'))
+        lines += ['', '## DEV direct-reader measurements (2026-10-24)', '',
+                  'Jakarta Firestore via local SDK. These are controlled fixtures, not the population average, HTTP BFF, invoice reads, or Cloud Run CPU. See [trial and limits](dev-cost-measurement-20261024.md).', '',
+                  '| Fixture raw docs | Raw returned | Analyze document scans | Analyze index scans | Analyze read operations | Monthly returned / lookups | Raw / monthly SDK ms |',
+                  '|---|---:|---:|---:|---:|---:|---:|']
+        for row in evidence['cases']:
+            raw, monthly, explain = row['raw']['observation'], row['monthly']['observation'], row['queryExplain']
+            label = str(row['sourceDocuments']) + (' (JST boundaries)' if row['fixture'] == 'jst-fractional-boundaries' else '')
+            lines.append(f"| {label} | {raw['SegmentsReturned']} | {explain['debug']['documents_scanned']} | {explain['debug']['index_entries_scanned']} | {explain['readOperations']} | {monthly['MonthsReturned']} / {monthly['MonthLookups']} | {raw['ElapsedMilliseconds']} / {monthly['ElapsedMilliseconds']} |")
+        lines += ['', 'Raw 1001 returns HISTORY_LIMIT_EXCEEDED; it is not an exact graph baseline. At 0 docs, unknown coverage stays unavailable for the registered fixture. The separate authenticated unregistered case displays a normal zero.', '',
+                  'For the 1000-doc fixture, adding the source-inventory estimate of 10 fixed read equivalents to Analyze gives 1011 versus 11 with one month lookup (about 98.9% fewer). This is a derived Firestore cache-miss comparison, not measured HTTP billing. Writer overhead and other services are included separately in the scenarios. Default raw average 20, average monthly lookups 1.2, cache ratio and billing time remain assumptions.', '']
     lines += ['', '## Architecture and component separation (after monthly + browser cache)', '',
               '| Profile / scale | Run USD | Firestore USD | Hosting USD | Armor variable USD | Network USD | App Check USD | Prod USD | DEV fixed USD | Total USD |',
               '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|']
@@ -208,9 +220,12 @@ def main():
     for hours in (0.5,2,4,8):
         r = scenario(model,dict(model['scenarios'][1],hours=hours))
         lines.append(f"| visible hours/day | {hours} | {r['totalUSD']:.2f} | {r['totalJPY']:.0f} | {r['projectedProfitJPY']:.0f} |")
-    lines += ['', 'Raw history sensitivity (growth, free quota exhausted):', '', '| Segments/miss | 60s/raw USD | 5m/raw USD | 5m/month USD |', '|---|---:|---:|---:|']
+    lines += ['', 'Raw history sensitivity (growth, free quota exhausted; measured index scans where available, hypothetical user distribution):', '', '| Segments/miss | 60s/raw USD | 5m/raw USD | 5m/month USD |', '|---|---:|---:|---:|']
+    observed_index = {row['sourceDocuments']: int(row['queryExplain']['debug']['index_entries_scanned']) for row in evidence['cases'] if row['fixture'] == 'same-day-one-second'} if model.get('measuredFixtureEvidence') else {}
     for n in [0,10,100,500,1000]:
         changed = copy.deepcopy(model); changed['assumptions']['rawSegmentsPerMiss'] = n
+        if n in observed_index:
+            changed['assumptions']['rawIndexEntriesPerMiss'] = observed_index[n]
         c = model['scenarios'][2]
         lines.append(f"| {n} | {scenario(changed,c,'before',static_cache=False)['totalUSD']:.2f} | {scenario(changed,c,'poll',static_cache=False)['totalUSD']:.2f} | {scenario(changed,c)['totalUSD']:.2f} |")
     lines += ['', 'Membership sensitivity (standard scale; baseline profit is counted once):', '', '| New | Upgrades | Incremental net JPY | Profit JPY |', '|---:|---:|---:|---:|']

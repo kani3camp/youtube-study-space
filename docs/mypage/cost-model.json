@@ -47,10 +47,10 @@
   },
   "evidence": {
     "rates": "Official region selectors independently inspected; public list prices without CUD. Individual SKU IDs and actual invoice were not obtained.",
-    "snapshot": "Emulator 0/10/100/500/1000/1001 cases: monthly mode segmentQueries=0 and monthLookups<=2. Returned docs are not invoice reads.",
+    "snapshot": "DEV Jakarta direct SDK 0/10/100/500/1000/1001 and fractional JST boundary fixtures: monthly raw queries=0, one month document returned in these dates. See dev-cost-evidence-20261024.json. Full API read/CPU/cache measurement remains unverified.",
     "fixedReads": "Source inventory, fresh metadata, cache-miss leader: six SAC lookups plus one WebAccount. Snapshot User+two empty-query minimums=3, then raw max(1,N) or 1-2 month lookups. Retries/metadata/Auth/AppCheck separate.",
-    "staticAssets": "Current DEV index, JS, CSS and 4 fonts had Cache-Control:no-store on HEAD. Four source fonts total 4278928 bytes; actual weights/download bytes not measured.",
-    "live": "No improved-runtime billing/cpu/cache/AppCheck measurement yet. Do not label scenario estimates measured savings."
+    "staticAssets": "DEV release 1792827165956000: all 8 staged file bodies matched live SHA256; exact JS/CSS/4 font paths immutable 1y; HTML/API/unknown hashes remain no-store. Browser transfer/cache hit ratios unmeasured.",
+    "live": "Runtime fixed digest deployed; metrics ON then OFF to generation6/revision00006-xjf; original v1 resourceVersion stale PUT rejected409; temporary updater removed. CI readback succeeds; independent S3 readback pending refreshed SSO. No invoice claim."
   },
   "assumptions": {
     "days": 30,
@@ -129,5 +129,6 @@
       "newPremium": 100,
       "upgrades": 200
     }
-  ]
+  ],
+  "measuredFixtureEvidence": "dev-cost-evidence-20261024.json"
 }

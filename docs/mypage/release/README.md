@@ -4,6 +4,8 @@
 
 プロダクト方針の正本はCurrent Canonの[04 認証](https://app.notion.com/p/3ec357a8d0ce812f8520f787fedcc6bd)、[05 Privacy](https://app.notion.com/p/3ed357a8d0ce81e7b7d2cc85ec8ab4cf)、[06 Security](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634)、[09 判断記録](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)。実装・CI・配備状態はGitHubを正とし、設計の確定を実経路PASSへ読み替えない。wire/実装は[実装contract](../README.md)、[OpenAPI](../openapi.yaml)を参照する。本人への準備事項は[owner packet](owner-packet.md)、実経路の試験・release対・rollbackは[E2E手順](e2e.md)にまとめる。
 
+2026-10-24の限定DEV配備対、上限付きFirestore測定、観測OFF、実409競合拒否、一時権限解除、正常0の認証smokeは[原価測定記録](../dev-cost-measurement-20261024.md)を参照する。表の公開Gate全体を完了した証跡ではない。
+
 ## 1. 現在ある実装と、残る完了条件
 
 | 領域 | 既存実装・localで検証できること | 公開前に残ること |
@@ -103,7 +105,7 @@ Hosting Emulatorで既知asset、`/`、`/mypage`、`/api/mypage`、未知`/asset
 
 ### DEV専用：MyPageのFirestore読み取り原価計測
 
-設計候補は[Notion D06](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)。データソースの正本は[03｜統計](https://app.notion.com/p/3ec357a8d0ce81ac94eef9e6ac0c9964)。本PRで収集フックを実装しても、**実DEVでのデプロイ・計測・index適用を行ったことにはならない**。
+設計候補は[Notion D06](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)。データソースの正本は[03｜統計](https://app.notion.com/p/3ec357a8d0ce81ac94eef9e6ac0c9964)。収集フックのsource実装だけでは、**実DEVでのデプロイ・計測・index適用を行ったことにはならない**。2026-10-24に実施した限定配備・直接SDK測定と、その範囲外のGateは[実測記録](../dev-cost-measurement-20261024.md)を参照する。
 
 - DEVの明示環境設定 `MYPAGE_READ_METRICS=true` の時だけ、BFFのCache Missから生じたFirestore snapshotの**成功したread-only transaction**ごとに `mypage_snapshot_read` を出力する。Productionではこの設定があっても無効。設定追加はDEV Cloud Run / Terraformの既存env allowlistとrelease承認を通して行う。
 - 記録内容は `user_lookups`（UserDoc lookup数）、`seat_queries` / `seats_returned` / `seat_query_errors`、`segment_queries` / `segments_returned` / `segment_query_error`、`elapsed_ms` の数値・真偽値のみ。uid/channel ID、氏名、path、作業名、segment本文、OAuth/Cookie、エラー本文などの秘匿値を記録しない。

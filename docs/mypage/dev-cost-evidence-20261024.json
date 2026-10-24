@@ -1,0 +1,792 @@
+{
+  "schemaVersion": 1,
+  "environment": {
+    "project": "test-youtube-study-space",
+    "region": "asia-southeast2"
+  },
+  "trial": {
+    "startedAt": "2026-10-24T10:28:17Z",
+    "cleanedAt": "2026-10-24T10:40:53Z",
+    "rawCreated": 2613,
+    "writeDeleteReserved": 5260,
+    "documentReadEstimateIncludingFinalVerification": 17467,
+    "indexEntriesObservedByAnalyze": 2612,
+    "indexEntryAllowance": 13100,
+    "unknownIndexOperations": 0,
+    "cleanupVerified": true,
+    "usdBudgetApproved": 1,
+    "invoiceVerified": false,
+    "conservativeFirestoreEstimateUSD": 0.01268912,
+    "costEstimateScope": "reserved writes/deletes conservatively charged at write price, estimated document reads plus seven index read batches; retries and final invoice unverified; not a hard billing cap"
+  },
+  "method": {
+    "reader": "existing SnapshotReader + Aggregate via owner SDK, not HTTP BFF",
+    "latencyScope": "local Windows host to Jakarta, not Cloud Run CPU or in-region API latency",
+    "driverSHA256": "F4229D0DB92BE322C3E62BC7325E9D25F1620279274AF4CBE15B34B2EB0017B1",
+    "sourceInventoryFixedReadEquivalents": 10,
+    "fixedReadScope": "six SAC, one WebAccount, one User and two empty seat query minimums; authorization cache-miss source estimate, not measured BFF reads",
+    "populationAverageMeasured": false,
+    "expectedUidLeadingIndex": true,
+    "queryIndex": "Collection (user-id ASC, ended-at ASC, started-at ASC, __name__ ASC)"
+  },
+  "cases": [
+    {
+      "sourceDocuments": 0,
+      "fixture": "same-day-one-second",
+      "raw": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": false,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 1,
+          "SegmentsReturned": 0,
+          "SegmentQueryError": false,
+          "MonthLookups": 0,
+          "MonthsReturned": 0,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 769
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_INCOMPLETE",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 0
+            }
+          }
+        }
+      },
+      "monthly": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": true,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 0,
+          "SegmentsReturned": 0,
+          "SegmentQueryError": false,
+          "MonthLookups": 1,
+          "MonthsReturned": 1,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 762
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_INCOMPLETE",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 0
+            }
+          }
+        }
+      },
+      "queryExplain": {
+        "debug": {
+          "billing_details": {
+            "documents_billable": "0",
+            "index_entries_billable": "0",
+            "min_query_cost": "1",
+            "small_ops": "0"
+          },
+          "documents_scanned": "0",
+          "index_entries_scanned": "0"
+        },
+        "expectedUidLeadingIndex": true,
+        "readOperations": 1,
+        "resultsReturned": 0,
+        "executionDurationNanoseconds": 2663000
+      }
+    },
+    {
+      "sourceDocuments": 10,
+      "fixture": "same-day-one-second",
+      "raw": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": false,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 1,
+          "SegmentsReturned": 10,
+          "SegmentQueryError": false,
+          "MonthLookups": 0,
+          "MonthsReturned": 0,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 783
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_INCOMPLETE",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 10
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 10
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 10
+            }
+          }
+        }
+      },
+      "monthly": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": true,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 0,
+          "SegmentsReturned": 0,
+          "SegmentQueryError": false,
+          "MonthLookups": 1,
+          "MonthsReturned": 1,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 810
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_INCOMPLETE",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 10
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 10
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 10
+            }
+          }
+        }
+      },
+      "queryExplain": {
+        "debug": {
+          "billing_details": {
+            "documents_billable": "10",
+            "index_entries_billable": "10",
+            "min_query_cost": "0",
+            "small_ops": "0"
+          },
+          "documents_scanned": "10",
+          "index_entries_scanned": "10"
+        },
+        "expectedUidLeadingIndex": true,
+        "readOperations": 11,
+        "resultsReturned": 10,
+        "executionDurationNanoseconds": 4307000
+      }
+    },
+    {
+      "sourceDocuments": 100,
+      "fixture": "same-day-one-second",
+      "raw": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": false,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 1,
+          "SegmentsReturned": 100,
+          "SegmentQueryError": false,
+          "MonthLookups": 0,
+          "MonthsReturned": 0,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 803
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_INCOMPLETE",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 100
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 100
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 100
+            }
+          }
+        }
+      },
+      "monthly": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": true,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 0,
+          "SegmentsReturned": 0,
+          "SegmentQueryError": false,
+          "MonthLookups": 1,
+          "MonthsReturned": 1,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 747
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_INCOMPLETE",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 100
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 100
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 100
+            }
+          }
+        }
+      },
+      "queryExplain": {
+        "debug": {
+          "billing_details": {
+            "documents_billable": "100",
+            "index_entries_billable": "100",
+            "min_query_cost": "0",
+            "small_ops": "0"
+          },
+          "documents_scanned": "100",
+          "index_entries_scanned": "100"
+        },
+        "expectedUidLeadingIndex": true,
+        "readOperations": 101,
+        "resultsReturned": 100,
+        "executionDurationNanoseconds": 7972000
+      }
+    },
+    {
+      "sourceDocuments": 500,
+      "fixture": "same-day-one-second",
+      "raw": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": false,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 1,
+          "SegmentsReturned": 500,
+          "SegmentQueryError": false,
+          "MonthLookups": 0,
+          "MonthsReturned": 0,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 988
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_INCOMPLETE",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 500
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 500
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 500
+            }
+          }
+        }
+      },
+      "monthly": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": true,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 0,
+          "SegmentsReturned": 0,
+          "SegmentQueryError": false,
+          "MonthLookups": 1,
+          "MonthsReturned": 1,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 758
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_INCOMPLETE",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 500
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 500
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 500
+            }
+          }
+        }
+      },
+      "queryExplain": {
+        "debug": {
+          "billing_details": {
+            "documents_billable": "500",
+            "index_entries_billable": "500",
+            "min_query_cost": "0",
+            "small_ops": "0"
+          },
+          "documents_scanned": "500",
+          "index_entries_scanned": "500"
+        },
+        "expectedUidLeadingIndex": true,
+        "readOperations": 501,
+        "resultsReturned": 500,
+        "executionDurationNanoseconds": 22578000
+      }
+    },
+    {
+      "sourceDocuments": 1000,
+      "fixture": "same-day-one-second",
+      "raw": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": false,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 1,
+          "SegmentsReturned": 1000,
+          "SegmentQueryError": false,
+          "MonthLookups": 0,
+          "MonthsReturned": 0,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 1173
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_INCOMPLETE",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 1000
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 1000
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 1000
+            }
+          }
+        }
+      },
+      "monthly": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": true,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 0,
+          "SegmentsReturned": 0,
+          "SegmentQueryError": false,
+          "MonthLookups": 1,
+          "MonthsReturned": 1,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 772
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_INCOMPLETE",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 1000
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 1000
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 1000
+            }
+          }
+        }
+      },
+      "queryExplain": {
+        "debug": {
+          "billing_details": {
+            "documents_billable": "1000",
+            "index_entries_billable": "1000",
+            "min_query_cost": "0",
+            "small_ops": "0"
+          },
+          "documents_scanned": "1000",
+          "index_entries_scanned": "1000"
+        },
+        "expectedUidLeadingIndex": true,
+        "readOperations": 1001,
+        "resultsReturned": 1000,
+        "executionDurationNanoseconds": 50622000
+      }
+    },
+    {
+      "sourceDocuments": 1001,
+      "fixture": "same-day-one-second",
+      "raw": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": false,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 1,
+          "SegmentsReturned": 1001,
+          "SegmentQueryError": false,
+          "MonthLookups": 0,
+          "MonthsReturned": 0,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 1064
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_LIMIT_EXCEEDED",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_LIMIT_EXCEEDED",
+              "workSec": null
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_LIMIT_EXCEEDED",
+              "workSec": null
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 1001
+            }
+          }
+        }
+      },
+      "monthly": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": true,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 0,
+          "SegmentsReturned": 0,
+          "SegmentQueryError": false,
+          "MonthLookups": 1,
+          "MonthsReturned": 1,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 748
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_INCOMPLETE",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 1001
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 1001
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 1001
+            }
+          }
+        }
+      },
+      "queryExplain": {
+        "debug": {
+          "billing_details": {
+            "documents_billable": "1001",
+            "index_entries_billable": "1001",
+            "min_query_cost": "0",
+            "small_ops": "0"
+          },
+          "documents_scanned": "1001",
+          "index_entries_scanned": "1001"
+        },
+        "expectedUidLeadingIndex": true,
+        "readOperations": 1003,
+        "resultsReturned": 1001,
+        "executionDurationNanoseconds": 47020000
+      }
+    },
+    {
+      "sourceDocuments": 2,
+      "fixture": "jst-fractional-boundaries",
+      "raw": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": false,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 1,
+          "SegmentsReturned": 1,
+          "SegmentQueryError": false,
+          "MonthLookups": 0,
+          "MonthsReturned": 0,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 775
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_INCOMPLETE",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 1
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 2
+            }
+          }
+        }
+      },
+      "monthly": {
+        "historyInconsistent": false,
+        "historyUnavailable": false,
+        "monthly": true,
+        "observation": {
+          "UserLookups": 1,
+          "SeatQueries": 2,
+          "SeatsReturned": 0,
+          "SeatQueryErrors": 0,
+          "SegmentQueries": 0,
+          "SegmentsReturned": 0,
+          "SegmentQueryError": false,
+          "MonthLookups": 1,
+          "MonthsReturned": 1,
+          "MonthReadErrors": 0,
+          "ElapsedMilliseconds": 753
+        },
+        "summary": {
+          "availability": "partial",
+          "reasonCode": "HISTORY_INCOMPLETE",
+          "data": {
+            "today": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null
+            },
+            "week": {
+              "availability": "unavailable",
+              "reasonCode": "HISTORY_INCOMPLETE",
+              "workSec": null,
+              "recordedWorkSec": 1
+            },
+            "lifetime": {
+              "availability": "available",
+              "reasonCode": null,
+              "workSec": 2
+            }
+          }
+        }
+      },
+      "queryExplain": {
+        "debug": {
+          "billing_details": {
+            "documents_billable": "1",
+            "index_entries_billable": "1",
+            "min_query_cost": "0",
+            "small_ops": "0"
+          },
+          "documents_scanned": "1",
+          "index_entries_scanned": "1"
+        },
+        "expectedUidLeadingIndex": true,
+        "readOperations": 2,
+        "resultsReturned": 1,
+        "executionDurationNanoseconds": 6436000
+      }
+    }
+  ],
+  "deployment": {
+    "imageSource": "5803ad18c418307b8fdc7de7f7ce3e0ddc0fe774",
+    "systemTree": "b484aa740fd4e05c899082d5bc0cfc9deae4b4b1",
+    "image": "asia-southeast2-docker.pkg.dev/test-youtube-study-space/mypage/mypage-api@sha256:4020ade3cb0b6114b56f41938620bac253e4951f32d3cff472ec28583312c210",
+    "runtimeControlSource": "c7d75127e07dc20097748c3e0425441fd27f4dcf",
+    "hostingSource": "38ae9296e7120902f6f7ec76b66508474bd70ea2",
+    "hostingRelease": "1792827165956000",
+    "hostingVersion": "67e3543a0a31a77b",
+    "ready": "mypage-api-00006-xjf",
+    "generation": 6,
+    "metricsEnabled": false,
+    "historyEnabled": false,
+    "temporaryServiceBindingAbsent": true,
+    "temporaryRoleDeleted": true,
+    "staleOriginalResourceVersionHTTPStatus": 409,
+    "ci": {
+      "image": 40064524012,
+      "metricsOn": 40077157558,
+      "onStateRecovery": 40081768487,
+      "pretrialMetadata": 40085407554,
+      "off": 40086892890,
+      "finalMetadata": 40087126693
+    }
+  },
+  "appCheck": {
+    "tokenTtlSeconds": 3600,
+    "keyDailyMetricsBefore": 66,
+    "keyDailyMetricsAfter": 66,
+    "perPollAttributionVerified": false,
+    "organizationBillingVerified": false
+  },
+  "remaining": [
+    "final S3 State independent readback (operator SSO expired; final CI State readback passed)",
+    "authenticated HTTP raw/month/cache comparison (synthetic fixture window ended before re-login; ordinary zero smoke passed after OFF)",
+    "real seat/history dependency-failure injection",
+    "Cloud Run CPU/billable wall time attributable to API case",
+    "population distribution, browser transfer/cache ratio and App Check assessments per active hour",
+    "billing SKU IDs/invoice and delayed metrics",
+    "all writer fleet/drain and existing UID migration",
+    "history-specific index/policy/quota live rollout; feature remains off"
+  ],
+  "authenticatedSmoke": {
+    "verifiedAt": "2026-10-24T11:06:52.123491Z",
+    "httpStatus": 200,
+    "ready": "mypage-api-00006-xjf",
+    "cloudRunRequestLatencySeconds": 0.072165407,
+    "ui": "unregistered, no history, today/week/lifetime normal zero",
+    "authAndAppCheckBypassed": false,
+    "rawMonthlyHttpComparisonVerified": false,
+    "caseReadCountsMeasured": false,
+    "extraDocumentReadAllowance": 100
+  }
+}

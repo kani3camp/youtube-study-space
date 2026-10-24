@@ -1,6 +1,6 @@
 # MyPage incremental cost scenarios
 
-Official prices checked 2026-10-24 JST. Scenario values below are estimates, not measured invoices.
+Official prices checked 2026-10-24 JST. Scenario prices use Production Osaka (asia-northeast2); controlled DEV measurements use Jakarta (asia-southeast2). Scenario values below are estimates, not measured invoices.
 
 See [assumptions and exclusions](cost-notes.md). Main table: proposed Armor + global LB + Run Web/API, no CDN. Current Hosting + Run is a separate profile below.
 
@@ -9,6 +9,25 @@ See [assumptions and exclusions](cost-notes.md). Main table: proposed Armor + gl
 | small | 71.88 | 71.06 | 71.08 | 70.75 | 10612 | 22188 | 22 | 38 |
 | standard | 87.71 | 76.77 | 75.90 | 72.64 | 10896 | 32334 | 23 | 39 |
 | growth | 581.03 | 416.89 | 401.21 | 368.65 | 55297 | 79003 | 115 | 198 |
+
+## DEV direct-reader measurements (2026-10-24)
+
+Jakarta Firestore via local SDK. These are controlled fixtures, not the population average, HTTP BFF, invoice reads, or Cloud Run CPU. See [trial and limits](dev-cost-measurement-20261024.md).
+
+| Fixture raw docs | Raw returned | Analyze document scans | Analyze index scans | Analyze read operations | Monthly returned / lookups | Raw / monthly SDK ms |
+|---|---:|---:|---:|---:|---:|---:|
+| 0 | 0 | 0 | 0 | 1 | 1 / 1 | 769 / 762 |
+| 10 | 10 | 10 | 10 | 11 | 1 / 1 | 783 / 810 |
+| 100 | 100 | 100 | 100 | 101 | 1 / 1 | 803 / 747 |
+| 500 | 500 | 500 | 500 | 501 | 1 / 1 | 988 / 758 |
+| 1000 | 1000 | 1000 | 1000 | 1001 | 1 / 1 | 1173 / 772 |
+| 1001 | 1001 | 1001 | 1001 | 1003 | 1 / 1 | 1064 / 748 |
+| 2 (JST boundaries) | 1 | 1 | 1 | 2 | 1 / 1 | 775 / 753 |
+
+Raw 1001 returns HISTORY_LIMIT_EXCEEDED; it is not an exact graph baseline. At 0 docs, unknown coverage stays unavailable for the registered fixture. The separate authenticated unregistered case displays a normal zero.
+
+For the 1000-doc fixture, adding the source-inventory estimate of 10 fixed read equivalents to Analyze gives 1011 versus 11 with one month lookup (about 98.9% fewer). This is a derived Firestore cache-miss comparison, not measured HTTP billing. Writer overhead and other services are included separately in the scenarios. Default raw average 20, average monthly lookups 1.2, cache ratio and billing time remain assumptions.
+
 
 ## Architecture and component separation (after monthly + browser cache)
 
@@ -55,11 +74,11 @@ DAU-normalized variable cost includes all-Bot writer overhead divided by MyPage 
 | visible hours/day | 4 | 74.30 | 11144 | 32086 |
 | visible hours/day | 8 | 83.60 | 12540 | 30690 |
 
-Raw history sensitivity (growth, free quota exhausted):
+Raw history sensitivity (growth, free quota exhausted; measured index scans where available, hypothetical user distribution):
 
 | Segments/miss | 60s/raw USD | 5m/raw USD | 5m/month USD |
 |---|---:|---:|---:|
-| 0 | 502.63 | 400.86 | 368.65 |
+| 0 | 498.50 | 400.02 | 368.65 |
 | 10 | 539.77 | 408.45 | 368.65 |
 | 100 | 911.18 | 484.38 | 368.65 |
 | 500 | 2561.90 | 821.82 | 368.65 |
