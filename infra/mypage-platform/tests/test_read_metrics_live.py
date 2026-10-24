@@ -81,6 +81,32 @@ def operation(after):
 
 
 class MetricsLiveTest(unittest.TestCase):
+    def test_named_environment_order_preserves_exact_values_and_secret_references(self):
+        plan, state = fixture()
+        expected = actual(state)
+        original = deepcopy(expected)
+        api = api_service(expected)
+        env = api["template"]["containers"][0]["env"]
+        env.reverse()
+        live.match_state(api, expected)
+        self.assertEqual(expected, original)
+        for mutate in (
+            lambda xs: next(x for x in xs if "value" in x).update(value="changed"),
+            lambda xs: next(x for x in xs if "valueSource" in x)["valueSource"]["secretKeyRef"].update(version="2"),
+            lambda xs: xs.append(deepcopy(xs[0])),
+            lambda xs: xs[0].update(name=""),
+        ):
+            changed = deepcopy(api)
+            mutate(changed["template"]["containers"][0]["env"])
+            with self.subTest(mutation=mutate), self.assertRaises(c.ContractError):
+                live.match_state(changed, expected)
+        ordered = deepcopy(expected)
+        ordered["template"][0]["containers"][0]["args"] = ["first", "second"]
+        changed = deepcopy(api)
+        changed["template"]["containers"][0]["args"] = ["second", "first"]
+        with self.assertRaises(c.ContractError):
+            live.match_state(changed, ordered)
+
     def test_plan_and_live_identity_match_without_mutation(self):
         for enabled in (True, False):
             plan, state = fixture(enabled)

@@ -16,6 +16,8 @@ Invariantsは、固定DEV 12資源・全planned action no-op・全設定比較�
 
 復旧の有効時だけexactなgeneration/revision/image・State版・UIDを要求し、Apply直前と直後にlive GETで全設定とetag等を照合する。競合・別版・別設定・generation 3/5・未完Planは停止し、再採取して自動継続しない。metrics ON/OFFは従来どおり別のfresh Planと元etag条件付きPATCHであり、このreceiptを流用しない。回帰は`test_owner_state_recovery.py`で正常State-only順序、receipt/State/live不一致とconfig変更の拒否を検査する。実適用成功までは復旧済みとしない。
 
+復旧sourceの[実Plan 40072743264](https://github.com/kani3camp/youtube-study-space/actions/runs/40072743264)はState版/世代の照合を通過した後、`metrics-live-config-mismatch`でApply前に停止した。値を公開せず実Stateとliveの全設定を比較し、providerのenv block正規化順とRESTの挿入順だけが異なり、全name/value/Secret参照が一致すると確認した。`match_state`だけで重複・空nameを拒否してenvを名前順に比較し、保存Plan・API mutation・他のlist順序は変更しない。値/参照変更、重複名、args順序変更を回帰で拒否する。新sourceのfresh Planで再検証する。
+
 `system/Dockerfile.mypage`は既存のdigest固定Go / distrolessイメージを使用し、Cloud Run用のlinux/amd64バイナリをビルドする。CGOなし、timezone dataをバイナリへ含め、nonrootで起動する。Secretやローカル環境ファイルをイメージへ渡さない。
 
 ```sh
