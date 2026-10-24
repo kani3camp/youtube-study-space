@@ -98,6 +98,7 @@ jobs:
           curl --fail --silent --output /dev/null http://127.0.0.1:18081/http-qa.html
 
           python3 mypage/scripts/polling-qa.py --output "$MYPAGE_QA_OUTPUT/polling"
+          python3 mypage/scripts/history-qa.py --output "$MYPAGE_QA_OUTPUT/history"
 
           firebase emulators:exec \
             --config firebase/firebase.json \

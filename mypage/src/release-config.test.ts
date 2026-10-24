@@ -14,6 +14,29 @@ import {
 
 const credentialPasswordSentinel = 'SYNTHETIC_PASSWORD_SENTINEL'
 
+it('permits bounded history only in explicitly selected development manifests', () => {
+	const config = fixture()
+	config.frontend.VITE_HISTORY_DETAILS_ENABLED = 'true'
+	expect(
+		checkReleaseConfig(config).diagnostics.some(
+			(x) => x.field === 'frontend.VITE_HISTORY_DETAILS_ENABLED',
+		),
+	).toBe(false)
+	config.deployment.environment = 'production'
+	expect(checkReleaseConfig(config).diagnostics).toContainEqual(
+		expect.objectContaining({
+			field: 'frontend.VITE_HISTORY_DETAILS_ENABLED',
+			code: 'INVALID_FIELD',
+		}),
+	)
+	config.frontend.VITE_HISTORY_DETAILS_ENABLED = 'false'
+	expect(
+		checkReleaseConfig(config).diagnostics.some(
+			(x) => x.field === 'frontend.VITE_HISTORY_DETAILS_ENABLED',
+		),
+	).toBe(false)
+})
+
 it('keeps privacy intake disabled in source-only release manifests', () => {
 	const config = fixture()
 	config.frontend.VITE_PRIVACY_INTAKE_ENABLED = 'true'

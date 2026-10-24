@@ -44,6 +44,7 @@ var userIDCollectionLookups = []collectionLookup{
 	{collection: repository.UserActivities, field: repository.UserIDDocProperty},
 	{collection: repository.WorkSegments, field: repository.UserIDDocProperty},
 	{collection: repository.WorkMonths, field: repository.UserIDDocProperty},
+	{collection: "mypage-history-budgets", field: repository.UserIDDocProperty},
 	{collection: repository.OrderHistory, field: repository.UserIDDocProperty},
 	{collection: repository.SeatLimitsBlackList, field: repository.UserIDDocProperty},
 	{collection: repository.SeatLimitsWhiteList, field: repository.UserIDDocProperty},

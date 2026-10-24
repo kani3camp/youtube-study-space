@@ -181,9 +181,41 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "work-segments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`user-id`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`segment-type`",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "`ended-at`",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [
-    {"collectionGroup": "work-months", "fieldPath": "days", "indexes": []}
+    {
+      "collectionGroup": "work-months",
+      "fieldPath": "days",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "mypage-history-budgets",
+      "fieldPath": "operations",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "mypage-history-budgets",
+      "fieldPath": "leases",
+      "indexes": []
+    }
   ]
 }

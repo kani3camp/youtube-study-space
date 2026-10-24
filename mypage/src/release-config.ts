@@ -29,6 +29,7 @@ const frontendFields = [
 	'VITE_MYPAGE_GA4_ID',
 	'VITE_MYPAGE_PUBLIC_ORIGIN',
 	'VITE_PRIVACY_INTAKE_ENABLED',
+	'VITE_HISTORY_DETAILS_ENABLED',
 ] as const
 
 type DeploymentField = (typeof deploymentFields)[number]
@@ -351,6 +352,17 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 				)
 		}
 		const analytics = frontend.VITE_MYPAGE_ANALYTICS_READY
+		const history = frontend.VITE_HISTORY_DETAILS_ENABLED
+		if (
+			history !== undefined &&
+			history !== 'false' &&
+			(history !== 'true' || selected?.environment !== 'development')
+		)
+			add(
+				'frontend.VITE_HISTORY_DETAILS_ENABLED',
+				'INVALID_FIELD',
+				'Keep bounded history disabled outside a reviewed development acceptance.',
+			)
 		if (
 			frontend.VITE_PRIVACY_INTAKE_ENABLED !== undefined &&
 			frontend.VITE_PRIVACY_INTAKE_ENABLED !== 'false'

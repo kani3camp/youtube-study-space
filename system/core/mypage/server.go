@@ -110,6 +110,10 @@ type ServerDependencies struct {
 	Now            func() time.Time
 	// Optional DEV-only, no-identity cost observation hook.
 	ReadObserver func(SnapshotReadObservation)
+	// Domain-separated cursor keys derive from the existing server OAuth
+	// secret. Never supplied by the browser or written to policy documents.
+	HistorySecret  []byte
+	HistoryTierFor func(context.Context, string, WebAccount) (HistoryTier, error)
 }
 
 // NewMyPageServer constructs the handler without bootstrap IO,
@@ -141,6 +145,13 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 	}
 	if config.EnablePrivacyIntake {
 		handler.Intake = &FirestorePrivacyIntake{Client: deps.Firestore, Environment: config.Environment, IntakeSecret: append([]byte(nil), config.PrivacyIntakeSecret...)}
+	}
+	if config.Environment == "development" && len(deps.HistorySecret) > 0 {
+		cursor, err := newHistoryCipher(deps.HistorySecret, config.Environment)
+		if err != nil {
+			return nil, err
+		}
+		handler.History = &HistoryService{Client: deps.Firestore, Access: access, Environment: config.Environment, Cipher: cursor, TierFor: deps.HistoryTierFor, Now: now}
 	}
 	return handler, nil
 }

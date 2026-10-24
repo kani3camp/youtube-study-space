@@ -25,6 +25,7 @@ var dryRunLookups = map[string]dryRunLookup{
 	"member-seats":                  {repository.MemberSeats, repository.UserIDDocProperty, "channel", false},
 	"work-segments":                 {repository.WorkSegments, repository.UserIDDocProperty, "channel", false},
 	"work-months":                   {repository.WorkMonths, repository.UserIDDocProperty, "channel", false},
+	"history-budgets":               {historyBudgets, repository.UserIDDocProperty, "channel", false},
 	"user-activities":               {repository.UserActivities, repository.UserIDDocProperty, "channel", false},
 	"order-history":                 {repository.OrderHistory, repository.UserIDDocProperty, "channel", false},
 	"seat-limits-black-list":        {repository.SeatLimitsBlackList, repository.UserIDDocProperty, "channel", false},

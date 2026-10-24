@@ -17,6 +17,7 @@ import {
 	useSyncExternalStore,
 } from 'react'
 import { SiteHeader } from './components/site-header'
+import { HistoryPanel } from './features/mypage/history-view'
 import {
 	RequestError,
 	type RestrictionCode,
@@ -741,6 +742,11 @@ export function createApp(
 				refresh={() => void runtime.memory.refresh(true)}
 				logout={() => void runtime.memory.logout()}
 				cookieSettings={openCookieSettings}
+				history={
+					runtime.historyEnabled && state.phase === 'authenticated' ? (
+						<HistoryPanel key={runtime.memory.generation} runtime={runtime} />
+					) : undefined
+				}
 			/>
 		)
 	}

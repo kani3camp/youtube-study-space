@@ -287,6 +287,7 @@
         "users/{channel}",
         "work-segments/*",
 		"work-months/* (bounded derived history; same user-id fence)",
+        "mypage-history-budgets/* (bounded quota and leases; same user-id fence)",
         "user-activities/*",
         "order-history/*",
         "seat-limits-black-list/*",

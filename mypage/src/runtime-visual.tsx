@@ -64,6 +64,39 @@ if (import.meta.env.DEV) {
 		requests.push(String(path))
 		const counter = document.getElementById('synthetic-requests')
 		if (counter) counter.textContent = JSON.stringify(requests)
+		if (String(path).startsWith('/api/mypage/history?')) {
+			const query = new URL(String(path), location.origin).searchParams
+			if (mode === 'history-quota-authenticated')
+				return Response.json(
+					{ error: { code: 'ANALYSIS_BUDGET_EXHAUSTED' } },
+					{
+						status: 429,
+						headers: {
+							'Retry-After': '3600',
+							'X-Quota-Reset': new Date(Date.now() + 3600_000).toISOString(),
+						},
+					},
+				)
+			return Response.json({
+				asOf: fixture.generatedAt,
+				timezone: 'Asia/Tokyo',
+				selection: 'completed_work',
+				coverage: 'recorded_only',
+				sourceConsistent: true,
+				from: query.get('from'),
+				to: query.get('to'),
+				items: [
+					{
+						key: (query.has('cursor') ? 'b' : 'a').repeat(64),
+						startedAt: '2026-10-01T00:00:00Z',
+						endedAt: '2026-10-01T01:00:00Z',
+						workSec: 3600,
+						workName: query.has('cursor') ? '次の合成記録' : '最初の合成記録',
+					},
+				],
+				nextCursor: query.has('cursor') ? null : 'c'.repeat(32),
+			})
+		}
 		if (
 			mode === 'privacy-intake-authenticated' &&
 			path === '/api/privacy/requests'
@@ -203,6 +236,7 @@ if (import.meta.env.DEV) {
 		request,
 		null,
 		mode?.startsWith('privacy-intake') ?? false,
+		mode?.startsWith('history-') ?? false,
 	)
 	const initial = search.get('path') ?? '/'
 	const router = createApp(
