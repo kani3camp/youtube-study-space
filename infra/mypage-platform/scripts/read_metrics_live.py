@@ -262,7 +262,16 @@ def validate_refresh(refresh, plan, stage):
            change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths") and
            not c.has_unknown(change.get("after_unknown")) and change.get("before") == planned_service(plan)["before"],
            "metrics-refresh-source")
-    state = {"values": refresh.get("planned_values", {})}
+    # Native refresh-only JSON has an empty planned root. The refreshed
+    # resources live in prior_state, not planned_values (Terraform core).
+    def no_planned_resources(module):
+        return type(module) is dict and not module.get("resources") and all(
+            no_planned_resources(x) for x in module.get("child_modules", []))
+    c.need(no_planned_resources(refresh.get("planned_values", {}).get("root_module", {})),
+           "metrics-refresh-planned-resources")
+    prior = refresh.get("prior_state", {}).get("values")
+    c.need(type(prior) is dict, "metrics-refresh-prior-state")
+    state = {"values": prior}
     m.validate_readback(state, plan, stage)
     c.need(change.get("after") == state_service(state), "metrics-refresh-result")
     return state
@@ -282,13 +291,17 @@ def apply_saved(env, root, plan, stage):
     c.need(env.get("MYPAGE_ROLE") == "apply", "metrics-live-role")
     value = r.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
     m.validate_plan(plan, stage, value)
+    recovered = m.recovery_transition(plan, stage, value)
     baseline = json.loads((root / "metrics-state-version.json").read_text())
     c.need(type(baseline) is dict and baseline == ops.state_version(env), "metrics-live-state-version")
     before = request(env.get("MYPAGE_GCP_ACCESS_TOKEN"), SERVICE_URL)
-    match_state(before, planned_service(plan)["before"])
+    match_state(before, planned_service(plan)["after" if recovered is not None else "before"])
     c.need(ops.state_version(env) == baseline, "metrics-live-state-version")
     c.need(0 <= time.time() - float(env["MYPAGE_PLAN_TIME"]) <= 1800, "metrics-live-plan-expired")
-    live = conditional_update(env.get("MYPAGE_GCP_ACCESS_TOKEN"), before, planned_service(plan)["after"])
+    # An acknowledged live toggle whose State refresh failed gets a NEW pair
+    # of independent Plans. Recovery only refreshes State; never PATCH twice.
+    live = before if recovered is not None else conditional_update(env.get("MYPAGE_GCP_ACCESS_TOKEN"), before, planned_service(plan)["after"])
+    transition = recovered or plan
     # The only cloud write is the ETag PATCH above. Terraform now refreshes
     # State, never applies the original provider update or an arbitrary drift.
     c.need(ops.state_version(env) == baseline, "metrics-live-state-version")
@@ -299,12 +312,13 @@ def apply_saved(env, root, plan, stage):
              "-out=" + str(refresh_file)], cwd=work, check="terraform-plan")
     digest = hashlib.sha256(refresh_file.read_bytes()).hexdigest()
     refresh = json.loads(ops.run(["terraform", "show", "-json", str(refresh_file)], cwd=work))
-    state = validate_refresh(refresh, plan, stage)
+    state = validate_refresh(refresh, transition, stage)
     match_state(live, state_service(state))
-    verify_state_live(env, state, plan, stage)
+    verify_state_live(env, state, transition, stage)
     c.need(ops.state_version(env) == baseline, "metrics-live-state-version")
     # Keep a byte hash of the independently validated refresh-only file.
     c.need(hashlib.sha256(refresh_file.read_bytes()).hexdigest() == digest, "metrics-refresh-receipt")
     ops.run(["terraform", "apply", "-input=false", "-no-color", str(refresh_file)], cwd=work)
     state = json.loads(ops.run(["terraform", "show", "-json"], cwd=work))
-    verify_state_live(env, state, plan, stage)
+    verify_state_live(env, state, transition, stage)
+    return "state-recovery" if recovered is not None else "updated"

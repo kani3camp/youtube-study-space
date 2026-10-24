@@ -22,6 +22,14 @@ Invariantsは、固定DEV 12資源・全planned action no-op・全設定比較�
 
 別にIAMを読み、既存Apply SAが`run.services.update`を持たないことを確認した。利用者から、今回のUS$1以内のDEV試験のため、同permission 1個だけの一時custom roleを固定`mypage-api`のApply SAに限定して付与・試験後解除する追加承認を得た。これはCloud IAM上ではサービス更新権限であり、metrics env以外の拒否はレビュー済みPlan/conditional PATCH guardが担う。権限追加を一般許可に読み替えず、既存binding・Invoker・credential・Productionを変更しない。IAM memberのetagだけのState refreshを通常経路で完了してから、freshなON/OFF Planを行う。終了後はbinding/一時roleを解除し、そのIAM metadataのState整合も確認する。実試験成功・解除完了は別のrelease証跡に残す。
 
+### 2026-10-24：metrics更新後のState整合の復旧判断
+
+[run 40077157558](https://github.com/kani3camp/youtube-study-space/actions/runs/40077157558)で元etag付きONの成功Operationとlive GETを確認し、generation 5 / `mypage-api-00005-hgk`になった。その後のrefresh-only検証が`metrics-readback-resources`で停止。独立AWS readbackはserial 10 / generation 4 / OFFで、合成writeは0のまま後続を停止した。旧Planの再利用・PATCHの再実行・自動rollbackを行わない。
+
+repoの固定Terraformを用いたcredential不要のnative `terraform_data` fixtureで、refresh-only JSONの`planned_values.root_module`には資源がなく、refreshした資源は`prior_state.values`にあることを再現した。検証はこのnative構造を読み、planned側への資源混入を拒否する。12資源の完全一致・他資源不変・driftのbefore/after・live一致・refresh-only保存Planのhash/lockは維持する。古い合成fixtureの構造で成功扱いにしない。
+
+復旧は新sourceのfreshな独立Plan/HMACで、Stateが保持する元revisionと現在liveの間に**1回のmetrics toggleだけ**があることを検証する。fresh Planの全actionはno-op、driftは固定Service1件、UID/image/他env/設定不変、元Ready/traffic/世代から+1、現在desired flagと一致する場合だけ、更新済み遷移のcopyを検証用に構成する。native Plan自体とdriftは変更せずHMACへ全量含める。Applyは現在liveとState版を再照合し、新たに作ったrefresh-only Planだけを適用する。recoveryではAPI PATCHを呼ばない。競合・別変更・別世代・不足資源は停止する。OFFはその後の現在状態から別の新Planとする。
+
 `system/Dockerfile.mypage`は既存のdigest固定Go / distrolessイメージを使用し、Cloud Run用のlinux/amd64バイナリをビルドする。CGOなし、timezone dataをバイナリへ含め、nonrootで起動する。Secretやローカル環境ファイルをイメージへ渡さない。
 
 ```sh

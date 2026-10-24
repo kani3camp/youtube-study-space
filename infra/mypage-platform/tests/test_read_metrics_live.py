@@ -68,11 +68,23 @@ def api_service(state):
 
 def refresh_plan(plan, state):
     return {"format_version": plan["format_version"], "complete": True, "errored": False,
-            "planned_values": deepcopy(state["values"]),
+            "planned_values": {"root_module": {}},
+            "prior_state": {"values": deepcopy(state["values"])},
             "resource_drift": [{"address": r.SERVICE, "mode": "managed",
                                 "provider_name": "registry.terraform.io/hashicorp/google",
                                 "change": {"actions": ["update"], "before": deepcopy(service(plan)["before"]),
                                            "after": deepcopy(actual(state)), "after_unknown": {}}}]}
+
+
+def recovery_plan(plan, state):
+    recovered = deepcopy(plan)
+    observed = {x["address"]: x["values"] for x in state["values"]["root_module"]["child_modules"][0]["resources"]}
+    for item in recovered["resource_changes"]:
+        item["change"] = {"actions":["no-op"], "before":deepcopy(observed[item["address"]]),
+                          "after":deepcopy(observed[item["address"]]), "after_unknown":{}}
+    recovered["resource_drift"] = refresh_plan(plan, state)["resource_drift"]
+    recovered["prior_state"] = {"values":deepcopy(state["values"])}
+    return recovered
 
 
 def operation(after):
@@ -81,6 +93,56 @@ def operation(after):
 
 
 class MetricsLiveTest(unittest.TestCase):
+    def test_recovery_proves_exact_toggle_without_mutating_native_plan(self):
+        for enabled in (True, False):
+            for stage in ("runtime_private", "runtime_public"):
+                plan, state = fixture(enabled, stage)
+                recovered = recovery_plan(plan, state)
+                original = deepcopy(recovered)
+                result = m.validate_plan(recovered, stage, r.settings(recovered["variables"]["runtime_settings"]["value"]))
+                self.assertTrue(result["stateRecovery"])
+                self.assertEqual(result["updates"], 0)
+                m.validate_readback(state, recovered, stage)
+                self.assertEqual(recovered, original)
+                self.assertNotEqual(c.commitment(recovered, VERSION, "a" * 40, "synthetic-key-for-recovery-contract-tests"),
+                                    c.commitment(recovered | {"resource_drift":[]}, VERSION, "a" * 40, "synthetic-key-for-recovery-contract-tests"))
+                for mutate in (
+                    lambda p: p["resource_drift"].append(deepcopy(p["resource_drift"][0])),
+                    lambda p: p["resource_drift"][0]["change"]["before"].update(generation="1"),
+                    lambda p: p["resource_drift"][0]["change"]["before"]["template"][0]["containers"][0].update(image=r.REPOSITORY + "@sha256:" + "b" * 64),
+                    lambda p: service(p).update(actions=["update"]),
+                    lambda p: service(p).update(after_unknown={"template":True}),
+                    lambda p: p["prior_state"]["values"]["root_module"]["child_modules"][0]["resources"].pop(),
+                ):
+                    changed = deepcopy(recovered); mutate(changed)
+                    with self.subTest(enabled=enabled, stage=stage, mutation=mutate), self.assertRaises(c.ContractError):
+                        m.validate_plan(changed, stage, r.settings(changed["variables"]["runtime_settings"]["value"]))
+
+    def test_recovery_applies_only_fresh_refresh_without_patch(self):
+        for enabled in (True, False):
+            plan, state = fixture(enabled)
+            recovered = recovery_plan(plan, state)
+            after = api_service(actual(state))
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "metrics-state-version.json").write_text(json.dumps(VERSION))
+                commands = []
+                def run(cmd, **kwargs):
+                    commands.append(cmd)
+                    if cmd[1] == "plan":
+                        (root / "metrics-refresh.tfplan").write_bytes(b"fresh-refresh")
+                        return ""
+                    if cmd[:3] == ["terraform", "show", "-json"]:
+                        return json.dumps(refresh_plan(plan, state) if len(cmd) == 4 else state)
+                    return ""
+                env = {"MYPAGE_ROLE":"apply", "MYPAGE_PLAN_TIME":str(time.time()), "MYPAGE_GCP_ACCESS_TOKEN":TOKEN}
+                with patch.object(c, "context"), patch.object(ops, "run", side_effect=run), patch.object(ops, "state_version", return_value=VERSION), \
+                     patch.object(live, "request", return_value=after) as request, patch.object(live, "conditional_update") as update:
+                    live.apply_saved(env, root, recovered, "runtime_private")
+                update.assert_not_called()
+                self.assertTrue(all(call.args == (TOKEN, live.SERVICE_URL) for call in request.call_args_list))
+                self.assertTrue(all(cmd[-1] == str(root / "metrics-refresh.tfplan") for cmd in commands if cmd[1] == "apply"))
+
     def test_provider_defaults_encode_exactly_one_envvar_value_member(self):
         entries = [
             {"name":"PLAIN", "value":"public", "value_source":[]},
@@ -258,7 +320,9 @@ class MetricsLiveTest(unittest.TestCase):
             lambda p: p["resource_drift"].append(deepcopy(p["resource_drift"][0])),
             lambda p: p["resource_drift"][0]["change"]["before"].update(etag="different-state"),
             lambda p: p["resource_drift"][0]["change"].update(actions=["delete"]),
-            lambda p: p["planned_values"]["root_module"]["child_modules"][0]["resources"][0]["values"].update(display_name="other-change"),
+            lambda p: p["prior_state"]["values"]["root_module"]["child_modules"][0]["resources"][0]["values"].update(display_name="other-change"),
+            lambda p: p.update(prior_state={}),
+            lambda p: p["planned_values"].update(root_module={"resources":[{}]}),
         )
         for mutation in mutations:
             changed = deepcopy(refresh)

@@ -53,9 +53,43 @@ def container(service):
     return r.one(template.get("containers"), "metrics-transition-container")
 
 
+def recovery_transition(plan, stage, value):
+    """Prove one already-applied toggle before a fresh State-only recovery.
+
+    Never mutate the native Plan: its complete drift remains in both HMACs.
+    The copy is only an equivalent transition proof for existing validators.
+    """
+    if not plan.get("resource_drift"):
+        return None
+    drift = r.one(plan.get("resource_drift"), "metrics-recovery-drift")
+    change = drift.get("change", {})
+    c.need(drift.get("address") == r.SERVICE and drift.get("mode") == "managed"
+           and drift.get("provider_name") == "registry.terraform.io/hashicorp/google"
+           and change.get("actions") == ["update"] and not change.get("importing")
+           and not change.get("replace_paths") and not c.has_unknown(change.get("after_unknown")), "metrics-recovery-drift")
+    for item in plan.get("resource_changes", []):
+        current = item.get("change", {})
+        c.need(current.get("actions") == ["no-op"] and current.get("before") == current.get("after")
+               and not current.get("importing") and not current.get("replace_paths")
+               and not c.has_unknown(current.get("after_unknown")), "metrics-recovery-no-remote-write")
+    projected = deepcopy(plan)
+    projected["resource_drift"] = []
+    service = next((x["change"] for x in projected.get("resource_changes", []) if x.get("address") == r.SERVICE), None)
+    c.need(service is not None and service.get("after") == change.get("after"), "metrics-recovery-result")
+    service.update(actions=["update"], before=deepcopy(change.get("before")))
+    validate_plan(projected, stage, value)
+    prior = plan.get("prior_state", {}).get("values")
+    c.need(type(prior) is dict, "metrics-recovery-prior-state")
+    validate_readback({"values": prior}, projected, stage)
+    return projected
+
+
 def validate_plan(plan, stage, value):
     """Admit one env toggle, never an image rollout or generic runtime update."""
     c.need(value["read_metrics_from_revision"] != "", "metrics-transition-declaration")
+    recovered = recovery_transition(plan, stage, value)
+    if recovered is not None:
+        return validate_plan(recovered, stage, value) | {"updates": 0, "stateRecovery": True}
     c.need(not plan.get("resource_drift"), "metrics-transition-drift")
     changes = plan.get("resource_changes")
     c.need(type(changes) is list, "metrics-transition-resources")
@@ -111,6 +145,7 @@ def validate_plan(plan, stage, value):
 def validate_readback(state, plan, stage):
     """Verify saved-plan result without accepting a stale serving revision."""
     value = r.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
+    plan = recovery_transition(plan, stage, value) or plan
     validate_plan(plan, stage, value)
     resources = {}
 
