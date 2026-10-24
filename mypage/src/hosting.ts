@@ -51,7 +51,16 @@ function sources(values: string[]) {
 	return [...new Set(values.map(httpsSource))].sort()
 }
 
-export function hostingCandidate(input: HostingInputs) {
+export function hostingCandidate(
+	input: HostingInputs,
+	assetPaths: string[] = [],
+) {
+	if (assetPaths.length > 0) validateHostingAssets(assetPaths)
+	const immutableAssets = assetPaths.filter((path) =>
+		/^assets\/[A-Za-z0-9][A-Za-z0-9._-]*-[A-Za-z0-9_-]{8,}\.(?:js|css|woff2)$/.test(
+			path,
+		),
+	)
 	const expectedRegion =
 		input.environment === 'development'
 			? 'asia-southeast2'
@@ -148,6 +157,12 @@ export function hostingCandidate(input: HostingInputs) {
 							),
 						],
 					},
+					...immutableAssets.map((path) => ({
+						source: `/${path}`,
+						headers: [
+							header('Cache-Control', 'public, max-age=31536000, immutable'),
+						],
+					})),
 				],
 			},
 		},
