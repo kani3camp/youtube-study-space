@@ -242,6 +242,36 @@ def describe_runtime_drift(plan):
         print("Runtime service drift diagnostic: " + json.dumps({"fields": labels, "otherFields": len(changed - fields), "plannedNoop": noop, "shapes": shapes}, sort_keys=True) + ".")
 
 
+def owner_recovery_receipt():
+    path = REPO / "infra/mypage-platform/environments/dev/owner-state-recovery.json"
+    return json.loads(path.read_text()) if path.exists() else None
+
+
+def verify_owner_recovery(env, plan, receipt, version=None, state=None):
+    """Bind this State-only catch-up to one observed State object and live ETag."""
+    chain = runtime_contract.owner_recovery_chain(receipt)
+    if chain is None:
+        return False
+    drift = [x for x in plan.get("resource_drift", []) or [] if x.get("address") == runtime_contract.SERVICE]
+    if not drift:
+        return False
+    before = drift[0].get("change", {}).get("before", {})
+    if runtime_contract.one(runtime_contract.one(before.get("template"), "owner-recovery-template").get("containers"), "owner-recovery-container").get("image") != chain[0]["image"]:
+        return False
+    contract.need(not plan.get("deferred_changes") and not plan.get("action_invocations") and not plan.get("deferred_action_invocations"), "owner-recovery-incomplete")
+    contract.need(all(x.get("change", {}).get("actions") == ["no-op"] and not x["change"].get("importing")
+                      and not x["change"].get("replace_paths") and not contract.has_unknown(x["change"].get("after_unknown"))
+                      for x in plan["resource_changes"]), "owner-recovery-state-only")
+    if version is not None:
+        contract.need(hashlib.sha256(contract.canonical(version)).hexdigest() == receipt["state_version_sha256"], "owner-recovery-state-version")
+    import read_metrics_live
+    live = read_metrics_live.request(env["MYPAGE_GCP_ACCESS_TOKEN"], read_metrics_live.SERVICE_URL)
+    expected = read_metrics_live.state_service(state) if state is not None else read_metrics_live.planned_service(plan)["after"]
+    read_metrics_live.match_state(live, expected)
+    contract.need(hashlib.sha256(live["etag"].encode()).hexdigest() == receipt["live_etag_sha256"], "owner-recovery-live-etag")
+    return True
+
+
 def prepare(env):
     global PHASE
     kind = env["MYPAGE_ROLE"]
@@ -278,7 +308,9 @@ def prepare(env):
     if value is not None:
         need(plan.get("variables", {}).get("runtime_settings", {}).get("value") == value)
         describe_runtime_drift(plan)
-        summary = runtime_contract.validate_plan(plan, stage)
+        recovery = owner_recovery_receipt()
+        summary = runtime_contract.validate_plan(plan, stage, owner_recovery=recovery)
+        verify_owner_recovery(env, plan, recovery, version=version)
     else:
         summary = contract.validate_plan(plan, stage)
     reject_unowned_resources(env, plan)
@@ -306,6 +338,7 @@ def apply_saved(env):
     work = root / "source/environments/dev"
     PHASE = "apply"
     stage = contract.stage_for_mode(env["MYPAGE_MODE"])
+    recovering = False
     if stage.startswith("runtime_"):
         plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work))
         value = runtime_contract.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
@@ -316,6 +349,9 @@ def apply_saved(env):
             read_metrics_live.apply_saved(env, root, plan, stage)
             print("DEV metrics conditional update and live/State verification passed.")
             return
+        recovery = owner_recovery_receipt()
+        runtime_contract.validate_plan(plan, stage, owner_recovery=recovery)
+        recovering = verify_owner_recovery(env, plan, recovery, version=state_version(env))
     run(["terraform", "apply", "-input=false", "-no-color", str(saved)], cwd=work)
     PHASE = "readback"
     state = json.loads(run(["terraform", "show", "-json"], cwd=work))
@@ -329,6 +365,8 @@ def apply_saved(env):
     resources = runtime_contract.resource_contract(stage) if stage.startswith("runtime_") else contract.resource_contract(stage)
     need(addresses == set(resources))
     need(state_version(env) != "absent")
+    if recovering:
+        verify_owner_recovery(env, plan, recovery, state=state)
     print("Development foundation saved Plan applied and expected State resources read back.")
 
 
