@@ -212,6 +212,7 @@ def main():
                   f"Run billed allocation: {live['httpWindow']['billableInstanceSeconds']} instance seconds / {live['httpWindow']['totalRequests']} requests, 1 vCPU and 0.5 GiB. This is not per-request process CPU. Raw requests: 205.6 / 35.0 / 32.9 ms; monthly: 140.6 / 32.0 ms. These few samples are not percentiles or population latency.", '',
                   'API request messages averaged 3303 bytes and responses 2092.4 bytes for the five nonempty overview requests (Cloud Logging sizes include headers). The model uses the measured API inbound reference separately from static request bytes, retains an 8192-byte response budget, and adds one source-estimated session completion per document with four Firestore read equivalents. Initial OAuth/new-account writes, retries and organization billing remain separate.', '']
     lines += ['', '## Architecture and component separation (after monthly + browser cache)', '',
+              f"Total includes a separate DEV variable allowance of USD{model['assumptions']['devVariableMonthlyUSD']:.2f}/month in addition to the displayed DEV fixed column.", '',
               '| Profile / scale | Run USD | Firestore USD | Hosting USD | Armor variable USD | Network USD | App Check USD | Prod USD | DEV fixed USD | Total USD |',
               '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|']
     for profile in ('hosting-run','armor-run'):
