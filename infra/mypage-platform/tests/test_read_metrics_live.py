@@ -99,6 +99,10 @@ class MetricsLiveTest(unittest.TestCase):
             ("metrics-refresh-apply", "Saved plan is stale", "saved-plan-stale"),
             ("metrics-refresh-show", "Failed to load plugin schemas", "provider-schema"),
             ("metrics-refresh-apply", "invalid_grant", "identity-expired"),
+            ("metrics-refresh-apply", "Cannot apply failed plan", "failed-plan"),
+            ("state-version-list", "ExpiredToken", "identity-expired"),
+            ("state-version-head", "AccessDenied", "access-denied"),
+            ("saved-runtime-plan-show", "unknown native error", None),
             ("metrics-final-state-show", "unknown native error", None),
         ):
             result = Mock(returncode=1, stdout=private, stderr=marker + private)
