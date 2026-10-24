@@ -25,15 +25,33 @@ stage = "disabled"
 # reviewed image release path, reconcile its State with a no-op Plan, and verify
 # the exact runtime-release.json digest/source pair. This transition does not
 # combine image rollout with logging, and cannot make an old image emit metrics.
-# Verify the DEV apply identity already has the required update permission;
+# Verify the DEV apply identity already has the required update/get permissions;
 # do not expand IAM or bypass a rejected Plan as part of the toggle.
 #
 # Use the EXISTING runtime-private/public-plan and matching -apply workflow
 # modes with exact source SHA. Independent Plan agreement, saved Plan hash,
 # State-version binding and the 30-minute age limit remain mandatory.
-# After apply, the readback step must verify a NEW ready revision, target env,
-# unchanged configuration, generation progression and 100% traffic before
-# accepting completion. Failure stops; it does not automatically roll back.
+# For metrics only, the provider's ordinary update Plan is NOT applied: Google
+# provider 8.5.0 omits etag. A live Cloud Run GET must match the original Plan's
+# revision/generation/uid/etag/configuration, then one API PATCH sends that etag
+# with updateMask=template.containers,template.revision (auto-generated revision).
+# A competing update after the GET must conflict at the API. No rebase/retry,
+# forced update or automatic rollback is permitted, including after timeouts.
+# The complete original Plan remains HMAC-bound; only a validated refresh-only
+# Plan is applied to State afterward. Unrelated drift/writes stop that sync.
+# Live GETs before/after State reconciliation and in the final readback must
+# match the new ready revision, generation, etag, env/image and 100% traffic.
+# terraform show -json by itself is NOT authoritative live evidence.
+#
+# A failure after PATCH can leave Cloud Run changed and State unreconciled.
+# Stop subsequent releases, inspect the actual service and private evidence,
+# and reconcile through a fresh reviewed Plan. Do not replay the old update
+# Plan or auto-rollback over a newer operator release. Confirmation is a
+# point-in-time guarantee, not a lock preventing future authorized changes.
+# The first authorized DEV run must verify the REST/provider field mapping,
+# a stale-etag conflict, and refresh-only State sync before measurement use.
+# Source: https://docs.cloud.google.com/run/docs/reference/rest/v2/projects.locations.services
+# Source: https://developer.hashicorp.com/terraform/cli/commands/show
 #
 # Clear read_metrics_from_revision back to "" in both private settings after
 # success, retaining the target read_metrics_enabled value, then confirm no-op.

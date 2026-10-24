@@ -101,7 +101,7 @@ def validate_plan(plan, stage, value):
     c.need(normalized == configuration(after), "metrics-transition-env-only")
     # Reuse the entire existing resource/configuration admission. Only this
     # independently verified service action is projected to no-op in a copy;
-    # the ORIGINAL full Plan still feeds HMAC agreement and saved-plan apply.
+    # the ORIGINAL full Plan still feeds HMAC agreement and conditional API apply.
     checked = deepcopy(plan)
     next(x for x in checked["resource_changes"] if x["address"] == r.SERVICE)["change"]["actions"] = ["no-op"]
     result = r.validate_initial_plan(checked, stage)
@@ -167,8 +167,9 @@ def readback_saved(env):
         print("Metrics transition not requested; existing runtime release checks unchanged.")
         return
     state = json.loads(ops.run(["terraform", "show", "-json"], cwd=work))
-    validate_readback(state, plan, stage)
-    print("DEV metrics-only transition readback passed; new ready revision and unchanged configuration verified.")
+    from read_metrics_live import verify_state_live
+    verify_state_live(env, state, plan, stage)
+    print("DEV metrics transition live API and State readback passed.")
 
 
 if __name__ == "__main__":
