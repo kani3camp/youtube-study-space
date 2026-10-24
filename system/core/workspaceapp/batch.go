@@ -154,6 +154,10 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 				if err != nil {
 					return fmt.Errorf("in GenerateWorkSegment(): %w", err)
 				}
+				ctx, err = app.prepareClosedSegment(ctx, tx, breakSegment)
+				if err != nil {
+					return err
+				}
 				if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, breakSegment); err != nil {
 					return fmt.Errorf("in CreateWorkSegmentDoc(): %w", err)
 				}

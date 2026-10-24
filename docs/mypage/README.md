@@ -25,6 +25,24 @@ python .github/scripts/check-mypage-contract.py
 
 Frontend と backend は独立して検証する。provisioning / production deployment はこの実装 stack に含まない。
 
+## 月次の読み取り用履歴
+
+日別の終了区間件数も保持し、明細queryのscan予算を検証できるようにする。寄与した原区間の最遠endでfuture区間の影響を過去日にも伝える。各scalarは欠損・null・別型を拒否し、0/falseへ暗黙変換しない。
+
+通常overviewの候補として、ユーザー×月の`work-months`（最大31日の確定work秒・日別整合性・版）を実装する。日次案は最大7文書、月次案は最大2文書で直近7日を読める。両者のclose時write数は通常1、日/月跨ぎでは増える。月次は同じユーザー内の更新競合と文書転送量が増えるため、実DEVのlatency・競合率・追加write費を確認して切り替える。既存`DailyUserWorkHistoryDoc`はwriterがなく、検証済みの基礎値へ復活させない。raw `work-segments`は原記録として保持する。
+
+切替はserver-onlyのUser field `work-history-epoch=monthly-v1`で明示する。未移行は従来の上限付きreaderを維持し、移行後の通常APIはraw query・同期backfill・明細全page巡回を行わない。`Coverage`は従来どおり独立した履歴完全性の根拠で、月次文書の存在や作成日時から0を推測しない。欠損月・未検証baseline・異なるepochは`HISTORY_INCOMPLETE`、不正区間・逆行watermarkは`DATA_INCONSISTENT`、取得失敗は`SOURCE_UNAVAILABLE`とする。
+
+`work-history-activated-at`と`work-history-closed-through`は明示切替時の同一snapshot時刻で初期化する。future rawがないことも上限1件のqueryで確認し、後続writerがclosed-throughを同じtransactionで単調に進める。切替以後、closed-throughより後の未作成月/日だけは「原記録が存在しない」と検証できる。`closed-through >= activated-at`・未来値なしを必須とし、記録があるはずの月の欠損はunknownのままにする。
+
+writerは`PrepareWorkSegmentWrites`でSAC・冪等event・User・現在Seat・対象月を先にreadし、同じattempt/区間に束縛したplanで原記録・月次・watermarkをwriteする。In＋注文＋席移動も注文write前に準備し、退室はSeat削除前に準備する。作業名変更、休憩/再開、Clear、Out、強制退室、batchは同じ中央writerを使う。現在SeatのUID/session/state/segment開始と一致しない旧区間、User不存在、準備なし/`tx=nil`の作成、genericなraw/月次削除は拒否する。既存の訂正APIはない。管理者の直接raw修正は通常writerを迂回するため、readerを明示rollbackしてから修正・bounded再集計・再切替する。
+
+イベントIDはUser/session/Seat/state/半開区間から決め、同一内容の再送は加算しない。同じIDで内容が違えば競合。SAC checkpointは業務operation全体のretryに保持し、削除解除後に取り直して旧処理を継続しない。late/overlapの派生値はexactにせず、明示再集計で修復する。JST分割後の秒を日別に保持し、日跨ぎの秒未満によるcarryを週集計へ補正して既存rawの丸めを維持する。進行中分は同一asOfのSeat、累計は既存User/Seatの時計を維持する。
+
+snapshot自身はUser 1 lookup、通常/メンバー席各`limit(2)`、月次最大2 lookup。通常はqueryの空結果最低課金を含めsnapshotで4〜5read、壊れた重複席を含む最大は7read相当となる。**APIが2readになるという意味ではない**。metadataがfreshなcache missのleaderでは、既存HTTP/BFFのSAC lookup計6とWebAccount lookup1も加わり、通常11〜12read相当、最大14がソース上の目安。cache hitも認可等4 lookupを維持する。transaction retry・metadata refresh・Auth/App Check・index entry等は別で、これらを実Billingの上限や実測値と呼ばない。
+
+新writerの追加readは通常5（SAC/event/User/Seat/月）、追加writeは月次1と移行済みUserのwatermark最大1。既存Seat/User更新と別に見積もり、retryを加味する。準備対象区間は最大366日、1区間の月数も有限とし、異常に長い区間を黙って捨てない。月次の`days` mapはindex除外候補としてFirebase設定へ記録し、実適用は配備証跡と区別する。移行・復旧・混在writerの手順は[release runbook](release/README.md#月次履歴の明示移行と復旧)を参照する。
+
 ## Web authentication storage
 
 `oauth-transactions/{opaque id}` と `web-accounts/{verified channel id}` を server-only に追加する。既存 rules の default deny により browser access は許可しない。10分の期限は application が判定する。TTL定義とmock/限定plan検査は[MyPage専用Terraform](../../infra/mypage-oauth-ttl/README.md)で準備し、plan/apply・TTL ACTIVEと自然削除観測・権限・cleanupの実環境確認はprovisioning gate後の別途承認に残す。

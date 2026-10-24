@@ -30,7 +30,7 @@ func sourceDeletionLookups(op supportdelete.Operation) ([]deletionLookup, bool) 
 		return []deletionLookup{{repository.SEATS, repository.UserIDDocProperty, channel, ""}, {repository.MemberSeats, repository.UserIDDocProperty, channel, ""}}, true
 	case "firestore-primary":
 		lookups := []deletionLookup{{repository.USERS, "", channel, ""}}
-		for _, c := range []string{repository.WorkSegments, repository.UserActivities, repository.OrderHistory, repository.SeatLimitsBlackList, repository.SeatLimitsWhiteList, repository.MemberSeatLimitsBlackList, repository.MemberSeatLimitsWhiteList} {
+		for _, c := range []string{repository.WorkSegments, repository.WorkMonths, repository.UserActivities, repository.OrderHistory, repository.SeatLimitsBlackList, repository.SeatLimitsWhiteList, repository.MemberSeatLimitsBlackList, repository.MemberSeatLimitsWhiteList} {
 			lookups = append(lookups, deletionLookup{c, repository.UserIDDocProperty, channel, ""})
 		}
 		return append(lookups, deletionLookup{repository.LiveChatHistory, "author-channel-id", channel, ""}), true

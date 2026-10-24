@@ -1,6 +1,6 @@
 //go:build integration
 
-package serviceaccess
+package serviceaccess_test
 
 import (
 	"context"
@@ -17,21 +17,22 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
 
+	"app.modules/core/serviceaccess"
 	"app.modules/internal/integrationtest"
 )
 
-func testStore(t *testing.T) (*FirestoreStore, string) {
+func testStore(t *testing.T) (*serviceaccess.FirestoreStore, string) {
 	t.Helper()
 	integrationtest.RequireFirestoreEmulator(t)
 	client, err := firestore.NewClient(context.Background(), "demo-youtube-study-space-ci", option.WithoutAuthentication())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
 	id := "UCserviceaccess000000001"
-	ref := client.Collection(Collection).Doc(id)
+	ref := client.Collection(serviceaccess.Collection).Doc(id)
 	_, err = ref.Delete(context.Background())
 	require.NoError(t, err)
 	t.Cleanup(func() { _, err := ref.Delete(context.Background()); require.NoError(t, err) })
-	return &FirestoreStore{Client: client}, id
+	return &serviceaccess.FirestoreStore{Client: client}, id
 }
 
 func TestFirestoreReasonsConcurrentChangesAndMalformedRecord(t *testing.T) {
@@ -43,7 +44,7 @@ func TestFirestoreReasonsConcurrentChangesAndMalformedRecord(t *testing.T) {
 	require.False(t, value.Exists)
 	var wg sync.WaitGroup
 	results := make(chan error, 2)
-	for _, reason := range []Reason{Moderation, PrivacyDeletion} {
+	for _, reason := range []serviceaccess.Reason{serviceaccess.Moderation, serviceaccess.PrivacyDeletion} {
 		wg.Go(func() { _, err := store.Change(ctx, id, sampleChange(reason), now); results <- err })
 	}
 	wg.Wait()
@@ -56,29 +57,29 @@ func TestFirestoreReasonsConcurrentChangesAndMalformedRecord(t *testing.T) {
 	require.True(t, value.Control.Moderation.Active)
 	require.True(t, value.Control.PrivacyDeletion.Active)
 	require.Equal(t, int64(2), value.Control.Generation)
-	repeated, err := store.Change(ctx, id, sampleChange(Moderation), now.Add(time.Second))
+	repeated, err := store.Change(ctx, id, sampleChange(serviceaccess.Moderation), now.Add(time.Second))
 	require.NoError(t, err)
 	require.Equal(t, value.Checkpoint(), repeated.Checkpoint())
-	value, err = store.Change(ctx, id, Change{Reason: Moderation}, now.Add(time.Second))
+	value, err = store.Change(ctx, id, serviceaccess.Change{Reason: serviceaccess.Moderation}, now.Add(time.Second))
 	require.NoError(t, err)
-	require.ErrorIs(t, value.Allowed(), ErrDeletion)
+	require.ErrorIs(t, value.Allowed(), serviceaccess.ErrDeletion)
 	require.Equal(t, int64(3), value.Control.Generation)
-	_, err = store.Change(ctx, id, Change{Reason: "invalid"}, now)
-	require.ErrorIs(t, err, ErrInvalidChange)
-	_, err = store.Client.Collection(Collection).Doc(id).Update(ctx, []firestore.Update{{Path: "displayName", Value: "forbidden synthetic personal field"}})
+	_, err = store.Change(ctx, id, serviceaccess.Change{Reason: "invalid"}, now)
+	require.ErrorIs(t, err, serviceaccess.ErrInvalidChange)
+	_, err = store.Client.Collection(serviceaccess.Collection).Doc(id).Update(ctx, []firestore.Update{{Path: "displayName", Value: "forbidden synthetic personal field"}})
 	require.NoError(t, err)
 	_, err = store.Read(ctx, id)
-	require.ErrorIs(t, err, ErrUnavailable)
-	_, err = store.Change(ctx, id, Change{Reason: PrivacyDeletion}, now.Add(2*time.Second))
-	require.ErrorIs(t, err, ErrUnavailable)
+	require.ErrorIs(t, err, serviceaccess.ErrUnavailable)
+	_, err = store.Change(ctx, id, serviceaccess.Change{Reason: serviceaccess.PrivacyDeletion}, now.Add(2*time.Second))
+	require.ErrorIs(t, err, serviceaccess.ErrUnavailable)
 }
 
 func TestFirestoreClientRulesDenyControlReadAndWrite(t *testing.T) {
 	store, id := testStore(t)
 	ctx := context.Background()
-	_, err := store.Change(ctx, id, sampleChange(Moderation), time.Now().UTC())
+	_, err := store.Change(ctx, id, sampleChange(serviceaccess.Moderation), time.Now().UTC())
 	require.NoError(t, err)
-	endpoint := "http://" + os.Getenv("FIRESTORE_EMULATOR_HOST") + "/v1/projects/demo-youtube-study-space-ci/databases/(default)/documents/" + Collection + "/" + id
+	endpoint := "http://" + os.Getenv("FIRESTORE_EMULATOR_HOST") + "/v1/projects/demo-youtube-study-space-ci/databases/(default)/documents/" + serviceaccess.Collection + "/" + id
 	// Firestore Emulator accepts unsigned Firebase identity tokens; these have
 	// no real credentials and exercise rules independently of the Admin SDK.
 	encode := base64.RawURLEncoding.EncodeToString
@@ -103,4 +104,12 @@ func TestFirestoreClientRulesDenyControlReadAndWrite(t *testing.T) {
 	value, err := store.Read(ctx, id)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), value.Control.Generation)
+}
+
+func sampleChange(reason serviceaccess.Reason) serviceaccess.Change {
+	code := "MODERATION"
+	if reason == serviceaccess.PrivacyDeletion {
+		code = "PRIVACY_DELETION"
+	}
+	return serviceaccess.Change{Reason: reason, Active: true, ReasonCode: code, Reference: strings.Repeat("a", 64)}
 }

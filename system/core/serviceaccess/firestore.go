@@ -19,7 +19,9 @@ func (s *FirestoreStore) ref(channel string) (*firestore.DocumentRef, error) {
 	return s.Client.Collection(Collection).Doc(channel), nil
 }
 
-func decode(doc *firestore.DocumentSnapshot, err error) (Snapshot, error) {
+// DecodeSnapshot applies the same strict schema to consumers using an existing
+// transaction client, including history writers that cannot discover credentials.
+func DecodeSnapshot(doc *firestore.DocumentSnapshot, err error) (Snapshot, error) {
 	if status.Code(err) == codes.NotFound {
 		return Snapshot{}, nil
 	}
@@ -82,7 +84,7 @@ func (s *FirestoreStore) Read(ctx context.Context, channel string) (Snapshot, er
 		return Snapshot{}, err
 	}
 	doc, err := ref.Get(ctx)
-	return decode(doc, err)
+	return DecodeSnapshot(doc, err)
 }
 
 // ReadTransaction must precede every write in a retryable transaction. A
@@ -93,7 +95,7 @@ func (s *FirestoreStore) ReadTransaction(tx *firestore.Transaction, channel stri
 		return Snapshot{}, ErrUnavailable
 	}
 	doc, err := tx.Get(ref)
-	return decode(doc, err)
+	return DecodeSnapshot(doc, err)
 }
 
 func (s *FirestoreStore) Change(ctx context.Context, channel string, change Change, now time.Time) (Snapshot, error) {

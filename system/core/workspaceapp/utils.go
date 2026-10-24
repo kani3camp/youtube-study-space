@@ -839,6 +839,17 @@ func (app *WorkspaceApp) exitRoomAt(
 	previousWorkSegments []repository.WorkSegmentDoc,
 	exitDate time.Time,
 ) (int, int, error) {
+	// Prepare before DeleteSeat/activity writes. A caller that already prepared
+	// this exact boundary (In with order + move) reuses its transaction-bound plan.
+	workSegment, err := previousSeat.GenerateWorkSegment(exitDate, isMemberSeat)
+	if err != nil {
+		return 0, 0, fmt.Errorf("generate exit interval: %w", err)
+	}
+	ctx, err = app.prepareClosedSegment(ctx, tx, workSegment)
+	if err != nil {
+		return 0, 0, err
+	}
+
 	// 作業時間を計算
 	var addedWorkedTimeSec int
 	var addedDailyWorkedTimeSec int
@@ -880,10 +891,6 @@ func (app *WorkspaceApp) exitRoomAt(
 		return 0, 0, fmt.Errorf("in CreateUserActivityDoc: %w", err)
 	}
 	// work segmentログ記録
-	workSegment, err := previousSeat.GenerateWorkSegment(exitDate, isMemberSeat)
-	if err != nil {
-		return 0, 0, fmt.Errorf("in GenerateWorkSegment: %w", err)
-	}
 	if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
 		return 0, 0, fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
 	}
@@ -978,8 +985,12 @@ func (app *WorkspaceApp) moveSeat(
 	previousSeat repository.SeatDoc,
 	previousUserDoc *repository.UserDoc,
 	previousWorkSegments []repository.WorkSegmentDoc,
+	boundary ...time.Time,
 ) (int, int, int, error) {
 	jstNow := app.currentTime()
+	if len(boundary) == 1 {
+		jstNow = boundary[0]
+	}
 
 	// 値チェック
 	if targetSeatID == previousSeat.SeatID && beforeIsMemberSeat == afterIsMemberSeat {

@@ -108,6 +108,27 @@ browserはlocal Viteをport18081で起動し、[runtime](../../../mypage/scripts
 - 代表的な2時間滞在なら、定期refreshは旧60秒120回→新5分24回が**目標値**。手動操作/ログイン/再試行は別集計。複数インスタンスのヒット率、App CheckのreCAPTCHA評価回数、追加書き込み/キャッシュ維持費も別途算出する。
 - 既存writer inventory：`workspaceapp/command_seat.go`、`workspaceapp/utils.go`、`workspaceapp/batch.go`、`workspaceapp/command_moderation.go` と `repository.CreateWorkSegmentDoc`。作業区間の確定はtransaction経由が多いが、**writerが全て月次rollupまで同一transactionで更新する保証は未確認**。まずwriter/削除/訂正/既存DailyUserWorkHistoryDocの全経路を検証する。集計documentの採用・backfill・Firestore schema変更は別PRに分離し、未検証の欠損を0にして公開しない。
 
+### 月次履歴の明示移行と復旧
+
+`cmd/mypage-history-rebuild`はDEVまたはloopbackのdemo Emulatorだけを対象とするoperator CLI。通常APIから呼ばない。Production、暗黙project、credential file、未知引数、4KiB超のstdin、上限超過、未レビューexecuteを拒否する。target UIDをコマンド引数・logへ載せず、制限した手元のJSONをstdinへ渡す。出力は件数・秒・版hash・checkpoint等だけで、入力/reportを実ユーザーの公開artifactへ保存しない。
+
+1. source/CI/全writerの配備・旧fleetとqueueのpause/drain・既存coverage・費用上限を確認する。**mixed writer中にbaseline completeや切替を宣言しない**。MyPage APIのimage更新だけでBot/Batchのwriter切替済みとは扱わない。初回の合成DEV検証は独立したsynthetic UIDだけとし、既存利用者を変更しない。
+2. `--operation=rebuild`（既定dry-run）で対象UIDの原記録を上限付きで調べ、指定JST月の値と旧値を比較する。stdinは`uid/month`、継続時は**最初の**`checkpoint`も指定する。既定上限1000、hard max10000、sentinelの追加1件、取得payload 4MiB、transaction 30秒・attempt 1。日付filterで不正rowを見落とさないようUIDの原記録を検査し、上限・不正・重複・失敗なら公開しない。大きいUIDは未切替のままとし、別途承認・レビューした移行が必要。
+3. 同じ`checkpoint`とdry-runの`sourceVersion`をstdinへ加え、`--execute`で指定月だけを原子的に公開する。原記録/既存月/停止状態が変われば拒否する。月が再開単位で、同じ原記録を何度再集計しても足し込みにならない。ACK喪失時は旧versionを自動再実行せず、original checkpointを維持した新dry-runで現状・epoch・差分を確認する。削除を跨いだcheckpointの再採取は禁止。
+4. 直近7日が触れる月を準備した後、`--operation=cutover`のdry-runで同じcheckpointと`userRevision`を確認し、それを渡した`--execute`でUserの読取markerを切り替える。SAC/User revision、月のbaseline/epoch/整合性、future原記録の不存在を再照合する。coverageの設定は別の確認事項であり、この操作で古い不完全履歴を完全としない。
+5. 新旧比較ではJSTの日/月/週境界、秒未満、作業名変更、break、ongoing、正常0、1001件以上、欠損/不正/取得失敗を確認する。旧raw readerの1001件到達は正確な比較値にならないので、既知の合成期待値と月次値を照合する。
+6. 退避には`--operation=rollback`を現在User revisionと**同じoriginal checkpoint**でdry-run→executeする。rawは保持し、読取markerだけを外す。旧writerへ戻す場合は先に全対象のmarkerを外し、再導入時はfleet/drain確認と新dry-run/再集計を行う。metadataだけ取り直して旧planを通さない。
+
+repository rootから対象を確認し、system directoryで使用する例（実行には対象ごとの承認済み入力・費用境界が必要）:
+
+```sh
+go run ./cmd/mypage-history-rebuild --environment=development \
+  --project=test-youtube-study-space --operation=rebuild --max-documents=1000 \
+  < /path/to/private-reviewed-selection.json
+```
+
+新しいclose writerとrebuildはprivacyDeletionをtransactionで確認し、SAC解除後も旧admission/checkpointの再生成を拒否する。genericなBot moderation/入室/User更新まで共通停止にしたわけではないため、横断削除のlegacy pause/drainは引き続き必要。削除adapter/inventoryは原記録と`work-months`を同じprimary scopeで消し、UserのmarkerもUser削除に含む。inactive SAC checkpoint・独立moderationは保持する。cache/flight・backup/export/restoreまで含むBの完了条件は従来どおりで、このCLIをPrivacy削除の実行経路へ転用しない。
+
 ## 4. Gateと承認の順序
 
 | checkpoint | 完了を示す証跡 | 未完時 |
