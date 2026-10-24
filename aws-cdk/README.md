@@ -90,4 +90,4 @@ pnpm cdk:deploy AwsCdkStack --profile soraride-prod --require-approval never --p
 
 ### ローカルQAファイルとimage context
 
-Lambda/FargateのCDK assetは、localにインストールしたtoolやprivate QA receiptを含む`**/node_modules`をstaging時に除外する。GitのignoreだけをDocker contextの境界とみなさない。テストは実stagingにreceiptがないこと、tracked sourceと同じasset tag、writer sourceの変更が両imageへ反映されることを検証する。Source asset tagの一致だけでlive image/sourceの証明やdeploy済みを宣言せず、immutable digestとbuild/deploy receiptを別に照合する。
+Lambda/FargateのCDK assetは、localにインストールしたtoolやprivate QA receiptを含む`**/node_modules`をstaging時に除外する。GitのignoreだけをDocker contextの境界とみなさない。テストは実stagingにreceiptがないこと、receipt追加前後でasset tagが不変であること、writer sourceの変更が両imageへ反映されることを検証する。Source asset tagの一致だけでlive image/sourceの証明やdeploy済みを宣言せず、immutable digestとbuild/deploy receiptを別に照合する。
