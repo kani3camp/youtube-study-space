@@ -174,7 +174,13 @@ jobs:
         if: ${{ steps.prepared.outputs.commitment == needs.foundation_plan.outputs.commitment && steps.prepared.outputs.commitment != '' }}
         env:
           MYPAGE_PLAN_TIME: ${{ needs.foundation_plan.outputs.plan_time }}
+          MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
         run: python3 infra/mypage-platform/scripts/foundation_ops.py apply
+      - name: Verify metrics-only serving revision after Apply
+        if: ${{ steps.applied.outcome == 'success' && (inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply') }}
+        env:
+          MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+        run: python3 infra/mypage-platform/scripts/read_metrics_transition.py readback
       - name: Reject missing Plan agreement or incomplete Apply
         if: ${{ always() && steps.prepared.outcome == 'success' && steps.applied.outcome != 'success' }}
         run: exit 1

@@ -17,12 +17,12 @@ MODES = {"runtime-private-plan": "runtime_private", "runtime-private-apply": "ru
 PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/asia-southeast2/services/mypage-api"
 PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
 FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "privacy_version", "terms_version",
-          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled"}
+          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
 
 
 def settings(value):
-    c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= FIELDS - {"history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled"}, "runtime-settings-fields")
-    value = value | {"history_coverage_json": value.get("history_coverage_json", ""), "image_source_sha": value.get("image_source_sha", ""), "hosting_backend_host": value.get("hosting_backend_host", ""), "previous_image_digest": value.get("previous_image_digest", ""), "read_metrics_enabled": value.get("read_metrics_enabled", False)}
+    c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= FIELDS - {"history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}, "runtime-settings-fields")
+    value = value | {"history_coverage_json": value.get("history_coverage_json", ""), "image_source_sha": value.get("image_source_sha", ""), "hosting_backend_host": value.get("hosting_backend_host", ""), "previous_image_digest": value.get("previous_image_digest", ""), "read_metrics_enabled": value.get("read_metrics_enabled", False), "read_metrics_from_revision": value.get("read_metrics_from_revision", "")}
     # JSON admission is deliberately stricter than Terraform's type conversion.
     c.need(type(value["read_metrics_enabled"]) is bool, "runtime-read-metrics-type")
     c.need(all(type(v) is str for k, v in value.items() if k != "read_metrics_enabled"), "runtime-settings-types")
@@ -37,6 +37,7 @@ def settings(value):
     c.need(value["image_source_sha"] == "" or re.fullmatch(r"[a-f0-9]{40}", value["image_source_sha"]), "runtime-image-source-sha")
     c.need(value["hosting_backend_host"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]+\.a\.run\.app", value["hosting_backend_host"]), "runtime-hosting-backend")
     c.need(value["previous_image_digest"] == "" or re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["previous_image_digest"]), "runtime-previous-image")
+    c.need(value["read_metrics_from_revision"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", value["read_metrics_from_revision"]), "runtime-read-metrics-revision")
     coverage = value["history_coverage_json"]
     c.need(len(coverage.encode()) <= 16384, "runtime-coverage-size")
     if coverage:
@@ -265,6 +266,14 @@ def validate_owner_hosting_image_refresh(item, planned, value):
 
 
 def validate_plan(plan, stage):
+    value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
+    if value["read_metrics_from_revision"]:
+        from read_metrics_transition import validate_plan as validate_transition
+        return validate_transition(plan, stage, value)
+    return validate_initial_plan(plan, stage)
+
+
+def validate_initial_plan(plan, stage):
     value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
     c.need(plan.get("variables", {}).get("stage", {}).get("value") == stage, "runtime-plan-stage")
     expected = resource_contract(stage)

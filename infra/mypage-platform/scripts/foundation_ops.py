@@ -285,6 +285,8 @@ def prepare(env):
     need(state_version(env) == version)
     digest = contract.commitment(plan, version, env["GITHUB_SHA"], env["MYPAGE_PLAN_HMAC_KEY"])
     (root / "prepared.json").write_bytes(contract.canonical({"sha256": hashlib.sha256(saved.read_bytes()).hexdigest(), "source": env["GITHUB_SHA"]}))
+    if value is not None and value["read_metrics_from_revision"]:
+        (root / "metrics-state-version.json").write_bytes(contract.canonical(version))
     with open(env["GITHUB_OUTPUT"], "a") as output:
         output.write("commitment=" + digest + "\nplan_time=" + str(time.time()) + "\n")
     print("Development foundation plan accepted: " + str(summary["resources"]) + " resources, " + str(summary["creates"]) +
@@ -303,6 +305,17 @@ def apply_saved(env):
     need(receipt == {"sha256": hashlib.sha256(saved.read_bytes()).hexdigest(), "source": env["GITHUB_SHA"]})
     work = root / "source/environments/dev"
     PHASE = "apply"
+    stage = contract.stage_for_mode(env["MYPAGE_MODE"])
+    if stage.startswith("runtime_"):
+        plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work))
+        value = runtime_contract.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
+        if value["read_metrics_from_revision"]:
+            # Provider 8.5.0 omits etag on Update. NEVER apply its update Plan:
+            # use a conditional API mutation and validated refresh-only State.
+            import read_metrics_live
+            read_metrics_live.apply_saved(env, root, plan, stage)
+            print("DEV metrics conditional update and live/State verification passed.")
+            return
     run(["terraform", "apply", "-input=false", "-no-color", str(saved)], cwd=work)
     PHASE = "readback"
     state = json.loads(run(["terraform", "show", "-json"], cwd=work))

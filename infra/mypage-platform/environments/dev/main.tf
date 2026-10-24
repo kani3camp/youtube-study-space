@@ -44,6 +44,7 @@ variable "runtime_settings" {
     hosting_backend_host        = optional(string, "")
     previous_image_digest       = optional(string, "")
     read_metrics_enabled        = optional(bool, false)
+    read_metrics_from_revision  = optional(string, "")
   })
   default = {
     image_digest                = ""
@@ -55,6 +56,16 @@ variable "runtime_settings" {
     oauth_client_id_version     = ""
     oauth_client_secret_version = ""
     youtube_api_key_version     = ""
+  }
+
+  # Explicit one-shot admission for a metrics-only serving update. It is not
+  # forwarded as an environment variable and does not permit an image rollout.
+  validation {
+    condition = var.runtime_settings.read_metrics_from_revision == "" || (
+      contains(["runtime_private", "runtime_public"], var.stage) &&
+      can(regex("^mypage-api-[a-z0-9-]{1,50}$", var.runtime_settings.read_metrics_from_revision))
+    )
+    error_message = "A metrics transition requires a runtime stage and an exact prior ready revision."
   }
 
   validation {
