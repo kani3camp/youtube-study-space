@@ -6,6 +6,19 @@
 
 2026-10-24の限定DEV配備対、上限付きFirestore測定、観測OFF、実409競合拒否、一時権限解除、正常0の認証smokeは[原価測定記録](../dev-cost-measurement-20261024.md)を参照する。表の公開Gate全体を完了した証跡ではない。
 
+## 0. 2026-10-25 現行構成・公開前Gate（過去の手順より優先）
+
+**現行の採用目標**：Development/ProductionともFirebase Hosting (React/Vite) + `/api/**` Cloud Run Go BFF rewrite + Firebase Authentication + Firestoreを継続。CloudflareはRegistrar/DNS onlyで、**Cloudflare HTTP Proxy/WAF、Cloud Armor、専用外部LB、Cloud Run Webは初期採用しない**。標準 `run.app` への直接到達は許容するが、認証・App Check・SAC・Cookie/state/Origin・IP/UID limiter・S01/S04を全経路で検証する。[Notion 07](https://app.notion.com/p/3ef357a8d0ce81b5892ac1dc2c99e587) / [06](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634) を正とし、旧Managed WAF必須のチェック項目は履歴として扱う。
+
+**Phase 0A** は運営者限定でE2E検証を続行可能。**Phase 0B** はURLを知る実ユーザーがアクセス可能となるため、次の受入を追加する。以下はすべてPENDINGであり、仕様記載とPR作成だけでGate完了とは扱わない。
+
+- [ ] [monitor認証必須 #1459](https://github.com/kani3camp/youtube-study-space/issues/1459)：OBSブラウザソースで専用Firebase Auth主体に一度サインインしてlocal persistenceを用いる方式を第一候補にする。Firestore Rulesは `seats` / `member-seats` / `menu` / `work-name-trend` / `config/constants` の匿名read/listを廃止し、専用monitor主体にのみ必要なreadを許可。一般MyPage UIDや匿名・別projectは拒否、書込は禁止。
+- [ ] OBS/CEFの実再起動・PC再起動・scene変更・long-running token refresh・権限失効時通知/復旧と、既存monitor seat-count制御の回帰を確認。まずDEV、その後ProductionのRulesとmonitorを整合させて段階適用。未対応Rulesだけ先にdeployしない。
+- [ ] DEV min0/max1、PROD min0/max3、request-based、timeout/body/query予算をTerraformとGCP実値で照合。Cloud Run max instancesは料金hard capではない。
+- [ ] **費用とabuse監視**：環境別にCloud Billing Budgetの多段階アラート・通知先・実着信を検証。Cloud MonitoringでRun request/instance/429/5xx、Firestore reads、YouTube quota、異常アクセスを監視。予算額・thresholdは正常時請求から決め、Budgetは自動停止ではないと明示。Cloud Run Spend Cap previewは利用可能性・同じprojectの他Cloud Run停止影響を確認するまで採用済み扱いしない。Firestoreは別管理。
+- [ ] 既存S01（Hostingと`run.app`直接、IP偽装/429/誤制限）・S04（OAuth callbackのcode/state/Cookie/Tokenを全層ログで確認）・Auth/App Check/UID/IDOR・Privacy削除・D02/D03実値、release pair / rollbackを引き続きPASSにする。
+- [ ] 実行結果は[公開受入 #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)と[E2E matrix](e2e.md)へ対象environment、revision、時刻、証拠、未確認箇所を記録し、0B/一般公開を個別判定する。
+
 ## 1. 現在ある実装と、残る完了条件
 
 DEV Backendのimage更新をCIへ移す経路は [Backend CI手順](backend-ci.md) を参照する。既存image-build→レビュー済みdigest promotion→CIでCloud Run更新/匿名smoke/限定State readbackの順序。専用identityの接続と実CI配備は同手順の実受入記録で判定する。
