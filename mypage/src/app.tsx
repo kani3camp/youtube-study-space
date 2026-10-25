@@ -250,36 +250,40 @@ export function createApp(
 						>
 							{publicChrome && <SiteHeader />}
 							<Outlet />
-							{privacyServices.analytics.available && consent.value === 'unset' && (
-								<aside
-									className="consent-banner"
-									aria-labelledby="analytics-consent-heading"
-								>
-									<h2 id="analytics-consent-heading">サイトをもっと使いやすくするために</h2>
-									<p>
-										よろしければ、ページの閲覧やログインなどの操作をGoogle アナリティクス（GA4）で分析し、サイトの改善に役立ててもよろしいですか？
-									</p>
-									<p>
-										Cookie等を使用しますが、YouTubeチャンネルID・表示名・作業内容は送信しません。許可しなくてもログインやマイページを利用でき、設定は後から変更できます。
-									</p>
-									<div className="hero-links">
-										<button
-											className="button"
-											type="button"
-											onClick={() => privacyServices.consent.set('granted')}
-										>
-											アクセス解析を許可
-										</button>
-										<button
-											className="button"
-											type="button"
-											onClick={() => privacyServices.consent.set('denied')}
-										>
-											許可しない
-										</button>
-									</div>
-								</aside>
-							)}
+							{privacyServices.analytics.available &&
+								consent.value === 'unset' && (
+									<aside
+										className="consent-banner"
+										aria-labelledby="analytics-consent-heading"
+									>
+										<h2 id="analytics-consent-heading">
+											サイトをもっと使いやすくするために
+										</h2>
+										<p>
+											よろしければ、ページの閲覧やログインなどの操作をGoogle
+											アナリティクス（GA4）で分析し、サイトの改善に役立ててもよろしいですか？
+										</p>
+										<p>
+											Cookie等を使用しますが、YouTubeチャンネルID・表示名・作業内容は送信しません。許可しなくてもログインやマイページを利用でき、設定は後から変更できます。
+										</p>
+										<div className="hero-links">
+											<button
+												className="button"
+												type="button"
+												onClick={() => privacyServices.consent.set('granted')}
+											>
+												アクセス解析を許可
+											</button>
+											<button
+												className="button"
+												type="button"
+												onClick={() => privacyServices.consent.set('denied')}
+											>
+												許可しない
+											</button>
+										</div>
+									</aside>
+								)}
 							{publicChrome && (
 								<footer className="site-footer public-footer">
 									<Link to="/privacy">プライバシー</Link>
@@ -333,7 +337,8 @@ export function createApp(
 									{privacyServices.analytics.available ? (
 										<>
 											<p>
-												Google アナリティクス（GA4）でページの閲覧や一部の操作を分析し、サイト改善に役立てます。Cookie等を使用しますが、チャンネルID・表示名・作業内容は送信しません。
+												Google
+												アナリティクス（GA4）でページの閲覧や一部の操作を分析し、サイト改善に役立てます。Cookie等を使用しますが、チャンネルID・表示名・作業内容は送信しません。
 											</p>
 											<label className="consent-label">
 												<input
