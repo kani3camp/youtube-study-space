@@ -106,7 +106,26 @@ Go変更の必須checksは[AGENTS.md](../../../AGENTS.md)。生成後の意図�
 
 browserはlocal Viteをport18081で起動し、[runtime](../../../mypage/scripts/runtime-qa.py)・[privacy](../../../mypage/scripts/privacy-qa.py)・[visual](../../../mypage/scripts/visual-qa.py)・[font](../../../mypage/scripts/font-qa.py)を使う。各scriptは外部requestを遮断する。実bfcacheは[専用static build](../../../mypage/scripts/bfcache.vite.config.ts)と[既存QA](../../../mypage/scripts/bfcache-qa.py)を使い、dev HMRを証拠にしない。設定済みpublic文面は専用testとbrowserで匿名到達/安全なlinkを確認する。実ユーザー画面をpublic QA artifactへ保存しない。
 
-### 静的配信cacheのrelease準備
+### DEV HostingをCIで配備する（2026-10-25）
+
+基盤のTerraform Applyとページの配備は別の操作だが、DEVページの更新も既存`CI`の手動実行から完結させる。`integration/mypage-canon-20261006`を選び、`mypage_hosting=true`と`mypage_hosting_expected_sha=<レビュー済み統合HEADの40桁SHA>`を指定する。他の認証操作は同時指定しない。PR実行・main・他branch・別owner・再実行・SHA不一致は拒否する。失敗時にRunの再実行で継続せず、現在状態を確認して新しい実行を開始する。
+
+1. 既存Repository/Frontend検査に成功後、cloud credentialのないBuild jobで固定依存の検査・test・DEV公開設定の検査・buildを行う。
+2. 同じrunのartifactを別Apply jobへ渡し、source SHA/run ID/30分期限/configと全fileのSHA256を再検証する。Applyは専用WIFと短命tokenを使用する。SA keyやFirebase login tokenは使わない。
+3. 対象は`test-youtube-study-space`の`test--study-space`だけ。現行HostingのCSP/rewrites等とAPIの同意版・固定origin・Ready revisionを照合し、configの意図しない変更、別site、途中のHosting/API/branch変更を拒否する。公開版を作成・upload・finalizeしてから、最後にreleaseを切り替える。writeの自動retryはしない。
+4. 配備後は全fileのbytes/Cache-Control/CSP等、`/`と`/mypage`、匿名APIの403、API metadata不変を確認する。別のcredentialなしBrowser jobで匿名画面・Cookie設定・GA4 request 0を確認する。失敗はCI Gateへ伝播する。実GA4送信・認証済みE2E・公開Gateの完了を意味しない。
+
+GitHub Environment `mypage-dev-hosting`には、**公開項目だけ**の`MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`と専用provider名`MYPAGE_HOSTING_WIF_PROVIDER`をVariablesとして設定する。前者は既存のpublic manifest schemaで、`VITE_MYPAGE_ANALYTICS_READY=false`、`VITE_PRIVACY_INTAKE_ENABLED=false`、`analyticsApproved=false`を必須とする。server envのexport・OAuth/credential/Secret値を渡さない。公開済みDEVと同じorigin/Firebase app/同意版/CSP inventoryを引き継ぐ。設定変更は既存preflightとレビューを通す。
+
+権限bootstrapは専用`mypage-hosting` WIF pool/providerと`mypage-hosting-deploy` SAへ分離する。providerは固定repo/owner/actor ID、初回workflow_dispatch、integration ref、caller `ci.yml`、reusable `mypage-hosting-authenticated.yml`、同一workflow SHA、Environment `mypage-dev-hosting`を全て検査する。既存のTerraform WIF/SA/Stateは変更しない。
+
+**IAMの限界**：[Firebase公式](https://firebase.google.com/docs/projects/iam/permissions)ではHostingのcustom roleは未対応。DEV projectだけの`roles/firebasehosting.admin`を専用SAへ付与するため、IAM上はDEV内の他Hosting siteの作成/削除等も可能な権限を含む。site1個への限定は固定API/配備契約と強いWIF admissionで行うもので、IAMによるsite単位制限とは呼ばない。API比較のため`mypage-api`1 serviceの`roles/run.viewer`と、quota用のDEV `roles/serviceusage.serviceUsageConsumer`だけを加える。Cloud Run update、Firestore、Auth、Secret、IAM setter、Productionへの権限は付与しない。
+
+失敗時はsanitized release recordのpreviousVersion/previousReleaseと現在配信を照合し、明示的に復旧判断する。自動rollback・古いartifactの再利用はしない。Firebaseのrelease切替APIにcompare-and-swapはなく、直前の一致確認とCI concurrencyは外部operatorの同時更新を完全に防ぐものではない。実行中は別経路のHosting更新を避ける。切替後に検証が失敗した場合は、live更新済み・CI失敗として扱う。recordはApply jobが切替直後に保存し、成功/失敗にかかわらず14日間のCI artifactへ残す。publicファイルと公開設定だけのbuild artifactは1日で期限切れにする。
+
+この経路はDEV frontend専用。Production、Backend image更新、Terraform変更を同時に自動化したとは扱わない。後続のProduction経路は公開Gate・独立Environment/権限・配備対象をレビューしてから追加し、本番未公開を維持する。
+
+### 静的配信cacheの契約
 
 同じpublic manifestでFrontendをbuildした後、実distを専用release directory内の`dist/`へ固定コピーし、exact asset pathを採取する。`node mypage/scripts/prepare-hosting.mjs --manifest /path/to/reviewed-public-config.json --dist /path/to/release/dist --output /path/to/release/firebase.json` は設定候補だけを書き、deployしない。出力先は未作成file、親directoryは作成済みとする。Firebase CLIはproject root外のpublicを拒否するため、symlink解決後もdistは出力configの親directoryの内側にある独立subdirectoryを要求する。manifestやprivate運用fileはdistへ置かない。既知hash付きJS/CSS/fontだけが1年immutableとなり、HTML・API・未知hash pathはno-store。buildを差し替えたら必ず再生成する。target/site対応は既存のreview済みDEV selectorを使い、repository共通firebase設定を上書きしない。
 

@@ -1,0 +1,140 @@
+name: MyPage DEV Hosting Release
+
+on:
+  workflow_call:
+    inputs:
+      expected_sha:
+        required: true
+        type: string
+      other_operation:
+        required: true
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: mypage-dev-hosting-release
+  cancel-in-progress: false
+
+env:
+  MYPAGE_HOSTING_EXPECTED_SHA: ${{ inputs.expected_sha }}
+  MYPAGE_OTHER_OPERATION: ${{ inputs.other_operation }}
+
+jobs:
+  build:
+    name: MyPage DEV Hosting Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: mypage-dev-hosting
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.package.outputs.digest }}
+    steps:
+      - name: Checkout selected source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Admit only initial owner dispatch on the reviewed integration ref
+        run: python3 infra/mypage-platform/scripts/hosting_release.py context
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+      - name: Setup pnpm
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          package_json_file: mypage/package.json
+      - name: Validate and test without cloud credentials
+        working-directory: mypage
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm audit --audit-level=high
+          pnpm check
+          pnpm typecheck
+          pnpm test
+      - name: Build and seal the DEV release package
+        id: package
+        env:
+          MYPAGE_HOSTING_PUBLIC_CONFIG_JSON: ${{ vars.MYPAGE_HOSTING_PUBLIC_CONFIG_JSON }}
+        run: python3 infra/mypage-platform/scripts/hosting_release.py build
+      - name: Upload only validated public files and metadata
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: mypage-dev-hosting-package
+          path: ${{ runner.temp }}/mypage-hosting-release
+          if-no-files-found: error
+          retention-days: 1
+
+  apply:
+    name: MyPage DEV Hosting Apply
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: mypage-dev-hosting
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Admit the selected execution context before credentials
+        run: python3 infra/mypage-platform/scripts/hosting_release.py context
+      - name: Setup Node.js for pure configuration validation
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+      - name: Download this run's build package
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: mypage-dev-hosting-package
+          path: ${{ runner.temp }}/mypage-hosting-release
+      - name: Authenticate through dedicated DEV Hosting WIF
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.MYPAGE_HOSTING_WIF_PROVIDER }}
+          service_account: mypage-hosting-deploy@test-youtube-study-space.iam.gserviceaccount.com
+          project_id: test-youtube-study-space
+          create_credentials_file: false
+          export_environment_variables: false
+          token_format: access_token
+          access_token_lifetime: 900s
+      - name: Publish DEV only and verify every public file and API boundary
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MYPAGE_HOSTING_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          MYPAGE_HOSTING_PACKAGE_DIGEST: ${{ needs.build.outputs.digest }}
+        run: python3 infra/mypage-platform/scripts/hosting_release.py deploy
+      - name: Preserve sanitized release and rollback references even if smoke fails
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: mypage-dev-hosting-release-record
+          path: ${{ runner.temp }}/mypage-hosting-release-record.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  browser:
+    name: MyPage DEV Hosting Browser Smoke
+    needs: apply
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Install browser test dependencies without cloud credentials
+        run: |
+          python3 -m pip install -r mypage/visual-requirements.txt
+          python3 -m playwright install --with-deps chromium
+      - name: Verify the live DEV page and disabled analytics
+        run: python3 mypage/scripts/hosting-smoke.py
