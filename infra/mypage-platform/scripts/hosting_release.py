@@ -337,8 +337,9 @@ def verify_public(release, hosting):
         status, headers, data = http(ORIGIN + route)
         need(status == 200 and sha(data) == release['files']['index.html']['sha256'], 'public-route')
     status, headers, data = http(ORIGIN + '/api/mypage')
+    cache = {k.lower(): v for k, v in headers.items()}.get('cache-control', '')
     need(status == 403 and json.loads(data).get('error', {}).get('code') == 'APP_CHECK_REQUIRED' and
-         {k.lower(): v for k, v in headers.items()}.get('cache-control') == 'no-store', 'anonymous-api')
+         {part.strip().lower() for part in cache.split(',')} == {'no-store', 'private'}, 'anonymous-api')
 
 
 def main():

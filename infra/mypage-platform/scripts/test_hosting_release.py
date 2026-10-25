@@ -212,11 +212,11 @@ class ReleaseTest(unittest.TestCase):
             dist = self.make_dist(Path(temp))
             release = {'files': h.inventory(dist)}
             rest = hosting()
-            mode = {'code': 'APP_CHECK_REQUIRED'}
+            mode = {'code': 'APP_CHECK_REQUIRED', 'cache': 'no-store, private'}
             def public(url):
                 name = url.removeprefix(h.ORIGIN + '/')
                 if name == 'api/mypage':
-                    return 403, {'Cache-Control': 'no-store'}, h.canonical({'error': {'code': mode['code']}})
+                    return 403, {'Cache-Control': mode['cache']}, h.canonical({'error': {'code': mode['code']}})
                 if name in ('', 'mypage'):
                     name = 'index.html'
                 headers = dict(rest['headers'][0]['headers'])
@@ -225,6 +225,13 @@ class ReleaseTest(unittest.TestCase):
                 return 200, headers, (dist / name).read_bytes()
             with patch.object(h, 'http', side_effect=public):
                 h.verify_public(release, rest)
+                mode['cache'] = 'private, no-store'
+                h.verify_public(release, rest)
+                for cache in ('private', 'no-store, private, public', 'max-age=60', ''):
+                    mode['cache'] = cache
+                    with self.subTest(cache=cache), self.assertRaises(ValueError):
+                        h.verify_public(release, rest)
+                mode['cache'] = 'no-store, private'
                 mode['code'] = 'UPSTREAM_FORBIDDEN'
                 with self.assertRaises(ValueError):
                     h.verify_public(release, rest)
