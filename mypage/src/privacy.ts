@@ -1,5 +1,6 @@
 export type Consent = 'unset' | 'granted' | 'denied'
-export const consentKey = 'oss.analytics-consent.v1'
+// v1 choices were collected while GA4 was not connected; do not activate them later.
+export const consentKey = 'oss.analytics-consent.v2'
 export type PreferenceStorage = Pick<
 	Storage,
 	'getItem' | 'setItem' | 'removeItem'
