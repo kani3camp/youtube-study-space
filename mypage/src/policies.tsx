@@ -15,7 +15,7 @@ import {
 // Operator identity remains available on request under 05; an optional public
 // service/operator label does not require disclosure of a private real name.
 // Injecting D03 values does not approve policies or close D01/D02/operational gates.
-export type PublicPolicyProps = { publicPolicyInputs?: unknown }
+type PublicPolicyProps = { publicPolicyInputs?: unknown }
 
 function policyConfig(inputs: unknown): PublicPolicyConfig {
 	return (

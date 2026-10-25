@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-import hashlib
 import json
 import re
 
@@ -217,35 +216,7 @@ def validate_service_empty_refresh(item, planned, value):
 
 
 
-def owner_recovery_chain(receipt):
-    """One source-pinned, operator-observed two-hop image catch-up, never >=N."""
-    if receipt is None:
-        return None
-    c.need(type(receipt) is dict and set(receipt) == {"schema_version", "project", "service", "observed_at", "revision_configuration_equal_except_image", "chain", "state_version_sha256", "state_lineage_sha256", "state_serial", "service_uid_sha256", "live_etag_sha256"}
-           and type(receipt["schema_version"]) is int and receipt["schema_version"] == 1
-           and receipt["project"] == c.PROJECT and receipt["service"] == "mypage-api"
-           and receipt["revision_configuration_equal_except_image"] is True,
-           "runtime-owner-recovery-receipt")
-    for key in ("state_version_sha256", "state_lineage_sha256", "service_uid_sha256", "live_etag_sha256"):
-        c.need(type(receipt[key]) is str and re.fullmatch(r"[a-f0-9]{64}", receipt[key]), "runtime-owner-recovery-hash")
-    c.need(type(receipt["state_serial"]) is int and receipt["state_serial"] > 0, "runtime-owner-recovery-state")
-    c.registry_timestamp(receipt["observed_at"])
-    chain = receipt["chain"]
-    c.need(type(chain) is list and len(chain) == 3, "runtime-owner-recovery-chain")
-    for entry in chain:
-        c.need(type(entry) is dict and set(entry) == {"generation", "revision", "image"}
-               and type(entry["generation"]) is str and re.fullmatch(r"[1-9][0-9]*", entry["generation"])
-               and type(entry["revision"]) is str and re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", entry["revision"])
-               and type(entry["image"]) is str and re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", entry["image"]),
-               "runtime-owner-recovery-entry")
-    c.need(int(chain[0]["generation"]) + 1 == int(chain[1]["generation"])
-           and int(chain[1]["generation"]) + 1 == int(chain[2]["generation"])
-           and len({x["revision"] for x in chain}) == 3 and len({x["image"] for x in chain}) == 3,
-           "runtime-owner-recovery-chain")
-    return chain
-
-
-def validate_owner_hosting_image_refresh(item, planned, value, recovery=None, receipt=None):
+def validate_owner_hosting_image_refresh(item, planned, value):
     """Read back owner image/fixed-host releases; CI never updates Run."""
     change = item.get("change", {})
     before, after = change.get("before"), change.get("after")
@@ -256,19 +227,6 @@ def validate_owner_hosting_image_refresh(item, planned, value, recovery=None, re
     plan = planned.get(SERVICE, {}).get("change", {})
     c.need(plan.get("actions") == ["no-op"] and plan.get("after") == after and not c.has_unknown(plan.get("after_unknown")), "runtime-owner-refresh-noop")
     previous = value["previous_image_digest"]
-    if recovery is not None:
-        first, middle, last = recovery
-        c.need(middle["image"] == previous and last["image"] == value["image_digest"], "runtime-owner-recovery-release")
-        for candidate, pinned in ((before, first), (after, last)):
-            c.need(str(candidate.get("generation")) == pinned["generation"]
-                   and str(candidate.get("observed_generation")) == pinned["generation"]
-                   and candidate.get("latest_ready_revision", "").split("/")[-1] == pinned["revision"]
-                   and candidate.get("latest_created_revision") == candidate.get("latest_ready_revision"),
-                   "runtime-owner-recovery-checkpoint")
-        c.need(type(before.get("uid")) is str and before["uid"] and
-               hashlib.sha256(before["uid"].encode()).hexdigest() == receipt["service_uid_sha256"],
-               "runtime-owner-recovery-identity")
-        previous = first["image"]
     c.need(previous and previous != value["image_digest"] and value["hosting_backend_host"], "runtime-owner-refresh-declaration")
     before_container = one(one(before.get("template"), "runtime-owner-refresh-template").get("containers"), "runtime-owner-refresh-container")
     c.need(type(before_container) is dict, "runtime-owner-refresh-container")
@@ -311,7 +269,7 @@ def validate_owner_hosting_image_refresh(item, planned, value, recovery=None, re
     c.need(traffic.get("percent") == 100 and traffic.get("type") == "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
            and traffic.get("revision", "").split("/")[-1] == revision and not traffic.get("tag"), "runtime-owner-refresh-traffic")
     c.need(re.fullmatch(r"[1-9][0-9]*", str(before.get("generation")))
-           and int(after.get("generation", 0)) == int(before["generation"]) + (2 if recovery is not None else 1)
+           and int(after.get("generation", 0)) == int(before["generation"]) + 1
            and str(after.get("observed_generation")) == str(after.get("generation")), "runtime-owner-refresh-generation")
     c.need(c.registry_timestamp(after.get("update_time")) > c.registry_timestamp(before.get("update_time")), "runtime-owner-refresh-time")
     computed = {"etag", "generation", "observed_generation", "update_time", "last_modifier", "latest_created_revision", "latest_ready_revision", "terminal_condition", "conditions", "traffic_statuses", "reconciling"}
@@ -321,17 +279,16 @@ def validate_owner_hosting_image_refresh(item, planned, value, recovery=None, re
     c.need(normalized == after, "runtime-owner-refresh-fields")
 
 
-def validate_plan(plan, stage, owner_recovery=None):
+def validate_plan(plan, stage):
     value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
     if value["read_metrics_from_revision"]:
         from read_metrics_transition import validate_plan as validate_transition
         return validate_transition(plan, stage, value)
-    return validate_initial_plan(plan, stage, owner_recovery)
+    return validate_initial_plan(plan, stage)
 
 
-def validate_initial_plan(plan, stage, owner_recovery=None):
+def validate_initial_plan(plan, stage):
     value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
-    recovery = owner_recovery_chain(owner_recovery)
     c.need(plan.get("variables", {}).get("stage", {}).get("value") == stage, "runtime-plan-stage")
     expected = resource_contract(stage)
     changes = plan.get("resource_changes", [])
@@ -353,9 +310,7 @@ def validate_initial_plan(plan, stage, owner_recovery=None):
             before = item.get("change", {}).get("before", {})
             template = one(before.get("template"), "runtime-refresh-template") if type(before) is dict else {}
             container = one(template.get("containers"), "runtime-refresh-container")
-            if recovery is not None and container.get("image") == recovery[0]["image"]:
-                validate_owner_hosting_image_refresh(item, planned, value, recovery, owner_recovery)
-            elif value["previous_image_digest"] and container.get("image") == value["previous_image_digest"]:
+            if value["previous_image_digest"] and container.get("image") == value["previous_image_digest"]:
                 validate_owner_hosting_image_refresh(item, planned, value)
             else:
                 validate_service_empty_refresh(item, planned, value)

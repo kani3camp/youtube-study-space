@@ -19,7 +19,7 @@ export type PublicPolicyConfig = {
 	termsEffectiveDate?: string
 	jurisdiction?: string
 }
-export type PublicPolicyResult = {
+type PublicPolicyResult = {
 	config: PublicPolicyConfig
 	issues: {
 		field: PublicPolicyField | 'input'
