@@ -250,18 +250,17 @@ export function createApp(
 						>
 							{publicChrome && <SiteHeader />}
 							<Outlet />
-							{consent.value === 'unset' && (
+							{privacyServices.analytics.available && consent.value === 'unset' && (
 								<aside
 									className="consent-banner"
 									aria-labelledby="analytics-consent-heading"
 								>
-									<h2 id="analytics-consent-heading">利用状況の計測について</h2>
+									<h2 id="analytics-consent-heading">サイトをもっと使いやすくするために</h2>
 									<p>
-										計測は初期設定でオフです。許可しなくても、ログインやマイページを利用できます。
+										よろしければ、ページの閲覧やログインなどの操作をGoogle アナリティクス（GA4）で分析し、サイトの改善に役立ててもよろしいですか？
 									</p>
 									<p>
-										Google
-										Analyticsによる任意の計測は公開準備中です。設定だけをこのブラウザに保存します。
+										Cookie等を使用しますが、YouTubeチャンネルID・表示名・作業内容は送信しません。許可しなくてもログインやマイページを利用でき、設定は後から変更できます。
 									</p>
 									<div className="hero-links">
 										<button
@@ -269,7 +268,7 @@ export function createApp(
 											type="button"
 											onClick={() => privacyServices.consent.set('granted')}
 										>
-											計測を許可
+											アクセス解析を許可
 										</button>
 										<button
 											className="button"
@@ -331,36 +330,43 @@ export function createApp(
 									aria-labelledby="cookie-heading"
 								>
 									<h2 id="cookie-heading">Cookie設定</h2>
-									<p>
-										Google
-										Analyticsの連携は公開準備中です。チャンネル情報・作業内容・本人別のAPI応答は計測へ送りません。
-									</p>
-									<label className="consent-label">
-										<input
-											type="checkbox"
-											role="switch"
-											aria-checked={consent.value === 'granted'}
-											checked={consent.value === 'granted'}
-											onChange={(event) =>
-												privacyServices.consent.set(
-													event.target.checked ? 'granted' : 'denied',
-												)
-											}
-										/>
-										<span>利用状況の計測を許可</span>
-									</label>
-									<p role="status">
-										{consent.value === 'granted'
-											? '任意の計測：許可'
-											: '任意の計測：オフ'}
-									</p>
-									{!consent.saved && (
-										<p role="alert">
-											設定を保存できませんでした。この画面では選択を適用しています。次回はもう一度ご確認ください。
+									{privacyServices.analytics.available ? (
+										<>
+											<p>
+												Google アナリティクス（GA4）でページの閲覧や一部の操作を分析し、サイト改善に役立てます。Cookie等を使用しますが、チャンネルID・表示名・作業内容は送信しません。
+											</p>
+											<label className="consent-label">
+												<input
+													type="checkbox"
+													role="switch"
+													aria-checked={consent.value === 'granted'}
+													checked={consent.value === 'granted'}
+													onChange={(event) =>
+														privacyServices.consent.set(
+															event.target.checked ? 'granted' : 'denied',
+														)
+													}
+												/>
+												<span>アクセス解析を許可</span>
+											</label>
+											<p role="status">
+												{consent.value === 'granted'
+													? 'アクセス解析：許可'
+													: 'アクセス解析：オフ'}
+											</p>
+											{!consent.saved && (
+												<p role="alert">
+													設定を保存できませんでした。この画面では選択を適用しています。次回はもう一度ご確認ください。
+												</p>
+											)}
+										</>
+									) : (
+										<p role="status">
+											任意のアクセス解析は現在利用していません。利用開始時にあらためてご案内します。
 										</p>
 									)}
 									<p>
-										必須の保存と通信は、認証・セキュリティのため常に有効です。任意の計測は初期設定でオフです。
+										認証・セキュリティなどに必要な保存と通信は常に有効です。アクセス解析への同意は任意です。
 									</p>
 									<button
 										type="button"
