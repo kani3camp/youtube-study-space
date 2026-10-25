@@ -39,4 +39,4 @@ python scripts/font-qa.py --output /tmp/mypage-font-qa
 
 外部requestを遮断し、撮影前にfont loadを待つ。実ユーザーdataをpublic artifactへ保存しない。合成fixtureの成功やprototypeとの比較を、実OAuth・Hosting・公開Readyの証拠へ読み替えない。
 
-承認原本のhash・比較記録と旧HTML exportは[Archive](../archive/README.md)に保持する。旧exportはApproved原本とbyteが一致せず、欠落した`support.js`に依存するため、現行の実行可能な視覚基準として使わない。
+承認原本（Approved export）のSHA-256は、メインprototype `5a1413c1c3ba88d3297e540699d765f5a4a40a52b935dc5ef4b5a3b456bfbc68`、状態別gallery `317f5350a4c2c8f9df745a902bec292577783cdd683bfbb3f7235141c030dd28`。原本は公開repositoryに置かない。
