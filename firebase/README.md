@@ -2,6 +2,19 @@
 
 This directory contains the repository-managed Firestore Security Rules, indexes, and emulator configuration. Treat these files as the existing project definition. Do **not** run `firebase init firestore` as a routine setup step because it can overwrite or regenerate repository-managed configuration.
 
+## MyPage Phase 0B prerequisite: authenticated OBS monitor (2026-10-25 decision, NOT deployed)
+
+The current `firestore.rules` in this repository still allows anonymous reads of `seats`, `member-seats`, `menu`, `work-name-trend`, and `config/constants`. This is a **known temporary exposure**: private OBS browser source deployment is not a Firestore authentication boundary.
+
+Before the first externally usable MyPage Phase 0B release, [Issue #1459](https://github.com/kani3camp/youtube-study-space/issues/1459) requires:
+- Authenticate a dedicated monitor-only Firebase Auth principal in the OBS browser source. The first candidate is one interactive sign-in with Firebase local persistence; persistence after actual OBS/CEF restarts has **not** been proven.
+- Require a dedicated, validated UID and monitor-only claim (or equally strict explicit authorization) for the five Client SDK collection/doc reads. Anonymous, normal MyPage users, and all browser writes must be rejected.
+- Use Client SDK / Security Rules tests for anonymous, monitor, wrong UID/project, expired sessions, read/list/write; validate the same rules against the selected DEV and PROD projects, including restart, renewal, and operator notification paths.
+- Separate Client SDK enforcement from server-side Go/IAM, which bypasses Security Rules. Do not add service-account credentials to browser bundles or accept an API-key/project split as authorization.
+- Stage credential/login support **before** enforcing deny-only rules in production; verify rollback without restoring unrestricted anonymous access.
+
+This section describes an **adopted pre-release requirement**, not a completed code change or live rule deployment. Keep existing Go Bot and monitor seat-count-control behavior unchanged unless separately approved. Related [MyPage release gate #1133](https://github.com/kani3camp/youtube-study-space/issues/1133) and [Notion Security Canon](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634).
+
 ## Test layers
 
 These checks cover different contracts and are not interchangeable.
