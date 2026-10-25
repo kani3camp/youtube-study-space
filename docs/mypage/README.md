@@ -95,7 +95,7 @@ work-segmentsは user-id equality、ended-at > window start、started-at < asOf 
 
 aggregate cacheは環境+uidをkeyにprocess memoryで最大30秒、JST日境界を越えて再利用しない。singleflight内の処理は最大8秒budgetを持ち、最初のcaller切断が他callerの処理を止めない。generatedAtは元snapshotの値を維持する。失敗はcacheしない。metadataは24時間でrefresh対象、失敗時30日未満だけpartial、30日以上はunavailable。
 
-rate limitはprocess単位のbounded memory。deploymentの全体limit、trusted proxy IP抽出、実provider/verifier/minter、server起動とHosting rewriteの結線は未実装。[ServiceAccessControl A](service-access-control.md)はMyPageのread/token/write境界を保護する。横断削除と全runtime drain、support受付完了の実行はBの独立した完了条件。
+rate limitはprocess単位のbounded memory。deploymentの全体limitとtrusted proxy IP抽出は未実装で、既定は`RemoteAddr`を使う（実経路の確認はCanon S01）。[ServiceAccessControl A](service-access-control.md)はMyPageのread/token/write境界を保護する。横断削除と全runtime drain、support受付完了の実行はBの独立した完了条件。
 
 HTTP handlerは環境ごとに固定したHTTPS `PublicOrigin` を必須とし、対象外Host、別origin/OriginなしのPOST、重複Originと重複`__session`をdependency検証・OAuth mutation前に拒否する。callback GETはOriginなしを許すが固定Hostの検証を省略しない。clientのX-Forwarded-Host / Proto / Forで許可先やdefault IPを変更しない。Hostingから届く実Hostの確認はdeployment gateに残す。
 
@@ -146,7 +146,7 @@ python scripts/runtime-qa.py --output /tmp/mypage-runtime-qa
 
 確認→session complete→MyPage→logout、anonymous route guard、既存session、fresh login、support誤用途防止、期限切れtransaction、uid変更/遅延response、pagehide/pageshow、logout再試行、初期折り畳み、404、設定なしpublic pageを確認する。外部requestは遮断し、合成dataだけを使う。
 
-support本人確認は準備中と明示し通常loginへ流さない。privacy / terms / contactとCookie設定は未完成のdraft UIであり公開承認版ではない。人間が決める運営者・窓口・公開URLを推測で入れない。実Google OAuth / Firebase App Check / Hosting経由のE2E、approved runtimeとのpixel parity、運用privacy/security、D01実装証跡・D02規約適合性確認・D03実値、infrastructure Ready Gate、実provider/verifier/server結線は別の未完了条件。production deploymentはしていない。
+support本人確認は準備中と明示し通常loginへ流さない。privacy / terms / contactとCookie設定は未完成のdraft UIであり公開承認版ではない。人間が決める運営者・窓口・公開URLを推測で入れない。実Google OAuth / Firebase App Check / Hosting経由のE2E、approved runtimeとのpixel parity、運用privacy/security、D01実装証跡・D02規約適合性確認・D03実値、infrastructure Ready Gateは一般公開前の条件。実環境での確認状況は[release手順](release/README.md)と[実経路E2E](release/e2e.md)を正とする。
 
 
 ## Support record boundary
@@ -178,7 +178,7 @@ product HTMLにno-referrerを指定し、support challenge等のqueryを外部�
 
 任意Analyticsはunset / granted / denied。unsetでnonblockingな選択を出し、拒否・未選択でも主要操作を使える。選択したgranted/denied文字列だけをfirst-party storageへ保存し、uid/channel/profileを結び付けない。Cookie設定から変更でき、storage eventによる別tabの拒否でも将来送信を停止する。保存に失敗してもcurrent-pageの選択を適用し、保存失敗を表示する。
 
-AnalyticsGateは同意前にstart/sendせず、過去eventをqueue/replayしない。固定route/titleと完全一致した公開UTM組合せだけを渡し、callback、code/state/error/supportChallenge、任意query/fragment、referrer/title入力や本人dataを渡すAPIを持たない。通常loginの4 eventだけをparameterなしで扱う。GA4実sender/script/identifierは未接続であり、公開済みGA4 Network/console設定を検証したとは扱わない。mandatory Firebase/App Check/reCAPTCHA通信とは別の同意である。
+AnalyticsGateは同意前にstart/sendせず、過去eventをqueue/replayしない。固定route/titleと完全一致した公開UTM組合せだけを渡し、callback、code/state/error/supportChallenge、任意query/fragment、referrer/title入力や本人dataを渡すAPIを持たない。通常loginの4 eventだけをparameterなしで扱う。実loaderは`VITE_MYPAGE_ANALYTICS_READY=true`かつmeasurement IDと公開originが一致する場合だけ有効になり、それ以外ではscriptを読み込まない。公開済みGA4 Network/console設定を検証したとは扱わない。mandatory Firebase/App Check/reCAPTCHA通信とは別の同意である。
 
 public policy/termsは確認用draft。運営主体/窓口/施行日/管轄を推測で埋めず、D01実装・D02規約適合性・D03実値と公開文面の運用照合を残す。production公開はしていない。API全responseにはno-store/nosniff/no-referrer、default-src none / frame-ancestors none、不要device permission拒否を付ける。Hosting HTMLのCSP allowlistとcallback platform access-log redactionは実inventory/Ready Gate後に確認する。
 
@@ -207,7 +207,7 @@ wire request、scope不足、期限切れtoken、channel曖昧さ、metadata形�
 
 `GA4Sender`はAnalyticsGateからのみstartする同期command/disable portのadapter。constructorは識別子やbrowser globalを作らず、startで自動config pageviewと広告signalsを無効化し、固定originのroot URL・空referrer・空titleを指定する。event時にもsafe route/固定title/許可UTMを再検証し、任意title/追加parameter/User-IDを転送しない。stopは送信を止め、contextをclearし、runtimeのmeasurement disable flagを設定する。deniedへの変更で送信を誘発し得るgtag commandは呼ばない。同意前eventを再送しない。
 
-このadapterはproductへ未接続で、gtag.js loader/dataLayer/vendor通信を含まない。mockはcommand引数とdisable順序を検証するだけで、実GA4の非送信を証明しない。実loaderでは同意の世代変更後に遅延load callbackを破棄し、queueを再送しないことが必要。ConsoleでEnhanced Measurementのhistory pageview等の自動collectionを無効化し、他tag/pluginを含めたinventoryを確認する必要がある。send_page_view=falseだけではhistory pageviewを防げない。14か月保持・保持reset OFFと、同意前/拒否後のNetwork検証はrelease gateに残る。
+adapter自体はgtag.js loader/dataLayer/vendor通信を含まず、読み込みは[GA4 loader](../../mypage/src/ga4-loader.ts)が担う。mockはcommand引数とdisable順序を検証するだけで、実GA4の非送信を証明しない。実loaderでは同意の世代変更後に遅延load callbackを破棄し、queueを再送しないことが必要。ConsoleでEnhanced Measurementのhistory pageview等の自動collectionを無効化し、他tag/pluginを含めたinventoryを確認する必要がある。send_page_view=falseだけではhistory pageviewを防げない。14か月保持・保持reset OFFと、同意前/拒否後のNetwork検証はrelease gateに残る。
 
 一次資料: [GA4 configuration](https://developers.google.com/analytics/devguides/collection/ga4/reference/config)、[manual pageviewsとhistory measurement](https://developers.google.com/analytics/devguides/collection/ga4/views)、[Consent mode](https://developers.google.com/tag-platform/security/guides/consent)。実GA4 Network/Console/自動event/再同意は未検証であり、公開deployはしていない。
 
@@ -224,6 +224,13 @@ pnpm exec vite build --config scripts/bfcache.vite.config.ts
 python -m http.server 18082 --bind 127.0.0.1 --directory /tmp/mypage-bfcache-qa
 # 別shell
 python scripts/bfcache-qa.py
+```
+
+`service-access-qa.py`は同じ静的buildを使い、利用制限と削除手続き中の状態を検証する。確認・完了・旧sessionの各段階で専用画面になり、本人dataを表示せず、拒否後に自動再試行しないこと、表示済みdataが320 / 390 / 1440pxで消えること、実bfcacheで戻っても本人dataが復活しないこと、問い合わせ・トップ・新規ログイン・logoutの導線、制限中のsupport本人確認を確認する。
+
+```sh
+# 上記の静的buildとhttp.serverを起動した状態で
+python scripts/service-access-qa.py
 ```
 
 
@@ -248,7 +255,7 @@ AppCheckVerifierは公式のJWT検証手順に沿ってRS256署名・JWT type・
 
 Cloud Runへ設定するserver-only項目はenvironment/region/project number/Web App ID/public origin/policy versions/signer email/OAuth client ID/secret。OAuth共通secretは承認済みSecret Manager/Cloud Runのsecret供給境界を使い、Viteへ渡さない。history coverageは実inventory未確認のため未指定とする。
 
-Firestore emulatorでは構築したserverからsigned App Check＋fake Auth SDKでstart/callback/channel/confirm/session-complete/MyPageを通し、mint replay拒否、users非作成、旧Google provider拒否を検証する。実Firebase ID token/App Check、Google consent/channel選択、Hosting rewrite、platform access-log redaction、runtime IAMは未検証でdeployしていない。
+Firestore emulatorでは構築したserverからsigned App Check＋fake Auth SDKでstart/callback/channel/confirm/session-complete/MyPageを通し、mint replay拒否、users非作成、旧Google provider拒否を検証する。これはEmulator上の検証であり、実Firebase ID token/App Check、Google consent/channel選択、Hosting rewrite、platform access-log redaction、runtime IAMの実環境確認を代替しない。実環境の確認状況は[release手順](release/README.md)を参照する。
 
 
 ## Public channel metadata refresh
