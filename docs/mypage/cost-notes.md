@@ -4,6 +4,10 @@
 
 ## 比較する構成
 
+> **2026-10-25 現行採用方式**：Firebase Hosting + Cloud Run Go BFF + Firestore + Firebase Authentication、Cloudflare Registrar/DNS only。Cloud Armor/Global LB/Cloud Run Webの `armor-run` は**以前検討した比較シナリオであり初期採用していない**。下記の推定表は当時のTCO感度を残したもので、Productionの実料金・承認済み予算ではない。0B公開までにCloud Billing Budget多段階通知・実着信、Run/Firestoreの異常利用監視とCloud Run min0/DEV max1/PROD max3の実照合が必要。Budgetやmax instancesを費用hard capと扱わず、Cloud Run Spend Cap previewは提供範囲・別リソース停止影響を確認してから採否を判断する（Firestoreの料金停止は対象外）。
+
+
+
 `hosting-run`は現行Firebase Hosting（静的配信とAPI rewrite）＋API Cloud Run。`armor-run`はNotion 06の暫定候補であるGlobal LB＋同一Armor policy・8 rules＋Web/APIの2 Cloud Run、CDNなし。後者だけに本番固定$31.25と常設DEV固定$31.25を計上する。構築済みとは扱わない。静的ファイルにもRun request/割当CPU・RAM、WAF、LB入出力、Internet送信を計上し、Hosting転送と重ねない。browser cacheはCDNと別で、HTMLは毎回no-storeのまま。
 
 標準は200 MyPage DAU・visible 2時間/日・30日。overviewの初期取得を含み60秒726,000→5分150,000 GET/月。別に1 documentあたり1回のsession完了をsource見積もりで加え、標準では6000 POST/月と4 read相当/POSTを計上する。route外・hidden・offlineの削減、singleflight/cache hitは未測定なので追加控除しない。Bot DAUは別入力で、月次writer追加費をMyPage利用者だけに限定しない。小規模ではwriterの追加費がraw削減を上回る場合があり、月次方式を無条件に安いとしない。
