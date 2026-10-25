@@ -38,7 +38,7 @@ export type PrivacyRequestStatus = {
 	reply?: string
 	replyAt?: string
 }
-export type ConfirmationResult =
+type ConfirmationResult =
 	| { purpose: 'login' }
 	| { purpose: 'support'; requestRef: string; supportRequestRef?: string }
 export type ChannelConfirmation = (
