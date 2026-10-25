@@ -5,6 +5,16 @@
 > [!IMPORTANT]
 > The monitor is **not display-only in the current architecture**. `src/components/MainContent.tsx` also calculates desired general/member seat counts from room definitions and current occupancy, then can call `POST /set_desired_max_seats`. Before changing room definitions or seat counts, read [`../docs/development/architecture.md`](../docs/development/architecture.md).
 
+## Planned Firebase Auth requirement for OBS (Phase 0B prerequisite; not implemented)
+
+The current monitor uses browser `onSnapshot` listeners to read `seats`, `member-seats`, `menu`, `work-name-trend`, and `config/constants` without signing in. Current Firestore Security Rules explicitly allow anonymous reads. The OBS browser source being unpublished does not hide the Firestore data API.
+
+[Issue #1459](https://github.com/kani3camp/youtube-study-space/issues/1459) requires replacing this with **a dedicated operator-controlled Firebase Auth user**, allowing only that UID and monitor-only claim to read the necessary documents. General MyPage Firebase users must not receive this privilege; no Client SDK writes should be enabled. The existing `/set_desired_max_seats` HTTP control path is independent and must continue to pass its existing checks.
+
+First-choice operator flow: open the OBS browser source's **Interact** view, sign in once using a non-Google embedded-browser-compatible Firebase method, and use Firebase `browserLocalPersistence` for subsequent sessions. A normal Chrome login is not presumed to be shared with OBS/CEF. Verify CEF IndexedDB/persistence, OBS/PC restart, scene switch, token renewal, logout/revocation, and failure notification on the actual OBS version before considering this complete. Do not store service-account keys or administrator tokens in `NEXT_PUBLIC_*`, URLs, or OBS browser parameters.
+
+Deployment ordering: create the monitor identity and implement authenticated subscriptions first; test rules in Emulator and DEV; then enforce new Rules in a coordinated DEV/PROD rollout, verify production live subscriptions, and keep a safe rollback path. **Do not deploy deny-only Rules before the monitor can authenticate.** Phase 0A owner-only MyPage testing may continue; [Phase 0B public availability is blocked](https://github.com/kani3camp/youtube-study-space/issues/1133) until this is verified.
+
 ## Setup
 
 Use the runtime versions declared by [`package.json`](./package.json); do not copy version numbers into other docs.
