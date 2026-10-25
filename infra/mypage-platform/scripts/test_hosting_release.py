@@ -207,6 +207,28 @@ class ReleaseTest(unittest.TestCase):
             self.assertEqual(record['publishStatus'], 'unknown')
             self.assertEqual(record['previousVersion'], 'sites/' + h.SITE + '/versions/old')
 
+    def test_public_smoke_requires_application_rejection_not_arbitrary_upstream_403(self):
+        with tempfile.TemporaryDirectory() as temp:
+            dist = self.make_dist(Path(temp))
+            release = {'files': h.inventory(dist)}
+            rest = hosting()
+            mode = {'code': 'APP_CHECK_REQUIRED'}
+            def public(url):
+                name = url.removeprefix(h.ORIGIN + '/')
+                if name == 'api/mypage':
+                    return 403, {'Cache-Control': 'no-store'}, h.canonical({'error': {'code': mode['code']}})
+                if name in ('', 'mypage'):
+                    name = 'index.html'
+                headers = dict(rest['headers'][0]['headers'])
+                if name.startswith('assets/'):
+                    headers['Cache-Control'] = h.IMMUTABLE
+                return 200, headers, (dist / name).read_bytes()
+            with patch.object(h, 'http', side_effect=public):
+                h.verify_public(release, rest)
+                mode['code'] = 'UPSTREAM_FORBIDDEN'
+                with self.assertRaises(ValueError):
+                    h.verify_public(release, rest)
+
 
 if __name__ == '__main__':
     unittest.main()

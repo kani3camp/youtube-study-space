@@ -198,7 +198,9 @@ def http(url, *, token=None, method='GET', body=None, binary=False, github=False
     except urllib.error.HTTPError as error:
         # Never print provider responses, auth headers, URLs, or user data.
         if not token and method == 'GET':
-            return error.code, dict(error.headers), b''
+            data = error.read(MAX_FILE + 1)
+            need(len(data) <= MAX_FILE, 'http-size')
+            return error.code, dict(error.headers), data
         raise ValueError('cloud-http-' + str(error.code)) from None
 
 
@@ -334,8 +336,9 @@ def verify_public(release, hosting):
     for route in ('/', '/mypage'):
         status, headers, data = http(ORIGIN + route)
         need(status == 200 and sha(data) == release['files']['index.html']['sha256'], 'public-route')
-    status, headers, _ = http(ORIGIN + '/api/mypage')
-    need(status == 403, 'anonymous-api')
+    status, headers, data = http(ORIGIN + '/api/mypage')
+    need(status == 403 and json.loads(data).get('error', {}).get('code') == 'APP_CHECK_REQUIRED' and
+         {k.lower(): v for k, v in headers.items()}.get('cache-control') == 'no-store', 'anonymous-api')
 
 
 def main():
