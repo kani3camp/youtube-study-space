@@ -121,7 +121,7 @@ GitHub Environment `mypage-dev-hosting`には、**公開項目だけ**の`MYPAGE
 
 **IAMの限界**：[Firebase公式](https://firebase.google.com/docs/projects/iam/permissions)ではHostingのcustom roleは未対応。DEV projectだけの`roles/firebasehosting.admin`を専用SAへ付与するため、IAM上はDEV内の他Hosting siteの作成/削除等も可能な権限を含む。site1個への限定は固定API/配備契約と強いWIF admissionで行うもので、IAMによるsite単位制限とは呼ばない。API比較のため`mypage-api`1 serviceの`roles/run.viewer`と、quota用のDEV `roles/serviceusage.serviceUsageConsumer`だけを加える。Cloud Run update、Firestore、Auth、Secret、IAM setter、Productionへの権限は付与しない。
 
-失敗時はsanitized release recordのpreviousVersion/previousReleaseと現在配信を照合し、明示的に復旧判断する。自動rollback・古いartifactの再利用はしない。Firebaseのrelease切替APIにcompare-and-swapはなく、直前の一致確認とCI concurrencyは外部operatorの同時更新を完全に防ぐものではない。実行中は別経路のHosting更新を避ける。切替後に検証が失敗した場合は、live更新済み・CI失敗として扱う。recordはApply jobが切替直後に保存し、成功/失敗にかかわらず14日間のCI artifactへ残す。publicファイルと公開設定だけのbuild artifactは1日で期限切れにする。
+失敗時はsanitized release recordのpreviousVersion/previousReleaseと現在配信を照合し、明示的に復旧判断する。自動rollback・古いartifactの再利用はしない。Firebaseのrelease切替APIにcompare-and-swapはなく、直前の一致確認とCI concurrencyは外部operatorの同時更新を完全に防ぐものではない。実行中は別経路のHosting更新を避ける。切替後に検証が失敗した場合は、live更新済み・CI失敗として扱う。recordは切替API呼出し**前**にunknownで保存し、応答を確認できた時だけconfirmedへ更新する。応答喪失時もpreviousVersionを残し、成功/失敗にかかわらず14日間のCI artifactへ保全する。publicファイルと公開設定だけのbuild artifactは1日で期限切れにする。
 
 この経路はDEV frontend専用。Production、Backend image更新、Terraform変更を同時に自動化したとは扱わない。後続のProduction経路は公開Gate・独立Environment/権限・配備対象をレビューしてから追加し、本番未公開を維持する。
 

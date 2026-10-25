@@ -299,18 +299,22 @@ def deploy(env, *, request=cloud, transport=http):
     need(current(token)['name'] == before['name'], 'hosting-moved')
     need(backend(token) == api_before, 'backend-moved')
     verify_head(env)
-    # This is the only operation that changes live page content. No retry.
+    record = {'schemaVersion': 1, 'environment': 'development', 'sourceSHA': env['GITHUB_SHA'],
+              'workflowRun': 'https://github.com/' + REPOSITORY + '/actions/runs/' + env['GITHUB_RUN_ID'],
+              'packageSHA256': env['MYPAGE_HOSTING_PACKAGE_DIGEST'], 'hostingRelease': None,
+              'hostingVersion': name, 'previousRelease': before['name'], 'previousVersion': before['version']['name'],
+              'backendRevision': api_before['latestReadyRevision'].rsplit('/', 1)[-1],
+              'analyticsEnabled': False, 'realGA4Verified': False,
+              'publishStatus': 'unknown', 'publicReadback': 'pending'}
+    record_path = Path(env['RUNNER_TEMP']) / 'mypage-hosting-release-record.json'
+    # Persist rollback references BEFORE the live switch: a lost response may
+    # mean the publish succeeded. Preserve unknown and never retry that write.
+    record_path.write_bytes(canonical(record))
     published = request(API + 'sites/' + SITE + '/releases?versionName=' + name, token,
                         method='POST', body={'message': 'CI DEV MyPage ' + env['GITHUB_SHA']})
     need(published.get('version', {}).get('name') == name and published.get('type') == 'DEPLOY', 'release-response')
-    record = {'schemaVersion': 1, 'environment': 'development', 'sourceSHA': env['GITHUB_SHA'],
-              'workflowRun': 'https://github.com/' + REPOSITORY + '/actions/runs/' + env['GITHUB_RUN_ID'],
-              'packageSHA256': env['MYPAGE_HOSTING_PACKAGE_DIGEST'], 'hostingRelease': published.get('name'),
-              'hostingVersion': name, 'previousRelease': before['name'], 'previousVersion': before['version']['name'],
-              'backendRevision': api_before['latestReadyRevision'].rsplit('/', 1)[-1],
-              'analyticsEnabled': False, 'realGA4Verified': False, 'publicReadback': 'pending'}
-    record_path = Path(env['RUNNER_TEMP']) / 'mypage-hosting-release-record.json'
-    record_path.write_bytes(canonical(record))  # Preserve the receipt even if smoke fails.
+    record.update(hostingRelease=published.get('name'), publishStatus='confirmed')
+    record_path.write_bytes(canonical(record))
     need(current(token)['version']['name'] == name and backend(token) == api_before, 'post-release-state')
     verify_public(release, hosting)
     record['publicReadback'] = 'passed'

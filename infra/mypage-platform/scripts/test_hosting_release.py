@@ -115,7 +115,7 @@ class ReleaseTest(unittest.TestCase):
             with self.subTest(change=change), patch.object(h, 'cloud', return_value=value | change), self.assertRaises(ValueError):
                 h.backend('synthetic-token')
 
-    def publication(self, package, *, moved=False, upload_foreign=False, upload_failure=False, smoke_failure=False):
+    def publication(self, package, *, moved=False, upload_foreign=False, upload_failure=False, smoke_failure=False, lost_ack=False):
         env = environment() | {'RUNNER_TEMP': str(package.parent), 'MYPAGE_HOSTING_PACKAGE_DIGEST': 'b' * 64}
         rest = hosting()
         release = {'files': h.inventory(package / 'dist')}
@@ -151,6 +151,8 @@ class ReleaseTest(unittest.TestCase):
                 return {'name': name, 'status': 'FINALIZED'}
             if '/releases?' in url:
                 state['current'] = {'name': 'sites/' + h.SITE + '/releases/new', 'version': {'name': name}, 'type': 'DEPLOY'}
+                if lost_ack:
+                    raise ValueError('synthetic-lost-response')
                 return state['current']
             raise AssertionError('Unexpected fake cloud call')
         def upload(*args, **kwargs):
@@ -163,9 +165,9 @@ class ReleaseTest(unittest.TestCase):
             try:
                 h.deploy(env, request=request, transport=upload)
             except ValueError:
-                self.assertTrue(moved or upload_foreign or upload_failure or smoke_failure)
+                self.assertTrue(moved or upload_foreign or upload_failure or smoke_failure or lost_ack)
             else:
-                self.assertFalse(moved or upload_foreign or upload_failure or smoke_failure)
+                self.assertFalse(moved or upload_foreign or upload_failure or smoke_failure or lost_ack)
         return calls, package.parent / 'mypage-hosting-release-record.json'
 
     def test_stages_before_single_live_publish_and_preserves_rollback_receipt(self):
@@ -194,6 +196,16 @@ class ReleaseTest(unittest.TestCase):
             calls, receipt = self.publication(package, smoke_failure=True)
             self.assertEqual(sum('/releases?' in url for _, url in calls), 1)
             self.assertEqual(json.loads(receipt.read_bytes())['publicReadback'], 'pending')
+
+    def test_lost_publish_response_retains_unknown_and_rollback_refs_without_retry(self):
+        with tempfile.TemporaryDirectory() as temp:
+            package = Path(temp) / 'package'
+            self.make_dist(package)
+            calls, receipt = self.publication(package, lost_ack=True)
+            self.assertEqual(sum('/releases?' in url for _, url in calls), 1)
+            record = json.loads(receipt.read_bytes())
+            self.assertEqual(record['publishStatus'], 'unknown')
+            self.assertEqual(record['previousVersion'], 'sites/' + h.SITE + '/versions/old')
 
 
 if __name__ == '__main__':
