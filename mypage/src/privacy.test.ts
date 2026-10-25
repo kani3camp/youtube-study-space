@@ -52,6 +52,11 @@ describe('privacy consent and analytics boundary', () => {
 		expect([...values]).toEqual([[consentKey, 'denied']])
 		dispose()
 	})
+	it('ignores choices made before GA4 was connected', () => {
+		const { values, storage } = storageFixture()
+		values.set('oss.analytics-consent.v1', 'granted')
+		expect(new ConsentStore(storage).getSnapshot().value).toBe('unset')
+	})
 	it('restores only non-identifying choices and fails closed for invalid/unavailable storage', () => {
 		const { values, storage } = storageFixture()
 		values.set(consentKey, '{"uid":"synthetic"}')
