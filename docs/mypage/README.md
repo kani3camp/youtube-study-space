@@ -25,6 +25,14 @@ python .github/scripts/check-mypage-contract.py
 
 Frontend と backend は独立して検証する。provisioning / production deployment はこの実装 stack に含まない。
 
+## 2026-10-25 deployment choice and cross-system release gates (not evidence of release)
+
+Production and development target **Firebase Hosting (React/Vite) + same-origin `/api/**` rewrite + Cloud Run Go BFF + Firestore + Firebase Authentication**. Cloudflare is Registrar/DNS only. The initial release does **not** depend on a managed WAF, Cloud Armor, a dedicated external load balancer, a Cloud Run web service, or disabling `run.app` URLs. Authentication/App Check/UID/SAC, actual Hosting and direct-Run tests (S01), OAuth callback logging tests (S04), Privacy/Support and rollback remain mandatory.
+
+Before Phase 0B is accessible to real users, [Issue #1459](https://github.com/kani3camp/youtube-study-space/issues/1459) must replace the OBS monitor's anonymous Firestore Client SDK reads with dedicated Firebase Authentication + restrictive Security Rules, and verify CEF/OBS persistence and recovery in DEV/PROD. This does not change the MyPage BFF's server-side Firestore IAM boundary. Phase 0A owner-only testing remains allowed.
+
+Cost controls require readback of Cloud Run `min=0`/`max=1` DEV and `min=0`/`max=3` PROD, verified multi-threshold billing alerts and delivery, traffic/429/5xx/instance monitoring, and Firestore read/YouTube quota monitoring. Billing Budgets and instance limits are **not** hard spending caps. Any Cloud Run Spend Cap preview adoption needs separate availability and blast-radius review and does not cap Firestore billing. See [release runbook](release/README.md), [gate issue #1133](https://github.com/kani3camp/youtube-study-space/issues/1133), and [Current Canon 06/07](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634).
+
 ## 月次の読み取り用履歴
 
 日別の終了区間件数も保持し、明細queryのscan予算を検証できるようにする。寄与した原区間の最遠endでfuture区間の影響を過去日にも伝える。各scalarは欠損・null・別型を拒否し、0/falseへ暗黙変換しない。
