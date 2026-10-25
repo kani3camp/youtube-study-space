@@ -33,7 +33,7 @@ NODE = {'youtube_monitor', 'mypage', 'docs_site', 'menu_image_generator', 'video
 GROUPS = ('system', 'room_image_prompt', 'menu_image_generator', 'video_maker_simulator',
           'figma_plugin', 'youtube_monitor', 'mypage', 'docs_site', 'aws_cdk', 'gcp_terraform',
           'node_projects', 'firestore_integration', 'formal_spec', 'all')
-DEPENDENCIES = {'changes', *MODULES, 'gcp-terraform-validate', 'gcp-user-activity-schema-audit', 'mypage-foundation-authenticated'}
+DEPENDENCIES = {'changes', *MODULES, 'gcp-terraform-validate', 'gcp-user-activity-schema-audit', 'mypage-foundation-authenticated', 'mypage-hosting-authenticated'}
 AUTH_SECRETS = ('GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', 'GCP_TERRAFORM_NORMAL_WIF_PROVIDER', 'AWS_TERRAFORM_BACKEND_ROLE_ARN', 'AWS_TERRAFORM_BACKEND_ROLE_ID',
                 'AWS_TERRAFORM_STATE_BUCKET', 'AWS_TERRAFORM_STATE_ACCOUNT_ID',
                 'GCP_TERRAFORM_WIF_PROVIDER', 'GCP_TERRAFORM_SERVICE_ACCOUNT',
@@ -72,6 +72,7 @@ def validate(caller, modules):
     require(check['run'] == 'python3 .github/scripts/check-ci-results.py' and 'if' not in check,
             'Execute the tested result gate unconditionally')
     require(check['env'] == {'CI_NEEDS': '${{ toJSON(needs) }}',
+            'CI_MYPAGE_HOSTING_REQUESTED': "${{ github.event_name == 'workflow_dispatch' && inputs.mypage_hosting == true }}",
             'CI_MYPAGE_FOUNDATION_REQUESTED': "${{ github.event_name == 'workflow_dispatch' && inputs.mypage_foundation == true }}",
             'CI_SCHEMA_AUDIT_REQUESTED': "${{ github.event_name == 'workflow_dispatch' && inputs.gcp_user_activity_schema_audit == true }}"},
             'Gate receives real results and typed audit selection')
@@ -120,17 +121,17 @@ def validate(caller, modules):
     ):
         call = jobs[name]
         require(set(call) == {'name', 'if', 'permissions', 'uses', 'secrets', 'with'}, 'Operational caller stays direct')
-        require(call['if'] == "${{ github.event_name == 'workflow_dispatch' && inputs." + toggle + ' == true }}',
-                'Operational admission is unchanged')
+        require(call['if'] == "${{ github.event_name == 'workflow_dispatch' && inputs." + toggle + ' == true && inputs.mypage_hosting != true }}',
+                'Operational admission excludes simultaneous Hosting releases')
         require(call['permissions'] == {'contents': 'read', 'id-token': 'write'}, 'Only operational calls grant OIDC')
         require(call['uses'] == './.github/workflows/' + name + '.yml', 'Operational workflow path stays fixed')
         require(call['secrets'] == {s: '${{ secrets.' + s + ' }}' for s in secrets}, 'Explicit operational secrets')
         require(call['with'] == arguments, 'Operational inputs stay fixed')
     dispatch = caller['on']['workflow_dispatch']['inputs']
     require(set(dispatch) == {'terraform_authenticated', 'terraform_target', 'terraform_mode', 'terraform_expected_sha', 'gcp_user_activity_schema_audit',
-                             'mypage_foundation', 'mypage_foundation_mode', 'mypage_foundation_expected_sha'},
+                             'mypage_foundation', 'mypage_foundation_mode', 'mypage_foundation_expected_sha', 'mypage_hosting', 'mypage_hosting_expected_sha'},
             'No retired operational mode/input returns')
-    for toggle in ('terraform_authenticated', 'gcp_user_activity_schema_audit', 'mypage_foundation'):
+    for toggle in ('terraform_authenticated', 'gcp_user_activity_schema_audit', 'mypage_foundation', 'mypage_hosting'):
         require(dispatch[toggle]['type'] == 'boolean' and dispatch[toggle]['default'] is False
                 and dispatch[toggle]['required'] is False, 'Operations remain opt-in')
     for key, default, options in (('terraform_target', 'dev', ['dev', 'prod']),
@@ -140,7 +141,7 @@ def validate(caller, modules):
                 and dispatch[key]['options'] == options and dispatch[key]['required'] is False, 'Dispatch choices stay fixed')
     require(caller['concurrency'] == {
         'group': '${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}',
-        'cancel-in-progress': "${{ !(github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.mypage_foundation == true)) }}"},
+        'cancel-in-progress': "${{ !(github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.mypage_foundation == true || inputs.mypage_hosting == true)) }}"},
         'Authenticated execution cannot be auto-cancelled')
 
 

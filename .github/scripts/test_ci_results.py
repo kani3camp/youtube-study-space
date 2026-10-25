@@ -103,3 +103,13 @@ class GateResultsTest(unittest.TestCase):
             env = dict(os.environ, CI_NEEDS=payload, CI_SCHEMA_AUDIT_REQUESTED='false')
             result = subprocess.run([sys.executable, str(SCRIPT)], env=env, capture_output=True)
             self.assertEqual(result.returncode, expected, result.stderr)
+
+    def test_requested_hosting_includes_build_apply_and_browser_result(self):
+        needs = self.fixture()
+        with self.assertRaises(ValueError):
+            gate.validate(needs, 'false', 'false', 'true')
+        needs['mypage-hosting-authenticated']['result'] = 'success'
+        gate.validate(needs, 'false', 'false', 'true')
+        for bad in ('', 'TRUE', '1'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                gate.validate(needs, 'false', 'false', bad)
