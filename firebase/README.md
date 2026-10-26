@@ -26,13 +26,15 @@ bash .github/scripts/run-firestore-integration-tests.sh
 
 Requirements are Node.js, Java 21 or later, and the pinned Firebase CLI version used by CI. The script starts Firestore Emulator and runs the Go integration suite. It does not require a real Firebase project or production credentials.
 
-This layer validates Firestore serialization, transactions, and repository/application behavior against Emulator semantics. It does **not** by itself prove what an anonymous/browser Client SDK caller is allowed to access.
+The script installs the isolated dependencies in this directory, runs `firestore.rules.test.mjs` with `@firebase/rules-unit-testing`, and then runs the Go integration suite. The Go layer validates Firestore serialization, transactions, and repository/application behavior against Emulator semantics. The Rules test separately exercises browser Client SDK allow/deny behavior.
 
 ### 3. Client SDK / Security Rules behavior
 
 When `firestore.rules` changes, reason explicitly about browser/client access separately from server-side Go behavior. Verify the intended allow/deny cases for every changed public boundary, especially `config/*` and any collection consumed by `youtube-monitor`.
 
 A Go test using server credentials can bypass the question that Security Rules answer. Do not treat a passing Go Emulator integration suite as sufficient evidence for a client-access policy change.
+
+The monitor read boundary requires both `monitor_reader: true` in the Firebase ID token and an enabled `_monitor-readers/{uid}` document. Client rules never expose or mutate that allowlist. Provision claims and allowlist documents only through trusted Admin/server operations, and see [`../youtube-monitor/README.md`](../youtube-monitor/README.md) for the staged rollout and fail-closed rollback procedure.
 
 ## Existing project: inspect before deploying
 
