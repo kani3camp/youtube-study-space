@@ -40,4 +40,14 @@ mutation前に14日保存の `mypage-backend-release-record` を作り、前revi
 
 ## 実受入記録
 
-Source/合成テストと実環境を区別する。専用WIF/Environment readback、実CI update、Ready/匿名smoke/State readbackは未実施。過去のimage-buildやowner配備成功を新CI配備の証明へ読み替えない。
+Source/合成テストと実環境を区別する。過去のimage-buildやowner配備成功を別sourceのCI配備の証明へ読み替えない。
+
+### 2026-10-26 初回DEV実受入
+
+- 経路sourceは [PR #1461](https://github.com/kani3camp/youtube-study-space/pull/1461)、統合commit `ce947c18c192766d9d8d213b3ec52cdff741edca`。全checks、`CI Gate`、`GCP Terraform Validate`成功後にMyPage統合ブランチへmergeした。base=`dev`のPR #1236は変更・mergeしていない。
+- 専用SA/custom role/WIF pool/provider/Environmentを接続。user-managed SA key 0、provider ACTIVE、issuerと全claim条件一致、統合branch policy 1件を確認した。専用SAのgrantは `mypage-api` のcustom role（`run.services.get` / `run.services.update`）、runtime SAの`roles/iam.serviceAccountUser`、DEV `mypage` registryのreader、DEV projectのHosting viewer/quota consumerだけ。他のproject grant 0、Production変更0。
+- 初回bootstrapはfederation付与後、Cloud Run CLIへ未対応のcondition引数を渡して停止した。停止後readbackでRun/runtime/registry/project grant 0・Environment 0を確認し、[修正commit](https://github.com/kani3camp/youtube-study-space/commit/8070a988b7462ab5563adb516aef44e774bc7502)後に未追加分だけを実行した。最後に全identity/grant/Environmentを完全readbackした。image/Cloud Run revision/Stateはこのbootstrap中に変更していない。
+- 実配備用imageは [image-build run 40329375886](https://github.com/kani3camp/youtube-study-space/actions/runs/40329375886) のsource `9fb4a8b7f93b1087b8669348f6f765943ae693f1`。image build、nonroot/offline check、immutable push、CI Gateが成功。digest `sha256:ddeb5777ddbc4ab5ce4b0f7dfe9e845fc9189a1d4f07f6753305bd8995d8cc7e` はregistry metadataでreadbackし、[PR #1463](https://github.com/kani3camp/youtube-study-space/pull/1463) / merge `8cc177c29dbf542ddc43b832be03aaa8f68e0f20` で固定した。
+- [初回Backend CI run 40334533591](https://github.com/kani3camp/youtube-study-space/actions/runs/40334533591) / attempt 1 / exact source `8cc177c29dbf542ddc43b832be03aaa8f68e0f20` はsuccess。Repository/System検査後、image-only update、Ready/設定不変、Hosting `APP_CHECK_REQUIRED` 403、直接Run `INVALID_REQUEST` 400、両方no-store、Hosting画面を検証した。Foundation plan/apply、saved Plan一致、限定State refresh/readback、cleanup、verified receipt、CI Gateも全てsuccess。
+- 配備後はrevision `mypage-api-00007-9xm`、latest created/ready一致、上記digest、latest traffic 100%、maxScale 1、`MYPAGE_READ_METRICS` OFFを独立readbackした。`mypage-backend-release-record` と `mypage-backend-verified-record` は14日artifact。verified recordの`stateReadback=passed`まで確認済み。
+- 実OAuth、認証済み複数account E2E、Privacy削除、GA4送信、Phase 0A/0B公開Gate、Productionはこの受入範囲外で、未完了状態を維持する。
