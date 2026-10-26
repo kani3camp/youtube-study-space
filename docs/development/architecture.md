@@ -64,13 +64,11 @@ See [`../../youtube-monitor/README.md`](../../youtube-monitor/README.md) for bui
 
 ## Firestore access boundaries
 
-### 2026-10-25 pre-release monitor authentication decision (not yet implemented)
+### 2026-10-25 pre-release monitor authentication decision (source implemented; live rollout pending)
 
-The OBS `youtube-monitor` is a Firebase browser Client SDK caller. Current Rules grant anonymous reads on `seats`, `member-seats`, `menu`, `work-name-trend`, and `config/constants`, even though the OBS monitor page itself is not publicly advertised. Before MyPage Phase 0B, move the monitor to a dedicated Firebase Auth principal and scope these reads to that monitor user/claim; reject anonymous and normal MyPage users. **Server Go/Admin SDK accesses use IAM and application authorization, not these Rules.** Security Rules do not serve as a WAF or a spending cap.
+The OBS `youtube-monitor` is a Firebase browser Client SDK caller. Repository source now requires a dedicated Firebase Auth principal plus the monitor claim/allowlist for reads of `seats`, `member-seats`, `menu`, `work-name-trend`, and `config/constants`; anonymous and normal MyPage users are rejected. This source state does **not** prove that DEV or PROD Rules and monitor assets have been deployed together. **Server Go/Admin SDK accesses use IAM and application authorization, not these Rules.** Security Rules do not serve as a WAF or a spending cap.
 
-The first operational candidate is a single interactive OBS browser sign-in with Firebase local persistence. OBS/CEF restart behavior and token restoration need a live acceptance test, including scene switches and notification/recovery on auth expiry. Preserve the monitor's current `set_desired_max_seats` control loop when changing Firestore subscriptions. Follow [monitor issue #1459](https://github.com/kani3camp/youtube-study-space/issues/1459), [Firebase Rules guidance](../../firebase/README.md), and [MyPage Phase 0B gate #1133](https://github.com/kani3camp/youtube-study-space/issues/1133).
-
-
+The implemented operator flow uses a single interactive OBS browser sign-in with Firebase local persistence. OBS/CEF restart behavior and token restoration still need a live acceptance test, including scene switches and notification/recovery on auth expiry. Preserve the monitor's current `set_desired_max_seats` control loop when changing Firestore subscriptions. Follow [monitor issue #1459](https://github.com/kani3camp/youtube-study-space/issues/1459), [Firebase Rules guidance](../../firebase/README.md), and [MyPage Phase 0B gate #1133](https://github.com/kani3camp/youtube-study-space/issues/1133).
 
 Server-side Go repository tests and browser Client SDK security rules answer different questions:
 

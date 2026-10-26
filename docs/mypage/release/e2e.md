@@ -8,7 +8,7 @@
 
 | Gate | 実経路の受入 | 現時点 |
 | --- | --- | --- |
-| MON-01 Rules | Firebase Client SDKから匿名・通常MyPageユーザーの `seats/member-seats/menu/work-name-trend/config/constants` read/listが拒否、専用monitor UID/claimのみ必要read許可、全client write拒否 | 未実装／未実証 |
+| MON-01 Rules | Firebase Client SDKから匿名・通常MyPageユーザーの `seats/member-seats/menu/work-name-trend/config/constants` read/listが拒否、専用monitor UID/claimのみ必要read許可、全client write拒否 | source/Emulator contractあり、DEV/PROD未実証 |
 | MON-02 OBS | OBSブラウザソースのInteractログイン、`browserLocalPersistence`、scene切替/OBS・PC再起動/24時間相当稼働、token更新・失効・通知・再ログインを実OBS/CEFで確認 | 未実証 |
 | MON-03 cutover | DEV/PRODでRules version・monitor購読・ seat-count API回帰・バックアウト手順を整合。認証不能時に匿名readへ無断rollbackしない | 未実証 |
 | COST-01 limits | Run DEV min0/max1・PROD min0/max3をlive readback。requestのtimeout/body/query上限とUID/IP limiter・S01をHostingおよび`run.app`直接で検証 | 部分sourceあり、実経路要確認 |

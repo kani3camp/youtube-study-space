@@ -10,9 +10,9 @@
 
 **現行の採用目標**：Development/ProductionともFirebase Hosting (React/Vite) + `/api/**` Cloud Run Go BFF rewrite + Firebase Authentication + Firestoreを継続。CloudflareはRegistrar/DNS onlyで、**Cloudflare HTTP Proxy/WAF、Cloud Armor、専用外部LB、Cloud Run Webは初期採用しない**。標準 `run.app` への直接到達は許容するが、認証・App Check・SAC・Cookie/state/Origin・IP/UID limiter・S01/S04を全経路で検証する。[Notion 07](https://app.notion.com/p/3ef357a8d0ce81b5892ac1dc2c99e587) / [06](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634) を正とし、旧Managed WAF必須のチェック項目は履歴として扱う。
 
-**Phase 0A** は運営者限定でE2E検証を続行可能。**Phase 0B** はURLを知る実ユーザーがアクセス可能となるため、次の受入を追加する。以下はすべてPENDINGであり、仕様記載とPR作成だけでGate完了とは扱わない。
+**Phase 0A** は運営者限定でE2E検証を続行可能。**Phase 0B** はURLを知る実ユーザーがアクセス可能となるため、次の受入を追加する。monitor認証と制限Rulesのrepository sourceは実装済みだが、以下のlive受入はすべてPENDINGであり、仕様記載・source・Emulator CIだけでGate完了とは扱わない。
 
-- [ ] [monitor認証必須 #1459](https://github.com/kani3camp/youtube-study-space/issues/1459)：OBSブラウザソースで専用Firebase Auth主体に一度サインインしてlocal persistenceを用いる方式を第一候補にする。Firestore Rulesは `seats` / `member-seats` / `menu` / `work-name-trend` / `config/constants` の匿名read/listを廃止し、専用monitor主体にのみ必要なreadを許可。一般MyPage UIDや匿名・別projectは拒否、書込は禁止。
+- [ ] [monitor認証必須 #1459](https://github.com/kani3camp/youtube-study-space/issues/1459)：実装済みのOBS Interactログイン、local persistence、monitor claim + UID allowlist、制限Rulesを同じrelease pairとしてDEV/PRODへ段階適用する。repository Rulesは `seats` / `member-seats` / `menu` / `work-name-trend` / `config/constants` の匿名read/listを廃止し、専用monitor主体にのみ必要なreadを許可する。一般MyPage UIDや匿名・別projectは拒否、書込は禁止。
 - [ ] OBS/CEFの実再起動・PC再起動・scene変更・long-running token refresh・権限失効時通知/復旧と、既存monitor seat-count制御の回帰を確認。まずDEV、その後ProductionのRulesとmonitorを整合させて段階適用。未対応Rulesだけ先にdeployしない。
 - [ ] DEV min0/max1、PROD min0/max3、request-based、timeout/body/query予算をTerraformとGCP実値で照合。Cloud Run max instancesは料金hard capではない。
 - [ ] **費用とabuse監視**：環境別にCloud Billing Budgetの多段階アラート・通知先・実着信を検証。Cloud MonitoringでRun request/instance/429/5xx、Firestore reads、YouTube quota、異常アクセスを監視。予算額・thresholdは正常時請求から決め、Budgetは自動停止ではないと明示。Cloud Run Spend Cap previewは利用可能性・同じprojectの他Cloud Run停止影響を確認するまで採用済み扱いしない。Firestoreは別管理。
@@ -189,7 +189,7 @@ go run ./cmd/mypage-history-rebuild --environment=development \
 | MyPage Ready Gate | [infra正本Phase6](https://app.notion.com/p/3d3357a8d0ce81f589a3d6b9c8e237bc)のdev/prod基盤・ownership・Firebase境界・keyless CI | resource本実装/provisioningへ進まない |
 | Phase 0A準備 | exact commit/CI、設定preflight、公開文面とAPI前同意、対象/rollback/実試験計画 | local prepareは継続。target値を推測しない |
 | 0A実施承認 | 対象project/domain/revision、操作一覧、本人test accounts、infra/security証跡、秘密の供給方式 | live実行/公開/追加IAMを行わない |
-| 0B受入 | 0A実経路とCanon S01/S04の検証PASS（必要なら局所修正後）、D01実装証跡、D02両取消経路の規約適合性確認、D03実値、人的Privacy窓口、7暦日削除/cleanup、実metadata/log/backup inventory | 実ユーザー受入を停止 |
+| 0B受入 | 0A実経路とCanon S01/S04の検証PASS（必要なら局所修正後）、MONのDEV/PROD monitor認証・OBS永続化・失敗通知・max-seat回帰、COSTの実課金境界・Budget実着信・異常利用監視、D01実装証跡、D02両取消経路の規約適合性確認、D03実値、人的Privacy窓口、7暦日削除/cleanup、実metadata/log/backup inventory | 実ユーザー受入を停止 |
 | Phase 1一般公開 | OAuth verification完了、0B実account/端末QA、Bot/外部導線、rollback、monitoring | 日付やCI成功だけで告知しない |
 
 初期公開のPrivacy請求は[人的窓口と既存部品の最小運用](owner-packet.md#privacy請求の受付準備)を前提とする。[アプリ内source package](../privacy-intake.md)の有効化は0Bの必須条件ではない。公開manifestの`VITE_PRIVACY_INTAKE_ENABLED`は現時点で`false`のみ受理し、server側も`EnablePrivacyIntake=false`を維持する。no-sessionも同じ人的窓口で扱い、新しいbearer credentialを導入しない。アプリ内受付・返信UIを後で使う場合は独立した公開判断が必要。

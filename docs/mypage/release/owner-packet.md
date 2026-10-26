@@ -31,7 +31,7 @@ D03のうちOAuth user support emailの指定は上記で解消済み。人的Pr
 
 公開ドメインは `https://moku.work/` として**決定済み**。Cloudflare Registrar/DNS only + Firebase Hosting Custom Domain + Cloud Run Go BFFを初期構成とし、Managed WAF/Cloud Armor/専用LBは初期必須にしない。ドメイン登録の実Active状態、DNS/TLS、OAuth callback、Production配備は別途live readback待ち。旧案のLB/Certificate Managerの準備を再開しない。
 
-0B（URLを知る一般ユーザーが利用可能）までに [monitor専用Firebase Auth/Firestore Rules #1459](https://github.com/kani3camp/youtube-study-space/issues/1459) と [公開Gate #1133](https://github.com/kani3camp/youtube-study-space/issues/1133) を実証する。OBS内のInteractで一度ログインする方式を第一候補にするが、実OBS/CEFのログイン永続化・失効通知は未検証。課金についてはDEV/PRODのBilling Budget・複数の通知閾値・通知先・実着信、Cloud RunとFirestoreの利用量監視、DEV/PRODのインスタンス数上限readbackを用意する。Budget通知は課金hard capでなく、Spend Capの利用は別途判断する。
+0B（URLを知る一般ユーザーが利用可能）までに [monitor専用Firebase Auth/Firestore Rules #1459](https://github.com/kani3camp/youtube-study-space/issues/1459) と [公開Gate #1133](https://github.com/kani3camp/youtube-study-space/issues/1133) を実証する。OBSのライブ構成からsourceを隠し、Interactで`/operator-login`を開いて一度ログインしてから`/`へ戻す方式はsource実装済みだが、実OBS/CEFのログイン永続化・失効通知は未検証。課金についてはDEV/PRODのBilling Budget・複数の通知閾値・通知先・実着信、Cloud RunとFirestoreの利用量監視、DEV/PRODのインスタンス数上限readbackを用意する。Budget通知は課金hard capでなく、Spend Capの利用は別途判断する。
 
 ## OAuth / Hostingの安全な先行準備
 
