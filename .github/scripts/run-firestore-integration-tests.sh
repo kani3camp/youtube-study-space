@@ -11,6 +11,8 @@ if ! command -v firebase >/dev/null 2>&1; then
 	exit 1
 fi
 
+npm ci --prefix "$repo_root/firebase"
+
 export GCLOUD_PROJECT="$project_id"
 export GOOGLE_CLOUD_PROJECT="$project_id"
 export FIREBASE_PROJECT_ID="$project_id"
@@ -23,4 +25,4 @@ firebase emulators:exec \
 	--project "$project_id" \
 	--only firestore \
 	--log-verbosity INFO \
-	"cd system && go test -tags=integration -shuffle=on -count=1 -p=1 -v ./core/repository/... ./core/workspaceapp/... ./core/mypage/... ./core/serviceaccess/... ./core/supportdelete/... ./cmd/mypage-operator-dryrun/... ./cmd/service-access-control/... ./cmd/mypage-support-delete/... ./cmd/mypage-support-operator/... ./cmd/mypage-history-rebuild/..."
+	"npm --prefix firebase test && cd system && go test -tags=integration -shuffle=on -count=1 -p=1 -v ./core/repository/... ./core/workspaceapp/... ./core/mypage/... ./core/serviceaccess/... ./core/supportdelete/... ./cmd/mypage-operator-dryrun/... ./cmd/service-access-control/... ./cmd/mypage-support-delete/... ./cmd/mypage-support-operator/... ./cmd/mypage-history-rebuild/..."

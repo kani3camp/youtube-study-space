@@ -44,6 +44,7 @@ All variables below use the `NEXT_PUBLIC_` prefix and are bundled into browser-v
 | `NEXT_PUBLIC_API_KEY` | Client-side API request configuration used by the fetcher. It must not be treated as a server secret because it is shipped to the browser. | Yes |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase/Firestore project identifier used by the client. | Yes |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase web API key used by the client SDK. It is browser-visible configuration, not a server credential. | Yes |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Auth domain for the monitor's Firebase project. | Yes |
 
 The validation/consumers are in `src/lib/constants.ts`, `src/lib/api-config.ts`, `src/lib/fetcher.ts`, and `src/lib/firestore.ts`.
 
@@ -72,10 +73,31 @@ NEXT_PUBLIC_API_ENDPOINT=http://localhost:3000 \
 NEXT_PUBLIC_API_KEY=ci-dummy-api-key \
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=ci-dummy-project \
 NEXT_PUBLIC_FIREBASE_API_KEY=ci-dummy-firebase-api-key \
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=ci-dummy-project.firebaseapp.com \
 pnpm build:ci
 ```
 
 These values are **build-only placeholders**. They do not prove connectivity or behavior against a deployed environment, and `build:ci` does not prove that runtime media has been provisioned.
+
+## Monitor operator authentication
+
+The monitor does not subscribe to Firestore until Firebase Auth restores a local session whose ID token contains the dedicated `monitor_reader: true` custom claim. Firestore Security Rules also require an enabled `_monitor-readers/{uid}` allowlist document. Requiring both boundaries prevents an ordinary MyPage Firebase user or a claim-only account from reading monitor collections.
+
+Provision each environment through trusted Firebase/Admin operations:
+
+1. Enable the Firebase Auth Email/Password provider and create a dedicated monitor operator account. Do not add sign-up to the monitor.
+2. Set the account's custom claim to `monitor_reader: true` with a trusted Admin SDK operation. Never place Admin credentials or a custom-token signer in this client.
+3. Create `_monitor-readers/{uid}` with `{ "enabled": true }` through the Firebase console or a trusted server/Admin SDK. The UID is the document ID. Security Rules deny all browser reads and writes to this collection.
+4. Hide the OBS browser source from the live composition, open `/operator-login` through OBS **Interact**, and sign in once. The page uses `browserLocalPersistence`; credentials themselves are not stored by this application.
+5. Return to `/` and confirm the monitor reads all required collections. If the session, claim, or allowlist is unavailable, or Firestore returns an unrecoverable read error, the monitor unmounts its data consumers and displays a fail-closed operator status instead of continuing with unauthorized data access.
+
+Do not use `/operator-login` as the livestream browser-source URL, and never expose that credential form in a live scene. Removing the claim, deleting the allowlist document, or changing `enabled` to `false` revokes future Rules-authorized reads after the current ID token is refreshed.
+
+### Rollout and rollback
+
+For each environment, prepare the operator account, custom claim, and allowlist first. Deploy the auth-capable monitor and verify its authenticated subscriptions while the previous Rules are still active; then deploy the restrictive Rules and repeat the read and max-seat-control checks. Record DEV evidence before repeating the process in Production.
+
+Do not restore anonymous Firestore Rules as a rollback. If the monitor fails after lockdown, keep Rules closed, take the source out of the live composition, and roll forward with an auth-capable monitor fix. Rules and monitor deployments are separate authorized operations; source tests alone do not prove OBS/CEF persistence, network-disconnect notification, real App Check behavior, or real-environment access.
 
 ## Real-environment verification
 
