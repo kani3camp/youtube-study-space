@@ -104,14 +104,32 @@ def maintenance_resource_contract(value=None):
     bootstrap_email = "mypage-maintenance-bootstrap@" + c.PROJECT + ".iam.gserviceaccount.com"
     inspect_invoker_email = "mypage-maint-inspect-invoker@" + c.PROJECT + ".iam.gserviceaccount.com"
     resources = {
-        MAINTENANCE_OPERATOR_SA: {"project": c.PROJECT, "account_id": "mypage-maintenance-job"},
-        MAINTENANCE_INVOKER_SA: {"project": c.PROJECT, "account_id": "mypage-maintenance-invoker"},
-        MAINTENANCE_BOOTSTRAP_SA: {"project": c.PROJECT, "account_id": "mypage-maintenance-bootstrap"},
-        MAINTENANCE_INSPECT_INVOKER_SA: {"project": c.PROJECT, "account_id": "mypage-maint-inspect-invoker"},
-        MAINTENANCE_ROLE: {"project": c.PROJECT, "role_id": "mypageMaintenanceOperator", "stage": "GA",
+        MAINTENANCE_OPERATOR_SA: {"project": c.PROJECT, "account_id": "mypage-maintenance-job",
+                                  "display_name": "MyPage maintenance state operator",
+                                  "description": "Keyless Cloud Run Job identity for the fixed maintenance CAS binary.",
+                                  "disabled": False, "deletion_policy": "PREVENT"},
+        MAINTENANCE_INVOKER_SA: {"project": c.PROJECT, "account_id": "mypage-maintenance-invoker",
+                                 "display_name": "MyPage maintenance GitHub invoker",
+                                 "description": "Federated identity limited to invoking the maintenance Job.",
+                                 "disabled": False, "deletion_policy": "PREVENT"},
+        MAINTENANCE_BOOTSTRAP_SA: {"project": c.PROJECT, "account_id": "mypage-maintenance-bootstrap",
+                                   "display_name": "MyPage maintenance bootstrap reader",
+                                   "description": "Read-only identity for the fixed pre-deployment initialized-control check.",
+                                   "disabled": False, "deletion_policy": "PREVENT"},
+        MAINTENANCE_INSPECT_INVOKER_SA: {"project": c.PROJECT, "account_id": "mypage-maint-inspect-invoker",
+                                         "display_name": "MyPage maintenance inspect invoker",
+                                         "description": "Keyless GitHub identity that can invoke only the fixed sanitized readback service.",
+                                         "disabled": False, "deletion_policy": "PREVENT"},
+        MAINTENANCE_ROLE: {"project": c.PROJECT, "role_id": "mypageMaintenanceOperator",
+                           "title": "MyPage maintenance control writer",
+                           "description": "Minimum Firestore entity permissions for the maintenance control and audit transaction.",
+                           "stage": "GA", "deletion_policy": "PREVENT",
                            "permissions": ["datastore.databases.get", "datastore.entities.create", "datastore.entities.get", "datastore.entities.update"]},
         MAINTENANCE_FIRESTORE: {"project": c.PROJECT, "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceOperator", "member": "serviceAccount:" + operator_email},
-        MAINTENANCE_BOOTSTRAP_ROLE: {"project": c.PROJECT, "role_id": "mypageMaintenanceBootstrapReader", "stage": "GA",
+        MAINTENANCE_BOOTSTRAP_ROLE: {"project": c.PROJECT, "role_id": "mypageMaintenanceBootstrapReader",
+                                     "title": "MyPage maintenance bootstrap reader",
+                                     "description": "Read-only Firestore entity permissions for the fixed initialized-control deployment barrier.",
+                                     "stage": "GA", "deletion_policy": "PREVENT",
                                      "permissions": ["datastore.databases.get", "datastore.entities.get"]},
         MAINTENANCE_BOOTSTRAP_FIRESTORE: {"project": c.PROJECT, "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceBootstrapReader", "member": "serviceAccount:" + bootstrap_email},
         MAINTENANCE_POOL: {"project": c.PROJECT, "workload_identity_pool_id": "mypage-maintenance", "display_name": "MyPage maintenance GitHub", "disabled": False},
@@ -346,10 +364,23 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
     bootstrap_email = "mypage-maintenance-bootstrap@" + c.PROJECT + ".iam.gserviceaccount.com"
     inspect_invoker_email = "mypage-maint-inspect-invoker@" + c.PROJECT + ".iam.gserviceaccount.com"
     if address in {MAINTENANCE_OPERATOR_SA, MAINTENANCE_INVOKER_SA, MAINTENANCE_BOOTSTRAP_SA, MAINTENANCE_INSPECT_INVOKER_SA}:
-        c.need(after.get("disabled") in {None, False}, "maintenance-service-account-disabled")
+        outputs = {"email", "id", "member", "name", "unique_id"}
+        validate_unknown_paths(unknown, {(name,) for name in outputs}, "maintenance-service-account-unknown")
+        fixed_options(after, set(maintenance_resource_contract()[address]) | outputs,
+                      "maintenance-service-account-options")
+        c.need(after.get("disabled") is False and after.get("deletion_policy") == "PREVENT",
+               "maintenance-service-account-disabled")
         return
     if address in {MAINTENANCE_ROLE, MAINTENANCE_BOOTSTRAP_ROLE}:
-        c.need(after.get("deleted") in {None, False}, "maintenance-role-deleted")
+        # deleted is provider-computed and therefore unknown only on create;
+        # on every existing-role no-op it must be the known false value.
+        role_unknowns = {("id",), ("name",)} | ({("deleted",)} if actions == ["create"] else set())
+        validate_unknown_paths(unknown, role_unknowns, "maintenance-role-unknown")
+        fixed_options(after, set(maintenance_resource_contract()[address]) | {"deleted", "id", "name"},
+                      "maintenance-role-options")
+        c.need(after.get("deletion_policy") == "PREVENT" and
+               (after.get("deleted") is None if actions == ["create"] else after.get("deleted") in {None, False}),
+               "maintenance-role-deleted")
         return
     if address == MAINTENANCE_POOL:
         c.need(after.get("display_name") == "MyPage maintenance GitHub", "maintenance-pool-display")
@@ -515,6 +546,10 @@ def validate_service(after, unknown, value, actions):
         ("template", 0, "containers", 0, "build_info"),
     }
     validate_unknown_paths(unknown, computed_unknowns, "runtime-config-unknown")
+    fixed_options(after, {
+        "project", "name", "location", "ingress", "deletion_policy", "deletion_protection",
+        "invoker_iam_disabled", "launch_stage", "scaling", "traffic", "template", "client", "client_version",
+    } | SERVICE_OBSERVED_OPTIONS, "runtime-service-options")
     for key in ("project", "name", "location", "ingress", "deletion_policy", "deletion_protection",
                 "invoker_iam_disabled", "launch_stage"):
         c.need(not c.has_unknown(unknown.get(key)), "runtime-config-unknown")
@@ -529,14 +564,21 @@ def validate_service(after, unknown, value, actions):
     empty_options(after, ("annotations", "labels", "binary_authorization", "build_config", "custom_audiences",
                           "multi_region_settings", "ssh_enabled", "tags", "iap_enabled"))
     scaling = one(after.get("scaling"), "runtime-service-scaling")
+    fixed_options(scaling, {"min_instance_count", "max_instance_count", "scaling_mode", "manual_instance_count"},
+                  "runtime-service-scaling-options")
     c.need(scaling.get("min_instance_count") == 0 and scaling.get("max_instance_count") == (1 if c.TARGET == "development" else 3)
            and scaling.get("scaling_mode") == "AUTOMATIC", "runtime-service-capacity")
     empty_options(scaling, ("manual_instance_count",))
     traffic = one(after.get("traffic"), "runtime-traffic")
+    fixed_options(traffic, {"type", "percent", "revision", "tag"}, "runtime-traffic-options")
     c.need(traffic.get("type") == "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST" and traffic.get("percent") == 100, "runtime-latest-traffic")
     empty_options(traffic, ("tag",))
     validate_planned_revision(after, traffic.get("revision"), "mypage-api", actions, "runtime-traffic-revision")
     template = one(after.get("template"), "runtime-template")
+    fixed_options(template, {
+        "service_account", "timeout", "max_instance_request_concurrency", "execution_environment", "scaling",
+        "containers", "revision",
+    }, "runtime-template-options")
     c.need(template.get("service_account") == c.EMAIL and template.get("timeout") == "30s"
            and template.get("max_instance_request_concurrency") == 40
            and template.get("execution_environment") == "EXECUTION_ENVIRONMENT_GEN2", "runtime-template-boundary")
@@ -544,12 +586,17 @@ def validate_service(after, unknown, value, actions):
                              "vpc_access", "workload_identity_config", "health_check_disabled", "session_affinity"))
     validate_planned_revision(after, template.get("revision"), "mypage-api", actions, "runtime-owned-revision")
     scaling = one(template.get("scaling"), "runtime-revision-scaling")
+    fixed_options(scaling, {"min_instance_count", "max_instance_count"}, "runtime-revision-scaling-options")
     c.need(scaling.get("min_instance_count") == 0 and scaling.get("max_instance_count") == (1 if c.TARGET == "development" else 3), "runtime-revision-capacity")
     container = one(template.get("containers"), "runtime-container")
+    fixed_options(container, {"image", "ports", "resources", "env", "startup_probe", "build_info"},
+                  "runtime-container-options")
     c.need(container.get("image") == value["image_digest"], "runtime-image-value")
     empty_options(container, ("args", "command", "depends_on", "base_image_uri", "sandbox_launcher", "volume_mounts", "working_dir"))
     empty_options(container, ("liveness_probe", "readiness_probe"))
     probe = one(container.get("startup_probe"), "runtime-startup-probe")
+    fixed_options(probe, {"initial_delay_seconds", "timeout_seconds", "period_seconds", "failure_threshold", "tcp_socket"},
+                  "runtime-startup-probe-options")
     c.need(probe.get("initial_delay_seconds") == 0 and probe.get("timeout_seconds") == 1
            and probe.get("period_seconds") == 10 and probe.get("failure_threshold") == 3
            and probe.get("tcp_socket") == [{"port": 8080}], "runtime-startup-probe-value")
@@ -557,10 +604,13 @@ def validate_service(after, unknown, value, actions):
     port = one(container.get("ports"), "runtime-port")
     c.need(port == {"name": "http1", "container_port": 8080}, "runtime-port-value")
     resources = one(container.get("resources"), "runtime-resources")
+    fixed_options(resources, {"limits", "cpu_idle", "startup_cpu_boost"}, "runtime-resource-options")
     c.need(resources.get("limits") == {"cpu": "1", "memory": "512Mi"}
            and resources.get("cpu_idle") is True and resources.get("startup_cpu_boost") is False, "runtime-billing-resources")
     env = container.get("env")
     c.need(type(env) is list and all(type(e) is dict for e in env), "runtime-environment-shape")
+    for item in env:
+        fixed_options(item, {"name", "value", "value_source"}, "runtime-environment-options")
     by_name = {e.get("name"): e for e in env}
     plain = plain_environment(value)
     secret = {"MYPAGE_OAUTH_CLIENT_ID": ("mypage-oauth-client-id", "oauth_client_id_version"),

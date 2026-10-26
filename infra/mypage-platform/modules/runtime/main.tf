@@ -366,22 +366,26 @@ resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
 # Maintenance has a separate trust chain. GitHub can invoke exactly this Job,
 # but has no Firestore role and cannot reuse the Terraform deployment identity.
 resource "google_service_account" "maintenance_operator" {
-  count        = local.maintenance_operator ? 1 : 0
-  project      = var.project_id
-  account_id   = "mypage-maintenance-job"
-  display_name = "MyPage maintenance state operator"
-  description  = "Keyless Cloud Run Job identity for the fixed maintenance CAS binary."
+  count           = local.maintenance_operator ? 1 : 0
+  project         = var.project_id
+  account_id      = "mypage-maintenance-job"
+  display_name    = "MyPage maintenance state operator"
+  description     = "Keyless Cloud Run Job identity for the fixed maintenance CAS binary."
+  disabled        = false
+  deletion_policy = "PREVENT"
   lifecycle {
     prevent_destroy = true
   }
 }
 
 resource "google_service_account" "maintenance_invoker" {
-  count        = local.maintenance_operator ? 1 : 0
-  project      = var.project_id
-  account_id   = "mypage-maintenance-invoker"
-  display_name = "MyPage maintenance GitHub invoker"
-  description  = "Federated identity limited to invoking the maintenance Job."
+  count           = local.maintenance_operator ? 1 : 0
+  project         = var.project_id
+  account_id      = "mypage-maintenance-invoker"
+  display_name    = "MyPage maintenance GitHub invoker"
+  description     = "Federated identity limited to invoking the maintenance Job."
+  disabled        = false
+  deletion_policy = "PREVENT"
   lifecycle {
     prevent_destroy = true
   }
@@ -390,33 +394,38 @@ resource "google_service_account" "maintenance_invoker" {
 # This identity is deliberately read-only. Foundation and release identities
 # can invoke its fixed Job but cannot pass arguments or read Firestore directly.
 resource "google_service_account" "maintenance_bootstrap" {
-  count        = local.maintenance_operator ? 1 : 0
-  project      = var.project_id
-  account_id   = "mypage-maintenance-bootstrap"
-  display_name = "MyPage maintenance bootstrap reader"
-  description  = "Read-only identity for the fixed pre-deployment initialized-control check."
+  count           = local.maintenance_operator ? 1 : 0
+  project         = var.project_id
+  account_id      = "mypage-maintenance-bootstrap"
+  display_name    = "MyPage maintenance bootstrap reader"
+  description     = "Read-only identity for the fixed pre-deployment initialized-control check."
+  disabled        = false
+  deletion_policy = "PREVENT"
   lifecycle {
     prevent_destroy = true
   }
 }
 
 resource "google_service_account" "maintenance_inspect_invoker" {
-  count        = local.maintenance_operator ? 1 : 0
-  project      = var.project_id
-  account_id   = "mypage-maint-inspect-invoker"
-  display_name = "MyPage maintenance inspect invoker"
-  description  = "Keyless GitHub identity that can invoke only the fixed sanitized readback service."
+  count           = local.maintenance_operator ? 1 : 0
+  project         = var.project_id
+  account_id      = "mypage-maint-inspect-invoker"
+  display_name    = "MyPage maintenance inspect invoker"
+  description     = "Keyless GitHub identity that can invoke only the fixed sanitized readback service."
+  disabled        = false
+  deletion_policy = "PREVENT"
   lifecycle {
     prevent_destroy = true
   }
 }
 
 resource "google_project_iam_custom_role" "maintenance_firestore" {
-  count       = local.maintenance_operator ? 1 : 0
-  project     = var.project_id
-  role_id     = "mypageMaintenanceOperator"
-  title       = "MyPage maintenance control writer"
-  description = "Minimum Firestore entity permissions for the maintenance control and audit transaction."
+  count           = local.maintenance_operator ? 1 : 0
+  project         = var.project_id
+  role_id         = "mypageMaintenanceOperator"
+  title           = "MyPage maintenance control writer"
+  description     = "Minimum Firestore entity permissions for the maintenance control and audit transaction."
+  deletion_policy = "PREVENT"
   permissions = [
     "datastore.databases.get",
     "datastore.entities.create",
@@ -442,11 +451,12 @@ resource "google_project_iam_member" "maintenance_firestore" {
 }
 
 resource "google_project_iam_custom_role" "maintenance_bootstrap_reader" {
-  count       = local.maintenance_operator ? 1 : 0
-  project     = var.project_id
-  role_id     = "mypageMaintenanceBootstrapReader"
-  title       = "MyPage maintenance bootstrap reader"
-  description = "Read-only Firestore entity permissions for the fixed initialized-control deployment barrier."
+  count           = local.maintenance_operator ? 1 : 0
+  project         = var.project_id
+  role_id         = "mypageMaintenanceBootstrapReader"
+  title           = "MyPage maintenance bootstrap reader"
+  description     = "Read-only Firestore entity permissions for the fixed initialized-control deployment barrier."
+  deletion_policy = "PREVENT"
   permissions = [
     "datastore.databases.get",
     "datastore.entities.get",

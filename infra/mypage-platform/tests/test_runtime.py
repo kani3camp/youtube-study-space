@@ -33,6 +33,9 @@ def fixture(stage="runtime_private"):
             "variables": {"stage": {"value": stage}, "runtime_settings": {"value": value}},
             "resource_changes": [{"address": address, "mode": "managed", "provider_name": "registry.terraform.io/hashicorp/google",
                                   "change": {"actions": (["create"] if address in r.maintenance_resource_contract() else ["no-op"]) if stage == "maintenance_upgrade" else (["no-op"] if address in r.maintenance_resource_contract() else ["create"]), "after": values, "after_unknown": {}}} for address, values in after.items()]}
+    for item in result["resource_changes"]:
+        if item["address"] in {r.MAINTENANCE_ROLE, r.MAINTENANCE_BOOTSTRAP_ROLE} and item["change"]["actions"] == ["no-op"]:
+            item["change"]["after"]["deleted"] = False
     if stage == "runtime_public":
         change = next(x['change'] for x in result['resource_changes'] if x['address'] == r.INVOKER)
         change.update(actions=['no-op'], importing={'id': r.PUBLIC_INVOKER_IMPORT_ID})
@@ -221,6 +224,56 @@ class RuntimeTest(unittest.TestCase):
             with self.subTest(address=address), self.assertRaises(c.ContractError) as error:
                 r.validate_plan(rejected, stage)
             self.assertEqual(str(error.exception), check)
+
+    def test_known_runtime_service_capabilities_are_exact_at_every_nested_level(self):
+        mutations = (
+            (lambda resource: resource.update(default_uri_disabled=True), "runtime-service-options"),
+            (lambda resource: resource["scaling"][0].update(cpu_utilization=0.01),
+             "runtime-service-scaling-options"),
+            (lambda resource: resource["template"][0].update(session_affinity=True), "runtime-template-options"),
+            (lambda resource: resource["template"][0]["scaling"][0].update(cpu_utilization=0.01),
+             "runtime-revision-scaling-options"),
+            (lambda resource: resource["template"][0]["containers"][0].update(working_dir="/tmp"),
+             "runtime-container-options"),
+            (lambda resource: resource["template"][0]["containers"][0]["startup_probe"][0].update(
+                http_get=[{"path": "/private"}]), "runtime-startup-probe-options"),
+            (lambda resource: resource["template"][0]["containers"][0]["resources"][0].update(
+                gpu_zonal_redundancy_disabled=True), "runtime-resource-options"),
+            (lambda resource: resource["template"][0]["containers"][0]["env"][0].update(
+                unknown="rejected"), "runtime-environment-options"),
+        )
+        for mutate, check in mutations:
+            rejected = fixture("runtime_private")
+            mutate(service(rejected)["after"])
+            with self.subTest(check=check), self.assertRaises(c.ContractError) as error:
+                r.validate_plan(rejected, "runtime_private")
+            self.assertEqual(str(error.exception), check)
+
+    def test_maintenance_identities_reject_mutable_unknowns(self):
+        rejected = fixture("maintenance_upgrade")
+        account = next(item for item in rejected["resource_changes"]
+                       if item["address"] == r.MAINTENANCE_OPERATOR_SA)
+        account["change"]["after_unknown"] = {"disabled": True}
+        with self.assertRaises(c.ContractError) as error:
+            r.validate_plan(rejected, "maintenance_upgrade")
+        self.assertEqual(str(error.exception),
+                         "runtime-resource-value-" + r.MAINTENANCE_OPERATOR_SA + "-disabled")
+
+        rejected = fixture("maintenance_upgrade")
+        role = next(item for item in rejected["resource_changes"] if item["address"] == r.MAINTENANCE_ROLE)
+        role["change"]["after_unknown"] = {"permissions": True}
+        with self.assertRaises(c.ContractError) as error:
+            r.validate_plan(rejected, "maintenance_upgrade")
+        self.assertEqual(str(error.exception), "runtime-resource-value-" + r.MAINTENANCE_ROLE + "-permissions")
+
+        rejected = fixture("maintenance_upgrade")
+        role = next(item for item in rejected["resource_changes"] if item["address"] == r.MAINTENANCE_ROLE)
+        role["change"]["actions"] = ["no-op"]
+        role["change"]["after"]["deleted"] = False
+        role["change"]["after_unknown"] = {"deleted": True}
+        with self.assertRaises(c.ContractError) as error:
+            r.validate_plan(rejected, "maintenance_upgrade")
+        self.assertEqual(str(error.exception), "maintenance-role-unknown")
 
     def test_noop_revision_must_equal_the_exact_observed_ready_revision(self):
         cases = (

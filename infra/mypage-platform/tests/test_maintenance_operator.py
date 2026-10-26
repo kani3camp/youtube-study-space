@@ -69,13 +69,13 @@ print(json.dumps({
 
     def test_github_invoker_and_firestore_operator_are_distinct(self):
         source = (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text()
-        self.assertIn('account_id   = "mypage-maintenance-invoker"', source)
-        self.assertIn('account_id   = "mypage-maintenance-job"', source)
+        self.assertRegex(source, r'account_id\s+= "mypage-maintenance-invoker"')
+        self.assertRegex(source, r'account_id\s+= "mypage-maintenance-job"')
         self.assertIn('member  = "serviceAccount:${local.maintenance_operator_email}"', source)
         self.assertIn('member   = "serviceAccount:${local.maintenance_invoker_email}"', source)
         self.assertNotIn('roles/datastore.user"\n  member  = "serviceAccount:${local.maintenance_invoker_email}', source)
         self.assertIn('command = ["/app/mypage-maintenance-operator"]', source)
-        self.assertIn('account_id   = "mypage-maint-inspect-invoker"', source)
+        self.assertRegex(source, r'account_id\s+= "mypage-maint-inspect-invoker"')
         self.assertIn('member   = "serviceAccount:${local.maintenance_inspect_invoker_email}"', source)
         self.assertNotIn('serviceAccount:${local.maintenance_inspect_invoker_email}"\n\n  depends_on = [google_project_iam_member.maintenance_bootstrap_reader]', source)
 
@@ -118,7 +118,7 @@ print(json.dumps({
         self.assertIn('"datastore.entities.get"', source)
         self.assertIn('"datastore.entities.create"', source)
         self.assertIn('"datastore.entities.update"', source)
-        self.assertIn('role_id     = "mypageMaintenanceBootstrapReader"', source)
+        self.assertRegex(source, r'role_id\s+= "mypageMaintenanceBootstrapReader"')
         self.assertIn('command = ["/app/mypage-maintenance-bootstrap-check"]', source)
         self.assertIn('command = ["/app/mypage-maintenance-breakglass"]', source)
         self.assertIn('member   = "serviceAccount:${local.backend_deployer_email}"', source)
