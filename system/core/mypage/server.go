@@ -131,7 +131,8 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 		return nil, err
 	}
 	boundary := &FirebaseBoundary{Client: deps.Firebase, AppCheck: appCheck, ProjectID: config.ProjectID, Now: now}
-	store := &FirestoreAuthStore{Client: deps.Firestore}
+	maintenance := &MaintenanceGate{Client: deps.Firestore, Environment: config.Environment, Now: now, TTL: 5 * time.Second}
+	store := &FirestoreAuthStore{Client: deps.Firestore, Environment: config.Environment}
 	access := &serviceaccess.FirestoreStore{Client: deps.Firestore}
 	metadata := deps.Metadata
 	if metadata == nil && deps.PublicMetadata != nil {
@@ -140,8 +141,9 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 
 	handler := &HTTPHandler{
 		PublicOrigin: config.PublicOrigin, HostingBackendHost: config.HostingBackendHost, Verifier: boundary,
-		Auth: &AuthService{Access: access, Store: store, Provider: deps.OAuth, Minter: boundary, Policy: config.Policy, Now: now, Support: &FirestoreSupportStore{Client: deps.Firestore, Environment: config.Environment}},
-		BFF:  &BFF{Access: access, Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Coverage: append([]Interval(nil), config.Coverage...), Observe: deps.ReadObserver}, Environment: config.Environment, Now: now, Metadata: metadata},
+		Maintenance: maintenance,
+		Auth:        &AuthService{Access: access, Store: store, Maintenance: maintenance, Provider: deps.OAuth, Minter: boundary, Policy: config.Policy, Now: now, Support: &FirestoreSupportStore{Client: deps.Firestore, Environment: config.Environment}},
+		BFF:         &BFF{Access: access, Maintenance: maintenance, Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Coverage: append([]Interval(nil), config.Coverage...), Observe: deps.ReadObserver}, Environment: config.Environment, Now: now, Metadata: metadata},
 	}
 	if config.EnablePrivacyIntake {
 		handler.Intake = &FirestorePrivacyIntake{Client: deps.Firestore, Environment: config.Environment, IntakeSecret: append([]byte(nil), config.PrivacyIntakeSecret...)}
@@ -151,7 +153,7 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 		if err != nil {
 			return nil, err
 		}
-		handler.History = &HistoryService{Client: deps.Firestore, Access: access, Environment: config.Environment, Cipher: cursor, TierFor: deps.HistoryTierFor, Now: now}
+		handler.History = &HistoryService{Client: deps.Firestore, Access: access, Maintenance: maintenance, Environment: config.Environment, Cipher: cursor, TierFor: deps.HistoryTierFor, Now: now}
 	}
 	return handler, nil
 }

@@ -1,6 +1,6 @@
 // Synthetic QA only. The normal production build never uses this entry/config.
 import { defineConfig } from 'vite'
-import base from '../vite.config'
+import base from '../vite.config.ts'
 
 export default defineConfig({
 	...base,

@@ -22,7 +22,7 @@ variable "stage" {
   type        = string
   default     = "disabled"
   validation {
-    condition     = contains(["disabled", "foundation_metadata", "foundation", "registry", "runtime_private", "runtime_public"], var.stage)
+    condition     = contains(["disabled", "foundation_metadata", "foundation", "registry", "maintenance_operator", "runtime_private", "runtime_public"], var.stage)
     error_message = "Invalid MyPage stage."
   }
 }
@@ -30,21 +30,24 @@ variable "stage" {
 variable "runtime_settings" {
   description = "Reviewed public identifiers and pinned secret VERSION NUMBERS; never raw secret values."
   type = object({
-    image_digest                = string
-    project_number              = string
-    web_app_id                  = string
-    public_origin               = string
-    privacy_version             = string
-    terms_version               = string
-    oauth_client_id_version     = string
-    oauth_client_secret_version = string
-    youtube_api_key_version     = string
-    history_coverage_json       = optional(string, "")
-    image_source_sha            = optional(string, "")
-    hosting_backend_host        = optional(string, "")
-    previous_image_digest       = optional(string, "")
-    read_metrics_enabled        = optional(bool, false)
-    read_metrics_from_revision  = optional(string, "")
+    image_digest                          = string
+    project_number                        = string
+    web_app_id                            = string
+    public_origin                         = string
+    privacy_version                       = string
+    terms_version                         = string
+    oauth_client_id_version               = string
+    oauth_client_secret_version           = string
+    youtube_api_key_version               = string
+    history_coverage_json                 = optional(string, "")
+    image_source_sha                      = optional(string, "")
+    hosting_backend_host                  = optional(string, "")
+    previous_image_digest                 = optional(string, "")
+    read_metrics_enabled                  = optional(bool, false)
+    maintenance_operator_enabled          = optional(bool, false)
+    maintenance_operator_image_digest     = optional(string, "")
+    maintenance_operator_image_source_sha = optional(string, "")
+    read_metrics_from_revision            = optional(string, "")
   })
   default = {
     image_digest                = ""
@@ -60,6 +63,15 @@ variable "runtime_settings" {
 
   # Explicit one-shot admission for a metrics-only serving update. It is not
   # forwarded as an environment variable and does not permit an image rollout.
+  validation {
+    condition = !contains(["maintenance_operator", "runtime_private", "runtime_public"], var.stage) || (
+      var.runtime_settings.maintenance_operator_enabled &&
+      can(regex("^asia-southeast2-docker\\.pkg\\.dev/test-youtube-study-space/mypage/mypage-api@sha256:[a-f0-9]{64}$", var.runtime_settings.maintenance_operator_image_digest)) &&
+      can(regex("^[a-f0-9]{40}$", var.runtime_settings.maintenance_operator_image_source_sha))
+    )
+    error_message = "Maintenance operator and runtime stages require a separately pinned operator digest and reviewed source SHA."
+  }
+
   validation {
     condition = var.runtime_settings.read_metrics_from_revision == "" || (
       contains(["runtime_private", "runtime_public"], var.stage) &&
@@ -124,4 +136,12 @@ output "public_invoker_enabled" {
 
 output "service_url" {
   value = var.stage == "disabled" ? null : module.platform[0].service_url
+}
+
+output "maintenance_workload_identity_provider" {
+  value = var.stage == "disabled" ? null : module.platform[0].maintenance_workload_identity_provider
+}
+
+output "maintenance_invoker_service_account" {
+  value = var.stage == "disabled" ? null : module.platform[0].maintenance_invoker_service_account
 }

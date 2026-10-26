@@ -42,6 +42,12 @@ beforeEach(async () => {
       setDoc(doc(db, 'config', 'constants'), { 'max-seats': 1 }),
       setDoc(doc(db, 'config', 'private'), { secret: true }),
       setDoc(doc(db, 'unrelated', 'private'), { secret: true }),
+      setDoc(doc(db, 'mypage-runtime-control', 'current'), {
+        state: 'ACTIVE',
+      }),
+      setDoc(doc(db, 'mypage-maintenance-events', 'event'), {
+        state: 'ACTIVE',
+      }),
     ])
   })
 })
@@ -135,5 +141,29 @@ describe('Firestore monitor read boundary', () => {
     await assertFails(
       setDoc(doc(db, '_monitor-readers', 'other-user'), { enabled: true }),
     )
+  })
+
+  test('never exposes or mutates maintenance control and audit records', async () => {
+    for (const db of [
+      testEnv.unauthenticatedContext().firestore(),
+      testEnv
+        .authenticatedContext(allowedUid, { monitor_reader: true })
+        .firestore(),
+    ]) {
+      await assertFails(getDoc(doc(db, 'mypage-runtime-control', 'current')))
+      await assertFails(getDocs(collection(db, 'mypage-runtime-control')))
+      await assertFails(getDoc(doc(db, 'mypage-maintenance-events', 'event')))
+      await assertFails(getDocs(collection(db, 'mypage-maintenance-events')))
+      await assertFails(
+        setDoc(doc(db, 'mypage-runtime-control', 'current'), {
+          state: 'NORMAL',
+        }),
+      )
+      await assertFails(
+        setDoc(doc(db, 'mypage-maintenance-events', 'forged'), {
+          state: 'NORMAL',
+        }),
+      )
+    }
   })
 })

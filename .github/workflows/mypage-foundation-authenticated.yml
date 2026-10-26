@@ -66,6 +66,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - name: Preflight without cloud credentials
         run: python3 infra/mypage-platform/scripts/foundation_ops.py stage
@@ -96,6 +97,14 @@ jobs:
           cleanup_credentials: true
           token_format: access_token
           access_token_lifetime: 1800s
+      - name: Require initialized NORMAL before planning a guarded runtime
+        if: ${{ inputs.mode == 'runtime-private-plan' || inputs.mode == 'runtime-public-plan' }}
+        run: |
+          gcloud run jobs execute mypage-maintenance-bootstrap-check \
+            --project=test-youtube-study-space \
+            --region=asia-southeast2 \
+            --wait \
+            --quiet
       - name: Plan bounded private foundation resources
         id: plan
         env:
@@ -107,7 +116,7 @@ jobs:
 
   foundation_apply:
     needs: foundation_plan
-    if: ${{ inputs.mode == 'foundation-apply' || inputs.mode == 'foundation-metadata-apply' || inputs.mode == 'registry-apply' || inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply' }}
+    if: ${{ inputs.mode == 'foundation-apply' || inputs.mode == 'foundation-metadata-apply' || inputs.mode == 'registry-apply' || inputs.mode == 'maintenance-operator-apply' || inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: mypage-dev-apply
@@ -133,6 +142,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - name: Preflight without cloud credentials
         run: python3 infra/mypage-platform/scripts/foundation_ops.py stage
@@ -163,6 +173,14 @@ jobs:
           cleanup_credentials: true
           token_format: access_token
           access_token_lifetime: 1800s
+      - name: Require initialized NORMAL before reproducing a guarded runtime Plan
+        if: ${{ inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply' }}
+        run: |
+          gcloud run jobs execute mypage-maintenance-bootstrap-check \
+            --project=test-youtube-study-space \
+            --region=asia-southeast2 \
+            --wait \
+            --quiet
       - name: Independently reproduce saved Plan
         id: prepared
         env:

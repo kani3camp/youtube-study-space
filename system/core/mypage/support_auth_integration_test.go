@@ -101,6 +101,33 @@ func TestSupportConfirmThroughHTTPNeverMintsOrCreatesWebAccount(t *testing.T) {
 	}
 }
 
+func TestMaintenanceBlocksNormalOAuthButKeepsServerBoundSupportPurpose(t *testing.T) {
+	s, store, _, _, challenge, id, _ := supportAuthFixture(t)
+	gate := &maintenanceStub{authoritative: []error{apiError("MAINTENANCE_ACTIVE")}}
+	s.Maintenance = gate
+	request := StartRequest{PrivacyPolicyVersion: s.Policy.Privacy, PrivacyAccepted: true, TermsVersion: s.Policy.Terms, TermsAccepted: true}
+	if _, _, err := s.Start(context.Background(), "", request); errorCode(err) != "MAINTENANCE_ACTIVE" {
+		t.Fatalf("normal login maintenance code=%s", errorCode(err))
+	}
+	request.SupportChallenge = &challenge
+	if _, supportID, err := s.Start(context.Background(), "", request); err != nil {
+		t.Fatalf("support start during maintenance: %v", err)
+	} else {
+		t.Cleanup(func() {
+			if _, deleteErr := store.Client.Collection("oauth-transactions").Doc(supportID).Delete(context.Background()); deleteErr != nil {
+				t.Error(deleteErr)
+			}
+		})
+	}
+	channel, err := s.Channel(context.Background(), id)
+	if err != nil || channel.Purpose != "support" {
+		t.Fatalf("support channel during maintenance=%+v err=%v", channel, err)
+	}
+	if gate.authorityCalls != 1 {
+		t.Fatal("support purpose unexpectedly crossed the normal maintenance gate")
+	}
+}
+
 func TestSupportConfirmIsAtomicAcrossConcurrentTransactions(t *testing.T) {
 	s, store, minter, requestRef, _, id, now := supportAuthFixture(t)
 	channel, err := s.Channel(context.Background(), id)

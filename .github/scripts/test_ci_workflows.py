@@ -136,7 +136,7 @@ def validate(caller, modules):
         require(dispatch[toggle]['type'] == 'boolean' and dispatch[toggle]['default'] is False
                 and dispatch[toggle]['required'] is False, 'Operations remain opt-in')
     for key, default, options in (('terraform_target', 'dev', ['dev', 'prod']),
-                                  ('mypage_foundation_mode', 'foundation-metadata-plan', ['foundation-metadata-plan', 'foundation-metadata-apply', 'foundation-plan', 'foundation-apply', 'registry-plan', 'registry-apply', 'image-build', 'runtime-private-plan', 'runtime-private-apply', 'runtime-public-plan', 'runtime-public-apply']),
+                                  ('mypage_foundation_mode', 'foundation-metadata-plan', ['foundation-metadata-plan', 'foundation-metadata-apply', 'foundation-plan', 'foundation-apply', 'registry-plan', 'registry-apply', 'image-build', 'maintenance-operator-plan', 'maintenance-operator-apply', 'runtime-private-plan', 'runtime-private-apply', 'runtime-public-plan', 'runtime-public-apply']),
                                   ('terraform_mode', 'migration-plan', ['migration-plan', 'migration-apply', 'normal-plan', 'normal-apply', 'normal-e2e'])):
         require(dispatch[key]['type'] == 'choice' and dispatch[key]['default'] == default
                 and dispatch[key]['options'] == options and dispatch[key]['required'] is False, 'Dispatch choices stay fixed')

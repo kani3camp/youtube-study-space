@@ -106,6 +106,7 @@ func TestBrowserHTTPDemo(t *testing.T) {
 		}
 	})
 	now := time.Now().UTC().Truncate(time.Second)
+	seedNormalMaintenance(t, client, "development", now)
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	appToken := syntheticAppCheck(t, key, "synthetic-key", syntheticAppClaims(now), "JWT")

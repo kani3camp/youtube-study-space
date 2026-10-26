@@ -27,7 +27,7 @@ def environment(plan):
 
 def plan_fixture(enabled, stage="runtime_private", action="no-op"):
     value = r.settings(settings_fixture() | {"read_metrics_enabled": enabled})
-    resources = r.resource_contract(stage)
+    resources = r.resource_contract(stage, value)
     env = [{"name": key, "value": val} for key, val in r.plain_environment(value).items()]
     for name, secret, field in (
         ("MYPAGE_OAUTH_CLIENT_ID", "mypage-oauth-client-id", "oauth_client_id_version"),
@@ -56,7 +56,7 @@ def plan_fixture(enabled, stage="runtime_private", action="no-op"):
         "variables": {"stage": {"value": stage}, "runtime_settings": {"value": value}},
         "resource_changes": [
             {"address": address, "mode": "managed", "provider_name": "registry.terraform.io/hashicorp/google",
-             "change": {"actions": ["no-op" if address == r.INVOKER else action],
+             "change": {"actions": ["no-op"] if address == r.INVOKER or address in r.maintenance_resource_contract() else [action],
                         "after": after, "after_unknown": {}}}
             for address, after in resources.items()
         ],
@@ -85,6 +85,12 @@ class ReadMetricsTest(unittest.TestCase):
         with self.assertRaisesRegex(c.ContractError, "^runtime-settings-fields$"):
             r.settings(settings_fixture() | {"read_metrics_enabled": True, "unreviewed": "private-input-sentinel"})
 
+    def test_operator_requires_its_own_reviewed_image_source(self):
+        value = settings_fixture()
+        value["maintenance_operator_image_source_sha"] = ""
+        with self.assertRaisesRegex(c.ContractError, "^runtime-maintenance-operator-image$"):
+            r.settings(value)
+
     def test_matching_create_and_noop_plans_preserve_resource_inventory(self):
         for enabled in (False, True):
             for stage in ("runtime_private", "runtime_public"):
@@ -93,7 +99,7 @@ class ReadMetricsTest(unittest.TestCase):
                         plan = plan_fixture(enabled, stage, action)
                         original = deepcopy(plan)
                         self.assertEqual(r.validate_plan(plan, stage), {
-                            "resources": 12 if stage == "runtime_public" else 11,
+                            "resources": 28 if stage == "runtime_public" else 27,
                             "creates": 11 if action == "create" else 0,
                         })
                         self.assertEqual(plan, original)

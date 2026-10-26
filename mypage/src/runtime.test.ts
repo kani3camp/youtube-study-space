@@ -53,6 +53,37 @@ afterEach(() => {
 })
 
 describe('browser authentication runtime', () => {
+	it('turns a maintenance API response into immediate private-memory clearing', async () => {
+		const { session, setUID } = sessionFixture()
+		setUID('synthetic')
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			async () =>
+				Response.json(
+					{
+						error: {
+							code: 'MAINTENANCE_ACTIVE',
+							message: 'request rejected',
+							requestId: 'synthetic',
+						},
+					},
+					{ status: 503 },
+				),
+		)
+		await expect(
+			runtime.start(new AbortController().signal),
+		).rejects.toMatchObject({
+			code: 'MAINTENANCE_ACTIVE',
+		})
+		expect(runtime.memory.getSnapshot()).toMatchObject({
+			phase: 'maintenance',
+			data: null,
+			error: 'MAINTENANCE_ACTIVE',
+		})
+		expect(runtime.maintenance.getSnapshot().phase).toBe('active')
+		runtime.memory.dispose()
+	})
 	it.each([
 		'uid',
 		'same-uid-relogin',
@@ -908,6 +939,49 @@ describe('browser authentication runtime', () => {
 			expect(runtime.memory.getSnapshot().data).not.toBeNull(),
 		)
 		expect(session.signIn).not.toHaveBeenCalled()
+		dispose()
+	})
+	it('keeps a maintenance-gated route bootstrapping until the initial auth observer fires', async () => {
+		browserFixture()
+		let uid: string | null = 'persisted-synthetic'
+		let reportInitial: (uid: string | null) => void = () => {}
+		const session: BrowserSession = {
+			currentUID: () => uid,
+			idToken: async () => 'synthetic-id',
+			appCheck: async () => 'synthetic-app',
+			subscribe: (listener) => {
+				reportInitial = listener
+				return () => {}
+			},
+			recheck: async () => uid,
+			signIn: async () => uid ?? '',
+			signOut: async () => {
+				uid = null
+			},
+		}
+		const request = vi.fn<typeof fetch>(async (path) =>
+			path === '/api/auth/session/complete'
+				? new Response(null, { status: 204 })
+				: Response.json(fixture),
+		)
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		runtime.memory.enterMaintenance('TEMPORARY_UNAVAILABLE')
+		const dispose = runtime.mountSession()
+		runtime.memory.resumeAfterMaintenance()
+		expect(runtime.memory.getSnapshot().phase).toBe('bootstrapping')
+		expect(request).not.toHaveBeenCalled()
+
+		reportInitial(uid)
+		await settle()
+		expect(request.mock.calls.map(([path]) => path)).toEqual([
+			'/api/auth/session/complete',
+			'/api/mypage',
+		])
+		expect(runtime.memory.getSnapshot().phase).toBe('authenticated')
 		dispose()
 	})
 	it('restored auth retries transient completion at most three times then signs out without fetching data', async () => {

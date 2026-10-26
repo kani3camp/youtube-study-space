@@ -28,6 +28,7 @@ export type MemoryState = {
 		| 'authenticated'
 		| 'signing-out'
 		| 'restricted'
+		| 'maintenance'
 	data: ViewData | null
 	busy: boolean
 	error: string | null
@@ -179,10 +180,17 @@ export class MyPageMemory {
 	private load: Loader
 	private signOut: () => Promise<void>
 	private now: () => number
-	constructor(load: Loader, signOut: () => Promise<void>, now = Date.now) {
+	private onMaintenance: () => void
+	constructor(
+		load: Loader,
+		signOut: () => Promise<void>,
+		now = Date.now,
+		onMaintenance: () => void = () => {},
+	) {
 		this.load = load
 		this.signOut = signOut
 		this.now = now
+		this.onMaintenance = onMaintenance
 	}
 
 	getSnapshot = () => this.state
@@ -246,6 +254,18 @@ export class MyPageMemory {
 	restrict(code: RestrictionCode, uid = this.uid) {
 		this.uid = uid
 		this.clear('restricted', code)
+	}
+
+	enterMaintenance(error = 'MAINTENANCE_ACTIVE') {
+		if (this.state.phase === 'maintenance' && this.state.error === error) return
+		this.clear('maintenance', error)
+		if (error === 'MAINTENANCE_ACTIVE') this.onMaintenance()
+	}
+
+	resumeAfterMaintenance() {
+		if (this.state.phase !== 'maintenance') return
+		this.clear(this.uid === null ? 'anonymous' : 'authenticated')
+		if (this.uid !== null) void this.refresh()
 	}
 
 	setVisible(visible: boolean) {
@@ -325,7 +345,8 @@ export class MyPageMemory {
 		if (
 			!this.canFetch() ||
 			this.uid === null ||
-			this.state.phase === 'restricted'
+			this.state.phase === 'restricted' ||
+			this.state.phase === 'maintenance'
 		)
 			return
 		if (this.timer !== null) clearTimeout(this.timer)
@@ -343,7 +364,8 @@ export class MyPageMemory {
 			!this.canFetch() ||
 			this.uid === null ||
 			this.state.busy ||
-			this.state.phase === 'restricted'
+			this.state.phase === 'restricted' ||
+			this.state.phase === 'maintenance'
 		)
 			return
 		// Explicit manual retries may bypass ordinary transport backoff, but
@@ -411,6 +433,13 @@ export class MyPageMemory {
 			})
 		} catch (error) {
 			if (epoch !== this.epoch) return
+			if (
+				error instanceof RequestError &&
+				error.code === 'MAINTENANCE_ACTIVE'
+			) {
+				this.enterMaintenance()
+				return
+			}
 			const restriction = restrictionFrom(error)
 			if (restriction) {
 				this.restrict(restriction, uid)

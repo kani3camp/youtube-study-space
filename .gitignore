@@ -93,6 +93,7 @@ fabric.properties
 
 **/node_modules/
 **/.next/
+firestore-debug.log
 
 .mcp.json
 

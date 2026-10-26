@@ -1,5 +1,7 @@
 # MyPage release preparation
 
+メンテナンスモードの初期化、開始、解除、CAS競合、fail-closed時の復旧は[maintenance mode v1 runbook](../maintenance-mode.md)を参照する。これは通常release、Terraform apply、Hosting公開とは独立した手動操作であり、同runbookのworkflow以外からFirestore状態を直接変更しない。
+
 このrunbookは未完の実経路Gate・本人判断を残したまま、コード・設定・試験を進める入口。DEVの2026-10-22時点の限定確認は[E2E実測記録](e2e.md#2026-10-22-devの限定確認)を参照する。設定検査や匿名拒否試験の成功は公開承認や実account E2Eの成功ではない。見た目・Phase 1のread-only scope・既存identity/data契約は維持する。
 
 プロダクト方針の正本はCurrent Canonの[04 認証](https://app.notion.com/p/3ec357a8d0ce812f8520f787fedcc6bd)、[05 Privacy](https://app.notion.com/p/3ed357a8d0ce81e7b7d2cc85ec8ab4cf)、[06 Security](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634)、[09 判断記録](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)。実装・CI・配備状態はGitHubを正とし、設計の確定を実経路PASSへ読み替えない。wire/実装は[実装contract](../README.md)、[OpenAPI](../openapi.yaml)を参照する。本人への準備事項は[owner packet](owner-packet.md)、実経路の試験・release対・rollbackは[E2E手順](e2e.md)にまとめる。

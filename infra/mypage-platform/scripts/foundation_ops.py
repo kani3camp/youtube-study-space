@@ -115,7 +115,7 @@ def stage(env):
                "encrypt": True, "use_lockfile": True, "workspace_key_prefix": contract.WORKSPACE_PREFIX,
                "allowed_account_ids": [env["MYPAGE_STATE_ACCOUNT"]]}
     (root / "backend.json").write_bytes(contract.canonical(backend))
-    if contract.stage_for_mode(env["MYPAGE_MODE"]).startswith("runtime_"):
+    if contract.stage_for_mode(env["MYPAGE_MODE"]) in set(runtime_contract.MODES.values()):
         value = runtime_settings(env)
         (root / "runtime-settings.json").write_bytes(contract.canonical({"runtime_settings": value}))
         if contract.stage_for_mode(env["MYPAGE_MODE"]) == "runtime_public":
@@ -215,6 +215,13 @@ def verify_runtime_inputs(env, value):
     tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source, env["MYPAGE_GCP_ACCESS_TOKEN"])
     expected = prefix + "/versions/sha256:" + value["image_digest"].split("@sha256:")[1]
     contract.need(tag.get("version") == expected, "runtime-source-image-digest")
+    operator_source = value["maintenance_operator_image_source_sha"]
+    if operator_source != env["GITHUB_SHA"]:
+        run(["git", "fetch", "--no-tags", "--depth=1", "origin", operator_source], cwd=REPO, check="maintenance-operator-source-fetch")
+        run(["git", "merge-base", "--is-ancestor", operator_source, env["GITHUB_SHA"]], cwd=REPO, check="maintenance-operator-source-ancestor")
+    operator_tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + operator_source, env["MYPAGE_GCP_ACCESS_TOKEN"])
+    operator_expected = prefix + "/versions/sha256:" + value["maintenance_operator_image_digest"].split("@sha256:")[1]
+    contract.need(operator_tag.get("version") == operator_expected, "maintenance-operator-source-image-digest")
     for name, field in (("mypage-oauth-client-id", "oauth_client_id_version"),
                         ("mypage-oauth-client-secret", "oauth_client_secret_version"),
                         ("mypage-youtube-api-key", "youtube_api_key_version")):
@@ -287,7 +294,7 @@ def prepare(env):
     stage = contract.stage_for_mode(env["MYPAGE_MODE"])
     arguments = ["terraform", "plan", "-input=false", "-no-color", "-lock-timeout=60s", "-var=stage=" + stage, "-out=" + str(saved)]
     value = None
-    if stage.startswith("runtime_"):
+    if stage in set(runtime_contract.MODES.values()):
         PHASE = "runtime-inputs"
         value = runtime_settings(env)
         contract.need(json.loads((root / "runtime-settings.json").read_text()) == {"runtime_settings": value}, "runtime-staged-settings")
@@ -330,7 +337,7 @@ def apply_saved(env):
     work = root / "source/environments/dev"
     PHASE = "apply"
     stage = contract.stage_for_mode(env["MYPAGE_MODE"])
-    if stage.startswith("runtime_"):
+    if stage in set(runtime_contract.MODES.values()):
         plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work, check="saved-runtime-plan-show"))
         value = runtime_contract.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
         if value["read_metrics_from_revision"]:
@@ -352,7 +359,7 @@ def apply_saved(env):
             walk(child)
     walk(state["values"]["root_module"])
     stage = contract.stage_for_mode(env["MYPAGE_MODE"])
-    resources = runtime_contract.resource_contract(stage) if stage.startswith("runtime_") else contract.resource_contract(stage)
+    resources = runtime_contract.resource_contract(stage) if stage in set(runtime_contract.MODES.values()) else contract.resource_contract(stage)
     need(addresses == set(resources))
     need(state_version(env) != "absent")
     print("Development foundation saved Plan applied and expected State resources read back.")

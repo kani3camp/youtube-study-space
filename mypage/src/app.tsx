@@ -12,6 +12,7 @@ import {
 	createContext,
 	useContext,
 	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 	useSyncExternalStore,
@@ -30,6 +31,7 @@ import {
 	liveURL,
 	MyPageView,
 } from './features/mypage/view'
+import { maintenanceDestination } from './maintenance'
 import { PrivacyPolicy, PublicPolicyContact, TermsOfUse } from './policies'
 import { consentKey, createPrivacy } from './privacy'
 import { readPublicPolicyConfig } from './public-policy-config'
@@ -110,6 +112,42 @@ export function createApp(
 			runtime.memory.getSnapshot,
 		)
 	}
+	function useMaintenance() {
+		return useSyncExternalStore(
+			runtime.maintenance.subscribe,
+			runtime.maintenance.getSnapshot,
+		)
+	}
+	function MaintenanceGatePending() {
+		const maintenance = useMaintenance()
+		const unknown = maintenance.phase === 'unknown'
+		return (
+			<main className="main-content public-page maintenance-page">
+				<section className="card maintenance-card" aria-live="polite">
+					<p className="eyebrow">マイページ</p>
+					<h1>
+						{unknown
+							? '現在、マイページの状態を確認できません'
+							: 'マイページの利用状況を確認しています'}
+					</h1>
+					<p>
+						{unknown
+							? '安全のため、状態を確認できるまでログイン情報やマイページの内容は表示しません。'
+							: '確認が終わるまで、この画面でお待ちください。'}
+					</p>
+					{unknown && (
+						<button
+							className="button primary"
+							type="button"
+							onClick={() => window.location.reload()}
+						>
+							再読み込み
+						</button>
+					)}
+				</section>
+			</main>
+		)
+	}
 	function RestrictionNotice({ code }: { code: RestrictionCode }) {
 		const state = useMemory()
 		return (
@@ -162,11 +200,13 @@ export function createApp(
 			useState<IntakeDraft>(emptyIntakeDraft)
 		const cookieDialog = useRef<HTMLDialogElement>(null)
 		const cookieOpener = useRef<HTMLElement | null>(null)
+		const runtimeDisposer = useRef<(() => void) | null>(null)
 		const consent = useSyncExternalStore(
 			privacyServices.consent.subscribe,
 			privacyServices.consent.getSnapshot,
 		)
 		const auth = useMemory()
+		const maintenance = useMaintenance()
 		const href = useRouterState({ select: (state) => state.location.href })
 		const openCookie = () => {
 			cookieOpener.current =
@@ -183,12 +223,75 @@ export function createApp(
 				state.matches.some((match) => match.routeId === '/mypage') &&
 				!state.matches.some((match) => match.globalNotFound),
 		})
-		const publicChrome = pathname !== '/mypage' || auth.phase === 'restricted'
+		const publicChrome =
+			pathname !== '/mypage' ||
+			auth.phase === 'restricted' ||
+			maintenance.phase !== 'normal'
+		const supportLogin =
+			pathname === '/login' &&
+			new URLSearchParams(href.split('?')[1] ?? '').has('supportChallenge')
+		const protectedRoute =
+			pathname.startsWith('/mypage') || (pathname === '/login' && !supportLogin)
+		const maintenanceRoute = pathname === '/maintenance'
+		const channelConfirmRoute = pathname === '/login/channel-confirm'
 		// Set the initial route before mount can restore an authenticated UID.
 		useEffect(() => {
 			runtime.memory.setRouteActive(myPageActive)
 		}, [myPageActive])
-		useEffect(() => runtime.mount(), [])
+		useEffect(() => runtime.mountMaintenance(), [])
+		useEffect(() => {
+			if (
+				!runtimeDisposer.current &&
+				protectedRoute &&
+				maintenance.phase === 'normal'
+			)
+				runtimeDisposer.current = runtime.mountSession()
+		}, [protectedRoute, maintenance.phase])
+		useEffect(
+			() => () => {
+				runtimeDisposer.current?.()
+				runtimeDisposer.current = null
+			},
+			[],
+		)
+		useLayoutEffect(() => {
+			runtime.maintenance.setRouteActive(
+				protectedRoute || maintenanceRoute || channelConfirmRoute,
+			)
+		}, [protectedRoute, maintenanceRoute, channelConfirmRoute])
+		useEffect(() => {
+			if (maintenance.phase === 'normal')
+				runtime.memory.resumeAfterMaintenance()
+			if (
+				(protectedRoute || maintenanceRoute) &&
+				maintenance.phase !== 'normal'
+			)
+				runtime.memory.enterMaintenance(
+					maintenance.phase === 'active'
+						? 'MAINTENANCE_ACTIVE'
+						: 'TEMPORARY_UNAVAILABLE',
+				)
+			const destination = maintenanceDestination(
+				pathname,
+				supportLogin,
+				maintenance.phase,
+			)
+			if (destination === '/maintenance') {
+				runtime.memory.enterMaintenance(
+					maintenance.phase === 'active'
+						? 'MAINTENANCE_ACTIVE'
+						: 'TEMPORARY_UNAVAILABLE',
+				)
+				void router.navigate({ to: destination, replace: true })
+			}
+			if (destination === '/') void router.navigate({ to: '/', replace: true })
+		}, [
+			maintenance.phase,
+			pathname,
+			protectedRoute,
+			maintenanceRoute,
+			supportLogin,
+		])
 		useEffect(() => privacyServices.analytics.mount(), [])
 		useEffect(() => {
 			privacyServices.analytics.page(href)
@@ -411,6 +514,7 @@ export function createApp(
 	}
 	function Login() {
 		const state = useMemory()
+		const maintenance = useMaintenance()
 		const search = loginRoute.useSearch()
 		const receipt = useContext(SupportReceipt)
 		const supportMode = !!search.supportChallenge || !!search.supportInvalid
@@ -420,7 +524,14 @@ export function createApp(
 		const [error, setError] = useState<string | null>(null)
 		const controller = useRef<AbortController | null>(null)
 		useEffect(() => () => controller.current?.abort(), [])
-		if (state.phase === 'bootstrapping' || state.phase === 'signing-out')
+		if (!supportMode && maintenance.phase === 'active')
+			return <Navigate to="/maintenance" replace />
+		if (!supportMode && maintenance.phase !== 'normal')
+			return <MaintenanceGatePending />
+		if (
+			!supportMode &&
+			(state.phase === 'bootstrapping' || state.phase === 'signing-out')
+		)
 			return (
 				<main className="main-content public-page">
 					<p role="status">ログイン状態を確認しています…</p>
@@ -554,6 +665,7 @@ export function createApp(
 	}
 	function ChannelConfirm() {
 		const state = useMemory()
+		const maintenance = useMaintenance()
 		const [supportFlow, setSupportFlow] = useState(false)
 		const receipt = useContext(SupportReceipt)
 		const [channel, setChannel] = useState<ChannelConfirmation | null>(null)
@@ -577,6 +689,16 @@ export function createApp(
 			setBusy(false)
 			setRestriction(activeRestriction)
 		}, [activeRestriction])
+		useEffect(() => {
+			if (!channel) return
+			const destination = maintenanceDestination(
+				'/login/channel-confirm',
+				false,
+				maintenance.phase,
+				channel.purpose,
+			)
+			if (destination) void router.navigate({ to: destination, replace: true })
+		}, [channel, maintenance.phase])
 		useEffect(() => {
 			const c = new AbortController()
 			controller.current = c
@@ -602,12 +724,18 @@ export function createApp(
 						setChannel(data)
 						supportConfirmation.current = data.purpose === 'support'
 						setSupportFlow(data.purpose === 'support')
+						if (data.purpose === 'support')
+							runtime.maintenance.setRouteActive(false)
 						if (data.purpose === 'login')
 							privacyServices.analytics.event('channel_confirmation_viewed')
 					}
 				})
 				.catch((e) => {
 					if (c.signal.aborted) return
+					if (e instanceof RequestError && e.code === 'MAINTENANCE_ACTIVE') {
+						void router.navigate({ to: '/maintenance', replace: true })
+						return
+					}
 					const restriction = restrictionFrom(e)
 					if (restriction) {
 						setChannel(null)
@@ -679,7 +807,8 @@ export function createApp(
 				) : (
 					<section className="channel-confirm">
 						<h1>YouTubeチャンネルを確認</h1>
-						{channel ? (
+						{channel?.purpose === 'support' ||
+						(maintenance.phase === 'normal' && channel) ? (
 							<>
 								{channel.purpose === 'support' ? (
 									<>
@@ -738,7 +867,11 @@ export function createApp(
 	}
 	function PrivatePage() {
 		const state = useMemory()
+		const maintenance = useMaintenance()
 		const openCookieSettings = useContext(CookieSettings)
+		if (maintenance.phase === 'active')
+			return <Navigate to="/maintenance" replace />
+		if (maintenance.phase !== 'normal') return <MaintenanceGatePending />
 		if (state.phase === 'anonymous')
 			return <Navigate to="/login" search={{ logout: true }} />
 		if (state.phase === 'restricted')
@@ -763,6 +896,10 @@ export function createApp(
 	}
 	function AccountManage() {
 		const state = useMemory()
+		const maintenance = useMaintenance()
+		if (maintenance.phase === 'active')
+			return <Navigate to="/maintenance" replace />
+		if (maintenance.phase !== 'normal') return <MaintenanceGatePending />
 		if (state.phase === 'anonymous') return <Navigate to="/login" />
 		if (state.phase === 'restricted')
 			return (
@@ -1129,6 +1266,78 @@ export function createApp(
 			</main>
 		)
 	}
+	function MaintenancePage() {
+		const maintenance = useMaintenance()
+		const auth = useMemory()
+		const heading = useRef<HTMLHeadingElement>(null)
+		useEffect(() => heading.current?.focus(), [])
+		const estimate = maintenance.status?.estimatedEndAt
+		const estimateText = estimate
+			? new Intl.DateTimeFormat('ja-JP', {
+					dateStyle: 'medium',
+					timeStyle: 'short',
+					timeZone: 'Asia/Tokyo',
+				}).format(Date.parse(estimate))
+			: null
+		const unknown = maintenance.phase === 'unknown'
+		const checking = maintenance.phase === 'checking'
+		return (
+			<main className="main-content public-page maintenance-page">
+				<section
+					className="card maintenance-card"
+					aria-labelledby="maintenance-heading"
+				>
+					<p className="eyebrow">マイページ</p>
+					<h1 id="maintenance-heading" ref={heading} tabIndex={-1}>
+						{unknown
+							? '現在、マイページの状態を確認できません'
+							: checking
+								? 'マイページの利用状況を確認しています'
+								: 'ただいまメンテナンス中です'}
+					</h1>
+					<p>
+						{unknown
+							? '安全のため、状態を確認できるまでログイン情報やマイページの内容は表示しません。'
+							: checking
+								? '確認が終わるまで、この画面でお待ちください。'
+								: 'マイページを一時的にご利用いただけません。時間をおいて、もう一度お試しください。'}
+					</p>
+					<div className="maintenance-status" aria-live="polite" role="status">
+						{maintenance.phase === 'checking' && '利用状況を確認しています…'}
+						{maintenance.phase === 'unknown' &&
+							'現在の利用状況を確認できません。安全のため、この画面でお待ちください。'}
+						{maintenance.phase === 'active' &&
+							(estimateText
+								? `終了見込み：${estimateText}（JST）`
+								: '終了時刻は未定です。')}
+					</div>
+					<div className="hero-links maintenance-actions">
+						<button
+							className="button primary"
+							type="button"
+							onClick={() => window.location.reload()}
+						>
+							再読み込み
+						</button>
+						{runtime.session?.currentUID() && (
+							<button
+								className="button"
+								type="button"
+								onClick={() => void runtime.memory.logout()}
+							>
+								{auth.error === 'LOGOUT_FAILED'
+									? 'ログアウトを再試行'
+									: 'ログアウト'}
+							</button>
+						)}
+						<Link className="button" to="/">
+							トップへ戻る
+						</Link>
+					</div>
+				</section>
+			</main>
+		)
+	}
 	const root = createRootRoute({
 		component: Root,
 		notFoundComponent: () => (
@@ -1196,6 +1405,11 @@ export function createApp(
 			getParentRoute: () => root,
 			path: '/contact',
 			component: Contact,
+		}),
+		createRoute({
+			getParentRoute: () => root,
+			path: '/maintenance',
+			component: MaintenancePage,
 		}),
 	]
 	const router = createRouter({

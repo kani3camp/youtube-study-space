@@ -40,6 +40,8 @@ on:
           - registry-plan
           - registry-apply
           - image-build
+          - maintenance-operator-plan
+          - maintenance-operator-apply
           - runtime-private-plan
           - runtime-private-apply
           - runtime-public-plan

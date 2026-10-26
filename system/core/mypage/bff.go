@@ -31,6 +31,7 @@ type (
 // detached flight, publication and response; inactive results are never cached.
 type BFF struct {
 	Access      serviceaccess.Reader
+	Maintenance MaintenanceReader
 	Reader      SnapshotReader
 	Environment string
 	Now         func() time.Time
@@ -72,6 +73,12 @@ func accountSection(account WebAccount, now time.Time) Section[Account] {
 }
 
 func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result Response, resultErr error) {
+	if b.Maintenance != nil {
+		if err := b.Maintenance.CheckAuthoritative(ctx); err != nil {
+			b.Invalidate(uid)
+			return Response{}, fmt.Errorf("check maintenance before MyPage read: %w", err)
+		}
+	}
 	checkpoint, err := readAccess(ctx, b.Access, uid, account.AccessCheckpoint)
 	if err != nil {
 		b.Invalidate(uid)
@@ -80,6 +87,13 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 	account.AccessCheckpoint = checkpoint
 	defer func() {
 		if resultErr == nil {
+			if b.Maintenance != nil {
+				if err := b.Maintenance.CheckAuthoritative(ctx); err != nil {
+					b.Invalidate(uid)
+					result, resultErr = Response{}, fmt.Errorf("check maintenance before MyPage response: %w", err)
+					return
+				}
+			}
 			if _, err := readAccess(ctx, b.Access, uid, checkpoint); err != nil {
 				b.Invalidate(uid)
 				result, resultErr = Response{}, err
@@ -132,6 +146,11 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 				account := account
 				workCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), workDeadline)
 				defer cancel()
+				if b.Maintenance != nil {
+					if err := b.Maintenance.CheckAuthoritative(workCtx); err != nil {
+						return Response{}, fmt.Errorf("check maintenance before detached MyPage read: %w", err)
+					}
+				}
 				if _, err := readAccess(workCtx, b.Access, uid, checkpoint); err != nil {
 					return Response{}, err
 				}
@@ -179,6 +198,11 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 				}
 				if _, err := readAccess(workCtx, b.Access, uid, checkpoint); err != nil {
 					return Response{}, err
+				}
+				if b.Maintenance != nil {
+					if err := b.Maintenance.CheckAuthoritative(workCtx); err != nil {
+						return Response{}, fmt.Errorf("check maintenance before MyPage cache publication: %w", err)
+					}
 				}
 				b.mu.Lock()
 				if b.cache == nil {
@@ -289,7 +313,7 @@ func metadataGateError(err error) bool {
 		return true
 	}
 	switch errorCode(err) {
-	case "AUTH_REQUIRED", "WEB_ACCOUNT_REQUIRED", "PRIVACY_RECONSENT_REQUIRED", "SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS":
+	case "AUTH_REQUIRED", "WEB_ACCOUNT_REQUIRED", "PRIVACY_RECONSENT_REQUIRED", "SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS", "MAINTENANCE_ACTIVE":
 		return true
 	}
 	return false

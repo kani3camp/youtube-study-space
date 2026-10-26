@@ -18,7 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"app.modules/core/repository"
 	"app.modules/core/serviceaccess"
@@ -57,10 +59,28 @@ func historyServiceFixture(t *testing.T, count int, ties bool) (*HistoryService,
 	p := historyPolicy{Enabled: true, StandardDailyUnits: 1000, PremiumDailyUnits: 5000, MaxConcurrent: 2, MaxIndexEntries: 1000}
 	_, err = client.Collection(historyPolicyCollection).Doc(historyPolicyID).Set(ctx, p)
 	require.NoError(t, err)
+	seedNormalMaintenance(t, client, "development", now)
 	cursor, err := newHistoryCipher([]byte("synthetic-server-oauth-secret-only"), "development")
 	require.NoError(t, err)
 	s := &HistoryService{Client: client, Access: &serviceaccess.FirestoreStore{Client: client}, Environment: "development", Cipher: cursor, Now: time.Now}
 	return s, uid, WebAccount{AccessCheckpoint: "absent", PrivacyPolicyVersion: "p1", TermsVersion: "t1"}, q
+}
+
+func TestHistoryBudgetDoesNotConsumeQuotaWhenMaintenanceIsActive(t *testing.T) {
+	s, uid, _, _ := historyServiceFixture(t, 0, false)
+	ctx := context.Background()
+	p, err := s.loadPolicy(ctx)
+	require.NoError(t, err)
+	_, err = maintenanceRef(s.Client).Set(ctx, MaintenanceControl{
+		Environment: "development", State: MaintenanceActive, Revision: 2,
+		UpdatedAt: time.Now().UTC(), MessageTemplate: MaintenanceMessageTemplate,
+		ReasonCategory: "PLANNED_MAINTENANCE",
+	})
+	require.NoError(t, err)
+	_, err = s.reserve(ctx, uid, "absent", strings.Repeat("m", 32), digest("maintenance"), p, 100, 1)
+	require.Equal(t, "MAINTENANCE_ACTIVE", errorCode(err))
+	_, err = s.Client.Collection(historyBudgets).Doc(digest("development\x00" + uid)).Get(ctx)
+	require.Equal(t, codes.NotFound, status.Code(err))
 }
 
 func TestHistoryCursorPagesHaveStableTiesAndSnapshotDuringConcurrentAdds(t *testing.T) {

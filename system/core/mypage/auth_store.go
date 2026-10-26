@@ -13,7 +13,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type FirestoreAuthStore struct{ Client *firestore.Client }
+type FirestoreAuthStore struct {
+	Client      *firestore.Client
+	Environment string
+}
 
 func validOpaque(id string) bool {
 	if len(id) != 64 {
@@ -54,6 +57,9 @@ func (s *FirestoreAuthStore) Create(ctx context.Context, id, previous string, va
 		return err
 	}
 	err = s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		if err := transactionMaintenance(tx, s.Client, s.Environment); err != nil {
+			return err
+		}
 		if validOpaque(previous) {
 			oldRef, err := s.transactionRef(previous)
 			if err != nil {
@@ -80,7 +86,7 @@ func (s *FirestoreAuthStore) Create(ctx context.Context, id, previous string, va
 	return nil
 }
 
-func (s *FirestoreAuthStore) change(ctx context.Context, id string, fn func(OAuthTransaction) (OAuthTransaction, error)) error {
+func (s *FirestoreAuthStore) change(ctx context.Context, id string, guardLogin bool, fn func(OAuthTransaction) (OAuthTransaction, error)) error {
 	ref, err := s.transactionRef(id)
 	if err != nil {
 		return err
@@ -89,6 +95,11 @@ func (s *FirestoreAuthStore) change(ctx context.Context, id string, fn func(OAut
 		old, err := s.readTransaction(tx, ref)
 		if err != nil {
 			return err
+		}
+		if guardLogin && transactionPurpose(old) == "login" {
+			if err := transactionMaintenance(tx, s.Client, s.Environment); err != nil {
+				return err
+			}
 		}
 		next, err := fn(old)
 		if err != nil {
@@ -106,7 +117,7 @@ func (s *FirestoreAuthStore) change(ctx context.Context, id string, fn func(OAut
 }
 
 func (s *FirestoreAuthStore) Claim(ctx context.Context, id, stateHash string, now time.Time) error {
-	return s.change(ctx, id, func(tx OAuthTransaction) (OAuthTransaction, error) {
+	return s.change(ctx, id, true, func(tx OAuthTransaction) (OAuthTransaction, error) {
 		if err := checkTransaction(tx, now, "pending"); err != nil {
 			return tx, err
 		}
@@ -118,11 +129,37 @@ func (s *FirestoreAuthStore) Claim(ctx context.Context, id, stateHash string, no
 	})
 }
 
+func (s *FirestoreAuthStore) ReadPurpose(ctx context.Context, id string, now time.Time) (string, error) {
+	ref, err := s.transactionRef(id)
+	if err != nil {
+		return "", err
+	}
+	var purpose string
+	err = s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		value, err := s.readTransaction(tx, ref)
+		if err != nil {
+			return err
+		}
+		if !now.Before(value.ExpiresAt) {
+			return apiError("OAUTH_TRANSACTION_EXPIRED")
+		}
+		purpose = transactionPurpose(value)
+		if purpose != "login" && purpose != "support" {
+			return apiError("INVALID_REQUEST")
+		}
+		return nil
+	}, firestore.ReadOnly)
+	if err != nil {
+		return "", fmt.Errorf("read transaction purpose: %w", err)
+	}
+	return purpose, nil
+}
+
 func (s *FirestoreAuthStore) Verify(ctx context.Context, id string, channel Channel, confirmation string, now time.Time) error {
 	if !validOpaque(confirmation) || strings.Contains(channel.ID, "/") || channel.ID == "" || channel.DisplayName == "" {
 		return apiError("CHANNEL_UNAVAILABLE")
 	}
-	return s.change(ctx, id, func(tx OAuthTransaction) (OAuthTransaction, error) {
+	return s.change(ctx, id, true, func(tx OAuthTransaction) (OAuthTransaction, error) {
 		if err := checkTransaction(tx, now, "processing"); err != nil {
 			return tx, err
 		}
@@ -135,7 +172,7 @@ func (s *FirestoreAuthStore) Verify(ctx context.Context, id string, channel Chan
 }
 
 func (s *FirestoreAuthStore) Fail(ctx context.Context, id string) error {
-	return s.change(ctx, id, func(tx OAuthTransaction) (OAuthTransaction, error) {
+	return s.change(ctx, id, false, func(tx OAuthTransaction) (OAuthTransaction, error) {
 		if tx.Status == "consumed" {
 			return tx, apiError("OAUTH_TRANSACTION_CONSUMED")
 		}
@@ -183,6 +220,9 @@ func (s *FirestoreAuthStore) Consume(ctx context.Context, id, confirmation, chec
 		}
 		if transactionPurpose(value) != "login" || value.Support != nil {
 			return apiError("SUPPORT_CHALLENGE_INVALID")
+		}
+		if err := transactionMaintenance(tx, s.Client, s.Environment); err != nil {
+			return err
 		}
 		if subtle.ConstantTimeCompare([]byte(value.ConfirmationRef), []byte(confirmation)) != 1 {
 			return apiError("OAUTH_TRANSACTION_CHANGED")
@@ -262,6 +302,9 @@ func (s *FirestoreAuthStore) CompleteSession(ctx context.Context, uid, checkpoin
 	}
 	ref := s.Client.Collection("web-accounts").Doc(uid)
 	err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		if err := transactionMaintenance(tx, s.Client, s.Environment); err != nil {
+			return err
+		}
 		if err := s.transactionAccess(tx, uid, checkpoint); err != nil {
 			return err
 		}

@@ -1123,6 +1123,62 @@ summary {
 	font-size: 14px;
 	margin-block: 12px;
 }
+
+.maintenance-page {
+	display: grid;
+	place-items: center;
+	padding-block: clamp(32px, 9vh, 96px);
+}
+.maintenance-card {
+	width: min(100%, 680px);
+	padding: clamp(28px, 6vw, 52px);
+	text-align: center;
+	border-color: oklch(86% 0.035 58);
+	background: oklch(96.5% 0.026 62);
+}
+.maintenance-card .eyebrow {
+	margin-bottom: 10px;
+}
+.maintenance-card h1 {
+	font-size: clamp(24px, 5vw, 34px);
+	margin-bottom: 18px;
+}
+.maintenance-card > p:not(.eyebrow) {
+	font-size: clamp(15px, 2vw, 17px);
+}
+.maintenance-status {
+	min-height: 44px;
+	display: grid;
+	place-items: center;
+	margin-top: 24px;
+	padding: 10px 14px;
+	border-radius: 14px;
+	background: oklch(96% 0.014 75);
+	color: var(--color-muted);
+	font-size: 14px;
+	font-weight: 700;
+}
+.maintenance-actions {
+	justify-content: center;
+	margin-top: 24px;
+}
+@media (max-width: 559px) {
+	.maintenance-page {
+		place-items: start center;
+		padding-block: 22px 40px;
+	}
+	.maintenance-card {
+		padding: 28px 20px;
+		border-radius: 20px;
+	}
+	.maintenance-actions {
+		display: grid;
+		grid-template-columns: 1fr;
+	}
+	.maintenance-actions .button {
+		width: 100%;
+	}
+}
 @media (max-width: 768px) {
 	.consent-banner {
 		margin-inline: 16px;

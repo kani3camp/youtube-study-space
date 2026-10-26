@@ -32,6 +32,7 @@ Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-
 | `foundation_metadata` | 新専用SAと3個のSecret metadataのみ | IAM member変更・Secret値・Cloud Run |
 | `foundation` | 新専用 user-managed SA `mypage-api`、Secret Managerの3個の**secret metadata**、SA単位のFirebase Custom Token用signer IAM、各secret単位のAccessor IAM | secret version/value、Firestore権限、Cloud Run、公開Invoker |
 | `registry`（Devのみ） | 上記8資源 + `asia-southeast2`の専用Docker repository `mypage`。immutable tags、cleanup dry-run、prevent_destroy | image push、Cloud Run、Firestore権限、公開Invoker、Production |
+| `maintenance_operator` | 上記 + API serving imageから分離した固定digestのmaintenance Job、専用Job/Invoker SA、最小Firestore custom role、environment/ref/SHA固定WIF | Cloud Run APIの作成・更新、初期`NORMAL`の暗黙作成、一般Invoker |
 | `runtime_private` | 上記 + `roles/datastore.user` の新SAに対する**additive project IAM member** + Cloud Run v2 API本体 | Cloud Runの `allUsers` invoker、Hosting公開、scheduler/alert |
 | `runtime_public` | 上記 + 当該Cloud Runサービスだけに `roles/run.invoker` / `allUsers` memberを追加 | ログイン必須APIのID token/App Check免除、一般告知 |
 
@@ -66,9 +67,10 @@ bash infra/mypage-platform/scripts/check-local.sh
 1. **Live inventory**：Dev/ProdのSA名、Cloud Runサービス名、Secret ID、Firestore、Firebase Hosting、Google APIsとIAM既存値をread-only収集。既存作成物があれば「新規create」で上書きしない。特に他のTerraform State ownerの有無を確認する。
 2. **Backend/権限準備**：MyPage専用S3 keyと `.tflock`、AWS identity、GCP Workload Identityの**正確なref / workflow / target / principal**を確認。GitHub public PRや任意branchには認証を渡さない。[Development Foundation経路](docs/development-foundation.md)は8資源だけを許可する専用workflowとguardを持つ。専用AWS/GCP/GitHub接続とmetadata段階の実適用は成功済み。RuntimeとProductionは引き続き別経路の実装・reviewが必要。
 3. **Foundation Dev**：private `backend.hcl` で正確な空Stateを初期化し、レビュー済み `stage="foundation"` の実plan・plan jsonをprivateに保全、差分type/action/IAM/コストを確認。独立reviewと実行承認後にのみ保存済みplanをapply。secret versionはTerraform外でprivate投入し、metadataとIAMをreadback。
-4. **Private runtime Dev**：digestを持つ実Goイメージ、project number、Web App ID、origin、規約version、**固定secret version番号**を一致確認。 `runtime_private` へ段階適用。Service起動/keyless signer/Firestore/App Check/Auth/ヘルスと本番同等経路を観測。条件不成立・権限拡張・unknown/driftは停止し、差分をplan修正して再レビュー。
-5. **Public runtime Dev**：Hosting `/api/**` rewrite、OAuth callback、CSP/cookie/Originとrate limiting等を実機で検証し、`runtime_public` でInvoker公開を明示承認。公開URLが機密アクセス制御の代替ではない。Frontend HostingはTerraformとは独立した配備操作・release recordだが、DEVでは[release手順](../../docs/mypage/release/README.md)の専用Hosting jobによりCI内でbuild/apply/readbackを完結させる。過去のowner配備記録を現行のCI構成と混同しない。
-6. **Production**：Dev成立・プライバシー/削除/運用Gateを閉じてから、独立target/state/permission/rollback承認で同順序。**今回Productionへの操作0**。
+4. **Maintenance bootstrap Dev**：API用digestと分離したreview済みoperator digestとsource SHAで`maintenance_operator`を適用し、APIが作成・更新されないことをreadbackする。専用workflowで初期`NORMAL`をCAS作成し、authoritative readbackを確認する。以後のruntime plan/applyとBackend releaseは、固定command・読取専用identityのbootstrap Jobがvalidな`NORMAL`を確認してからだけ進む。runtime stageでmaintenance資源のcreateは受理しない。
+5. **Private runtime Dev**：digestを持つ実Goイメージ、project number、Web App ID、origin、規約version、**固定secret version番号**を一致確認。 `runtime_private` へ段階適用。Service起動/keyless signer/Firestore/App Check/Auth/ヘルスと本番同等経路を観測。条件不成立・権限拡張・unknown/driftは停止し、差分をplan修正して再レビュー。
+6. **Public runtime Dev**：Hosting `/api/**` rewrite、OAuth callback、CSP/cookie/Originとrate limiting等を実機で検証し、`runtime_public` でInvoker公開を明示承認。公開URLが機密アクセス制御の代替ではない。Frontend HostingはTerraformとは独立した配備操作・release recordだが、DEVでは[release手順](../../docs/mypage/release/README.md)の専用Hosting jobによりCI内でbuild/apply/readbackを完結させる。過去のowner配備記録を現行のCI構成と混同しない。
+7. **Production**：Dev成立・プライバシー/削除/運用Gateを閉じてから、独立target/state/permission/rollback承認で同順序。**今回Productionへの操作0**。
 
 異常時は先に後続apply/一般告知を停止する。Cloud Runは `deletion_protection` と `prevent_destroy` があるため、事故対応を安易な `destroy` としない。新規Secretの値を消したり、TTLや既存GCP管理資源を巻き戻したりしない。Release対（Frontend commit/Hosting release、Backend image digest/Run revision、同意版、検証証拠）と**前世代互換**を記録し、必要時は前のreview済みimage/revisionへforward-fixまたは明示rollbackする。公開権限の取り消しは別途明示的に実施できる。
 
@@ -77,6 +79,8 @@ DevelopmentのFoundation metadataは実作成・State readback済み。Secret ve
 ### Runtimeの診断と既存イメージの出所
 
 runtime設定の任意 `image_source_sha`（既定は空文字）は、既存の不変tagを作成した40桁commit SHAを示す。空文字なら従来どおり実行元SHAのtagを要求する。別SHAの場合はpublic repositoryからそのcommitを取得し、実行元とbuild元の `system` tree全体が一致することを、Plan/Applyの双方で確認する。Docker contextは `system/` 全体であり、Dockerfile、依存lock、ignore設定とGoソースを含む。tagの作り替え、出所不明digest、アプリ変更後の旧image流用は拒否する。これはinfra診断だけの変更で既存revisionを更新する必要をなくすためで、Cloud Runのupdate/delete/replaceは引き続き拒否する。
+
+maintenance operatorは通常API releaseと独立した`maintenance_operator_image_digest`と`maintenance_operator_image_source_sha`を必須にする。source SHAは現行review済みcommitのancestorに限定し、Artifact Registryの同SHA tagが指定digestを指すことを検証する。通常APIのrelease overlayはこの2値を変更せず、operatorの意図しない更新やAPI digestとの誤った同一化を行わない。
 
 Cloud Runのdrift診断は、固定allowlistに含まれる変更field名、その他fieldの件数、planned no-opの真偽だけを公開する。値、未知のfield名、State/Plan本文は公開せず、診断を理由にadmissionを緩めない。private runtimeの初回適用はrun 39566961739で成功した。続くpublic Planは `runtime-drift-address` で変更前に停止し、付与済みの一時権限3件は全て解除した。公開接続とHosting releaseは未実施。
 

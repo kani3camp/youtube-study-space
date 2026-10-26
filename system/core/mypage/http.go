@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net"
@@ -25,11 +26,12 @@ type (
 )
 
 type HTTPHandler struct {
-	Auth     *AuthService
-	BFF      *BFF
-	Intake   PrivacyIntake
-	History  *HistoryService
-	Verifier RequestVerifier
+	Auth        *AuthService
+	BFF         *BFF
+	Maintenance MaintenanceReader
+	Intake      PrivacyIntake
+	History     *HistoryService
+	Verifier    RequestVerifier
 	// One fixed HTTPS origin per environment. Never derive it from request
 	// headers; actual Hosting/proxy host forwarding must be verified at deploy.
 	PublicOrigin string
@@ -43,11 +45,22 @@ type HTTPHandler struct {
 }
 
 var routeMethods = map[string]string{
-	"/api/auth/youtube/start": "POST", "/api/auth/youtube/callback": "GET",
+	"/api/public/mypage-status": "GET",
+	"/api/auth/youtube/start":   "POST", "/api/auth/youtube/callback": "GET",
 	"/api/auth/youtube/channel": "GET", "/api/auth/youtube/confirm": "POST",
 	"/api/auth/session/complete": "POST", "/api/mypage": "GET",
 	"/api/mypage/history":   "GET",
 	"/api/privacy/requests": "POST", "/api/privacy/requests/status": "POST",
+}
+
+var maintenanceExemptRoutes = map[string]bool{
+	"/api/public/mypage-status":    true,
+	"/api/privacy/requests":        true,
+	"/api/privacy/requests/status": true,
+	"/api/auth/youtube/start":      true, // AuthService distinguishes login from support.
+	"/api/auth/youtube/callback":   true, // AuthService reads the server-owned transaction purpose.
+	"/api/auth/youtube/channel":    true,
+	"/api/auth/youtube/confirm":    true,
 }
 
 type PrivacyIntake interface {
@@ -61,6 +74,9 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		requestID = "unavailable"
 	}
 	w.Header().Set("Cache-Control", "private, no-store")
+	if r.URL.Path == "/api/public/mypage-status" {
+		w.Header().Set("Cache-Control", "no-store")
+	}
 	w.Header().Set("X-Request-Id", requestID)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Referrer-Policy", "no-referrer")
@@ -89,13 +105,34 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, 400, "INVALID_REQUEST", requestID)
 		return
 	}
-	if h.Auth == nil || h.Verifier == nil || h.Auth.Now == nil {
+	publicStatus := r.URL.Path == "/api/public/mypage-status"
+	if (publicStatus && h.Maintenance == nil) || (!publicStatus && (h.Auth == nil || h.Verifier == nil || h.Auth.Now == nil)) {
 		writeAPIError(w, 503, "TEMPORARY_UNAVAILABLE", requestID)
 		return
 	}
 	if err := h.checkRequestOrigin(r); err != nil {
 		code := errorCode(err)
 		writeAPIError(w, statusFor(code), code, requestID)
+		return
+	}
+	if publicStatus {
+		ip, err := h.clientIP(r)
+		if err != nil {
+			writeAPIError(w, 400, "INVALID_REQUEST", requestID)
+			return
+		}
+		if ok, retry := h.limiter.allow("maintenance-status:"+ip, 120, 30, time.Now().UTC()); !ok {
+			rateError(w, retry, requestID)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		status, err := h.Maintenance.PublicStatus(ctx)
+		if err != nil {
+			writeAPIError(w, http.StatusServiceUnavailable, "TEMPORARY_UNAVAILABLE", requestID)
+			return
+		}
+		writeJSON(w, http.StatusOK, status)
 		return
 	}
 	if sessionCookieCount(r) > 1 {
@@ -211,6 +248,18 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+	// Authentication and App Check identify the caller before the global gate.
+	// SAC/account/policy and all personal-data reads remain after this point.
+	if !maintenanceExemptRoutes[r.URL.Path] {
+		if h.Maintenance != nil {
+			if err := h.Maintenance.Check(ctx); err != nil {
+				writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
+				return
+			}
+		}
+	}
+	if authenticated {
 		if !privacyRoute {
 			checkpoint, accessErr := readAccess(ctx, h.Auth.Access, identity.UID, "")
 			if accessErr != nil {
@@ -271,7 +320,9 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
-		writeJSON(w, 200, page)
+		if !h.writePersonalJSON(w, ctx, 200, page, requestID, identity.UID) {
+			return
+		}
 	case "/api/privacy/requests":
 		response, err := h.Intake.Create(ctx, identity.UID, intake.SubmissionKey, intake.Purpose, intake.Body, now)
 		if err != nil {
@@ -294,6 +345,15 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
+		if start.SupportChallenge == nil && h.Maintenance != nil {
+			if err := h.Maintenance.CheckAuthoritative(ctx); err != nil {
+				if failErr := h.Auth.Store.Fail(ctx, id); failErr != nil {
+					err = errors.Join(err, fmt.Errorf("fail maintenance OAuth transaction: %w", failErr))
+				}
+				writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
+				return
+			}
+		}
 		setTransactionCookie(w, id, 600)
 		writeJSON(w, 200, response)
 	case "/api/auth/youtube/channel":
@@ -302,19 +362,31 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
-		writeJSON(w, 200, response)
+		if response.Purpose == "login" {
+			if !h.writePersonalJSON(w, ctx, 200, response, requestID, "") {
+				return
+			}
+		} else {
+			writeJSON(w, 200, response)
+		}
 	case "/api/auth/youtube/confirm":
 		response, err := h.Auth.ConfirmResult(ctx, transactionID(r), confirmation.ConfirmationRef)
 		if err != nil {
 			code := errorCode(err)
-			if code == "TEMPORARY_UNAVAILABLE" || code == "OAUTH_TRANSACTION_CONSUMED" {
+			if code == "TEMPORARY_UNAVAILABLE" || code == "MAINTENANCE_ACTIVE" || code == "OAUTH_TRANSACTION_CONSUMED" {
 				setTransactionCookie(w, "", -1)
 			}
 			writeAPIError(w, statusFor(code), code, requestID)
 			return
 		}
 		setTransactionCookie(w, "", -1)
-		writeJSON(w, 200, response)
+		if response.Purpose == "login" {
+			if !h.writePersonalJSON(w, ctx, 200, response, requestID, "") {
+				return
+			}
+		} else {
+			writeJSON(w, 200, response)
+		}
 	case "/api/auth/session/complete":
 		if err := h.Auth.Store.CompleteSession(ctx, identity.UID, account.AccessCheckpoint, h.Auth.Policy, now); err != nil {
 			code := errorCode(err)
@@ -323,6 +395,12 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			writeAPIError(w, statusFor(code), code, requestID)
 			return
+		}
+		if h.Maintenance != nil {
+			if err := h.Maintenance.CheckAuthoritative(ctx); err != nil {
+				writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
+				return
+			}
 		}
 		w.WriteHeader(204)
 	case "/api/mypage":
@@ -335,8 +413,26 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
-		writeJSON(w, 200, response)
+		if !h.writePersonalJSON(w, ctx, 200, response, requestID, identity.UID) {
+			return
+		}
 	}
+}
+
+func (h *HTTPHandler) writePersonalJSON(w http.ResponseWriter, ctx context.Context, status int, value any, requestID, uid string) bool {
+	if h.Maintenance == nil {
+		writeJSON(w, status, value)
+		return true
+	}
+	if err := h.Maintenance.CheckAuthoritative(ctx); err != nil {
+		if uid != "" && h.BFF != nil {
+			h.BFF.Invalidate(uid)
+		}
+		writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
+		return false
+	}
+	writeJSON(w, status, value)
+	return true
 }
 
 func (h *HTTPHandler) checkRequestOrigin(r *http.Request) error {
@@ -513,6 +609,11 @@ func (h *HTTPHandler) callback(w http.ResponseWriter, r *http.Request, requestID
 		http.Redirect(w, r, "/login/channel-confirm", http.StatusFound)
 		return
 	}
+	if errorCode(err) == "MAINTENANCE_ACTIVE" {
+		setTransactionCookie(w, "", -1)
+		http.Redirect(w, r, "/maintenance", http.StatusFound)
+		return
+	}
 	redirectCode := "oauth_failed"
 	switch errorCode(err) {
 	case "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED":
@@ -554,7 +655,7 @@ func statusFor(code string) int {
 		return 413
 	case "RATE_LIMITED":
 		return 429
-	case "TEMPORARY_UNAVAILABLE":
+	case "MAINTENANCE_ACTIVE", "TEMPORARY_UNAVAILABLE":
 		return 503
 	case "INTERNAL_ERROR":
 		return 500

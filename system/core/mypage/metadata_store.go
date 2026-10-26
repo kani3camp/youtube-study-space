@@ -18,6 +18,9 @@ func (s *FirestoreAuthStore) SaveMetadata(ctx context.Context, uid string, expec
 	}
 	ref := s.Client.Collection("web-accounts").Doc(uid)
 	err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		if err := transactionMaintenance(tx, s.Client, s.Environment); err != nil {
+			return err
+		}
 		if err := s.transactionAccess(tx, uid, expected.AccessCheckpoint); err != nil {
 			return err
 		}
@@ -79,6 +82,9 @@ func (s *FirestoreAuthStore) clearAccountMetadata(ctx context.Context, uid strin
 	}
 	ref := s.Client.Collection("web-accounts").Doc(uid)
 	err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		if err := transactionMaintenance(tx, s.Client, s.Environment); err != nil {
+			return err
+		}
 		if err := s.transactionAccess(tx, uid, expected.AccessCheckpoint); err != nil {
 			return err
 		}

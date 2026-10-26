@@ -61,6 +61,8 @@ class FoundationTest(unittest.TestCase):
             actual = ops.runtime_settings(env)
             self.assertEqual({k: actual[k] for k in release}, release)
             self.assertEqual(actual['privacy_version'], value['privacy_version'])
+            self.assertEqual(actual['maintenance_operator_image_digest'], value['maintenance_operator_image_digest'])
+            self.assertEqual(actual['maintenance_operator_image_source_sha'], value['maintenance_operator_image_source_sha'])
             for invalid in (release | {'privacy_version': 'other'}, release | {'image_source_sha': ''},
                             release | {'hosting_backend_host': 'other.example.test'},
                             release | {'image_digest': release['previous_image_digest']}):
@@ -70,6 +72,35 @@ class FoundationTest(unittest.TestCase):
             file.write_text(json.dumps(release)[:-1] + ',"image_digest":"duplicate"}')
             with self.assertRaises(ValueError):
                 ops.runtime_settings(env)
+
+    def test_maintenance_operator_stage_writes_admitted_runtime_settings(self):
+        value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
+        env = {
+            'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
+            'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_EVENT_NAME': 'workflow_dispatch',
+            'GITHUB_ACTOR': 'kani3camp', 'GITHUB_ACTOR_ID': '54093651', 'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
+            'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_REF': c.REF, 'GITHUB_WORKFLOW_REF': c.CALLER,
+            'TF_WORKSPACE': 'default', 'GITHUB_SHA': 'a' * 40, 'MYPAGE_EXPECTED_SHA': 'a' * 40,
+            'MYPAGE_MODE': 'maintenance-operator-plan', 'MYPAGE_ROLE': 'plan',
+            'MYPAGE_STATE_ACCOUNT': '123456789012', 'MYPAGE_STATE_BUCKET': 'synthetic-state-bucket',
+            'MYPAGE_BACKEND_ROLE_ARN': 'arn:aws:iam::123456789012:role/youtube-study-space-mypage-dev-plan',
+            'MYPAGE_BACKEND_ROLE_ID': 'AROA' + 'A' * 17,
+            'MYPAGE_GCP_SERVICE_ACCOUNT': 'mypage-foundation-plan@' + c.PROJECT + '.iam.gserviceaccount.com',
+            'MYPAGE_GCP_WIF_PROVIDER': 'projects/' + value['project_number'] + '/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions',
+            'MYPAGE_PLAN_HMAC_KEY': 'synthetic-test-key-with-more-than-32-bytes',
+            'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(value),
+        }
+        expected = ops.runtime_settings(env)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'private'
+
+            def copytree(_source, destination, **_kwargs):
+                (destination / 'environments/dev').mkdir(parents=True)
+
+            with patch.object(ops, 'directory', return_value=root), patch.object(ops.shutil, 'copytree', side_effect=copytree):
+                ops.stage(env)
+            written = json.loads((root / 'runtime-settings.json').read_text())
+            self.assertEqual(written, {'runtime_settings': expected})
 
     def test_native_plan_failures_publish_only_fixed_diagnostic_labels(self):
         private = 'private-command-output-and-credential-marker'
@@ -103,13 +134,16 @@ class FoundationTest(unittest.TestCase):
     def test_runtime_inputs_match_exact_source_digest_and_enabled_metadata_only(self):
         value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
         env = {'GITHUB_SHA': 'a' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}
+        value['maintenance_operator_image_source_sha'] = env['GITHUB_SHA']
         prefix = 'projects/' + c.PROJECT + '/locations/asia-southeast2/repositories/mypage/packages/mypage-api'
         tag = {'version': prefix + '/versions/sha256:' + value['image_digest'].split('@sha256:')[1]}
-        with patch.object(ops, 'request', side_effect=[tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
+        operator_tag = {'version': prefix + '/versions/sha256:' + value['maintenance_operator_image_digest'].split('@sha256:')[1]}
+        with patch.object(ops, 'request', side_effect=[tag, operator_tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
             ops.verify_runtime_inputs(env, value)
         urls = [call.args[0] for call in request.call_args_list]
         self.assertEqual(urls[0], 'https://artifactregistry.googleapis.com/v1/' + prefix + '/tags/' + env['GITHUB_SHA'])
-        self.assertEqual(urls[1:], [
+        self.assertEqual(urls[1], 'https://artifactregistry.googleapis.com/v1/' + prefix + '/tags/' + env['GITHUB_SHA'])
+        self.assertEqual(urls[2:], [
             'https://secretmanager.googleapis.com/v1/projects/' + c.PROJECT + '/secrets/' + secret + '/versions/' + value[field]
             for secret, field in [('mypage-oauth-client-id', 'oauth_client_id_version'),
                                   ('mypage-oauth-client-secret', 'oauth_client_secret_version'),
@@ -117,7 +151,7 @@ class FoundationTest(unittest.TestCase):
         self.assertTrue(all(':access' not in url for url in urls))
         for responses, expected in (
             ([{'version': 'private-rejected-image-marker'}], 'runtime-source-image-digest'),
-            ([tag, {'state': 'private-rejected-state-marker'}], 'runtime-secret-version-enabled'),
+            ([tag, operator_tag, {'state': 'private-rejected-state-marker'}], 'runtime-secret-version-enabled'),
         ):
             output = io.StringIO()
             with patch.object(sys, 'argv', ['foundation_ops.py', 'execute']), \
@@ -132,10 +166,12 @@ class FoundationTest(unittest.TestCase):
         value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
         value['image_source_sha'] = 'b' * 40
         env = {'GITHUB_SHA': 'a' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}
+        value['maintenance_operator_image_source_sha'] = env['GITHUB_SHA']
         prefix = 'projects/' + c.PROJECT + '/locations/asia-southeast2/repositories/mypage/packages/mypage-api'
         tag = {'version': prefix + '/versions/sha256:' + value['image_digest'].split('@sha256:')[1]}
+        operator_tag = {'version': prefix + '/versions/sha256:' + value['maintenance_operator_image_digest'].split('@sha256:')[1]}
         with patch.object(ops, 'run', side_effect=['', 'c' * 40, 'c' * 40]) as run, \
-                patch.object(ops, 'request', side_effect=[tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
+                patch.object(ops, 'request', side_effect=[tag, operator_tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
             ops.verify_runtime_inputs(env, value)
         self.assertEqual(run.call_args_list[0].args[0], ['git', 'fetch', '--no-tags', '--depth=1', 'origin', 'b' * 40])
         self.assertTrue(request.call_args_list[0].args[0].endswith('/tags/' + 'b' * 40))
@@ -148,6 +184,23 @@ class FoundationTest(unittest.TestCase):
                 with self.assertRaisesRegex(c.ContractError, '^runtime-image-source-sha$'):
                     ops.verify_runtime_inputs(env, value | {'image_source_sha': source})
                 run.assert_not_called()
+
+    def test_operator_image_source_must_be_ancestor_and_resolve_to_its_own_digest(self):
+        value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
+        env = {'GITHUB_SHA': 'a' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}
+        prefix = 'projects/' + c.PROJECT + '/locations/asia-southeast2/repositories/mypage/packages/mypage-api'
+        api_tag = {'version': prefix + '/versions/sha256:' + value['image_digest'].split('@sha256:')[1]}
+        operator_tag = {'version': prefix + '/versions/sha256:' + value['maintenance_operator_image_digest'].split('@sha256:')[1]}
+        with patch.object(ops, 'run', side_effect=['', '']) as run, patch.object(
+                ops, 'request', side_effect=[api_tag, operator_tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
+            ops.verify_runtime_inputs(env, value)
+        self.assertEqual(run.call_args_list[0].args[0], ['git', 'fetch', '--no-tags', '--depth=1', 'origin', 'c' * 40])
+        self.assertEqual(run.call_args_list[1].args[0], ['git', 'merge-base', '--is-ancestor', 'c' * 40, 'a' * 40])
+        self.assertTrue(request.call_args_list[1].args[0].endswith('/tags/' + 'c' * 40))
+        with patch.object(ops, 'run', side_effect=['', '']), patch.object(
+                ops, 'request', side_effect=[api_tag, {'version': 'private-wrong-digest'}]):
+            with self.assertRaisesRegex(c.ContractError, '^maintenance-operator-source-image-digest$'):
+                ops.verify_runtime_inputs(env, value)
 
     def test_runtime_drift_diagnostic_does_not_publish_values_or_unreviewed_field_names(self):
         plan = {'resource_changes': [{'address': ops.runtime_contract.SERVICE, 'change': {'actions': ['no-op']}}],

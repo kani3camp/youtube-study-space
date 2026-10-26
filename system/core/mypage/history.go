@@ -46,10 +46,14 @@ type HistoryTier struct {
 type HistoryService struct {
 	Client      *firestore.Client
 	Access      serviceaccess.Reader
+	Maintenance MaintenanceReader
 	Environment string
 	Cipher      *historyCipher
 	TierFor     func(context.Context, string, WebAccount) (HistoryTier, error)
 	Now         func() time.Time
+	// beforeBudgetWrite is a deterministic integration-test seam used to
+	// exercise transaction ordering. Production constructors leave it nil.
+	beforeBudgetWrite func()
 }
 
 func (s *HistoryService) authorization(ctx context.Context, uid string, account WebAccount, p historyPolicy) (HistoryTier, string, error) {
@@ -166,6 +170,18 @@ func (s *HistoryService) Page(ctx context.Context, uid string, account WebAccoun
 	}
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
+	if s.Maintenance != nil {
+		if err := s.Maintenance.CheckAuthoritative(ctx); err != nil {
+			return result, fmt.Errorf("check maintenance before history read: %w", err)
+		}
+		defer func() {
+			if resultErr == nil {
+				if err := s.Maintenance.CheckAuthoritative(ctx); err != nil {
+					result, resultErr = HistoryPage{}, fmt.Errorf("check maintenance before history response: %w", err)
+				}
+			}
+		}()
+	}
 	p, err := s.loadPolicy(ctx)
 	if err != nil {
 		return result, err

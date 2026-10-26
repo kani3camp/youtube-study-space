@@ -62,10 +62,18 @@ jobs:
           workload_identity_provider: ${{ vars.MYPAGE_BACKEND_WIF_PROVIDER }}
           service_account: mypage-backend-deploy@test-youtube-study-space.iam.gserviceaccount.com
           project_id: test-youtube-study-space
-          create_credentials_file: false
-          export_environment_variables: false
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
           token_format: access_token
           access_token_lifetime: 900s
+      - name: Require initialized NORMAL before mutating the serving revision
+        run: |
+          gcloud run jobs execute mypage-maintenance-bootstrap-check \
+            --project=test-youtube-study-space \
+            --region=asia-southeast2 \
+            --wait \
+            --quiet
       - name: Conditionally update only the source-pinned image and verify serving
         env:
           MYPAGE_BACKEND_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}

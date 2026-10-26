@@ -45,15 +45,17 @@ const publicErrors = new Set([
 	'SERVICE_ACCESS_RESTRICTED',
 	'DATA_DELETION_IN_PROGRESS',
 	'RATE_LIMITED',
+	'MAINTENANCE_ACTIVE',
 	'TEMPORARY_UNAVAILABLE',
 	'INTERNAL_ERROR',
 ])
 
-function object(value: unknown): Record<string, unknown> | null {
+export function objectValue(value: unknown): Record<string, unknown> | null {
 	return typeof value === 'object' && value !== null && !Array.isArray(value)
 		? (value as Record<string, unknown>)
 		: null
 }
+const object = objectValue
 function date(value: unknown) {
 	return (
 		typeof value === 'string' &&

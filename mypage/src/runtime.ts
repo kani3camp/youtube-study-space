@@ -12,6 +12,7 @@ import {
 	RequestError,
 	restrictionFrom,
 } from './features/mypage/memory'
+import { MaintenanceMonitor } from './maintenance'
 
 export type BrowserSession = TokenSource & {
 	subscribe: (listener: (uid: string | null) => void) => () => void
@@ -53,6 +54,7 @@ export type ChannelConfirmation = (
 
 export class BrowserRuntime {
 	readonly memory: MyPageMemory
+	readonly maintenance: MaintenanceMonitor
 	readonly session: BrowserSession | null
 	readonly policy: { privacy: string; terms: string }
 	readonly unavailable: string | null
@@ -94,6 +96,7 @@ export class BrowserRuntime {
 		this.unavailable = unavailable
 		this.intakeEnabled = intakeEnabled
 		this.historyEnabled = historyEnabled
+		this.maintenance = new MaintenanceMonitor(this.request)
 		this.memory = new MyPageMemory(
 			session
 				? createLoader(session, request)
@@ -103,6 +106,8 @@ export class BrowserRuntime {
 			async () => {
 				await session?.signOut()
 			},
+			Date.now,
+			() => this.maintenance.markActive(),
 		)
 	}
 
@@ -203,7 +208,12 @@ export class BrowserRuntime {
 				if (!controller.signal.aborted && ownsSession()) {
 					const restriction = restrictionFrom(error)
 					if (restriction) this.memory.restrict(restriction, uid)
-					else await this.memory.logout()
+					else if (
+						error instanceof RequestError &&
+						error.code === 'MAINTENANCE_ACTIVE'
+					) {
+						// The central request boundary has already cleared private data.
+					} else await this.memory.logout()
 				}
 			})
 			.finally(() => {
@@ -215,11 +225,28 @@ export class BrowserRuntime {
 	}
 
 	mount() {
+		const unmountMaintenance = this.mountMaintenance()
+		const unmountSession = this.mountSession()
+		return () => {
+			unmountSession()
+			unmountMaintenance()
+		}
+	}
+
+	mountMaintenance() {
+		return this.maintenance.mount()
+	}
+
+	mountSession() {
 		if (!this.session) {
 			this.memory.setIdentity(null)
 			return () => this.memory.dispose()
 		}
 		const session = this.session
+		// Maintenance and auth initialization are independent async gates. Keep
+		// the page in bootstrapping until the auth observer reports its initial
+		// value so a slow persisted-session restore cannot be mistaken for logout.
+		this.memory.suspend()
 		let active = true
 		this.active = true
 		let generation = 0
@@ -314,6 +341,13 @@ export class BrowserRuntime {
 			return result
 		} catch (error) {
 			if (!owns()) throw new RequestError(401, 'AUTH_REQUIRED')
+			if (
+				error instanceof RequestError &&
+				error.code === 'MAINTENANCE_ACTIVE'
+			) {
+				this.memory.enterMaintenance()
+				throw error
+			}
 			const restriction = restrictionFrom(error)
 			if (restriction) this.memory.restrict(restriction, uid)
 			else if (
@@ -369,7 +403,10 @@ export class BrowserRuntime {
 		try {
 			return await Promise.race([work(), aborted])
 		} catch (error) {
-			if (error instanceof RequestError) throw error
+			if (error instanceof RequestError) {
+				if (error.code === 'MAINTENANCE_ACTIVE') this.memory.enterMaintenance()
+				throw error
+			}
 			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
 		} finally {
 			budget.removeEventListener('abort', onAbort)
@@ -677,7 +714,12 @@ export class BrowserRuntime {
 			if (ownedAtFailure) {
 				const restriction = restrictionFrom(error)
 				if (restriction) this.memory.restrict(restriction, uid)
-				else await this.memory.logout()
+				else if (
+					error instanceof RequestError &&
+					error.code === 'MAINTENANCE_ACTIVE'
+				) {
+					// Keep the authenticated SDK session; private memory is already clear.
+				} else await this.memory.logout()
 			} else if (operation === this.confirmationGeneration)
 				this.restoreIdentity(this.session.currentUID())
 			if (!ownedAtFailure) throw new RequestError(401, 'AUTH_REQUIRED')

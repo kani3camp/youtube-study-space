@@ -21,6 +21,13 @@ if (import.meta.env.DEV) {
 		: mode?.includes('restricted-moderation')
 			? 'SERVICE_ACCESS_RESTRICTED'
 			: null
+	let maintenanceState: 'NORMAL' | 'ACTIVE' | 'UNKNOWN' = mode?.startsWith(
+		'maintenance-active',
+	)
+		? 'ACTIVE'
+		: mode?.startsWith('maintenance-unknown')
+			? 'UNKNOWN'
+			: 'NORMAL'
 	const requests: string[] = []
 	let syntheticVerified = false
 	let holdNext = false
@@ -64,6 +71,23 @@ if (import.meta.env.DEV) {
 		requests.push(String(path))
 		const counter = document.getElementById('synthetic-requests')
 		if (counter) counter.textContent = JSON.stringify(requests)
+		if (path === '/api/public/mypage-status') {
+			if (maintenanceState === 'UNKNOWN')
+				return Response.json(
+					{ error: { code: 'TEMPORARY_UNAVAILABLE' } },
+					{ status: 503 },
+				)
+			if (mode?.startsWith('maintenance-delayed-normal'))
+				await new Promise((resolve) => setTimeout(resolve, 150))
+			return Response.json({
+				state: maintenanceState,
+				updatedAt: '2026-10-27T02:00:00Z',
+				...(maintenanceState === 'ACTIVE'
+					? { estimatedEndAt: '2026-10-27T03:00:00Z' }
+					: {}),
+				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
+			})
+		}
 		if (String(path).startsWith('/api/mypage/history?')) {
 			const query = new URL(String(path), location.origin).searchParams
 			if (mode === 'history-quota-authenticated')
@@ -320,6 +344,24 @@ if (import.meta.env.DEV) {
 						onClick={() => release?.()}
 					>
 						Release response
+					</button>
+					<button
+						id="synthetic-maintenance-normal"
+						type="button"
+						onClick={() => {
+							maintenanceState = 'NORMAL'
+						}}
+					>
+						Set maintenance NORMAL
+					</button>
+					<button
+						id="synthetic-maintenance-active"
+						type="button"
+						onClick={() => {
+							maintenanceState = 'ACTIVE'
+						}}
+					>
+						Set maintenance ACTIVE
 					</button>
 					<button
 						id="synthetic-fail-logout"

@@ -42,8 +42,16 @@ with sync_playwright() as p:
    page.get_by_role('link',name=restart).click()
    page.get_by_role('heading',name='お問い合わせ' if support else 'マイページへログイン',exact=True).wait_for()
    results.append({'purpose':'support' if support else 'login','pending':pending,'persisted':True,'restartWorks':True,'staleSuccessDisplayed':False})
+ page.goto(args.base_url+'/runtime-visual.html?'+urlencode({'path':'/maintenance','mode':'maintenance-active-authenticated'}))
+ page.get_by_role('heading',name='ただいまメンテナンス中です').wait_for();page.evaluate('document.fonts.ready')
+ page.locator('#synthetic-maintenance-normal').click()
+ page.goto(args.base_url+'/');page.go_back(wait_until='commit')
+ page.get_by_role('heading',name='自分のペースで、少しずつ。').wait_for()
+ assert page.evaluate('window.__bfRestored===true'), 'Maintenance page did not return through actual bfcache'
+ assert page.get_by_text('ただいまメンテナンス中です',exact=True).count()==0
+ results.append({'purpose':'maintenance','persisted':True,'normalRecovery':True,'staleMaintenanceDisplayed':False})
  assert not external,'Unexpected external request (URLs not printed)'
  assert not errors,errors
  browser.close()
 (out/'report.json').write_text(json.dumps({'syntheticOnly':True,'actualBfcache':True,'cases':results,'externalRequests':len(external),'pageErrors':errors},indent=2))
-print('PASS: 4 real bfcache confirmation-return cases, explicit restart works, no late receipt/navigation.')
+print('PASS: 5 real bfcache cases, including maintenance NORMAL recovery, without stale private or maintenance UI.')

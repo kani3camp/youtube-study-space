@@ -26,7 +26,7 @@ func errorCode(err error) string {
 			return e.Code
 		}
 		switch e.Code {
-		case "INVALID_REQUEST", "PAYLOAD_TOO_LARGE", "PRIVACY_CONSENT_REQUIRED", "POLICY_VERSION_OUTDATED", "AUTH_REQUIRED", "APP_CHECK_REQUIRED", "SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS", "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_EXPIRED", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED", "PRIVACY_RECONSENT_REQUIRED", "SUPPORT_CHALLENGE_INVALID", "SUPPORT_CHANNEL_MISMATCH", "INTAKE_KEY_CONFLICT", "OAUTH_FAILED", "OAUTH_SCOPE_INSUFFICIENT", "CHANNEL_UNAVAILABLE", "CHANNEL_AMBIGUOUS", "WEB_ACCOUNT_REQUIRED", "RATE_LIMITED", "TEMPORARY_UNAVAILABLE", "INTERNAL_ERROR":
+		case "INVALID_REQUEST", "PAYLOAD_TOO_LARGE", "PRIVACY_CONSENT_REQUIRED", "POLICY_VERSION_OUTDATED", "AUTH_REQUIRED", "APP_CHECK_REQUIRED", "SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS", "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_EXPIRED", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED", "PRIVACY_RECONSENT_REQUIRED", "SUPPORT_CHALLENGE_INVALID", "SUPPORT_CHANNEL_MISMATCH", "INTAKE_KEY_CONFLICT", "OAUTH_FAILED", "OAUTH_SCOPE_INSUFFICIENT", "CHANNEL_UNAVAILABLE", "CHANNEL_AMBIGUOUS", "WEB_ACCOUNT_REQUIRED", "RATE_LIMITED", "MAINTENANCE_ACTIVE", "MAINTENANCE_REVISION_MISMATCH", "TEMPORARY_UNAVAILABLE", "INTERNAL_ERROR":
 			return e.Code
 		}
 	}
@@ -103,13 +103,14 @@ type CustomTokenMinter interface {
 }
 
 type AuthService struct {
-	Access   serviceaccess.Reader
-	Store    AuthStore
-	Provider YouTubeOAuth
-	Minter   CustomTokenMinter
-	Policy   Policy
-	Support  *FirestoreSupportStore
-	Now      func() time.Time
+	Access      serviceaccess.Reader
+	Store       AuthStore
+	Maintenance MaintenanceReader
+	Provider    YouTubeOAuth
+	Minter      CustomTokenMinter
+	Policy      Policy
+	Support     *FirestoreSupportStore
+	Now         func() time.Time
 }
 
 type StartRequest struct {
@@ -157,6 +158,11 @@ func (s *AuthService) Start(ctx context.Context, previousID string, request Star
 	if request.PrivacyPolicyVersion != s.Policy.Privacy || request.TermsVersion != s.Policy.Terms {
 		return StartResponse{}, "", apiError("POLICY_VERSION_OUTDATED")
 	}
+	if request.SupportChallenge == nil && s.Maintenance != nil {
+		if err := s.Maintenance.CheckAuthoritative(ctx); err != nil {
+			return StartResponse{}, "", fmt.Errorf("check maintenance before OAuth start: %w", err)
+		}
+	}
 	id, err := opaque()
 	if err != nil {
 		return StartResponse{}, "", err
@@ -196,7 +202,30 @@ func (s *AuthService) Callback(ctx context.Context, id, state, code string, deni
 	if id == "" || state == "" {
 		return apiError("OAUTH_TRANSACTION_REQUIRED")
 	}
+	purpose := ""
+	if purposeStore, ok := s.Store.(interface {
+		ReadPurpose(context.Context, string, time.Time) (string, error)
+	}); ok {
+		var err error
+		purpose, err = purposeStore.ReadPurpose(ctx, id, s.Now().UTC())
+		if err != nil {
+			return fmt.Errorf("read OAuth callback purpose: %w", err)
+		}
+		if purpose == "login" && s.Maintenance != nil {
+			if err := s.Maintenance.CheckAuthoritative(ctx); err != nil {
+				if failErr := s.Store.Fail(ctx, id); failErr != nil {
+					err = errors.Join(err, fmt.Errorf("fail maintenance OAuth transaction: %w", failErr))
+				}
+				return fmt.Errorf("check maintenance before OAuth callback: %w", err)
+			}
+		}
+	}
 	if err := s.Store.Claim(ctx, id, digest(state), s.Now().UTC()); err != nil {
+		if errorCode(err) == "MAINTENANCE_ACTIVE" {
+			if failErr := s.Store.Fail(ctx, id); failErr != nil {
+				err = errors.Join(err, fmt.Errorf("fail activated OAuth transaction: %w", failErr))
+			}
+		}
 		return fmt.Errorf("claim OAuth callback: %w", err)
 	}
 	if denied {
@@ -226,7 +255,20 @@ func (s *AuthService) Callback(ctx context.Context, id, state, code string, deni
 		return err
 	}
 	if err := s.Store.Verify(ctx, id, channels[0], confirmation, s.Now().UTC()); err != nil {
+		if errorCode(err) == "MAINTENANCE_ACTIVE" {
+			if failErr := s.Store.Fail(ctx, id); failErr != nil {
+				err = errors.Join(err, fmt.Errorf("fail activated OAuth verification: %w", failErr))
+			}
+		}
 		return fmt.Errorf("verify OAuth transaction: %w", err)
+	}
+	if purpose == "login" && s.Maintenance != nil {
+		if err := s.Maintenance.CheckAuthoritative(ctx); err != nil {
+			if failErr := s.Store.Fail(ctx, id); failErr != nil {
+				err = errors.Join(err, fmt.Errorf("fail completed maintenance OAuth transaction: %w", failErr))
+			}
+			return fmt.Errorf("check maintenance after OAuth callback: %w", err)
+		}
 	}
 	return nil
 }
@@ -249,6 +291,11 @@ func (s *AuthService) Channel(ctx context.Context, id string) (ChannelResponse, 
 	if purpose != "login" {
 		return ChannelResponse{}, apiError("INVALID_REQUEST")
 	}
+	if s.Maintenance != nil {
+		if err := s.Maintenance.CheckAuthoritative(ctx); err != nil {
+			return ChannelResponse{}, fmt.Errorf("check maintenance before login channel: %w", err)
+		}
+	}
 	if _, err := readAccess(ctx, s.Access, tx.Channel.ID, ""); err != nil {
 		return ChannelResponse{}, err
 	}
@@ -263,6 +310,11 @@ func (s *AuthService) Confirm(ctx context.Context, id, confirmation string) (str
 	if err != nil {
 		return "", fmt.Errorf("read confirmed channel: %w", err)
 	}
+	if s.Maintenance != nil {
+		if err := s.Maintenance.CheckAuthoritative(ctx); err != nil {
+			return "", fmt.Errorf("check maintenance before login consume: %w", err)
+		}
+	}
 	checkpoint, err := readAccess(ctx, s.Access, value.Channel.ID, "")
 	if err != nil {
 		return "", err
@@ -276,12 +328,22 @@ func (s *AuthService) Confirm(ctx context.Context, id, confirmation string) (str
 	if _, err := readAccess(ctx, s.Access, channel.ID, checkpoint); err != nil {
 		return "", err
 	}
+	if s.Maintenance != nil {
+		if err := s.Maintenance.CheckAuthoritative(ctx); err != nil {
+			return "", fmt.Errorf("check maintenance before custom token mint: %w", err)
+		}
+	}
 	token, err := s.Minter.Mint(ctx, channel.ID)
 	if err != nil {
 		return "", apiError("TEMPORARY_UNAVAILABLE")
 	}
 	if _, err := readAccess(ctx, s.Access, channel.ID, checkpoint); err != nil {
 		return "", err
+	}
+	if s.Maintenance != nil {
+		if err := s.Maintenance.CheckAuthoritative(ctx); err != nil {
+			return "", fmt.Errorf("check maintenance after custom token mint: %w", err)
+		}
 	}
 	return token, nil
 }

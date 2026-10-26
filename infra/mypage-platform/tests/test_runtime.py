@@ -14,7 +14,7 @@ import runtime_contract as r
 
 def fixture(stage="runtime_private"):
     value = r.settings(json.loads((ROOT / "infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json").read_text()))
-    after = r.resource_contract(stage)
+    after = r.resource_contract(stage, value)
     container = {"image": value["image_digest"], "ports": [{"name": "http1", "container_port": 8080}],
                  "resources": [{"limits": {"cpu": "1", "memory": "512Mi"}, "cpu_idle": True, "startup_cpu_boost": False}],
                  "startup_probe": [{"initial_delay_seconds": 0, "timeout_seconds": 1, "period_seconds": 10,
@@ -32,7 +32,7 @@ def fixture(stage="runtime_private"):
     result = {"format_version": "1.2", "complete": True, "errored": False,
             "variables": {"stage": {"value": stage}, "runtime_settings": {"value": value}},
             "resource_changes": [{"address": address, "mode": "managed", "provider_name": "registry.terraform.io/hashicorp/google",
-                                  "change": {"actions": ["create"], "after": values, "after_unknown": {}}} for address, values in after.items()]}
+                                  "change": {"actions": ["no-op"] if address in r.maintenance_resource_contract() else ["create"], "after": values, "after_unknown": {}}} for address, values in after.items()]}
     if stage == "runtime_public":
         change = next(x['change'] for x in result['resource_changes'] if x['address'] == r.INVOKER)
         change.update(actions=['no-op'], importing={'id': r.PUBLIC_INVOKER_IMPORT_ID})
@@ -61,7 +61,7 @@ class RuntimeTest(unittest.TestCase):
         drift['change'].update(actions=['update'], before=before)
         plan['resource_drift'] = [drift]
         original = deepcopy(plan)
-        self.assertEqual(r.validate_plan(plan, 'runtime_private'), {'resources':11,'creates':0})
+        self.assertEqual(r.validate_plan(plan, 'runtime_private'), {'resources':27,'creates':0})
         self.assertEqual(plan, original)
         mutations = (
             (lambda p: service(p).update(actions=['update']), 'runtime-refresh-planned-noop'),
@@ -79,7 +79,7 @@ class RuntimeTest(unittest.TestCase):
             self.assertEqual(str(error.exception), expected_check)
 
     def test_owner_hosting_image_refresh_is_exact_ready_noop_and_committed(self):
-        for stage, size in (("runtime_private", 11), ("runtime_public", 12)):
+        for stage, size in (("runtime_private", 27), ("runtime_public", 28)):
             plan = fixture(stage)
             for item in plan['resource_changes']:
                 item['change']['actions'] = ['no-op']
@@ -177,7 +177,7 @@ class RuntimeTest(unittest.TestCase):
         drift['change'].update(actions=['update'], before=before)
         plan['resource_drift'] = [drift]
         original = deepcopy(plan)
-        self.assertEqual(r.validate_plan(plan, 'runtime_public'), {'resources': 12, 'creates': 0})
+        self.assertEqual(r.validate_plan(plan, 'runtime_public'), {'resources': 28, 'creates': 0})
         self.assertEqual(plan, original)
         for mutate in (
             lambda p: p['resource_drift'][0]['change']['before']['template'][0]['containers'][0]['env'][-1].update(value='other-et.a.run.app'),
@@ -193,7 +193,7 @@ class RuntimeTest(unittest.TestCase):
                 r.validate_plan(rejected, 'runtime_public')
 
     def test_bootstrap_cleanup_refreshes_only_the_same_noop_iam_members(self):
-        for stage, size in (("runtime_private", 11), ("runtime_public", 12)):
+        for stage, size in (("runtime_private", 27), ("runtime_public", 28)):
             plan = fixture(stage)
             plan['resource_drift'] = []
             for item in plan['resource_changes']:
@@ -227,7 +227,7 @@ class RuntimeTest(unittest.TestCase):
                                 c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
 
     def test_initial_service_refresh_accepts_only_observed_empty_defaults_on_noop(self):
-        for stage, size in (("runtime_private", 11), ("runtime_public", 12)):
+        for stage, size in (("runtime_private", 27), ("runtime_public", 28)):
             plan = fixture(stage)
             for item in plan['resource_changes']:
                 item['change']['actions'] = ['no-op']
@@ -268,19 +268,26 @@ class RuntimeTest(unittest.TestCase):
                                 c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
 
     def test_private_and_public_have_exact_resources_and_pinned_secrets(self):
-        for stage, size in (("runtime_private", 11), ("runtime_public", 12)):
+        for stage, size in (("runtime_private", 27), ("runtime_public", 28)):
             plan = fixture(stage)
-            self.assertEqual(r.validate_plan(plan, stage), {"resources": size, "creates": size - (stage == "runtime_public")})
+            self.assertEqual(r.validate_plan(plan, stage), {"resources": size, "creates": 11})
             for item in plan["resource_changes"]:
                 item["change"]["actions"] = ["no-op"]
             self.assertEqual(r.validate_plan(plan, stage), {"resources": size, "creates": 0})
+
+    def test_runtime_cannot_create_the_operator_or_bootstrap_boundary(self):
+        for address in r.maintenance_resource_contract():
+            plan = fixture()
+            next(item for item in plan["resource_changes"] if item["address"] == address)["change"]["actions"] = ["create"]
+            with self.subTest(address=address), self.assertRaisesRegex(c.ContractError, "^runtime-maintenance-bootstrap-complete$"):
+                r.validate_plan(plan, "runtime_private")
 
     def test_only_exact_owner_public_member_can_be_imported_without_cloud_writes(self):
         plan = fixture('runtime_public')
         self.assertEqual(r.public_invoker_import_config(), 'import {\n  to = ' + r.INVOKER + '\n  id = "' + r.PUBLIC_INVOKER_IMPORT_ID + '"\n}\n')
         qualified = deepcopy(plan)
         next(x['change'] for x in qualified['resource_changes'] if x['address'] == r.INVOKER)['after']['name'] = r.PUBLIC_INVOKER_NAME
-        self.assertEqual(r.validate_plan(qualified, 'runtime_public'), {'resources': 12, 'creates': 11})
+        self.assertEqual(r.validate_plan(qualified, 'runtime_public'), {'resources': 28, 'creates': 11})
         for mutate in (
             lambda p: next(x['change'] for x in p['resource_changes'] if x['address'] == r.INVOKER)['after'].update(name='projects/other/locations/asia-southeast2/services/mypage-api'),
             lambda p: next(x['change'] for x in p['resource_changes'] if x['address'] == r.INVOKER).update(actions=['create']),

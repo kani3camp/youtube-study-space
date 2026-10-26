@@ -176,6 +176,9 @@ func (s *HistoryService) reserve(ctx context.Context, uid, checkpoint, key, fing
 	}
 	opKey := digest(key)
 	err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		if err := transactionMaintenance(tx, s.Client, s.Environment); err != nil {
+			return err
+		}
 		clocks, err := tx.GetAll([]*firestore.DocumentRef{s.Client.Collection(serviceaccess.Collection).Doc(uid)})
 		if err != nil || len(clocks) != 1 || clocks[0].ReadTime.IsZero() {
 			return apiError("TEMPORARY_UNAVAILABLE")
@@ -250,6 +253,9 @@ func (s *HistoryService) reserve(ctx context.Context, uid, checkpoint, key, fing
 		state.Operations[opKey] = historyOperation{Fingerprint: fingerprint, Day: day}
 		claim = historyClaim{UID: uid, Key: opKey, Until: at.Add(15 * time.Second).UTC().Truncate(time.Microsecond)}
 		state.Leases[opKey] = claim.Until
+		if s.beforeBudgetWrite != nil {
+			s.beforeBudgetWrite()
+		}
 		if err := tx.Set(ref, state); err != nil {
 			return fmt.Errorf("reserve bounded history work: %w", err)
 		}

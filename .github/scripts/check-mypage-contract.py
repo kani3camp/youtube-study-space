@@ -24,6 +24,7 @@ schema = {"$ref": "#/components/schemas/MyPage", "components": api["components"]
 jsonschema.Draft202012Validator.check_schema(schema)
 validator = jsonschema.Draft202012Validator(schema, format_checker=jsonschema.FormatChecker())
 expected_paths = {
+    "/api/public/mypage-status": "get",
     "/api/auth/youtube/start": "post",
     "/api/auth/youtube/callback": "get",
     "/api/auth/youtube/channel": "get",
@@ -40,7 +41,7 @@ for path, method in expected_paths.items():
     op = api["paths"][path][method]
     if path in ("/api/mypage", "/api/mypage/history", "/api/auth/session/complete", "/api/privacy/requests", "/api/privacy/requests/status"):
         assert op["security"] == [{"FirebaseAuth": [], "AppCheck": []}]
-    elif path.endswith("callback"):
+    elif path.endswith("callback") or path == "/api/public/mypage-status":
         assert op["security"] == []
     else:
         assert "AppCheck" in op["security"][0]
@@ -72,7 +73,7 @@ rejects(lambda x: x["summary"]["data"]["today"].update(workSec=1.5))
 rejects(lambda x: x["summary"]["data"]["today"].update(availability="unavailable", workSec=0))
 rejects(lambda x: x["current"].update(availability="unavailable", reasonCode="SOURCE_UNAVAILABLE"))
 rejects(lambda x: x["current"]["data"].update(breakWorkName="obsolete"))
-print(f"MyPage nine-endpoint schema and {len(fixtures)} synthetic fixtures passed")
+print(f"MyPage ten-endpoint schema and {len(fixtures)} synthetic fixtures passed")
 
 
 # Purpose is authoritative server-side. A support response cannot carry a login
@@ -116,8 +117,19 @@ assert not status_schema.is_valid({"requestRef": "a" * 64, "purpose": "delete", 
 
 # Restriction wire codes are stable and cannot carry internal reason/target data.
 error = contract_validator("Error")
-for code in ["SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS", "TEMPORARY_UNAVAILABLE"]:
+for code in ["SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS", "MAINTENANCE_ACTIVE", "TEMPORARY_UNAVAILABLE"]:
     error.validate({"error": {"code": code, "message": code, "requestId": "synthetic-request"}})
+
+maintenance = contract_validator("MaintenanceStatus")
+maintenance.validate({"state": "NORMAL", "updatedAt": "2026-10-27T02:00:00Z", "messageTemplate": "MYPAGE_MAINTENANCE_V1"})
+maintenance.validate({"state": "ACTIVE", "updatedAt": "2026-10-27T02:00:00Z", "estimatedEndAt": "2026-10-27T03:00:00Z", "messageTemplate": "MYPAGE_MAINTENANCE_V1"})
+for invalid in [
+    {"state": "UNKNOWN", "updatedAt": "2026-10-27T02:00:00Z", "messageTemplate": "MYPAGE_MAINTENANCE_V1"},
+    {"state": "ACTIVE", "updatedAt": "2026-10-27T02:00:00Z", "messageTemplate": "MYPAGE_MAINTENANCE_V1", "revision": 2},
+    {"state": "ACTIVE", "updatedAt": "2026-10-27T02:00:00Z", "messageTemplate": "operator text"},
+    {"state": "NORMAL", "updatedAt": "2026-10-27T02:00:00Z", "estimatedEndAt": "2026-10-27T03:00:00Z", "messageTemplate": "MYPAGE_MAINTENANCE_V1"},
+]:
+    assert not maintenance.is_valid(invalid)
 
 # History is separate from graphs and cannot expose source paths or owner IDs.
 history = contract_validator("HistoryPage")
