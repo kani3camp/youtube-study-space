@@ -62,6 +62,17 @@ def v1service(*, after=False):
 
 
 class BackendReleaseTest(unittest.TestCase):
+    def test_windows_bootstrap_supports_native_gh_executable(self):
+        class Result:
+            returncode = 0
+            stdout = '{}'
+        def which(name):
+            return 'synthetic-gh.exe' if name == 'gh' else None
+        with patch.object(identity.os, 'name', 'nt'), patch.object(identity.shutil, 'which', side_effect=which), \
+             patch.object(identity.subprocess, 'run', return_value=Result()) as run:
+            identity.command('gh', ['api', 'synthetic'])
+            self.assertEqual(run.call_args.args[0][0], 'synthetic-gh.exe')
+
     def test_smoke_verifies_host_boundary_and_app_check_not_arbitrary_rejection(self):
         def response(url):
             direct = url.startswith('https://mypage-api-')

@@ -34,7 +34,7 @@ def condition():
 
 
 def command(tool, arguments, *, body=None, absent=False):
-    executable = shutil.which(tool + '.cmd') if os.name == 'nt' else shutil.which(tool)
+    executable = (shutil.which(tool + '.cmd') or shutil.which(tool)) if os.name == 'nt' else shutil.which(tool)
     c.need(executable is not None, 'backend-bootstrap-tool')
     result = subprocess.run([executable, *arguments], input=json.dumps(body) if body is not None else None,
                             text=True, capture_output=True, timeout=120)
