@@ -48,7 +48,7 @@ def api_service(state):
     return {
         "name": live.SERVICE_NAME, "uid": state["uid"], "etag": state["etag"],
         "generation": state["generation"], "observedGeneration": state["observed_generation"],
-        "updateTime": state["update_time"], "ingress": "INGRESS_TRAFFIC_ALL",
+        "updateTime": state["update_time"], "ingress": "INGRESS_TRAFFIC_ALL", "launchStage": "GA",
         "terminalCondition": {"state": "CONDITION_SUCCEEDED"},
         "latestReadyRevision": live.SERVICE_NAME + "/revisions/" + revision,
         "latestCreatedRevision": live.SERVICE_NAME + "/revisions/" + revision,

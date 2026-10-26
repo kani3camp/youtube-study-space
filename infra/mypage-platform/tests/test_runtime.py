@@ -182,11 +182,68 @@ class RuntimeTest(unittest.TestCase):
         for block, check in (("traffic", "maintenance-inspect-traffic"),
                              ("template", "maintenance-inspect-template")):
             rejected = fixture("maintenance_upgrade")
-            service = next(item for item in rejected["resource_changes"]
-                           if item["address"] == r.MAINTENANCE_INSPECT_SERVICE)["change"]["after"]
-            service[block][0]["revision"] = "mypage-maintenance-inspect-pinned"
+            inspect_service = next(item for item in rejected["resource_changes"]
+                                   if item["address"] == r.MAINTENANCE_INSPECT_SERVICE)["change"]["after"]
+            inspect_service[block][0]["revision"] = "mypage-maintenance-inspect-pinned"
             with self.subTest(block=block), self.assertRaises(c.ContractError) as error:
                 r.validate_plan(rejected, "maintenance_upgrade")
+            self.assertEqual(str(error.exception), check)
+
+        for field, invalid in (("deletion_policy", "ABANDON"), ("launch_stage", "ALPHA")):
+            rejected = fixture("runtime_private")
+            service(rejected)["after"][field] = invalid
+            with self.subTest(address=r.SERVICE, field=field), self.assertRaises(c.ContractError) as error:
+                r.validate_plan(rejected, "runtime_private")
+            self.assertEqual(str(error.exception), "runtime-resource-value-" + r.SERVICE + "-" + field)
+
+        for block, check in (("traffic", "runtime-traffic-revision"), ("template", "runtime-owned-revision")):
+            rejected = fixture("runtime_private")
+            service(rejected)["after"][block][0]["revision"] = "mypage-api-pinned"
+            with self.subTest(address=r.SERVICE, block=block), self.assertRaises(c.ContractError) as error:
+                r.validate_plan(rejected, "runtime_private")
+            self.assertEqual(str(error.exception), check)
+
+    def test_mutable_nested_unknowns_are_rejected_for_jobs_and_services(self):
+        mutations = (
+            (r.MAINTENANCE_JOB, "maintenance_upgrade",
+             {"template": [{"template": [{"volumes": True}]}]}, "maintenance-job-unknown"),
+            (r.MAINTENANCE_BOOTSTRAP_JOB, "maintenance_upgrade",
+             {"template": [{"template": [{"vpc_access": True}]}]}, "maintenance-bootstrap-unknown"),
+            (r.MAINTENANCE_INSPECT_SERVICE, "maintenance_upgrade",
+             {"template": [{"volumes": True}]}, "maintenance-inspect-unknown"),
+            (r.SERVICE, "runtime_private",
+             {"template": [{"containers": [{"volume_mounts": True}]}]}, "runtime-config-unknown"),
+        )
+        for address, stage, unknown, check in mutations:
+            rejected = fixture(stage)
+            item = next(item for item in rejected["resource_changes"] if item["address"] == address)
+            item["change"]["after_unknown"] = unknown
+            with self.subTest(address=address), self.assertRaises(c.ContractError) as error:
+                r.validate_plan(rejected, stage)
+            self.assertEqual(str(error.exception), check)
+
+    def test_noop_revision_must_equal_the_exact_observed_ready_revision(self):
+        cases = (
+            ("runtime_private", r.SERVICE, "mypage-api-ready", "runtime-owned-revision"),
+            ("maintenance_upgrade", r.MAINTENANCE_INSPECT_SERVICE,
+             "mypage-maintenance-inspect-ready", "maintenance-inspect-template"),
+        )
+        for stage, address, ready, check in cases:
+            plan = fixture(stage)
+            item = next(item for item in plan["resource_changes"] if item["address"] == address)
+            item["change"]["actions"] = ["no-op"]
+            after = item["change"]["after"]
+            after["latest_ready_revision"] = ready
+            after["template"][0]["revision"] = ready
+            after["traffic"][0]["revision"] = ready
+            with self.subTest(address=address, revision="ready"):
+                r.validate_plan(plan, stage)
+
+            rejected = deepcopy(plan)
+            changed = next(item for item in rejected["resource_changes"] if item["address"] == address)
+            changed["change"]["after"]["template"][0]["revision"] = ready + "-pinned"
+            with self.subTest(address=address, revision="pinned"), self.assertRaises(c.ContractError) as error:
+                r.validate_plan(rejected, stage)
             self.assertEqual(str(error.exception), check)
 
     def test_owner_hosting_image_refresh_is_exact_ready_noop_and_committed(self):

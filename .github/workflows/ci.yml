@@ -23,7 +23,7 @@ on:
         required: false
         type: string
       mypage_foundation:
-        description: Run isolated MyPage DEV provisioning
+        description: Run isolated staged MyPage Development or Production provisioning
         required: false
         default: false
         type: boolean
@@ -57,7 +57,7 @@ on:
           - runtime-public-plan
           - runtime-public-apply
       mypage_foundation_expected_sha:
-        description: Exact MyPage integration branch SHA
+        description: Exact SHA on the selected target's required ref
         required: false
         type: string
       terraform_authenticated:

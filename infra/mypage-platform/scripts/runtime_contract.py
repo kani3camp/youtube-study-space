@@ -235,7 +235,8 @@ def resource_contract(stage, value=None):
     resources |= {
         FIRESTORE: {"project": c.PROJECT, "role": "roles/datastore.user", "member": "serviceAccount:" + c.EMAIL},
         SERVICE: {"project": c.PROJECT, "name": "mypage-api", "location": c.REGION,
-                  "ingress": "INGRESS_TRAFFIC_ALL", "deletion_protection": True, "invoker_iam_disabled": False},
+                  "ingress": "INGRESS_TRAFFIC_ALL", "deletion_policy": "PREVENT",
+                  "deletion_protection": True, "invoker_iam_disabled": False, "launch_stage": "GA"},
     }
     if stage in {"maintenance_upgrade", "runtime_public"}:
         resources[INVOKER] = {"project": c.PROJECT, "location": c.REGION, "name": "mypage-api",
@@ -287,6 +288,46 @@ JOB_OBSERVED_OPTIONS = {
     "etag", "execution_count", "expire_time", "generation", "id", "last_modifier", "latest_created_execution",
     "observed_generation", "reconciling", "terminal_condition", "terraform_labels", "uid", "update_time",
 }
+
+SERVICE_OBSERVED_OPTIONS = {
+    "conditions", "create_time", "creator", "delete_time", "effective_annotations", "effective_labels", "etag",
+    "expire_time", "generation", "id", "last_modifier", "latest_created_revision", "latest_ready_revision",
+    "observed_generation", "reconciling", "terminal_condition", "terraform_labels", "traffic_statuses", "uid",
+    "update_time", "uri", "urls",
+}
+
+
+def validate_unknown_paths(mask, allowed, check):
+    """Admit only exact provider-computed unknown leaves; mutable fields stay known."""
+    c.need(type(mask) is dict, check)
+
+    def visit(value, path):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                visit(child, path + (key,))
+            return
+        if isinstance(value, list):
+            for index, child in enumerate(value):
+                visit(child, path + (index,))
+            return
+        c.need(value is None or type(value) is bool, check)
+        if value is True:
+            c.need(path in allowed, check)
+
+    visit(mask, ())
+
+
+def validate_planned_revision(after, desired, service, actions, check):
+    """Create cannot pin a revision; no-op may expose only the exact ready revision."""
+    if not desired:
+        return
+    c.need(actions == ["no-op"] and type(desired) is str, check)
+    ready = after.get("latest_ready_revision")
+    prefix = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/services/" + service + "/revisions/"
+    if type(ready) is str and ready.startswith(prefix):
+        ready = ready[len(prefix):]
+    c.need(type(ready) is str and desired == ready
+           and re.fullmatch(re.escape(service) + r"-[a-z0-9-]{1,50}", desired), check)
 
 
 def known_path(mask, *path):
@@ -343,6 +384,7 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
         c.need(after.get("member") == expected_member, "maintenance-wif-member")
         return
     if address in {MAINTENANCE_JOB, MAINTENANCE_BREAKGLASS_JOB}:
+        validate_unknown_paths(unknown, {(name,) for name in JOB_OBSERVED_OPTIONS}, "maintenance-job-unknown")
         fixed_options(after, {"project", "name", "location", "deletion_policy", "deletion_protection", "launch_stage", "template"} | JOB_OBSERVED_OPTIONS, "maintenance-job-options")
         template = one(after.get("template"), "maintenance-job-template")
         fixed_options(template, {"task_count", "parallelism", "template"}, "maintenance-job-template-options")
@@ -367,6 +409,7 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
         c.need(resources.get("limits") == {"cpu": "1", "memory": "512Mi"}, "maintenance-job-limits")
         return
     if address == MAINTENANCE_BOOTSTRAP_JOB:
+        validate_unknown_paths(unknown, {(name,) for name in JOB_OBSERVED_OPTIONS}, "maintenance-bootstrap-unknown")
         fixed_options(after, {"project", "name", "location", "deletion_policy", "deletion_protection", "launch_stage", "template"} | JOB_OBSERVED_OPTIONS, "maintenance-bootstrap-options")
         template = one(after.get("template"), "maintenance-bootstrap-template")
         fixed_options(template, {"task_count", "parallelism", "template"}, "maintenance-bootstrap-template-options")
@@ -396,6 +439,11 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
 
 def validate_inspect_service(after, unknown, value, actions, bootstrap_email=None):
     bootstrap_email = bootstrap_email or "mypage-maintenance-bootstrap@" + c.PROJECT + ".iam.gserviceaccount.com"
+    computed_unknowns = {(name,) for name in SERVICE_OBSERVED_OPTIONS} | {
+        ("scaling", 0, "manual_instance_count"),
+        ("template", 0, "containers", 0, "build_info"),
+    }
+    validate_unknown_paths(unknown, computed_unknowns, "maintenance-inspect-unknown")
     for key in ("project", "name", "location", "ingress", "deletion_policy", "deletion_protection",
                 "invoker_iam_disabled", "launch_stage"):
         c.need(not c.has_unknown(unknown.get(key)), "maintenance-inspect-unknown")
@@ -409,8 +457,8 @@ def validate_inspect_service(after, unknown, value, actions, bootstrap_email=Non
         known_path(unknown, "template", 0, "containers", 0, key)
     fixed_options(after, {
         "project", "name", "location", "ingress", "deletion_protection", "invoker_iam_disabled",
-        "scaling", "traffic", "template", "annotations", "labels", "launch_stage", "client", "client_version",
-        "conditions", "create_time", "creator", "delete_time", "deletion_policy", "effective_annotations",
+        "deletion_policy", "scaling", "traffic", "template", "annotations", "labels", "launch_stage",
+        "conditions", "create_time", "creator", "delete_time", "effective_annotations",
         "effective_labels", "etag", "expire_time", "generation", "id", "last_modifier", "latest_created_revision",
         "latest_ready_revision", "observed_generation", "reconciling", "terminal_condition", "terraform_labels",
         "traffic_statuses", "uid", "update_time", "uri", "urls",
@@ -424,10 +472,8 @@ def validate_inspect_service(after, unknown, value, actions, bootstrap_email=Non
     fixed_options(traffic, {"type", "percent", "revision", "tag"}, "maintenance-inspect-traffic-options")
     c.need(traffic.get("type") == "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST" and traffic.get("percent") == 100
            and not traffic.get("tag"), "maintenance-inspect-traffic")
-    if actions == ["create"]:
-        c.need(not traffic.get("revision"), "maintenance-inspect-traffic")
-    else:
-        c.need(not traffic.get("revision") or re.fullmatch(r"mypage-maintenance-inspect-[a-z0-9-]{1,50}", traffic["revision"]), "maintenance-inspect-traffic")
+    validate_planned_revision(after, traffic.get("revision"), "mypage-maintenance-inspect", actions,
+                              "maintenance-inspect-traffic")
     template = one(after.get("template"), "maintenance-inspect-template")
     fixed_options(template, {"service_account", "timeout", "max_instance_request_concurrency", "execution_environment",
                              "scaling", "containers", "revision", "annotations", "labels"}, "maintenance-inspect-template-options")
@@ -435,10 +481,8 @@ def validate_inspect_service(after, unknown, value, actions, bootstrap_email=Non
     c.need(template.get("service_account") == bootstrap_email and template.get("timeout") == "20s"
            and template.get("max_instance_request_concurrency") == 1
            and template.get("execution_environment") == "EXECUTION_ENVIRONMENT_GEN2", "maintenance-inspect-template")
-    if actions == ["create"]:
-        c.need(not template.get("revision"), "maintenance-inspect-template")
-    else:
-        c.need(not template.get("revision") or re.fullmatch(r"mypage-maintenance-inspect-[a-z0-9-]{1,50}", template["revision"]), "maintenance-inspect-template")
+    validate_planned_revision(after, template.get("revision"), "mypage-maintenance-inspect", actions,
+                              "maintenance-inspect-template")
     template_scaling = one(template.get("scaling"), "maintenance-inspect-template-scaling")
     fixed_options(template_scaling, {"min_instance_count", "max_instance_count"}, "maintenance-inspect-template-scaling-options")
     c.need(template_scaling.get("min_instance_count") == 0 and template_scaling.get("max_instance_count") == 1,
@@ -465,8 +509,14 @@ def validate_inspect_service(after, unknown, value, actions, bootstrap_email=Non
     c.need(len(env) == len(environment) and env == {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": c.ENVIRONMENT}, "maintenance-inspect-environment")
 
 
-def validate_service(after, unknown, value):
-    for key in ("project", "name", "location", "ingress", "deletion_protection", "invoker_iam_disabled"):
+def validate_service(after, unknown, value, actions):
+    computed_unknowns = {(name,) for name in SERVICE_OBSERVED_OPTIONS} | {
+        ("scaling", 0, "manual_instance_count"),
+        ("template", 0, "containers", 0, "build_info"),
+    }
+    validate_unknown_paths(unknown, computed_unknowns, "runtime-config-unknown")
+    for key in ("project", "name", "location", "ingress", "deletion_policy", "deletion_protection",
+                "invoker_iam_disabled", "launch_stage"):
         c.need(not c.has_unknown(unknown.get(key)), "runtime-config-unknown")
     for key in ("min_instance_count", "max_instance_count", "scaling_mode"):
         known_path(unknown, "scaling", 0, key)
@@ -485,14 +535,14 @@ def validate_service(after, unknown, value):
     traffic = one(after.get("traffic"), "runtime-traffic")
     c.need(traffic.get("type") == "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST" and traffic.get("percent") == 100, "runtime-latest-traffic")
     empty_options(traffic, ("tag",))
-    c.need(not traffic.get("revision") or re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", traffic["revision"]), "runtime-traffic-revision")
+    validate_planned_revision(after, traffic.get("revision"), "mypage-api", actions, "runtime-traffic-revision")
     template = one(after.get("template"), "runtime-template")
     c.need(template.get("service_account") == c.EMAIL and template.get("timeout") == "30s"
            and template.get("max_instance_request_concurrency") == 40
            and template.get("execution_environment") == "EXECUTION_ENVIRONMENT_GEN2", "runtime-template-boundary")
     empty_options(template, ("annotations", "labels", "encryption_key", "node_selector", "sandboxes", "volumes",
                              "vpc_access", "workload_identity_config", "health_check_disabled", "session_affinity"))
-    c.need(not template.get("revision") or re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", template["revision"]), "runtime-owned-revision")
+    validate_planned_revision(after, template.get("revision"), "mypage-api", actions, "runtime-owned-revision")
     scaling = one(template.get("scaling"), "runtime-revision-scaling")
     c.need(scaling.get("min_instance_count") == 0 and scaling.get("max_instance_count") == (1 if c.TARGET == "development" else 3), "runtime-revision-capacity")
     container = one(template.get("containers"), "runtime-container")
@@ -578,7 +628,7 @@ def validate_service_empty_refresh(item, planned, value):
     for candidate in (before, after):
         for key, expected in resource_contract("runtime_private")[SERVICE].items():
             c.need(candidate.get(key) == expected, "runtime-refresh-boundary")
-        validate_service(candidate, {}, value)
+        validate_service(candidate, {}, value, ["no-op"])
 
 
 
@@ -607,7 +657,7 @@ def validate_owner_hosting_image_refresh(item, planned, value):
     for candidate, config in ((before, old_value), (after, value)):
         for key, expected in resource_contract("runtime_private")[SERVICE].items():
             c.need(candidate.get(key) == expected, "runtime-owner-refresh-boundary")
-        validate_service(candidate, {}, config)
+        validate_service(candidate, {}, config, ["no-op"])
     normalized = deepcopy(before)
     old_template, new_template = one(normalized.get("template"), "runtime-owner-refresh-template"), one(after.get("template"), "runtime-owner-refresh-template")
     old_container, new_container = one(old_template.get("containers"), "runtime-owner-refresh-container"), one(new_template.get("containers"), "runtime-owner-refresh-container")
@@ -779,6 +829,6 @@ def validate_initial_plan(plan, stage):
         if address in maintenance_resource_contract():
             validate_maintenance_resource(address, after, unknown, value, change.get("actions"))
         elif address == SERVICE:
-            validate_service(after, unknown, value)
+            validate_service(after, unknown, value, change.get("actions"))
     c.need(seen == set(expected), "runtime-resource-set")
     return {"resources": len(seen), "creates": sum(item["change"]["actions"] == ["create"] for item in changes)}

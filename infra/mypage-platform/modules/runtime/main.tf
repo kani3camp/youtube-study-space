@@ -190,8 +190,10 @@ resource "google_cloud_run_v2_service" "api" {
   name                 = "mypage-api"
   location             = var.region
   ingress              = "INGRESS_TRAFFIC_ALL"
+  deletion_policy      = "PREVENT"
   deletion_protection  = true
   invoker_iam_disabled = false
+  launch_stage         = "GA"
 
   scaling {
     min_instance_count = 0
