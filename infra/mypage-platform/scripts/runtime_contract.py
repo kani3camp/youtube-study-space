@@ -52,7 +52,7 @@ def settings(value):
     c.need(all(type(v) is str for k, v in value.items() if k not in {"read_metrics_enabled", "maintenance_operator_enabled"}), "runtime-settings-types")
     c.need(re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["image_digest"]), "runtime-image")
     c.need(value["maintenance_operator_enabled"] and re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["maintenance_operator_image_digest"]) and commit_sha(value["maintenance_operator_image_source_sha"]), "runtime-maintenance-operator-image")
-    c.need(re.fullmatch(r"[0-9]{6,20}", value["project_number"]), "runtime-project-number")
+    c.need(value["project_number"] == c.PROJECT_NUMBER, "runtime-project-number")
     c.need(re.fullmatch("1:" + value["project_number"] + r":web:[A-Za-z0-9]+", value["web_app_id"]), "runtime-app-project")
     c.need(value["public_origin"] == ORIGIN, "runtime-origin")
     for field in ("privacy_version", "terms_version"):
@@ -115,7 +115,7 @@ def maintenance_resource_contract(value=None):
         }
         resources[MAINTENANCE_WIF] |= {
             "service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + invoker_email,
-            "member": "principalSet://iam.googleapis.com/projects/" + value["project_number"] + "/locations/global/workloadIdentityPools/mypage-maintenance/attribute.repository_id/340900071",
+            "member": "principalSet://iam.googleapis.com/projects/" + c.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance/attribute.repository_id/340900071",
         }
         resources[MAINTENANCE_JOB]["template"] = [{
             "task_count": 1, "parallelism": 1,

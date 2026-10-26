@@ -296,29 +296,30 @@ type MaintenanceTransitionResult struct {
 }
 
 type maintenanceAuditEvent struct {
-	Authority             string     `firestore:"authority"`
-	Environment           string     `firestore:"environment"`
-	PreviousState         string     `firestore:"previousState"`
-	State                 string     `firestore:"state"`
-	PreviousRevision      int64      `firestore:"previousRevision"`
-	Revision              int64      `firestore:"revision"`
-	UpdatedAt             time.Time  `firestore:"updatedAt"`
-	EstimatedEndAt        *time.Time `firestore:"estimatedEndAt,omitempty"`
-	MessageTemplate       string     `firestore:"messageTemplate"`
-	ReasonCategory        string     `firestore:"reasonCategory"`
-	RepositoryID          string     `firestore:"repositoryId"`
-	RepositoryOwnerID     string     `firestore:"repositoryOwnerId"`
-	ActorID               string     `firestore:"actorId"`
-	TriggeringActorID     string     `firestore:"triggeringActorId"`
-	RunID                 string     `firestore:"runId"`
-	RunAttempt            int64      `firestore:"runAttempt"`
-	GitRef                string     `firestore:"gitRef"`
-	CommitSHA             string     `firestore:"commitSha"`
-	WorkflowRef           string     `firestore:"workflowRef"`
-	CloudRunExecution     string     `firestore:"cloudRunExecution"`
-	BreakGlassApprovalRef string     `firestore:"breakGlassApprovalRef,omitempty"`
-	ClaimedOperator       string     `firestore:"claimedOperator,omitempty"`
-	Result                string     `firestore:"result"`
+	Authority              string     `firestore:"authority"`
+	Environment            string     `firestore:"environment"`
+	PreviousState          string     `firestore:"previousState"`
+	State                  string     `firestore:"state"`
+	PreviousRevision       int64      `firestore:"previousRevision"`
+	Revision               int64      `firestore:"revision"`
+	UpdatedAt              time.Time  `firestore:"updatedAt"`
+	PreviousEstimatedEndAt *time.Time `firestore:"previousEstimatedEndAt"`
+	EstimatedEndAt         *time.Time `firestore:"estimatedEndAt,omitempty"`
+	MessageTemplate        string     `firestore:"messageTemplate"`
+	ReasonCategory         string     `firestore:"reasonCategory"`
+	RepositoryID           string     `firestore:"repositoryId"`
+	RepositoryOwnerID      string     `firestore:"repositoryOwnerId"`
+	ActorID                string     `firestore:"actorId"`
+	TriggeringActorID      string     `firestore:"triggeringActorId"`
+	RunID                  string     `firestore:"runId"`
+	RunAttempt             int64      `firestore:"runAttempt"`
+	GitRef                 string     `firestore:"gitRef"`
+	CommitSHA              string     `firestore:"commitSha"`
+	WorkflowRef            string     `firestore:"workflowRef"`
+	CloudRunExecution      string     `firestore:"cloudRunExecution"`
+	BreakGlassApprovalRef  string     `firestore:"breakGlassApprovalRef,omitempty"`
+	ClaimedOperator        string     `firestore:"claimedOperator,omitempty"`
+	Result                 string     `firestore:"result"`
 }
 
 func expectedMaintenanceRef(environment string) string {
@@ -377,7 +378,8 @@ func prepareMaintenanceTransition(previous *MaintenanceControl, request Maintena
 			return MaintenanceTransitionResult{}, apiError("MAINTENANCE_REVISION_MISMATCH")
 		}
 		if (previous.State == MaintenanceNormal && request.State != MaintenanceActive) ||
-			(previous.State == MaintenanceActive && request.State != MaintenanceNormal) {
+			(previous.State == MaintenanceActive && request.State != MaintenanceNormal && request.State != MaintenanceActive) ||
+			(previous.State == MaintenanceActive && request.State == MaintenanceActive && sameOptionalTime(previous.EstimatedEndAt, request.EstimatedEndAt)) {
 			return MaintenanceTransitionResult{}, apiError("INVALID_REQUEST")
 		}
 	}
@@ -441,10 +443,12 @@ func ApplyMaintenanceTransition(ctx context.Context, client *firestore.Client, r
 		}
 		next := prepared.Current
 		previousState := "MISSING"
+		var previousEstimatedEndAt *time.Time
 		if previous != nil {
 			previousState = previous.State
+			previousEstimatedEndAt = previous.EstimatedEndAt
 		}
-		event := maintenanceAuditEvent{Authority: request.Authority, Environment: request.Environment, PreviousState: previousState, State: next.State, PreviousRevision: request.ExpectedRevision, Revision: next.Revision, UpdatedAt: now, EstimatedEndAt: next.EstimatedEndAt, MessageTemplate: next.MessageTemplate, ReasonCategory: next.ReasonCategory, RepositoryID: request.RepositoryID, RepositoryOwnerID: request.RepositoryOwnerID, ActorID: request.ActorID, TriggeringActorID: request.TriggeringActorID, RunID: request.RunID, RunAttempt: request.RunAttempt, GitRef: request.GitRef, CommitSHA: request.CommitSHA, WorkflowRef: request.WorkflowRef, CloudRunExecution: request.CloudRunExecution, BreakGlassApprovalRef: request.BreakGlassApprovalRef, ClaimedOperator: request.ClaimedOperator, Result: "COMMITTED"}
+		event := maintenanceAuditEvent{Authority: request.Authority, Environment: request.Environment, PreviousState: previousState, State: next.State, PreviousRevision: request.ExpectedRevision, Revision: next.Revision, UpdatedAt: now, PreviousEstimatedEndAt: previousEstimatedEndAt, EstimatedEndAt: next.EstimatedEndAt, MessageTemplate: next.MessageTemplate, ReasonCategory: next.ReasonCategory, RepositoryID: request.RepositoryID, RepositoryOwnerID: request.RepositoryOwnerID, ActorID: request.ActorID, TriggeringActorID: request.TriggeringActorID, RunID: request.RunID, RunAttempt: request.RunAttempt, GitRef: request.GitRef, CommitSHA: request.CommitSHA, WorkflowRef: request.WorkflowRef, CloudRunExecution: request.CloudRunExecution, BreakGlassApprovalRef: request.BreakGlassApprovalRef, ClaimedOperator: request.ClaimedOperator, Result: "COMMITTED"}
 		if err := tx.Create(eventRef, event); err != nil {
 			return fmt.Errorf("append maintenance audit event: %w", err)
 		}
@@ -495,7 +499,7 @@ func decodeMaintenanceAuditDocument(doc *firestore.DocumentSnapshot, authority s
 	data := doc.Data()
 	required := map[string]bool{
 		"authority": true, "environment": true, "previousState": true, "state": true,
-		"previousRevision": true, "revision": true, "updatedAt": true,
+		"previousRevision": true, "revision": true, "updatedAt": true, "previousEstimatedEndAt": true,
 		"messageTemplate": true, "reasonCategory": true, "repositoryId": true,
 		"repositoryOwnerId": true, "actorId": true, "triggeringActorId": true,
 		"runId": true, "runAttempt": true, "gitRef": true, "commitSha": true,
@@ -531,6 +535,21 @@ func decodeMaintenanceAuditDocument(doc *firestore.DocumentSnapshot, authority s
 	return event, nil
 }
 
+func maintenanceAuditPreviousMatches(event maintenanceAuditEvent, current MaintenanceControl, request MaintenanceTransition) bool {
+	if request.ExpectedRevision == 0 {
+		return event.PreviousState == "MISSING" && event.PreviousEstimatedEndAt == nil
+	}
+	switch event.PreviousState {
+	case MaintenanceNormal:
+		return request.State == MaintenanceActive && event.PreviousEstimatedEndAt == nil
+	case MaintenanceActive:
+		return request.State == MaintenanceNormal ||
+			(request.State == MaintenanceActive && !sameOptionalTime(event.PreviousEstimatedEndAt, current.EstimatedEndAt))
+	default:
+		return false
+	}
+}
+
 // VerifyMaintenanceTransition is a non-mutating receipt check. It requires the
 // committed control and immutable audit event to match the requested CAS.
 func VerifyMaintenanceTransition(ctx context.Context, client *firestore.Client, request MaintenanceTransition, now time.Time) (MaintenanceTransitionResult, error) {
@@ -547,13 +566,7 @@ func VerifyMaintenanceTransition(ctx context.Context, client *firestore.Client, 
 		return MaintenanceTransitionResult{}, fmt.Errorf("read maintenance audit receipt: %w", err)
 	}
 	event, err := decodeMaintenanceAuditDocument(doc, request.Authority)
-	previousState := MaintenanceActive
-	if request.ExpectedRevision == 0 {
-		previousState = "MISSING"
-	} else if request.State == MaintenanceActive {
-		previousState = MaintenanceNormal
-	}
-	if err != nil || event.Authority != request.Authority || event.Environment != request.Environment || event.PreviousState != previousState || event.State != request.State ||
+	if err != nil || event.Authority != request.Authority || event.Environment != request.Environment || !maintenanceAuditPreviousMatches(event, current, request) || event.State != request.State ||
 		event.PreviousRevision != request.ExpectedRevision || event.Revision != current.Revision || event.ReasonCategory != request.ReasonCategory ||
 		!event.UpdatedAt.Equal(current.UpdatedAt) || event.MessageTemplate != current.MessageTemplate || event.Result != "COMMITTED" || event.CommitSHA != request.CommitSHA ||
 		!maintenanceAuditProvenanceMatches(event, request) || !sameOptionalTime(event.EstimatedEndAt, current.EstimatedEndAt) ||

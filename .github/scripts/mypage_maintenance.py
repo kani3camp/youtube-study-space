@@ -17,8 +17,8 @@ REPOSITORY_ID = "340900071"
 OWNER_ID = "54093651"
 WORKFLOW = ".github/workflows/mypage-maintenance.yml"
 TARGETS = {
-    "development": ("test-youtube-study-space", "asia-southeast2", "refs/heads/integration/mypage-canon-20261006"),
-    "production": ("youtube-study-space", "asia-northeast2", "refs/heads/main"),
+    "development": ("test-youtube-study-space", "48101442817", "asia-southeast2", "refs/heads/integration/mypage-canon-20261006", "https://test--study-space.web.app"),
+    "production": ("youtube-study-space", "906336399194", "asia-northeast2", "refs/heads/main", "https://moku.work"),
 }
 STATES = {"NORMAL", "ACTIVE"}
 REASONS = {"INITIALIZATION", "PLANNED_MAINTENANCE", "DATA_MIGRATION", "SECURITY_MAINTENANCE", "RECOVERY"}
@@ -29,10 +29,36 @@ def need(condition: bool) -> None:
         raise ValueError(ERROR)
 
 
+def valid_rfc3339(value: object) -> bool:
+    timestamp = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})"
+    if not isinstance(value, str) or re.fullmatch(timestamp, value) is None:
+        return False
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).tzinfo is not None
+    except ValueError:
+        return False
+
+
+def valid_public_status(candidate: object, expected_state: str) -> bool:
+    if not isinstance(candidate, dict) or expected_state not in STATES:
+        return False
+    required = {"state", "updatedAt", "messageTemplate"}
+    allowed = required | {"estimatedEndAt"}
+    if not required <= set(candidate) <= allowed:
+        return False
+    if candidate.get("state") != expected_state or candidate.get("messageTemplate") != "MYPAGE_MAINTENANCE_V1":
+        return False
+    if not valid_rfc3339(candidate.get("updatedAt")):
+        return False
+    if expected_state == "NORMAL":
+        return "estimatedEndAt" not in candidate
+    return "estimatedEndAt" not in candidate or valid_rfc3339(candidate["estimatedEndAt"])
+
+
 def context(get=os.environ.get, now=lambda: datetime.now(timezone.utc)) -> dict[str, str]:
     environment = get("INPUT_ENVIRONMENT", "")
     need(environment in TARGETS)
-    project, region, expected_ref = TARGETS[environment]
+    project, project_number, region, expected_ref, public_origin = TARGETS[environment]
     state = get("INPUT_STATE", "")
     reason = get("INPUT_REASON_CATEGORY", "")
     expected_revision = get("INPUT_EXPECTED_REVISION", "")
@@ -71,6 +97,7 @@ def context(get=os.environ.get, now=lambda: datetime.now(timezone.utc)) -> dict[
     action_ref = hashlib.sha256(f"{REPOSITORY_ID}:{run_id}:1:{expected_sha}:{environment}:{state}".encode()).hexdigest()
     return {
         "project": project,
+        "project_number": project_number,
         "region": region,
         "environment": environment,
         "state": state,
@@ -80,6 +107,8 @@ def context(get=os.environ.get, now=lambda: datetime.now(timezone.utc)) -> dict[
         "expected_sha": expected_sha,
         "action_ref": action_ref,
         "workflow_ref": workflow_ref,
+        "provider": f"projects/{project_number}/locations/global/workloadIdentityPools/mypage-maintenance/providers/github",
+        "public_origin": public_origin,
     }
 
 

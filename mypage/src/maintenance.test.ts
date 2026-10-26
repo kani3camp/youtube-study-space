@@ -125,6 +125,46 @@ describe('public maintenance status', () => {
 		dispose()
 	})
 
+	it('keeps the ACTIVE snapshot stable while a background poll is pending', async () => {
+		vi.useFakeTimers()
+		browserFixture()
+		let call = 0
+		let release: (response: Response) => void = () => {}
+		const request = vi.fn<typeof fetch>(async () => {
+			call++
+			if (call === 1)
+				return Response.json({
+					state: 'ACTIVE',
+					updatedAt: '2026-10-27T02:00:00Z',
+					estimatedEndAt: '2026-10-27T03:00:00Z',
+					messageTemplate: 'MYPAGE_MAINTENANCE_V1',
+				})
+			return new Promise<Response>((resolve) => {
+				release = resolve
+			})
+		})
+		const monitor = new MaintenanceMonitor(request)
+		const dispose = monitor.mount()
+		monitor.setRouteActive(true)
+		await settle()
+		const active = monitor.getSnapshot()
+		expect(active.phase).toBe('active')
+		await vi.advanceTimersByTimeAsync(120_000)
+		expect(request).toHaveBeenCalledTimes(2)
+		expect(monitor.getSnapshot()).toBe(active)
+		release(
+			Response.json({
+				state: 'ACTIVE',
+				updatedAt: '2026-10-27T02:00:00Z',
+				estimatedEndAt: '2026-10-27T03:00:00Z',
+				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
+			}),
+		)
+		await settle()
+		expect(monitor.getSnapshot().phase).toBe('active')
+		dispose()
+	})
+
 	it('recovers ACTIVE to NORMAL when a hidden tab becomes visible', async () => {
 		const { documentTarget } = browserFixture()
 		let state: 'ACTIVE' | 'NORMAL' = 'ACTIVE'

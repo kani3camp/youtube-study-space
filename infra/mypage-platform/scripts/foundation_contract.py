@@ -8,6 +8,7 @@ import re
 from datetime import datetime
 
 PROJECT = "test-youtube-study-space"
+PROJECT_NUMBER = "48101442817"
 REF = "refs/heads/integration/mypage-canon-20261006"
 REPOSITORY = "kani3camp/youtube-study-space"
 CALLER = REPOSITORY + "/.github/workflows/ci.yml@" + REF

@@ -28,6 +28,9 @@ class MaintenanceOperatorInfrastructureTest(unittest.TestCase):
         self.assertNotIn("assertion.job_workflow_sha", source)
         self.assertIn("local.maintenance_github_environment", source)
         self.assertNotIn("pull_request", source)
+        self.assertIn('maintenance_project_number     = var.environment == "production" ? "906336399194" : "48101442817"', source)
+        self.assertIn("projects/${local.maintenance_project_number}/locations/global/workloadIdentityPools/mypage-maintenance", source)
+        self.assertNotIn("projects/${var.runtime_settings.project_number}/locations/global/workloadIdentityPools/mypage-maintenance", source)
 
     def test_operator_is_opt_in_and_has_no_key_resource(self):
         source = (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text()

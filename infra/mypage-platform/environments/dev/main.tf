@@ -91,9 +91,9 @@ variable "runtime_settings" {
   validation {
     condition = !contains(["maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) || (
       can(regex("^[-a-z0-9.]+-docker\\.pkg\\.dev/[a-z0-9-]+/[a-z0-9_-]+/[A-Za-z0-9._/-]+@sha256:[a-f0-9]{64}$", var.runtime_settings.image_digest)) &&
-      can(regex("^[0-9]{6,20}$", var.runtime_settings.project_number)) &&
-      can(regex("^1:[0-9]+:web:[A-Za-z0-9]+$", var.runtime_settings.web_app_id)) &&
-      can(regex("^https://[A-Za-z0-9.-]+$", var.runtime_settings.public_origin)) &&
+      var.runtime_settings.project_number == "48101442817" &&
+      can(regex("^1:48101442817:web:[A-Za-z0-9]+$", var.runtime_settings.web_app_id)) &&
+      var.runtime_settings.public_origin == "https://test--study-space.web.app" &&
       can(regex("^[A-Za-z0-9._-]{1,64}$", var.runtime_settings.privacy_version)) &&
       can(regex("^[A-Za-z0-9._-]{1,64}$", var.runtime_settings.terms_version)) &&
       alltrue([

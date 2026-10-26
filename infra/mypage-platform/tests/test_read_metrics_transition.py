@@ -14,7 +14,7 @@ import read_metrics_transition as m
 def fixture(enabled=True, stage="runtime_private"):
     value = r.settings({
         "image_digest": r.REPOSITORY + "@sha256:" + "a" * 64,
-        "project_number": "123456789012", "web_app_id": "1:123456789012:web:synthetic",
+        "project_number": c.PROJECT_NUMBER, "web_app_id": "1:" + c.PROJECT_NUMBER + ":web:synthetic",
         "public_origin": r.ORIGIN, "privacy_version": "synthetic-p", "terms_version": "synthetic-t",
         "oauth_client_id_version": "1", "oauth_client_secret_version": "2", "youtube_api_key_version": "3",
         "maintenance_operator_enabled": True,

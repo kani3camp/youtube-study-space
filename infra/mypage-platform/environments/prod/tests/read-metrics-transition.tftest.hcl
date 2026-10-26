@@ -4,9 +4,9 @@ mock_provider "google" {}
 variables {
   runtime_settings = {
     image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    project_number              = "123456789012"
-    web_app_id                  = "1:123456789012:web:synthetic"
-    public_origin               = "https://example.test"
+    project_number              = "906336399194"
+    web_app_id                  = "1:906336399194:web:synthetic"
+    public_origin               = "https://moku.work"
     privacy_version             = "synthetic-p"
     terms_version               = "synthetic-t"
     oauth_client_id_version     = "1"

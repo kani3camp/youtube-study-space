@@ -6,7 +6,7 @@
 
 各Firebase projectの`mypage-runtime-control/current`を唯一の制御文書とする。`environment`、単調増加する`revision`、`state`、`updatedAt`、固定`messageTemplate=MYPAGE_MAINTENANCE_V1`、固定選択の`reasonCategory`を必須とし、`estimatedEndAt`は`ACTIVE`時だけ任意で保持する。文書の欠損、余分なfield、型不正、環境不一致、読取失敗はすべてfail-closedであり、`NORMAL`とはみなさない。
 
-遷移と`mypage-maintenance-events/{actionRef}`の監査eventは同一Firestore transactionで確定する。更新には現在のrevisionが必要で、競合した古いworkflowは失敗する。通常経路の監査eventには`authority=GITHUB_ACTIONS`、immutableなrepository/owner/actor ID、triggering actor、run ID/attempt、Git ref、commit SHA、workflow ref、実Cloud Run execution、前後state/revision、固定reasonを残す。break-glassは別の`authority=GCP_BREAK_GLASS`とし、GitHub provenanceを偽装せず、実execution、承認参照、Cloud Audit Logと照合するclaimed operatorを残す。token、URL、OAuth code、cookie、credential、自由記述は保存・出力しない。
+遷移と`mypage-maintenance-events/{actionRef}`の監査eventは同一Firestore transactionで確定する。更新には現在のrevisionが必要で、競合した古いworkflowは失敗する。`NORMAL → ACTIVE`と`ACTIVE → NORMAL`に加え、`ACTIVE`中の終了見込み変更だけは`ACTIVE → ACTIVE`のmetadata更新として新revisionを発行する。終了見込みが同一の純粋なno-opは拒否する。通常経路の監査eventには`authority=GITHUB_ACTIONS`、immutableなrepository/owner/actor ID、triggering actor、run ID/attempt、Git ref、commit SHA、workflow ref、実Cloud Run execution、前後state/revision・終了見込み、固定reasonを残す。break-glassは別の`authority=GCP_BREAK_GLASS`とし、GitHub provenanceを偽装せず、実execution、承認参照、Cloud Audit Logと照合するclaimed operatorを残す。token、URL、OAuth code、cookie、credential、自由記述は保存・出力しない。
 
 初期文書はTerraformで暗黙作成しない。API serving imageとは別の固定`maintenance_operator_image_digest`と、その不変tagを作成した`maintenance_operator_image_source_sha`を使い、未配備環境ではまず`maintenance_operator` stageでJob/WIF/IAMだけを構築する（このstageはCloud Run APIを作成・更新しない）。既に`runtime_public`がStateにある環境では、専用`maintenance_upgrade` stageだけを使い、既存API・Firestore member・public Invokerをすべてno-opに保ったままmaintenance資源だけを追加する。通常の`maintenance_operator`へ戻して既存runtimeを削除するPlanは許可しない。環境ごとにworkflowから`state=NORMAL`、`expected_revision=0`、`reason_category=INITIALIZATION`を一度だけ実行し、authoritative readbackを確認する。その後のruntime plan/applyと通常Backend releaseは、引数上書き不可・Firestore読取専用identityの固定`mypage-maintenance-bootstrap-check` Jobが厳密で初期化済みのcontrolを確認できなければ、serving mutation前に停止する。`NORMAL`と`ACTIVE`はいずれもvalidで、メンテナンス中の復旧deploy/rollbackを妨げない。runtime stageはmaintenance資源の新規作成も拒否する。これにより「operator構築または既存runtimeの安全なupgrade → 初期NORMAL → Backend guard → Frontend」の順序を機械的に固定する。
 
@@ -23,17 +23,18 @@
 workflowは`MyPage Maintenance Mode`（`.github/workflows/mypage-maintenance.yml`）。DEVは`integration/mypage-canon-20261006`、PRODは`main`の、レビュー済みexact SHAからだけ実行できる。rerun、fork、pull request、別ref、repository/owner/actor ID不一致、actorとtriggering actor不一致は認証前に拒否する。
 
 1. 対象環境の直前の成功run artifactでcurrent revisionを確認する。公開statusはrevisionを出さないため、90日保持されるbounded transition receiptを使う。
-2. `environment`、`NORMAL|ACTIVE`、`expected_revision`、固定`reason_category`、exact `expected_sha`を入力する。`ACTIVE`だけ14日以内のRFC3339 `estimated_end_at`を任意入力できる。
+2. `environment`、`NORMAL|ACTIVE`、`expected_revision`、固定`reason_category`、exact `expected_sha`を入力する。`ACTIVE`だけ14日以内のRFC3339 `estimated_end_at`を任意入力できる。保守延長・短縮・見込み未定への変更は、current revisionを使って`ACTIVE`のまま新しいrunを開始する。
 3. PRODでは`PRODUCTION ACTIVE`または`PRODUCTION NORMAL`をexact入力し、GitHub Environment approvalを通す。
 4. workflowが専用WIFで`mypage-maintenance-invoker`へ連携し、特定Cloud Run Jobだけを起動する。GitHub側identityにはFirestore権限がない。
 5. Jobは最初にnon-mutating previewでcurrent state/revisionと遷移可否を確認し、次のexecutionでCAS・監査append・authoritative readbackを実行し、最後のnon-mutating verifyでcontrolとaudit eventの一致を確認する。
-6. 初期`NORMAL`以外はEnvironment variable `MYPAGE_PUBLIC_ORIGIN`の公開statusが指定stateを返し、公開トップ、MyPage shell、Privacy、Terms、Contactが応答することを確認する。3段のJobとHTTP postconditionが成功したときだけ、revision/state/actionRefを含むreceipt artifactを保存する。初期`NORMAL`はAPI未配備を許すためHTTP確認を`not-yet-deployed`として分離する。
+6. 初期`NORMAL`以外はsourceで環境ごとに固定したcanonical HTTPS origin（DEVは`https://test--study-space.web.app`、PRODは`https://moku.work`）の公開statusが、必須timestampを含む厳密schemaで指定stateを返し、公開トップ、MyPage shell、Privacy、Terms、Contactが応答することを確認する。3段のJobとHTTP postconditionが成功したときだけ、revision/state/actionRefを含むreceipt artifactを保存する。初期`NORMAL`はAPI未配備を許すためHTTP確認を`not-yet-deployed`として分離する。
 
 GitHub Environment `mypage-maintenance-development` / `mypage-maintenance-production`には、対応環境のTerraform outputから次を設定する。
 
 - `MYPAGE_MAINTENANCE_WIF_PROVIDER`
 - `MYPAGE_MAINTENANCE_SERVICE_ACCOUNT`（`mypage-maintenance-invoker@<project>.iam.gserviceaccount.com`）
-- `MYPAGE_PUBLIC_ORIGIN`（Environment variable。対象環境のexact HTTPS origin）
+
+WIF providerはsource固定の対象project numberを含むexact resource nameと一致しなければ、認証前に拒否する。公開originもsource固定であり、GitHub Environment variableから別環境や任意hostへ差し替えない。
 
 Terraformでは`runtime_settings.maintenance_operator_enabled=true`とAPI用digestから分離した`maintenance_operator_image_digest` / `maintenance_operator_image_source_sha`を、`maintenance_operator`以降のstageで必須にする。source SHAは実行中commitのancestorであり、Artifact Registryの同SHA tagがoperator digestを指すことをPlan/Applyの双方で検証する。通常のTerraform identity、MyPage API runtime identity、backend deployerをmaintenance workflowへ流用しない。独立した承認者がいる運用体制ではPROD Environmentにrequired reviewerを設定する。単独運用では自己承認required reviewerを要求せず、exact confirmation、`main` / exact SHA、immutable owner/actor ID、初回runだけという機械的制約を維持する。
 

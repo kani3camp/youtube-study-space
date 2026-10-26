@@ -134,9 +134,11 @@ export class MaintenanceMonitor {
 
 	private recheck() {
 		if (!this.mounted || !this.routeActive || !this.visible) return
-		// Close the private-data gate synchronously. A restored page must not keep
-		// rendering its prior NORMAL snapshot while the fresh status is in flight.
-		this.publish({ phase: 'checking', status: null })
+		// Close the private-data gate synchronously when the previous status could
+		// still permit personal data. ACTIVE and UNKNOWN are already safe states;
+		// preserve their stable UI while a background poll is in flight.
+		if (this.state.phase === 'normal' || this.state.phase === 'checking')
+			this.publish({ phase: 'checking', status: null })
 		void this.check()
 	}
 

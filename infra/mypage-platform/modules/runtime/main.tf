@@ -17,6 +17,10 @@ variable "region" {
 
 variable "environment" {
   type = string
+  validation {
+    condition     = contains(["development", "production"], var.environment)
+    error_message = "Invalid MyPage environment."
+  }
 }
 
 variable "stage" {
@@ -57,6 +61,7 @@ locals {
   max_instances                  = var.environment == "development" ? 1 : 3
   maintenance_operator           = contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) && var.runtime_settings.maintenance_operator_enabled
   maintenance_ref                = var.environment == "production" ? "refs/heads/main" : "refs/heads/integration/mypage-canon-20261006"
+  maintenance_project_number     = var.environment == "production" ? "906336399194" : "48101442817"
   maintenance_github_environment = "mypage-maintenance-${var.environment}"
   maintenance_operator_email     = "mypage-maintenance-job@${var.project_id}.iam.gserviceaccount.com"
   maintenance_invoker_email      = "mypage-maintenance-invoker@${var.project_id}.iam.gserviceaccount.com"
@@ -479,7 +484,7 @@ resource "google_service_account_iam_member" "maintenance_workload_identity" {
   count              = local.maintenance_operator ? 1 : 0
   service_account_id = "projects/${var.project_id}/serviceAccounts/${local.maintenance_invoker_email}"
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/projects/${var.runtime_settings.project_number}/locations/global/workloadIdentityPools/mypage-maintenance/attribute.repository_id/340900071"
+  member             = "principalSet://iam.googleapis.com/projects/${local.maintenance_project_number}/locations/global/workloadIdentityPools/mypage-maintenance/attribute.repository_id/340900071"
 
   depends_on = [google_service_account.maintenance_invoker]
 }

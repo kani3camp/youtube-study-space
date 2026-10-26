@@ -190,6 +190,55 @@ func TestMaintenanceTransitionCASAndAuditAreAtomic(t *testing.T) {
 	}
 }
 
+func TestMaintenanceActiveEstimateUpdateUsesCASAndTransactionalAudit(t *testing.T) {
+	client := maintenanceIntegrationClient(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := ApplyMaintenanceTransition(ctx, client, maintenanceRequest(MaintenanceNormal, 0, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "INITIALIZATION"), now); err != nil {
+		t.Fatal(err)
+	}
+	firstEnd := now.Add(2 * time.Hour)
+	activate := maintenanceRequest(MaintenanceActive, 1, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "PLANNED_MAINTENANCE")
+	activate.EstimatedEndAt = &firstEnd
+	if _, err := ApplyMaintenanceTransition(ctx, client, activate, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	updatedEnd := now.Add(4 * time.Hour)
+	update := maintenanceRequest(MaintenanceActive, 2, "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "PLANNED_MAINTENANCE")
+	update.EstimatedEndAt = &updatedEnd
+	result, err := ApplyMaintenanceTransition(ctx, client, update, now.Add(2*time.Minute))
+	if err != nil || result.Previous == nil || result.Previous.State != MaintenanceActive || result.Current.Revision != 3 || !sameOptionalTime(result.Current.EstimatedEndAt, &updatedEnd) {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	if _, err := VerifyMaintenanceTransition(ctx, client, update, now.Add(3*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := client.Collection(maintenanceEvents).Doc(update.ActionRef).Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var event maintenanceAuditEvent
+	if err := doc.DataTo(&event); err != nil || event.PreviousState != MaintenanceActive || !sameOptionalTime(event.PreviousEstimatedEndAt, &firstEnd) || !sameOptionalTime(event.EstimatedEndAt, &updatedEnd) {
+		t.Fatalf("event=%+v err=%v", event, err)
+	}
+	stale := maintenanceRequest(MaintenanceActive, 2, "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "PLANNED_MAINTENANCE")
+	staleEnd := now.Add(5 * time.Hour)
+	stale.EstimatedEndAt = &staleEnd
+	if _, err := ApplyMaintenanceTransition(ctx, client, stale, now.Add(4*time.Minute)); errorCode(err) != "MAINTENANCE_REVISION_MISMATCH" {
+		t.Fatalf("stale update code=%s", errorCode(err))
+	}
+	noOp := maintenanceRequest(MaintenanceActive, 3, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "PLANNED_MAINTENANCE")
+	noOp.EstimatedEndAt = &updatedEnd
+	if _, err := ApplyMaintenanceTransition(ctx, client, noOp, now.Add(4*time.Minute)); errorCode(err) != "INVALID_REQUEST" {
+		t.Fatalf("no-op update code=%s", errorCode(err))
+	}
+	for _, action := range []string{stale.ActionRef, noOp.ActionRef} {
+		if _, err := client.Collection(maintenanceEvents).Doc(action).Get(ctx); status.Code(err) != codes.NotFound {
+			t.Fatalf("rejected update wrote audit %s: %v", action, err)
+		}
+	}
+}
+
 func TestMaintenanceAuditCreateFailureRollsBackControl(t *testing.T) {
 	client := maintenanceIntegrationClient(t)
 	ctx := context.Background()

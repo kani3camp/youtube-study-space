@@ -38,6 +38,9 @@ class MaintenanceContextTest(unittest.TestCase):
         env = values()
         result = subject.context(env.get, lambda: datetime(2026, 10, 27, 2, tzinfo=timezone.utc))
         self.assertEqual(result["project"], "test-youtube-study-space")
+        self.assertEqual(result["project_number"], "48101442817")
+        self.assertEqual(result["provider"], "projects/48101442817/locations/global/workloadIdentityPools/mypage-maintenance/providers/github")
+        self.assertEqual(result["public_origin"], "https://test--study-space.web.app")
         self.assertRegex(result["action_ref"], r"^[0-9a-f]{64}$")
 
     def test_accepts_explicit_initial_normal(self):
@@ -48,7 +51,11 @@ class MaintenanceContextTest(unittest.TestCase):
     def test_accepts_exact_production_confirmation(self):
         env = values()
         env.update(INPUT_ENVIRONMENT="production", INPUT_PRODUCTION_CONFIRMATION="PRODUCTION ACTIVE", GITHUB_REF="refs/heads/main", GITHUB_WORKFLOW_REF=f"{subject.REPOSITORY}/{subject.WORKFLOW}@refs/heads/main")
-        self.assertEqual(subject.context(env.get, lambda: datetime(2026, 10, 27, 2, tzinfo=timezone.utc))["project"], "youtube-study-space")
+        result = subject.context(env.get, lambda: datetime(2026, 10, 27, 2, tzinfo=timezone.utc))
+        self.assertEqual(result["project"], "youtube-study-space")
+        self.assertEqual(result["project_number"], "906336399194")
+        self.assertEqual(result["provider"], "projects/906336399194/locations/global/workloadIdentityPools/mypage-maintenance/providers/github")
+        self.assertEqual(result["public_origin"], "https://moku.work")
 
     def test_rejects_every_trust_and_transition_mismatch(self):
         for key, bad in {
@@ -84,6 +91,28 @@ class MaintenanceContextTest(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 subject.context(env.get, lambda: datetime(2026, 10, 27, 2, tzinfo=timezone.utc))
 
+    def test_public_status_contract_requires_exact_timestamps_and_state_shape(self):
+        active = {
+            "state": "ACTIVE",
+            "updatedAt": "2026-10-27T02:00:00.123Z",
+            "estimatedEndAt": "2026-10-27T03:00:00+09:00",
+            "messageTemplate": "MYPAGE_MAINTENANCE_V1",
+        }
+        self.assertTrue(subject.valid_public_status(active, "ACTIVE"))
+        normal = {key: value for key, value in active.items() if key != "estimatedEndAt"} | {"state": "NORMAL"}
+        self.assertTrue(subject.valid_public_status(normal, "NORMAL"))
+        for candidate, expected in (
+            ({key: value for key, value in active.items() if key != "updatedAt"}, "ACTIVE"),
+            (active | {"privateNote": "not public"}, "ACTIVE"),
+            (active | {"updatedAt": "2026-99-27T02:00:00Z"}, "ACTIVE"),
+            (active | {"estimatedEndAt": None}, "ACTIVE"),
+            (normal | {"estimatedEndAt": "2026-10-27T03:00:00Z"}, "NORMAL"),
+            (active | {"state": "NOTICE"}, "ACTIVE"),
+            (active | {"messageTemplate": "free text"}, "ACTIVE"),
+        ):
+            with self.subTest(candidate=candidate, expected=expected):
+                self.assertFalse(subject.valid_public_status(candidate, expected))
+
 
 class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
     def test_manual_only_preflight_and_signed_sender_wiring(self):
@@ -104,6 +133,8 @@ class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
         self.assertIn("google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093", workflow)
         self.assertIn("secrets.MYPAGE_MAINTENANCE_WIF_PROVIDER", workflow)
         self.assertIn("secrets.MYPAGE_MAINTENANCE_SERVICE_ACCOUNT", workflow)
+        self.assertIn("EXPECTED_PROVIDER: ${{ steps.context.outputs.provider }}", workflow)
+        self.assertIn('[[ "${PROVIDER}" == "${EXPECTED_PROVIDER}" ]]', workflow)
         self.assertNotIn("MYPAGE_GCP_WIF_PROVIDER", workflow)
         self.assertIn("gcloud run jobs execute mypage-maintenance-operator", workflow)
         self.assertIn("--args=\"${args}\"", workflow)
@@ -114,7 +145,9 @@ class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
         self.assertLess(workflow.index("run_operator preview"), workflow.index("run_operator apply"))
         self.assertLess(workflow.index("run_operator apply"), workflow.index("run_operator verify"))
         self.assertIn("authoritativeReadbackVerified", workflow)
-        self.assertIn("MYPAGE_PUBLIC_ORIGIN", workflow)
+        self.assertIn("PUBLIC_ORIGIN: ${{ steps.context.outputs.public_origin }}", workflow)
+        self.assertNotIn("vars.MYPAGE_PUBLIC_ORIGIN", workflow)
+        self.assertIn("valid_public_status(candidate, expected)", workflow)
         self.assertIn("time.monotonic() + 30", workflow)
         self.assertIn("time.sleep(1)", workflow)
         self.assertIn("actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9", workflow)

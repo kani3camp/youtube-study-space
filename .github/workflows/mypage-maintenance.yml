@@ -74,11 +74,12 @@ jobs:
       - name: Validate and mask the dedicated Job invoker identity
         env:
           PROVIDER: ${{ secrets.MYPAGE_MAINTENANCE_WIF_PROVIDER }}
+          EXPECTED_PROVIDER: ${{ steps.context.outputs.provider }}
           SERVICE_ACCOUNT: ${{ secrets.MYPAGE_MAINTENANCE_SERVICE_ACCOUNT }}
           PROJECT: ${{ steps.context.outputs.project }}
         run: |
           set -euo pipefail
-          [[ "${PROVIDER}" =~ ^projects/[0-9]+/locations/global/workloadIdentityPools/mypage-maintenance/providers/github$ ]]
+          [[ "${PROVIDER}" == "${EXPECTED_PROVIDER}" ]]
           [[ "${SERVICE_ACCOUNT}" == "mypage-maintenance-invoker@${PROJECT}.iam.gserviceaccount.com" ]]
           for value in "${PROVIDER}" "${SERVICE_ACCOUNT}" "${SERVICE_ACCOUNT%%@*}"; do
             echo "::add-mask::${value}"
@@ -131,13 +132,14 @@ jobs:
       - name: Verify public postconditions when the API is already deployed
         if: ${{ steps.context.outputs.expected_revision != '0' }}
         env:
-          PUBLIC_ORIGIN: ${{ vars.MYPAGE_PUBLIC_ORIGIN }}
+          PUBLIC_ORIGIN: ${{ steps.context.outputs.public_origin }}
           EXPECTED_STATE: ${{ steps.context.outputs.state }}
         run: |
           python3 - <<'PY'
-          import json, os, re, time, urllib.error, urllib.request
+          import json, os, sys, time, urllib.error, urllib.request
+          sys.path.insert(0, '.github/scripts')
+          from mypage_maintenance import valid_public_status
           origin = os.environ['PUBLIC_ORIGIN']
-          assert re.fullmatch(r'https://[A-Za-z0-9.-]+', origin)
           expected = os.environ['EXPECTED_STATE']
           deadline = time.monotonic() + 30
           body = None
@@ -146,10 +148,7 @@ jobs:
                   request = urllib.request.Request(origin + '/api/public/mypage-status', headers={'Cache-Control': 'no-cache'})
                   with urllib.request.urlopen(request, timeout=10) as response:
                       candidate = json.load(response) if response.status == 200 else None
-                  if (isinstance(candidate, dict) and
-                      set(candidate) <= {'state', 'updatedAt', 'estimatedEndAt', 'messageTemplate'} and
-                      candidate.get('state') == expected and
-                      candidate.get('messageTemplate') == 'MYPAGE_MAINTENANCE_V1'):
+                  if valid_public_status(candidate, expected):
                       body = candidate
                       break
               except (urllib.error.URLError, TimeoutError, ValueError):
