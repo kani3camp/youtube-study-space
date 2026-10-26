@@ -65,5 +65,8 @@ jobs:
           .github/workflows/gcp-terraform-authenticated.yml
           .github/workflows/gcp-user-activity-schema-audit.yml
           .github/workflows/mypage-hosting-authenticated.yml
+          .github/workflows/mypage-backend-authenticated.yml
       - name: Test bounded Hosting release contracts
         run: python -m unittest discover -s infra/mypage-platform/scripts -p 'test_hosting_release.py' -v
+      - name: Test bounded Backend release contracts
+        run: python -m unittest discover -s infra/mypage-platform/scripts -p 'test_backend_release.py' -v

@@ -17,10 +17,10 @@ DOMAIN_GROUPS = {
     'infra': ('aws_cdk', 'node_projects'),
     'gcp-terraform-validate': ('gcp_terraform',),
 }
-DEPENDENCIES = {'changes', 'repository', 'gcp-user-activity-schema-audit', 'mypage-foundation-authenticated', 'mypage-hosting-authenticated', *DOMAIN_GROUPS}
+DEPENDENCIES = {'changes', 'repository', 'gcp-user-activity-schema-audit', 'mypage-foundation-authenticated', 'mypage-hosting-authenticated', 'mypage-backend-authenticated', *DOMAIN_GROUPS}
 
 
-def validate(needs, audit_requested, foundation_requested='false', hosting_requested='false'):
+def validate(needs, audit_requested, foundation_requested='false', hosting_requested='false', backend_requested='false'):
     if set(needs) != DEPENDENCIES:
         raise ValueError('CI Gate must receive every expected dependency')
     if audit_requested not in ('true', 'false'):
@@ -29,6 +29,8 @@ def validate(needs, audit_requested, foundation_requested='false', hosting_reque
         raise ValueError('MyPage foundation selection must be an explicit boolean')
     if hosting_requested not in ('true', 'false'):
         raise ValueError('MyPage Hosting selection must be an explicit boolean')
+    if backend_requested not in ('true', 'false'):
+        raise ValueError('MyPage Backend selection must be an explicit boolean')
     for name, job in needs.items():
         result = job.get('result')
         if result not in ('success', 'skipped'):
@@ -49,11 +51,13 @@ def validate(needs, audit_requested, foundation_requested='false', hosting_reque
         raise ValueError('Requested MyPage foundation must succeed')
     if hosting_requested == 'true' and needs['mypage-hosting-authenticated']['result'] != 'success':
         raise ValueError('Requested MyPage Hosting release must succeed')
+    if backend_requested == 'true' and needs['mypage-backend-authenticated']['result'] != 'success':
+        raise ValueError('Requested MyPage Backend release and State readback must succeed')
 
 
 def main():
     try:
-        validate(json.loads(os.environ['CI_NEEDS']), os.environ['CI_SCHEMA_AUDIT_REQUESTED'], os.environ.get('CI_MYPAGE_FOUNDATION_REQUESTED', 'false'), os.environ.get('CI_MYPAGE_HOSTING_REQUESTED', 'false'))
+        validate(json.loads(os.environ['CI_NEEDS']), os.environ['CI_SCHEMA_AUDIT_REQUESTED'], os.environ.get('CI_MYPAGE_FOUNDATION_REQUESTED', 'false'), os.environ.get('CI_MYPAGE_HOSTING_REQUESTED', 'false'), os.environ.get('CI_MYPAGE_BACKEND_REQUESTED', 'false'))
     except (KeyError, TypeError, ValueError, AttributeError) as error:
         print(f'::error::{error}', file=sys.stderr)
         return 1

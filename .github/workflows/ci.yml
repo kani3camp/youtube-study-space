@@ -4,6 +4,15 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      mypage_backend:
+        description: Deploy and verify the reviewed MyPage DEV Backend image
+        required: false
+        default: false
+        type: boolean
+      mypage_backend_expected_sha:
+        description: Exact reviewed MyPage integration SHA for Backend
+        required: false
+        type: string
       mypage_hosting:
         description: Build, apply and verify the MyPage DEV Hosting page
         required: false
@@ -78,7 +87,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.mypage_foundation == true || inputs.mypage_hosting == true)) }}
+  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.mypage_foundation == true || inputs.mypage_hosting == true || inputs.mypage_backend == true)) }}
 
 jobs:
   changes:
@@ -248,7 +257,7 @@ jobs:
 
   gcp-terraform-authenticated:
     name: GCP Terraform Authenticated
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true && inputs.mypage_hosting != true }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true && inputs.mypage_hosting != true && inputs.mypage_backend != true }}
     permissions:
       contents: read
       id-token: write
@@ -270,7 +279,7 @@ jobs:
 
   gcp-user-activity-schema-audit:
     name: GCP User Activity Schema Audit
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.gcp_user_activity_schema_audit == true && inputs.mypage_hosting != true }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.gcp_user_activity_schema_audit == true && inputs.mypage_hosting != true && inputs.mypage_backend != true }}
     permissions:
       contents: read
       id-token: write
@@ -283,7 +292,7 @@ jobs:
 
   mypage-foundation-authenticated:
     name: MyPage Foundation Authenticated
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.mypage_foundation == true && inputs.mypage_hosting != true }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.mypage_foundation == true && inputs.mypage_hosting != true && inputs.mypage_backend != true }}
     permissions:
       contents: read
       id-token: write
@@ -304,7 +313,7 @@ jobs:
   mypage-hosting-authenticated:
     name: MyPage DEV Hosting Release
     needs: [repository, frontend]
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.mypage_hosting == true }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.mypage_hosting == true && inputs.mypage_backend != true }}
     permissions:
       contents: read
       id-token: write
@@ -312,6 +321,27 @@ jobs:
     with:
       expected_sha: ${{ inputs.mypage_hosting_expected_sha }}
       other_operation: ${{ inputs.terraform_authenticated == true || inputs.mypage_foundation == true || inputs.gcp_user_activity_schema_audit == true }}
+
+  mypage-backend-authenticated:
+    name: MyPage DEV Backend Release
+    needs: [repository, system]
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.mypage_backend == true }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-backend-authenticated.yml
+    with:
+      expected_sha: ${{ inputs.mypage_backend_expected_sha }}
+      other_operation: ${{ inputs.terraform_authenticated == true || inputs.mypage_foundation == true || inputs.gcp_user_activity_schema_audit == true || inputs.mypage_hosting == true }}
+    secrets:
+      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
+      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
+      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
+      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
 
   ci-gate:
     name: CI Gate
@@ -327,6 +357,7 @@ jobs:
       - gcp-user-activity-schema-audit
       - mypage-foundation-authenticated
       - mypage-hosting-authenticated
+      - mypage-backend-authenticated
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -338,4 +369,5 @@ jobs:
           CI_SCHEMA_AUDIT_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.gcp_user_activity_schema_audit == true }}
           CI_MYPAGE_FOUNDATION_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.mypage_foundation == true }}
           CI_MYPAGE_HOSTING_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.mypage_hosting == true }}
+          CI_MYPAGE_BACKEND_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.mypage_backend == true }}
         run: python3 .github/scripts/check-ci-results.py
