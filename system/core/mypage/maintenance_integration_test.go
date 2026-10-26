@@ -50,7 +50,13 @@ func seedNormalMaintenance(t *testing.T, client *firestore.Client, environment s
 }
 
 func maintenanceRequest(state string, revision int64, action, reason string) MaintenanceTransition {
-	return MaintenanceTransition{Authority: MaintenanceAuthorityGitHub, Environment: "development", State: state, ExpectedRevision: revision, ReasonCategory: reason, ActionRef: action, RepositoryID: "340900071", RepositoryOwnerID: "54093651", ActorID: "54093651", TriggeringActorID: "54093651", RunID: "123", RunAttempt: 1, GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", WorkflowRef: "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@refs/heads/integration/mypage-canon-20261006", CloudRunExecution: "mypage-maintenance-operator-abcde"}
+	previous := MaintenanceActive
+	if revision == 0 {
+		previous = "MISSING"
+	} else if state == MaintenanceActive {
+		previous = MaintenanceNormal
+	}
+	return MaintenanceTransition{Authority: MaintenanceAuthorityGitHub, Environment: "development", State: state, ExpectedRevision: revision, ExpectedPreviousState: previous, ReasonCategory: reason, ActionRef: action, RepositoryID: "340900071", RepositoryOwnerID: "54093651", ActorID: "54093651", TriggeringActorID: "54093651", RunID: "123", RunAttempt: 1, GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", WorkflowRef: "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@refs/heads/integration/mypage-canon-20261006", CloudRunExecution: "mypage-maintenance-operator-abcde"}
 }
 
 func TestMaintenancePreviewDoesNotMutateAndVerifyChecksReceipt(t *testing.T) {
@@ -105,10 +111,12 @@ func TestMaintenanceApplyNormalizesFirestoreTimestampAndLateVerify(t *testing.T)
 		t.Fatalf("result=%+v expected=%v err=%v", result, expected, err)
 	}
 
-	end := expected.Add(time.Second)
+	rawEnd := expected.Add(time.Second + 789*time.Nanosecond)
+	end := rawEnd.Truncate(time.Microsecond)
 	activate := maintenanceRequest(MaintenanceActive, 1, "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd", "PLANNED_MAINTENANCE")
-	activate.EstimatedEndAt = &end
-	if _, err := ApplyMaintenanceTransition(ctx, client, activate, expected.Add(time.Microsecond)); err != nil {
+	activate.EstimatedEndAt = &rawEnd
+	result, err = ApplyMaintenanceTransition(ctx, client, activate, expected.Add(time.Microsecond))
+	if err != nil || !sameOptionalTime(result.Current.EstimatedEndAt, &end) {
 		t.Fatal(err)
 	}
 	if _, err := VerifyMaintenanceTransition(ctx, client, activate, end.Add(time.Hour)); err != nil {
@@ -143,7 +151,7 @@ func TestMaintenanceBreakGlassAuditDoesNotInventGitHubProvenance(t *testing.T) {
 	if _, err := ApplyMaintenanceTransition(ctx, client, maintenanceRequest(MaintenanceNormal, 0, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "INITIALIZATION"), now); err != nil {
 		t.Fatal(err)
 	}
-	request := MaintenanceTransition{Authority: MaintenanceAuthorityBreakGlass, Environment: "development", State: MaintenanceActive, ExpectedRevision: 1, ReasonCategory: "SECURITY_MAINTENANCE", ActionRef: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "cccccccccccccccccccccccccccccccccccccccc", CloudRunExecution: "mypage-maintenance-breakglass-abcde", BreakGlassApprovalRef: "INCIDENT_123", ClaimedOperator: "operator@example.com"}
+	request := MaintenanceTransition{Authority: MaintenanceAuthorityBreakGlass, Environment: "development", State: MaintenanceActive, ExpectedRevision: 1, ExpectedPreviousState: MaintenanceNormal, ReasonCategory: "SECURITY_MAINTENANCE", ActionRef: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "cccccccccccccccccccccccccccccccccccccccc", CloudRunExecution: "mypage-maintenance-breakglass-abcde", BreakGlassApprovalRef: "INCIDENT_123", ClaimedOperator: "operator@example.com"}
 	if _, err := ApplyMaintenanceTransition(ctx, client, request, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
@@ -227,6 +235,8 @@ func TestMaintenanceActiveEstimateUpdateUsesCASAndTransactionalAudit(t *testing.
 	}
 	updatedEnd := now.Add(4 * time.Hour)
 	update := maintenanceRequest(MaintenanceActive, 2, "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "PLANNED_MAINTENANCE")
+	update.ExpectedPreviousState = MaintenanceActive
+	update.ExpectedPreviousEndAt = &firstEnd
 	update.EstimatedEndAt = &updatedEnd
 	result, err := ApplyMaintenanceTransition(ctx, client, update, now.Add(2*time.Minute))
 	if err != nil || result.Previous == nil || result.Previous.State != MaintenanceActive || result.Current.Revision != 3 || !sameOptionalTime(result.Current.EstimatedEndAt, &updatedEnd) {
@@ -243,18 +253,31 @@ func TestMaintenanceActiveEstimateUpdateUsesCASAndTransactionalAudit(t *testing.
 	if err := doc.DataTo(&event); err != nil || event.PreviousState != MaintenanceActive || !sameOptionalTime(event.PreviousEstimatedEndAt, &firstEnd) || !sameOptionalTime(event.EstimatedEndAt, &updatedEnd) {
 		t.Fatalf("event=%+v err=%v", event, err)
 	}
+	tamperedEnd := firstEnd.Add(time.Minute)
+	if _, err := client.Collection(maintenanceEvents).Doc(update.ActionRef).Update(ctx, []firestore.Update{{Path: "previousEstimatedEndAt", Value: tamperedEnd}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyMaintenanceTransition(ctx, client, update, now.Add(3*time.Minute)); err == nil {
+		t.Fatal("verify accepted a tampered previous estimate")
+	}
 	stale := maintenanceRequest(MaintenanceActive, 2, "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "PLANNED_MAINTENANCE")
+	stale.ExpectedPreviousState = MaintenanceActive
+	stale.ExpectedPreviousEndAt = &firstEnd
 	staleEnd := now.Add(5 * time.Hour)
 	stale.EstimatedEndAt = &staleEnd
 	if _, err := ApplyMaintenanceTransition(ctx, client, stale, now.Add(4*time.Minute)); errorCode(err) != "MAINTENANCE_REVISION_MISMATCH" {
 		t.Fatalf("stale update code=%s", errorCode(err))
 	}
 	noOp := maintenanceRequest(MaintenanceActive, 3, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "PLANNED_MAINTENANCE")
+	noOp.ExpectedPreviousState = MaintenanceActive
+	noOp.ExpectedPreviousEndAt = &updatedEnd
 	noOp.EstimatedEndAt = &updatedEnd
 	if _, err := ApplyMaintenanceTransition(ctx, client, noOp, now.Add(4*time.Minute)); errorCode(err) != "INVALID_REQUEST" {
 		t.Fatalf("no-op update code=%s", errorCode(err))
 	}
-	reasonChange := maintenanceRequest(MaintenanceActive, 3, "1212121212121212121212121212121212121212121212121212121212121212", "RECOVERY")
+	reasonChange := maintenanceRequest(MaintenanceActive, 3, "1212121212121212121212121212121212121212121212121212121212121212", "DATA_MIGRATION")
+	reasonChange.ExpectedPreviousState = MaintenanceActive
+	reasonChange.ExpectedPreviousEndAt = &updatedEnd
 	reasonChangeEnd := now.Add(6 * time.Hour)
 	reasonChange.EstimatedEndAt = &reasonChangeEnd
 	if _, err := ApplyMaintenanceTransition(ctx, client, reasonChange, now.Add(4*time.Minute)); errorCode(err) != "INVALID_REQUEST" {
@@ -291,7 +314,9 @@ func TestMaintenanceRejectsNoOpTransitionWithoutAudit(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	seedNormalMaintenance(t, client, "development", now)
 	action := "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-	_, err := ApplyMaintenanceTransition(ctx, client, maintenanceRequest(MaintenanceNormal, 1, action, "RECOVERY"), now.Add(time.Minute))
+	request := maintenanceRequest(MaintenanceNormal, 1, action, "RECOVERY")
+	request.ExpectedPreviousState = MaintenanceNormal
+	_, err := ApplyMaintenanceTransition(ctx, client, request, now.Add(time.Minute))
 	if errorCode(err) != "INVALID_REQUEST" {
 		t.Fatalf("no-op transition code=%s", errorCode(err))
 	}
@@ -368,12 +393,39 @@ func TestMaintenanceTransactionBarrierRejectsNormalOAuthWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-	value := OAuthTransaction{Purpose: "login", StateHash: digest("state"), Status: "pending", PrivacyPolicyVersion: "p1", TermsVersion: "t1", PrivacyConsentedAt: now, CreatedAt: now, ExpiresAt: now.Add(10 * time.Minute)}
+	value := OAuthTransaction{Purpose: "login", StateHash: digest("state"), Status: "pending", PrivacyPolicyVersion: "p1", TermsVersion: "t1", PrivacyConsentedAt: now, CreatedAt: now, ExpiresAt: now.Add(10 * time.Minute), MaintenanceRevision: 1}
 	store := &FirestoreAuthStore{Client: client, Environment: "development"}
 	if code := errorCode(store.Create(ctx, id, "", value, now)); code != "MAINTENANCE_ACTIVE" {
 		t.Fatalf("write barrier code=%s", code)
 	}
 	if _, err := client.Collection("oauth-transactions").Doc(id).Get(ctx); status.Code(err) != codes.NotFound {
 		t.Fatalf("maintenance write committed: %v", err)
+	}
+}
+
+func TestNormalOAuthTransactionCannotCrossACompleteMaintenanceInterval(t *testing.T) {
+	client := maintenanceIntegrationClient(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	seedNormalMaintenance(t, client, "development", now)
+	store := &FirestoreAuthStore{Client: client, Environment: "development"}
+	id := "abababababababababababababababababababababababababababababababab"
+	value := OAuthTransaction{Purpose: "login", StateHash: digest("state"), Status: "pending", PrivacyPolicyVersion: "p1", TermsVersion: "t1", PrivacyConsentedAt: now, CreatedAt: now, ExpiresAt: now.Add(10 * time.Minute), MaintenanceRevision: 1}
+	if err := store.Create(ctx, id, "", value, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := maintenanceRef(client).Set(ctx, MaintenanceControl{Environment: "development", State: MaintenanceNormal, Revision: 3, UpdatedAt: now.Add(2 * time.Minute), MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "RECOVERY"}); err != nil {
+		t.Fatal(err)
+	}
+	if code := errorCode(store.Claim(ctx, id, digest("state"), now.Add(3*time.Minute))); code != "TEMPORARY_UNAVAILABLE" {
+		t.Fatalf("revision fence code=%s", code)
+	}
+	doc, err := client.Collection("oauth-transactions").Doc(id).Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var unchanged OAuthTransaction
+	if err := doc.DataTo(&unchanged); err != nil || unchanged.Status != "pending" {
+		t.Fatalf("stale OAuth transaction changed: %+v err=%v", unchanged, err)
 	}
 }

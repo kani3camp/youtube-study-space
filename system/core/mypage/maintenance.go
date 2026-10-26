@@ -255,9 +255,26 @@ func RequireMaintenanceInitialized(ctx context.Context, client *firestore.Client
 	return err
 }
 
-func transactionMaintenance(tx *firestore.Transaction, client *firestore.Client, environment string) error {
+type maintenanceRevisionContextKey struct{}
+
+func withMaintenanceRevision(ctx context.Context, revision int64) context.Context {
+	return context.WithValue(ctx, maintenanceRevisionContextKey{}, revision)
+}
+
+func maintenanceRevisionFromContext(ctx context.Context) int64 {
+	revision, ok := ctx.Value(maintenanceRevisionContextKey{}).(int64)
+	if !ok {
+		return 0
+	}
+	return revision
+}
+
+func transactionMaintenance(tx *firestore.Transaction, client *firestore.Client, environment string, expectedRevision int64) error {
 	if client == nil || environment == "" {
 		return nil // Test-only stores predating the runtime gate remain injectable.
+	}
+	if expectedRevision < 1 {
+		return apiError("TEMPORARY_UNAVAILABLE")
 	}
 	doc, err := tx.Get(maintenanceRef(client))
 	if status.Code(err) == codes.NotFound {
@@ -270,7 +287,13 @@ func transactionMaintenance(tx *firestore.Transaction, client *firestore.Client,
 	if err != nil {
 		return err
 	}
-	return maintenanceVerdict(value)
+	if err := maintenanceVerdict(value); err != nil {
+		return err
+	}
+	if value.Revision != expectedRevision {
+		return apiError("TEMPORARY_UNAVAILABLE")
+	}
+	return nil
 }
 
 type MaintenanceTransition struct {
@@ -278,6 +301,8 @@ type MaintenanceTransition struct {
 	Environment           string
 	State                 string
 	ExpectedRevision      int64
+	ExpectedPreviousState string
+	ExpectedPreviousEndAt *time.Time
 	EstimatedEndAt        *time.Time
 	ReasonCategory        string
 	ActionRef             string
@@ -361,19 +386,44 @@ func validateMaintenanceTransition(request MaintenanceTransition, now time.Time,
 	if request.State == MaintenanceNormal && request.EstimatedEndAt != nil {
 		return apiError("INVALID_REQUEST")
 	}
+	if request.ExpectedPreviousState != "MISSING" && request.ExpectedPreviousState != MaintenanceNormal && request.ExpectedPreviousState != MaintenanceActive {
+		return apiError("INVALID_REQUEST")
+	}
+	if request.ExpectedPreviousState != MaintenanceActive && request.ExpectedPreviousEndAt != nil {
+		return apiError("INVALID_REQUEST")
+	}
 	if request.EstimatedEndAt != nil {
 		if request.EstimatedEndAt.IsZero() ||
 			(requireFutureEstimate && (!request.EstimatedEndAt.After(now) || request.EstimatedEndAt.After(now.Add(14*24*time.Hour)))) {
 			return apiError("INVALID_REQUEST")
 		}
 	}
-	if request.ExpectedRevision == 0 && (request.State != MaintenanceNormal || request.ReasonCategory != "INITIALIZATION") {
+	if request.ExpectedRevision == 0 && (request.State != MaintenanceNormal || request.ReasonCategory != "INITIALIZATION" || request.ExpectedPreviousState != "MISSING") {
 		return apiError("INVALID_REQUEST")
 	}
-	if request.ExpectedRevision > 0 && request.ReasonCategory == "INITIALIZATION" {
+	if request.ExpectedRevision > 0 && request.ExpectedPreviousState == "MISSING" {
+		return apiError("INVALID_REQUEST")
+	}
+	if request.ExpectedRevision > 0 && request.State == MaintenanceNormal && request.ReasonCategory != "RECOVERY" {
+		return apiError("INVALID_REQUEST")
+	}
+	if request.ExpectedRevision > 0 && request.State == MaintenanceActive &&
+		(request.ReasonCategory == "INITIALIZATION" || request.ReasonCategory == "RECOVERY") {
 		return apiError("INVALID_REQUEST")
 	}
 	return nil
+}
+
+func normalizeMaintenanceTransition(request MaintenanceTransition) MaintenanceTransition {
+	if request.EstimatedEndAt != nil {
+		value := request.EstimatedEndAt.UTC().Truncate(time.Microsecond)
+		request.EstimatedEndAt = &value
+	}
+	if request.ExpectedPreviousEndAt != nil {
+		value := request.ExpectedPreviousEndAt.UTC().Truncate(time.Microsecond)
+		request.ExpectedPreviousEndAt = &value
+	}
+	return request
 }
 
 func ValidateMaintenanceTransition(request MaintenanceTransition, now time.Time) error {
@@ -389,11 +439,14 @@ func ValidateMaintenanceTransitionReceipt(request MaintenanceTransition) error {
 
 func prepareMaintenanceTransition(previous *MaintenanceControl, request MaintenanceTransition, now time.Time) (MaintenanceTransitionResult, error) {
 	if previous == nil {
-		if request.ExpectedRevision != 0 || request.State != MaintenanceNormal || request.ReasonCategory != "INITIALIZATION" {
+		if request.ExpectedRevision != 0 || request.State != MaintenanceNormal || request.ReasonCategory != "INITIALIZATION" || request.ExpectedPreviousState != "MISSING" || request.ExpectedPreviousEndAt != nil {
 			return MaintenanceTransitionResult{}, apiError("INVALID_REQUEST")
 		}
 	} else {
 		if previous.Revision != request.ExpectedRevision || request.ExpectedRevision == 0 {
+			return MaintenanceTransitionResult{}, apiError("MAINTENANCE_REVISION_MISMATCH")
+		}
+		if previous.State != request.ExpectedPreviousState || !sameOptionalTime(previous.EstimatedEndAt, request.ExpectedPreviousEndAt) {
 			return MaintenanceTransitionResult{}, apiError("MAINTENANCE_REVISION_MISMATCH")
 		}
 		if (previous.State == MaintenanceNormal && request.State != MaintenanceActive) ||
@@ -413,6 +466,7 @@ func prepareMaintenanceTransition(previous *MaintenanceControl, request Maintena
 // PreviewMaintenanceTransition performs the authoritative read and the exact
 // transition validation without creating either the control or audit event.
 func PreviewMaintenanceTransition(ctx context.Context, client *firestore.Client, request MaintenanceTransition, now time.Time) (MaintenanceTransitionResult, error) {
+	request = normalizeMaintenanceTransition(request)
 	if client == nil || ValidateMaintenanceTransition(request, now.UTC()) != nil {
 		return MaintenanceTransitionResult{}, apiError("INVALID_REQUEST")
 	}
@@ -435,6 +489,7 @@ func PreviewMaintenanceTransition(ctx context.Context, client *firestore.Client,
 // compared with the committed revision before success is reported.
 func ApplyMaintenanceTransition(ctx context.Context, client *firestore.Client, request MaintenanceTransition, now time.Time) (MaintenanceTransitionResult, error) {
 	now = now.UTC().Truncate(time.Microsecond)
+	request = normalizeMaintenanceTransition(request)
 	if client == nil || ValidateMaintenanceTransition(request, now) != nil {
 		return MaintenanceTransitionResult{}, apiError("INVALID_REQUEST")
 	}
@@ -489,7 +544,8 @@ func ApplyMaintenanceTransition(ctx context.Context, client *firestore.Client, r
 	if err != nil {
 		return MaintenanceTransitionResult{}, fmt.Errorf("read back maintenance transition: %w", err)
 	}
-	if readback.Revision != result.Current.Revision || readback.State != result.Current.State || !readback.UpdatedAt.Equal(result.Current.UpdatedAt) {
+	if readback.Revision != result.Current.Revision || readback.State != result.Current.State || readback.ReasonCategory != result.Current.ReasonCategory ||
+		readback.MessageTemplate != result.Current.MessageTemplate || !sameOptionalTime(readback.EstimatedEndAt, result.Current.EstimatedEndAt) || !readback.UpdatedAt.Equal(result.Current.UpdatedAt) {
 		return MaintenanceTransitionResult{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
 	result.Current = readback
@@ -565,24 +621,14 @@ func decodeMaintenanceAuditDocument(doc *firestore.DocumentSnapshot, authority s
 	return event, nil
 }
 
-func maintenanceAuditPreviousMatches(event maintenanceAuditEvent, current MaintenanceControl, request MaintenanceTransition) bool {
-	if request.ExpectedRevision == 0 {
-		return event.PreviousState == "MISSING" && event.PreviousEstimatedEndAt == nil
-	}
-	switch event.PreviousState {
-	case MaintenanceNormal:
-		return request.State == MaintenanceActive && event.PreviousEstimatedEndAt == nil
-	case MaintenanceActive:
-		return request.State == MaintenanceNormal ||
-			(request.State == MaintenanceActive && !sameOptionalTime(event.PreviousEstimatedEndAt, current.EstimatedEndAt))
-	default:
-		return false
-	}
+func maintenanceAuditPreviousMatches(event maintenanceAuditEvent, request MaintenanceTransition) bool {
+	return event.PreviousState == request.ExpectedPreviousState && sameOptionalTime(event.PreviousEstimatedEndAt, request.ExpectedPreviousEndAt)
 }
 
 // VerifyMaintenanceTransition is a non-mutating receipt check. It requires the
 // committed control and immutable audit event to match the requested CAS.
 func VerifyMaintenanceTransition(ctx context.Context, client *firestore.Client, request MaintenanceTransition, now time.Time) (MaintenanceTransitionResult, error) {
+	request = normalizeMaintenanceTransition(request)
 	if client == nil || ValidateMaintenanceTransitionReceipt(request) != nil {
 		return MaintenanceTransitionResult{}, apiError("INVALID_REQUEST")
 	}
@@ -596,7 +642,7 @@ func VerifyMaintenanceTransition(ctx context.Context, client *firestore.Client, 
 		return MaintenanceTransitionResult{}, fmt.Errorf("read maintenance audit receipt: %w", err)
 	}
 	event, err := decodeMaintenanceAuditDocument(doc, request.Authority)
-	if err != nil || event.Authority != request.Authority || event.Environment != request.Environment || !maintenanceAuditPreviousMatches(event, current, request) || event.State != request.State ||
+	if err != nil || event.Authority != request.Authority || event.Environment != request.Environment || !maintenanceAuditPreviousMatches(event, request) || event.State != request.State ||
 		event.PreviousRevision != request.ExpectedRevision || event.Revision != current.Revision || event.ReasonCategory != request.ReasonCategory ||
 		!event.UpdatedAt.Equal(current.UpdatedAt) || event.MessageTemplate != current.MessageTemplate || event.Result != "COMMITTED" || event.CommitSHA != request.CommitSHA ||
 		!maintenanceAuditProvenanceMatches(event, request) || !sameOptionalTime(event.EstimatedEndAt, current.EstimatedEndAt) ||

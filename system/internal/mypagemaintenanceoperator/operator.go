@@ -47,6 +47,8 @@ func Run(ctx context.Context, args []string, output io.Writer, get func(string) 
 	environment := flags.String("environment", "", "development or production")
 	state := flags.String("state", "", "NORMAL or ACTIVE")
 	expectedRevision := flags.Int64("expected-revision", -1, "authoritative compare-and-set revision")
+	expectedPreviousState := flags.String("expected-previous-state", "", "exact state observed before the transition")
+	expectedPreviousEnd := flags.String("expected-previous-estimated-end-at", "", "exact optional estimate observed before the transition")
 	estimatedEnd := flags.String("estimated-end-at", "", "optional RFC3339 estimate for ACTIVE")
 	reason := flags.String("reason-category", "", "fixed reason category")
 	actionRef := flags.String("action-ref", "", "opaque immutable workflow action reference")
@@ -68,16 +70,26 @@ func Run(ctx context.Context, args []string, output io.Writer, get func(string) 
 	if wantProject == "" || *project != wantProject || get("GOOGLE_CLOUD_PROJECT") != *project || get("MYPAGE_ENVIRONMENT") != *environment {
 		return ErrOperator
 	}
-	var estimate *time.Time
-	if *estimatedEnd != "" {
-		parsed, err := time.Parse(time.RFC3339Nano, *estimatedEnd)
-		if err != nil || parsed.Format(time.RFC3339Nano) != *estimatedEnd {
-			return ErrOperator
+	parseEstimate := func(raw string) (*time.Time, error) {
+		if raw == "" {
+			return nil, nil
 		}
-		parsed = parsed.UTC()
-		estimate = &parsed
+		parsed, err := time.Parse(time.RFC3339Nano, raw)
+		if err != nil || parsed.Format(time.RFC3339Nano) != raw {
+			return nil, ErrOperator
+		}
+		parsed = parsed.UTC().Truncate(time.Microsecond)
+		return &parsed, nil
 	}
-	request := mypage.MaintenanceTransition{Authority: authority, Environment: *environment, State: *state, ExpectedRevision: *expectedRevision, EstimatedEndAt: estimate, ReasonCategory: *reason, ActionRef: *actionRef, RepositoryID: *repositoryID, RepositoryOwnerID: *ownerID, ActorID: *actorID, TriggeringActorID: *triggeringActorID, RunID: *runID, RunAttempt: *runAttempt, GitRef: *gitRef, CommitSHA: *commitSHA, WorkflowRef: *workflowRef, CloudRunExecution: get("CLOUD_RUN_EXECUTION"), BreakGlassApprovalRef: *breakGlassApproval, ClaimedOperator: *claimedOperator}
+	estimate, err := parseEstimate(*estimatedEnd)
+	if err != nil {
+		return ErrOperator
+	}
+	previousEstimate, err := parseEstimate(*expectedPreviousEnd)
+	if err != nil {
+		return ErrOperator
+	}
+	request := mypage.MaintenanceTransition{Authority: authority, Environment: *environment, State: *state, ExpectedRevision: *expectedRevision, ExpectedPreviousState: *expectedPreviousState, ExpectedPreviousEndAt: previousEstimate, EstimatedEndAt: estimate, ReasonCategory: *reason, ActionRef: *actionRef, RepositoryID: *repositoryID, RepositoryOwnerID: *ownerID, ActorID: *actorID, TriggeringActorID: *triggeringActorID, RunID: *runID, RunAttempt: *runAttempt, GitRef: *gitRef, CommitSHA: *commitSHA, WorkflowRef: *workflowRef, CloudRunExecution: get("CLOUD_RUN_EXECUTION"), BreakGlassApprovalRef: *breakGlassApproval, ClaimedOperator: *claimedOperator}
 	operationNow := now().UTC()
 	if *operation != "preview" && *operation != "apply" && *operation != "verify" {
 		return ErrOperator

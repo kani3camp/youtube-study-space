@@ -22,6 +22,7 @@ class MaintenanceOperatorInfrastructureTest(unittest.TestCase):
         source = (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text()
         for claim in ("repository_id", "repository_owner_id", "actor_id", "actor", "run_attempt", "event_name", "ref", "workflow_ref", "environment", "workflow_sha", "sha"):
             self.assertIn(f"assertion.{claim}", source)
+            self.assertIn(f'"attribute.{claim}"', source)
         self.assertIn("assertion.event_name == 'workflow_dispatch'", source)
         self.assertIn("assertion.run_attempt == '1'", source)
         self.assertIn("assertion.workflow_sha == assertion.sha", source)

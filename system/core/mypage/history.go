@@ -24,15 +24,16 @@ type HistoryEntry struct {
 }
 
 type HistoryPage struct {
-	SourceConsistent bool           `json:"sourceConsistent"`
-	AsOf             time.Time      `json:"asOf"`
-	Timezone         string         `json:"timezone"`
-	Selection        string         `json:"selection"`
-	Coverage         string         `json:"coverage"`
-	From             string         `json:"from"`
-	To               string         `json:"to"`
-	Items            []HistoryEntry `json:"items"`
-	NextCursor       *string        `json:"nextCursor"`
+	MaintenanceRevision int64          `json:"-"`
+	SourceConsistent    bool           `json:"sourceConsistent"`
+	AsOf                time.Time      `json:"asOf"`
+	Timezone            string         `json:"timezone"`
+	Selection           string         `json:"selection"`
+	Coverage            string         `json:"coverage"`
+	From                string         `json:"from"`
+	To                  string         `json:"to"`
+	Items               []HistoryEntry `json:"items"`
+	NextCursor          *string        `json:"nextCursor"`
 }
 
 // TierFor is an injected authoritative server entitlement reader. The default
@@ -170,14 +171,24 @@ func (s *HistoryService) Page(ctx context.Context, uid string, account WebAccoun
 	}
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
+	maintenanceRevision := int64(0)
 	if s.Maintenance != nil {
-		if err := s.Maintenance.CheckAuthoritative(ctx); err != nil {
+		var err error
+		maintenanceRevision, err = s.Maintenance.CheckAuthoritativeRevision(ctx)
+		if err != nil {
 			return result, fmt.Errorf("check maintenance before history read: %w", err)
 		}
+		ctx = withMaintenanceRevision(ctx, maintenanceRevision)
 		defer func() {
 			if resultErr == nil {
-				if err := s.Maintenance.CheckAuthoritative(ctx); err != nil {
+				revision, err := s.Maintenance.CheckAuthoritativeRevision(ctx)
+				if err != nil || revision != maintenanceRevision {
+					if err == nil {
+						err = apiError("TEMPORARY_UNAVAILABLE")
+					}
 					result, resultErr = HistoryPage{}, fmt.Errorf("check maintenance before history response: %w", err)
+				} else {
+					result.MaintenanceRevision = maintenanceRevision
 				}
 			}
 		}()

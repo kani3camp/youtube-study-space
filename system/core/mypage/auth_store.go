@@ -57,7 +57,10 @@ func (s *FirestoreAuthStore) Create(ctx context.Context, id, previous string, va
 		return err
 	}
 	err = s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		if err := transactionMaintenance(tx, s.Client, s.Environment); err != nil {
+		if value.MaintenanceRevision < 1 {
+			return apiError("TEMPORARY_UNAVAILABLE")
+		}
+		if err := transactionMaintenance(tx, s.Client, s.Environment, value.MaintenanceRevision); err != nil {
 			return err
 		}
 		if validOpaque(previous) {
@@ -97,7 +100,10 @@ func (s *FirestoreAuthStore) change(ctx context.Context, id string, guardLogin b
 			return err
 		}
 		if guardLogin && transactionPurpose(old) == "login" {
-			if err := transactionMaintenance(tx, s.Client, s.Environment); err != nil {
+			if old.MaintenanceRevision < 1 {
+				return apiError("TEMPORARY_UNAVAILABLE")
+			}
+			if err := transactionMaintenance(tx, s.Client, s.Environment, old.MaintenanceRevision); err != nil {
 				return err
 			}
 		}
@@ -195,6 +201,14 @@ func (s *FirestoreAuthStore) ReadVerified(ctx context.Context, id string, now ti
 		if err := checkTransaction(value, now, "channel_verified"); err != nil {
 			return err
 		}
+		if transactionPurpose(value) == "login" {
+			if value.MaintenanceRevision < 1 {
+				return apiError("TEMPORARY_UNAVAILABLE")
+			}
+			if err := transactionMaintenance(tx, s.Client, s.Environment, value.MaintenanceRevision); err != nil {
+				return err
+			}
+		}
 		result = value
 		return nil
 	}, firestore.ReadOnly)
@@ -221,7 +235,10 @@ func (s *FirestoreAuthStore) Consume(ctx context.Context, id, confirmation, chec
 		if transactionPurpose(value) != "login" || value.Support != nil {
 			return apiError("SUPPORT_CHALLENGE_INVALID")
 		}
-		if err := transactionMaintenance(tx, s.Client, s.Environment); err != nil {
+		if value.MaintenanceRevision < 1 {
+			return apiError("TEMPORARY_UNAVAILABLE")
+		}
+		if err := transactionMaintenance(tx, s.Client, s.Environment, value.MaintenanceRevision); err != nil {
 			return err
 		}
 		if subtle.ConstantTimeCompare([]byte(value.ConfirmationRef), []byte(confirmation)) != 1 {
@@ -302,7 +319,7 @@ func (s *FirestoreAuthStore) CompleteSession(ctx context.Context, uid, checkpoin
 	}
 	ref := s.Client.Collection("web-accounts").Doc(uid)
 	err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		if err := transactionMaintenance(tx, s.Client, s.Environment); err != nil {
+		if err := transactionMaintenance(tx, s.Client, s.Environment, maintenanceRevisionFromContext(ctx)); err != nil {
 			return err
 		}
 		if err := s.transactionAccess(tx, uid, checkpoint); err != nil {

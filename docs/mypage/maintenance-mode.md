@@ -12,7 +12,7 @@
 
 ## 停止対象と例外
 
-`ACTIVE`では`GET /api/mypage`、明細、通常OAuth start/callback/channel/confirm、custom token発行、session complete、account metadata更新を`503 MAINTENANCE_ACTIVE`で拒否する。プロセスキャッシュは最大5秒だが、token発行、transaction内の個人データwrite、aggregate cache publish、個人レスポンス返却の直前には制御文書を直接再読する。切替前に始まった処理から切替後に個人データやtokenが返らないことを優先する。
+`ACTIVE`では`GET /api/mypage`、明細、通常OAuth start/callback/channel/confirm、custom token発行、session complete、account metadata更新を`503 MAINTENANCE_ACTIVE`で拒否する。プロセスキャッシュは最大5秒だが、token発行、transaction内の個人データwrite、aggregate cache publish、個人レスポンス返却の直前には制御文書を直接再読する。通常OAuth transactionと各writeは開始時のmaintenance revisionにも束縛し、処理中に`ACTIVE → NORMAL`まで完了していても古いrequestを復活させない。切替前に始まった処理から切替後に個人データやtokenが返らないことを優先する。
 
 公開トップ、プライバシー、利用規約、お問い合わせ、本人確認済みprivacy request受付・状態確認、目的がserver-side support requestに束縛されたsupport OAuthは利用可能である。clientがsupport目的や対象channelを自己申告して例外になることはない。
 
@@ -23,18 +23,19 @@
 workflowは`MyPage Maintenance Mode`（`.github/workflows/mypage-maintenance.yml`）。DEVは`integration/mypage-canon-20261006`、PRODは`main`の、レビュー済みexact SHAからだけ実行できる。rerun、fork、pull request、別ref、repository/owner/actor ID不一致、actorとtriggering actor不一致は認証前に拒否する。
 
 1. 対象環境の直前の成功run artifactでcurrent revisionを確認する。公開statusはrevisionを出さないため、90日保持されるbounded transition receiptを使う。
-2. `environment`、`NORMAL|ACTIVE`、`expected_revision`、固定`reason_category`、exact `expected_sha`を入力する。`ACTIVE`だけ14日以内のRFC3339 `estimated_end_at`を任意入力でき、認証前にcanonical UTCへ正規化される。保守延長・短縮・見込み未定への変更は、current revisionと同じ`reason_category`を使って`ACTIVE`のまま新しいrunを開始する。
+2. `environment`、`NORMAL|ACTIVE`、`expected_revision`、固定`reason_category`、exact `expected_sha`を入力する。`ACTIVE`だけ14日以内のRFC3339 `estimated_end_at`を任意入力でき、認証前にcanonical UTCかつFirestoreのmicrosecond精度へ正規化される。`ACTIVE`開始は`PLANNED_MAINTENANCE|DATA_MIGRATION|SECURITY_MAINTENANCE`、解除は`RECOVERY`だけを使う。保守延長・短縮・見込み未定への変更は、current revisionと同じ`reason_category`を使って`ACTIVE`のまま新しいrunを開始する。
 3. PRODでは`PRODUCTION ACTIVE`または`PRODUCTION NORMAL`をexact入力し、GitHub Environment approvalを通す。
-4. workflowが専用WIFで`mypage-maintenance-invoker`へ連携し、特定Cloud Run Jobだけを起動する。GitHub側identityにはFirestore権限がない。
-5. Jobは最初にnon-mutating previewでcurrent state/revisionと遷移可否を確認し、次のexecutionでCAS・監査append・authoritative readbackを実行し、最後のnon-mutating verifyでcontrolとaudit eventの一致を確認する。
-6. 初期`NORMAL`以外はsourceで環境ごとに固定したcanonical HTTPS origin（DEVは`https://test--study-space.web.app`、PRODは`https://moku.work`）の公開statusが、必須timestampを含む厳密schemaで指定stateとexact `estimated_end_at`（未指定ならfield非存在）を返し、公開トップ、MyPage shell、Privacy、Terms、Contactが応答することを確認する。3段のJobとHTTP postconditionが成功したときだけ、revision/state/actionRefを含むreceipt artifactを保存する。初期`NORMAL`はAPI未配備を許すためHTTP確認を`not-yet-deployed`として分離する。
+4. 初期`NORMAL`以外では、認証前にcanonical originの厳密な公開statusとHTML内の固定`MYPAGE_MAINTENANCE_V1` capability markerを読み、Backend guardとFrontend UXが両方配備済みであること、遷移前state/終了見込みのexact値を確認する。未配備・不明ならFirestoreを変更しない。
+5. workflowが専用WIFで`mypage-maintenance-invoker`へ連携し、特定Cloud Run Jobだけを起動する。GitHub側identityにはFirestore権限がない。
+6. Jobは認証前に固定した遷移前state/終了見込みも含め、最初にnon-mutating previewでcurrent state/revisionと遷移可否を確認し、次のexecutionでCAS・監査append・authoritative readbackを実行し、最後のnon-mutating verifyでcontrolとaudit eventの前後値がexactに一致することを確認する。
+7. 初期`NORMAL`以外はsourceで環境ごとに固定したcanonical HTTPS origin（DEVは`https://test--study-space.web.app`、PRODは`https://moku.work`）の公開statusが、必須timestampを含む厳密schemaで指定stateとexact `estimated_end_at`（未指定ならfield非存在）を返し、公開トップ、MyPage shell、Privacy、Terms、Contactが応答することを確認する。3段のJobとHTTP postconditionが成功したときだけ、revision/state/actionRefを含むreceipt artifactを保存する。初期`NORMAL`はAPI未配備を許すためHTTP確認を`not-yet-deployed`として分離する。
 
 GitHub Environment `mypage-maintenance-development` / `mypage-maintenance-production`には、対応環境のTerraform outputから次を設定する。
 
 - `MYPAGE_MAINTENANCE_WIF_PROVIDER`
 - `MYPAGE_MAINTENANCE_SERVICE_ACCOUNT`（`mypage-maintenance-invoker@<project>.iam.gserviceaccount.com`）
 
-WIF providerはsource固定の対象project numberを含むexact resource nameと一致しなければ、認証前に拒否する。公開originもsource固定であり、GitHub Environment variableから別環境や任意hostへ差し替えない。
+WIF providerはsource固定の対象project numberを含むexact resource nameと一致しなければ、認証前に拒否する。attribute conditionで参照するGitHub OIDC claimはすべてprovider mappingにも明示し、immutable numeric owner/repository/actor ID、workflow/ref/SHA、environment、初回attemptを束縛する。公開originもsource固定であり、GitHub Environment variableから別環境や任意hostへ差し替えない。
 
 Terraformでは`runtime_settings.maintenance_operator_enabled=true`とAPI用digestから分離した`maintenance_operator_image_digest` / `maintenance_operator_image_source_sha`を、`maintenance_operator`以降のstageで必須にする。source SHAは実行中commitのancestorであり、Artifact Registryの同SHA tagがoperator digestを指すことをPlan/Applyの双方で検証する。通常のTerraform identity、MyPage API runtime identity、backend deployerをmaintenance workflowへ流用しない。独立した承認者がいる運用体制ではPROD Environmentにrequired reviewerを設定する。単独運用では自己承認required reviewerを要求せず、exact confirmation、`main` / exact SHA、immutable owner/actor ID、初回runだけという機械的制約を維持する。
 
@@ -44,7 +45,7 @@ GitHub Actionsの障害だけを理由にFirestore Consoleや`gcloud firestore`�
 
 1. 対象Jobの現行image digest/source SHAとcurrent state/revisionをread-onlyで確認する。承認参照は`INCIDENT_123`形式、operatorは実GCP principalのemailを使う。
 2. 管理者はそのprincipalだけに、対象環境の`mypage-maintenance-breakglass` Job資源上で、短い有効期限条件付き`roles/run.jobsExecutorWithOverrides`を一時付与する。通常`mypage-maintenance-operator` Job、project全体、Firestore、Terraform SA、通常backend deployerへは付与しない。
-3. `gcloud run jobs execute mypage-maintenance-breakglass --wait --quiet --args=...`で、`--break-glass-approval-ref`、`--claimed-operator`、exact project/environment/state/expected revision/reason/action ref/ref/source SHAを渡し、`preview`、`apply`、`verify`を別executionでこの順に実行する。`--authority`およびGitHub repository/run/workflow fieldsは渡せず、渡した実行はFirestore接続前に拒否される。
+3. `gcloud run jobs execute mypage-maintenance-breakglass --wait --quiet --args=...`で、`--break-glass-approval-ref`、`--claimed-operator`、exact project/environment/state/expected revision、`--expected-previous-state`、任意の`--expected-previous-estimated-end-at`、reason/action ref/ref/source SHAを渡し、`preview`、`apply`、`verify`を別executionでこの順に実行する。`--authority`およびGitHub repository/run/workflow fieldsは渡せず、渡した実行はFirestore接続前に拒否される。
 4. `verify`成功後、公開statusと例外routeを通常workflowと同じ条件で確認し、3 execution ID、control/audit readback、Cloud Audit Logのinitiating principal、承認参照をインシデント記録へ保存する。claimed operatorとAudit Log principalが違えば失敗として扱う。
 5. 一時Job IAM bindingを直ちに削除し、readbackで消失を確認する。途中失敗時も自動再試行や同一actionRef再利用をせず、current revision/audit/Audit Logを再確認する。
 

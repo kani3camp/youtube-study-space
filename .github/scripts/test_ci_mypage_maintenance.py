@@ -49,10 +49,30 @@ class MaintenanceContextTest(unittest.TestCase):
         result = subject.context(env.get, lambda: datetime(2026, 10, 27, 2, tzinfo=timezone.utc))
         self.assertEqual(result["estimated_end_at"], "2026-10-27T03:00:00.1234Z")
 
+    def test_truncates_sub_microsecond_input_to_firestore_precision(self):
+        env = values()
+        env["INPUT_ESTIMATED_END_AT"] = "2026-10-27T03:00:00.123456789Z"
+        result = subject.context(env.get, lambda: datetime(2026, 10, 27, 2, tzinfo=timezone.utc))
+        self.assertEqual(result["estimated_end_at"], "2026-10-27T03:00:00.123456Z")
+
     def test_accepts_explicit_initial_normal(self):
         env = values()
         env.update(INPUT_STATE="NORMAL", INPUT_EXPECTED_REVISION="0", INPUT_ESTIMATED_END_AT="", INPUT_REASON_CATEGORY="INITIALIZATION")
         self.assertEqual(subject.context(env.get)["state"], "NORMAL")
+
+    def test_accepts_only_recovery_for_normal_and_active_reasons_for_active(self):
+        normal = values()
+        normal.update(INPUT_STATE="NORMAL", INPUT_ESTIMATED_END_AT="", INPUT_REASON_CATEGORY="RECOVERY")
+        self.assertEqual(subject.context(normal.get)["reason"], "RECOVERY")
+        for reason in ("INITIALIZATION", "PLANNED_MAINTENANCE", "DATA_MIGRATION", "SECURITY_MAINTENANCE"):
+            candidate = deepcopy(normal)
+            candidate["INPUT_REASON_CATEGORY"] = reason
+            with self.subTest(state="NORMAL", reason=reason), self.assertRaises(ValueError):
+                subject.context(candidate.get)
+        active = values()
+        active["INPUT_REASON_CATEGORY"] = "RECOVERY"
+        with self.assertRaises(ValueError):
+            subject.context(active.get, lambda: datetime(2026, 10, 27, 2, tzinfo=timezone.utc))
 
     def test_accepts_exact_production_confirmation(self):
         env = values()
@@ -123,6 +143,19 @@ class MaintenanceContextTest(unittest.TestCase):
             with self.subTest(candidate=candidate, expected=expected, estimate=estimate):
                 self.assertFalse(subject.valid_public_status(candidate, expected, estimate))
 
+    def test_deployed_capability_requires_strict_status_and_exact_frontend_marker(self):
+        status = {
+            "state": "ACTIVE",
+            "updatedAt": "2026-10-27T02:00:00Z",
+            "estimatedEndAt": "2026-10-27T03:00:00.123456789Z",
+            "messageTemplate": "MYPAGE_MAINTENANCE_V1",
+        }
+        self.assertEqual(subject.public_control(status), {"state": "ACTIVE", "estimated_end_at": "2026-10-27T03:00:00.123456Z"})
+        marker = subject.FRONTEND_CAPABILITY
+        self.assertTrue(subject.valid_frontend_capability("<head>" + marker + "</head>"))
+        self.assertFalse(subject.valid_frontend_capability("<head></head>"))
+        self.assertFalse(subject.valid_frontend_capability(marker + marker))
+
 
 class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
     def test_manual_only_preflight_and_signed_sender_wiring(self):
@@ -133,6 +166,7 @@ class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
         self.assertEqual(workflow.count("MYPAGE_TRIGGERING_ACTOR_ID: ${{ github.event.sender.id }}"), 2)
         self.assertNotIn("GITHUB_TRIGGERING_ACTOR_ID", workflow)
         self.assertLess(workflow.index("Reject untrusted context and invalid transition before authentication"), workflow.index("google-github-actions/auth@"))
+        self.assertLess(workflow.index("Verify deployed capability and bind the exact previous state"), workflow.index("google-github-actions/auth@"))
         self.assertNotIn("set -x", workflow)
 
     def test_permissions_actions_identity_and_job_are_fixed(self):
@@ -152,6 +186,10 @@ class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
         self.assertIn("run_operator preview", workflow)
         self.assertIn("run_operator apply", workflow)
         self.assertIn("run_operator verify", workflow)
+        self.assertIn("--expected-previous-state=${EXPECTED_PREVIOUS_STATE}", workflow)
+        self.assertIn("--expected-previous-estimated-end-at=${EXPECTED_PREVIOUS_ESTIMATED_END_AT}", workflow)
+        self.assertIn("valid_frontend_capability(html)", workflow)
+        self.assertIn("public_control(json.loads", workflow)
         self.assertLess(workflow.index("run_operator preview"), workflow.index("run_operator apply"))
         self.assertLess(workflow.index("run_operator apply"), workflow.index("run_operator verify"))
         self.assertIn("authoritativeReadbackVerified", workflow)

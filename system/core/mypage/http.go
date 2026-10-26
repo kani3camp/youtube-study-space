@@ -320,7 +320,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
-		if !h.writePersonalJSON(w, ctx, 200, page, requestID, identity.UID) {
+		if !h.writePersonalJSON(w, ctx, 200, page, requestID, identity.UID, page.MaintenanceRevision) {
 			return
 		}
 	case "/api/privacy/requests":
@@ -346,7 +346,11 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if start.SupportChallenge == nil && h.Maintenance != nil {
-			if err := h.Maintenance.CheckAuthoritative(ctx); err != nil {
+			revision, err := h.Maintenance.CheckAuthoritativeRevision(ctx)
+			if err != nil || response.MaintenanceRevision < 1 || revision != response.MaintenanceRevision {
+				if err == nil {
+					err = apiError("TEMPORARY_UNAVAILABLE")
+				}
 				if failErr := h.Auth.Store.Fail(ctx, id); failErr != nil {
 					err = errors.Join(err, fmt.Errorf("fail maintenance OAuth transaction: %w", failErr))
 				}
@@ -363,7 +367,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if response.Purpose == "login" {
-			if !h.writePersonalJSON(w, ctx, 200, response, requestID, "") {
+			if !h.writePersonalJSON(w, ctx, 200, response, requestID, "", response.MaintenanceRevision) {
 				return
 			}
 		} else {
@@ -381,14 +385,24 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		setTransactionCookie(w, "", -1)
 		if response.Purpose == "login" {
-			if !h.writePersonalJSON(w, ctx, 200, response, requestID, "") {
+			if !h.writePersonalJSON(w, ctx, 200, response, requestID, "", response.MaintenanceRevision) {
 				return
 			}
 		} else {
 			writeJSON(w, 200, response)
 		}
 	case "/api/auth/session/complete":
-		if err := h.Auth.Store.CompleteSession(ctx, identity.UID, account.AccessCheckpoint, h.Auth.Policy, now); err != nil {
+		maintenanceRevision := int64(0)
+		operationContext := ctx
+		if h.Maintenance != nil {
+			maintenanceRevision, err = h.Maintenance.CheckAuthoritativeRevision(ctx)
+			if err != nil {
+				writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
+				return
+			}
+			operationContext = withMaintenanceRevision(ctx, maintenanceRevision)
+		}
+		if err := h.Auth.Store.CompleteSession(operationContext, identity.UID, account.AccessCheckpoint, h.Auth.Policy, now); err != nil {
 			code := errorCode(err)
 			if code == "INTERNAL_ERROR" {
 				code = "TEMPORARY_UNAVAILABLE"
@@ -397,7 +411,11 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if h.Maintenance != nil {
-			if err := h.Maintenance.CheckAuthoritative(ctx); err != nil {
+			revision, err := h.Maintenance.CheckAuthoritativeRevision(ctx)
+			if err != nil || revision != maintenanceRevision {
+				if err == nil {
+					err = apiError("TEMPORARY_UNAVAILABLE")
+				}
 				writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 				return
 			}
@@ -413,18 +431,22 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
-		if !h.writePersonalJSON(w, ctx, 200, response, requestID, identity.UID) {
+		if !h.writePersonalJSON(w, ctx, 200, response, requestID, identity.UID, response.MaintenanceRevision) {
 			return
 		}
 	}
 }
 
-func (h *HTTPHandler) writePersonalJSON(w http.ResponseWriter, ctx context.Context, status int, value any, requestID, uid string) bool {
+func (h *HTTPHandler) writePersonalJSON(w http.ResponseWriter, ctx context.Context, status int, value any, requestID, uid string, expectedMaintenanceRevision int64) bool {
 	if h.Maintenance == nil {
 		writeJSON(w, status, value)
 		return true
 	}
-	if err := h.Maintenance.CheckAuthoritative(ctx); err != nil {
+	revision, err := h.Maintenance.CheckAuthoritativeRevision(ctx)
+	if err != nil || expectedMaintenanceRevision < 1 || revision != expectedMaintenanceRevision {
+		if err == nil {
+			err = apiError("TEMPORARY_UNAVAILABLE")
+		}
 		if uid != "" && h.BFF != nil {
 			h.BFF.Invalidate(uid)
 		}

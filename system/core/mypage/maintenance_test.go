@@ -28,8 +28,15 @@ type maintenanceFlowStore struct {
 	AuthStore
 	tx        OAuthTransaction
 	channel   Channel
+	creates   int
 	failCalls int
 	failErr   error
+}
+
+func (s *maintenanceFlowStore) Create(_ context.Context, _, _ string, value OAuthTransaction, _ time.Time) error {
+	s.creates++
+	s.tx = value
+	return nil
 }
 
 func (s *maintenanceFlowStore) ReadPurpose(context.Context, string, time.Time) (string, error) {
@@ -200,7 +207,7 @@ func TestBFFCacheCannotCrossAnUnobservedActiveToNormalRevision(t *testing.T) {
 func TestNormalOAuthChannelAndMintBarriersRejectActivation(t *testing.T) {
 	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
 	store := &maintenanceFlowStore{
-		tx:      OAuthTransaction{Purpose: "login", Channel: Channel{ID: "UCsynthetic", DisplayName: "Synthetic"}},
+		tx:      OAuthTransaction{Purpose: "login", Channel: Channel{ID: "UCsynthetic", DisplayName: "Synthetic"}, MaintenanceRevision: 1},
 		channel: Channel{ID: "UCsynthetic", DisplayName: "Synthetic"},
 	}
 	active := &maintenanceStub{authoritative: []error{apiError("MAINTENANCE_ACTIVE")}}
@@ -208,11 +215,34 @@ func TestNormalOAuthChannelAndMintBarriersRejectActivation(t *testing.T) {
 	if _, err := service.Channel(context.Background(), "transaction"); errorCode(err) != "MAINTENANCE_ACTIVE" {
 		t.Fatalf("channel code=%s", errorCode(err))
 	}
+	service.Maintenance = &maintenanceStub{revisions: []int64{3}}
+	if _, err := service.Channel(context.Background(), "transaction"); errorCode(err) != "TEMPORARY_UNAVAILABLE" {
+		t.Fatalf("channel revision code=%s", errorCode(err))
+	}
 	minter := new(maintenanceMinter)
 	service.Minter = minter
 	service.Maintenance = &maintenanceStub{authoritative: []error{nil, apiError("MAINTENANCE_ACTIVE")}}
 	if _, err := service.ConfirmResult(context.Background(), "transaction", "confirmation"); errorCode(err) != "MAINTENANCE_ACTIVE" || minter.calls != 0 {
 		t.Fatalf("confirm code=%s mint calls=%d", errorCode(err), minter.calls)
+	}
+}
+
+func TestPersonalResponseFinalBarrierRequiresOriginatingRevisionAndHidesIt(t *testing.T) {
+	h := &HTTPHandler{Maintenance: &maintenanceStub{revisions: []int64{3}}}
+	w := httptest.NewRecorder()
+	response := ChannelResponse{MaintenanceRevision: 2, Purpose: "login", DisplayName: "Synthetic"}
+	if h.writePersonalJSON(w, context.Background(), http.StatusOK, response, "request", "", response.MaintenanceRevision) ||
+		w.Code != http.StatusServiceUnavailable || responseCode(t, w) != "TEMPORARY_UNAVAILABLE" {
+		t.Fatalf("status=%d code=%s", w.Code, responseCode(t, w))
+	}
+
+	h.Maintenance = &maintenanceStub{revisions: []int64{2}}
+	w = httptest.NewRecorder()
+	if !h.writePersonalJSON(w, context.Background(), http.StatusOK, response, "request", "", response.MaintenanceRevision) || w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "maintenanceRevision") {
+		t.Fatalf("internal maintenance revision leaked: %s", w.Body.String())
 	}
 }
 
@@ -236,6 +266,32 @@ func TestNormalOAuthCallbackActivationFailsTransactionAndRedirectsWithoutProvide
 	}
 	if body := w.Body.String(); strings.Contains(body, "private-code") || strings.Contains(body, "private-state") {
 		t.Fatal("OAuth secret entered the redirect response")
+	}
+}
+
+func TestNormalOAuthStartResponseCannotCrossACompleteMaintenanceInterval(t *testing.T) {
+	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
+	store := new(maintenanceFlowStore)
+	gate := &maintenanceStub{revisions: []int64{1, 3}}
+	h := &HTTPHandler{
+		PublicOrigin: "https://mypage.example.test", Maintenance: gate,
+		Verifier: new(boundaryVerifier),
+		Auth: &AuthService{
+			Store: store, Provider: new(maintenanceProvider), Maintenance: gate,
+			Policy: Policy{Privacy: "p1", Terms: "t1"}, Now: func() time.Time { return now },
+		},
+	}
+	r := httptest.NewRequest(http.MethodPost, "https://mypage.example.test/api/auth/youtube/start", strings.NewReader(`{"privacyPolicyVersion":"p1","privacyAccepted":true,"termsVersion":"t1","termsAccepted":true}`))
+	r.Header.Set("Origin", h.PublicOrigin)
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("X-Firebase-AppCheck", "synthetic-app-proof")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusServiceUnavailable || responseCode(t, w) != "TEMPORARY_UNAVAILABLE" || store.creates != 1 || store.failCalls != 1 {
+		t.Fatalf("status=%d code=%s creates=%d fails=%d", w.Code, responseCode(t, w), store.creates, store.failCalls)
+	}
+	if strings.Contains(w.Header().Get("Set-Cookie"), "Max-Age=600") {
+		t.Fatalf("stale OAuth transaction cookie published: %s", w.Header().Get("Set-Cookie"))
 	}
 }
 
@@ -327,7 +383,7 @@ func TestOAuthMaintenanceIdentitySurvivesCleanupFailure(t *testing.T) {
 
 func TestMaintenanceTransitionValidationIsClosedAndExact(t *testing.T) {
 	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
-	valid := MaintenanceTransition{Authority: MaintenanceAuthorityGitHub, Environment: "development", State: MaintenanceActive, ExpectedRevision: 2, ReasonCategory: "PLANNED_MAINTENANCE", ActionRef: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", RepositoryID: "340900071", RepositoryOwnerID: "54093651", ActorID: "54093651", TriggeringActorID: "54093651", RunID: "123", RunAttempt: 1, GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", WorkflowRef: "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@refs/heads/integration/mypage-canon-20261006", CloudRunExecution: "mypage-maintenance-operator-abcde"}
+	valid := MaintenanceTransition{Authority: MaintenanceAuthorityGitHub, Environment: "development", State: MaintenanceActive, ExpectedRevision: 2, ExpectedPreviousState: MaintenanceNormal, ReasonCategory: "PLANNED_MAINTENANCE", ActionRef: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", RepositoryID: "340900071", RepositoryOwnerID: "54093651", ActorID: "54093651", TriggeringActorID: "54093651", RunID: "123", RunAttempt: 1, GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", WorkflowRef: "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@refs/heads/integration/mypage-canon-20261006", CloudRunExecution: "mypage-maintenance-operator-abcde"}
 	if err := ValidateMaintenanceTransition(valid, now); err != nil {
 		t.Fatal(err)
 	}
@@ -346,12 +402,19 @@ func TestMaintenanceTransitionValidationIsClosedAndExact(t *testing.T) {
 			}
 		})
 	}
+	invalidRecovery := valid
+	invalidRecovery.State = MaintenanceNormal
+	invalidRecovery.ExpectedPreviousState = MaintenanceActive
+	invalidRecovery.ReasonCategory = "PLANNED_MAINTENANCE"
+	if ValidateMaintenanceTransition(invalidRecovery, now) == nil {
+		t.Fatal("ACTIVE to NORMAL accepted a non-RECOVERY reason")
+	}
 }
 
 func TestMaintenanceReceiptValidationDoesNotExpireCommittedEstimate(t *testing.T) {
 	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
 	estimate := now.Add(time.Minute)
-	request := MaintenanceTransition{Authority: MaintenanceAuthorityGitHub, Environment: "development", State: MaintenanceActive, ExpectedRevision: 2, EstimatedEndAt: &estimate, ReasonCategory: "PLANNED_MAINTENANCE", ActionRef: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", RepositoryID: "340900071", RepositoryOwnerID: "54093651", ActorID: "54093651", TriggeringActorID: "54093651", RunID: "123", RunAttempt: 1, GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", WorkflowRef: "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@refs/heads/integration/mypage-canon-20261006", CloudRunExecution: "mypage-maintenance-operator-abcde"}
+	request := MaintenanceTransition{Authority: MaintenanceAuthorityGitHub, Environment: "development", State: MaintenanceActive, ExpectedRevision: 2, ExpectedPreviousState: MaintenanceNormal, EstimatedEndAt: &estimate, ReasonCategory: "PLANNED_MAINTENANCE", ActionRef: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", RepositoryID: "340900071", RepositoryOwnerID: "54093651", ActorID: "54093651", TriggeringActorID: "54093651", RunID: "123", RunAttempt: 1, GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", WorkflowRef: "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@refs/heads/integration/mypage-canon-20261006", CloudRunExecution: "mypage-maintenance-operator-abcde"}
 	if err := ValidateMaintenanceTransition(request, now); err != nil {
 		t.Fatal(err)
 	}
@@ -365,7 +428,7 @@ func TestMaintenanceReceiptValidationDoesNotExpireCommittedEstimate(t *testing.T
 
 func TestMaintenanceBreakGlassUsesTruthfulDistinctProvenance(t *testing.T) {
 	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
-	value := MaintenanceTransition{Authority: MaintenanceAuthorityBreakGlass, Environment: "development", State: MaintenanceActive, ExpectedRevision: 2, ReasonCategory: "SECURITY_MAINTENANCE", ActionRef: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", CloudRunExecution: "mypage-maintenance-breakglass-abcde", BreakGlassApprovalRef: "INCIDENT_123", ClaimedOperator: "operator@example.com"}
+	value := MaintenanceTransition{Authority: MaintenanceAuthorityBreakGlass, Environment: "development", State: MaintenanceActive, ExpectedRevision: 2, ExpectedPreviousState: MaintenanceNormal, ReasonCategory: "SECURITY_MAINTENANCE", ActionRef: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", CloudRunExecution: "mypage-maintenance-breakglass-abcde", BreakGlassApprovalRef: "INCIDENT_123", ClaimedOperator: "operator@example.com"}
 	if err := ValidateMaintenanceTransition(value, now); err != nil {
 		t.Fatal(err)
 	}

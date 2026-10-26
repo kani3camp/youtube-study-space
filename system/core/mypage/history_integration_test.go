@@ -62,13 +62,13 @@ func historyServiceFixture(t *testing.T, count int, ties bool) (*HistoryService,
 	seedNormalMaintenance(t, client, "development", now)
 	cursor, err := newHistoryCipher([]byte("synthetic-server-oauth-secret-only"), "development")
 	require.NoError(t, err)
-	s := &HistoryService{Client: client, Access: &serviceaccess.FirestoreStore{Client: client}, Environment: "development", Cipher: cursor, Now: time.Now}
+	s := &HistoryService{Client: client, Access: &serviceaccess.FirestoreStore{Client: client}, Maintenance: &MaintenanceGate{Client: client, Environment: "development"}, Environment: "development", Cipher: cursor, Now: time.Now}
 	return s, uid, WebAccount{AccessCheckpoint: "absent", PrivacyPolicyVersion: "p1", TermsVersion: "t1"}, q
 }
 
 func TestHistoryBudgetDoesNotConsumeQuotaWhenMaintenanceIsActive(t *testing.T) {
 	s, uid, _, _ := historyServiceFixture(t, 0, false)
-	ctx := context.Background()
+	ctx := withMaintenanceRevision(context.Background(), 1)
 	p, err := s.loadPolicy(ctx)
 	require.NoError(t, err)
 	_, err = maintenanceRef(s.Client).Set(ctx, MaintenanceControl{
@@ -151,7 +151,7 @@ func TestHistoryBudgetIsSharedAcrossInstancesAndReplaysDoNotRunAgain(t *testing.
 
 func TestHistoryBudgetConcurrentReservationNeverOverspendsAndSurvivesRestart(t *testing.T) {
 	s, uid, _, _ := historyServiceFixture(t, 0, false)
-	ctx := context.Background()
+	ctx := withMaintenanceRevision(context.Background(), 1)
 	_, err := s.Client.Collection(historyPolicyCollection).Doc(historyPolicyID).Update(ctx, []firestore.Update{{Path: "standardDailyUnits", Value: int64(1)}, {Path: "maxConcurrent", Value: int64(4)}})
 	require.NoError(t, err)
 	p, err := s.loadPolicy(ctx)
@@ -187,7 +187,7 @@ func TestHistoryBudgetConcurrentReservationNeverOverspendsAndSurvivesRestart(t *
 
 func TestHistoryLeaseCrossesJSTDayWithoutResettingConcurrencyOrOldKey(t *testing.T) {
 	s, uid, _, _ := historyServiceFixture(t, 0, false)
-	ctx := context.Background()
+	ctx := withMaintenanceRevision(context.Background(), 1)
 	p, err := s.loadPolicy(ctx)
 	require.NoError(t, err)
 	p.MaxConcurrent = 1

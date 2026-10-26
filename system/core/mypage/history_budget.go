@@ -176,7 +176,7 @@ func (s *HistoryService) reserve(ctx context.Context, uid, checkpoint, key, fing
 	}
 	opKey := digest(key)
 	err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		if err := transactionMaintenance(tx, s.Client, s.Environment); err != nil {
+		if err := transactionMaintenance(tx, s.Client, s.Environment, maintenanceRevisionFromContext(ctx)); err != nil {
 			return err
 		}
 		clocks, err := tx.GetAll([]*firestore.DocumentRef{s.Client.Collection(serviceaccess.Collection).Doc(uid)})

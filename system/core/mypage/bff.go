@@ -102,6 +102,7 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 					return
 				}
 			}
+			result.MaintenanceRevision = maintenanceRevision
 			if _, err := readAccess(ctx, b.Access, uid, checkpoint); err != nil {
 				b.Invalidate(uid)
 				result, resultErr = Response{}, err
@@ -178,6 +179,7 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 				}
 				if b.Metadata != nil && (account.MetadataFetchedAt.IsZero() || b.Now().Sub(account.MetadataFetchedAt) >= 24*time.Hour) {
 					metadataCtx, stop := context.WithTimeout(workCtx, time.Second)
+					metadataCtx = withMaintenanceRevision(metadataCtx, maintenanceRevision)
 					if refreshed, err := b.Metadata.Refresh(metadataCtx, uid, account); err == nil {
 						account = refreshed
 					} else if metadataGateError(err) {

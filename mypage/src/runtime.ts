@@ -65,6 +65,7 @@ export class BrowserRuntime {
 	private active = false
 	private authGeneration = 0
 	private confirmationGeneration = 0
+	private normalOAuthGeneration = 0
 	private observedUID: string | null | undefined
 	private reconciledGeneration = -1
 	private restoringController: AbortController | null = null
@@ -79,6 +80,20 @@ export class BrowserRuntime {
 	private invalidateSupport() {
 		this.supportController?.abort()
 		this.supportController = null
+	}
+
+	private invalidateNormalOAuth() {
+		this.normalOAuthGeneration++
+		this.confirmationGeneration++
+	}
+
+	private normalOAuthError() {
+		return new RequestError(
+			503,
+			this.maintenance.getSnapshot().phase === 'active'
+				? 'MAINTENANCE_ACTIVE'
+				: 'TEMPORARY_UNAVAILABLE',
+		)
 	}
 
 	constructor(
@@ -97,6 +112,7 @@ export class BrowserRuntime {
 		this.intakeEnabled = intakeEnabled
 		this.historyEnabled = historyEnabled
 		this.maintenance = new MaintenanceMonitor(this.request, (phase) => {
+			this.invalidateNormalOAuth()
 			this.restoringController?.abort()
 			this.memory.enterMaintenance(
 				phase === 'active' ? 'MAINTENANCE_ACTIVE' : 'TEMPORARY_UNAVAILABLE',
@@ -504,6 +520,7 @@ export class BrowserRuntime {
 			!/^[a-f0-9]{64}$/.test(supportChallenge)
 		)
 			throw new RequestError(400, 'SUPPORT_CHALLENGE_INVALID')
+		const normalOAuthGeneration = this.normalOAuthGeneration
 		const result = await this.call(
 			'/api/auth/youtube/start',
 			'POST',
@@ -516,6 +533,11 @@ export class BrowserRuntime {
 			},
 			signal,
 		)
+		if (
+			supportChallenge === undefined &&
+			(signal.aborted || normalOAuthGeneration !== this.normalOAuthGeneration)
+		)
+			throw this.normalOAuthError()
 		if (
 			!result ||
 			typeof result !== 'object' ||
@@ -538,6 +560,7 @@ export class BrowserRuntime {
 		const identityGeneration = this.authGeneration
 		const lifecycleGeneration = this.lifecycleGeneration
 		const memoryGeneration = this.memory.generation
+		const normalOAuthGeneration = this.normalOAuthGeneration
 		let result: unknown
 		try {
 			result = await this.call(
@@ -594,6 +617,11 @@ export class BrowserRuntime {
 			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
 		if (
 			result.purpose === 'login' &&
+			(normalOAuthGeneration !== this.normalOAuthGeneration || signal.aborted)
+		)
+			throw this.normalOAuthError()
+		if (
+			result.purpose === 'login' &&
 			this.memory.getSnapshot().phase === 'restricted' &&
 			memoryGeneration !== this.memory.generation
 		)
@@ -629,6 +657,7 @@ export class BrowserRuntime {
 		const identityGenerationAtStart = this.authGeneration
 		const lifecycleGeneration = this.lifecycleGeneration
 		const memoryGeneration = this.memory.generation
+		const normalOAuthGeneration = this.normalOAuthGeneration
 		const uidAtStart = this.session?.currentUID()
 		const supportSignal = supportController
 			? AbortSignal.any([signal, supportController.signal])
@@ -649,6 +678,7 @@ export class BrowserRuntime {
 		const ownsConfirmation = () =>
 			!signal.aborted &&
 			operation === this.confirmationGeneration &&
+			normalOAuthGeneration === this.normalOAuthGeneration &&
 			identityGenerationAtStart === this.authGeneration &&
 			lifecycleGeneration === this.lifecycleGeneration &&
 			memoryGeneration === this.memory.generation &&
@@ -664,6 +694,11 @@ export class BrowserRuntime {
 		} catch (error) {
 			if (error instanceof RequestError && error.code === 'MAINTENANCE_ACTIVE')
 				throw error
+			if (
+				purpose === 'login' &&
+				normalOAuthGeneration !== this.normalOAuthGeneration
+			)
+				throw this.normalOAuthError()
 			if (purpose === 'login' && !ownsConfirmation())
 				throw new RequestError(401, 'AUTH_REQUIRED')
 			const restriction = restrictionFrom(error)
@@ -710,7 +745,11 @@ export class BrowserRuntime {
 			!this.session
 		)
 			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
-		if (!ownsConfirmation()) throw new RequestError(400, 'INVALID_REQUEST')
+		if (!ownsConfirmation()) {
+			if (normalOAuthGeneration !== this.normalOAuthGeneration)
+				throw this.normalOAuthError()
+			throw new RequestError(400, 'INVALID_REQUEST')
+		}
 		let uid: string
 		this.completingSession = true
 		this.memory.suspend(true)
@@ -723,10 +762,25 @@ export class BrowserRuntime {
 			}
 			throw new RequestError(401, 'AUTH_REQUIRED')
 		}
+		if (
+			operation !== this.confirmationGeneration ||
+			normalOAuthGeneration !== this.normalOAuthGeneration ||
+			lifecycleGeneration !== this.lifecycleGeneration ||
+			this.session.currentUID() !== uid
+		) {
+			this.completingSession = false
+			if (this.session.currentUID() === uid) await this.memory.logout()
+			throw this.normalOAuthError()
+		}
 		this.observeIdentity(uid)
 		const identityGeneration = this.authGeneration
 		const ownsSession = () =>
 			operation === this.confirmationGeneration &&
+			normalOAuthGeneration === this.normalOAuthGeneration &&
+			identityGeneration === this.authGeneration &&
+			lifecycleGeneration === this.lifecycleGeneration &&
+			this.session?.currentUID() === uid
+		const ownsSignedInIdentity = () =>
 			identityGeneration === this.authGeneration &&
 			lifecycleGeneration === this.lifecycleGeneration &&
 			this.session?.currentUID() === uid
@@ -748,11 +802,22 @@ export class BrowserRuntime {
 					error instanceof RequestError &&
 					error.code === 'MAINTENANCE_ACTIVE'
 				) {
-					// Keep the authenticated SDK session; private memory is already clear.
+					await this.memory.logout()
+					this.memory.enterMaintenance()
 				} else await this.memory.logout()
 			} else if (operation === this.confirmationGeneration)
 				this.restoreIdentity(this.session.currentUID())
-			if (!ownedAtFailure) throw new RequestError(401, 'AUTH_REQUIRED')
+			if (!ownedAtFailure) {
+				if (normalOAuthGeneration !== this.normalOAuthGeneration) {
+					this.completingSession = false
+					if (ownsSignedInIdentity()) {
+						await this.memory.logout()
+						this.memory.enterMaintenance()
+					}
+					throw this.normalOAuthError()
+				}
+				throw new RequestError(401, 'AUTH_REQUIRED')
+			}
 			if (error instanceof RequestError) throw error
 			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
 		}

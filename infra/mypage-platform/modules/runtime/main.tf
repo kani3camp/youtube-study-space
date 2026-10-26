@@ -466,11 +466,15 @@ resource "google_iam_workload_identity_pool_provider" "maintenance_github" {
   disabled                           = false
   attribute_mapping = {
     "google.subject"                = "assertion.sub"
+    "attribute.actor"               = "assertion.actor"
     "attribute.repository_id"       = "assertion.repository_id"
     "attribute.repository_owner_id" = "assertion.repository_owner_id"
     "attribute.actor_id"            = "assertion.actor_id"
+    "attribute.run_attempt"         = "assertion.run_attempt"
     "attribute.ref"                 = "assertion.ref"
+    "attribute.sha"                 = "assertion.sha"
     "attribute.workflow_ref"        = "assertion.workflow_ref"
+    "attribute.workflow_sha"        = "assertion.workflow_sha"
     "attribute.environment"         = "assertion.environment"
     "attribute.event_name"          = "assertion.event_name"
   }

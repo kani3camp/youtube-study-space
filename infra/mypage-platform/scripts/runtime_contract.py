@@ -106,10 +106,13 @@ def maintenance_resource_contract(value=None):
         resources[MAINTENANCE_PROVIDER] |= {
             "attribute_condition": condition,
             "attribute_mapping": {
-                "attribute.actor_id": "assertion.actor_id", "attribute.environment": "assertion.environment",
+                "attribute.actor": "assertion.actor", "attribute.actor_id": "assertion.actor_id",
+                "attribute.environment": "assertion.environment",
                 "attribute.event_name": "assertion.event_name", "attribute.ref": "assertion.ref",
                 "attribute.repository_id": "assertion.repository_id", "attribute.repository_owner_id": "assertion.repository_owner_id",
-                "attribute.workflow_ref": "assertion.workflow_ref", "google.subject": "assertion.sub",
+                "attribute.run_attempt": "assertion.run_attempt", "attribute.sha": "assertion.sha",
+                "attribute.workflow_ref": "assertion.workflow_ref", "attribute.workflow_sha": "assertion.workflow_sha",
+                "google.subject": "assertion.sub",
             },
             "oidc": [{"issuer_uri": "https://token.actions.githubusercontent.com", "allowed_audiences": []}],
         }
@@ -242,13 +245,17 @@ def validate_maintenance_resource(address, after, unknown, value):
         )
         c.need(after.get("attribute_condition") == expected_condition, "maintenance-provider-condition")
         c.need(after.get("attribute_mapping") == {
+            "attribute.actor": "assertion.actor",
             "attribute.actor_id": "assertion.actor_id",
             "attribute.environment": "assertion.environment",
             "attribute.event_name": "assertion.event_name",
             "attribute.ref": "assertion.ref",
             "attribute.repository_id": "assertion.repository_id",
             "attribute.repository_owner_id": "assertion.repository_owner_id",
+            "attribute.run_attempt": "assertion.run_attempt",
+            "attribute.sha": "assertion.sha",
             "attribute.workflow_ref": "assertion.workflow_ref",
+            "attribute.workflow_sha": "assertion.workflow_sha",
             "google.subject": "assertion.sub",
         }, "maintenance-provider-mapping")
         oidc = one(after.get("oidc"), "maintenance-provider-oidc")

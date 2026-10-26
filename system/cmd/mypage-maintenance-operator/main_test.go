@@ -27,6 +27,7 @@ func operatorArgs() []string {
 		"--git-ref=refs/heads/integration/mypage-canon-20261006",
 		"--commit-sha=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		"--workflow-ref=kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@refs/heads/integration/mypage-canon-20261006",
+		"--expected-previous-state=NORMAL",
 	}
 }
 

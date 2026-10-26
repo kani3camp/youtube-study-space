@@ -71,6 +71,49 @@ jobs:
           MYPAGE_TRIGGERING_ACTOR_ID: ${{ github.event.sender.id }}
         run: python3 .github/scripts/mypage_maintenance.py
 
+      - name: Verify deployed capability and bind the exact previous state
+        id: capability
+        env:
+          PUBLIC_ORIGIN: ${{ steps.context.outputs.public_origin }}
+          EXPECTED_REVISION: ${{ steps.context.outputs.expected_revision }}
+          TARGET_STATE: ${{ steps.context.outputs.state }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, urllib.error, urllib.request
+          sys.path.insert(0, '.github/scripts')
+          from mypage_maintenance import public_control, valid_frontend_capability
+
+          output = os.environ['GITHUB_OUTPUT']
+          if os.environ['EXPECTED_REVISION'] == '0':
+              with open(output, 'a', encoding='utf-8') as stream:
+                  stream.write('previous_state=MISSING\nprevious_estimated_end_at=\n')
+              raise SystemExit(0)
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          def read(path, maximum):
+              request = urllib.request.Request(
+                  os.environ['PUBLIC_ORIGIN'] + path,
+                  headers={'Cache-Control': 'no-cache', 'Accept-Encoding': 'identity'},
+              )
+              with urllib.request.build_opener(NoRedirect()).open(request, timeout=20) as response:
+                  assert response.status == 200
+                  body = response.read(maximum + 1)
+                  assert len(body) <= maximum
+                  return body
+
+          control = public_control(json.loads(read('/api/public/mypage-status', 65536)))
+          assert control is not None, 'maintenance-capable backend is not deployed'
+          assert not (control['state'] == 'NORMAL' and os.environ['TARGET_STATE'] == 'NORMAL'), 'invalid NORMAL to NORMAL transition'
+          html = read('/?maintenance-capability=MYPAGE_MAINTENANCE_V1', 1048576).decode('utf-8')
+          assert valid_frontend_capability(html), 'maintenance-capable frontend is not deployed'
+          with open(output, 'a', encoding='utf-8') as stream:
+              stream.write('previous_state=' + control['state'] + '\n')
+              stream.write('previous_estimated_end_at=' + control['estimated_end_at'] + '\n')
+          PY
+
       - name: Validate and mask the dedicated Job invoker identity
         env:
           PROVIDER: ${{ secrets.MYPAGE_MAINTENANCE_WIF_PROVIDER }}
@@ -104,6 +147,8 @@ jobs:
           ENVIRONMENT: ${{ steps.context.outputs.environment }}
           STATE: ${{ steps.context.outputs.state }}
           EXPECTED_REVISION: ${{ steps.context.outputs.expected_revision }}
+          EXPECTED_PREVIOUS_STATE: ${{ steps.capability.outputs.previous_state }}
+          EXPECTED_PREVIOUS_ESTIMATED_END_AT: ${{ steps.capability.outputs.previous_estimated_end_at }}
           ESTIMATED_END_AT: ${{ steps.context.outputs.estimated_end_at }}
           REASON: ${{ steps.context.outputs.reason }}
           ACTION_REF: ${{ steps.context.outputs.action_ref }}
@@ -114,7 +159,10 @@ jobs:
           set -euo pipefail
           run_operator() {
             local operation="$1"
-            local args="--operation=${operation},--project=${PROJECT},--environment=${ENVIRONMENT},--state=${STATE},--expected-revision=${EXPECTED_REVISION},--reason-category=${REASON},--action-ref=${ACTION_REF},--repository-id=${GITHUB_REPOSITORY_ID},--repository-owner-id=${GITHUB_REPOSITORY_OWNER_ID},--actor-id=${GITHUB_ACTOR_ID},--triggering-actor-id=${MYPAGE_TRIGGERING_ACTOR_ID},--run-id=${GITHUB_RUN_ID},--run-attempt=${GITHUB_RUN_ATTEMPT},--git-ref=${GITHUB_REF},--commit-sha=${EXPECTED_SHA},--workflow-ref=${WORKFLOW_REF}"
+            local args="--operation=${operation},--project=${PROJECT},--environment=${ENVIRONMENT},--state=${STATE},--expected-revision=${EXPECTED_REVISION},--expected-previous-state=${EXPECTED_PREVIOUS_STATE},--reason-category=${REASON},--action-ref=${ACTION_REF},--repository-id=${GITHUB_REPOSITORY_ID},--repository-owner-id=${GITHUB_REPOSITORY_OWNER_ID},--actor-id=${GITHUB_ACTOR_ID},--triggering-actor-id=${MYPAGE_TRIGGERING_ACTOR_ID},--run-id=${GITHUB_RUN_ID},--run-attempt=${GITHUB_RUN_ATTEMPT},--git-ref=${GITHUB_REF},--commit-sha=${EXPECTED_SHA},--workflow-ref=${WORKFLOW_REF}"
+            if [[ -n "${EXPECTED_PREVIOUS_ESTIMATED_END_AT}" ]]; then
+              args="${args},--expected-previous-estimated-end-at=${EXPECTED_PREVIOUS_ESTIMATED_END_AT}"
+            fi
             if [[ -n "${ESTIMATED_END_AT}" ]]; then
               args="${args},--estimated-end-at=${ESTIMATED_END_AT}"
             fi

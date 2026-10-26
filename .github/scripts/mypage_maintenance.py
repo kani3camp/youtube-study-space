@@ -22,6 +22,8 @@ TARGETS = {
 }
 STATES = {"NORMAL", "ACTIVE"}
 REASONS = {"INITIALIZATION", "PLANNED_MAINTENANCE", "DATA_MIGRATION", "SECURITY_MAINTENANCE", "RECOVERY"}
+ACTIVE_REASONS = {"PLANNED_MAINTENANCE", "DATA_MIGRATION", "SECURITY_MAINTENANCE"}
+FRONTEND_CAPABILITY = '<meta name="mypage-maintenance-capability" content="MYPAGE_MAINTENANCE_V1" />'
 
 
 def need(condition: bool) -> None:
@@ -40,7 +42,10 @@ def canonical_rfc3339(value: object) -> str | None:
         parsed = datetime.fromisoformat(parse_value.replace("Z", "+00:00")).astimezone(timezone.utc)
     except (OverflowError, ValueError):
         return None
-    digits = fraction_input[1:].rstrip("0")
+    # Firestore timestamps are stored at microsecond precision. Normalize before
+    # authentication so Apply, Verify, public readback and receipts share one
+    # exact value even when the operator entered RFC3339 nanoseconds.
+    digits = fraction_input[1:7].rstrip("0")
     fraction = "." + digits if digits else ""
     return parsed.strftime("%Y-%m-%dT%H:%M:%S") + fraction + "Z"
 
@@ -49,23 +54,36 @@ def valid_rfc3339(value: object) -> bool:
     return canonical_rfc3339(value) is not None
 
 
-def valid_public_status(candidate: object, expected_state: str, expected_estimated_end_at: str) -> bool:
-    if not isinstance(candidate, dict) or expected_state not in STATES:
-        return False
+def public_control(candidate: object) -> dict[str, str] | None:
+    if not isinstance(candidate, dict):
+        return None
     required = {"state", "updatedAt", "messageTemplate"}
     allowed = required | {"estimatedEndAt"}
     if not required <= set(candidate) <= allowed:
+        return None
+    state = candidate.get("state")
+    if state not in STATES or candidate.get("messageTemplate") != "MYPAGE_MAINTENANCE_V1" or not valid_rfc3339(candidate.get("updatedAt")):
+        return None
+    estimate = ""
+    if "estimatedEndAt" in candidate:
+        estimate = canonical_rfc3339(candidate["estimatedEndAt"]) or ""
+        if not estimate:
+            return None
+    if state == "NORMAL" and estimate:
+        return None
+    return {"state": state, "estimated_end_at": estimate}
+
+
+def valid_public_status(candidate: object, expected_state: str, expected_estimated_end_at: str) -> bool:
+    control = public_control(candidate)
+    if control is None or expected_state not in STATES or control["state"] != expected_state:
         return False
-    if candidate.get("state") != expected_state or candidate.get("messageTemplate") != "MYPAGE_MAINTENANCE_V1":
-        return False
-    if not valid_rfc3339(candidate.get("updatedAt")):
-        return False
-    if expected_state == "NORMAL":
-        return expected_estimated_end_at == "" and "estimatedEndAt" not in candidate
-    expected_estimate = canonical_rfc3339(expected_estimated_end_at) if expected_estimated_end_at else None
-    if expected_estimate is None:
-        return expected_estimated_end_at == "" and "estimatedEndAt" not in candidate
-    return "estimatedEndAt" in candidate and canonical_rfc3339(candidate["estimatedEndAt"]) == expected_estimate
+    expected_estimate = canonical_rfc3339(expected_estimated_end_at) if expected_estimated_end_at else ""
+    return expected_estimate is not None and control["estimated_end_at"] == expected_estimate
+
+
+def valid_frontend_capability(value: object) -> bool:
+    return isinstance(value, str) and value.count(FRONTEND_CAPABILITY) == 1
 
 
 def context(get=os.environ.get, now=lambda: datetime.now(timezone.utc)) -> dict[str, str]:
@@ -93,8 +111,10 @@ def context(get=os.environ.get, now=lambda: datetime.now(timezone.utc)) -> dict[
     need(get("GITHUB_WORKFLOW_REF", "") == workflow_ref)
     if expected_revision == "0":
         need(state == "NORMAL" and reason == "INITIALIZATION")
+    elif state == "NORMAL":
+        need(reason == "RECOVERY")
     else:
-        need(reason != "INITIALIZATION")
+        need(reason in ACTIVE_REASONS)
     if state == "NORMAL":
         need(estimate == "")
     elif estimate:

@@ -21,6 +21,7 @@ func TestVerifyAcceptsAnEstimateThatExpiredAfterCommit(t *testing.T) {
 		"--run-id=123", "--run-attempt=1", "--git-ref=refs/heads/integration/mypage-canon-20261006",
 		"--commit-sha=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		"--workflow-ref=kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@refs/heads/integration/mypage-canon-20261006",
+		"--expected-previous-state=NORMAL",
 	}
 	env := map[string]string{"GOOGLE_CLOUD_PROJECT": "test-youtube-study-space", "MYPAGE_ENVIRONMENT": "development", "CLOUD_RUN_EXECUTION": "mypage-maintenance-operator-abcde"}
 	for _, operation := range []string{"preview", "verify"} {
@@ -49,6 +50,7 @@ func TestBreakGlassBinaryAuthorityRejectsGitHubSpoofBeforeFirestore(t *testing.T
 		"--git-ref=refs/heads/integration/mypage-canon-20261006",
 		"--commit-sha=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		"--break-glass-approval-ref=INCIDENT_123", "--claimed-operator=operator@example.com",
+		"--expected-previous-state=NORMAL",
 	}
 	env := map[string]string{"GOOGLE_CLOUD_PROJECT": "test-youtube-study-space", "MYPAGE_ENVIRONMENT": "development", "CLOUD_RUN_EXECUTION": "mypage-maintenance-breakglass-abcde"}
 	for name, extra := range map[string][]string{

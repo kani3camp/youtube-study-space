@@ -69,7 +69,7 @@ func authTestService(t *testing.T) (*AuthService, *FirestoreAuthStore, *fakeOAut
 	provider := &fakeOAuth{channels: []Channel{{ID: "UCsynthetic0000000000001", DisplayName: "Sample Channel"}}}
 	minter := &fakeMinter{}
 	now := time.Now().UTC().Truncate(time.Second)
-	service := &AuthService{Access: &serviceaccess.FirestoreStore{Client: client}, Store: store, Provider: provider, Minter: minter, Policy: Policy{Privacy: "test-policy", Terms: "test-terms"}, Now: func() time.Time { return now }}
+	service := &AuthService{Access: &serviceaccess.FirestoreStore{Client: client}, Store: store, Provider: provider, Minter: minter, Maintenance: &maintenanceStub{}, Policy: Policy{Privacy: "test-policy", Terms: "test-terms"}, Now: func() time.Time { return now }}
 	return service, store, provider, minter, now
 }
 
@@ -83,7 +83,7 @@ func seedTransaction(t *testing.T, s *AuthService, status string, now time.Time)
 	if err != nil {
 		t.Fatal(err)
 	}
-	value := OAuthTransaction{StateHash: digest("synthetic-state"), Status: status, PrivacyPolicyVersion: s.Policy.Privacy, TermsVersion: s.Policy.Terms, PrivacyConsentedAt: now, CreatedAt: now, ExpiresAt: now.Add(10 * time.Minute), ConfirmationRef: confirmation, Channel: Channel{ID: "UCsynthetic0000000000001", DisplayName: "Sample Channel"}, VerifiedAt: now}
+	value := OAuthTransaction{StateHash: digest("synthetic-state"), Status: status, PrivacyPolicyVersion: s.Policy.Privacy, TermsVersion: s.Policy.Terms, PrivacyConsentedAt: now, CreatedAt: now, ExpiresAt: now.Add(10 * time.Minute), ConfirmationRef: confirmation, Channel: Channel{ID: "UCsynthetic0000000000001", DisplayName: "Sample Channel"}, VerifiedAt: now, MaintenanceRevision: 1}
 	if err := s.Store.Create(context.Background(), id, "", value, now); err != nil {
 		t.Fatal(err)
 	}
