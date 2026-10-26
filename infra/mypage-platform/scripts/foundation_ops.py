@@ -299,7 +299,7 @@ def prepare(env):
         value = runtime_settings(env)
         contract.need(json.loads((root / "runtime-settings.json").read_text()) == {"runtime_settings": value}, "runtime-staged-settings")
         verify_runtime_inputs(env, value)
-        if stage == "runtime_public":
+        if stage in {"maintenance_upgrade", "runtime_public"}:
             verify_owner_public_invoker(env)
         arguments.append("-var-file=" + str(root / "runtime-settings.json"))
     PHASE = "terraform-plan"

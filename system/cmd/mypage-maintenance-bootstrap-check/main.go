@@ -14,7 +14,7 @@ import (
 	"cloud.google.com/go/firestore"
 )
 
-var errBootstrap = errors.New("maintenance bootstrap is not a verified NORMAL control")
+var errBootstrap = errors.New("maintenance bootstrap is not a verified initialized control")
 
 type clientFactory func(context.Context, string) (*firestore.Client, error)
 
@@ -38,7 +38,7 @@ func run(ctx context.Context, args []string, get func(string) string, connect cl
 	}()
 	checkCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	if mypage.RequireMaintenanceBootstrapNormal(checkCtx, client, environment) != nil {
+	if mypage.RequireMaintenanceInitialized(checkCtx, client, environment) != nil {
 		return errBootstrap
 	}
 	return nil
@@ -51,5 +51,5 @@ func main() {
 		fmt.Fprintln(os.Stderr, errBootstrap)
 		os.Exit(1)
 	}
-	fmt.Println("maintenance bootstrap NORMAL verified")
+	fmt.Println("maintenance bootstrap control verified")
 }

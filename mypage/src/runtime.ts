@@ -96,7 +96,12 @@ export class BrowserRuntime {
 		this.unavailable = unavailable
 		this.intakeEnabled = intakeEnabled
 		this.historyEnabled = historyEnabled
-		this.maintenance = new MaintenanceMonitor(this.request)
+		this.maintenance = new MaintenanceMonitor(this.request, (phase) => {
+			this.restoringController?.abort()
+			this.memory.enterMaintenance(
+				phase === 'active' ? 'MAINTENANCE_ACTIVE' : 'TEMPORARY_UNAVAILABLE',
+			)
+		})
 		this.memory = new MyPageMemory(
 			session
 				? createLoader(session, request)
@@ -142,6 +147,11 @@ export class BrowserRuntime {
 				return
 			} catch (error) {
 				if (
+					error instanceof RequestError &&
+					error.code === 'MAINTENANCE_ACTIVE'
+				)
+					throw error
+				if (
 					!(error instanceof RequestError) ||
 					error.status < 500 ||
 					attempt === 2 ||
@@ -157,6 +167,17 @@ export class BrowserRuntime {
 	}
 
 	private restoreIdentity(uid: string | null) {
+		if (!this.maintenance.allowsPrivateRestore()) {
+			this.restoringController?.abort()
+			this.restoringController = null
+			this.restoringIdentity = null
+			this.memory.enterMaintenance(
+				this.maintenance.getSnapshot().phase === 'active'
+					? 'MAINTENANCE_ACTIVE'
+					: 'TEMPORARY_UNAVAILABLE',
+			)
+			return
+		}
 		const pending = this.restoringIdentity
 		if (
 			uid &&
@@ -235,6 +256,13 @@ export class BrowserRuntime {
 
 	mountMaintenance() {
 		return this.maintenance.mount()
+	}
+
+	resumeAfterMaintenance() {
+		if (this.maintenance.getSnapshot().phase !== 'normal') return
+		this.memory.resumeAfterMaintenance()
+		if (this.active && !this.completingSession)
+			this.restoreIdentity(this.session?.currentUID() ?? null)
 	}
 
 	mountSession() {
@@ -634,6 +662,8 @@ export class BrowserRuntime {
 				supportSignal,
 			)
 		} catch (error) {
+			if (error instanceof RequestError && error.code === 'MAINTENANCE_ACTIVE')
+				throw error
 			if (purpose === 'login' && !ownsConfirmation())
 				throw new RequestError(401, 'AUTH_REQUIRED')
 			const restriction = restrictionFrom(error)

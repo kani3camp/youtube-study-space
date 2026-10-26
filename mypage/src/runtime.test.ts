@@ -85,6 +85,93 @@ describe('browser authentication runtime', () => {
 		runtime.memory.dispose()
 	})
 	it.each([
+		'confirm',
+		'session-complete',
+	] as const)('preserves MAINTENANCE_ACTIVE during login %s instead of remapping it to auth', async (boundary) => {
+		const { session } = sessionFixture()
+		const request = vi.fn<typeof fetch>(async (path) => {
+			if (path === '/api/auth/youtube/confirm')
+				return boundary === 'confirm'
+					? Response.json(
+							{ error: { code: 'MAINTENANCE_ACTIVE' } },
+							{ status: 503 },
+						)
+					: Response.json({ purpose: 'login', customToken: 'synthetic' })
+			if (path === '/api/auth/session/complete')
+				return Response.json(
+					{ error: { code: 'MAINTENANCE_ACTIVE' } },
+					{ status: 503 },
+				)
+			return Response.json(fixture)
+		})
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		await expect(
+			runtime.confirm('a'.repeat(64), new AbortController().signal),
+		).rejects.toMatchObject({ code: 'MAINTENANCE_ACTIVE' })
+		expect(runtime.memory.getSnapshot()).toMatchObject({
+			phase: 'maintenance',
+			data: null,
+		})
+	})
+	it('closes restored private data before a delayed pageshow maintenance check', async () => {
+		const { windowTarget } = browserFixture()
+		const { session, setUID } = sessionFixture()
+		setUID('synthetic')
+		let statusCalls = 0
+		let release: (response: Response) => void = () => {}
+		const request = vi.fn<typeof fetch>(async (path) => {
+			if (path === '/api/public/mypage-status') {
+				statusCalls++
+				if (statusCalls === 1)
+					return Response.json({
+						state: 'NORMAL',
+						updatedAt: '2026-10-27T02:00:00Z',
+						messageTemplate: 'MYPAGE_MAINTENANCE_V1',
+					})
+				return new Promise<Response>((resolve) => {
+					release = resolve
+				})
+			}
+			if (path === '/api/auth/session/complete')
+				return new Response(null, { status: 204 })
+			return Response.json(fixture)
+		})
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		const stopMaintenance = runtime.mountMaintenance()
+		runtime.maintenance.setRouteActive(true)
+		await settle()
+		expect(runtime.maintenance.getSnapshot().phase).toBe('normal')
+		const stopSession = runtime.mountSession()
+		runtime.resumeAfterMaintenance()
+		await vi.waitFor(() =>
+			expect(runtime.memory.getSnapshot().data).not.toBeNull(),
+		)
+		windowTarget.dispatchEvent(new Event('pagehide'))
+		windowTarget.dispatchEvent(new Event('pageshow'))
+		expect(runtime.maintenance.getSnapshot().phase).toBe('checking')
+		expect(runtime.memory.getSnapshot().data).toBeNull()
+		release(
+			Response.json({
+				state: 'ACTIVE',
+				updatedAt: '2026-10-27T02:01:00Z',
+				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
+			}),
+		)
+		await settle()
+		expect(runtime.maintenance.getSnapshot().phase).toBe('active')
+		expect(runtime.memory.getSnapshot().data).toBeNull()
+		stopSession()
+		stopMaintenance()
+	})
+	it.each([
 		'uid',
 		'same-uid-relogin',
 		'pagehide',

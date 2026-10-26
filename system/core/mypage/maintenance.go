@@ -22,11 +22,12 @@ const (
 )
 
 var (
-	numericIdentity    = regexp.MustCompile(`^[1-9][0-9]{0,19}$`)
-	commitSHA          = regexp.MustCompile(`^[0-9a-f]{40}$`)
-	cloudRunExecution  = regexp.MustCompile(`^mypage-maintenance-operator-[a-z0-9-]{1,63}$`)
-	breakGlassApproval = regexp.MustCompile(`^[A-Z][A-Z0-9_-]{2,63}$`)
-	claimedOperator    = regexp.MustCompile(`^[a-z0-9][a-z0-9._+-]{0,63}@[a-z0-9.-]{1,190}$`)
+	numericIdentity     = regexp.MustCompile(`^[1-9][0-9]{0,19}$`)
+	commitSHA           = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	githubExecution     = regexp.MustCompile(`^mypage-maintenance-operator-[a-z0-9-]{1,63}$`)
+	breakGlassExecution = regexp.MustCompile(`^mypage-maintenance-breakglass-[a-z0-9-]{1,63}$`)
+	breakGlassApproval  = regexp.MustCompile(`^[A-Z][A-Z0-9_-]{2,63}$`)
+	claimedOperator     = regexp.MustCompile(`^[a-z0-9][a-z0-9._+-]{0,63}@[a-z0-9.-]{1,190}$`)
 )
 
 const (
@@ -66,6 +67,7 @@ type MaintenanceStatus struct {
 type MaintenanceReader interface {
 	Check(context.Context) error
 	CheckAuthoritative(context.Context) error
+	CheckAuthoritativeRevision(context.Context) (int64, error)
 	PublicStatus(context.Context) (MaintenanceStatus, error)
 }
 
@@ -216,11 +218,19 @@ func (g *MaintenanceGate) Check(ctx context.Context) error {
 }
 
 func (g *MaintenanceGate) CheckAuthoritative(ctx context.Context) error {
+	_, err := g.CheckAuthoritativeRevision(ctx)
+	return err
+}
+
+func (g *MaintenanceGate) CheckAuthoritativeRevision(ctx context.Context) (int64, error) {
 	value, err := g.read(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return maintenanceVerdict(value)
+	if err := maintenanceVerdict(value); err != nil {
+		return 0, err
+	}
+	return value.Revision, nil
 }
 
 func (g *MaintenanceGate) PublicStatus(ctx context.Context) (MaintenanceStatus, error) {
@@ -231,18 +241,13 @@ func (g *MaintenanceGate) PublicStatus(ctx context.Context) (MaintenanceStatus, 
 	return MaintenanceStatus{State: value.State, UpdatedAt: value.UpdatedAt, EstimatedEndAt: value.EstimatedEndAt, MessageTemplate: value.MessageTemplate}, nil
 }
 
-// RequireMaintenanceBootstrapNormal is the read-only deployment barrier used
+// RequireMaintenanceInitialized is the read-only deployment barrier used
 // before a serving revision containing the maintenance guard may be planned.
-// It accepts only an already initialized, exact NORMAL control document.
-func RequireMaintenanceBootstrapNormal(ctx context.Context, client *firestore.Client, environment string) error {
-	value, err := (&MaintenanceGate{Client: client, Environment: environment}).read(ctx)
-	if err != nil {
-		return err
-	}
-	if value.State != MaintenanceNormal {
-		return apiError("TEMPORARY_UNAVAILABLE")
-	}
-	return nil
+// A strict initialized control is required, but ACTIVE is valid: maintenance
+// must never prevent a recovery deploy or rollback of the guarded service.
+func RequireMaintenanceInitialized(ctx context.Context, client *firestore.Client, environment string) error {
+	_, err := (&MaintenanceGate{Client: client, Environment: environment}).read(ctx)
+	return err
 }
 
 func transactionMaintenance(tx *firestore.Transaction, client *firestore.Client, environment string) error {
@@ -326,20 +331,20 @@ func expectedMaintenanceRef(environment string) string {
 func ValidateMaintenanceTransition(request MaintenanceTransition, now time.Time) error {
 	if !validSupportEnvironment(request.Environment) || (request.State != MaintenanceNormal && request.State != MaintenanceActive) ||
 		request.ExpectedRevision < 0 || !validMaintenanceReason(request.ReasonCategory) || !validOpaque(request.ActionRef) ||
-		!cloudRunExecution.MatchString(request.CloudRunExecution) || !commitSHA.MatchString(request.CommitSHA) ||
+		!commitSHA.MatchString(request.CommitSHA) ||
 		request.GitRef != expectedMaintenanceRef(request.Environment) {
 		return apiError("INVALID_REQUEST")
 	}
 	switch request.Authority {
 	case MaintenanceAuthorityGitHub:
-		if request.RunAttempt != 1 || !numericIdentity.MatchString(request.RepositoryID) || !numericIdentity.MatchString(request.RepositoryOwnerID) ||
+		if !githubExecution.MatchString(request.CloudRunExecution) || request.RunAttempt != 1 || !numericIdentity.MatchString(request.RepositoryID) || !numericIdentity.MatchString(request.RepositoryOwnerID) ||
 			!numericIdentity.MatchString(request.ActorID) || !numericIdentity.MatchString(request.TriggeringActorID) || !numericIdentity.MatchString(request.RunID) ||
 			request.ActorID != request.TriggeringActorID || request.WorkflowRef != "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@"+request.GitRef ||
 			request.BreakGlassApprovalRef != "" || request.ClaimedOperator != "" {
 			return apiError("INVALID_REQUEST")
 		}
 	case MaintenanceAuthorityBreakGlass:
-		if request.RepositoryID != "" || request.RepositoryOwnerID != "" || request.ActorID != "" || request.TriggeringActorID != "" ||
+		if !breakGlassExecution.MatchString(request.CloudRunExecution) || request.RepositoryID != "" || request.RepositoryOwnerID != "" || request.ActorID != "" || request.TriggeringActorID != "" ||
 			request.RunID != "" || request.RunAttempt != 0 || request.WorkflowRef != "" ||
 			!breakGlassApproval.MatchString(request.BreakGlassApprovalRef) || !claimedOperator.MatchString(request.ClaimedOperator) {
 			return apiError("INVALID_REQUEST")
@@ -483,6 +488,49 @@ func maintenanceAuditProvenanceMatches(event maintenanceAuditEvent, request Main
 		event.BreakGlassApprovalRef == request.BreakGlassApprovalRef && event.ClaimedOperator == request.ClaimedOperator
 }
 
+func decodeMaintenanceAuditDocument(doc *firestore.DocumentSnapshot, authority string) (maintenanceAuditEvent, error) {
+	if doc == nil || !doc.Exists() {
+		return maintenanceAuditEvent{}, apiError("TEMPORARY_UNAVAILABLE")
+	}
+	data := doc.Data()
+	required := map[string]bool{
+		"authority": true, "environment": true, "previousState": true, "state": true,
+		"previousRevision": true, "revision": true, "updatedAt": true,
+		"messageTemplate": true, "reasonCategory": true, "repositoryId": true,
+		"repositoryOwnerId": true, "actorId": true, "triggeringActorId": true,
+		"runId": true, "runAttempt": true, "gitRef": true, "commitSha": true,
+		"workflowRef": true, "cloudRunExecution": true, "result": true,
+	}
+	allowed := map[string]bool{}
+	for key := range required {
+		allowed[key] = true
+	}
+	allowed["estimatedEndAt"] = true
+	allowed["breakGlassApprovalRef"] = true
+	allowed["claimedOperator"] = true
+	for key := range data {
+		if !allowed[key] {
+			return maintenanceAuditEvent{}, apiError("TEMPORARY_UNAVAILABLE")
+		}
+	}
+	for key := range required {
+		if _, ok := data[key]; !ok {
+			return maintenanceAuditEvent{}, apiError("TEMPORARY_UNAVAILABLE")
+		}
+	}
+	_, hasApproval := data["breakGlassApprovalRef"]
+	_, hasOperator := data["claimedOperator"]
+	if (authority == MaintenanceAuthorityBreakGlass && (!hasApproval || !hasOperator)) ||
+		(authority == MaintenanceAuthorityGitHub && (hasApproval || hasOperator)) {
+		return maintenanceAuditEvent{}, apiError("TEMPORARY_UNAVAILABLE")
+	}
+	var event maintenanceAuditEvent
+	if err := doc.DataTo(&event); err != nil {
+		return maintenanceAuditEvent{}, fmt.Errorf("decode maintenance audit event: %w: %w", apiError("TEMPORARY_UNAVAILABLE"), err)
+	}
+	return event, nil
+}
+
 // VerifyMaintenanceTransition is a non-mutating receipt check. It requires the
 // committed control and immutable audit event to match the requested CAS.
 func VerifyMaintenanceTransition(ctx context.Context, client *firestore.Client, request MaintenanceTransition, now time.Time) (MaintenanceTransitionResult, error) {
@@ -498,11 +546,19 @@ func VerifyMaintenanceTransition(ctx context.Context, client *firestore.Client, 
 	if err != nil {
 		return MaintenanceTransitionResult{}, fmt.Errorf("read maintenance audit receipt: %w", err)
 	}
-	var event maintenanceAuditEvent
-	if doc.DataTo(&event) != nil || event.Authority != request.Authority || event.Environment != request.Environment || event.State != request.State ||
+	event, err := decodeMaintenanceAuditDocument(doc, request.Authority)
+	previousState := MaintenanceActive
+	if request.ExpectedRevision == 0 {
+		previousState = "MISSING"
+	} else if request.State == MaintenanceActive {
+		previousState = MaintenanceNormal
+	}
+	if err != nil || event.Authority != request.Authority || event.Environment != request.Environment || event.PreviousState != previousState || event.State != request.State ||
 		event.PreviousRevision != request.ExpectedRevision || event.Revision != current.Revision || event.ReasonCategory != request.ReasonCategory ||
-		event.CloudRunExecution == "" || event.Result != "COMMITTED" || event.CommitSHA != request.CommitSHA ||
-		!maintenanceAuditProvenanceMatches(event, request) || !sameOptionalTime(event.EstimatedEndAt, request.EstimatedEndAt) {
+		!event.UpdatedAt.Equal(current.UpdatedAt) || event.MessageTemplate != current.MessageTemplate || event.Result != "COMMITTED" || event.CommitSHA != request.CommitSHA ||
+		!maintenanceAuditProvenanceMatches(event, request) || !sameOptionalTime(event.EstimatedEndAt, current.EstimatedEndAt) ||
+		(request.Authority == MaintenanceAuthorityGitHub && !githubExecution.MatchString(event.CloudRunExecution)) ||
+		(request.Authority == MaintenanceAuthorityBreakGlass && !breakGlassExecution.MatchString(event.CloudRunExecution)) {
 		return MaintenanceTransitionResult{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
 	return MaintenanceTransitionResult{Current: current}, nil

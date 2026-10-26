@@ -28,11 +28,13 @@ MAINTENANCE_PROVIDER = "module.platform[0].google_iam_workload_identity_pool_pro
 MAINTENANCE_WIF = "module.platform[0].google_service_account_iam_member.maintenance_workload_identity[0]"
 MAINTENANCE_JOB = "module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]"
 MAINTENANCE_JOB_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_invoker[0]"
+MAINTENANCE_BREAKGLASS_JOB = "module.platform[0].google_cloud_run_v2_job.maintenance_breakglass[0]"
 MAINTENANCE_BOOTSTRAP_JOB = "module.platform[0].google_cloud_run_v2_job.maintenance_bootstrap[0]"
 MAINTENANCE_BOOTSTRAP_PLAN_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_bootstrap_foundation_plan[0]"
 MAINTENANCE_BOOTSTRAP_APPLY_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_bootstrap_foundation_apply[0]"
 MAINTENANCE_BOOTSTRAP_BACKEND_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_bootstrap_backend_deployer[0]"
 MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-operator-apply": "maintenance_operator",
+         "maintenance-upgrade-plan": "maintenance_upgrade", "maintenance-upgrade-apply": "maintenance_upgrade",
          "runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
          "runtime-public-plan": "runtime_public", "runtime-public-apply": "runtime_public"}
 PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/asia-southeast2/services/mypage-api"
@@ -87,6 +89,7 @@ def maintenance_resource_contract(value=None):
         MAINTENANCE_WIF: {"role": "roles/iam.workloadIdentityUser"},
         MAINTENANCE_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-operator", "location": "asia-southeast2", "deletion_protection": True},
         MAINTENANCE_JOB_INVOKER: {"project": c.PROJECT, "location": "asia-southeast2", "name": "mypage-maintenance-operator", "role": "roles/run.jobsExecutorWithOverrides", "member": "serviceAccount:" + invoker_email},
+        MAINTENANCE_BREAKGLASS_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-breakglass", "location": "asia-southeast2", "deletion_protection": True},
         MAINTENANCE_BOOTSTRAP_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-bootstrap-check", "location": "asia-southeast2", "deletion_protection": True},
         MAINTENANCE_BOOTSTRAP_PLAN_INVOKER: {"project": c.PROJECT, "location": "asia-southeast2", "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-foundation-plan@" + c.PROJECT + ".iam.gserviceaccount.com"},
         MAINTENANCE_BOOTSTRAP_APPLY_INVOKER: {"project": c.PROJECT, "location": "asia-southeast2", "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-foundation-apply@" + c.PROJECT + ".iam.gserviceaccount.com"},
@@ -128,6 +131,20 @@ def maintenance_resource_contract(value=None):
                 }],
             }],
         }]
+        resources[MAINTENANCE_BREAKGLASS_JOB]["template"] = [{
+            "task_count": 1, "parallelism": 1,
+            "template": [{
+                "service_account": operator_email, "max_retries": 0, "timeout": "60s",
+                "containers": [{
+                    "image": value["maintenance_operator_image_digest"], "command": ["/app/mypage-maintenance-breakglass"], "args": [],
+                    "resources": [{"limits": {"cpu": "1", "memory": "512Mi"}}],
+                    "env": [
+                        {"name": "GOOGLE_CLOUD_PROJECT", "value": c.PROJECT},
+                        {"name": "MYPAGE_ENVIRONMENT", "value": "development"},
+                    ],
+                }],
+            }],
+        }]
         resources[MAINTENANCE_BOOTSTRAP_JOB]["template"] = [{
             "task_count": 1, "parallelism": 1,
             "template": [{
@@ -146,7 +163,7 @@ def maintenance_resource_contract(value=None):
 
 
 def resource_contract(stage, value=None):
-    c.need(stage in {"maintenance_operator", "runtime_private", "runtime_public"}, "runtime-stage")
+    c.need(stage in {"maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"}, "runtime-stage")
     resources = c.resource_contract("registry") | maintenance_resource_contract(value)
     if stage == "maintenance_operator":
         return resources
@@ -155,7 +172,7 @@ def resource_contract(stage, value=None):
         SERVICE: {"project": c.PROJECT, "name": "mypage-api", "location": "asia-southeast2",
                   "ingress": "INGRESS_TRAFFIC_ALL", "deletion_protection": True, "invoker_iam_disabled": False},
     }
-    if stage == "runtime_public":
+    if stage in {"maintenance_upgrade", "runtime_public"}:
         resources[INVOKER] = {"project": c.PROJECT, "location": "asia-southeast2", "name": "mypage-api",
                               "role": "roles/run.invoker", "member": "allUsers"}
     return resources
@@ -244,13 +261,14 @@ def validate_maintenance_resource(address, after, unknown, value):
         }, "maintenance-wif-service-account")
         c.need(re.fullmatch(r"principalSet://iam\.googleapis\.com/projects/[^/]+/locations/global/workloadIdentityPools/mypage-maintenance/attribute\.repository_id/340900071", after.get("member", "")) is not None, "maintenance-wif-member")
         return
-    if address == MAINTENANCE_JOB:
+    if address in {MAINTENANCE_JOB, MAINTENANCE_BREAKGLASS_JOB}:
         template = one(after.get("template"), "maintenance-job-template")
         c.need(template.get("task_count") == 1 and template.get("parallelism") == 1, "maintenance-job-single-task")
         task = one(template.get("template"), "maintenance-job-task")
         c.need(task.get("service_account") == operator_email and task.get("max_retries") == 0 and task.get("timeout") == "60s", "maintenance-job-runtime")
         container = one(task.get("containers"), "maintenance-job-container")
-        c.need(container.get("image") == value["maintenance_operator_image_digest"] and container.get("command") == ["/app/mypage-maintenance-operator"] and not container.get("args"), "maintenance-job-image-command")
+        expected_command = "/app/mypage-maintenance-operator" if address == MAINTENANCE_JOB else "/app/mypage-maintenance-breakglass"
+        c.need(container.get("image") == value["maintenance_operator_image_digest"] and container.get("command") == [expected_command] and not container.get("args"), "maintenance-job-image-command")
         env = {item.get("name"): item.get("value") for item in container.get("env", [])}
         c.need(env == {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": "development"}, "maintenance-job-environment")
         resources = one(container.get("resources"), "maintenance-job-resources")
@@ -513,19 +531,21 @@ def validate_initial_plan(plan, stage):
         # Initial deployment and no-op only. Updating a serving revision is a
         # separate reviewed transition, not an implicit expansion of this gate.
         c.need(change.get("actions") in [["create"], ["no-op"]] and not change.get("replace_paths"), "runtime-resource-action")
-        if stage != "maintenance_operator" and address in maintenance_resource_contract():
+        if stage in {"runtime_private", "runtime_public"} and address in maintenance_resource_contract():
             c.need(change.get("actions") == ["no-op"], "runtime-maintenance-bootstrap-complete")
+        if stage == "maintenance_upgrade" and address not in maintenance_resource_contract():
+            c.need(change.get("actions") == ["no-op"], "maintenance-upgrade-runtime-noop")
         importing = change.get("importing")
         if address == INVOKER:
-            c.need(stage == "runtime_public" and change.get("actions") == ["no-op"], "runtime-invoker-owner-managed")
+            c.need(stage in {"maintenance_upgrade", "runtime_public"} and change.get("actions") == ["no-op"], "runtime-invoker-owner-managed")
             if importing:
-                c.need(importing == {"id": PUBLIC_INVOKER_IMPORT_ID}, "runtime-invoker-import")
+                c.need(stage == "runtime_public" and importing == {"id": PUBLIC_INVOKER_IMPORT_ID}, "runtime-invoker-import")
         else:
             c.need(not importing, "runtime-resource-action")
         after, unknown = change.get("after"), change.get("after_unknown", {})
         c.need(type(after) is dict and not after.get("condition"), "runtime-resource-after")
         for key, expected_value in expected[address].items():
-            if address in {MAINTENANCE_JOB, MAINTENANCE_BOOTSTRAP_JOB} and key == "template":
+            if address in {MAINTENANCE_JOB, MAINTENANCE_BREAKGLASS_JOB, MAINTENANCE_BOOTSTRAP_JOB} and key == "template":
                 continue
             if address == MAINTENANCE_PROVIDER and key in {"attribute_condition", "attribute_mapping", "oidc"}:
                 continue

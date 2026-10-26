@@ -19,8 +19,9 @@ type (
 	}
 	cacheKey        struct{ environment, uid string }
 	cachedAggregate struct {
-		response       Response
-		accountVersion string
+		response            Response
+		accountVersion      string
+		maintenanceRevision int64
 	}
 	MetadataRefresher interface {
 		Refresh(context.Context, string, WebAccount) (WebAccount, error)
@@ -41,7 +42,7 @@ type BFF struct {
 	flights     map[string]*metadataFlight
 }
 
-func (b *BFF) cacheHit(key cacheKey, now time.Time, account WebAccount) (Response, bool) {
+func (b *BFF) cacheHit(key cacheKey, now time.Time, account WebAccount, maintenanceRevision int64) (Response, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	value, ok := b.cache[key]
@@ -49,7 +50,7 @@ func (b *BFF) cacheHit(key cacheKey, now time.Time, account WebAccount) (Respons
 		return Response{}, false
 	}
 	asOf := value.response.GeneratedAt
-	if value.accountVersion != metadataAccountVersion(account) || (accountSection(account, now).Data == nil && value.response.Account.Data != nil) || now.Before(asOf) || now.Sub(asOf) >= 30*time.Second || !StatisticsWindows(now).Today.Equal(StatisticsWindows(asOf).Today) {
+	if value.accountVersion != metadataAccountVersion(account) || value.maintenanceRevision != maintenanceRevision || (accountSection(account, now).Data == nil && value.response.Account.Data != nil) || now.Before(asOf) || now.Sub(asOf) >= 30*time.Second || !StatisticsWindows(now).Today.Equal(StatisticsWindows(asOf).Today) {
 		delete(b.cache, key)
 		return Response{}, false
 	}
@@ -73,8 +74,11 @@ func accountSection(account WebAccount, now time.Time) Section[Account] {
 }
 
 func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result Response, resultErr error) {
+	maintenanceRevision := int64(0)
 	if b.Maintenance != nil {
-		if err := b.Maintenance.CheckAuthoritative(ctx); err != nil {
+		var err error
+		maintenanceRevision, err = b.Maintenance.CheckAuthoritativeRevision(ctx)
+		if err != nil {
 			b.Invalidate(uid)
 			return Response{}, fmt.Errorf("check maintenance before MyPage read: %w", err)
 		}
@@ -88,8 +92,12 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 	defer func() {
 		if resultErr == nil {
 			if b.Maintenance != nil {
-				if err := b.Maintenance.CheckAuthoritative(ctx); err != nil {
+				revision, err := b.Maintenance.CheckAuthoritativeRevision(ctx)
+				if err != nil || revision != maintenanceRevision {
 					b.Invalidate(uid)
+					if err == nil {
+						err = apiError("TEMPORARY_UNAVAILABLE")
+					}
 					result, resultErr = Response{}, fmt.Errorf("check maintenance before MyPage response: %w", err)
 					return
 				}
@@ -102,7 +110,7 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 	}()
 	key := cacheKey{b.Environment, uid}
 	now := b.Now().UTC()
-	if value, ok := b.cacheHit(key, now, account); ok {
+	if value, ok := b.cacheHit(key, now, account, maintenanceRevision); ok {
 		return value, nil
 	}
 	// The HTTP budget starts before authorization and the browser also has a
@@ -124,7 +132,7 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 	}
 	// The first caller disconnecting must not cancel a request shared with a
 	// second caller; the shared operation still has its own bounded budget.
-	flightKey := b.Environment + "\x00" + uid + "\x00" + metadataAccountVersion(account)
+	flightKey := fmt.Sprintf("%s\x00%s\x00%s\x00%d", b.Environment, uid, metadataAccountVersion(account), maintenanceRevision)
 	flight, leader := b.acquireFlight(flightKey)
 	if flight == nil {
 		return b.failedSnapshot(account)
@@ -147,8 +155,12 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 				workCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), workDeadline)
 				defer cancel()
 				if b.Maintenance != nil {
-					if err := b.Maintenance.CheckAuthoritative(workCtx); err != nil {
+					revision, err := b.Maintenance.CheckAuthoritativeRevision(workCtx)
+					if err != nil {
 						return Response{}, fmt.Errorf("check maintenance before detached MyPage read: %w", err)
+					}
+					if revision != maintenanceRevision {
+						return Response{}, apiError("TEMPORARY_UNAVAILABLE")
 					}
 				}
 				if _, err := readAccess(workCtx, b.Access, uid, checkpoint); err != nil {
@@ -161,7 +173,7 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 						}
 					}
 				}()
-				if value, ok := b.cacheHit(key, b.Now().UTC(), account); ok {
+				if value, ok := b.cacheHit(key, b.Now().UTC(), account, maintenanceRevision); ok {
 					return value, nil
 				}
 				if b.Metadata != nil && (account.MetadataFetchedAt.IsZero() || b.Now().Sub(account.MetadataFetchedAt) >= 24*time.Hour) {
@@ -200,8 +212,12 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 					return Response{}, err
 				}
 				if b.Maintenance != nil {
-					if err := b.Maintenance.CheckAuthoritative(workCtx); err != nil {
+					revision, err := b.Maintenance.CheckAuthoritativeRevision(workCtx)
+					if err != nil {
 						return Response{}, fmt.Errorf("check maintenance before MyPage cache publication: %w", err)
+					}
+					if revision != maintenanceRevision {
+						return Response{}, apiError("TEMPORARY_UNAVAILABLE")
 					}
 				}
 				b.mu.Lock()
@@ -215,7 +231,7 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 						break
 					}
 				}
-				b.cache[key] = cachedAggregate{response: response, accountVersion: metadataAccountVersion(account)}
+				b.cache[key] = cachedAggregate{response: response, accountVersion: metadataAccountVersion(account), maintenanceRevision: maintenanceRevision}
 				b.mu.Unlock()
 				return response, nil
 			}()

@@ -203,7 +203,11 @@ export async function checkedJSON(response: Response): Promise<unknown> {
 		try {
 			const body = object(await response.json())
 			const error = object(body?.error)
-			if (typeof error?.code === 'string' && publicErrors.has(error.code))
+			if (
+				typeof error?.code === 'string' &&
+				publicErrors.has(error.code) &&
+				(error.code !== 'MAINTENANCE_ACTIVE' || response.status === 503)
+			)
 				code = error.code
 		} catch {
 			/* Never show dependency/parser details. */

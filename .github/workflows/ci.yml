@@ -42,6 +42,8 @@ on:
           - image-build
           - maintenance-operator-plan
           - maintenance-operator-apply
+          - maintenance-upgrade-plan
+          - maintenance-upgrade-apply
           - runtime-private-plan
           - runtime-private-apply
           - runtime-public-plan

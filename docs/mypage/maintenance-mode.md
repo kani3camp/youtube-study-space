@@ -8,7 +8,7 @@
 
 遷移と`mypage-maintenance-events/{actionRef}`の監査eventは同一Firestore transactionで確定する。更新には現在のrevisionが必要で、競合した古いworkflowは失敗する。通常経路の監査eventには`authority=GITHUB_ACTIONS`、immutableなrepository/owner/actor ID、triggering actor、run ID/attempt、Git ref、commit SHA、workflow ref、実Cloud Run execution、前後state/revision、固定reasonを残す。break-glassは別の`authority=GCP_BREAK_GLASS`とし、GitHub provenanceを偽装せず、実execution、承認参照、Cloud Audit Logと照合するclaimed operatorを残す。token、URL、OAuth code、cookie、credential、自由記述は保存・出力しない。
 
-初期文書はTerraformで暗黙作成しない。API serving imageとは別の固定`maintenance_operator_image_digest`と、その不変tagを作成した`maintenance_operator_image_source_sha`を使い、まず`maintenance_operator` stageでJob/WIF/IAMだけを構築する（このstageはCloud Run APIを作成・更新しない）。環境ごとにworkflowから`state=NORMAL`、`expected_revision=0`、`reason_category=INITIALIZATION`を一度だけ実行し、authoritative readbackを確認する。その後のruntime plan/applyと通常Backend releaseは、引数上書き不可・Firestore読取専用identityの固定`mypage-maintenance-bootstrap-check` Jobがvalidな`NORMAL`を確認できなければ、serving mutation前に停止する。runtime stageはmaintenance資源の新規作成も拒否する。これにより「operator構築 → 初期NORMAL → Backend guard → Frontend」の順序を機械的に固定する。
+初期文書はTerraformで暗黙作成しない。API serving imageとは別の固定`maintenance_operator_image_digest`と、その不変tagを作成した`maintenance_operator_image_source_sha`を使い、未配備環境ではまず`maintenance_operator` stageでJob/WIF/IAMだけを構築する（このstageはCloud Run APIを作成・更新しない）。既に`runtime_public`がStateにある環境では、専用`maintenance_upgrade` stageだけを使い、既存API・Firestore member・public Invokerをすべてno-opに保ったままmaintenance資源だけを追加する。通常の`maintenance_operator`へ戻して既存runtimeを削除するPlanは許可しない。環境ごとにworkflowから`state=NORMAL`、`expected_revision=0`、`reason_category=INITIALIZATION`を一度だけ実行し、authoritative readbackを確認する。その後のruntime plan/applyと通常Backend releaseは、引数上書き不可・Firestore読取専用identityの固定`mypage-maintenance-bootstrap-check` Jobが厳密で初期化済みのcontrolを確認できなければ、serving mutation前に停止する。`NORMAL`と`ACTIVE`はいずれもvalidで、メンテナンス中の復旧deploy/rollbackを妨げない。runtime stageはmaintenance資源の新規作成も拒否する。これにより「operator構築または既存runtimeの安全なupgrade → 初期NORMAL → Backend guard → Frontend」の順序を機械的に固定する。
 
 ## 停止対象と例外
 
@@ -39,11 +39,11 @@ Terraformでは`runtime_settings.maintenance_operator_enabled=true`とAPI用dige
 
 ## GitHub Actions障害時のbreak-glass
 
-GitHub Actionsの障害だけを理由にFirestore Consoleや`gcloud firestore`でcontrol/auditを直接変更しない。同一operator binary、同一CAS、同一transactional audit、同一verifyを使う。これは通常手順ではなく、インシデント責任者が承認参照と対象環境・state・revision・review済みoperator source SHAを記録した場合だけ行う。
+GitHub Actionsの障害だけを理由にFirestore Consoleや`gcloud firestore`でcontrol/auditを直接変更しない。通常Jobとは別の固定`mypage-maintenance-breakglass` command/Jobから、同一CAS、同一transactional audit、同一verifyを使う。authorityは各binaryに固定され、引数や環境変数では選べない。これは通常手順ではなく、インシデント責任者が承認参照と対象環境・state・revision・review済みoperator source SHAを記録した場合だけ行う。
 
 1. 対象Jobの現行image digest/source SHAとcurrent state/revisionをread-onlyで確認する。承認参照は`INCIDENT_123`形式、operatorは実GCP principalのemailを使う。
-2. 管理者はそのprincipalだけに、対象環境の`mypage-maintenance-operator` Job資源上で、短い有効期限条件付き`roles/run.jobsExecutorWithOverrides`を一時付与する。project全体、Firestore、Terraform SA、通常backend deployerへは付与しない。
-3. `gcloud run jobs execute mypage-maintenance-operator --wait --quiet --args=...`で、`--authority=GCP_BREAK_GLASS`、`--break-glass-approval-ref`、`--claimed-operator`、exact project/environment/state/expected revision/reason/action ref/ref/source SHAを渡し、`preview`、`apply`、`verify`を別executionでこの順に実行する。GitHub repository/run/workflow fieldsは渡さない。
+2. 管理者はそのprincipalだけに、対象環境の`mypage-maintenance-breakglass` Job資源上で、短い有効期限条件付き`roles/run.jobsExecutorWithOverrides`を一時付与する。通常`mypage-maintenance-operator` Job、project全体、Firestore、Terraform SA、通常backend deployerへは付与しない。
+3. `gcloud run jobs execute mypage-maintenance-breakglass --wait --quiet --args=...`で、`--break-glass-approval-ref`、`--claimed-operator`、exact project/environment/state/expected revision/reason/action ref/ref/source SHAを渡し、`preview`、`apply`、`verify`を別executionでこの順に実行する。`--authority`およびGitHub repository/run/workflow fieldsは渡せず、渡した実行はFirestore接続前に拒否される。
 4. `verify`成功後、公開statusと例外routeを通常workflowと同じ条件で確認し、3 execution ID、control/audit readback、Cloud Audit Logのinitiating principal、承認参照をインシデント記録へ保存する。claimed operatorとAudit Log principalが違えば失敗として扱う。
 5. 一時Job IAM bindingを直ちに削除し、readbackで消失を確認する。途中失敗時も自動再試行や同一actionRef再利用をせず、current revision/audit/Audit Logを再確認する。
 

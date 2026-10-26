@@ -113,7 +113,7 @@ jobs:
           set -euo pipefail
           run_operator() {
             local operation="$1"
-            local args="--operation=${operation},--authority=GITHUB_ACTIONS,--project=${PROJECT},--environment=${ENVIRONMENT},--state=${STATE},--expected-revision=${EXPECTED_REVISION},--reason-category=${REASON},--action-ref=${ACTION_REF},--repository-id=${GITHUB_REPOSITORY_ID},--repository-owner-id=${GITHUB_REPOSITORY_OWNER_ID},--actor-id=${GITHUB_ACTOR_ID},--triggering-actor-id=${MYPAGE_TRIGGERING_ACTOR_ID},--run-id=${GITHUB_RUN_ID},--run-attempt=${GITHUB_RUN_ATTEMPT},--git-ref=${GITHUB_REF},--commit-sha=${EXPECTED_SHA},--workflow-ref=${WORKFLOW_REF}"
+            local args="--operation=${operation},--project=${PROJECT},--environment=${ENVIRONMENT},--state=${STATE},--expected-revision=${EXPECTED_REVISION},--reason-category=${REASON},--action-ref=${ACTION_REF},--repository-id=${GITHUB_REPOSITORY_ID},--repository-owner-id=${GITHUB_REPOSITORY_OWNER_ID},--actor-id=${GITHUB_ACTOR_ID},--triggering-actor-id=${MYPAGE_TRIGGERING_ACTOR_ID},--run-id=${GITHUB_RUN_ID},--run-attempt=${GITHUB_RUN_ATTEMPT},--git-ref=${GITHUB_REF},--commit-sha=${EXPECTED_SHA},--workflow-ref=${WORKFLOW_REF}"
             if [[ -n "${ESTIMATED_END_AT}" ]]; then
               args="${args},--estimated-end-at=${ESTIMATED_END_AT}"
             fi
@@ -135,15 +135,27 @@ jobs:
           EXPECTED_STATE: ${{ steps.context.outputs.state }}
         run: |
           python3 - <<'PY'
-          import json, os, re, urllib.request
+          import json, os, re, time, urllib.error, urllib.request
           origin = os.environ['PUBLIC_ORIGIN']
           assert re.fullmatch(r'https://[A-Za-z0-9.-]+', origin)
-          with urllib.request.urlopen(origin + '/api/public/mypage-status', timeout=20) as response:
-              assert response.status == 200
-              body = json.load(response)
-          assert set(body) <= {'state', 'updatedAt', 'estimatedEndAt', 'messageTemplate'}
-          assert body['state'] == os.environ['EXPECTED_STATE']
-          assert body['messageTemplate'] == 'MYPAGE_MAINTENANCE_V1'
+          expected = os.environ['EXPECTED_STATE']
+          deadline = time.monotonic() + 30
+          body = None
+          while time.monotonic() < deadline:
+              try:
+                  request = urllib.request.Request(origin + '/api/public/mypage-status', headers={'Cache-Control': 'no-cache'})
+                  with urllib.request.urlopen(request, timeout=10) as response:
+                      candidate = json.load(response) if response.status == 200 else None
+                  if (isinstance(candidate, dict) and
+                      set(candidate) <= {'state', 'updatedAt', 'estimatedEndAt', 'messageTemplate'} and
+                      candidate.get('state') == expected and
+                      candidate.get('messageTemplate') == 'MYPAGE_MAINTENANCE_V1'):
+                      body = candidate
+                      break
+              except (urllib.error.URLError, TimeoutError, ValueError):
+                  pass
+              time.sleep(1)
+          assert body is not None, 'public status did not converge before the bounded deadline'
           for path in ('/', '/mypage', '/privacy', '/terms', '/contact'):
               with urllib.request.urlopen(origin + path, timeout=20) as response:
                   assert response.status == 200

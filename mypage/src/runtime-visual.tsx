@@ -30,6 +30,7 @@ if (import.meta.env.DEV) {
 			: 'NORMAL'
 	const requests: string[] = []
 	let syntheticVerified = false
+	let apiMaintenanceOnce = mode === 'maintenance-api-recovery-authenticated'
 	let holdNext = false
 	let release: (() => void) | null = null
 	const listeners = new Set<(uid: string | null) => void>()
@@ -37,6 +38,8 @@ if (import.meta.env.DEV) {
 		uid = next
 		for (const listener of listeners) listener(next)
 	}
+	if (mode === 'maintenance-active-delayed-auth')
+		setTimeout(() => emit('synthetic-a'), 150)
 	const session: BrowserSession = {
 		currentUID: () => uid,
 		idToken: async (wanted) => {
@@ -215,6 +218,13 @@ if (import.meta.env.DEV) {
 					release = resolve
 				})
 			}
+			if (mode === 'maintenance-race-confirm') {
+				maintenanceState = 'ACTIVE'
+				return Response.json(
+					{ error: { code: 'MAINTENANCE_ACTIVE' } },
+					{ status: 503 },
+				)
+			}
 			if (mode === 'privacy-intake-authenticated') syntheticVerified = true
 			return Response.json(
 				mode?.startsWith('support-confirm-') ||
@@ -229,6 +239,16 @@ if (import.meta.env.DEV) {
 		}
 		if (path === '/api/auth/session/complete' && mode?.startsWith('support-'))
 			throw new Error('support must never complete a session')
+		if (
+			path === '/api/auth/session/complete' &&
+			mode === 'maintenance-race-session-complete'
+		) {
+			maintenanceState = 'ACTIVE'
+			return Response.json(
+				{ error: { code: 'MAINTENANCE_ACTIVE' } },
+				{ status: 503 },
+			)
+		}
 		if (path === '/api/auth/session/complete')
 			return new Response(null, { status: 204 })
 		if (path === '/api/auth/youtube/start')
@@ -242,6 +262,14 @@ if (import.meta.env.DEV) {
 				{ error: { code: 'INVALID_REQUEST' } },
 				{ status: 404 },
 			)
+		if (apiMaintenanceOnce) {
+			apiMaintenanceOnce = false
+			maintenanceState = 'NORMAL'
+			return Response.json(
+				{ error: { code: 'MAINTENANCE_ACTIVE' } },
+				{ status: 503 },
+			)
+		}
 		const response = structuredClone(fixture) as MyPage
 		const token = new Headers(init?.headers).get('Authorization')
 		if (token?.includes('synthetic-b') && response.current.data)

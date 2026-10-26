@@ -184,4 +184,35 @@ describe('public maintenance status', () => {
 		})
 		dispose()
 	})
+
+	it('closes the private gate synchronously for forced route and pageshow rechecks', async () => {
+		const { windowTarget } = browserFixture()
+		let release: (response: Response) => void = () => {}
+		const phases: string[] = []
+		const monitor = new MaintenanceMonitor(
+			() =>
+				new Promise<Response>((resolve) => {
+					release = resolve
+				}),
+			(phase) => phases.push(phase),
+		)
+		const dispose = monitor.mount()
+		monitor.setRouteActive(true)
+		expect(monitor.getSnapshot().phase).toBe('checking')
+		expect(phases.at(-1)).toBe('checking')
+		release(
+			Response.json({
+				state: 'NORMAL',
+				updatedAt: '2026-10-27T02:00:00Z',
+				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
+			}),
+		)
+		await settle()
+		expect(monitor.getSnapshot().phase).toBe('normal')
+		monitor.setRouteActive(true, true)
+		expect(monitor.getSnapshot().phase).toBe('checking')
+		windowTarget.dispatchEvent(new Event('pageshow'))
+		expect(monitor.getSnapshot().phase).toBe('checking')
+		dispose()
+	})
 })

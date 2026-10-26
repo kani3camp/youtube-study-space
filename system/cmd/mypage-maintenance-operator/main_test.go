@@ -12,7 +12,6 @@ import (
 func operatorArgs() []string {
 	return []string{
 		"--operation=apply",
-		"--authority=GITHUB_ACTIONS",
 		"--project=test-youtube-study-space",
 		"--environment=development",
 		"--state=ACTIVE",
@@ -40,7 +39,7 @@ func TestOperatorRejectsBeforeCredentialDiscovery(t *testing.T) {
 			return args, env
 		},
 		"unknown state": func(args []string, env map[string]string) ([]string, map[string]string) {
-			args[4] = "--state=NOTICE"
+			args[3] = "--state=NOTICE"
 			return args, env
 		},
 		"wrong project": func(args []string, env map[string]string) ([]string, map[string]string) {
@@ -56,7 +55,7 @@ func TestOperatorRejectsBeforeCredentialDiscovery(t *testing.T) {
 			return args, env
 		},
 		"rerun": func(args []string, env map[string]string) ([]string, map[string]string) {
-			args[13] = "--run-attempt=2"
+			args[12] = "--run-attempt=2"
 			return args, env
 		},
 	} {

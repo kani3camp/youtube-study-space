@@ -50,8 +50,18 @@ with sync_playwright() as p:
  assert page.evaluate('window.__bfRestored===true'), 'Maintenance page did not return through actual bfcache'
  assert page.get_by_text('ただいまメンテナンス中です',exact=True).count()==0
  results.append({'purpose':'maintenance','persisted':True,'normalRecovery':True,'staleMaintenanceDisplayed':False})
+ page.goto(args.base_url+'/runtime-visual.html?'+urlencode({'path':'/mypage','mode':'maintenance-delayed-normal-authenticated'}))
+ page.get_by_text('読書',exact=True).wait_for();page.evaluate('document.fonts.ready')
+ page.locator('#synthetic-maintenance-active').click()
+ page.goto(args.base_url+'/');page.go_back(wait_until='commit')
+ page.get_by_role('heading',name='マイページの利用状況を確認しています').wait_for()
+ assert page.evaluate('window.__bfRestored===true'), 'MyPage did not return through actual bfcache'
+ assert page.get_by_text('読書',exact=True).count()==0
+ page.get_by_role('heading',name='ただいまメンテナンス中です').wait_for()
+ assert page.get_by_text('読書',exact=True).count()==0
+ results.append({'purpose':'maintenance','persisted':True,'activeDetectedAfterDelayedRecheck':True,'stalePrivateDisplayed':False})
  assert not external,'Unexpected external request (URLs not printed)'
  assert not errors,errors
  browser.close()
 (out/'report.json').write_text(json.dumps({'syntheticOnly':True,'actualBfcache':True,'cases':results,'externalRequests':len(external),'pageErrors':errors},indent=2))
-print('PASS: 5 real bfcache cases, including maintenance NORMAL recovery, without stale private or maintenance UI.')
+print('PASS: 6 real bfcache cases, including delayed ACTIVE detection and NORMAL recovery, without stale private or maintenance UI.')

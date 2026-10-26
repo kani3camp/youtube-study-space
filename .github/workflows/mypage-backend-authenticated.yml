@@ -67,7 +67,7 @@ jobs:
           cleanup_credentials: true
           token_format: access_token
           access_token_lifetime: 900s
-      - name: Require initialized NORMAL before mutating the serving revision
+      - name: Require initialized maintenance control before mutating the serving revision
         run: |
           gcloud run jobs execute mypage-maintenance-bootstrap-check \
             --project=test-youtube-study-space \

@@ -18,11 +18,11 @@ provider "google" {
 }
 
 variable "stage" {
-  description = "disabled -> foundation -> registry -> runtime_private -> runtime_public; default makes no cloud resources."
+  description = "disabled -> foundation -> registry -> maintenance_operator or maintenance_upgrade -> runtime_private -> runtime_public; default makes no cloud resources."
   type        = string
   default     = "disabled"
   validation {
-    condition     = contains(["disabled", "foundation_metadata", "foundation", "registry", "maintenance_operator", "runtime_private", "runtime_public"], var.stage)
+    condition     = contains(["disabled", "foundation_metadata", "foundation", "registry", "maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage)
     error_message = "Invalid MyPage stage."
   }
 }
@@ -64,7 +64,7 @@ variable "runtime_settings" {
   # Explicit one-shot admission for a metrics-only serving update. It is not
   # forwarded as an environment variable and does not permit an image rollout.
   validation {
-    condition = !contains(["maintenance_operator", "runtime_private", "runtime_public"], var.stage) || (
+    condition = !contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) || (
       var.runtime_settings.maintenance_operator_enabled &&
       can(regex("^asia-southeast2-docker\\.pkg\\.dev/test-youtube-study-space/mypage/mypage-api@sha256:[a-f0-9]{64}$", var.runtime_settings.maintenance_operator_image_digest)) &&
       can(regex("^[a-f0-9]{40}$", var.runtime_settings.maintenance_operator_image_source_sha))
@@ -89,7 +89,7 @@ variable "runtime_settings" {
   }
 
   validation {
-    condition = !contains(["runtime_private", "runtime_public"], var.stage) || (
+    condition = !contains(["maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) || (
       can(regex("^[-a-z0-9.]+-docker\\.pkg\\.dev/[a-z0-9-]+/[a-z0-9_-]+/[A-Za-z0-9._/-]+@sha256:[a-f0-9]{64}$", var.runtime_settings.image_digest)) &&
       can(regex("^[0-9]{6,20}$", var.runtime_settings.project_number)) &&
       can(regex("^1:[0-9]+:web:[A-Za-z0-9]+$", var.runtime_settings.web_app_id)) &&

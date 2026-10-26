@@ -257,41 +257,21 @@ export function createApp(
 		useLayoutEffect(() => {
 			runtime.maintenance.setRouteActive(
 				protectedRoute || maintenanceRoute || channelConfirmRoute,
+				maintenanceRoute,
 			)
 		}, [protectedRoute, maintenanceRoute, channelConfirmRoute])
 		useEffect(() => {
-			if (maintenance.phase === 'normal')
-				runtime.memory.resumeAfterMaintenance()
-			if (
-				(protectedRoute || maintenanceRoute) &&
-				maintenance.phase !== 'normal'
-			)
-				runtime.memory.enterMaintenance(
-					maintenance.phase === 'active'
-						? 'MAINTENANCE_ACTIVE'
-						: 'TEMPORARY_UNAVAILABLE',
-				)
+			if (maintenance.phase === 'normal') runtime.resumeAfterMaintenance()
 			const destination = maintenanceDestination(
 				pathname,
 				supportLogin,
 				maintenance.phase,
 			)
 			if (destination === '/maintenance') {
-				runtime.memory.enterMaintenance(
-					maintenance.phase === 'active'
-						? 'MAINTENANCE_ACTIVE'
-						: 'TEMPORARY_UNAVAILABLE',
-				)
 				void router.navigate({ to: destination, replace: true })
 			}
 			if (destination === '/') void router.navigate({ to: '/', replace: true })
-		}, [
-			maintenance.phase,
-			pathname,
-			protectedRoute,
-			maintenanceRoute,
-			supportLogin,
-		])
+		}, [maintenance.phase, pathname, supportLogin])
 		useEffect(() => privacyServices.analytics.mount(), [])
 		useEffect(() => {
 			privacyServices.analytics.page(href)
@@ -792,6 +772,14 @@ export function createApp(
 					!currentController.signal.aborted
 				) {
 					setChannel(null)
+					if (
+						channel.purpose === 'login' &&
+						e instanceof RequestError &&
+						e.code === 'MAINTENANCE_ACTIVE'
+					) {
+						void router.navigate({ to: '/maintenance', replace: true })
+						return
+					}
 					const restriction = restrictionFrom(e)
 					if (restriction) setRestriction(restriction)
 					else setError(message(e))
@@ -1269,8 +1257,16 @@ export function createApp(
 	function MaintenancePage() {
 		const maintenance = useMaintenance()
 		const auth = useMemory()
+		const [sessionUID, setSessionUID] = useState(
+			() => runtime.session?.currentUID() ?? null,
+		)
 		const heading = useRef<HTMLHeadingElement>(null)
 		useEffect(() => heading.current?.focus(), [])
+		useEffect(
+			() =>
+				runtime.session?.subscribe((uid) => setSessionUID(uid)) ?? (() => {}),
+			[],
+		)
 		const estimate = maintenance.status?.estimatedEndAt
 		const estimateText = estimate
 			? new Intl.DateTimeFormat('ja-JP', {
@@ -1319,7 +1315,7 @@ export function createApp(
 						>
 							再読み込み
 						</button>
-						{runtime.session?.currentUID() && (
+						{sessionUID && (
 							<button
 								className="button"
 								type="button"

@@ -107,7 +107,7 @@ class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
         self.assertNotIn("MYPAGE_GCP_WIF_PROVIDER", workflow)
         self.assertIn("gcloud run jobs execute mypage-maintenance-operator", workflow)
         self.assertIn("--args=\"${args}\"", workflow)
-        self.assertIn("--authority=GITHUB_ACTIONS", workflow)
+        self.assertNotIn("--authority=", workflow)
         self.assertIn("run_operator preview", workflow)
         self.assertIn("run_operator apply", workflow)
         self.assertIn("run_operator verify", workflow)
@@ -115,6 +115,8 @@ class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
         self.assertLess(workflow.index("run_operator apply"), workflow.index("run_operator verify"))
         self.assertIn("authoritativeReadbackVerified", workflow)
         self.assertIn("MYPAGE_PUBLIC_ORIGIN", workflow)
+        self.assertIn("time.monotonic() + 30", workflow)
+        self.assertIn("time.sleep(1)", workflow)
         self.assertIn("actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9", workflow)
 
     def test_terraform_trust_override_role_and_bootstrap_are_cross_checked(self):
@@ -123,7 +125,8 @@ class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
         self.assertNotIn("assertion.job_workflow_sha", terraform)
         self.assertIn('role     = "roles/run.jobsExecutorWithOverrides"', terraform)
         self.assertIn('image   = var.runtime_settings.maintenance_operator_image_digest', terraform)
-        self.assertIn('contains(["maintenance_operator", "runtime_private", "runtime_public"], var.stage)', terraform)
+        self.assertIn('contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage)', terraform)
+        self.assertIn('command = ["/app/mypage-maintenance-breakglass"]', terraform)
         self.assertIn('command = ["/app/mypage-maintenance-bootstrap-check"]', terraform)
 
     def test_repository_ci_discovers_and_lints_the_operator_workflow(self):

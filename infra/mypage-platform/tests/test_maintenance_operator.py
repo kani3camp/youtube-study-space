@@ -31,13 +31,14 @@ class MaintenanceOperatorInfrastructureTest(unittest.TestCase):
 
     def test_operator_is_opt_in_and_has_no_key_resource(self):
         source = (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text()
-        self.assertIn('contains(["maintenance_operator", "runtime_private", "runtime_public"], var.stage)', source)
+        self.assertIn('contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage)', source)
         self.assertNotIn("google_service_account_key", source)
         self.assertIn('"datastore.entities.get"', source)
         self.assertIn('"datastore.entities.create"', source)
         self.assertIn('"datastore.entities.update"', source)
         self.assertIn('role_id     = "mypageMaintenanceBootstrapReader"', source)
         self.assertIn('command = ["/app/mypage-maintenance-bootstrap-check"]', source)
+        self.assertIn('command = ["/app/mypage-maintenance-breakglass"]', source)
         self.assertIn('member   = "serviceAccount:${local.backend_deployer_email}"', source)
         self.assertEqual(source.count('role     = "roles/run.invoker"'), 4)  # public API plus three fixed bootstrap callers
 
@@ -74,8 +75,8 @@ class MaintenanceOperatorInfrastructureTest(unittest.TestCase):
             next_step = source.index("\n      - name:", bootstrap)
             self.assertNotIn("--args", source[bootstrap:next_step])
             self.assertNotIn("--update-env-vars", source[bootstrap:next_step])
-        self.assertLess(foundation.index("Require initialized NORMAL before planning"), foundation.index("Plan bounded private foundation resources"))
-        self.assertLess(backend.index("Require initialized NORMAL before mutating"), backend.index("Conditionally update only the source-pinned image"))
+        self.assertLess(foundation.index("Require initialized maintenance control before planning"), foundation.index("Plan bounded private foundation resources"))
+        self.assertLess(backend.index("Require initialized maintenance control before mutating"), backend.index("Conditionally update only the source-pinned image"))
 
 
 if __name__ == "__main__":

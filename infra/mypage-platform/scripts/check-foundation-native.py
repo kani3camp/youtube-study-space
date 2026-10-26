@@ -18,7 +18,7 @@ need(len(plans) == 6)
 # native envelope. Preserve the actual provider-generated changes/unknowns;
 # only supply the test run's known stage and successful completion metadata.
 # The authenticated path continues to require the real native envelope.
-for rendered, stage, resources in zip(plans, ("foundation_metadata", "foundation", "registry", "maintenance_operator", "runtime_private", "runtime_public"), (4, 8, 9, 25, 27, 28)):
+for rendered, stage, resources in zip(plans, ("foundation_metadata", "foundation", "registry", "maintenance_operator", "runtime_private", "runtime_public"), (4, 8, 9, 26, 28, 29)):
     variables = {"stage": {"value": stage}}
     if stage in set(runtime_contract.MODES.values()):
         variables["runtime_settings"] = {"value": json.loads((root / "tests/runtime-settings.fixture.json").read_text())}

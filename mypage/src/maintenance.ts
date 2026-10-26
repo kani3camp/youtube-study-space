@@ -70,12 +70,21 @@ export class MaintenanceMonitor {
 	private routeActive = false
 	private visible = true
 	private request: typeof fetch
+	private closePrivateGate: (phase: 'checking' | 'unknown' | 'active') => void
 
-	constructor(request: typeof fetch = fetch) {
+	constructor(
+		request: typeof fetch = fetch,
+		closePrivateGate: (
+			phase: 'checking' | 'unknown' | 'active',
+		) => void = () => {},
+	) {
 		this.request = request
+		this.closePrivateGate = closePrivateGate
 	}
 
 	getSnapshot = () => this.state
+	allowsPrivateRestore = () =>
+		!this.routeActive || this.state.phase === 'normal'
 	subscribe = (listener: () => void) => {
 		this.listeners.add(listener)
 		return () => this.listeners.delete(listener)
@@ -83,6 +92,7 @@ export class MaintenanceMonitor {
 
 	private publish(state: MaintenanceSnapshot) {
 		this.state = state
+		if (state.phase !== 'normal') this.closePrivateGate(state.phase)
 		for (const listener of this.listeners) listener()
 	}
 
@@ -94,7 +104,7 @@ export class MaintenanceMonitor {
 	private schedule() {
 		this.stopTimer()
 		if (!this.mounted || !this.routeActive || !this.visible) return
-		this.timer = setTimeout(() => void this.check(), POLL_MS)
+		this.timer = setTimeout(() => this.recheck(), POLL_MS)
 	}
 
 	markActive() {
@@ -111,14 +121,21 @@ export class MaintenanceMonitor {
 		this.schedule()
 	}
 
-	setRouteActive(active: boolean) {
-		if (active === this.routeActive) return
+	setRouteActive(active: boolean, forceCheck = false) {
+		if (active === this.routeActive && !forceCheck) return
 		this.routeActive = active
 		if (!active) {
 			this.controller?.abort()
 			this.stopTimer()
 			return
 		}
+		this.recheck()
+	}
+
+	private recheck() {
+		if (!this.mounted || !this.routeActive || !this.visible) return
+		// Close the private-data gate synchronously. A restored page must not keep
+		// rendering its prior NORMAL snapshot while the fresh status is in flight.
 		this.publish({ phase: 'checking', status: null })
 		void this.check()
 	}
@@ -162,7 +179,7 @@ export class MaintenanceMonitor {
 			const visible = document.visibilityState === 'visible'
 			if (visible === this.visible) return
 			this.visible = visible
-			if (visible && this.routeActive) void this.check()
+			if (visible && this.routeActive) this.recheck()
 			else {
 				this.controller?.abort()
 				this.stopTimer()
@@ -170,11 +187,11 @@ export class MaintenanceMonitor {
 		}
 		const show = () => {
 			this.visible = document.visibilityState === 'visible'
-			if (this.visible && this.routeActive) void this.check()
+			if (this.visible && this.routeActive) this.recheck()
 		}
 		document.addEventListener('visibilitychange', visibility)
 		window.addEventListener('pageshow', show)
-		if (this.routeActive && this.visible) void this.check()
+		if (this.routeActive && this.visible) this.recheck()
 		return () => {
 			this.mounted = false
 			this.controller?.abort()

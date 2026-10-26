@@ -75,29 +75,42 @@ func TestMaintenancePreviewDoesNotMutateAndVerifyChecksReceipt(t *testing.T) {
 	if err != nil || verified.Current.Revision != 1 {
 		t.Fatalf("verified=%+v err=%v", verified, err)
 	}
+	eventRef := client.Collection(maintenanceEvents).Doc(request.ActionRef)
+	if _, err := eventRef.Update(ctx, []firestore.Update{{Path: "previousState", Value: MaintenanceActive}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyMaintenanceTransition(ctx, client, request, now.Add(time.Second)); err == nil {
+		t.Fatal("verify accepted an inconsistent previous state")
+	}
+	if _, err := eventRef.Update(ctx, []firestore.Update{{Path: "previousState", Value: "MISSING"}, {Path: "privateNote", Value: "must-not-be-accepted"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyMaintenanceTransition(ctx, client, request, now.Add(time.Second)); err == nil {
+		t.Fatal("verify accepted an unknown audit field")
+	}
 	request.ActionRef = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	if _, err := VerifyMaintenanceTransition(ctx, client, request, now.Add(time.Second)); err == nil {
 		t.Fatal("verify accepted a missing audit receipt")
 	}
 }
 
-func TestMaintenanceBootstrapRequiresInitializedNormal(t *testing.T) {
+func TestMaintenanceBootstrapRequiresValidInitializedControlAndAllowsActiveRecovery(t *testing.T) {
 	client := maintenanceIntegrationClient(t)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	if RequireMaintenanceBootstrapNormal(ctx, client, "development") == nil {
+	if RequireMaintenanceInitialized(ctx, client, "development") == nil {
 		t.Fatal("missing bootstrap control accepted")
 	}
 	seedNormalMaintenance(t, client, "development", now)
-	if err := RequireMaintenanceBootstrapNormal(ctx, client, "development"); err != nil {
+	if err := RequireMaintenanceInitialized(ctx, client, "development"); err != nil {
 		t.Fatal(err)
 	}
 	_, err := maintenanceRef(client).Set(ctx, MaintenanceControl{Environment: "development", State: MaintenanceActive, Revision: 2, UpdatedAt: now.Add(time.Second), MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "PLANNED_MAINTENANCE"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if RequireMaintenanceBootstrapNormal(ctx, client, "development") == nil {
-		t.Fatal("ACTIVE bootstrap control accepted")
+	if err := RequireMaintenanceInitialized(ctx, client, "development"); err != nil {
+		t.Fatalf("ACTIVE must permit a recovery deploy or rollback: %v", err)
 	}
 }
 
@@ -108,7 +121,7 @@ func TestMaintenanceBreakGlassAuditDoesNotInventGitHubProvenance(t *testing.T) {
 	if _, err := ApplyMaintenanceTransition(ctx, client, maintenanceRequest(MaintenanceNormal, 0, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "INITIALIZATION"), now); err != nil {
 		t.Fatal(err)
 	}
-	request := MaintenanceTransition{Authority: MaintenanceAuthorityBreakGlass, Environment: "development", State: MaintenanceActive, ExpectedRevision: 1, ReasonCategory: "SECURITY_MAINTENANCE", ActionRef: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "cccccccccccccccccccccccccccccccccccccccc", CloudRunExecution: "mypage-maintenance-operator-breakglass1", BreakGlassApprovalRef: "INCIDENT_123", ClaimedOperator: "operator@example.com"}
+	request := MaintenanceTransition{Authority: MaintenanceAuthorityBreakGlass, Environment: "development", State: MaintenanceActive, ExpectedRevision: 1, ReasonCategory: "SECURITY_MAINTENANCE", ActionRef: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "cccccccccccccccccccccccccccccccccccccccc", CloudRunExecution: "mypage-maintenance-breakglass-abcde", BreakGlassApprovalRef: "INCIDENT_123", ClaimedOperator: "operator@example.com"}
 	if _, err := ApplyMaintenanceTransition(ctx, client, request, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}

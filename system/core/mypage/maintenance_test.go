@@ -17,6 +17,7 @@ type maintenanceStub struct {
 	mu             sync.Mutex
 	checkErr       error
 	authoritative  []error
+	revisions      []int64
 	authorityCalls int
 	status         MaintenanceStatus
 	statusErr      error
@@ -73,15 +74,24 @@ func (s *maintenanceStub) Check(context.Context) error {
 	return s.checkErr
 }
 
-func (s *maintenanceStub) CheckAuthoritative(context.Context) error {
+func (s *maintenanceStub) CheckAuthoritative(ctx context.Context) error {
+	_, err := s.CheckAuthoritativeRevision(ctx)
+	return err
+}
+
+func (s *maintenanceStub) CheckAuthoritativeRevision(context.Context) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	index := s.authorityCalls
 	s.authorityCalls++
-	if index < len(s.authoritative) {
-		return s.authoritative[index]
+	revision := int64(1)
+	if index < len(s.revisions) {
+		revision = s.revisions[index]
 	}
-	return nil
+	if index < len(s.authoritative) {
+		return revision, s.authoritative[index]
+	}
+	return revision, nil
 }
 
 func (s *maintenanceStub) PublicStatus(context.Context) (MaintenanceStatus, error) {
@@ -157,6 +167,33 @@ func TestBFFDoesNotPublishInFlightDataAfterActivation(t *testing.T) {
 	}
 	if len(bff.cache) != 0 {
 		t.Fatal("in-flight response entered cache after maintenance activation")
+	}
+}
+
+func TestBFFCacheCannotCrossAnUnobservedActiveToNormalRevision(t *testing.T) {
+	now := workFixture().AsOf
+	gate := &maintenanceStub{revisions: []int64{1, 1, 1, 1, 3, 3, 3, 3}}
+	total := 6000
+	reads := 0
+	bff := &BFF{Access: allowedAccess(), Maintenance: gate, Environment: "development", Now: func() time.Time { return now }, Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) {
+		reads++
+		snapshot := workFixture()
+		snapshot.User.TotalStudySec = total
+		return snapshot, nil
+	})}
+	first, err := bff.Get(context.Background(), "synthetic", healthyAccount(now))
+	if err != nil {
+		t.Fatal(err)
+	}
+	total = 9000 // Data changed while this instance received no ACTIVE request.
+	second, err := bff.Get(context.Background(), "synthetic", healthyAccount(now))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reads != 2 || first.Summary.Data == nil || second.Summary.Data == nil ||
+		first.Summary.Data.Lifetime.WorkSec == nil || second.Summary.Data.Lifetime.WorkSec == nil ||
+		*first.Summary.Data.Lifetime.WorkSec == *second.Summary.Data.Lifetime.WorkSec {
+		t.Fatalf("reads=%d first=%+v second=%+v", reads, first.Summary, second.Summary)
 	}
 }
 
@@ -313,7 +350,7 @@ func TestMaintenanceTransitionValidationIsClosedAndExact(t *testing.T) {
 
 func TestMaintenanceBreakGlassUsesTruthfulDistinctProvenance(t *testing.T) {
 	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
-	value := MaintenanceTransition{Authority: MaintenanceAuthorityBreakGlass, Environment: "development", State: MaintenanceActive, ExpectedRevision: 2, ReasonCategory: "SECURITY_MAINTENANCE", ActionRef: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", CloudRunExecution: "mypage-maintenance-operator-breakglass1", BreakGlassApprovalRef: "INCIDENT_123", ClaimedOperator: "operator@example.com"}
+	value := MaintenanceTransition{Authority: MaintenanceAuthorityBreakGlass, Environment: "development", State: MaintenanceActive, ExpectedRevision: 2, ReasonCategory: "SECURITY_MAINTENANCE", ActionRef: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", CloudRunExecution: "mypage-maintenance-breakglass-abcde", BreakGlassApprovalRef: "INCIDENT_123", ClaimedOperator: "operator@example.com"}
 	if err := ValidateMaintenanceTransition(value, now); err != nil {
 		t.Fatal(err)
 	}

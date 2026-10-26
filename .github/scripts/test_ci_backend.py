@@ -39,9 +39,9 @@ class BackendWorkflowTest(unittest.TestCase):
         self.assertEqual(auth['with']['service_account'],
                          'mypage-backend-deploy@test-youtube-study-space.iam.gserviceaccount.com')
         names = [step.get('name') for step in deploy['steps']]
-        self.assertLess(names.index('Require initialized NORMAL before mutating the serving revision'),
+        self.assertLess(names.index('Require initialized maintenance control before mutating the serving revision'),
                         names.index('Conditionally update only the source-pinned image and verify serving'))
-        bootstrap = next(step for step in deploy['steps'] if step.get('name', '').startswith('Require initialized NORMAL'))
+        bootstrap = next(step for step in deploy['steps'] if step.get('name', '').startswith('Require initialized maintenance control'))
         self.assertIn('gcloud run jobs execute mypage-maintenance-bootstrap-check', bootstrap['run'])
         self.assertNotIn('--args', bootstrap['run'])
         self.assertEqual(workflow['jobs']['state']['needs'], 'deploy')

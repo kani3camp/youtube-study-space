@@ -22,7 +22,7 @@ variable "environment" {
 variable "stage" {
   type = string
   validation {
-    condition     = contains(["foundation_metadata", "foundation", "registry", "maintenance_operator", "runtime_private", "runtime_public"], var.stage)
+    condition     = contains(["foundation_metadata", "foundation", "registry", "maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage)
     error_message = "Invalid MyPage module stage."
   }
 }
@@ -50,12 +50,12 @@ variable "runtime_settings" {
 }
 
 locals {
-  deploy_api                     = contains(["runtime_private", "runtime_public"], var.stage)
-  public_api                     = var.stage == "runtime_public"
+  deploy_api                     = contains(["maintenance_upgrade", "runtime_private", "runtime_public"], var.stage)
+  public_api                     = contains(["maintenance_upgrade", "runtime_public"], var.stage)
   runtime_email                  = "${google_service_account.runtime.account_id}@${var.project_id}.iam.gserviceaccount.com"
   runtime_principal              = "serviceAccount:${local.runtime_email}"
   max_instances                  = var.environment == "development" ? 1 : 3
-  maintenance_operator           = contains(["maintenance_operator", "runtime_private", "runtime_public"], var.stage) && var.runtime_settings.maintenance_operator_enabled
+  maintenance_operator           = contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) && var.runtime_settings.maintenance_operator_enabled
   maintenance_ref                = var.environment == "production" ? "refs/heads/main" : "refs/heads/integration/mypage-canon-20261006"
   maintenance_github_environment = "mypage-maintenance-${var.environment}"
   maintenance_operator_email     = "mypage-maintenance-job@${var.project_id}.iam.gserviceaccount.com"
@@ -81,7 +81,7 @@ resource "google_service_account" "runtime" {
 # DEV image storage is provisioned before building a digest for Cloud Run.
 # Existing Functions repositories and production ownership are untouched.
 resource "google_artifact_registry_repository" "mypage" {
-  count                  = var.environment == "development" && contains(["registry", "maintenance_operator", "runtime_private", "runtime_public"], var.stage) ? 1 : 0
+  count                  = var.environment == "development" && contains(["registry", "maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) ? 1 : 0
   project                = var.project_id
   location               = var.region
   repository_id          = "mypage"
@@ -385,7 +385,7 @@ resource "google_service_account" "maintenance_bootstrap" {
   project      = var.project_id
   account_id   = "mypage-maintenance-bootstrap"
   display_name = "MyPage maintenance bootstrap reader"
-  description  = "Read-only identity for the fixed pre-deployment NORMAL check."
+  description  = "Read-only identity for the fixed pre-deployment initialized-control check."
   lifecycle {
     prevent_destroy = true
   }
@@ -423,7 +423,7 @@ resource "google_project_iam_custom_role" "maintenance_bootstrap_reader" {
   project     = var.project_id
   role_id     = "mypageMaintenanceBootstrapReader"
   title       = "MyPage maintenance bootstrap reader"
-  description = "Read-only Firestore entity permissions for the fixed NORMAL deployment barrier."
+  description = "Read-only Firestore entity permissions for the fixed initialized-control deployment barrier."
   permissions = [
     "datastore.databases.get",
     "datastore.entities.get",
@@ -532,6 +532,50 @@ resource "google_cloud_run_v2_job_iam_member" "maintenance_invoker" {
   name     = google_cloud_run_v2_job.maintenance_operator[0].name
   role     = "roles/run.jobsExecutorWithOverrides"
   member   = "serviceAccount:${local.maintenance_invoker_email}"
+}
+
+# Break-glass uses a different fixed command and Job. No human principal is
+# permanently bound here; the runbook grants short-lived, resource-level
+# execution authority to this Job only and relies on Cloud Audit Logs.
+resource "google_cloud_run_v2_job" "maintenance_breakglass" {
+  count               = local.maintenance_operator ? 1 : 0
+  project             = var.project_id
+  name                = "mypage-maintenance-breakglass"
+  location            = var.region
+  deletion_protection = true
+
+  template {
+    task_count  = 1
+    parallelism = 1
+    template {
+      service_account = local.maintenance_operator_email
+      max_retries     = 0
+      timeout         = "60s"
+      containers {
+        image   = var.runtime_settings.maintenance_operator_image_digest
+        command = ["/app/mypage-maintenance-breakglass"]
+        resources {
+          limits = {
+            cpu    = "1"
+            memory = "512Mi"
+          }
+        }
+        env {
+          name  = "GOOGLE_CLOUD_PROJECT"
+          value = var.project_id
+        }
+        env {
+          name  = "MYPAGE_ENVIRONMENT"
+          value = var.environment
+        }
+      }
+    }
+  }
+
+  depends_on = [google_project_iam_member.maintenance_firestore]
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "google_cloud_run_v2_job" "maintenance_bootstrap" {
