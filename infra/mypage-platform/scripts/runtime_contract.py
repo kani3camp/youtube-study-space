@@ -217,7 +217,11 @@ def validate_service_empty_refresh(item, planned, value):
 
 
 def validate_owner_hosting_image_refresh(item, planned, value):
-    """Read back owner image/fixed-host releases; CI never updates Run."""
+    """Read back image/fixed-host releases; Terraform never updates Run here.
+
+    Image-only releases may use the isolated Backend CI deployer. Keep the same
+    exact declaration/generation/config boundary for State adoption.
+    """
     change = item.get("change", {})
     before, after = change.get("before"), change.get("after")
     c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "runtime-owner-refresh-provider")
