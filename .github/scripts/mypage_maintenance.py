@@ -29,17 +29,27 @@ def need(condition: bool) -> None:
         raise ValueError(ERROR)
 
 
-def valid_rfc3339(value: object) -> bool:
-    timestamp = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})"
-    if not isinstance(value, str) or re.fullmatch(timestamp, value) is None:
-        return False
+def canonical_rfc3339(value: object) -> str | None:
+    timestamp = r"(?P<base>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?P<fraction>\.\d{1,9})?(?P<zone>Z|[+-]\d{2}:\d{2})"
+    match = re.fullmatch(timestamp, value) if isinstance(value, str) else None
+    if match is None:
+        return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).tzinfo is not None
-    except ValueError:
-        return False
+        fraction_input = match.group("fraction") or ""
+        parse_value = match.group("base") + fraction_input[:7] + match.group("zone")
+        parsed = datetime.fromisoformat(parse_value.replace("Z", "+00:00")).astimezone(timezone.utc)
+    except (OverflowError, ValueError):
+        return None
+    digits = fraction_input[1:].rstrip("0")
+    fraction = "." + digits if digits else ""
+    return parsed.strftime("%Y-%m-%dT%H:%M:%S") + fraction + "Z"
 
 
-def valid_public_status(candidate: object, expected_state: str) -> bool:
+def valid_rfc3339(value: object) -> bool:
+    return canonical_rfc3339(value) is not None
+
+
+def valid_public_status(candidate: object, expected_state: str, expected_estimated_end_at: str) -> bool:
     if not isinstance(candidate, dict) or expected_state not in STATES:
         return False
     required = {"state", "updatedAt", "messageTemplate"}
@@ -51,8 +61,11 @@ def valid_public_status(candidate: object, expected_state: str) -> bool:
     if not valid_rfc3339(candidate.get("updatedAt")):
         return False
     if expected_state == "NORMAL":
-        return "estimatedEndAt" not in candidate
-    return "estimatedEndAt" not in candidate or valid_rfc3339(candidate["estimatedEndAt"])
+        return expected_estimated_end_at == "" and "estimatedEndAt" not in candidate
+    expected_estimate = canonical_rfc3339(expected_estimated_end_at) if expected_estimated_end_at else None
+    if expected_estimate is None:
+        return expected_estimated_end_at == "" and "estimatedEndAt" not in candidate
+    return "estimatedEndAt" in candidate and canonical_rfc3339(candidate["estimatedEndAt"]) == expected_estimate
 
 
 def context(get=os.environ.get, now=lambda: datetime.now(timezone.utc)) -> dict[str, str]:
@@ -85,8 +98,13 @@ def context(get=os.environ.get, now=lambda: datetime.now(timezone.utc)) -> dict[
     if state == "NORMAL":
         need(estimate == "")
     elif estimate:
-        need(re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})", estimate) is not None)
-        parsed = datetime.fromisoformat(estimate.replace("Z", "+00:00"))
+        canonical_estimate = canonical_rfc3339(estimate)
+        need(canonical_estimate is not None)
+        estimate = canonical_estimate
+        parsed = datetime.strptime(estimate[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+        if "." in estimate:
+            digits = estimate.split(".", 1)[1][:-1]
+            parsed = parsed.replace(microsecond=int((digits + "000000")[:6]))
         current = now()
         need(parsed.tzinfo is not None and current < parsed.astimezone(timezone.utc) <= current + timedelta(days=14))
     if environment == "production":

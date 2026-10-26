@@ -94,6 +94,28 @@ func TestMaintenancePreviewDoesNotMutateAndVerifyChecksReceipt(t *testing.T) {
 	}
 }
 
+func TestMaintenanceApplyNormalizesFirestoreTimestampAndLateVerify(t *testing.T) {
+	client := maintenanceIntegrationClient(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 27, 2, 0, 0, 123456789, time.UTC)
+	request := maintenanceRequest(MaintenanceNormal, 0, "abababababababababababababababababababababababababababababababab", "INITIALIZATION")
+	result, err := ApplyMaintenanceTransition(ctx, client, request, now)
+	expected := now.Truncate(time.Microsecond)
+	if err != nil || !result.Current.UpdatedAt.Equal(expected) {
+		t.Fatalf("result=%+v expected=%v err=%v", result, expected, err)
+	}
+
+	end := expected.Add(time.Second)
+	activate := maintenanceRequest(MaintenanceActive, 1, "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd", "PLANNED_MAINTENANCE")
+	activate.EstimatedEndAt = &end
+	if _, err := ApplyMaintenanceTransition(ctx, client, activate, expected.Add(time.Microsecond)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyMaintenanceTransition(ctx, client, activate, end.Add(time.Hour)); err != nil {
+		t.Fatalf("late verify rejected committed estimate: %v", err)
+	}
+}
+
 func TestMaintenanceBootstrapRequiresValidInitializedControlAndAllowsActiveRecovery(t *testing.T) {
 	client := maintenanceIntegrationClient(t)
 	ctx := context.Background()
@@ -232,7 +254,13 @@ func TestMaintenanceActiveEstimateUpdateUsesCASAndTransactionalAudit(t *testing.
 	if _, err := ApplyMaintenanceTransition(ctx, client, noOp, now.Add(4*time.Minute)); errorCode(err) != "INVALID_REQUEST" {
 		t.Fatalf("no-op update code=%s", errorCode(err))
 	}
-	for _, action := range []string{stale.ActionRef, noOp.ActionRef} {
+	reasonChange := maintenanceRequest(MaintenanceActive, 3, "1212121212121212121212121212121212121212121212121212121212121212", "RECOVERY")
+	reasonChangeEnd := now.Add(6 * time.Hour)
+	reasonChange.EstimatedEndAt = &reasonChangeEnd
+	if _, err := ApplyMaintenanceTransition(ctx, client, reasonChange, now.Add(4*time.Minute)); errorCode(err) != "INVALID_REQUEST" {
+		t.Fatalf("reason-changing update code=%s", errorCode(err))
+	}
+	for _, action := range []string{stale.ActionRef, noOp.ActionRef, reasonChange.ActionRef} {
 		if _, err := client.Collection(maintenanceEvents).Doc(action).Get(ctx); status.Code(err) != codes.NotFound {
 			t.Fatalf("rejected update wrote audit %s: %v", action, err)
 		}
@@ -284,6 +312,14 @@ func TestMaintenanceGateFailsClosedForMissingAndMalformedControl(t *testing.T) {
 	}
 	if errorCode(gate.CheckAuthoritative(ctx)) != "TEMPORARY_UNAVAILABLE" {
 		t.Fatal("malformed control did not fail closed")
+	}
+	for _, state := range []string{MaintenanceNormal, MaintenanceActive} {
+		if _, err := maintenanceRef(client).Set(ctx, map[string]any{"environment": "development", "state": state, "revision": 1, "updatedAt": time.Now(), "estimatedEndAt": nil, "messageTemplate": MaintenanceMessageTemplate, "reasonCategory": "RECOVERY"}); err != nil {
+			t.Fatal(err)
+		}
+		if errorCode(gate.CheckAuthoritative(ctx)) != "TEMPORARY_UNAVAILABLE" {
+			t.Fatalf("%s control accepted explicit null estimatedEndAt", state)
+		}
 	}
 }
 

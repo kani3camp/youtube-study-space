@@ -70,8 +70,8 @@ func Run(ctx context.Context, args []string, output io.Writer, get func(string) 
 	}
 	var estimate *time.Time
 	if *estimatedEnd != "" {
-		parsed, err := time.Parse(time.RFC3339, *estimatedEnd)
-		if err != nil || parsed.Format(time.RFC3339) != *estimatedEnd {
+		parsed, err := time.Parse(time.RFC3339Nano, *estimatedEnd)
+		if err != nil || parsed.Format(time.RFC3339Nano) != *estimatedEnd {
 			return ErrOperator
 		}
 		parsed = parsed.UTC()
@@ -79,7 +79,11 @@ func Run(ctx context.Context, args []string, output io.Writer, get func(string) 
 	}
 	request := mypage.MaintenanceTransition{Authority: authority, Environment: *environment, State: *state, ExpectedRevision: *expectedRevision, EstimatedEndAt: estimate, ReasonCategory: *reason, ActionRef: *actionRef, RepositoryID: *repositoryID, RepositoryOwnerID: *ownerID, ActorID: *actorID, TriggeringActorID: *triggeringActorID, RunID: *runID, RunAttempt: *runAttempt, GitRef: *gitRef, CommitSHA: *commitSHA, WorkflowRef: *workflowRef, CloudRunExecution: get("CLOUD_RUN_EXECUTION"), BreakGlassApprovalRef: *breakGlassApproval, ClaimedOperator: *claimedOperator}
 	operationNow := now().UTC()
-	if (*operation != "preview" && *operation != "apply" && *operation != "verify") || mypage.ValidateMaintenanceTransition(request, operationNow) != nil {
+	if *operation != "preview" && *operation != "apply" && *operation != "verify" {
+		return ErrOperator
+	}
+	if (*operation == "verify" && mypage.ValidateMaintenanceTransitionReceipt(request) != nil) ||
+		(*operation != "verify" && mypage.ValidateMaintenanceTransition(request, operationNow) != nil) {
 		return ErrOperator
 	}
 	client, err := connect(ctx, *project)

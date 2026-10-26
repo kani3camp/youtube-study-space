@@ -348,6 +348,21 @@ func TestMaintenanceTransitionValidationIsClosedAndExact(t *testing.T) {
 	}
 }
 
+func TestMaintenanceReceiptValidationDoesNotExpireCommittedEstimate(t *testing.T) {
+	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
+	estimate := now.Add(time.Minute)
+	request := MaintenanceTransition{Authority: MaintenanceAuthorityGitHub, Environment: "development", State: MaintenanceActive, ExpectedRevision: 2, EstimatedEndAt: &estimate, ReasonCategory: "PLANNED_MAINTENANCE", ActionRef: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", RepositoryID: "340900071", RepositoryOwnerID: "54093651", ActorID: "54093651", TriggeringActorID: "54093651", RunID: "123", RunAttempt: 1, GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", WorkflowRef: "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@refs/heads/integration/mypage-canon-20261006", CloudRunExecution: "mypage-maintenance-operator-abcde"}
+	if err := ValidateMaintenanceTransition(request, now); err != nil {
+		t.Fatal(err)
+	}
+	if ValidateMaintenanceTransition(request, estimate) == nil {
+		t.Fatal("new transition accepted an expired estimate")
+	}
+	if err := ValidateMaintenanceTransitionReceipt(request); err != nil {
+		t.Fatalf("committed receipt expired: %v", err)
+	}
+}
+
 func TestMaintenanceBreakGlassUsesTruthfulDistinctProvenance(t *testing.T) {
 	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
 	value := MaintenanceTransition{Authority: MaintenanceAuthorityBreakGlass, Environment: "development", State: MaintenanceActive, ExpectedRevision: 2, ReasonCategory: "SECURITY_MAINTENANCE", ActionRef: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", GitRef: "refs/heads/integration/mypage-canon-20261006", CommitSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", CloudRunExecution: "mypage-maintenance-breakglass-abcde", BreakGlassApprovalRef: "INCIDENT_123", ClaimedOperator: "operator@example.com"}

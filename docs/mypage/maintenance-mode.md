@@ -23,11 +23,11 @@
 workflowは`MyPage Maintenance Mode`（`.github/workflows/mypage-maintenance.yml`）。DEVは`integration/mypage-canon-20261006`、PRODは`main`の、レビュー済みexact SHAからだけ実行できる。rerun、fork、pull request、別ref、repository/owner/actor ID不一致、actorとtriggering actor不一致は認証前に拒否する。
 
 1. 対象環境の直前の成功run artifactでcurrent revisionを確認する。公開statusはrevisionを出さないため、90日保持されるbounded transition receiptを使う。
-2. `environment`、`NORMAL|ACTIVE`、`expected_revision`、固定`reason_category`、exact `expected_sha`を入力する。`ACTIVE`だけ14日以内のRFC3339 `estimated_end_at`を任意入力できる。保守延長・短縮・見込み未定への変更は、current revisionを使って`ACTIVE`のまま新しいrunを開始する。
+2. `environment`、`NORMAL|ACTIVE`、`expected_revision`、固定`reason_category`、exact `expected_sha`を入力する。`ACTIVE`だけ14日以内のRFC3339 `estimated_end_at`を任意入力でき、認証前にcanonical UTCへ正規化される。保守延長・短縮・見込み未定への変更は、current revisionと同じ`reason_category`を使って`ACTIVE`のまま新しいrunを開始する。
 3. PRODでは`PRODUCTION ACTIVE`または`PRODUCTION NORMAL`をexact入力し、GitHub Environment approvalを通す。
 4. workflowが専用WIFで`mypage-maintenance-invoker`へ連携し、特定Cloud Run Jobだけを起動する。GitHub側identityにはFirestore権限がない。
 5. Jobは最初にnon-mutating previewでcurrent state/revisionと遷移可否を確認し、次のexecutionでCAS・監査append・authoritative readbackを実行し、最後のnon-mutating verifyでcontrolとaudit eventの一致を確認する。
-6. 初期`NORMAL`以外はsourceで環境ごとに固定したcanonical HTTPS origin（DEVは`https://test--study-space.web.app`、PRODは`https://moku.work`）の公開statusが、必須timestampを含む厳密schemaで指定stateを返し、公開トップ、MyPage shell、Privacy、Terms、Contactが応答することを確認する。3段のJobとHTTP postconditionが成功したときだけ、revision/state/actionRefを含むreceipt artifactを保存する。初期`NORMAL`はAPI未配備を許すためHTTP確認を`not-yet-deployed`として分離する。
+6. 初期`NORMAL`以外はsourceで環境ごとに固定したcanonical HTTPS origin（DEVは`https://test--study-space.web.app`、PRODは`https://moku.work`）の公開statusが、必須timestampを含む厳密schemaで指定stateとexact `estimated_end_at`（未指定ならfield非存在）を返し、公開トップ、MyPage shell、Privacy、Terms、Contactが応答することを確認する。3段のJobとHTTP postconditionが成功したときだけ、revision/state/actionRefを含むreceipt artifactを保存する。初期`NORMAL`はAPI未配備を許すためHTTP確認を`not-yet-deployed`として分離する。
 
 GitHub Environment `mypage-maintenance-development` / `mypage-maintenance-production`には、対応環境のTerraform outputから次を設定する。
 

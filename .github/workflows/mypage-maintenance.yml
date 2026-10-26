@@ -134,6 +134,7 @@ jobs:
         env:
           PUBLIC_ORIGIN: ${{ steps.context.outputs.public_origin }}
           EXPECTED_STATE: ${{ steps.context.outputs.state }}
+          EXPECTED_ESTIMATED_END_AT: ${{ steps.context.outputs.estimated_end_at }}
         run: |
           python3 - <<'PY'
           import json, os, sys, time, urllib.error, urllib.request
@@ -141,6 +142,7 @@ jobs:
           from mypage_maintenance import valid_public_status
           origin = os.environ['PUBLIC_ORIGIN']
           expected = os.environ['EXPECTED_STATE']
+          expected_estimate = os.environ['EXPECTED_ESTIMATED_END_AT']
           deadline = time.monotonic() + 30
           body = None
           while time.monotonic() < deadline:
@@ -148,7 +150,7 @@ jobs:
                   request = urllib.request.Request(origin + '/api/public/mypage-status', headers={'Cache-Control': 'no-cache'})
                   with urllib.request.urlopen(request, timeout=10) as response:
                       candidate = json.load(response) if response.status == 200 else None
-                  if valid_public_status(candidate, expected):
+                  if valid_public_status(candidate, expected, expected_estimate):
                       body = candidate
                       break
               except (urllib.error.URLError, TimeoutError, ValueError):

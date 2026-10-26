@@ -57,9 +57,10 @@ def run(args, *, cwd=None, codes=(0,), check="native-command"):
         # command arguments or a permission name extracted from rejected data.
         diagnostics = result.stdout + result.stderr
         for permission in (
-            "artifactregistry.repositories.get", "iam.serviceAccounts.get", "iam.serviceAccounts.getIamPolicy",
+            "artifactregistry.repositories.get", "iam.roles.get", "iam.serviceAccounts.get", "iam.serviceAccounts.getIamPolicy",
+            "iam.workloadIdentityPoolProviders.get", "iam.workloadIdentityPools.get",
             "resourcemanager.projects.get", "resourcemanager.projects.getIamPolicy",
-            "run.services.get", "run.services.getIamPolicy", "run.services.list",
+            "run.jobs.get", "run.services.get", "run.services.getIamPolicy", "run.services.list",
             "secretmanager.secrets.get", "secretmanager.secrets.getIamPolicy",
             "serviceusage.services.get", "serviceusage.services.use",
         ):
@@ -165,6 +166,28 @@ def reject_unowned_resources(env, plan):
         "/locations/asia-southeast2/repositories/mypage")
     urls[runtime_contract.SERVICE] = (
         "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/asia-southeast2/services/mypage-api")
+    urls.update({
+        runtime_contract.MAINTENANCE_OPERATOR_SA:
+            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/mypage-maintenance-job@" + contract.PROJECT + ".iam.gserviceaccount.com",
+        runtime_contract.MAINTENANCE_INVOKER_SA:
+            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/mypage-maintenance-invoker@" + contract.PROJECT + ".iam.gserviceaccount.com",
+        runtime_contract.MAINTENANCE_BOOTSTRAP_SA:
+            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/mypage-maintenance-bootstrap@" + contract.PROJECT + ".iam.gserviceaccount.com",
+        runtime_contract.MAINTENANCE_ROLE:
+            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/roles/mypageMaintenanceOperator",
+        runtime_contract.MAINTENANCE_BOOTSTRAP_ROLE:
+            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/roles/mypageMaintenanceBootstrapReader",
+        runtime_contract.MAINTENANCE_POOL:
+            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance",
+        runtime_contract.MAINTENANCE_PROVIDER:
+            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance/providers/github",
+        runtime_contract.MAINTENANCE_JOB:
+            "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/asia-southeast2/jobs/mypage-maintenance-operator",
+        runtime_contract.MAINTENANCE_BREAKGLASS_JOB:
+            "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/asia-southeast2/jobs/mypage-maintenance-breakglass",
+        runtime_contract.MAINTENANCE_BOOTSTRAP_JOB:
+            "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/asia-southeast2/jobs/mypage-maintenance-bootstrap-check",
+    })
     for item in plan["resource_changes"]:
         if item["address"] not in urls or item["change"]["actions"] != ["create"]:
             continue

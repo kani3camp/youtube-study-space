@@ -43,6 +43,12 @@ class MaintenanceContextTest(unittest.TestCase):
         self.assertEqual(result["public_origin"], "https://test--study-space.web.app")
         self.assertRegex(result["action_ref"], r"^[0-9a-f]{64}$")
 
+    def test_canonicalizes_rfc3339_estimate_before_authentication(self):
+        env = values()
+        env["INPUT_ESTIMATED_END_AT"] = "2026-10-27T12:00:00.123400000+09:00"
+        result = subject.context(env.get, lambda: datetime(2026, 10, 27, 2, tzinfo=timezone.utc))
+        self.assertEqual(result["estimated_end_at"], "2026-10-27T03:00:00.1234Z")
+
     def test_accepts_explicit_initial_normal(self):
         env = values()
         env.update(INPUT_STATE="NORMAL", INPUT_EXPECTED_REVISION="0", INPUT_ESTIMATED_END_AT="", INPUT_REASON_CATEGORY="INITIALIZATION")
@@ -98,20 +104,24 @@ class MaintenanceContextTest(unittest.TestCase):
             "estimatedEndAt": "2026-10-27T03:00:00+09:00",
             "messageTemplate": "MYPAGE_MAINTENANCE_V1",
         }
-        self.assertTrue(subject.valid_public_status(active, "ACTIVE"))
+        self.assertTrue(subject.valid_public_status(active, "ACTIVE", "2026-10-27T03:00:00+09:00"))
         normal = {key: value for key, value in active.items() if key != "estimatedEndAt"} | {"state": "NORMAL"}
-        self.assertTrue(subject.valid_public_status(normal, "NORMAL"))
-        for candidate, expected in (
-            ({key: value for key, value in active.items() if key != "updatedAt"}, "ACTIVE"),
-            (active | {"privateNote": "not public"}, "ACTIVE"),
-            (active | {"updatedAt": "2026-99-27T02:00:00Z"}, "ACTIVE"),
-            (active | {"estimatedEndAt": None}, "ACTIVE"),
-            (normal | {"estimatedEndAt": "2026-10-27T03:00:00Z"}, "NORMAL"),
-            (active | {"state": "NOTICE"}, "ACTIVE"),
-            (active | {"messageTemplate": "free text"}, "ACTIVE"),
+        self.assertTrue(subject.valid_public_status(normal, "NORMAL", ""))
+        active_without_estimate = {key: value for key, value in active.items() if key != "estimatedEndAt"}
+        self.assertTrue(subject.valid_public_status(active_without_estimate, "ACTIVE", ""))
+        for candidate, expected, estimate in (
+            ({key: value for key, value in active.items() if key != "updatedAt"}, "ACTIVE", active["estimatedEndAt"]),
+            (active | {"privateNote": "not public"}, "ACTIVE", active["estimatedEndAt"]),
+            (active | {"updatedAt": "2026-99-27T02:00:00Z"}, "ACTIVE", active["estimatedEndAt"]),
+            (active | {"estimatedEndAt": None}, "ACTIVE", active["estimatedEndAt"]),
+            (active | {"estimatedEndAt": "2026-10-27T03:01:00+09:00"}, "ACTIVE", active["estimatedEndAt"]),
+            (active_without_estimate, "ACTIVE", active["estimatedEndAt"]),
+            (normal | {"estimatedEndAt": "2026-10-27T03:00:00Z"}, "NORMAL", ""),
+            (active | {"state": "NOTICE"}, "ACTIVE", active["estimatedEndAt"]),
+            (active | {"messageTemplate": "free text"}, "ACTIVE", active["estimatedEndAt"]),
         ):
-            with self.subTest(candidate=candidate, expected=expected):
-                self.assertFalse(subject.valid_public_status(candidate, expected))
+            with self.subTest(candidate=candidate, expected=expected, estimate=estimate):
+                self.assertFalse(subject.valid_public_status(candidate, expected, estimate))
 
 
 class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
@@ -147,7 +157,8 @@ class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
         self.assertIn("authoritativeReadbackVerified", workflow)
         self.assertIn("PUBLIC_ORIGIN: ${{ steps.context.outputs.public_origin }}", workflow)
         self.assertNotIn("vars.MYPAGE_PUBLIC_ORIGIN", workflow)
-        self.assertIn("valid_public_status(candidate, expected)", workflow)
+        self.assertIn("EXPECTED_ESTIMATED_END_AT: ${{ steps.context.outputs.estimated_end_at }}", workflow)
+        self.assertIn("valid_public_status(candidate, expected, expected_estimate)", workflow)
         self.assertIn("time.monotonic() + 30", workflow)
         self.assertIn("time.sleep(1)", workflow)
         self.assertIn("actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9", workflow)

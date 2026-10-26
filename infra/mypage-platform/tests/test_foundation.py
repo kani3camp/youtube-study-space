@@ -45,6 +45,39 @@ def refreshed_metadata_fixture():
 
 
 class FoundationTest(unittest.TestCase):
+    def test_maintenance_creates_require_every_fixed_name_to_be_unowned(self):
+        project = c.PROJECT
+        expected = {
+            ops.runtime_contract.MAINTENANCE_OPERATOR_SA: f'https://iam.googleapis.com/v1/projects/{project}/serviceAccounts/mypage-maintenance-job@{project}.iam.gserviceaccount.com',
+            ops.runtime_contract.MAINTENANCE_INVOKER_SA: f'https://iam.googleapis.com/v1/projects/{project}/serviceAccounts/mypage-maintenance-invoker@{project}.iam.gserviceaccount.com',
+            ops.runtime_contract.MAINTENANCE_BOOTSTRAP_SA: f'https://iam.googleapis.com/v1/projects/{project}/serviceAccounts/mypage-maintenance-bootstrap@{project}.iam.gserviceaccount.com',
+            ops.runtime_contract.MAINTENANCE_ROLE: f'https://iam.googleapis.com/v1/projects/{project}/roles/mypageMaintenanceOperator',
+            ops.runtime_contract.MAINTENANCE_BOOTSTRAP_ROLE: f'https://iam.googleapis.com/v1/projects/{project}/roles/mypageMaintenanceBootstrapReader',
+            ops.runtime_contract.MAINTENANCE_POOL: f'https://iam.googleapis.com/v1/projects/{c.PROJECT_NUMBER}/locations/global/workloadIdentityPools/mypage-maintenance',
+            ops.runtime_contract.MAINTENANCE_PROVIDER: f'https://iam.googleapis.com/v1/projects/{c.PROJECT_NUMBER}/locations/global/workloadIdentityPools/mypage-maintenance/providers/github',
+            ops.runtime_contract.MAINTENANCE_JOB: f'https://run.googleapis.com/v2/projects/{project}/locations/asia-southeast2/jobs/mypage-maintenance-operator',
+            ops.runtime_contract.MAINTENANCE_BREAKGLASS_JOB: f'https://run.googleapis.com/v2/projects/{project}/locations/asia-southeast2/jobs/mypage-maintenance-breakglass',
+            ops.runtime_contract.MAINTENANCE_BOOTSTRAP_JOB: f'https://run.googleapis.com/v2/projects/{project}/locations/asia-southeast2/jobs/mypage-maintenance-bootstrap-check',
+        }
+        plan = {'resource_changes': [
+            {'address': address, 'change': {'actions': ['create']}} for address in expected
+        ]}
+
+        def absent(url, _token):
+            raise ops.urllib.error.HTTPError(url, 404, 'not found', None, None)
+
+        with patch.object(ops, 'request', side_effect=absent) as request:
+            ops.reject_unowned_resources({'MYPAGE_GCP_ACCESS_TOKEN': 'private-token'}, plan)
+        self.assertEqual({call.args[0] for call in request.call_args_list}, set(expected.values()))
+
+        for address in expected:
+            with self.subTest(address=address), patch.object(ops, 'request', return_value={}):
+                with self.assertRaises(ValueError):
+                    ops.reject_unowned_resources(
+                        {'MYPAGE_GCP_ACCESS_TOKEN': 'private-token'},
+                        {'resource_changes': [{'address': address, 'change': {'actions': ['create']}}]},
+                    )
+
     def test_public_release_manifest_overrides_only_reviewed_release_fields(self):
         fixture = ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json'
         value = json.loads(fixture.read_text())
