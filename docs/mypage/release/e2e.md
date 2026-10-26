@@ -2,6 +2,21 @@
 
 2026-10-22のDEV匿名拒否試験とread-only metadata確認は[実測記録](#2026-10-22-devの限定確認)を参照する。実Google OAuth、複数account/回線、S01/S04全層、deploy/rollback rehearsalは未完了。追加のlive操作は対象・account・release対・取得/保存する証跡を先に確定し、[runbook Gate](README.md)後に実施する。local/Emulatorの成功を実Google/Firebase/Hostingの成功へ読み替えない。現行の[server entrypoint](../../../system/cmd/mypage-server/main.go)はkeyless credential、Firestore、OAuth provider、HTTP listenのbootstrapが必要で、sourceやdeploy templateだけではdevelopmentのHosting→Cloud Run経路が存在・稼働する証拠にならない。
 
+## 2026-10-25 追加の0B公開前受入（未実施）
+
+正式構成はFirebase Hosting `/api/**` → Cloud Run Go API + Firebase Auth / Firestoreで、Managed WAF・外部LBなし。[Current Canon 06](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634)、[公開受入 #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)、[monitor auth #1459](https://github.com/kani3camp/youtube-study-space/issues/1459)を参照する。0Aの運営者限定試験中に作業できるが、次の項目が未確認なら0Bを開始しない。
+
+| Gate | 実経路の受入 | 現時点 |
+| --- | --- | --- |
+| MON-01 Rules | Firebase Client SDKから匿名・通常MyPageユーザーの `seats/member-seats/menu/work-name-trend/config/constants` read/listが拒否、専用monitor UID/claimのみ必要read許可、全client write拒否 | source/Emulator contractあり、DEV/PROD未実証 |
+| MON-02 OBS | OBSブラウザソースのInteractログイン、`browserLocalPersistence`、scene切替/OBS・PC再起動/24時間相当稼働、token更新・失効・通知・再ログインを実OBS/CEFで確認 | 未実証 |
+| MON-03 cutover | DEV/PRODでRules version・monitor購読・ seat-count API回帰・バックアウト手順を整合。認証不能時に匿名readへ無断rollbackしない | 未実証 |
+| COST-01 limits | Run DEV min0/max1・PROD min0/max3をlive readback。requestのtimeout/body/query上限とUID/IP limiter・S01をHostingおよび`run.app`直接で検証 | 部分sourceあり、実経路要確認 |
+| COST-02 notify | Billing Budget通知と届け先の実着信、Cloud MonitoringでRun/Firestore reads/429/5xx/instance/YouTube quotaの異常通知 | 未実証 |
+| COST-03 cap | Billing alertはhard capでなく、Cloud Run Spend Capは対象範囲・使用可否・他service停止影響を検証後に任意採用。Firestoreには独立した抑止策が必要 | 採否未決 |
+
+上記を完了させるための変更はコード/Rules/クラウド資源を個別reviewし、未承認のProduction deployやOAuth実操作をこの手順の追記だけでは実施しない。
+
 ## 実施前のrecord
 
 [template](release-record.example.json)へenvironment/project/domain、frontend SHA/Hosting release、backend digest/Cloud Run revision、rewrite先/pinTag=false、schema/同意版、承認参照、試験scopeを記録する。secret、token、OAuth code/state、supportChallenge/proofRef、channel UID、作業内容をpublic record/CI logへ保存しない。raw HARの共有やpublic artifact保存は行わず、必要なprivate証跡だけをredactして結果/時刻へ結び付ける。

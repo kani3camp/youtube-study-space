@@ -5,6 +5,16 @@
 > [!IMPORTANT]
 > The monitor is **not display-only in the current architecture**. `src/components/MainContent.tsx` also calculates desired general/member seat counts from room definitions and current occupancy, then can call `POST /set_desired_max_seats`. Before changing room definitions or seat counts, read [`../docs/development/architecture.md`](../docs/development/architecture.md).
 
+## Firebase Auth rollout status for OBS (Phase 0B prerequisite; not deployed)
+
+The monitor source now gates browser `onSnapshot` listeners for `seats`, `member-seats`, `menu`, `work-name-trend`, and `config/constants` on a dedicated Firebase Auth claim. Repository Firestore Security Rules additionally require an enabled monitor UID allowlist entry and reject anonymous reads. This does not prove that any live environment already runs the matching monitor and Rules revisions.
+
+[Issue #1459](https://github.com/kani3camp/youtube-study-space/issues/1459) requires provisioning **a dedicated operator-controlled Firebase Auth user** and deploying the source and Rules as a coordinated pair. General MyPage Firebase users must not receive this privilege; no Client SDK writes are enabled. The existing `/set_desired_max_seats` HTTP control path is independent and must continue to pass its existing checks.
+
+Implemented operator flow: hide the OBS browser source from the live composition, open `/operator-login` through OBS **Interact**, sign in once using the dedicated Email/Password account, and then return the source to `/`. Firebase `browserLocalPersistence` is used for subsequent sessions; a normal Chrome login is not presumed to be shared with OBS/CEF. Never use `/operator-login` as the live browser-source URL. Verify CEF IndexedDB/persistence, OBS/PC restart, scene switch, token renewal, logout/revocation, and failure notification on the actual OBS version before considering this complete. Do not store service-account keys or administrator tokens in `NEXT_PUBLIC_*`, URLs, or OBS browser parameters.
+
+Deployment ordering: create the monitor identity, claim, and allowlist; test Rules in Emulator; then, in each environment, deploy and verify the auth-capable monitor before enforcing the restrictive Rules. Complete the DEV evidence before repeating the sequence in Production and verifying its live subscriptions. On rollback, keep Rules closed and roll the monitor forward; never restore anonymous reads. See [Rollout and rollback](#rollout-and-rollback). Phase 0A owner-only MyPage testing may continue; [Phase 0B public availability is blocked](https://github.com/kani3camp/youtube-study-space/issues/1133) until this is verified.
+
 ## Setup
 
 Use the runtime versions declared by [`package.json`](./package.json); do not copy version numbers into other docs.

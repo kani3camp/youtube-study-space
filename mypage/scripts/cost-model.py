@@ -184,7 +184,7 @@ def main():
         return
     lines = ['# MyPage incremental cost scenarios', '',
              f"Official prices checked {model['verifiedAtJST']} JST. Scenario prices use Production Osaka (asia-northeast2); controlled DEV measurements use Jakarta (asia-southeast2). Scenario values below are estimates, not measured invoices.", '',
-             'See [assumptions and exclusions](cost-notes.md). Main table: proposed Armor + global LB + Run Web/API, no CDN. Current Hosting + Run is a separate profile below.', '',
+             'See [assumptions and exclusions](cost-notes.md). **Adopted 2026-10-25 target: Firebase Hosting + Cloud Run Go BFF (no managed WAF/LB).** The main Armor + global LB + Run Web/API table is a retained, **not adopted** cost-comparison scenario; current Hosting + Run is shown separately below.', '',
              '| Scale | 60s/raw USD | 5m/raw USD | 5m/month no-cache USD | +static cache USD | JPY cost | Profit JPY | New members to cover | Upgrades to cover |',
              '|---|---:|---:|---:|---:|---:|---:|---:|---:|']
     for case in model['scenarios']:

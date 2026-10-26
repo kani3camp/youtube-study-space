@@ -2,6 +2,19 @@
 
 This directory contains the repository-managed Firestore Security Rules, indexes, and emulator configuration. Treat these files as the existing project definition. Do **not** run `firebase init firestore` as a routine setup step because it can overwrite or regenerate repository-managed configuration.
 
+## MyPage Phase 0B prerequisite: authenticated OBS monitor (source implemented, NOT deployed)
+
+The repository `firestore.rules` requires a dedicated monitor claim plus an enabled UID allowlist entry for reads of `seats`, `member-seats`, `menu`, `work-name-trend`, and `config/constants`; anonymous and normal MyPage users are denied. The monitor source gates subscriptions on the dedicated claim. These source changes are **not live deployment evidence**: any environment still running older Rules may retain the former anonymous exposure.
+
+Before the first externally usable MyPage Phase 0B release, [Issue #1459](https://github.com/kani3camp/youtube-study-space/issues/1459) requires:
+- Provision the dedicated monitor-only Firebase Auth principal, claim, and allowlist entry, then use the implemented interactive sign-in with Firebase local persistence. Persistence after actual OBS/CEF restarts has **not** been proven.
+- Deploy the matching monitor and Rules as a reviewed release pair, then prove that anonymous, normal MyPage users, and all browser writes are rejected in each target environment.
+- Keep repository Client SDK / Security Rules tests for anonymous, authorized monitor, wrong UID, disabled allowlist, and read/list/write behavior. Separately validate wrong-project and expired-session rejection against the selected DEV and PROD projects, including restart, renewal, and operator notification paths.
+- Separate Client SDK enforcement from server-side Go/IAM, which bypasses Security Rules. Do not add service-account credentials to browser bundles or accept an API-key/project split as authorization.
+- In each environment, stage credential/login support **before** enforcing deny-only rules; verify rollback without restoring unrestricted anonymous access.
+
+This section describes an **implemented source boundary and an incomplete live release gate**, not a completed deployment. Keep existing Go Bot and monitor seat-count-control behavior unchanged unless separately approved. Related [MyPage release gate #1133](https://github.com/kani3camp/youtube-study-space/issues/1133) and [Notion Security Canon](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634).
+
 ## Test layers
 
 These checks cover different contracts and are not interchangeable.

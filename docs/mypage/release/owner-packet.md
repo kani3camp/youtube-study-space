@@ -27,9 +27,15 @@ OAuth同意画面の user support email は、**指定済みのOAuthユーザー
 
 D03のうちOAuth user support emailの指定は上記で解消済み。人的Privacy窓口・実公開URL・施行日・管轄など、残る値は公開版へ整合させる。現時点で追加質問を繰り返さず、公開準備時にまとめて実値と本文をreviewする。アプリ内受付の合成検証や公開URLの形式検査は人的運用、D01の実装、D02の適合性確認、D03の実値確定の証拠ではない。
 
+## 2026-10-25 追加のowner確認と公開前コスト/monitor Gate
+
+公開ドメインは `https://moku.work/` として**決定済み**。Cloudflare Registrar/DNS only + Firebase Hosting Custom Domain + Cloud Run Go BFFを初期構成とし、Managed WAF/Cloud Armor/専用LBは初期必須にしない。ドメイン登録の実Active状態、DNS/TLS、OAuth callback、Production配備は別途live readback待ち。旧案のLB/Certificate Managerの準備を再開しない。
+
+0B（URLを知る一般ユーザーが利用可能）までに [monitor専用Firebase Auth/Firestore Rules #1459](https://github.com/kani3camp/youtube-study-space/issues/1459) と [公開Gate #1133](https://github.com/kani3camp/youtube-study-space/issues/1133) を実証する。OBSのライブ構成からsourceを隠し、Interactで`/operator-login`を開いて一度ログインしてから`/`へ戻す方式はsource実装済みだが、実OBS/CEFのログイン永続化・失効通知は未検証。課金についてはDEV/PRODのBilling Budget・複数の通知閾値・通知先・実着信、Cloud RunとFirestoreの利用量監視、DEV/PRODのインスタンス数上限readbackを用意する。Budget通知は課金hard capでなく、Spend Capの利用は別途判断する。
+
 ## OAuth / Hostingの安全な先行準備
 
-今、本人が先に用意できるものは、選ぶ公開domain/予定URL、本人テスト用Google accountと対象channel、Privacy返信窓口の媒体と担当/期限管理、施行日/管轄の公開条件。D01・D02の設計選択は再質問せず、D01の実装・実運用証跡とD02の規約適合性を確認する。既存一般フォームは継続、実名/自宅住所の常時掲載とOAuthサポートメールは再質問しない。インフラの設定値やIAMは担当の証跡で閉じ、新しい本人質問へ置換しない。
+今、本人が先に用意できるものは、既決の公開URL `https://moku.work/` の登録・DNS/TLS実状態、本人テスト用Google accountと対象channel、Privacy返信窓口の媒体と担当/期限管理、施行日/管轄の公開条件。D01・D02の設計選択は再質問せず、D01の実装・実運用証跡とD02の規約適合性を確認する。既存一般フォームは継続、実名/自宅住所の常時掲載とOAuthサポートメールは再質問しない。インフラの設定値やIAMは担当の証跡で閉じ、新しい本人質問へ置換しない。
 
 - App Name/サービス説明、Homepage/Privacy/Terms予定path、user support email（指定済み、実値は安全なoperator設定入力で受け渡す）、未指定のdeveloper contact、所有domainとGoogle Auth PlatformのTesting accounts候補を整理する。指定メールの用途を拡張しない。
 - scopeは既決の `youtube.readonly` のみ。offline access/refresh tokenを追加しない。既存scope justificationと[demo storyboard](https://app.notion.com/p/3ec357a8d0ce812f8520f787fedcc6bd)を実装と照合する。
@@ -46,7 +52,7 @@ D03のうちOAuth user support emailの指定は上記で解消済み。人的Pr
 >
 > 1. D01は独立ServiceAccessControl方式に確定済みです。初期MyPageのguardに加え、Bot未接続期間の実削除では関係legacy writerの全体pause/drainが必要です。方式の選択は再依頼せず、実inventory・再生成防止・横断削除・復元後の再削除を証跡で確認します。moderationとinactive generation checkpointは削除完了後も保持する実装です。
 > 2. D02は、外部Google解除検知だけのためのrefresh token保存と定期pollingを採用しない設計に確定しました。実際の認証/session/metadata flowとアプリ内・Google設定画面の両取消経路で保持済みAPI dataをどう扱うかをverification/complianceへ提示し、規約適合性を確認します。この確認が終わるまで公開Gateは閉じません。
-> 3. 初期公開の通常入口となる、返信可能でログインを必要としないPrivacy窓口の媒体・担当・期限管理、希望する公開domain/予定URL、本人テストaccountと対象channelを用意してください。アプリ内受付・返信UIはsource-onlyで無効のままとし、初期公開の必須経路にしません。既存fresh OAuth・private CLI / Runbookの実運用、横断削除・再生成防止・完了確認は別のGateです。施行日・管轄等は公開予定と本文のreview時に確定します。
+> 3. 初期公開の通常入口となる、返信可能でログインを必要としないPrivacy窓口の媒体・担当・期限管理、決定済み公開URL `https://moku.work/` のDNS/TLS/readback、本人テストaccountと対象channelを用意してください。アプリ内受付・返信UIはsource-onlyで無効のままとし、初期公開の必須経路にしません。既存fresh OAuth・private CLI / Runbookの実運用、横断削除・再生成防止・完了確認は別のGateです。施行日・管轄等は公開予定と本文のreview時に確定します。
 >
 > インフラ担当から受け取るproject/app/IAM等の証跡は別に進めます。Privacy受付の有効化・公開、OAuth実設定・権限変更、live試験、deployや実データ操作は、対象と具体的な操作を確認してから承認を受けて実施します。
 
