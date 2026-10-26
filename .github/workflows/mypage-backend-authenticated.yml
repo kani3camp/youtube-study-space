@@ -1,0 +1,136 @@
+name: MyPage DEV Backend Release
+
+on:
+  workflow_call:
+    inputs:
+      expected_sha:
+        required: true
+        type: string
+      other_operation:
+        required: true
+        type: boolean
+    secrets:
+      MYPAGE_STATE_BUCKET:
+        required: false
+      MYPAGE_STATE_ACCOUNT:
+        required: false
+      MYPAGE_BACKEND_ROLE_ARN:
+        required: false
+      MYPAGE_BACKEND_ROLE_ID:
+        required: false
+      MYPAGE_GCP_WIF_PROVIDER:
+        required: false
+      MYPAGE_GCP_SERVICE_ACCOUNT:
+        required: false
+      MYPAGE_PLAN_HMAC_KEY:
+        required: false
+      MYPAGE_RUNTIME_SETTINGS_JSON:
+        required: false
+
+permissions:
+  contents: read
+
+# Share the release lock with Hosting, including the State readback stage.
+concurrency:
+  group: mypage-dev-hosting-release
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: MyPage DEV Backend Apply and Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: mypage-dev-backend
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MYPAGE_BACKEND_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      MYPAGE_OTHER_OPERATION: ${{ inputs.other_operation }}
+    steps:
+      - name: Checkout reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Reject unreviewed context before authentication
+        run: python3 infra/mypage-platform/scripts/backend_release.py context
+      - name: Authenticate dedicated DEV Backend deployer
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.MYPAGE_BACKEND_WIF_PROVIDER }}
+          service_account: mypage-backend-deploy@test-youtube-study-space.iam.gserviceaccount.com
+          project_id: test-youtube-study-space
+          create_credentials_file: false
+          export_environment_variables: false
+          token_format: access_token
+          access_token_lifetime: 900s
+      - name: Conditionally update only the source-pinned image and verify serving
+        env:
+          MYPAGE_BACKEND_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 infra/mypage-platform/scripts/backend_release.py deploy
+      - name: Preserve recovery references on every outcome
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: mypage-backend-release-record
+          path: ${{ runner.temp }}/mypage-backend-release-record.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  state:
+    name: MyPage DEV Backend State Readback
+    needs: deploy
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-foundation-authenticated.yml
+    with:
+      mode: runtime-public-apply
+      expected_sha: ${{ inputs.expected_sha }}
+    secrets:
+      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
+      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
+      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
+      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
+
+  receipt:
+    name: MyPage DEV Backend Verified Receipt
+    needs: state
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Read this run's release record
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: mypage-backend-release-record
+          path: ${{ runner.temp }}/backend-record
+      - name: Mark successful bounded State readback
+        env:
+          RECORD: ${{ runner.temp }}/backend-record/mypage-backend-release-record.json
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path(os.environ['RECORD'])
+          record = json.loads(path.read_bytes())
+          assert record['sourceSHA'] == os.environ['GITHUB_SHA']
+          assert record['publishStatus'] == 'confirmed' and record['publicReadback'] == 'passed'
+          record['stateReadback'] = 'passed'
+          path.write_text(json.dumps(record, sort_keys=True), encoding='utf-8')
+          PY
+      - name: Preserve complete release record
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: mypage-backend-verified-record
+          path: ${{ runner.temp }}/backend-record/mypage-backend-release-record.json
+          if-no-files-found: error
+          retention-days: 14

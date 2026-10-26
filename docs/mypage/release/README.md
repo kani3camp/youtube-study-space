@@ -8,6 +8,8 @@
 
 ## 1. 現在ある実装と、残る完了条件
 
+DEV Backendのimage更新をCIへ移す経路は [Backend CI手順](backend-ci.md) を参照する。既存image-build→レビュー済みdigest promotion→CIでCloud Run更新/匿名smoke/限定State readbackの順序。専用identityの接続と実CI配備は同手順の実受入記録で判定する。
+
 | 領域 | 既存実装・localで検証できること | 公開前に残ること |
 | --- | --- | --- |
 | OAuth / identity | [AuthService](../../../system/core/mypage/auth.go)、atomic claim/consume、channel確認、短命token、purpose分離 | 実Google account/Brand Account/channel選択・審査 |

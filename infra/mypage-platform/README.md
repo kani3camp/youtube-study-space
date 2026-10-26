@@ -92,6 +92,8 @@ CIの権限を広げず、承認済みの `mypage-api` / `roles/run.invoker` / `
 
 ### Hosting転送の固定ホストとowner image更新
 
+以下は初期接続時のowner操作記録。以後のDEV通常image更新は [Backend CI手順](../../docs/mypage/release/backend-ci.md) で専用deployerへ分離する。既存Terraform SAへRun updateを追加せず、source-pinned digest・resourceVersion・設定不変・限定State refreshを維持する。CI経路の実接続/配備完了は同手順の実受入記録を正とする。
+
 2026-10-21にownerのpublic invokerをrun 39587793777で取り込み、12資源・create/updateなしでState readbackを確認。Hosting release `1792580103818000` を公開し、8ファイルの実配信内容一致を確認した。画面は表示できたが、Hosting経由のAPIはOrigin境界で400となったため、OAuth実試験の前に転送先ホストの明示設定を追加する。S01/S04の合格を意味しない。
 
 `MYPAGE_HOSTING_BACKEND_HOST` は実metadataから得たCloud Run hostnameを固定する。未設定時は従来どおり公開Hostのみを認める。設定時も一致するbackend Host、単一の公開 `X-Forwarded-Host`、単一の `X-Forwarded-Proto: https` を要求する。転送情報は認証根拠とせず、Auth/App Check/Origin/cookie検証とIP判定を維持する。
