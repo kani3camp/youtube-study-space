@@ -33,6 +33,9 @@ if (import.meta.env.DEV) {
 	let apiMaintenanceOnce = mode === 'maintenance-api-recovery-authenticated'
 	let holdNext = false
 	let release: (() => void) | null = null
+	let holdNextChannel = false
+	let releaseChannel: (() => void) | null = null
+	let channelReads = 0
 	const listeners = new Set<(uid: string | null) => void>()
 	const emit = (next: string | null) => {
 		uid = next
@@ -191,19 +194,39 @@ if (import.meta.env.DEV) {
 				{ error: { code: 'OAUTH_TRANSACTION_REQUIRED' } },
 				{ status: 400 },
 			)
-		if (path === '/api/auth/youtube/channel')
+		if (path === '/api/auth/youtube/channel') {
+			channelReads++
+			if (holdNextChannel) {
+				holdNextChannel = false
+				await new Promise<void>((resolve) => {
+					releaseChannel = resolve
+				})
+			}
+			if (mode?.startsWith('maintenance-active-delayed-'))
+				await new Promise((resolve) => setTimeout(resolve, 250))
+			if (mode === 'maintenance-active-delayed-failure')
+				return Response.json(
+					{ error: { code: 'TEMPORARY_UNAVAILABLE' } },
+					{ status: 503 },
+				)
 			return Response.json({
 				...(mode?.startsWith('support-confirm-') ||
-				mode === 'privacy-intake-authenticated'
+				mode === 'privacy-intake-authenticated' ||
+				mode === 'maintenance-active-delayed-support'
 					? {
 							purpose: 'support',
 							supportPurpose:
 								mode === 'privacy-intake-authenticated'
 									? 'delete'
-									: mode.split('-')[2],
+									: mode === 'maintenance-active-delayed-support'
+										? 'delete'
+										: mode.split('-')[2],
 						}
 					: { purpose: 'login' }),
-				displayName: 'Sample Channel',
+				displayName:
+					mode === 'channel-visibility-refresh'
+						? `Sample Channel ${channelReads}`
+						: 'Sample Channel',
 				handle: '@sample',
 				avatarUrl:
 					mode === 'channel-avatar-failure'
@@ -211,6 +234,7 @@ if (import.meta.env.DEV) {
 						: null,
 				confirmationRef: 'a'.repeat(64),
 			})
+		}
 		if (path === '/api/auth/youtube/confirm') {
 			if (holdNext) {
 				holdNext = false
@@ -372,6 +396,22 @@ if (import.meta.env.DEV) {
 						onClick={() => release?.()}
 					>
 						Release response
+					</button>
+					<button
+						id="synthetic-hold-channel"
+						type="button"
+						onClick={() => {
+							holdNextChannel = true
+						}}
+					>
+						Hold channel response
+					</button>
+					<button
+						id="synthetic-release-channel"
+						type="button"
+						onClick={() => releaseChannel?.()}
+					>
+						Release channel response
 					</button>
 					<button
 						id="synthetic-maintenance-normal"

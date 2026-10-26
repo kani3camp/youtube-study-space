@@ -672,76 +672,128 @@ export function createApp(
 			setRestriction(activeRestriction)
 		}, [activeRestriction])
 		useEffect(() => {
-			if (!channel) return
-			const destination = maintenanceDestination(
-				'/login/channel-confirm',
-				false,
-				maintenance.phase,
-				channel.purpose,
-			)
-			if (destination) void router.navigate({ to: destination, replace: true })
-		}, [channel, maintenance.phase])
-		useEffect(() => {
-			const c = new AbortController()
-			controller.current = c
+			let disposed = false
+			let interrupted = false
+			let kind: 'unknown' | 'login' | 'support' = 'unknown'
+			let hasChannel = false
+			let maintenanceUpdatedAt =
+				runtime.maintenance.getSnapshot().status?.updatedAt ?? null
 			let previousUID = runtime.session?.currentUID()
-			const invalidate = () => {
-				c.abort()
+			const close = (markInterrupted: boolean) => {
+				if (markInterrupted) interrupted = true
+				controller.current?.abort()
+				controller.current = null
+				hasChannel = false
 				setChannel(null)
 				setBusy(false)
-				setError(
-					'確認が中断されました。下のリンクから手続きをやり直してください。',
-				)
+				confirming.current = false
+				if (markInterrupted)
+					setError(
+						'確認が中断されました。下のリンクから手続きをやり直してください。',
+					)
 			}
-			const unsubscribe = runtime.session?.subscribe((uid) => {
-				if (uid !== previousUID && supportConfirmation.current) invalidate()
-				previousUID = uid
-			})
-			window.addEventListener('pagehide', invalidate)
-			void runtime
-				.channel(c.signal)
-				.then((data) => {
-					if (!c.signal.aborted) {
+			const load = () => {
+				if (
+					disposed ||
+					interrupted ||
+					controller.current ||
+					hasChannel ||
+					kind === 'support'
+				)
+					return
+				const c = new AbortController()
+				controller.current = c
+				setError(null)
+				void runtime
+					.channel(c.signal)
+					.then((data) => {
+						if (disposed || c.signal.aborted || controller.current !== c) return
 						channelGeneration.current = runtime.memory.generation
-						setChannel(data)
+						kind = data.purpose
 						supportConfirmation.current = data.purpose === 'support'
 						setSupportFlow(data.purpose === 'support')
-						if (data.purpose === 'support')
+						if (data.purpose === 'support') {
+							hasChannel = true
+							setChannel(data)
 							runtime.maintenance.setRouteActive(false)
-						if (data.purpose === 'login')
-							privacyServices.analytics.event('channel_confirmation_viewed')
-					}
-				})
-				.catch((e) => {
-					if (c.signal.aborted) return
-					if (e instanceof RequestError && e.code === 'MAINTENANCE_ACTIVE') {
-						void router.navigate({ to: '/maintenance', replace: true })
-						return
-					}
-					const restriction = restrictionFrom(e)
-					if (restriction) {
-						setChannel(null)
-						setRestriction(restriction)
-						return
-					}
-					if (
-						e instanceof RequestError &&
-						e.code.startsWith('OAUTH_TRANSACTION_')
-					) {
-						void router.navigate({
-							to: '/login',
-							search: { error: 'oauth_state_invalid', logout: true },
-						})
-					} else {
-						if (e instanceof RequestError && e.code.startsWith('SUPPORT_'))
-							setSupportFlow(true)
-						setError(message(e))
-					}
-				})
+							return
+						}
+						privacyServices.analytics.event('channel_confirmation_viewed')
+						const current = runtime.maintenance.getSnapshot()
+						if (current.phase === 'normal') {
+							hasChannel = true
+							setChannel(data)
+						} else {
+							controller.current = null
+							if (current.phase === 'active')
+								void router.navigate({ to: '/maintenance', replace: true })
+						}
+					})
+					.catch((e) => {
+						if (disposed || c.signal.aborted || controller.current !== c) return
+						controller.current = null
+						if (
+							runtime.maintenance.getSnapshot().phase === 'active' ||
+							(e instanceof RequestError && e.code === 'MAINTENANCE_ACTIVE')
+						) {
+							void router.navigate({ to: '/maintenance', replace: true })
+							return
+						}
+						const foundRestriction = restrictionFrom(e)
+						if (foundRestriction) {
+							setChannel(null)
+							setRestriction(foundRestriction)
+							return
+						}
+						if (
+							e instanceof RequestError &&
+							e.code.startsWith('OAUTH_TRANSACTION_')
+						) {
+							void router.navigate({
+								to: '/login',
+								search: { error: 'oauth_state_invalid', logout: true },
+							})
+						} else {
+							if (e instanceof RequestError && e.code.startsWith('SUPPORT_'))
+								setSupportFlow(true)
+							setError(message(e))
+						}
+					})
+			}
+			const maintenanceChanged = () => {
+				const current = runtime.maintenance.getSnapshot()
+				const changedNormal =
+					current.phase === 'normal' &&
+					maintenanceUpdatedAt !== null &&
+					current.status.updatedAt !== maintenanceUpdatedAt
+				maintenanceUpdatedAt = current.status?.updatedAt ?? null
+				if (interrupted) return
+				if (kind !== 'login') return
+				if (current.phase !== 'normal' || changedNormal) close(false)
+				if (current.phase === 'active')
+					void router.navigate({ to: '/maintenance', replace: true })
+				else if (current.phase === 'normal') load()
+			}
+			const unsubscribe = runtime.session?.subscribe((uid) => {
+				if (uid !== previousUID && supportConfirmation.current) close(true)
+				previousUID = uid
+			})
+			const unsubscribeMaintenance =
+				runtime.maintenance.subscribe(maintenanceChanged)
+			const pagehide = () => close(true)
+			const pageshow = (event: PageTransitionEvent) => {
+				if (event.persisted) close(true)
+			}
+			window.addEventListener('pagehide', pagehide)
+			window.addEventListener('pageshow', pageshow)
+			load()
 			return () => {
-				c.abort()
+				disposed = true
+				controller.current?.abort()
 				unsubscribe?.()
-				window.removeEventListener('pagehide', invalidate)
+				unsubscribeMaintenance()
+				window.removeEventListener('pagehide', pagehide)
+				window.removeEventListener('pageshow', pageshow)
 			}
 		}, [])
 		const confirm = async () => {
@@ -790,6 +842,8 @@ export function createApp(
 				}
 			}
 		}
+		if (maintenance.phase === 'active' && channel?.purpose !== 'support')
+			return <MaintenancePage />
 		if (maintenance.phase !== 'normal' && channel?.purpose !== 'support')
 			return <MaintenanceGatePending />
 		return (

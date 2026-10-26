@@ -19,6 +19,7 @@ INVOKER = "module.platform[0].google_cloud_run_v2_service_iam_member.public_invo
 MAINTENANCE_OPERATOR_SA = "module.platform[0].google_service_account.maintenance_operator[0]"
 MAINTENANCE_INVOKER_SA = "module.platform[0].google_service_account.maintenance_invoker[0]"
 MAINTENANCE_BOOTSTRAP_SA = "module.platform[0].google_service_account.maintenance_bootstrap[0]"
+MAINTENANCE_INSPECT_INVOKER_SA = "module.platform[0].google_service_account.maintenance_inspect_invoker[0]"
 MAINTENANCE_ROLE = "module.platform[0].google_project_iam_custom_role.maintenance_firestore[0]"
 MAINTENANCE_FIRESTORE = "module.platform[0].google_project_iam_member.maintenance_firestore[0]"
 MAINTENANCE_BOOTSTRAP_ROLE = "module.platform[0].google_project_iam_custom_role.maintenance_bootstrap_reader[0]"
@@ -26,7 +27,7 @@ MAINTENANCE_BOOTSTRAP_FIRESTORE = "module.platform[0].google_project_iam_member.
 MAINTENANCE_POOL = "module.platform[0].google_iam_workload_identity_pool.maintenance_github[0]"
 MAINTENANCE_PROVIDER = "module.platform[0].google_iam_workload_identity_pool_provider.maintenance_github[0]"
 MAINTENANCE_WIF = "module.platform[0].google_service_account_iam_member.maintenance_workload_identity[0]"
-MAINTENANCE_INSPECT_WIF = "module.platform[0].google_service_account_iam_member.maintenance_bootstrap_workload_identity[0]"
+MAINTENANCE_INSPECT_WIF = "module.platform[0].google_service_account_iam_member.maintenance_inspect_workload_identity[0]"
 MAINTENANCE_JOB = "module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]"
 MAINTENANCE_JOB_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_invoker[0]"
 MAINTENANCE_BREAKGLASS_JOB = "module.platform[0].google_cloud_run_v2_job.maintenance_breakglass[0]"
@@ -34,6 +35,8 @@ MAINTENANCE_BOOTSTRAP_JOB = "module.platform[0].google_cloud_run_v2_job.maintena
 MAINTENANCE_BOOTSTRAP_PLAN_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_bootstrap_foundation_plan[0]"
 MAINTENANCE_BOOTSTRAP_APPLY_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_bootstrap_foundation_apply[0]"
 MAINTENANCE_BOOTSTRAP_BACKEND_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_bootstrap_backend_deployer[0]"
+MAINTENANCE_INSPECT_SERVICE = "module.platform[0].google_cloud_run_v2_service.maintenance_inspect[0]"
+MAINTENANCE_INSPECT_SERVICE_INVOKER = "module.platform[0].google_cloud_run_v2_service_iam_member.maintenance_inspect_invoker[0]"
 MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-operator-apply": "maintenance_operator",
          "maintenance-upgrade-plan": "maintenance_upgrade", "maintenance-upgrade-apply": "maintenance_upgrade",
          "runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
@@ -99,10 +102,12 @@ def maintenance_resource_contract(value=None):
     operator_email = "mypage-maintenance-job@" + c.PROJECT + ".iam.gserviceaccount.com"
     invoker_email = "mypage-maintenance-invoker@" + c.PROJECT + ".iam.gserviceaccount.com"
     bootstrap_email = "mypage-maintenance-bootstrap@" + c.PROJECT + ".iam.gserviceaccount.com"
+    inspect_invoker_email = "mypage-maint-inspect-invoker@" + c.PROJECT + ".iam.gserviceaccount.com"
     resources = {
         MAINTENANCE_OPERATOR_SA: {"project": c.PROJECT, "account_id": "mypage-maintenance-job"},
         MAINTENANCE_INVOKER_SA: {"project": c.PROJECT, "account_id": "mypage-maintenance-invoker"},
         MAINTENANCE_BOOTSTRAP_SA: {"project": c.PROJECT, "account_id": "mypage-maintenance-bootstrap"},
+        MAINTENANCE_INSPECT_INVOKER_SA: {"project": c.PROJECT, "account_id": "mypage-maint-inspect-invoker"},
         MAINTENANCE_ROLE: {"project": c.PROJECT, "role_id": "mypageMaintenanceOperator", "stage": "GA",
                            "permissions": ["datastore.databases.get", "datastore.entities.create", "datastore.entities.get", "datastore.entities.update"]},
         MAINTENANCE_FIRESTORE: {"project": c.PROJECT, "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceOperator", "member": "serviceAccount:" + operator_email},
@@ -120,6 +125,10 @@ def maintenance_resource_contract(value=None):
         MAINTENANCE_BOOTSTRAP_PLAN_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-foundation-plan@" + c.PROJECT + ".iam.gserviceaccount.com"},
         MAINTENANCE_BOOTSTRAP_APPLY_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-foundation-apply@" + c.PROJECT + ".iam.gserviceaccount.com"},
         MAINTENANCE_BOOTSTRAP_BACKEND_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"},
+        MAINTENANCE_INSPECT_SERVICE: {"project": c.PROJECT, "name": "mypage-maintenance-inspect", "location": c.REGION,
+                                      "ingress": "INGRESS_TRAFFIC_ALL", "deletion_protection": True, "invoker_iam_disabled": False},
+        MAINTENANCE_INSPECT_SERVICE_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-inspect",
+                                              "role": "roles/run.invoker", "member": "serviceAccount:" + inspect_invoker_email},
     }
     if value is not None:
         resources[MAINTENANCE_PROVIDER] |= {
@@ -140,13 +149,14 @@ def maintenance_resource_contract(value=None):
             "member": "principalSet://iam.googleapis.com/projects/" + c.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance/attribute.workflow_ref/kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@" + c.REF,
         }
         resources[MAINTENANCE_INSPECT_WIF] |= {
-            "service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + bootstrap_email,
+            "service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + inspect_invoker_email,
             "member": "principalSet://iam.googleapis.com/projects/" + c.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance/attribute.workflow_ref/kani3camp/youtube-study-space/.github/workflows/mypage-maintenance-inspect.yml@" + c.REF,
         }
         resources[MAINTENANCE_JOB]["template"] = [{
             "task_count": 1, "parallelism": 1,
             "template": [{
                 "service_account": operator_email, "max_retries": 0, "timeout": "60s",
+                "execution_environment": "EXECUTION_ENVIRONMENT_GEN2",
                 "containers": [{
                     "image": value["maintenance_operator_image_digest"], "command": ["/app/mypage-maintenance-operator"], "args": [],
                     "resources": [{"limits": {"cpu": "1", "memory": "512Mi"}}],
@@ -161,6 +171,7 @@ def maintenance_resource_contract(value=None):
             "task_count": 1, "parallelism": 1,
             "template": [{
                 "service_account": operator_email, "max_retries": 0, "timeout": "60s",
+                "execution_environment": "EXECUTION_ENVIRONMENT_GEN2",
                 "containers": [{
                     "image": value["maintenance_operator_image_digest"], "command": ["/app/mypage-maintenance-breakglass"], "args": [],
                     "resources": [{"limits": {"cpu": "1", "memory": "512Mi"}}],
@@ -175,6 +186,7 @@ def maintenance_resource_contract(value=None):
             "task_count": 1, "parallelism": 1,
             "template": [{
                 "service_account": bootstrap_email, "max_retries": 0, "timeout": "30s",
+                "execution_environment": "EXECUTION_ENVIRONMENT_GEN2",
                 "containers": [{
                     "image": value["maintenance_operator_image_digest"], "command": ["/app/mypage-maintenance-bootstrap-check"], "args": [],
                     "resources": [{"limits": {"cpu": "1", "memory": "512Mi"}}],
@@ -183,6 +195,28 @@ def maintenance_resource_contract(value=None):
                         {"name": "MYPAGE_ENVIRONMENT", "value": c.ENVIRONMENT},
                     ],
                 }],
+            }],
+        }]
+        resources[MAINTENANCE_INSPECT_SERVICE]["scaling"] = [{
+            "min_instance_count": 0, "max_instance_count": 1, "scaling_mode": "AUTOMATIC",
+        }]
+        resources[MAINTENANCE_INSPECT_SERVICE]["traffic"] = [{
+            "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST", "percent": 100,
+        }]
+        resources[MAINTENANCE_INSPECT_SERVICE]["template"] = [{
+            "service_account": bootstrap_email, "timeout": "20s", "max_instance_request_concurrency": 1,
+            "execution_environment": "EXECUTION_ENVIRONMENT_GEN2",
+            "scaling": [{"min_instance_count": 0, "max_instance_count": 1}],
+            "containers": [{
+                "image": value["maintenance_operator_image_digest"], "command": ["/app/mypage-maintenance-inspect"], "args": [],
+                "ports": [{"name": "http1", "container_port": 8080}],
+                "resources": [{"limits": {"cpu": "1", "memory": "512Mi"}, "cpu_idle": True, "startup_cpu_boost": False}],
+                "startup_probe": [{"initial_delay_seconds": 0, "timeout_seconds": 1, "period_seconds": 10,
+                                   "failure_threshold": 3, "tcp_socket": [{"port": 8080}]}],
+                "env": [
+                    {"name": "GOOGLE_CLOUD_PROJECT", "value": c.PROJECT},
+                    {"name": "MYPAGE_ENVIRONMENT", "value": c.ENVIRONMENT},
+                ],
             }],
         }]
     return resources
@@ -236,6 +270,22 @@ def empty_options(value, names):
         c.need(value.get(name) in (None, "", False, 0, [], {}), "runtime-unsupported-option")
 
 
+def fixed_options(value, allowed, check):
+    """Reject every non-empty provider field outside a fixed config allowlist."""
+    c.need(type(value) is dict, check)
+    for name, option in value.items():
+        if name not in allowed:
+            c.need(option in (None, "", False, 0, [], {}), check)
+
+
+JOB_OBSERVED_OPTIONS = {
+    "conditions", "create_time", "creator", "delete_time", "effective_annotations", "effective_labels",
+    "deletion_policy", "etag", "execution_count", "expire_time", "generation", "id", "last_modifier",
+    "latest_created_execution", "launch_stage",
+    "observed_generation", "reconciling", "terminal_condition", "terraform_labels", "uid", "update_time",
+}
+
+
 def known_path(mask, *path):
     for part in path:
         c.need(mask is not True, "runtime-config-unknown")
@@ -250,7 +300,8 @@ def validate_maintenance_resource(address, after, unknown, value):
     operator_email = "mypage-maintenance-job@" + c.PROJECT + ".iam.gserviceaccount.com"
     invoker_email = "mypage-maintenance-invoker@" + c.PROJECT + ".iam.gserviceaccount.com"
     bootstrap_email = "mypage-maintenance-bootstrap@" + c.PROJECT + ".iam.gserviceaccount.com"
-    if address in {MAINTENANCE_OPERATOR_SA, MAINTENANCE_INVOKER_SA, MAINTENANCE_BOOTSTRAP_SA}:
+    inspect_invoker_email = "mypage-maint-inspect-invoker@" + c.PROJECT + ".iam.gserviceaccount.com"
+    if address in {MAINTENANCE_OPERATOR_SA, MAINTENANCE_INVOKER_SA, MAINTENANCE_BOOTSTRAP_SA, MAINTENANCE_INSPECT_INVOKER_SA}:
         c.need(after.get("disabled") in {None, False}, "maintenance-service-account-disabled")
         return
     if address in {MAINTENANCE_ROLE, MAINTENANCE_BOOTSTRAP_ROLE}:
@@ -279,7 +330,7 @@ def validate_maintenance_resource(address, after, unknown, value):
         c.need(oidc.get("issuer_uri") == "https://token.actions.githubusercontent.com" and not oidc.get("allowed_audiences"), "maintenance-provider-issuer")
         return
     if address in {MAINTENANCE_WIF, MAINTENANCE_INSPECT_WIF}:
-        email = invoker_email if address == MAINTENANCE_WIF else bootstrap_email
+        email = invoker_email if address == MAINTENANCE_WIF else inspect_invoker_email
         workflow = "mypage-maintenance.yml" if address == MAINTENANCE_WIF else "mypage-maintenance-inspect.yml"
         c.need(after.get("service_account_id") in {
             "projects/" + c.PROJECT + "/serviceAccounts/" + email,
@@ -289,30 +340,119 @@ def validate_maintenance_resource(address, after, unknown, value):
         c.need(after.get("member") == expected_member, "maintenance-wif-member")
         return
     if address in {MAINTENANCE_JOB, MAINTENANCE_BREAKGLASS_JOB}:
+        fixed_options(after, {"project", "name", "location", "deletion_protection", "template"} | JOB_OBSERVED_OPTIONS, "maintenance-job-options")
         template = one(after.get("template"), "maintenance-job-template")
+        fixed_options(template, {"task_count", "parallelism", "template"}, "maintenance-job-template-options")
         c.need(template.get("task_count") == 1 and template.get("parallelism") == 1, "maintenance-job-single-task")
         task = one(template.get("template"), "maintenance-job-task")
-        c.need(task.get("service_account") == operator_email and task.get("max_retries") == 0 and task.get("timeout") == "60s", "maintenance-job-runtime")
+        fixed_options(task, {"service_account", "max_retries", "timeout", "execution_environment", "containers"}, "maintenance-job-task-options")
+        c.need(task.get("service_account") == operator_email and task.get("max_retries") == 0 and task.get("timeout") == "60s"
+               and task.get("execution_environment") == "EXECUTION_ENVIRONMENT_GEN2", "maintenance-job-runtime")
         container = one(task.get("containers"), "maintenance-job-container")
+        fixed_options(container, {"image", "command", "args", "resources", "env"}, "maintenance-job-container-options")
         expected_command = "/app/mypage-maintenance-operator" if address == MAINTENANCE_JOB else "/app/mypage-maintenance-breakglass"
         c.need(container.get("image") == value["maintenance_operator_image_digest"] and container.get("command") == [expected_command] and not container.get("args"), "maintenance-job-image-command")
-        env = {item.get("name"): item.get("value") for item in container.get("env", [])}
+        environment = container.get("env")
+        c.need(type(environment) is list and all(type(item) is dict for item in environment), "maintenance-job-environment")
+        for item in environment:
+            fixed_options(item, {"name", "value"}, "maintenance-job-environment-options")
+        env = {item.get("name"): item.get("value") for item in environment}
+        c.need(len(env) == len(environment), "maintenance-job-environment")
         c.need(env == {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": c.ENVIRONMENT}, "maintenance-job-environment")
         resources = one(container.get("resources"), "maintenance-job-resources")
+        fixed_options(resources, {"limits"}, "maintenance-job-resource-options")
         c.need(resources.get("limits") == {"cpu": "1", "memory": "512Mi"}, "maintenance-job-limits")
         return
     if address == MAINTENANCE_BOOTSTRAP_JOB:
+        fixed_options(after, {"project", "name", "location", "deletion_protection", "template"} | JOB_OBSERVED_OPTIONS, "maintenance-bootstrap-options")
         template = one(after.get("template"), "maintenance-bootstrap-template")
+        fixed_options(template, {"task_count", "parallelism", "template"}, "maintenance-bootstrap-template-options")
         c.need(template.get("task_count") == 1 and template.get("parallelism") == 1, "maintenance-bootstrap-single-task")
         task = one(template.get("template"), "maintenance-bootstrap-task")
-        c.need(task.get("service_account") == bootstrap_email and task.get("max_retries") == 0 and task.get("timeout") == "30s", "maintenance-bootstrap-runtime")
+        fixed_options(task, {"service_account", "max_retries", "timeout", "execution_environment", "containers"}, "maintenance-bootstrap-task-options")
+        c.need(task.get("service_account") == bootstrap_email and task.get("max_retries") == 0 and task.get("timeout") == "30s"
+               and task.get("execution_environment") == "EXECUTION_ENVIRONMENT_GEN2", "maintenance-bootstrap-runtime")
         container = one(task.get("containers"), "maintenance-bootstrap-container")
+        fixed_options(container, {"image", "command", "args", "resources", "env"}, "maintenance-bootstrap-container-options")
         c.need(container.get("image") == value["maintenance_operator_image_digest"] and container.get("command") == ["/app/mypage-maintenance-bootstrap-check"] and not container.get("args"), "maintenance-bootstrap-image-command")
-        env = {item.get("name"): item.get("value") for item in container.get("env", [])}
+        environment = container.get("env")
+        c.need(type(environment) is list and all(type(item) is dict for item in environment), "maintenance-bootstrap-environment")
+        for item in environment:
+            fixed_options(item, {"name", "value"}, "maintenance-bootstrap-environment-options")
+        env = {item.get("name"): item.get("value") for item in environment}
+        c.need(len(env) == len(environment), "maintenance-bootstrap-environment")
         c.need(env == {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": c.ENVIRONMENT}, "maintenance-bootstrap-environment")
         resources = one(container.get("resources"), "maintenance-bootstrap-resources")
+        fixed_options(resources, {"limits"}, "maintenance-bootstrap-resource-options")
         c.need(resources.get("limits") == {"cpu": "1", "memory": "512Mi"}, "maintenance-bootstrap-limits")
         return
+    if address == MAINTENANCE_INSPECT_SERVICE:
+        validate_inspect_service(after, unknown, value, bootstrap_email)
+        return
+
+
+def validate_inspect_service(after, unknown, value, bootstrap_email=None):
+    bootstrap_email = bootstrap_email or "mypage-maintenance-bootstrap@" + c.PROJECT + ".iam.gserviceaccount.com"
+    for key in ("project", "name", "location", "ingress", "deletion_protection", "invoker_iam_disabled"):
+        c.need(not c.has_unknown(unknown.get(key)), "maintenance-inspect-unknown")
+    for key in ("min_instance_count", "max_instance_count", "scaling_mode"):
+        known_path(unknown, "scaling", 0, key)
+    for key in ("type", "percent"):
+        known_path(unknown, "traffic", 0, key)
+    for key in ("service_account", "timeout", "max_instance_request_concurrency", "execution_environment", "scaling"):
+        known_path(unknown, "template", 0, key)
+    for key in ("image", "command", "args", "ports", "resources", "env", "startup_probe"):
+        known_path(unknown, "template", 0, "containers", 0, key)
+    fixed_options(after, {
+        "project", "name", "location", "ingress", "deletion_protection", "invoker_iam_disabled",
+        "scaling", "traffic", "template", "annotations", "labels", "launch_stage", "client", "client_version",
+        "conditions", "create_time", "creator", "delete_time", "deletion_policy", "effective_annotations",
+        "effective_labels", "etag", "expire_time", "generation", "id", "last_modifier", "latest_created_revision",
+        "latest_ready_revision", "observed_generation", "reconciling", "terminal_condition", "terraform_labels",
+        "traffic_statuses", "uid", "update_time", "uri", "urls",
+    }, "maintenance-inspect-options")
+    empty_options(after, ("annotations", "labels"))
+    scaling = one(after.get("scaling"), "maintenance-inspect-scaling")
+    fixed_options(scaling, {"min_instance_count", "max_instance_count", "scaling_mode"}, "maintenance-inspect-scaling-options")
+    c.need(scaling.get("min_instance_count") == 0 and scaling.get("max_instance_count") == 1
+           and scaling.get("scaling_mode") == "AUTOMATIC", "maintenance-inspect-scaling")
+    traffic = one(after.get("traffic"), "maintenance-inspect-traffic")
+    fixed_options(traffic, {"type", "percent", "revision", "tag"}, "maintenance-inspect-traffic-options")
+    c.need(traffic.get("type") == "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST" and traffic.get("percent") == 100
+           and not traffic.get("tag"), "maintenance-inspect-traffic")
+    c.need(not traffic.get("revision") or re.fullmatch(r"mypage-maintenance-inspect-[a-z0-9-]{1,50}", traffic["revision"]), "maintenance-inspect-traffic")
+    template = one(after.get("template"), "maintenance-inspect-template")
+    fixed_options(template, {"service_account", "timeout", "max_instance_request_concurrency", "execution_environment",
+                             "scaling", "containers", "revision", "annotations", "labels"}, "maintenance-inspect-template-options")
+    empty_options(template, ("annotations", "labels"))
+    c.need(template.get("service_account") == bootstrap_email and template.get("timeout") == "20s"
+           and template.get("max_instance_request_concurrency") == 1
+           and template.get("execution_environment") == "EXECUTION_ENVIRONMENT_GEN2", "maintenance-inspect-template")
+    c.need(not template.get("revision") or re.fullmatch(r"mypage-maintenance-inspect-[a-z0-9-]{1,50}", template["revision"]), "maintenance-inspect-template")
+    template_scaling = one(template.get("scaling"), "maintenance-inspect-template-scaling")
+    fixed_options(template_scaling, {"min_instance_count", "max_instance_count"}, "maintenance-inspect-template-scaling-options")
+    c.need(template_scaling.get("min_instance_count") == 0 and template_scaling.get("max_instance_count") == 1,
+           "maintenance-inspect-template-scaling")
+    container = one(template.get("containers"), "maintenance-inspect-container")
+    fixed_options(container, {"image", "command", "args", "ports", "resources", "env", "startup_probe"}, "maintenance-inspect-container-options")
+    c.need(container.get("image") == value["maintenance_operator_image_digest"]
+           and container.get("command") == ["/app/mypage-maintenance-inspect"] and not container.get("args"), "maintenance-inspect-image-command")
+    port = one(container.get("ports"), "maintenance-inspect-port")
+    c.need(port == {"name": "http1", "container_port": 8080}, "maintenance-inspect-port")
+    resources = one(container.get("resources"), "maintenance-inspect-resources")
+    fixed_options(resources, {"limits", "cpu_idle", "startup_cpu_boost"}, "maintenance-inspect-resource-options")
+    c.need(resources == {"limits": {"cpu": "1", "memory": "512Mi"}, "cpu_idle": True, "startup_cpu_boost": False}, "maintenance-inspect-resources")
+    probe = one(container.get("startup_probe"), "maintenance-inspect-probe")
+    fixed_options(probe, {"initial_delay_seconds", "timeout_seconds", "period_seconds", "failure_threshold", "tcp_socket"}, "maintenance-inspect-probe-options")
+    c.need(probe.get("initial_delay_seconds") == 0 and probe.get("timeout_seconds") == 1
+           and probe.get("period_seconds") == 10 and probe.get("failure_threshold") == 3, "maintenance-inspect-probe")
+    c.need(one(probe.get("tcp_socket"), "maintenance-inspect-probe") == {"port": 8080}, "maintenance-inspect-probe")
+    environment = container.get("env")
+    c.need(type(environment) is list and all(type(item) is dict for item in environment), "maintenance-inspect-environment")
+    for item in environment:
+        fixed_options(item, {"name", "value"}, "maintenance-inspect-environment-options")
+    env = {item.get("name"): item.get("value") for item in environment}
+    c.need(len(env) == len(environment) and env == {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": c.ENVIRONMENT}, "maintenance-inspect-environment")
 
 
 def validate_service(after, unknown, value):
@@ -579,7 +719,8 @@ def validate_initial_plan(plan, stage):
             # policy etag, while these fixed managed members stay unchanged.
             c.need(address in {FIRESTORE, INVOKER, MAINTENANCE_FIRESTORE, MAINTENANCE_BOOTSTRAP_FIRESTORE,
                                MAINTENANCE_WIF, MAINTENANCE_INSPECT_WIF, MAINTENANCE_JOB_INVOKER, MAINTENANCE_BOOTSTRAP_PLAN_INVOKER,
-                               MAINTENANCE_BOOTSTRAP_APPLY_INVOKER, MAINTENANCE_BOOTSTRAP_BACKEND_INVOKER}
+                               MAINTENANCE_BOOTSTRAP_APPLY_INVOKER, MAINTENANCE_BOOTSTRAP_BACKEND_INVOKER,
+                               MAINTENANCE_INSPECT_SERVICE_INVOKER}
                    and address in expected, "runtime-drift-address")
             member_values = expected[address]
             if address == INVOKER and item.get("change", {}).get("after", {}).get("name") == PUBLIC_INVOKER_NAME:
@@ -613,6 +754,8 @@ def validate_initial_plan(plan, stage):
         c.need(type(after) is dict and not after.get("condition"), "runtime-resource-after")
         for key, expected_value in expected[address].items():
             if address in {MAINTENANCE_JOB, MAINTENANCE_BREAKGLASS_JOB, MAINTENANCE_BOOTSTRAP_JOB} and key == "template":
+                continue
+            if address == MAINTENANCE_INSPECT_SERVICE and key in {"template", "scaling", "traffic"}:
                 continue
             if address == MAINTENANCE_PROVIDER and key in {"attribute_condition", "attribute_mapping", "oidc"}:
                 continue

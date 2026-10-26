@@ -310,6 +310,38 @@ describe('public maintenance status', () => {
 		}
 	})
 
+	it.each([
+		'2026-02-30T00:00:00Z',
+		'2025-02-29T00:00:00Z',
+		'2026-01-01T24:00:00Z',
+		'2026-01-01T00:60:00Z',
+		'2026-01-01T00:00:60Z',
+		'2026-01-01T00:00:00+24:00',
+		'2026-01-01T00:00:00.1234567890Z',
+	])('rejects normalized or out-of-range RFC3339 timestamp %s', (updatedAt) => {
+		expect(() =>
+			parseMaintenanceStatus({
+				state: 'NORMAL',
+				updatedAt,
+				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
+			}),
+		).toThrow('invalid maintenance status')
+	})
+
+	it.each([
+		'2024-02-29T23:59:59Z',
+		'2026-01-01T00:00:00.123456789+09:00',
+		'0001-01-01T00:00:00-00:00',
+	])('accepts strict calendar-valid RFC3339 timestamp %s', (updatedAt) => {
+		expect(
+			parseMaintenanceStatus({
+				state: 'NORMAL',
+				updatedAt,
+				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
+			}).updatedAt,
+		).toBe(updatedAt)
+	})
+
 	it('preserves the authoritative estimate when an API error repeats ACTIVE', async () => {
 		browserFixture()
 		const monitor = new MaintenanceMonitor(async () =>

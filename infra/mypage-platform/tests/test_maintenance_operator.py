@@ -75,6 +75,9 @@ print(json.dumps({
         self.assertIn('member   = "serviceAccount:${local.maintenance_invoker_email}"', source)
         self.assertNotIn('roles/datastore.user"\n  member  = "serviceAccount:${local.maintenance_invoker_email}', source)
         self.assertIn('command = ["/app/mypage-maintenance-operator"]', source)
+        self.assertIn('account_id   = "mypage-maint-inspect-invoker"', source)
+        self.assertIn('member   = "serviceAccount:${local.maintenance_inspect_invoker_email}"', source)
+        self.assertNotIn('serviceAccount:${local.maintenance_inspect_invoker_email}"\n\n  depends_on = [google_project_iam_member.maintenance_bootstrap_reader]', source)
 
     def test_operator_graph_directly_orders_identity_consumers(self):
         source = (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text()
@@ -85,8 +88,8 @@ print(json.dumps({
         self.assertIn('google_project_iam_custom_role.maintenance_bootstrap_reader,', source)
         self.assertIn('google_cloud_run_v2_job.maintenance_operator,', source)
         self.assertEqual(source.count('google_iam_workload_identity_pool_provider.maintenance_github,'), 2)
-        self.assertEqual(source.count('service_account = local.maintenance_operator_email'), 2)
-        self.assertIn('service_account = local.maintenance_bootstrap_email', source)
+        self.assertEqual(len(re.findall(r'service_account\s+= local\.maintenance_operator_email', source)), 2)
+        self.assertRegex(source, r'service_account\s+= local\.maintenance_bootstrap_email')
         self.assertIn('depends_on = [google_project_iam_member.maintenance_firestore]', source)
         self.assertIn('depends_on = [google_project_iam_member.maintenance_bootstrap_reader]', source)
         self.assertIn('member  = "serviceAccount:${local.maintenance_bootstrap_email}"', source)
@@ -119,7 +122,7 @@ print(json.dumps({
         self.assertIn('command = ["/app/mypage-maintenance-bootstrap-check"]', source)
         self.assertIn('command = ["/app/mypage-maintenance-breakglass"]', source)
         self.assertIn('member   = "serviceAccount:${local.backend_deployer_email}"', source)
-        self.assertEqual(source.count('role     = "roles/run.invoker"'), 4)  # public API plus three fixed bootstrap callers
+        self.assertEqual(source.count('role     = "roles/run.invoker"'), 5)  # public API, three bootstrap callers, fixed inspect service
 
     def test_bootstrap_stage_precedes_api_and_override_role_is_exact(self):
         source = (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text()
@@ -134,6 +137,7 @@ print(json.dumps({
             "mypage-maintenance-operator",
             "mypage-maintenance-breakglass",
             "mypage-maintenance-bootstrap-check",
+            "mypage-maintenance-inspect",
         ):
             self.assertIn(binary, image_check)
 
@@ -269,6 +273,8 @@ print(json.dumps({"prefix": image_ops.PREFIX, "registry": registry, "allowed": a
         self.assertNotIn("configure-aws-credentials", image_build)
         self.assertIn("inputs.target == 'production' && 'mypage-prod-apply'", image_build)
         self.assertIn("inputs.target == 'production' && 'youtube-study-space'", image_build)
+        target_contract = source.split("  foundation_plan:", 1)[0]
+        self.assertIn("foundation_contract.context(os.environ, 'plan')", target_contract)
 
     def test_runtime_stages_require_completed_bootstrap_before_any_mutation(self):
         contract = (ROOT / "infra/mypage-platform/scripts/runtime_contract.py").read_text()

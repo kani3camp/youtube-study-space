@@ -28,7 +28,7 @@ on:
         default: false
         type: boolean
       mypage_foundation_target:
-        description: MyPage foundation target (Production only admits maintenance operator plan/apply)
+        description: "MyPage target (Production bootstrap: registry plan/apply, image-build, then maintenance operator/upgrade plan/apply)"
         required: false
         default: development
         type: choice

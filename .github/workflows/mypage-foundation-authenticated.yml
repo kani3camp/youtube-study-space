@@ -65,7 +65,9 @@ jobs:
           if mode == 'image-build':
               foundation_contract.context(os.environ, 'apply', image=True)
           else:
-              foundation_contract.stage_for_mode(mode)
+              # Reject the wrong ref/SHA/actor/repository before requesting any
+              # protected Environment or making its secrets available.
+              foundation_contract.context(os.environ, 'plan')
           PY
 
   foundation_plan:

@@ -67,6 +67,7 @@ locals {
   maintenance_operator_email             = "mypage-maintenance-job@${var.project_id}.iam.gserviceaccount.com"
   maintenance_invoker_email              = "mypage-maintenance-invoker@${var.project_id}.iam.gserviceaccount.com"
   maintenance_bootstrap_email            = "mypage-maintenance-bootstrap@${var.project_id}.iam.gserviceaccount.com"
+  maintenance_inspect_invoker_email      = "mypage-maint-inspect-invoker@${var.project_id}.iam.gserviceaccount.com"
   foundation_plan_email                  = "mypage-foundation-plan@${var.project_id}.iam.gserviceaccount.com"
   foundation_apply_email                 = "mypage-foundation-apply@${var.project_id}.iam.gserviceaccount.com"
   backend_deployer_email                 = "mypage-backend-deploy@${var.project_id}.iam.gserviceaccount.com"
@@ -397,6 +398,17 @@ resource "google_service_account" "maintenance_bootstrap" {
   }
 }
 
+resource "google_service_account" "maintenance_inspect_invoker" {
+  count        = local.maintenance_operator ? 1 : 0
+  project      = var.project_id
+  account_id   = "mypage-maint-inspect-invoker"
+  display_name = "MyPage maintenance inspect invoker"
+  description  = "Keyless GitHub identity that can invoke only the fixed sanitized readback service."
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 resource "google_project_iam_custom_role" "maintenance_firestore" {
   count       = local.maintenance_operator ? 1 : 0
   project     = var.project_id
@@ -503,16 +515,21 @@ resource "google_service_account_iam_member" "maintenance_workload_identity" {
   ]
 }
 
-resource "google_service_account_iam_member" "maintenance_bootstrap_workload_identity" {
+resource "google_service_account_iam_member" "maintenance_inspect_workload_identity" {
   count              = local.maintenance_operator ? 1 : 0
-  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.maintenance_bootstrap_email}"
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.maintenance_inspect_invoker_email}"
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/projects/${local.maintenance_project_number}/locations/global/workloadIdentityPools/mypage-maintenance/attribute.workflow_ref/kani3camp/youtube-study-space/.github/workflows/mypage-maintenance-inspect.yml@${local.maintenance_ref}"
 
   depends_on = [
-    google_service_account.maintenance_bootstrap,
+    google_service_account.maintenance_inspect_invoker,
     google_iam_workload_identity_pool_provider.maintenance_github,
   ]
+}
+
+moved {
+  from = google_service_account_iam_member.maintenance_bootstrap_workload_identity
+  to   = google_service_account_iam_member.maintenance_inspect_workload_identity
 }
 
 resource "google_cloud_run_v2_job" "maintenance_operator" {
@@ -526,9 +543,10 @@ resource "google_cloud_run_v2_job" "maintenance_operator" {
     task_count  = 1
     parallelism = 1
     template {
-      service_account = local.maintenance_operator_email
-      max_retries     = 0
-      timeout         = "60s"
+      service_account       = local.maintenance_operator_email
+      max_retries           = 0
+      timeout               = "60s"
+      execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
       containers {
         image   = var.runtime_settings.maintenance_operator_image_digest
         command = ["/app/mypage-maintenance-operator"]
@@ -584,9 +602,10 @@ resource "google_cloud_run_v2_job" "maintenance_breakglass" {
     task_count  = 1
     parallelism = 1
     template {
-      service_account = local.maintenance_operator_email
-      max_retries     = 0
-      timeout         = "60s"
+      service_account       = local.maintenance_operator_email
+      max_retries           = 0
+      timeout               = "60s"
+      execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
       containers {
         image   = var.runtime_settings.maintenance_operator_image_digest
         command = ["/app/mypage-maintenance-breakglass"]
@@ -625,9 +644,10 @@ resource "google_cloud_run_v2_job" "maintenance_bootstrap" {
     task_count  = 1
     parallelism = 1
     template {
-      service_account = local.maintenance_bootstrap_email
-      max_retries     = 0
-      timeout         = "30s"
+      service_account       = local.maintenance_bootstrap_email
+      max_retries           = 0
+      timeout               = "30s"
+      execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
       containers {
         image   = var.runtime_settings.maintenance_operator_image_digest
         command = ["/app/mypage-maintenance-bootstrap-check"]
@@ -653,6 +673,94 @@ resource "google_cloud_run_v2_job" "maintenance_bootstrap" {
   lifecycle {
     prevent_destroy = true
   }
+}
+
+# GitHub never receives this service's Firestore identity. Cloud Run IAM admits
+# only the inspect invoker, while the fixed binary reads exactly one control
+# document and returns a bounded sanitized receipt.
+resource "google_cloud_run_v2_service" "maintenance_inspect" {
+  count                = local.maintenance_operator ? 1 : 0
+  project              = var.project_id
+  name                 = "mypage-maintenance-inspect"
+  location             = var.region
+  ingress              = "INGRESS_TRAFFIC_ALL"
+  deletion_protection  = true
+  invoker_iam_disabled = false
+
+  scaling {
+    min_instance_count = 0
+    max_instance_count = 1
+    scaling_mode       = "AUTOMATIC"
+  }
+
+  traffic {
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+    percent = 100
+  }
+
+  template {
+    service_account                  = local.maintenance_bootstrap_email
+    timeout                          = "20s"
+    max_instance_request_concurrency = 1
+    execution_environment            = "EXECUTION_ENVIRONMENT_GEN2"
+
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 1
+    }
+
+    containers {
+      image   = var.runtime_settings.maintenance_operator_image_digest
+      command = ["/app/mypage-maintenance-inspect"]
+
+      ports {
+        container_port = 8080
+        name           = "http1"
+      }
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "512Mi"
+        }
+        cpu_idle          = true
+        startup_cpu_boost = false
+      }
+
+      startup_probe {
+        initial_delay_seconds = 0
+        timeout_seconds       = 1
+        period_seconds        = 10
+        failure_threshold     = 3
+        tcp_socket {
+          port = 8080
+        }
+      }
+
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
+      }
+      env {
+        name  = "MYPAGE_ENVIRONMENT"
+        value = var.environment
+      }
+    }
+  }
+
+  depends_on = [google_project_iam_member.maintenance_bootstrap_reader]
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_cloud_run_v2_service_iam_member" "maintenance_inspect_invoker" {
+  count    = local.maintenance_operator ? 1 : 0
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.maintenance_inspect[0].name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${local.maintenance_inspect_invoker_email}"
 }
 
 # Exact Job-level invocation only; roles/run.invoker cannot override its
@@ -713,7 +821,11 @@ output "maintenance_invoker_service_account" {
 }
 
 output "maintenance_inspect_service_account" {
-  value = local.maintenance_operator ? google_service_account.maintenance_bootstrap[0].email : null
+  value = local.maintenance_operator ? google_service_account.maintenance_inspect_invoker[0].email : null
+}
+
+output "maintenance_inspect_service_url" {
+  value = local.maintenance_operator ? google_cloud_run_v2_service.maintenance_inspect[0].uri : null
 }
 
 output "maintenance_job_name" {

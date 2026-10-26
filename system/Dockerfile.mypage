@@ -12,7 +12,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go build -tags timetzdata -trimpath -ldflags="-s -w" -o /out/mypage-server ./cmd/mypage-server && \
     go build -tags timetzdata -trimpath -ldflags="-s -w" -o /out/mypage-maintenance-operator ./cmd/mypage-maintenance-operator && \
     go build -tags timetzdata -trimpath -ldflags="-s -w" -o /out/mypage-maintenance-breakglass ./cmd/mypage-maintenance-breakglass && \
-    go build -tags timetzdata -trimpath -ldflags="-s -w" -o /out/mypage-maintenance-bootstrap-check ./cmd/mypage-maintenance-bootstrap-check
+    go build -tags timetzdata -trimpath -ldflags="-s -w" -o /out/mypage-maintenance-bootstrap-check ./cmd/mypage-maintenance-bootstrap-check && \
+    go build -tags timetzdata -trimpath -ldflags="-s -w" -o /out/mypage-maintenance-inspect ./cmd/mypage-maintenance-inspect
 
 FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 WORKDIR /app
@@ -21,6 +22,7 @@ COPY --from=build /out/mypage-server /app/mypage-server
 COPY --from=build /out/mypage-maintenance-operator /app/mypage-maintenance-operator
 COPY --from=build /out/mypage-maintenance-breakglass /app/mypage-maintenance-breakglass
 COPY --from=build /out/mypage-maintenance-bootstrap-check /app/mypage-maintenance-bootstrap-check
+COPY --from=build /out/mypage-maintenance-inspect /app/mypage-maintenance-inspect
 USER nonroot:nonroot
 EXPOSE 8080
 ENTRYPOINT ["/app/mypage-server"]

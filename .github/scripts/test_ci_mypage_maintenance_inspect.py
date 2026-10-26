@@ -14,6 +14,7 @@ def values():
         "INPUT_ENVIRONMENT": "development",
         "INPUT_EXPECTED_SHA": sha,
         "INPUT_PRODUCTION_CONFIRMATION": "",
+        "INPUT_SERVICE_URL": "https://mypage-maintenance-inspect-48101442817.asia-southeast2.run.app",
         "GITHUB_SHA": sha,
         "GITHUB_REPOSITORY": subject.REPOSITORY,
         "GITHUB_REPOSITORY_ID": subject.REPOSITORY_ID,
@@ -28,36 +29,34 @@ def values():
     }
 
 
-def document(state="ACTIVE"):
-    project = "test-youtube-study-space"
-    fields = {
-        "environment": {"stringValue": "development"},
-        "state": {"stringValue": state},
-        "revision": {"integerValue": "42"},
-        "updatedAt": {"timestampValue": "2026-10-27T02:00:00.123456Z"},
-        "messageTemplate": {"stringValue": "MYPAGE_MAINTENANCE_V1"},
-        "reasonCategory": {"stringValue": "PLANNED_MAINTENANCE" if state == "ACTIVE" else "RECOVERY"},
+def receipt(state="ACTIVE"):
+    value = {
+        "environment": "development",
+        "state": state,
+        "revision": 42,
+        "updatedAt": "2026-10-27T02:00:00.123456Z",
+        "messageTemplate": "MYPAGE_MAINTENANCE_V1",
+        "reasonCategory": "PLANNED_MAINTENANCE" if state == "ACTIVE" else "RECOVERY",
+        "authoritativeReadbackVerified": True,
+        "readOnly": True,
     }
     if state == "ACTIVE":
-        fields["estimatedEndAt"] = {"timestampValue": "2026-10-27T03:00:00Z"}
-    return {
-        "name": f"projects/{project}/databases/(default)/documents/mypage-runtime-control/current",
-        "fields": fields,
-        "createTime": "2026-10-27T01:00:00Z",
-        "updateTime": "2026-10-27T02:00:00.123456Z",
-    }
+        value["estimatedEndAt"] = "2026-10-27T03:00:00Z"
+    return value
 
 
 class MaintenanceInspectTest(unittest.TestCase):
     def test_accepts_only_exact_environment_bound_context(self):
         result = subject.context(values().get)
         self.assertEqual(result["project"], "test-youtube-study-space")
-        self.assertEqual(result["service_account"], "mypage-maintenance-bootstrap@test-youtube-study-space.iam.gserviceaccount.com")
+        self.assertEqual(result["service_account"], "mypage-maint-inspect-invoker@test-youtube-study-space.iam.gserviceaccount.com")
         self.assertEqual(result["provider"], "projects/48101442817/locations/global/workloadIdentityPools/mypage-maintenance/providers/github")
+        self.assertEqual(result["service_url"], "https://mypage-maintenance-inspect-48101442817.asia-southeast2.run.app")
         prod = values()
         prod.update(
             INPUT_ENVIRONMENT="production",
             INPUT_PRODUCTION_CONFIRMATION="PRODUCTION INSPECT",
+            INPUT_SERVICE_URL="https://mypage-maintenance-inspect-906336399194.asia-northeast2.run.app",
             GITHUB_REF="refs/heads/main",
             GITHUB_WORKFLOW_REF=f"{subject.REPOSITORY}/{subject.WORKFLOW}@refs/heads/main",
         )
@@ -73,36 +72,38 @@ class MaintenanceInspectTest(unittest.TestCase):
             "GITHUB_RUN_ATTEMPT": "2",
             "GITHUB_REF": "refs/heads/main",
             "GITHUB_WORKFLOW_REF": "untrusted",
+            "INPUT_SERVICE_URL": "https://attacker.example/mypage-maintenance-inspect",
         }.items():
             candidate = values()
             candidate[key] = bad
             with self.subTest(key=key), self.assertRaises(ValueError):
                 subject.context(candidate.get)
 
-    def test_parses_only_exact_authoritative_firestore_document(self):
-        receipt = subject.parse_document(document(), "development", "test-youtube-study-space")
-        self.assertEqual(receipt["revision"], 42)
-        self.assertEqual(receipt["state"], "ACTIVE")
-        self.assertTrue(receipt["readOnly"])
-        self.assertEqual(receipt["estimatedEndAt"], "2026-10-27T03:00:00Z")
-        normal = subject.parse_document(document("NORMAL"), "development", "test-youtube-study-space")
+    def test_parses_only_exact_sanitized_authoritative_receipt(self):
+        parsed = subject.parse_receipt(receipt(), "development")
+        self.assertEqual(parsed["revision"], 42)
+        self.assertEqual(parsed["state"], "ACTIVE")
+        self.assertTrue(parsed["readOnly"])
+        self.assertEqual(parsed["estimatedEndAt"], "2026-10-27T03:00:00Z")
+        normal = subject.parse_receipt(receipt("NORMAL"), "development")
         self.assertNotIn("estimatedEndAt", normal)
         mutations = (
-            lambda value: value["fields"].update(privateField={"stringValue": "private"}),
-            lambda value: value["fields"]["revision"].update(integerValue="0"),
-            lambda value: value["fields"]["revision"].update(integerValue="not-integer"),
-            lambda value: value["fields"]["state"].update(stringValue="NOTICE"),
-            lambda value: value["fields"]["environment"].update(stringValue="production"),
-            lambda value: value["fields"]["messageTemplate"].update(stringValue="free text"),
-            lambda value: value["fields"]["estimatedEndAt"].update(timestampValue="invalid"),
-            lambda value: value["fields"].pop("reasonCategory"),
-            lambda value: value.update(name="projects/other/databases/(default)/documents/mypage-runtime-control/current"),
+            lambda value: value.update(privateField="private"),
+            lambda value: value.update(revision=0),
+            lambda value: value.update(revision="42"),
+            lambda value: value.update(state="NOTICE"),
+            lambda value: value.update(environment="production"),
+            lambda value: value.update(messageTemplate="free text"),
+            lambda value: value.update(estimatedEndAt="invalid"),
+            lambda value: value.pop("reasonCategory"),
+            lambda value: value.update(authoritativeReadbackVerified=False),
+            lambda value: value.update(readOnly=False),
         )
         for mutate in mutations:
-            candidate = deepcopy(document())
+            candidate = deepcopy(receipt())
             mutate(candidate)
             with self.subTest(mutate=mutate), self.assertRaises(ValueError):
-                subject.parse_document(candidate, "development", "test-youtube-study-space")
+                subject.parse_receipt(candidate, "development")
 
     def test_workflow_is_manual_read_only_and_short_lived(self):
         workflow = (ROOT / ".github/workflows/mypage-maintenance-inspect.yml").read_text()
@@ -112,7 +113,14 @@ class MaintenanceInspectTest(unittest.TestCase):
         self.assertLess(workflow.index("Reject untrusted context before authentication"), workflow.index("google-github-actions/auth@"))
         self.assertIn("mypage-maintenance-inspect-${{ inputs.environment }}", workflow)
         self.assertIn("MYPAGE_MAINTENANCE_INSPECT_SERVICE_ACCOUNT", workflow)
-        self.assertIn("mypage-maintenance-bootstrap@", (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text())
+        self.assertIn("MYPAGE_MAINTENANCE_INSPECT_SERVICE_URL", workflow)
+        self.assertIn("token_format: id_token", workflow)
+        self.assertNotIn("steps.auth.outputs.access_token", workflow)
+        self.assertNotIn("firestore.googleapis.com", workflow)
+        terraform = (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text()
+        self.assertIn('command = ["/app/mypage-maintenance-inspect"]', terraform)
+        self.assertIn('account_id   = "mypage-maint-inspect-invoker"', terraform)
+        self.assertIn('member   = "serviceAccount:${local.maintenance_inspect_invoker_email}"', terraform)
         self.assertIn("retention-days: 7", workflow)
         self.assertNotIn("gcloud run jobs execute", workflow)
         self.assertNotIn("mypage-maintenance-invoker@", workflow)

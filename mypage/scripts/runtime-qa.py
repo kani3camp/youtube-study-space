@@ -66,6 +66,28 @@ with sync_playwright() as p:
 
  load('/login/channel-confirm','missing-channel');page.get_by_role('heading',name='マイページへログイン').wait_for()
  results.append('missing transaction returns to login')
+ for mode in ['maintenance-active-delayed-login','maintenance-active-delayed-failure']:
+  load('/login/channel-confirm',mode)
+  page.get_by_role('heading',name='ただいまメンテナンス中です').wait_for()
+  page.wait_for_timeout(400)
+  assert page.get_by_role('heading',name='マイページの利用状況を確認しています').count()==0
+  assert page.get_by_text('Sample Channel',exact=True).count()==0
+ results.append('ACTIVE channel lookup pending or failed shows actionable maintenance guidance instead of a stuck checking page')
+ load('/login/channel-confirm','maintenance-active-delayed-support')
+ page.get_by_role('heading',name='ただいまメンテナンス中です').wait_for()
+ page.get_by_role('button',name='この依頼の本人確認を完了').wait_for()
+ results.append('ACTIVE pending channel lookup still admits the purpose-bound support exception')
+ load('/login/channel-confirm','channel-visibility-refresh')
+ page.get_by_text('Sample Channel 1',exact=True).wait_for()
+ page.locator('#synthetic-hold-channel').click()
+ page.evaluate("Object.defineProperty(document,'visibilityState',{configurable:true,value:'hidden'});document.dispatchEvent(new Event('visibilitychange'));Object.defineProperty(document,'visibilityState',{configurable:true,value:'visible'});document.dispatchEvent(new Event('visibilitychange'))")
+ page.get_by_text('Sample Channel 1',exact=True).wait_for(state='detached')
+ page.wait_for_timeout(100)
+ assert page.get_by_text('Sample Channel 2',exact=True).count()==0
+ page.locator('#synthetic-release-channel').click()
+ page.get_by_text('Sample Channel 2',exact=True).wait_for()
+ paths=json.loads(page.locator('#synthetic-requests').inner_text());assert paths.count('/api/auth/youtube/channel')==2,paths
+ results.append('visibility recovery discards login channel metadata, blocks the delayed replacement, and reads a fresh confirmation')
  load('/mypage','late-response');page.get_by_text('読書',exact=True).wait_for();page.locator('#synthetic-hold').click();page.get_by_role('button',name='最新の情報に更新').click()
  page.wait_for_function("document.querySelector('.refresh-button')?.disabled===true");page.locator('#synthetic-switch').click();page.get_by_text('新しい合成作業',exact=True).wait_for()
  page.locator('#synthetic-release').click();page.wait_for_function("document.querySelector('.task-name')?.textContent==='新しい合成作業'")

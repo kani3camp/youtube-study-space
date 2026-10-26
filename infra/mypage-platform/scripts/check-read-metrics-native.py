@@ -25,6 +25,6 @@ for rendered, enabled in zip(plans, (True, False)):
                 "resource_changes": rendered.get("resource_changes", []),
                 "resource_drift": rendered.get("resource_drift", []),
                 "deferred_changes": rendered.get("deferred_changes", [])}
-    need(r.validate_plan(envelope, "runtime_private") == {"resources": 29, "creates": 0, "updates": 1},
+    need(r.validate_plan(envelope, "runtime_private") == {"resources": 32, "creates": 0, "updates": 1},
          "metrics-native-admission")
 print("Native mocked metrics enable/disable Plans each admitted exactly one update; no cloud I/O.")

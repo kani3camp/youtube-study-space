@@ -88,7 +88,7 @@ def actual(state):
 class MetricsTransitionTest(unittest.TestCase):
     def test_enable_disable_private_public_and_no_plan_mutation(self):
         for enabled in (True, False):
-            for stage, count in (("runtime_private", 29), ("runtime_public", 30)):
+            for stage, count in (("runtime_private", 32), ("runtime_public", 33)):
                 with self.subTest(enabled=enabled, stage=stage):
                     plan = fixture(enabled, stage)
                     original = deepcopy(plan)

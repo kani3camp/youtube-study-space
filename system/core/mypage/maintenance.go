@@ -66,6 +66,20 @@ type MaintenanceStatus struct {
 	MessageTemplate string     `json:"messageTemplate"`
 }
 
+// MaintenanceInspection is the sanitized authoritative readback returned only
+// by the fixed, IAM-authenticated maintenance inspection service.
+type MaintenanceInspection struct {
+	Environment                   string     `json:"environment"`
+	State                         string     `json:"state"`
+	Revision                      int64      `json:"revision"`
+	UpdatedAt                     time.Time  `json:"updatedAt"`
+	EstimatedEndAt                *time.Time `json:"estimatedEndAt,omitempty"`
+	MessageTemplate               string     `json:"messageTemplate"`
+	ReasonCategory                string     `json:"reasonCategory"`
+	AuthoritativeReadbackVerified bool       `json:"authoritativeReadbackVerified"`
+	ReadOnly                      bool       `json:"readOnly"`
+}
+
 type MaintenanceReader interface {
 	Check(context.Context) error
 	CheckAuthoritative(context.Context) error
@@ -152,6 +166,32 @@ func (g *MaintenanceGate) read(ctx context.Context) (MaintenanceControl, error) 
 		return MaintenanceControl{}, fmt.Errorf("read maintenance control: %w: %w", apiError("TEMPORARY_UNAVAILABLE"), err)
 	}
 	return decodeMaintenanceDocument(doc, g.Environment)
+}
+
+// InspectMaintenanceControl performs one uncached exact-document read and
+// exposes no document path, audit data, credentials, or arbitrary Firestore
+// selector to its caller.
+func InspectMaintenanceControl(ctx context.Context, client *firestore.Client, environment string) (MaintenanceInspection, error) {
+	value, err := (&MaintenanceGate{Client: client, Environment: environment}).read(ctx)
+	if err != nil {
+		return MaintenanceInspection{}, err
+	}
+	var estimatedEndAt *time.Time
+	if value.EstimatedEndAt != nil {
+		normalized := value.EstimatedEndAt.UTC()
+		estimatedEndAt = &normalized
+	}
+	return MaintenanceInspection{
+		Environment:                   value.Environment,
+		State:                         value.State,
+		Revision:                      value.Revision,
+		UpdatedAt:                     value.UpdatedAt.UTC(),
+		EstimatedEndAt:                estimatedEndAt,
+		MessageTemplate:               value.MessageTemplate,
+		ReasonCategory:                value.ReasonCategory,
+		AuthoritativeReadbackVerified: true,
+		ReadOnly:                      true,
+	}, nil
 }
 
 func (g *MaintenanceGate) cachedRead(ctx context.Context) (MaintenanceControl, error) {

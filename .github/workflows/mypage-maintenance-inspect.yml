@@ -46,10 +46,11 @@ jobs:
           INPUT_ENVIRONMENT: ${{ inputs.environment }}
           INPUT_EXPECTED_SHA: ${{ inputs.expected_sha }}
           INPUT_PRODUCTION_CONFIRMATION: ${{ inputs.production_confirmation }}
+          INPUT_SERVICE_URL: ${{ secrets.MYPAGE_MAINTENANCE_INSPECT_SERVICE_URL }}
           MYPAGE_TRIGGERING_ACTOR_ID: ${{ github.event.sender.id }}
         run: python3 .github/scripts/mypage_maintenance_inspect.py
 
-      - name: Validate and mask the dedicated read-only identity
+      - name: Validate and mask the dedicated invoke-only identity
         env:
           PROVIDER: ${{ secrets.MYPAGE_MAINTENANCE_INSPECT_WIF_PROVIDER }}
           EXPECTED_PROVIDER: ${{ steps.context.outputs.provider }}
@@ -63,25 +64,25 @@ jobs:
             echo "::add-mask::${value}"
           done
 
-      - name: Authenticate the environment-scoped read-only identity
+      - name: Mint a short-lived ID token for the fixed readback service
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           workload_identity_provider: ${{ secrets.MYPAGE_MAINTENANCE_INSPECT_WIF_PROVIDER }}
           service_account: ${{ secrets.MYPAGE_MAINTENANCE_INSPECT_SERVICE_ACCOUNT }}
           project_id: ${{ steps.context.outputs.project }}
-          create_credentials_file: true
-          export_environment_variables: true
+          create_credentials_file: false
+          export_environment_variables: false
           cleanup_credentials: true
-          token_format: access_token
-          access_token_lifetime: 300s
+          token_format: id_token
+          id_token_audience: ${{ steps.context.outputs.service_url }}
+          id_token_include_email: true
 
-      - name: Read and strictly validate the authoritative control
+      - name: Invoke and strictly validate the sanitized authoritative receipt
         env:
-          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
-          DOCUMENT_URL: ${{ steps.context.outputs.document_url }}
+          IDENTITY_TOKEN: ${{ steps.auth.outputs.id_token }}
+          SERVICE_URL: ${{ steps.context.outputs.service_url }}
           ENVIRONMENT: ${{ steps.context.outputs.environment }}
-          PROJECT: ${{ steps.context.outputs.project }}
           RECEIPT: ${{ runner.temp }}/mypage-maintenance-inspect.json
         run: |
           python3 - <<'PY'
@@ -89,13 +90,13 @@ jobs:
           from pathlib import Path
 
           sys.path.insert(0, '.github/scripts')
-          from mypage_maintenance_inspect import parse_document
+          from mypage_maintenance_inspect import parse_receipt
 
           try:
               request = urllib.request.Request(
-                  os.environ['DOCUMENT_URL'],
+                  os.environ['SERVICE_URL'] + '/',
                   headers={
-                      'Authorization': 'Bearer ' + os.environ['ACCESS_TOKEN'],
+                      'Authorization': 'Bearer ' + os.environ['IDENTITY_TOKEN'],
                       'Accept-Encoding': 'identity',
                   },
               )
@@ -103,7 +104,7 @@ jobs:
                   assert response.status == 200
                   raw = response.read(65537)
                   assert len(raw) <= 65536
-              receipt = parse_document(json.loads(raw), os.environ['ENVIRONMENT'], os.environ['PROJECT'])
+              receipt = parse_receipt(json.loads(raw), os.environ['ENVIRONMENT'])
               Path(os.environ['RECEIPT']).write_text(json.dumps(receipt, sort_keys=True), encoding='utf-8')
           except Exception:
               raise SystemExit('maintenance inspect failed')
