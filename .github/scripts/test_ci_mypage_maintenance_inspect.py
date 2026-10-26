@@ -119,7 +119,7 @@ class MaintenanceInspectTest(unittest.TestCase):
         self.assertNotIn("firestore.googleapis.com", workflow)
         terraform = (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text()
         self.assertIn('command = ["/app/mypage-maintenance-inspect"]', terraform)
-        self.assertIn('account_id   = "mypage-maint-inspect-invoker"', terraform)
+        self.assertIn('account_id      = "mypage-maint-inspect-invoker"', terraform)
         self.assertIn('member   = "serviceAccount:${local.maintenance_inspect_invoker_email}"', terraform)
         self.assertIn("retention-days: 7", workflow)
         self.assertNotIn("gcloud run jobs execute", workflow)

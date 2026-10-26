@@ -185,9 +185,9 @@ jobs:
           EXPECTED_ESTIMATED_END_AT: ${{ steps.context.outputs.estimated_end_at }}
         run: |
           python3 - <<'PY'
-          import json, os, sys, time, urllib.error, urllib.request
+          import os, sys, time, urllib.error
           sys.path.insert(0, '.github/scripts')
-          from mypage_maintenance import valid_public_status
+          from mypage_maintenance import verify_public_postconditions
           origin = os.environ['PUBLIC_ORIGIN']
           expected = os.environ['EXPECTED_STATE']
           expected_estimate = os.environ['EXPECTED_ESTIMATED_END_AT']
@@ -195,19 +195,12 @@ jobs:
           body = None
           while time.monotonic() < deadline:
               try:
-                  request = urllib.request.Request(origin + '/api/public/mypage-status', headers={'Cache-Control': 'no-cache'})
-                  with urllib.request.urlopen(request, timeout=10) as response:
-                      candidate = json.load(response) if response.status == 200 else None
-                  if valid_public_status(candidate, expected, expected_estimate):
-                      body = candidate
-                      break
-              except (urllib.error.URLError, TimeoutError, ValueError):
+                  body = verify_public_postconditions(origin, expected, expected_estimate)
+                  break
+              except (urllib.error.URLError, TimeoutError, UnicodeError, ValueError):
                   pass
               time.sleep(1)
           assert body is not None, 'public status did not converge before the bounded deadline'
-          for path in ('/', '/mypage', '/privacy', '/terms', '/contact'):
-              with urllib.request.urlopen(origin + path, timeout=20) as response:
-                  assert response.status == 200
           PY
 
       - name: Create bounded transition receipt

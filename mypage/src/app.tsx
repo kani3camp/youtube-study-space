@@ -49,6 +49,16 @@ type LoginSearch = {
 	supportChallenge?: string
 	supportInvalid?: boolean
 }
+type ContactSearch = { supportError?: boolean }
+const supportOAuthErrors = new Set([
+	'oauth_failed',
+	'oauth_state_invalid',
+	'oauth_transaction_expired',
+	'oauth_scope_insufficient',
+	'channel_unavailable',
+	'channel_ambiguous',
+	'oauth_denied',
+])
 const SupportReceipt = createContext<{
 	proofRef: string | null
 	supportRequestRef: string | null
@@ -1012,6 +1022,16 @@ export function createApp(
 		)
 	}
 	function Contact() {
+		const supportError = useRouterState({
+			select: (state) => {
+				const value = (state.location.search as Record<string, unknown>)
+					.supportError
+				return (
+					value === true ||
+					(typeof value === 'string' && supportOAuthErrors.has(value))
+				)
+			},
+		})
 		const receipt = useContext(SupportReceipt)
 		const draft = useContext(IntakeMemory)
 		const { purpose, body, created } = draft.value
@@ -1192,6 +1212,11 @@ export function createApp(
 			<main className="main-content public-page">
 				<section className="card policy-page">
 					<h1>お問い合わせ</h1>
+					{supportError && (
+						<p className="notice" role="alert">
+							YouTubeでの本人確認を完了できませんでした。依頼の参照番号をご確認のうえ、受付窓口からもう一度お手続きください。
+						</p>
+					)}
 					{receipt.proofRef && (
 						<section aria-labelledby="support-complete">
 							<h2 id="support-complete">依頼の本人確認が完了しました</h2>
@@ -1440,6 +1465,18 @@ export function createApp(
 					: undefined,
 		}),
 	})
+	const contactRoute = createRoute({
+		getParentRoute: () => root,
+		path: '/contact',
+		component: Contact,
+		validateSearch: (raw: Record<string, unknown>): ContactSearch => ({
+			supportError:
+				typeof raw.supportError === 'string' &&
+				supportOAuthErrors.has(raw.supportError)
+					? true
+					: undefined,
+		}),
+	})
 	const routes = [
 		createRoute({
 			getParentRoute: () => root,
@@ -1472,11 +1509,7 @@ export function createApp(
 			path: '/terms',
 			component: TermsOfUse,
 		}),
-		createRoute({
-			getParentRoute: () => root,
-			path: '/contact',
-			component: Contact,
-		}),
+		contactRoute,
 		createRoute({
 			getParentRoute: () => root,
 			path: '/maintenance',

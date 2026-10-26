@@ -1,7 +1,11 @@
 from copy import deepcopy
 from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import json
+import threading
 import unittest
+import urllib.error
 
 import mypage_maintenance as subject
 
@@ -156,6 +160,73 @@ class MaintenanceContextTest(unittest.TestCase):
         self.assertFalse(subject.valid_frontend_capability("<head></head>"))
         self.assertFalse(subject.valid_frontend_capability(marker + marker))
 
+    def test_public_postconditions_reject_same_and_cross_origin_redirects(self):
+        status = {
+            "state": "ACTIVE",
+            "updatedAt": "2026-10-27T02:00:00Z",
+            "messageTemplate": "MYPAGE_MAINTENANCE_V1",
+        }
+
+        class Handler(BaseHTTPRequestHandler):
+            redirect_path = ""
+            redirect_target = ""
+
+            def do_GET(self):
+                if self.path == self.redirect_path:
+                    self.send_response(302)
+                    self.send_header("Location", self.redirect_target)
+                    self.end_headers()
+                    return
+                body = json.dumps(status).encode() if self.path == "/api/public/mypage-status" else b"ok"
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        origin = f"http://127.0.0.1:{server.server_port}"
+
+        self.assertEqual(subject.verify_public_postconditions(origin, "ACTIVE", ""), status)
+        for path, target in (
+            ("/api/public/mypage-status", "/direct-status"),
+            ("/mypage", "https://example.invalid/foreign"),
+        ):
+            Handler.redirect_path = path
+            Handler.redirect_target = target
+            with self.subTest(path=path, target=target), self.assertRaises(urllib.error.HTTPError):
+                subject.verify_public_postconditions(origin, "ACTIVE", "")
+        Handler.redirect_path = ""
+
+    def test_public_status_body_is_bounded_before_json_decode(self):
+        class OversizeResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def geturl(self):
+                return "https://example.invalid/status"
+
+            def read(self, size):
+                return b"x" * size
+
+        class Opener:
+            def open(self, *_args, **_kwargs):
+                return OversizeResponse()
+
+        with self.assertRaises(ValueError):
+            subject.direct_get(Opener(), "https://example.invalid/status", 1, 16)
+
 
 class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
     def test_manual_only_preflight_and_signed_sender_wiring(self):
@@ -196,7 +267,8 @@ class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
         self.assertIn("PUBLIC_ORIGIN: ${{ steps.context.outputs.public_origin }}", workflow)
         self.assertNotIn("vars.MYPAGE_PUBLIC_ORIGIN", workflow)
         self.assertIn("EXPECTED_ESTIMATED_END_AT: ${{ steps.context.outputs.estimated_end_at }}", workflow)
-        self.assertIn("valid_public_status(candidate, expected, expected_estimate)", workflow)
+        self.assertIn("verify_public_postconditions(origin, expected, expected_estimate)", workflow)
+        self.assertNotIn("urllib.request.urlopen", workflow)
         self.assertIn("time.monotonic() + 30", workflow)
         self.assertIn("time.sleep(1)", workflow)
         self.assertIn("actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9", workflow)

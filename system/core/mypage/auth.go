@@ -205,8 +205,16 @@ func (s *AuthService) Start(ctx context.Context, previousID string, request Star
 }
 
 func (s *AuthService) Callback(ctx context.Context, id, state, code string, denied bool) error {
+	_, err := s.CallbackWithPurpose(ctx, id, state, code, denied)
+	return err
+}
+
+// CallbackWithPurpose returns only the server-owned, fixed transaction
+// purpose. The HTTP boundary uses it to keep support failures on the public
+// support path without reflecting OAuth inputs or trusting callback query data.
+func (s *AuthService) CallbackWithPurpose(ctx context.Context, id, state, code string, denied bool) (string, error) {
 	if id == "" || state == "" {
-		return apiError("OAUTH_TRANSACTION_REQUIRED")
+		return "", apiError("OAUTH_TRANSACTION_REQUIRED")
 	}
 	purpose := ""
 	callbackRevision := int64(0)
@@ -216,7 +224,7 @@ func (s *AuthService) Callback(ctx context.Context, id, state, code string, deni
 		var err error
 		purpose, callbackRevision, err = purposeStore.ReadPurpose(ctx, id, s.Now().UTC())
 		if err != nil {
-			return fmt.Errorf("read OAuth callback purpose: %w", err)
+			return purpose, fmt.Errorf("read OAuth callback purpose: %w", err)
 		}
 		if purpose == "login" && s.Maintenance != nil {
 			revision, checkErr := s.Maintenance.CheckAuthoritativeRevision(ctx)
@@ -227,7 +235,7 @@ func (s *AuthService) Callback(ctx context.Context, id, state, code string, deni
 				if failErr := s.Store.Fail(ctx, id); failErr != nil {
 					checkErr = errors.Join(checkErr, fmt.Errorf("fail maintenance OAuth transaction: %w", failErr))
 				}
-				return fmt.Errorf("check maintenance before OAuth callback: %w", checkErr)
+				return purpose, fmt.Errorf("check maintenance before OAuth callback: %w", checkErr)
 			}
 		}
 	}
@@ -237,33 +245,33 @@ func (s *AuthService) Callback(ctx context.Context, id, state, code string, deni
 				err = errors.Join(err, fmt.Errorf("fail activated OAuth transaction: %w", failErr))
 			}
 		}
-		return fmt.Errorf("claim OAuth callback: %w", err)
+		return purpose, fmt.Errorf("claim OAuth callback: %w", err)
 	}
 	if denied {
 		if err := s.Store.Fail(ctx, id); err != nil {
-			return fmt.Errorf("fail denied OAuth transaction: %w", err)
+			return purpose, fmt.Errorf("fail denied OAuth transaction: %w", err)
 		}
-		return apiError("OAUTH_FAILED")
+		return purpose, apiError("OAUTH_FAILED")
 	}
 	channels, err := s.Provider.Resolve(ctx, code)
 	if err != nil {
 		if failErr := s.Store.Fail(ctx, id); failErr != nil {
-			return fmt.Errorf("fail OAuth transaction: %w", failErr)
+			return purpose, fmt.Errorf("fail OAuth transaction: %w", failErr)
 		}
-		return fmt.Errorf("resolve OAuth channel: %w", err)
+		return purpose, fmt.Errorf("resolve OAuth channel: %w", err)
 	}
 	if len(channels) != 1 || channels[0].ID == "" || channels[0].DisplayName == "" {
 		if err := s.Store.Fail(ctx, id); err != nil {
-			return fmt.Errorf("fail unavailable channel: %w", err)
+			return purpose, fmt.Errorf("fail unavailable channel: %w", err)
 		}
 		if len(channels) > 1 {
-			return apiError("CHANNEL_AMBIGUOUS")
+			return purpose, apiError("CHANNEL_AMBIGUOUS")
 		}
-		return apiError("CHANNEL_UNAVAILABLE")
+		return purpose, apiError("CHANNEL_UNAVAILABLE")
 	}
 	confirmation, err := opaque()
 	if err != nil {
-		return err
+		return purpose, err
 	}
 	if err := s.Store.Verify(ctx, id, channels[0], confirmation, s.Now().UTC()); err != nil {
 		if errorCode(err) == "MAINTENANCE_ACTIVE" {
@@ -271,7 +279,7 @@ func (s *AuthService) Callback(ctx context.Context, id, state, code string, deni
 				err = errors.Join(err, fmt.Errorf("fail activated OAuth verification: %w", failErr))
 			}
 		}
-		return fmt.Errorf("verify OAuth transaction: %w", err)
+		return purpose, fmt.Errorf("verify OAuth transaction: %w", err)
 	}
 	if purpose == "login" && s.Maintenance != nil {
 		revision, checkErr := s.Maintenance.CheckAuthoritativeRevision(ctx)
@@ -282,10 +290,10 @@ func (s *AuthService) Callback(ctx context.Context, id, state, code string, deni
 			if failErr := s.Store.Fail(ctx, id); failErr != nil {
 				checkErr = errors.Join(checkErr, fmt.Errorf("fail completed maintenance OAuth transaction: %w", failErr))
 			}
-			return fmt.Errorf("check maintenance after OAuth callback: %w", checkErr)
+			return purpose, fmt.Errorf("check maintenance after OAuth callback: %w", checkErr)
 		}
 	}
-	return nil
+	return purpose, nil
 }
 
 func (s *AuthService) Channel(ctx context.Context, id string) (ChannelResponse, error) {

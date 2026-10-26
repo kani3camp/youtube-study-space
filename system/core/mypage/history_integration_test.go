@@ -83,6 +83,34 @@ func TestHistoryBudgetDoesNotConsumeQuotaWhenMaintenanceIsActive(t *testing.T) {
 	require.Equal(t, codes.NotFound, status.Code(err))
 }
 
+func TestHistoryLeaseReleaseCannotCommitAfterMaintenanceActivation(t *testing.T) {
+	s, uid, _, _ := historyServiceFixture(t, 0, false)
+	ctx := withMaintenanceRevision(context.Background(), 1)
+	p, err := s.loadPolicy(ctx)
+	require.NoError(t, err)
+	claim, err := s.reserve(ctx, uid, "absent", strings.Repeat("r", 32), digest("release-race"), p, 100, 1)
+	require.NoError(t, err)
+	ref := s.Client.Collection(historyBudgets).Doc(digest("development\x00" + uid))
+	before, err := ref.Get(ctx)
+	require.NoError(t, err)
+
+	_, err = maintenanceRef(s.Client).Set(ctx, MaintenanceControl{
+		Environment: "development", State: MaintenanceActive, Revision: 2,
+		UpdatedAt: time.Now().UTC(), MessageTemplate: MaintenanceMessageTemplate,
+		ReasonCategory: "PLANNED_MAINTENANCE",
+	})
+	require.NoError(t, err)
+	err = s.release(claim)
+	require.Equal(t, "MAINTENANCE_ACTIVE", errorCode(err))
+
+	after, err := ref.Get(ctx)
+	require.NoError(t, err)
+	require.Equal(t, before.UpdateTime, after.UpdateTime)
+	state, err := decodeHistoryBudget(after, uid)
+	require.NoError(t, err)
+	require.Equal(t, claim.Until, state.Leases[claim.Key])
+}
+
 func TestHistoryCursorPagesHaveStableTiesAndSnapshotDuringConcurrentAdds(t *testing.T) {
 	s, uid, account, q := historyServiceFixture(t, 5, true)
 	ctx := context.Background()
@@ -210,7 +238,7 @@ func TestHistoryLeaseCrossesJSTDayWithoutResettingConcurrencyOrOldKey(t *testing
 	var wait *HistoryWaitError
 	require.ErrorAs(t, err, &wait)
 	require.False(t, wait.Daily)
-	require.NoError(t, s.release(historyClaim{UID: uid, Key: digest(key), Until: lease}))
+	require.NoError(t, s.release(historyClaim{UID: uid, Key: digest(key), Until: lease, MaintenanceRevision: 1}))
 	claim, err := s.reserve(ctx, uid, "absent", strings.Repeat("b", 32), digest("new-operation"), p, 1000, 1)
 	require.NoError(t, err)
 	require.NoError(t, s.release(claim))

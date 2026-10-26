@@ -147,18 +147,18 @@ func (s *FirestoreAuthStore) ReadPurpose(ctx context.Context, id string, now tim
 		if err != nil {
 			return err
 		}
-		if !now.Before(value.ExpiresAt) {
-			return apiError("OAUTH_TRANSACTION_EXPIRED")
-		}
 		purpose = transactionPurpose(value)
 		if purpose != "login" && purpose != "support" {
 			return apiError("INVALID_REQUEST")
 		}
 		maintenanceRevision = value.MaintenanceRevision
+		if !now.Before(value.ExpiresAt) {
+			return apiError("OAUTH_TRANSACTION_EXPIRED")
+		}
 		return nil
 	}, firestore.ReadOnly)
 	if err != nil {
-		return "", 0, fmt.Errorf("read transaction purpose: %w", err)
+		return purpose, maintenanceRevision, fmt.Errorf("read transaction purpose: %w", err)
 	}
 	return purpose, maintenanceRevision, nil
 }

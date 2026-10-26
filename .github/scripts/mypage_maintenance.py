@@ -5,10 +5,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
 import sys
+import urllib.request
 
 
 ERROR = "maintenance workflow context rejected"
@@ -24,6 +26,13 @@ STATES = {"NORMAL", "ACTIVE"}
 REASONS = {"INITIALIZATION", "PLANNED_MAINTENANCE", "DATA_MIGRATION", "SECURITY_MAINTENANCE", "RECOVERY"}
 ACTIVE_REASONS = {"PLANNED_MAINTENANCE", "DATA_MIGRATION", "SECURITY_MAINTENANCE"}
 FRONTEND_CAPABILITY = '<meta name="mypage-maintenance-capability" content="MYPAGE_MAINTENANCE_V1" />'
+PUBLIC_STATUS_LIMIT = 16 * 1024
+PUBLIC_PAGE_LIMIT = 2 * 1024 * 1024
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, message, headers, new_url):
+        return None
 
 
 def need(condition: bool) -> None:
@@ -84,6 +93,25 @@ def valid_public_status(candidate: object, expected_state: str, expected_estimat
 
 def valid_frontend_capability(value: object) -> bool:
     return isinstance(value, str) and value.count(FRONTEND_CAPABILITY) == 1
+
+
+def direct_get(opener, url: str, timeout: int, limit: int) -> bytes:
+    request = urllib.request.Request(url, headers={"Cache-Control": "no-cache"})
+    with opener.open(request, timeout=timeout) as response:
+        need(response.status == 200 and response.geturl() == url)
+        body = response.read(limit + 1)
+    need(len(body) <= limit)
+    return body
+
+
+def verify_public_postconditions(origin: str, expected_state: str, expected_estimated_end_at: str, opener=None) -> dict:
+    opener = opener or urllib.request.build_opener(NoRedirect)
+    status_url = origin + "/api/public/mypage-status"
+    candidate = json.loads(direct_get(opener, status_url, 10, PUBLIC_STATUS_LIMIT).decode("utf-8"))
+    need(valid_public_status(candidate, expected_state, expected_estimated_end_at))
+    for path in ("/", "/mypage", "/privacy", "/terms", "/contact"):
+        direct_get(opener, origin + path, 20, PUBLIC_PAGE_LIMIT)
+    return candidate
 
 
 def context(get=os.environ.get, now=lambda: datetime.now(timezone.utc)) -> dict[str, str]:

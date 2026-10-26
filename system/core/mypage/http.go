@@ -605,6 +605,26 @@ func setTransactionCookie(w http.ResponseWriter, id string, age int) {
 	http.SetCookie(w, &http.Cookie{Name: "__session", Value: id, Path: "/", MaxAge: age, HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
 }
 
+func oauthRedirectCode(err error, providerError string) string {
+	redirectCode := "oauth_failed"
+	switch errorCode(err) {
+	case "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED":
+		redirectCode = "oauth_state_invalid"
+	case "OAUTH_TRANSACTION_EXPIRED":
+		redirectCode = "oauth_transaction_expired"
+	case "OAUTH_SCOPE_INSUFFICIENT":
+		redirectCode = "oauth_scope_insufficient"
+	case "CHANNEL_UNAVAILABLE":
+		redirectCode = "channel_unavailable"
+	case "CHANNEL_AMBIGUOUS":
+		redirectCode = "channel_ambiguous"
+	}
+	if providerError == "access_denied" {
+		redirectCode = "oauth_denied"
+	}
+	return redirectCode
+}
+
 func (h *HTTPHandler) callback(w http.ResponseWriter, r *http.Request, requestID string) {
 	if len(r.URL.RawQuery) > 8192 {
 		writeAPIError(w, 400, "INVALID_REQUEST", requestID)
@@ -626,31 +646,21 @@ func (h *HTTPHandler) callback(w http.ResponseWriter, r *http.Request, requestID
 		writeAPIError(w, 400, "INVALID_REQUEST", requestID)
 		return
 	}
-	err = h.Auth.Callback(r.Context(), transactionID(r), state, code, providerError != "")
+	purpose, err := h.Auth.CallbackWithPurpose(r.Context(), transactionID(r), state, code, providerError != "")
 	if err == nil {
 		http.Redirect(w, r, "/login/channel-confirm", http.StatusFound)
+		return
+	}
+	redirectCode := oauthRedirectCode(err, providerError)
+	if purpose == "support" {
+		setTransactionCookie(w, "", -1)
+		http.Redirect(w, r, "/contact?supportError="+url.QueryEscape(redirectCode), http.StatusFound)
 		return
 	}
 	if errorCode(err) == "MAINTENANCE_ACTIVE" {
 		setTransactionCookie(w, "", -1)
 		http.Redirect(w, r, "/maintenance", http.StatusFound)
 		return
-	}
-	redirectCode := "oauth_failed"
-	switch errorCode(err) {
-	case "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED":
-		redirectCode = "oauth_state_invalid"
-	case "OAUTH_TRANSACTION_EXPIRED":
-		redirectCode = "oauth_transaction_expired"
-	case "OAUTH_SCOPE_INSUFFICIENT":
-		redirectCode = "oauth_scope_insufficient"
-	case "CHANNEL_UNAVAILABLE":
-		redirectCode = "channel_unavailable"
-	case "CHANNEL_AMBIGUOUS":
-		redirectCode = "channel_ambiguous"
-	}
-	if providerError == "access_denied" {
-		redirectCode = "oauth_denied"
 	}
 	http.Redirect(w, r, "/login?error="+redirectCode, http.StatusFound)
 }

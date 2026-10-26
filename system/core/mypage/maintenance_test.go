@@ -33,6 +33,7 @@ type maintenanceFlowStore struct {
 	failErr     error
 	claimCalls  int
 	verifyCalls int
+	purposeErr  error
 }
 
 func (s *maintenanceFlowStore) Create(_ context.Context, _, _ string, value OAuthTransaction, _ time.Time) error {
@@ -42,7 +43,7 @@ func (s *maintenanceFlowStore) Create(_ context.Context, _, _ string, value OAut
 }
 
 func (s *maintenanceFlowStore) ReadPurpose(context.Context, string, time.Time) (string, int64, error) {
-	return transactionPurpose(s.tx), s.tx.MaintenanceRevision, nil
+	return transactionPurpose(s.tx), s.tx.MaintenanceRevision, s.purposeErr
 }
 
 func (s *maintenanceFlowStore) Claim(context.Context, string, string, time.Time) error {
@@ -73,7 +74,10 @@ func (s *maintenanceFlowStore) Consume(context.Context, string, string, string, 
 	return s.channel, nil
 }
 
-type maintenanceProvider struct{ calls int }
+type maintenanceProvider struct {
+	calls int
+	err   error
+}
 
 func (*maintenanceProvider) AuthorizationURL(state string) string {
 	return "https://example.test/?state=" + state
@@ -81,6 +85,9 @@ func (*maintenanceProvider) AuthorizationURL(state string) string {
 
 func (p *maintenanceProvider) Resolve(context.Context, string) ([]Channel, error) {
 	p.calls++
+	if p.err != nil {
+		return nil, p.err
+	}
 	return []Channel{{ID: "UCsynthetic", DisplayName: "Synthetic"}}, nil
 }
 
@@ -283,6 +290,44 @@ func TestNormalOAuthCallbackActivationFailsTransactionAndRedirectsWithoutProvide
 	}
 	if body := w.Body.String(); strings.Contains(body, "private-code") || strings.Contains(body, "private-state") {
 		t.Fatal("OAuth secret entered the redirect response")
+	}
+}
+
+func TestSupportOAuthCallbackFailuresStayOnPublicSupportPathDuringMaintenance(t *testing.T) {
+	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name, query, redirect   string
+		purposeErr, providerErr error
+	}{
+		{name: "denied", query: "error=access_denied", redirect: "oauth_denied"},
+		{name: "expired", query: "code=private-code", redirect: "oauth_transaction_expired", purposeErr: apiError("OAUTH_TRANSACTION_EXPIRED")},
+		{name: "scope", query: "code=private-code", redirect: "oauth_scope_insufficient", providerErr: apiError("OAUTH_SCOPE_INSUFFICIENT")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &maintenanceFlowStore{tx: OAuthTransaction{Purpose: "support"}, purposeErr: tc.purposeErr}
+			provider := &maintenanceProvider{err: tc.providerErr}
+			gate := &maintenanceStub{authoritative: []error{apiError("MAINTENANCE_ACTIVE")}}
+			h := &HTTPHandler{
+				PublicOrigin: "https://mypage.example.test", Maintenance: gate,
+				Verifier: &boundaryVerifier{},
+				Auth:     &AuthService{Store: store, Provider: provider, Maintenance: gate, Now: func() time.Time { return now }},
+			}
+			r := httptest.NewRequest(http.MethodGet, "https://mypage.example.test/api/auth/youtube/callback?state=private-state&"+tc.query, nil)
+			r.Header.Set("Origin", h.PublicOrigin)
+			r.AddCookie(&http.Cookie{Name: "__session", Value: strings.Repeat("a", 64)})
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			if w.Code != http.StatusFound || w.Header().Get("Location") != "/contact?supportError="+tc.redirect {
+				t.Fatalf("status=%d location=%s", w.Code, w.Header().Get("Location"))
+			}
+			cookies := w.Result().Cookies()
+			if len(cookies) != 1 || cookies[0].Name != "__session" || cookies[0].MaxAge != -1 || cookies[0].Value != "" {
+				t.Fatalf("support callback cookie not cleared: %+v", cookies)
+			}
+			if body := w.Body.String(); strings.Contains(body, "private-code") || strings.Contains(body, "private-state") {
+				t.Fatal("OAuth input entered the redirect response")
+			}
+		})
 	}
 }
 
