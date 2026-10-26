@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and push the reviewed DEV image; never obtain AWS/State credentials."""
+"""Build and push a reviewed environment-bound image; no AWS/State credentials."""
 import json
 import os
 import re
@@ -11,7 +11,7 @@ import foundation_ops as ops
 import runtime_contract as runtime
 
 PHASE = "context"
-PREFIX = "projects/" + c.PROJECT + "/locations/asia-southeast2/repositories/mypage"
+PREFIX = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/repositories/mypage"
 
 
 def preflight(env):
@@ -52,18 +52,19 @@ def build_push(env):
     PHASE = "offline-check"
     run(["bash", "system/scripts/check-mypage-image.sh", tag])
     PHASE = "push"
-    run(["docker", "login", "asia-southeast2-docker.pkg.dev", "--username", "oauth2accesstoken", "--password-stdin"], input_value=token)
+    registry = c.REGION + "-docker.pkg.dev"
+    run(["docker", "login", registry, "--username", "oauth2accesstoken", "--password-stdin"], input_value=token)
     try:
         run(["docker", "push", tag])
     finally:
-        run(["docker", "logout", "asia-southeast2-docker.pkg.dev"])
+        run(["docker", "logout", registry])
     PHASE = "readback"
     metadata = ops.request(tag_url, token)
     c.need(re.fullmatch(re.escape(PREFIX + "/packages/mypage-api/versions/sha256:") + r"[a-f0-9]{64}", metadata.get("version", "")), "image-digest-readback")
     local_digests = json.loads(run(["docker", "image", "inspect", "--format", "{{json .RepoDigests}}", tag]))
     expected_digest = runtime.REPOSITORY + "@" + metadata["version"].rsplit("/", 1)[-1]
     c.need(type(local_digests) is list and expected_digest in local_digests, "image-local-remote-digest")
-    print("Development image built, checked offline and pushed; immutable exact-source tag verified. No Terraform or deployment.")
+    print("Environment-bound image built, checked offline and pushed; immutable exact-source tag verified. No Terraform or deployment.")
 
 
 def main():

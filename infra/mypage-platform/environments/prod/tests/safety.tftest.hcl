@@ -20,6 +20,17 @@ run "foundation_is_private" {
   }
 }
 
+run "registry_is_private" {
+  command = plan
+  variables {
+    stage = "registry"
+  }
+  assert {
+    condition     = !module.platform[0].runtime_enabled && !module.platform[0].public_invoker_enabled
+    error_message = "Production registry bootstrap must not deploy an API or public invoker."
+  }
+}
+
 run "reject_invalid_stage" {
   command = plan
   variables {

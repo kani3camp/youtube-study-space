@@ -195,7 +195,9 @@ export class MaintenanceMonitor {
 			const visible = document.visibilityState === 'visible'
 			if (visible === this.visible) return
 			this.visible = visible
-			if (visible && this.routeActive) this.recheck(false)
+			// A hidden tab may have missed NORMAL -> ACTIVE. Close private state
+			// synchronously before the foreground read proves the current state.
+			if (visible && this.routeActive) this.recheck(true)
 			else {
 				this.controller?.abort()
 				this.stopTimer()

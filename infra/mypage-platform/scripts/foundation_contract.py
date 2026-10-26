@@ -91,12 +91,13 @@ def stage_for_mode(mode):
     from runtime_contract import MODES
     if mode in MODES:
         if TARGET == "production":
-            need(mode in {"maintenance-operator-plan", "maintenance-operator-apply"}, "production-maintenance-mode")
+            need(mode in {"maintenance-operator-plan", "maintenance-operator-apply",
+                          "maintenance-upgrade-plan", "maintenance-upgrade-apply"}, "production-maintenance-mode")
         return MODES[mode]
-    need(TARGET == "development", "production-maintenance-mode")
-    need(mode in {"foundation-plan", "foundation-apply", "foundation-metadata-plan", "foundation-metadata-apply", "registry-plan", "registry-apply"})
-    if mode.startswith("registry-"):
+    if mode in {"registry-plan", "registry-apply"}:
         return "registry"
+    need(TARGET == "development", "production-maintenance-mode")
+    need(mode in {"foundation-plan", "foundation-apply", "foundation-metadata-plan", "foundation-metadata-apply"})
     return "foundation_metadata" if mode.startswith("foundation-metadata-") else "foundation"
 
 
@@ -134,10 +135,9 @@ def resource_contract(stage="foundation"):
         "role": "roles/iam.serviceAccountTokenCreator", "member": "serviceAccount:" + EMAIL,
     }
     if stage == "registry":
-        need(TARGET == "development", "production-registry-stage")
         resources["google_artifact_registry_repository.mypage[0]"] = {
             "project": PROJECT, "location": REGION, "repository_id": "mypage",
-            "description": "YouTube Study Space MyPage development images",
+            "description": "YouTube Study Space MyPage " + ENVIRONMENT + " images",
             "format": "DOCKER", "mode": "STANDARD_REPOSITORY",
             "cleanup_policy_dry_run": True, "docker_config": [{"immutable_tags": True}],
             "remote_repository_config": [], "virtual_repository_config": [], "cleanup_policies": [],

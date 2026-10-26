@@ -190,7 +190,7 @@ def maintenance_resource_contract(value=None):
 
 def resource_contract(stage, value=None):
     c.need(stage in {"maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"}, "runtime-stage")
-    base_stage = "registry" if c.TARGET == "development" else "foundation"
+    base_stage = "registry"
     resources = c.resource_contract(base_stage) | maintenance_resource_contract(value)
     if stage == "maintenance_operator":
         return resources
@@ -499,6 +499,43 @@ def validate_owner_hosting_image_refresh(item, planned, value):
     c.need(normalized == after, "runtime-owner-refresh-fields")
 
 
+def validate_job_execution_refresh(item, planned, expected):
+    """Admit only provider-computed counters changed by a Cloud Run Job run."""
+    address = item.get("address")
+    c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "maintenance-job-refresh-provider")
+    change = item.get("change", {})
+    c.need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths"), "maintenance-job-refresh-action")
+    c.need(not c.has_unknown(change.get("after_unknown")), "maintenance-job-refresh-unknown")
+    before, after = change.get("before"), change.get("after")
+    c.need(type(before) is dict and type(after) is dict and set(before) == set(after), "maintenance-job-refresh-shape")
+    c.need(planned.get(address, {}).get("change", {}).get("actions") == ["no-op"], "maintenance-job-refresh-planned-noop")
+    changed = {key for key in before if before[key] != after[key]}
+    c.need(bool(changed) and changed <= {"execution_count", "latest_created_execution"}, "maintenance-job-refresh-fields")
+    c.need(type(before.get("execution_count")) is int and type(after.get("execution_count")) is int
+           and 0 <= before["execution_count"] <= after["execution_count"], "maintenance-job-refresh-count")
+    if "execution_count" in changed:
+        c.need(after["execution_count"] > before["execution_count"], "maintenance-job-refresh-count")
+
+    prefix = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/jobs/" + expected["name"] + "/executions/"
+
+    def execution(value, *, optional):
+        c.need(type(value) is list and (len(value) <= 1 if optional else len(value) == 1), "maintenance-job-refresh-execution")
+        if not value:
+            return None
+        c.need(type(value[0]) is dict and set(value[0]) == {"completion_time", "create_time", "name"}, "maintenance-job-refresh-execution")
+        result = value[0]
+        c.need(re.fullmatch(re.escape(prefix) + r"[a-z0-9-]{1,63}", result["name"]), "maintenance-job-refresh-execution-name")
+        created = c.registry_timestamp(result["create_time"])
+        completed = c.registry_timestamp(result["completion_time"])
+        c.need(completed >= created, "maintenance-job-refresh-execution-time")
+        return result
+
+    previous = execution(before.get("latest_created_execution"), optional=True)
+    current = execution(after.get("latest_created_execution"), optional=False)
+    if "latest_created_execution" in changed:
+        c.need(previous is None or previous["name"] != current["name"], "maintenance-job-refresh-execution-name")
+
+
 def validate_plan(plan, stage):
     value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
     if value["read_metrics_from_revision"]:
@@ -513,7 +550,7 @@ def validate_initial_plan(plan, stage):
     expected = resource_contract(stage, value)
     changes = plan.get("resource_changes", [])
     c.need(type(changes) is list, "runtime-plan-resources")
-    base_stage = "registry" if c.TARGET == "development" else "foundation"
+    base_stage = "registry"
     base = set(c.resource_contract(base_stage))
     foundation = deepcopy(plan)
     foundation["variables"]["stage"]["value"] = base_stage
@@ -535,6 +572,8 @@ def validate_initial_plan(plan, stage):
                 validate_owner_hosting_image_refresh(item, planned, value)
             else:
                 validate_service_empty_refresh(item, planned, value)
+        elif address in {MAINTENANCE_JOB, MAINTENANCE_BREAKGLASS_JOB, MAINTENANCE_BOOTSTRAP_JOB}:
+            validate_job_execution_refresh(item, planned, expected[address])
         else:
             # Removing temporary bootstrap access changes the same shared
             # policy etag, while these fixed managed members stay unchanged.

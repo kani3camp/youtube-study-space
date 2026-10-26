@@ -199,8 +199,11 @@ describe('browser authentication runtime', () => {
 			data: null,
 		})
 	})
-	it('closes restored private data before a delayed pageshow maintenance check', async () => {
-		const { windowTarget } = browserFixture()
+	it.each([
+		'pageshow',
+		'visibility',
+	] as const)('closes restored private data before a delayed %s maintenance check', async (boundary) => {
+		const { windowTarget, documentTarget } = browserFixture()
 		const { session, setUID } = sessionFixture()
 		setUID('synthetic')
 		let statusCalls = 0
@@ -236,10 +239,17 @@ describe('browser authentication runtime', () => {
 		await vi.waitFor(() =>
 			expect(runtime.memory.getSnapshot().data).not.toBeNull(),
 		)
-		windowTarget.dispatchEvent(new Event('pagehide'))
-		windowTarget.dispatchEvent(
-			Object.assign(new Event('pageshow'), { persisted: true }),
-		)
+		if (boundary === 'pageshow') {
+			windowTarget.dispatchEvent(new Event('pagehide'))
+			windowTarget.dispatchEvent(
+				Object.assign(new Event('pageshow'), { persisted: true }),
+			)
+		} else {
+			documentTarget.visibilityState = 'hidden'
+			documentTarget.dispatchEvent(new Event('visibilitychange'))
+			documentTarget.visibilityState = 'visible'
+			documentTarget.dispatchEvent(new Event('visibilitychange'))
+		}
 		expect(runtime.maintenance.getSnapshot().phase).toBe('checking')
 		expect(runtime.memory.getSnapshot().data).toBeNull()
 		release(

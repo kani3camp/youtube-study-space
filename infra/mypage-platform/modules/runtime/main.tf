@@ -84,14 +84,14 @@ resource "google_service_account" "runtime" {
   }
 }
 
-# DEV image storage is provisioned before building a digest for Cloud Run.
-# Existing Functions repositories and production ownership are untouched.
+# Environment-bound image storage is provisioned before building a digest.
+# Existing Functions repositories and other Artifact Registry owners are untouched.
 resource "google_artifact_registry_repository" "mypage" {
-  count                  = var.environment == "development" && contains(["registry", "maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) ? 1 : 0
+  count                  = contains(["registry", "maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) ? 1 : 0
   project                = var.project_id
   location               = var.region
   repository_id          = "mypage"
-  description            = "YouTube Study Space MyPage development images"
+  description            = "YouTube Study Space MyPage ${var.environment} images"
   format                 = "DOCKER"
   mode                   = "STANDARD_REPOSITORY"
   cleanup_policy_dry_run = true

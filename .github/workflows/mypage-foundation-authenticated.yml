@@ -47,6 +47,8 @@ jobs:
     env:
       MYPAGE_TARGET: ${{ inputs.target }}
       MYPAGE_MODE: ${{ inputs.mode }}
+      MYPAGE_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      TF_WORKSPACE: default
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -61,7 +63,7 @@ jobs:
 
           mode = os.environ['MYPAGE_MODE']
           if mode == 'image-build':
-              foundation_contract.need(foundation_contract.TARGET == 'development', 'production-maintenance-mode')
+              foundation_contract.context(os.environ, 'apply', image=True)
           else:
               foundation_contract.stage_for_mode(mode)
           PY
@@ -129,7 +131,12 @@ jobs:
           cleanup_credentials: true
           token_format: access_token
           access_token_lifetime: 1800s
-      - name: Require initialized maintenance control before planning a guarded runtime
+      - name: Plan bounded private foundation resources
+        id: plan
+        env:
+          MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+        run: python3 infra/mypage-platform/scripts/foundation_ops.py execute
+      - name: Require initialized maintenance control after planning a guarded runtime
         if: ${{ inputs.mode == 'runtime-private-plan' || inputs.mode == 'runtime-public-plan' }}
         run: |
           gcloud run jobs execute mypage-maintenance-bootstrap-check \
@@ -137,11 +144,6 @@ jobs:
             --region=${{ inputs.target == 'production' && 'asia-northeast2' || 'asia-southeast2' }} \
             --wait \
             --quiet
-      - name: Plan bounded private foundation resources
-        id: plan
-        env:
-          MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
-        run: python3 infra/mypage-platform/scripts/foundation_ops.py execute
       - name: Remove private evidence
         if: ${{ always() }}
         run: python3 infra/mypage-platform/scripts/foundation_ops.py cleanup
@@ -206,19 +208,19 @@ jobs:
           cleanup_credentials: true
           token_format: access_token
           access_token_lifetime: 1800s
-      - name: Require initialized maintenance control before reproducing a guarded runtime Plan
-        if: ${{ inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply' }}
+      - name: Independently reproduce saved Plan
+        id: prepared
+        env:
+          MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+        run: python3 infra/mypage-platform/scripts/foundation_ops.py execute
+      - name: Require initialized maintenance control before applying the matching guarded runtime Plan
+        if: ${{ (inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply') && steps.prepared.outputs.commitment == needs.foundation_plan.outputs.commitment && steps.prepared.outputs.commitment != '' }}
         run: |
           gcloud run jobs execute mypage-maintenance-bootstrap-check \
             --project=${{ inputs.target == 'production' && 'youtube-study-space' || 'test-youtube-study-space' }} \
             --region=${{ inputs.target == 'production' && 'asia-northeast2' || 'asia-southeast2' }} \
             --wait \
             --quiet
-      - name: Independently reproduce saved Plan
-        id: prepared
-        env:
-          MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
-        run: python3 infra/mypage-platform/scripts/foundation_ops.py execute
       # HMAC outputs stay in the expression engine, never runner env/with logs.
       - name: Apply matching saved Plan
         id: applied
@@ -241,10 +243,10 @@ jobs:
 
   image_build:
     needs: target_contract
-    if: ${{ inputs.target == 'development' && inputs.mode == 'image-build' }}
+    if: ${{ inputs.mode == 'image-build' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    environment: mypage-dev-apply
+    environment: ${{ inputs.target == 'production' && 'mypage-prod-apply' || 'mypage-dev-apply' }}
     permissions:
       contents: read
       id-token: write
@@ -270,13 +272,13 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
-          project_id: test-youtube-study-space
+          project_id: ${{ inputs.target == 'production' && 'youtube-study-space' || 'test-youtube-study-space' }}
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
           token_format: access_token
           access_token_lifetime: 1800s
-      - name: Build, offline-check and push the immutable DEV image
+      - name: Build, offline-check and push the immutable environment image
         env:
           MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
         run: python3 infra/mypage-platform/scripts/image_ops.py build-push

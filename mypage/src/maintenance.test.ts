@@ -253,6 +253,48 @@ describe('public maintenance status', () => {
 		dispose()
 	})
 
+	it('closes a prior NORMAL snapshot before a delayed visibility recheck', async () => {
+		const { documentTarget } = browserFixture()
+		let call = 0
+		let release: (response: Response) => void = () => {}
+		const phases: string[] = []
+		const monitor = new MaintenanceMonitor(
+			async () => {
+				call++
+				if (call === 1)
+					return Response.json({
+						state: 'NORMAL',
+						updatedAt: '2026-10-27T02:00:00Z',
+						messageTemplate: 'MYPAGE_MAINTENANCE_V1',
+					})
+				return new Promise<Response>((resolve) => {
+					release = resolve
+				})
+			},
+			(phase) => phases.push(phase),
+		)
+		const dispose = monitor.mount()
+		monitor.setRouteActive(true)
+		await settle()
+		expect(monitor.getSnapshot().phase).toBe('normal')
+		documentTarget.visibilityState = 'hidden'
+		documentTarget.dispatchEvent(new Event('visibilitychange'))
+		documentTarget.visibilityState = 'visible'
+		documentTarget.dispatchEvent(new Event('visibilitychange'))
+		expect(monitor.getSnapshot().phase).toBe('checking')
+		expect(phases.at(-1)).toBe('checking')
+		release(
+			Response.json({
+				state: 'ACTIVE',
+				updatedAt: '2026-10-27T02:01:00Z',
+				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
+			}),
+		)
+		await settle()
+		expect(monitor.getSnapshot().phase).toBe('active')
+		dispose()
+	})
+
 	it('keeps failures and malformed responses in UNKNOWN instead of guessing NORMAL', async () => {
 		browserFixture()
 		for (const response of [

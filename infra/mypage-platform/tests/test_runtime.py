@@ -95,6 +95,57 @@ class RuntimeTest(unittest.TestCase):
                 r.validate_plan(changed,'runtime_private')
             self.assertEqual(str(error.exception), expected_check)
 
+    def test_completed_job_execution_drift_is_bounded_and_plan_committed(self):
+        def execution(job, suffix, created, completed):
+            return [{
+                'name': 'projects/' + c.PROJECT + '/locations/' + c.REGION + '/jobs/' + job + '/executions/' + suffix,
+                'create_time': created,
+                'completion_time': completed,
+            }]
+
+        for address in (r.MAINTENANCE_JOB, r.MAINTENANCE_BREAKGLASS_JOB, r.MAINTENANCE_BOOTSTRAP_JOB):
+            with self.subTest(address=address):
+                plan = fixture('runtime_private')
+                for item in plan['resource_changes']:
+                    item['change']['actions'] = ['no-op']
+                item = next(x for x in plan['resource_changes'] if x['address'] == address)
+                job = r.maintenance_resource_contract()[address]['name']
+                before = deepcopy(item['change']['after']) | {
+                    'execution_count': 2,
+                    'latest_created_execution': execution(job, 'old-execution', '2026-10-27T00:00:00Z', '2026-10-27T00:00:10Z'),
+                }
+                after = deepcopy(item['change']['after']) | {
+                    'execution_count': 3,
+                    'latest_created_execution': execution(job, 'new-execution', '2026-10-27T01:00:00Z', '2026-10-27T01:00:10Z'),
+                }
+                item['change']['after'] = after
+                drift = deepcopy(item)
+                drift['change'].update(actions=['update'], before=before, after=after, after_unknown={})
+                plan['resource_drift'] = [drift]
+                original = deepcopy(plan)
+                self.assertEqual(r.validate_plan(plan, 'runtime_private'), {'resources': 29, 'creates': 0})
+                self.assertEqual(plan, original)
+                key = 'private-key-for-synthetic-tests-only'
+                self.assertEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
+                                 c.commitment(deepcopy(plan), 'state-version', 'a' * 40, key))
+                self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
+                                    c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
+
+                for mutate, check in (
+                    (lambda p: p['resource_drift'][0]['change']['after'].update(template=[]), 'maintenance-job-refresh-fields'),
+                    (lambda p: p['resource_drift'][0]['change']['after'].update(execution_count=1), 'maintenance-job-refresh-count'),
+                    (lambda p: p['resource_drift'][0]['change']['after']['latest_created_execution'][0].update(name='projects/other/jobs/foreign'), 'maintenance-job-refresh-execution-name'),
+                    (lambda p: p['resource_drift'][0]['change']['after']['latest_created_execution'][0].update(completion_time='2026-10-26T23:00:00Z'), 'maintenance-job-refresh-execution-time'),
+                    (lambda p: None, 'maintenance-job-refresh-planned-noop'),
+                ):
+                    rejected = deepcopy(plan)
+                    if check == 'maintenance-job-refresh-planned-noop':
+                        next(x for x in rejected['resource_changes'] if x['address'] == address)['change']['actions'] = ['update']
+                    else:
+                        mutate(rejected)
+                    with self.assertRaisesRegex(c.ContractError, '^' + check + '$'):
+                        r.validate_plan(rejected, 'runtime_private')
+
     def test_owner_hosting_image_refresh_is_exact_ready_noop_and_committed(self):
         for stage, size in (("runtime_private", 29), ("runtime_public", 30)):
             plan = fixture(stage)
