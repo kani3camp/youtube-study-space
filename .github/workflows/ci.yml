@@ -36,7 +36,7 @@ on:
           - development
           - production
       mypage_foundation_mode:
-        description: MyPage development provisioning operation
+        description: MyPage staged Development or Production provisioning operation
         required: false
         default: foundation-metadata-plan
         type: choice

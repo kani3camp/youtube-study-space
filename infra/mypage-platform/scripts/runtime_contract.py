@@ -118,15 +118,19 @@ def maintenance_resource_contract(value=None):
         MAINTENANCE_PROVIDER: {"project": c.PROJECT, "workload_identity_pool_id": "mypage-maintenance", "workload_identity_pool_provider_id": "github", "disabled": False},
         MAINTENANCE_WIF: {"role": "roles/iam.workloadIdentityUser"},
         MAINTENANCE_INSPECT_WIF: {"role": "roles/iam.workloadIdentityUser"},
-        MAINTENANCE_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-operator", "location": c.REGION, "deletion_protection": True},
+        MAINTENANCE_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-operator", "location": c.REGION,
+                          "deletion_policy": "PREVENT", "deletion_protection": True, "launch_stage": "GA"},
         MAINTENANCE_JOB_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator", "role": "roles/run.jobsExecutorWithOverrides", "member": "serviceAccount:" + invoker_email},
-        MAINTENANCE_BREAKGLASS_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-breakglass", "location": c.REGION, "deletion_protection": True},
-        MAINTENANCE_BOOTSTRAP_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-bootstrap-check", "location": c.REGION, "deletion_protection": True},
+        MAINTENANCE_BREAKGLASS_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-breakglass", "location": c.REGION,
+                                     "deletion_policy": "PREVENT", "deletion_protection": True, "launch_stage": "GA"},
+        MAINTENANCE_BOOTSTRAP_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-bootstrap-check", "location": c.REGION,
+                                    "deletion_policy": "PREVENT", "deletion_protection": True, "launch_stage": "GA"},
         MAINTENANCE_BOOTSTRAP_PLAN_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-foundation-plan@" + c.PROJECT + ".iam.gserviceaccount.com"},
         MAINTENANCE_BOOTSTRAP_APPLY_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-foundation-apply@" + c.PROJECT + ".iam.gserviceaccount.com"},
         MAINTENANCE_BOOTSTRAP_BACKEND_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"},
         MAINTENANCE_INSPECT_SERVICE: {"project": c.PROJECT, "name": "mypage-maintenance-inspect", "location": c.REGION,
-                                      "ingress": "INGRESS_TRAFFIC_ALL", "deletion_protection": True, "invoker_iam_disabled": False},
+                                      "ingress": "INGRESS_TRAFFIC_ALL", "deletion_policy": "PREVENT",
+                                      "deletion_protection": True, "invoker_iam_disabled": False, "launch_stage": "GA"},
         MAINTENANCE_INSPECT_SERVICE_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-inspect",
                                               "role": "roles/run.invoker", "member": "serviceAccount:" + inspect_invoker_email},
     }
@@ -280,8 +284,7 @@ def fixed_options(value, allowed, check):
 
 JOB_OBSERVED_OPTIONS = {
     "conditions", "create_time", "creator", "delete_time", "effective_annotations", "effective_labels",
-    "deletion_policy", "etag", "execution_count", "expire_time", "generation", "id", "last_modifier",
-    "latest_created_execution", "launch_stage",
+    "etag", "execution_count", "expire_time", "generation", "id", "last_modifier", "latest_created_execution",
     "observed_generation", "reconciling", "terminal_condition", "terraform_labels", "uid", "update_time",
 }
 
@@ -296,7 +299,7 @@ def known_path(mask, *path):
     c.need(not c.has_unknown(mask), "runtime-config-unknown")
 
 
-def validate_maintenance_resource(address, after, unknown, value):
+def validate_maintenance_resource(address, after, unknown, value, actions):
     operator_email = "mypage-maintenance-job@" + c.PROJECT + ".iam.gserviceaccount.com"
     invoker_email = "mypage-maintenance-invoker@" + c.PROJECT + ".iam.gserviceaccount.com"
     bootstrap_email = "mypage-maintenance-bootstrap@" + c.PROJECT + ".iam.gserviceaccount.com"
@@ -340,7 +343,7 @@ def validate_maintenance_resource(address, after, unknown, value):
         c.need(after.get("member") == expected_member, "maintenance-wif-member")
         return
     if address in {MAINTENANCE_JOB, MAINTENANCE_BREAKGLASS_JOB}:
-        fixed_options(after, {"project", "name", "location", "deletion_protection", "template"} | JOB_OBSERVED_OPTIONS, "maintenance-job-options")
+        fixed_options(after, {"project", "name", "location", "deletion_policy", "deletion_protection", "launch_stage", "template"} | JOB_OBSERVED_OPTIONS, "maintenance-job-options")
         template = one(after.get("template"), "maintenance-job-template")
         fixed_options(template, {"task_count", "parallelism", "template"}, "maintenance-job-template-options")
         c.need(template.get("task_count") == 1 and template.get("parallelism") == 1, "maintenance-job-single-task")
@@ -364,7 +367,7 @@ def validate_maintenance_resource(address, after, unknown, value):
         c.need(resources.get("limits") == {"cpu": "1", "memory": "512Mi"}, "maintenance-job-limits")
         return
     if address == MAINTENANCE_BOOTSTRAP_JOB:
-        fixed_options(after, {"project", "name", "location", "deletion_protection", "template"} | JOB_OBSERVED_OPTIONS, "maintenance-bootstrap-options")
+        fixed_options(after, {"project", "name", "location", "deletion_policy", "deletion_protection", "launch_stage", "template"} | JOB_OBSERVED_OPTIONS, "maintenance-bootstrap-options")
         template = one(after.get("template"), "maintenance-bootstrap-template")
         fixed_options(template, {"task_count", "parallelism", "template"}, "maintenance-bootstrap-template-options")
         c.need(template.get("task_count") == 1 and template.get("parallelism") == 1, "maintenance-bootstrap-single-task")
@@ -387,19 +390,20 @@ def validate_maintenance_resource(address, after, unknown, value):
         c.need(resources.get("limits") == {"cpu": "1", "memory": "512Mi"}, "maintenance-bootstrap-limits")
         return
     if address == MAINTENANCE_INSPECT_SERVICE:
-        validate_inspect_service(after, unknown, value, bootstrap_email)
+        validate_inspect_service(after, unknown, value, actions, bootstrap_email)
         return
 
 
-def validate_inspect_service(after, unknown, value, bootstrap_email=None):
+def validate_inspect_service(after, unknown, value, actions, bootstrap_email=None):
     bootstrap_email = bootstrap_email or "mypage-maintenance-bootstrap@" + c.PROJECT + ".iam.gserviceaccount.com"
-    for key in ("project", "name", "location", "ingress", "deletion_protection", "invoker_iam_disabled"):
+    for key in ("project", "name", "location", "ingress", "deletion_policy", "deletion_protection",
+                "invoker_iam_disabled", "launch_stage"):
         c.need(not c.has_unknown(unknown.get(key)), "maintenance-inspect-unknown")
     for key in ("min_instance_count", "max_instance_count", "scaling_mode"):
         known_path(unknown, "scaling", 0, key)
-    for key in ("type", "percent"):
+    for key in ("type", "percent", "revision"):
         known_path(unknown, "traffic", 0, key)
-    for key in ("service_account", "timeout", "max_instance_request_concurrency", "execution_environment", "scaling"):
+    for key in ("service_account", "timeout", "max_instance_request_concurrency", "execution_environment", "scaling", "revision"):
         known_path(unknown, "template", 0, key)
     for key in ("image", "command", "args", "ports", "resources", "env", "startup_probe"):
         known_path(unknown, "template", 0, "containers", 0, key)
@@ -420,7 +424,10 @@ def validate_inspect_service(after, unknown, value, bootstrap_email=None):
     fixed_options(traffic, {"type", "percent", "revision", "tag"}, "maintenance-inspect-traffic-options")
     c.need(traffic.get("type") == "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST" and traffic.get("percent") == 100
            and not traffic.get("tag"), "maintenance-inspect-traffic")
-    c.need(not traffic.get("revision") or re.fullmatch(r"mypage-maintenance-inspect-[a-z0-9-]{1,50}", traffic["revision"]), "maintenance-inspect-traffic")
+    if actions == ["create"]:
+        c.need(not traffic.get("revision"), "maintenance-inspect-traffic")
+    else:
+        c.need(not traffic.get("revision") or re.fullmatch(r"mypage-maintenance-inspect-[a-z0-9-]{1,50}", traffic["revision"]), "maintenance-inspect-traffic")
     template = one(after.get("template"), "maintenance-inspect-template")
     fixed_options(template, {"service_account", "timeout", "max_instance_request_concurrency", "execution_environment",
                              "scaling", "containers", "revision", "annotations", "labels"}, "maintenance-inspect-template-options")
@@ -428,7 +435,10 @@ def validate_inspect_service(after, unknown, value, bootstrap_email=None):
     c.need(template.get("service_account") == bootstrap_email and template.get("timeout") == "20s"
            and template.get("max_instance_request_concurrency") == 1
            and template.get("execution_environment") == "EXECUTION_ENVIRONMENT_GEN2", "maintenance-inspect-template")
-    c.need(not template.get("revision") or re.fullmatch(r"mypage-maintenance-inspect-[a-z0-9-]{1,50}", template["revision"]), "maintenance-inspect-template")
+    if actions == ["create"]:
+        c.need(not template.get("revision"), "maintenance-inspect-template")
+    else:
+        c.need(not template.get("revision") or re.fullmatch(r"mypage-maintenance-inspect-[a-z0-9-]{1,50}", template["revision"]), "maintenance-inspect-template")
     template_scaling = one(template.get("scaling"), "maintenance-inspect-template-scaling")
     fixed_options(template_scaling, {"min_instance_count", "max_instance_count"}, "maintenance-inspect-template-scaling-options")
     c.need(template_scaling.get("min_instance_count") == 0 and template_scaling.get("max_instance_count") == 1,
@@ -767,7 +777,7 @@ def validate_initial_plan(plan, stage):
                 valid = after.get(key) == expected_value
             c.need(valid and not c.has_unknown(unknown.get(key)), "runtime-resource-value-" + address + "-" + key)
         if address in maintenance_resource_contract():
-            validate_maintenance_resource(address, after, unknown, value)
+            validate_maintenance_resource(address, after, unknown, value, change.get("actions"))
         elif address == SERVICE:
             validate_service(after, unknown, value)
     c.need(seen == set(expected), "runtime-resource-set")

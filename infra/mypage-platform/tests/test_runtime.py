@@ -167,6 +167,28 @@ class RuntimeTest(unittest.TestCase):
                 with self.subTest(address=address, suffix=suffix), self.assertRaisesRegex(c.ContractError, '^' + prefix + suffix + '$'):
                     r.validate_plan(rejected, 'maintenance_upgrade')
 
+    def test_cloud_run_optional_inputs_are_fixed_and_create_cannot_pin_a_revision(self):
+        addresses = (r.MAINTENANCE_JOB, r.MAINTENANCE_BREAKGLASS_JOB, r.MAINTENANCE_BOOTSTRAP_JOB,
+                     r.MAINTENANCE_INSPECT_SERVICE)
+        for address in addresses:
+            for field, invalid in (("deletion_policy", "ABANDON"), ("launch_stage", "ALPHA")):
+                rejected = fixture("maintenance_upgrade")
+                resource = next(item for item in rejected["resource_changes"] if item["address"] == address)["change"]["after"]
+                resource[field] = invalid
+                with self.subTest(address=address, field=field), self.assertRaises(c.ContractError) as error:
+                    r.validate_plan(rejected, "maintenance_upgrade")
+                self.assertEqual(str(error.exception), "runtime-resource-value-" + address + "-" + field)
+
+        for block, check in (("traffic", "maintenance-inspect-traffic"),
+                             ("template", "maintenance-inspect-template")):
+            rejected = fixture("maintenance_upgrade")
+            service = next(item for item in rejected["resource_changes"]
+                           if item["address"] == r.MAINTENANCE_INSPECT_SERVICE)["change"]["after"]
+            service[block][0]["revision"] = "mypage-maintenance-inspect-pinned"
+            with self.subTest(block=block), self.assertRaises(c.ContractError) as error:
+                r.validate_plan(rejected, "maintenance_upgrade")
+            self.assertEqual(str(error.exception), check)
+
     def test_owner_hosting_image_refresh_is_exact_ready_noop_and_committed(self):
         for stage, size in (("runtime_private", 32), ("runtime_public", 33)):
             plan = fixture(stage)

@@ -537,7 +537,9 @@ resource "google_cloud_run_v2_job" "maintenance_operator" {
   project             = var.project_id
   name                = "mypage-maintenance-operator"
   location            = var.region
+  deletion_policy     = "PREVENT"
   deletion_protection = true
+  launch_stage        = "GA"
 
   template {
     task_count  = 1
@@ -596,7 +598,9 @@ resource "google_cloud_run_v2_job" "maintenance_breakglass" {
   project             = var.project_id
   name                = "mypage-maintenance-breakglass"
   location            = var.region
+  deletion_policy     = "PREVENT"
   deletion_protection = true
+  launch_stage        = "GA"
 
   template {
     task_count  = 1
@@ -638,7 +642,9 @@ resource "google_cloud_run_v2_job" "maintenance_bootstrap" {
   project             = var.project_id
   name                = "mypage-maintenance-bootstrap-check"
   location            = var.region
+  deletion_policy     = "PREVENT"
   deletion_protection = true
+  launch_stage        = "GA"
 
   template {
     task_count  = 1
@@ -684,8 +690,10 @@ resource "google_cloud_run_v2_service" "maintenance_inspect" {
   name                 = "mypage-maintenance-inspect"
   location             = var.region
   ingress              = "INGRESS_TRAFFIC_ALL"
+  deletion_policy      = "PREVENT"
   deletion_protection  = true
   invoker_iam_disabled = false
+  launch_stage         = "GA"
 
   scaling {
     min_instance_count = 0
