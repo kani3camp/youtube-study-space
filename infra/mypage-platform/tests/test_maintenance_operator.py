@@ -32,7 +32,7 @@ value = r.settings({
     "maintenance_operator_enabled": True,
     "maintenance_operator_image_digest": r.REPOSITORY + "@sha256:" + "b" * 64,
     "maintenance_operator_image_source_sha": "c" * 40,
-})
+}, "maintenance_operator")
 resources = r.resource_contract("maintenance_operator", value)
 provider = resources[r.MAINTENANCE_PROVIDER]
 print(json.dumps({
@@ -133,10 +133,57 @@ print(json.dumps({
     def test_authenticated_entrypoint_stages_operator_runtime_settings(self):
         source = (ROOT / "infra/mypage-platform/scripts/foundation_ops.py").read_text()
         self.assertIn(
-            'contract.stage_for_mode(env["MYPAGE_MODE"]) in set(runtime_contract.MODES.values())',
+            'if stage_name in set(runtime_contract.MODES.values()):',
             source,
         )
         self.assertNotIn('.startswith("runtime_")', source)
+
+    def test_production_operator_bootstrap_needs_only_operator_image(self):
+        program = r'''
+import json
+import foundation_contract as c
+import foundation_ops as ops
+import runtime_contract as r
+
+sha = "c" * 40
+raw = {
+    "maintenance_operator_enabled": True,
+    "maintenance_operator_image_digest": r.REPOSITORY + "@sha256:" + "b" * 64,
+    "maintenance_operator_image_source_sha": sha,
+}
+env = {
+    "GITHUB_SHA": sha,
+    "MYPAGE_GCP_ACCESS_TOKEN": "private-token",
+    "MYPAGE_GCP_WIF_PROVIDER": "projects/" + c.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions",
+    "MYPAGE_RUNTIME_SETTINGS_JSON": json.dumps(raw),
+}
+value = ops.runtime_settings(env, "maintenance_operator")
+prefix = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/repositories/mypage/packages/mypage-api"
+calls = []
+ops.request = lambda url, token: calls.append(url) or {
+    "version": prefix + "/versions/sha256:" + "b" * 64,
+}
+ops.verify_runtime_inputs(env, value, "maintenance_operator")
+print(json.dumps({"value": value, "calls": calls}))
+'''
+        env = os.environ | {
+            "MYPAGE_TARGET": "production",
+            "PYTHONPATH": str(ROOT / "infra/mypage-platform/scripts"),
+        }
+        result = subprocess.run(
+            [sys.executable, "-c", program],
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        actual = json.loads(result.stdout)
+        self.assertEqual(actual["value"]["image_digest"], "")
+        self.assertEqual(actual["value"]["oauth_client_id_version"], "")
+        self.assertEqual(len(actual["calls"]), 1)
+        self.assertIn("/tags/" + "c" * 40, actual["calls"][0])
+        self.assertNotIn("secretmanager", actual["calls"][0])
 
     def test_runtime_plan_and_apply_checkout_full_history_for_operator_ancestry(self):
         source = (ROOT / ".github/workflows/mypage-foundation-authenticated.yml").read_text()

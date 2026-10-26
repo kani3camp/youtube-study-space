@@ -116,10 +116,11 @@ def stage(env):
                "encrypt": True, "use_lockfile": True, "workspace_key_prefix": contract.WORKSPACE_PREFIX,
                "allowed_account_ids": [env["MYPAGE_STATE_ACCOUNT"]]}
     (root / "backend.json").write_bytes(contract.canonical(backend))
-    if contract.stage_for_mode(env["MYPAGE_MODE"]) in set(runtime_contract.MODES.values()):
-        value = runtime_settings(env)
+    stage_name = contract.stage_for_mode(env["MYPAGE_MODE"])
+    if stage_name in set(runtime_contract.MODES.values()):
+        value = runtime_settings(env, stage_name)
         (root / "runtime-settings.json").write_bytes(contract.canonical({"runtime_settings": value}))
-        if contract.stage_for_mode(env["MYPAGE_MODE"]) == "runtime_public":
+        if stage_name == "runtime_public":
             (root / ("source/environments/" + contract.CONFIG["state"] + "/owner-public-invoker-import.tf")).write_text(runtime_contract.public_invoker_import_config())
     print("Environment-bound foundation preflight passed; no cloud credentials requested yet.")
 
@@ -199,7 +200,7 @@ def reject_unowned_resources(env, plan):
             need(False)
 
 
-def runtime_settings(env):
+def runtime_settings(env, stage=None):
     raw = env.get("MYPAGE_RUNTIME_SETTINGS_JSON", "")
     need(0 < len(raw.encode()) <= 65536)
     def pairs(items):
@@ -208,36 +209,39 @@ def runtime_settings(env):
             need(key not in result)
             result[key] = value
         return result
-    value = runtime_contract.settings(json.loads(raw, object_pairs_hook=pairs))
+    value = runtime_contract.settings(json.loads(raw, object_pairs_hook=pairs), stage)
     release_file = REPO / "infra/mypage-platform/environments/dev/runtime-release.json"
-    if contract.TARGET == "development" and release_file.exists():
+    if stage != "maintenance_operator" and contract.TARGET == "development" and release_file.exists():
         contract.need(release_file.is_file() and not release_file.is_symlink(), "runtime-release-file")
         release = json.loads(release_file.read_text(), object_pairs_hook=pairs)
         contract.need(type(release) is dict and set(release) == {"image_digest", "image_source_sha", "hosting_backend_host", "previous_image_digest"}, "runtime-release-fields")
-        value = runtime_contract.settings(value | release)
+        value = runtime_contract.settings(value | release, stage)
         contract.need(all(release.values()) and release["previous_image_digest"] != release["image_digest"], "runtime-release-values")
     provider = re.fullmatch(r"projects/([0-9]+)/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions",
                             env.get("MYPAGE_GCP_WIF_PROVIDER", ""))
-    need(provider and value["project_number"] == provider[1])
+    need(provider and provider[1] == contract.PROJECT_NUMBER)
+    if stage != "maintenance_operator":
+        need(value["project_number"] == provider[1])
     return value
 
 
-def verify_runtime_inputs(env, value):
+def verify_runtime_inputs(env, value, stage):
     # Infrastructure-only changes may retain a reviewed image. Its immutable
     # build commit must have the identical full Docker context, including its
     # Dockerfile, dependencies, ignore rules and source. Never retag an image.
-    source = value.get("image_source_sha") or env["GITHUB_SHA"]
-    if source != env["GITHUB_SHA"]:
-        contract.need(re.fullmatch(r"[a-f0-9]{40}", source), "runtime-image-source-sha")
-        run(["git", "fetch", "--no-tags", "--depth=1", "origin", source], cwd=REPO, check="runtime-image-source-fetch")
-        current_tree = run(["git", "rev-parse", env["GITHUB_SHA"] + ":system"], cwd=REPO).strip()
-        image_tree = run(["git", "rev-parse", source + ":system"], cwd=REPO).strip()
-        contract.need(re.fullmatch(r"[a-f0-9]{40}", current_tree) and current_tree == image_tree,
-                      "runtime-image-source-tree")
     prefix = "projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/repositories/mypage/packages/mypage-api"
-    tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source, env["MYPAGE_GCP_ACCESS_TOKEN"])
-    expected = prefix + "/versions/sha256:" + value["image_digest"].split("@sha256:")[1]
-    contract.need(tag.get("version") == expected, "runtime-source-image-digest")
+    if stage != "maintenance_operator":
+        source = value.get("image_source_sha") or env["GITHUB_SHA"]
+        if source != env["GITHUB_SHA"]:
+            contract.need(re.fullmatch(r"[a-f0-9]{40}", source), "runtime-image-source-sha")
+            run(["git", "fetch", "--no-tags", "--depth=1", "origin", source], cwd=REPO, check="runtime-image-source-fetch")
+            current_tree = run(["git", "rev-parse", env["GITHUB_SHA"] + ":system"], cwd=REPO).strip()
+            image_tree = run(["git", "rev-parse", source + ":system"], cwd=REPO).strip()
+            contract.need(re.fullmatch(r"[a-f0-9]{40}", current_tree) and current_tree == image_tree,
+                          "runtime-image-source-tree")
+        tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source, env["MYPAGE_GCP_ACCESS_TOKEN"])
+        expected = prefix + "/versions/sha256:" + value["image_digest"].split("@sha256:")[1]
+        contract.need(tag.get("version") == expected, "runtime-source-image-digest")
     operator_source = value["maintenance_operator_image_source_sha"]
     if operator_source != env["GITHUB_SHA"]:
         run(["git", "fetch", "--no-tags", "--depth=1", "origin", operator_source], cwd=REPO, check="maintenance-operator-source-fetch")
@@ -245,12 +249,13 @@ def verify_runtime_inputs(env, value):
     operator_tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + operator_source, env["MYPAGE_GCP_ACCESS_TOKEN"])
     operator_expected = prefix + "/versions/sha256:" + value["maintenance_operator_image_digest"].split("@sha256:")[1]
     contract.need(operator_tag.get("version") == operator_expected, "maintenance-operator-source-image-digest")
-    for name, field in (("mypage-oauth-client-id", "oauth_client_id_version"),
-                        ("mypage-oauth-client-secret", "oauth_client_secret_version"),
-                        ("mypage-youtube-api-key", "youtube_api_key_version")):
-        metadata = request("https://secretmanager.googleapis.com/v1/projects/" + contract.PROJECT + "/secrets/" + name + "/versions/" + value[field],
-                           env["MYPAGE_GCP_ACCESS_TOKEN"])
-        contract.need(metadata.get("state") == "ENABLED", "runtime-secret-version-enabled")
+    if stage != "maintenance_operator":
+        for name, field in (("mypage-oauth-client-id", "oauth_client_id_version"),
+                            ("mypage-oauth-client-secret", "oauth_client_secret_version"),
+                            ("mypage-youtube-api-key", "youtube_api_key_version")):
+            metadata = request("https://secretmanager.googleapis.com/v1/projects/" + contract.PROJECT + "/secrets/" + name + "/versions/" + value[field],
+                               env["MYPAGE_GCP_ACCESS_TOKEN"])
+            contract.need(metadata.get("state") == "ENABLED", "runtime-secret-version-enabled")
 
 
 def verify_owner_public_invoker(env):
@@ -319,9 +324,9 @@ def prepare(env):
     value = None
     if stage in set(runtime_contract.MODES.values()):
         PHASE = "runtime-inputs"
-        value = runtime_settings(env)
+        value = runtime_settings(env, stage)
         contract.need(json.loads((root / "runtime-settings.json").read_text()) == {"runtime_settings": value}, "runtime-staged-settings")
-        verify_runtime_inputs(env, value)
+        verify_runtime_inputs(env, value, stage)
         if stage in {"maintenance_upgrade", "runtime_public"}:
             verify_owner_public_invoker(env)
         arguments.append("-var-file=" + str(root / "runtime-settings.json"))
@@ -362,7 +367,7 @@ def apply_saved(env):
     stage = contract.stage_for_mode(env["MYPAGE_MODE"])
     if stage in set(runtime_contract.MODES.values()):
         plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work, check="saved-runtime-plan-show"))
-        value = runtime_contract.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
+        value = runtime_contract.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
         if value["read_metrics_from_revision"]:
             # Provider 8.5.0 omits etag on Update. NEVER apply its update Plan:
             # use a conditional API mutation and validated refresh-only State.

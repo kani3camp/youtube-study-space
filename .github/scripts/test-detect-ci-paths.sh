@@ -46,6 +46,7 @@ assert_exact_groups mypage docs/mypage/openapi.yaml
 assert_exact_groups mypage infra/mypage-oauth-ttl/environments/dev/main.tf
 assert_exact_groups mypage .github/scripts/check-mypage-contract.py
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/mypage_maintenance.py
+assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/mypage_maintenance_inspect.py
 assert_exact_groups "system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all" .github/scripts/test_mypage_maintenance.py
 assert_exact_groups "youtube_monitor mypage" biome.json
 assert_exact_groups "system firestore_integration" system/core/mypage/store.go

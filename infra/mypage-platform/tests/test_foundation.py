@@ -123,7 +123,7 @@ class FoundationTest(unittest.TestCase):
             'MYPAGE_PLAN_HMAC_KEY': 'synthetic-test-key-with-more-than-32-bytes',
             'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(value),
         }
-        expected = ops.runtime_settings(env)
+        expected = ops.runtime_settings(env, 'maintenance_operator')
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / 'private'
 
@@ -172,7 +172,7 @@ class FoundationTest(unittest.TestCase):
         tag = {'version': prefix + '/versions/sha256:' + value['image_digest'].split('@sha256:')[1]}
         operator_tag = {'version': prefix + '/versions/sha256:' + value['maintenance_operator_image_digest'].split('@sha256:')[1]}
         with patch.object(ops, 'request', side_effect=[tag, operator_tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
-            ops.verify_runtime_inputs(env, value)
+            ops.verify_runtime_inputs(env, value, 'runtime_private')
         urls = [call.args[0] for call in request.call_args_list]
         self.assertEqual(urls[0], 'https://artifactregistry.googleapis.com/v1/' + prefix + '/tags/' + env['GITHUB_SHA'])
         self.assertEqual(urls[1], 'https://artifactregistry.googleapis.com/v1/' + prefix + '/tags/' + env['GITHUB_SHA'])
@@ -189,7 +189,7 @@ class FoundationTest(unittest.TestCase):
             output = io.StringIO()
             with patch.object(sys, 'argv', ['foundation_ops.py', 'execute']), \
                     patch.object(ops, 'request', side_effect=responses), \
-                    patch.object(ops, 'prepare', side_effect=lambda ignored: ops.verify_runtime_inputs(env, value)), \
+                    patch.object(ops, 'prepare', side_effect=lambda ignored: ops.verify_runtime_inputs(env, value, 'runtime_private')), \
                     redirect_stderr(output):
                 self.assertEqual(ops.main(), 1)
             self.assertIn('check=' + expected + '.', output.getvalue())
@@ -205,17 +205,17 @@ class FoundationTest(unittest.TestCase):
         operator_tag = {'version': prefix + '/versions/sha256:' + value['maintenance_operator_image_digest'].split('@sha256:')[1]}
         with patch.object(ops, 'run', side_effect=['', 'c' * 40, 'c' * 40]) as run, \
                 patch.object(ops, 'request', side_effect=[tag, operator_tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
-            ops.verify_runtime_inputs(env, value)
+            ops.verify_runtime_inputs(env, value, 'runtime_private')
         self.assertEqual(run.call_args_list[0].args[0], ['git', 'fetch', '--no-tags', '--depth=1', 'origin', 'b' * 40])
         self.assertTrue(request.call_args_list[0].args[0].endswith('/tags/' + 'b' * 40))
         with patch.object(ops, 'run', side_effect=['', 'c' * 40, 'd' * 40]), patch.object(ops, 'request') as request:
             with self.assertRaisesRegex(c.ContractError, '^runtime-image-source-tree$'):
-                ops.verify_runtime_inputs(env, value)
+                ops.verify_runtime_inputs(env, value, 'runtime_private')
             request.assert_not_called()
         for source in ['--upload-pack=private', 'b' * 39, 'B' * 40]:
             with self.subTest(source=source), patch.object(ops, 'run') as run:
                 with self.assertRaisesRegex(c.ContractError, '^runtime-image-source-sha$'):
-                    ops.verify_runtime_inputs(env, value | {'image_source_sha': source})
+                    ops.verify_runtime_inputs(env, value | {'image_source_sha': source}, 'runtime_private')
                 run.assert_not_called()
 
     def test_operator_image_source_must_be_ancestor_and_resolve_to_its_own_digest(self):
@@ -226,14 +226,14 @@ class FoundationTest(unittest.TestCase):
         operator_tag = {'version': prefix + '/versions/sha256:' + value['maintenance_operator_image_digest'].split('@sha256:')[1]}
         with patch.object(ops, 'run', side_effect=['', '']) as run, patch.object(
                 ops, 'request', side_effect=[api_tag, operator_tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
-            ops.verify_runtime_inputs(env, value)
+            ops.verify_runtime_inputs(env, value, 'runtime_private')
         self.assertEqual(run.call_args_list[0].args[0], ['git', 'fetch', '--no-tags', '--depth=1', 'origin', 'c' * 40])
         self.assertEqual(run.call_args_list[1].args[0], ['git', 'merge-base', '--is-ancestor', 'c' * 40, 'a' * 40])
         self.assertTrue(request.call_args_list[1].args[0].endswith('/tags/' + 'c' * 40))
         with patch.object(ops, 'run', side_effect=['', '']), patch.object(
                 ops, 'request', side_effect=[api_tag, {'version': 'private-wrong-digest'}]):
             with self.assertRaisesRegex(c.ContractError, '^maintenance-operator-source-image-digest$'):
-                ops.verify_runtime_inputs(env, value)
+                ops.verify_runtime_inputs(env, value, 'runtime_private')
 
     def test_runtime_drift_diagnostic_does_not_publish_values_or_unreviewed_field_names(self):
         plan = {'resource_changes': [{'address': ops.runtime_contract.SERVICE, 'change': {'actions': ['no-op']}}],

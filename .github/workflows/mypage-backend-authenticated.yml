@@ -96,6 +96,7 @@ jobs:
       id-token: write
     uses: ./.github/workflows/mypage-foundation-authenticated.yml
     with:
+      target: development
       mode: runtime-public-apply
       expected_sha: ${{ inputs.expected_sha }}
     secrets:

@@ -447,11 +447,14 @@ func TestMaintenanceTransitionValidationIsClosedAndExact(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, mutate := range map[string]func(*MaintenanceTransition){
-		"unknown state":      func(v *MaintenanceTransition) { v.State = "NOTICE" },
-		"free text reason":   func(v *MaintenanceTransition) { v.ReasonCategory = "operator says so" },
-		"rerun":              func(v *MaintenanceTransition) { v.RunAttempt = 2 },
-		"actor substitution": func(v *MaintenanceTransition) { v.TriggeringActorID = "1" },
-		"wrong ref":          func(v *MaintenanceTransition) { v.GitRef = "refs/heads/feature" },
+		"unknown state":               func(v *MaintenanceTransition) { v.State = "NOTICE" },
+		"free text reason":            func(v *MaintenanceTransition) { v.ReasonCategory = "operator says so" },
+		"rerun":                       func(v *MaintenanceTransition) { v.RunAttempt = 2 },
+		"repository substitution":     func(v *MaintenanceTransition) { v.RepositoryID = "1" },
+		"owner substitution":          func(v *MaintenanceTransition) { v.RepositoryOwnerID = "1" },
+		"actor substitution":          func(v *MaintenanceTransition) { v.TriggeringActorID = "1" },
+		"matching actor substitution": func(v *MaintenanceTransition) { v.ActorID, v.TriggeringActorID = "1", "1" },
+		"wrong ref":                   func(v *MaintenanceTransition) { v.GitRef = "refs/heads/feature" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			candidate := valid

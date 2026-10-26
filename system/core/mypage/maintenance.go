@@ -19,6 +19,8 @@ const (
 	maintenanceCollection      = "mypage-runtime-control"
 	maintenanceDocument        = "current"
 	maintenanceEvents          = "mypage-maintenance-events"
+	maintenanceRepositoryID    = "340900071"
+	maintenanceOwnerActorID    = "54093651"
 )
 
 var (
@@ -368,9 +370,9 @@ func validateMaintenanceTransition(request MaintenanceTransition, now time.Time,
 	}
 	switch request.Authority {
 	case MaintenanceAuthorityGitHub:
-		if !githubExecution.MatchString(request.CloudRunExecution) || request.RunAttempt != 1 || !numericIdentity.MatchString(request.RepositoryID) || !numericIdentity.MatchString(request.RepositoryOwnerID) ||
-			!numericIdentity.MatchString(request.ActorID) || !numericIdentity.MatchString(request.TriggeringActorID) || !numericIdentity.MatchString(request.RunID) ||
-			request.ActorID != request.TriggeringActorID || request.WorkflowRef != "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@"+request.GitRef ||
+		if !githubExecution.MatchString(request.CloudRunExecution) || request.RunAttempt != 1 || request.RepositoryID != maintenanceRepositoryID || request.RepositoryOwnerID != maintenanceOwnerActorID ||
+			request.ActorID != maintenanceOwnerActorID || request.TriggeringActorID != maintenanceOwnerActorID || !numericIdentity.MatchString(request.RunID) ||
+			request.WorkflowRef != "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@"+request.GitRef ||
 			request.BreakGlassApprovalRef != "" || request.ClaimedOperator != "" {
 			return apiError("INVALID_REQUEST")
 		}

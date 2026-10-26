@@ -45,6 +45,7 @@ class BackendWorkflowTest(unittest.TestCase):
         self.assertIn('gcloud run jobs execute mypage-maintenance-bootstrap-check', bootstrap['run'])
         self.assertNotIn('--args', bootstrap['run'])
         self.assertEqual(workflow['jobs']['state']['needs'], 'deploy')
+        self.assertEqual(workflow['jobs']['state']['with']['target'], 'development')
         self.assertEqual(workflow['jobs']['state']['with']['mode'], 'runtime-public-apply')
         self.assertEqual(workflow['jobs']['receipt']['needs'], 'state')
         self.assertEqual(workflow['jobs']['receipt']['permissions'], {'contents': 'read'})

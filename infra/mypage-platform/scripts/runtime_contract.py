@@ -57,31 +57,41 @@ def maintenance_provider_condition():
     )
 
 
-def settings(value):
-    c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= FIELDS - {"history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision", "maintenance_operator_enabled", "maintenance_operator_image_digest", "maintenance_operator_image_source_sha"}, "runtime-settings-fields")
-    value = value | {"history_coverage_json": value.get("history_coverage_json", ""), "image_source_sha": value.get("image_source_sha", ""), "hosting_backend_host": value.get("hosting_backend_host", ""), "previous_image_digest": value.get("previous_image_digest", ""), "read_metrics_enabled": value.get("read_metrics_enabled", False), "read_metrics_from_revision": value.get("read_metrics_from_revision", ""), "maintenance_operator_enabled": value.get("maintenance_operator_enabled", False), "maintenance_operator_image_digest": value.get("maintenance_operator_image_digest", ""), "maintenance_operator_image_source_sha": value.get("maintenance_operator_image_source_sha", "")}
+def settings(value, stage=None):
+    c.need(stage is None or stage in set(MODES.values()), "runtime-settings-stage")
+    operator_only = stage == "maintenance_operator"
+    operator_fields = {"maintenance_operator_enabled", "maintenance_operator_image_digest", "maintenance_operator_image_source_sha"}
+    optional = {"history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision", *operator_fields}
+    required = operator_fields if operator_only else FIELDS - optional
+    c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= required, "runtime-settings-fields")
+    defaults = {field: "" for field in FIELDS} | {"read_metrics_enabled": False, "maintenance_operator_enabled": False}
+    # Existing environment secrets may still contain the full runtime payload,
+    # but the bootstrap-only stage binds only the separately reviewed operator
+    # image. Unrelated runtime values cannot influence its Plan commitment.
+    value = defaults | ({field: value[field] for field in operator_fields} if operator_only else value)
     # JSON admission is deliberately stricter than Terraform's type conversion.
     c.need(type(value["read_metrics_enabled"]) is bool, "runtime-read-metrics-type")
     c.need(type(value["maintenance_operator_enabled"]) is bool, "runtime-maintenance-operator-type")
     c.need(c.TARGET == "development" or (not value["read_metrics_enabled"] and value["read_metrics_from_revision"] == ""), "runtime-production-read-metrics")
     c.need(all(type(v) is str for k, v in value.items() if k not in {"read_metrics_enabled", "maintenance_operator_enabled"}), "runtime-settings-types")
-    c.need(re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["image_digest"]), "runtime-image")
     c.need(value["maintenance_operator_enabled"] and re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["maintenance_operator_image_digest"]) and commit_sha(value["maintenance_operator_image_source_sha"]), "runtime-maintenance-operator-image")
-    c.need(value["project_number"] == c.PROJECT_NUMBER, "runtime-project-number")
-    c.need(re.fullmatch("1:" + value["project_number"] + r":web:[A-Za-z0-9]+", value["web_app_id"]), "runtime-app-project")
-    c.need(value["public_origin"] == ORIGIN, "runtime-origin")
-    for field in ("privacy_version", "terms_version"):
-        c.need(re.fullmatch(r"[A-Za-z0-9._-]{1,64}", value[field]), "runtime-policy-version")
-    for field in ("oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version"):
-        c.need(re.fullmatch(r"[1-9][0-9]*", value[field]), "runtime-secret-version")
-    c.need(value["image_source_sha"] == "" or re.fullmatch(r"[a-f0-9]{40}", value["image_source_sha"]), "runtime-image-source-sha")
-    c.need(value["hosting_backend_host"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]+\.a\.run\.app", value["hosting_backend_host"]), "runtime-hosting-backend")
-    c.need(value["previous_image_digest"] == "" or re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["previous_image_digest"]), "runtime-previous-image")
-    c.need(value["read_metrics_from_revision"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", value["read_metrics_from_revision"]), "runtime-read-metrics-revision")
-    coverage = value["history_coverage_json"]
-    c.need(len(coverage.encode()) <= 16384, "runtime-coverage-size")
-    if coverage:
-        c.need(type(json.loads(coverage)) is list, "runtime-coverage-array")
+    if not operator_only:
+        c.need(re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["image_digest"]), "runtime-image")
+        c.need(value["project_number"] == c.PROJECT_NUMBER, "runtime-project-number")
+        c.need(re.fullmatch("1:" + value["project_number"] + r":web:[A-Za-z0-9]+", value["web_app_id"]), "runtime-app-project")
+        c.need(value["public_origin"] == ORIGIN, "runtime-origin")
+        for field in ("privacy_version", "terms_version"):
+            c.need(re.fullmatch(r"[A-Za-z0-9._-]{1,64}", value[field]), "runtime-policy-version")
+        for field in ("oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version"):
+            c.need(re.fullmatch(r"[1-9][0-9]*", value[field]), "runtime-secret-version")
+        c.need(value["image_source_sha"] == "" or re.fullmatch(r"[a-f0-9]{40}", value["image_source_sha"]), "runtime-image-source-sha")
+        c.need(value["hosting_backend_host"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]+\.a\.run\.app", value["hosting_backend_host"]), "runtime-hosting-backend")
+        c.need(value["previous_image_digest"] == "" or re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["previous_image_digest"]), "runtime-previous-image")
+        c.need(value["read_metrics_from_revision"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", value["read_metrics_from_revision"]), "runtime-read-metrics-revision")
+        coverage = value["history_coverage_json"]
+        c.need(len(coverage.encode()) <= 16384, "runtime-coverage-size")
+        if coverage:
+            c.need(type(json.loads(coverage)) is list, "runtime-coverage-array")
     return value
 
 
@@ -490,7 +500,7 @@ def validate_owner_hosting_image_refresh(item, planned, value):
 
 
 def validate_plan(plan, stage):
-    value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
+    value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
     if value["read_metrics_from_revision"]:
         from read_metrics_transition import validate_plan as validate_transition
         return validate_transition(plan, stage, value)
@@ -498,7 +508,7 @@ def validate_plan(plan, stage):
 
 
 def validate_initial_plan(plan, stage):
-    value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
+    value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
     c.need(plan.get("variables", {}).get("stage", {}).get("value") == stage, "runtime-plan-stage")
     expected = resource_contract(stage, value)
     changes = plan.get("resource_changes", [])
