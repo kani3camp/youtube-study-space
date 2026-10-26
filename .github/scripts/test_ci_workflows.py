@@ -118,7 +118,7 @@ def validate(caller, modules):
          {'target': '${{ inputs.terraform_target }}', 'mode': '${{ inputs.terraform_mode }}', 'expected_sha': '${{ inputs.terraform_expected_sha }}'}),
         ('gcp-user-activity-schema-audit', 'gcp_user_activity_schema_audit', AUDIT_SECRETS, {'target': 'dev'}),
         ('mypage-foundation-authenticated', 'mypage_foundation', FOUNDATION_SECRETS,
-         {'mode': '${{ inputs.mypage_foundation_mode }}', 'expected_sha': '${{ inputs.mypage_foundation_expected_sha }}'}),
+         {'target': '${{ inputs.mypage_foundation_target }}', 'mode': '${{ inputs.mypage_foundation_mode }}', 'expected_sha': '${{ inputs.mypage_foundation_expected_sha }}'}),
     ):
         call = jobs[name]
         require(set(call) == {'name', 'if', 'permissions', 'uses', 'secrets', 'with'}, 'Operational caller stays direct')
@@ -130,12 +130,13 @@ def validate(caller, modules):
         require(call['with'] == arguments, 'Operational inputs stay fixed')
     dispatch = caller['on']['workflow_dispatch']['inputs']
     require(set(dispatch) == {'terraform_authenticated', 'terraform_target', 'terraform_mode', 'terraform_expected_sha', 'gcp_user_activity_schema_audit',
-                             'mypage_foundation', 'mypage_foundation_mode', 'mypage_foundation_expected_sha', 'mypage_hosting', 'mypage_hosting_expected_sha', 'mypage_backend', 'mypage_backend_expected_sha'},
+                             'mypage_foundation', 'mypage_foundation_target', 'mypage_foundation_mode', 'mypage_foundation_expected_sha', 'mypage_hosting', 'mypage_hosting_expected_sha', 'mypage_backend', 'mypage_backend_expected_sha'},
             'No retired operational mode/input returns')
     for toggle in ('terraform_authenticated', 'gcp_user_activity_schema_audit', 'mypage_foundation', 'mypage_hosting', 'mypage_backend'):
         require(dispatch[toggle]['type'] == 'boolean' and dispatch[toggle]['default'] is False
                 and dispatch[toggle]['required'] is False, 'Operations remain opt-in')
     for key, default, options in (('terraform_target', 'dev', ['dev', 'prod']),
+                                  ('mypage_foundation_target', 'development', ['development', 'production']),
                                   ('mypage_foundation_mode', 'foundation-metadata-plan', ['foundation-metadata-plan', 'foundation-metadata-apply', 'foundation-plan', 'foundation-apply', 'registry-plan', 'registry-apply', 'image-build', 'maintenance-operator-plan', 'maintenance-operator-apply', 'maintenance-upgrade-plan', 'maintenance-upgrade-apply', 'runtime-private-plan', 'runtime-private-apply', 'runtime-public-plan', 'runtime-public-apply']),
                                   ('terraform_mode', 'migration-plan', ['migration-plan', 'migration-apply', 'normal-plan', 'normal-apply', 'normal-e2e'])):
         require(dispatch[key]['type'] == 'choice' and dispatch[key]['default'] == default

@@ -27,6 +27,14 @@ on:
         required: false
         default: false
         type: boolean
+      mypage_foundation_target:
+        description: MyPage foundation target (Production only admits maintenance operator plan/apply)
+        required: false
+        default: development
+        type: choice
+        options:
+          - development
+          - production
       mypage_foundation_mode:
         description: MyPage development provisioning operation
         required: false
@@ -311,6 +319,7 @@ jobs:
       MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
       MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
     with:
+      target: ${{ inputs.mypage_foundation_target }}
       mode: ${{ inputs.mypage_foundation_mode }}
       expected_sha: ${{ inputs.mypage_foundation_expected_sha }}
 

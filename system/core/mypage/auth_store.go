@@ -135,12 +135,13 @@ func (s *FirestoreAuthStore) Claim(ctx context.Context, id, stateHash string, no
 	})
 }
 
-func (s *FirestoreAuthStore) ReadPurpose(ctx context.Context, id string, now time.Time) (string, error) {
+func (s *FirestoreAuthStore) ReadPurpose(ctx context.Context, id string, now time.Time) (string, int64, error) {
 	ref, err := s.transactionRef(id)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	var purpose string
+	var maintenanceRevision int64
 	err = s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		value, err := s.readTransaction(tx, ref)
 		if err != nil {
@@ -153,12 +154,13 @@ func (s *FirestoreAuthStore) ReadPurpose(ctx context.Context, id string, now tim
 		if purpose != "login" && purpose != "support" {
 			return apiError("INVALID_REQUEST")
 		}
+		maintenanceRevision = value.MaintenanceRevision
 		return nil
 	}, firestore.ReadOnly)
 	if err != nil {
-		return "", fmt.Errorf("read transaction purpose: %w", err)
+		return "", 0, fmt.Errorf("read transaction purpose: %w", err)
 	}
-	return purpose, nil
+	return purpose, maintenanceRevision, nil
 }
 
 func (s *FirestoreAuthStore) Verify(ctx context.Context, id string, channel Channel, confirmation string, now time.Time) error {

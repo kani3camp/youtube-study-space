@@ -238,7 +238,7 @@ export function createApp(
 		useEffect(() => {
 			runtime.memory.setRouteActive(myPageActive)
 		}, [myPageActive])
-		useEffect(() => runtime.mountMaintenance(), [])
+		useLayoutEffect(() => runtime.mountMaintenance(), [])
 		useEffect(() => {
 			if (
 				!runtimeDisposer.current &&
@@ -261,7 +261,6 @@ export function createApp(
 			)
 		}, [protectedRoute, maintenanceRoute, channelConfirmRoute])
 		useEffect(() => {
-			if (maintenance.phase === 'normal') runtime.resumeAfterMaintenance()
 			const destination = maintenanceDestination(
 				pathname,
 				supportLogin,
@@ -272,6 +271,9 @@ export function createApp(
 			}
 			if (destination === '/') void router.navigate({ to: '/', replace: true })
 		}, [maintenance.phase, pathname, supportLogin])
+		useEffect(() => {
+			if (maintenance.phase === 'normal') runtime.resumeAfterMaintenance()
+		}, [maintenance])
 		useEffect(() => privacyServices.analytics.mount(), [])
 		useEffect(() => {
 			privacyServices.analytics.page(href)
@@ -788,6 +790,8 @@ export function createApp(
 				}
 			}
 		}
+		if (maintenance.phase !== 'normal' && channel?.purpose !== 'support')
+			return <MaintenanceGatePending />
 		return (
 			<main className="main-content public-page channel-confirm-page">
 				{activeRestriction ? (

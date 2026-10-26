@@ -54,21 +54,22 @@ variable "runtime_settings" {
 }
 
 locals {
-  deploy_api                     = contains(["maintenance_upgrade", "runtime_private", "runtime_public"], var.stage)
-  public_api                     = contains(["maintenance_upgrade", "runtime_public"], var.stage)
-  runtime_email                  = "${google_service_account.runtime.account_id}@${var.project_id}.iam.gserviceaccount.com"
-  runtime_principal              = "serviceAccount:${local.runtime_email}"
-  max_instances                  = var.environment == "development" ? 1 : 3
-  maintenance_operator           = contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) && var.runtime_settings.maintenance_operator_enabled
-  maintenance_ref                = var.environment == "production" ? "refs/heads/main" : "refs/heads/integration/mypage-canon-20261006"
-  maintenance_project_number     = var.environment == "production" ? "906336399194" : "48101442817"
-  maintenance_github_environment = "mypage-maintenance-${var.environment}"
-  maintenance_operator_email     = "mypage-maintenance-job@${var.project_id}.iam.gserviceaccount.com"
-  maintenance_invoker_email      = "mypage-maintenance-invoker@${var.project_id}.iam.gserviceaccount.com"
-  maintenance_bootstrap_email    = "mypage-maintenance-bootstrap@${var.project_id}.iam.gserviceaccount.com"
-  foundation_plan_email          = "mypage-foundation-plan@${var.project_id}.iam.gserviceaccount.com"
-  foundation_apply_email         = "mypage-foundation-apply@${var.project_id}.iam.gserviceaccount.com"
-  backend_deployer_email         = "mypage-backend-deploy@${var.project_id}.iam.gserviceaccount.com"
+  deploy_api                             = contains(["maintenance_upgrade", "runtime_private", "runtime_public"], var.stage)
+  public_api                             = contains(["maintenance_upgrade", "runtime_public"], var.stage)
+  runtime_email                          = "${google_service_account.runtime.account_id}@${var.project_id}.iam.gserviceaccount.com"
+  runtime_principal                      = "serviceAccount:${local.runtime_email}"
+  max_instances                          = var.environment == "development" ? 1 : 3
+  maintenance_operator                   = contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) && var.runtime_settings.maintenance_operator_enabled
+  maintenance_ref                        = var.environment == "production" ? "refs/heads/main" : "refs/heads/integration/mypage-canon-20261006"
+  maintenance_project_number             = var.environment == "production" ? "906336399194" : "48101442817"
+  maintenance_github_environment         = "mypage-maintenance-${var.environment}"
+  maintenance_inspect_github_environment = "mypage-maintenance-inspect-${var.environment}"
+  maintenance_operator_email             = "mypage-maintenance-job@${var.project_id}.iam.gserviceaccount.com"
+  maintenance_invoker_email              = "mypage-maintenance-invoker@${var.project_id}.iam.gserviceaccount.com"
+  maintenance_bootstrap_email            = "mypage-maintenance-bootstrap@${var.project_id}.iam.gserviceaccount.com"
+  foundation_plan_email                  = "mypage-foundation-plan@${var.project_id}.iam.gserviceaccount.com"
+  foundation_apply_email                 = "mypage-foundation-apply@${var.project_id}.iam.gserviceaccount.com"
+  backend_deployer_email                 = "mypage-backend-deploy@${var.project_id}.iam.gserviceaccount.com"
 }
 
 # These resources are created only when the caller leaves the default disabled
@@ -420,7 +421,10 @@ resource "google_project_iam_member" "maintenance_firestore" {
   role    = "projects/${var.project_id}/roles/mypageMaintenanceOperator"
   member  = "serviceAccount:${local.maintenance_operator_email}"
 
-  depends_on = [google_project_iam_custom_role.maintenance_firestore]
+  depends_on = [
+    google_project_iam_custom_role.maintenance_firestore,
+    google_service_account.maintenance_operator,
+  ]
 }
 
 resource "google_project_iam_custom_role" "maintenance_bootstrap_reader" {
@@ -445,7 +449,10 @@ resource "google_project_iam_member" "maintenance_bootstrap_reader" {
   role    = "projects/${var.project_id}/roles/mypageMaintenanceBootstrapReader"
   member  = "serviceAccount:${local.maintenance_bootstrap_email}"
 
-  depends_on = [google_project_iam_custom_role.maintenance_bootstrap_reader]
+  depends_on = [
+    google_project_iam_custom_role.maintenance_bootstrap_reader,
+    google_service_account.maintenance_bootstrap,
+  ]
 }
 
 resource "google_iam_workload_identity_pool" "maintenance_github" {
@@ -478,7 +485,7 @@ resource "google_iam_workload_identity_pool_provider" "maintenance_github" {
     "attribute.environment"         = "assertion.environment"
     "attribute.event_name"          = "assertion.event_name"
   }
-  attribute_condition = "assertion.repository_id == '340900071' && assertion.repository_owner_id == '54093651' && assertion.actor_id == '54093651' && assertion.actor == 'kani3camp' && assertion.run_attempt == '1' && assertion.event_name == 'workflow_dispatch' && assertion.ref == '${local.maintenance_ref}' && assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@${local.maintenance_ref}' && assertion.environment == '${local.maintenance_github_environment}' && assertion.workflow_sha == assertion.sha"
+  attribute_condition = "assertion.repository_id == '340900071' && assertion.repository_owner_id == '54093651' && assertion.actor_id == '54093651' && assertion.actor == 'kani3camp' && assertion.run_attempt == '1' && assertion.event_name == 'workflow_dispatch' && assertion.ref == '${local.maintenance_ref}' && ((assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@${local.maintenance_ref}' && assertion.environment == '${local.maintenance_github_environment}') || (assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/mypage-maintenance-inspect.yml@${local.maintenance_ref}' && assertion.environment == '${local.maintenance_inspect_github_environment}')) && assertion.workflow_sha == assertion.sha"
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
   }
@@ -488,9 +495,24 @@ resource "google_service_account_iam_member" "maintenance_workload_identity" {
   count              = local.maintenance_operator ? 1 : 0
   service_account_id = "projects/${var.project_id}/serviceAccounts/${local.maintenance_invoker_email}"
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/projects/${local.maintenance_project_number}/locations/global/workloadIdentityPools/mypage-maintenance/attribute.repository_id/340900071"
+  member             = "principalSet://iam.googleapis.com/projects/${local.maintenance_project_number}/locations/global/workloadIdentityPools/mypage-maintenance/attribute.workflow_ref/kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@${local.maintenance_ref}"
 
-  depends_on = [google_service_account.maintenance_invoker]
+  depends_on = [
+    google_service_account.maintenance_invoker,
+    google_iam_workload_identity_pool_provider.maintenance_github,
+  ]
+}
+
+resource "google_service_account_iam_member" "maintenance_bootstrap_workload_identity" {
+  count              = local.maintenance_operator ? 1 : 0
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.maintenance_bootstrap_email}"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/projects/${local.maintenance_project_number}/locations/global/workloadIdentityPools/mypage-maintenance/attribute.workflow_ref/kani3camp/youtube-study-space/.github/workflows/mypage-maintenance-inspect.yml@${local.maintenance_ref}"
+
+  depends_on = [
+    google_service_account.maintenance_bootstrap,
+    google_iam_workload_identity_pool_provider.maintenance_github,
+  ]
 }
 
 resource "google_cloud_run_v2_job" "maintenance_operator" {
@@ -541,6 +563,11 @@ resource "google_cloud_run_v2_job_iam_member" "maintenance_invoker" {
   name     = google_cloud_run_v2_job.maintenance_operator[0].name
   role     = "roles/run.jobsExecutorWithOverrides"
   member   = "serviceAccount:${local.maintenance_invoker_email}"
+
+  depends_on = [
+    google_service_account.maintenance_invoker,
+    google_cloud_run_v2_job.maintenance_operator,
+  ]
 }
 
 # Break-glass uses a different fixed command and Job. No human principal is
@@ -683,6 +710,10 @@ output "maintenance_workload_identity_provider" {
 
 output "maintenance_invoker_service_account" {
   value = local.maintenance_operator ? local.maintenance_invoker_email : null
+}
+
+output "maintenance_inspect_service_account" {
+  value = local.maintenance_operator ? google_service_account.maintenance_bootstrap[0].email : null
 }
 
 output "maintenance_job_name" {

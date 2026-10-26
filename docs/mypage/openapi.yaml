@@ -23,6 +23,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MaintenanceStatus'
+        '429':
+          description: Public status request rate limit exceeded
+          headers:
+            Retry-After:
+              description: Seconds until the caller may retry
+              schema:
+                type: string
+                pattern: '^[0-9]+$'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '503':
           description: Authoritative status is unknown
           content:

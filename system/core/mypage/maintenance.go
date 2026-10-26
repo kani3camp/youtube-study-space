@@ -176,7 +176,7 @@ func (g *MaintenanceGate) cachedRead(ctx context.Context) (MaintenanceControl, e
 			case <-refresh:
 				continue
 			case <-ctx.Done():
-				return MaintenanceControl{}, fmt.Errorf("wait for maintenance refresh: %w", ctx.Err())
+				return MaintenanceControl{}, fmt.Errorf("wait for maintenance refresh: %w: %w", apiError("TEMPORARY_UNAVAILABLE"), ctx.Err())
 			}
 		}
 		refresh := make(chan struct{})

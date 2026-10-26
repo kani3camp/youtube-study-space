@@ -26,11 +26,13 @@ type maintenanceStub struct {
 
 type maintenanceFlowStore struct {
 	AuthStore
-	tx        OAuthTransaction
-	channel   Channel
-	creates   int
-	failCalls int
-	failErr   error
+	tx          OAuthTransaction
+	channel     Channel
+	creates     int
+	failCalls   int
+	failErr     error
+	claimCalls  int
+	verifyCalls int
 }
 
 func (s *maintenanceFlowStore) Create(_ context.Context, _, _ string, value OAuthTransaction, _ time.Time) error {
@@ -39,8 +41,23 @@ func (s *maintenanceFlowStore) Create(_ context.Context, _, _ string, value OAut
 	return nil
 }
 
-func (s *maintenanceFlowStore) ReadPurpose(context.Context, string, time.Time) (string, error) {
-	return transactionPurpose(s.tx), nil
+func (s *maintenanceFlowStore) ReadPurpose(context.Context, string, time.Time) (string, int64, error) {
+	return transactionPurpose(s.tx), s.tx.MaintenanceRevision, nil
+}
+
+func (s *maintenanceFlowStore) Claim(context.Context, string, string, time.Time) error {
+	s.claimCalls++
+	s.tx.Status = "processing"
+	return nil
+}
+
+func (s *maintenanceFlowStore) Verify(_ context.Context, _ string, channel Channel, confirmation string, now time.Time) error {
+	s.verifyCalls++
+	s.tx.Status = "channel_verified"
+	s.tx.Channel = channel
+	s.tx.ConfirmationRef = confirmation
+	s.tx.VerifiedAt = now
+	return nil
 }
 
 func (s *maintenanceFlowStore) Fail(context.Context, string) error {
@@ -269,6 +286,18 @@ func TestNormalOAuthCallbackActivationFailsTransactionAndRedirectsWithoutProvide
 	}
 }
 
+func TestNormalOAuthCallbackCannotCrossACompleteMaintenanceInterval(t *testing.T) {
+	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
+	store := &maintenanceFlowStore{tx: OAuthTransaction{Purpose: "login", MaintenanceRevision: 1}}
+	provider := new(maintenanceProvider)
+	gate := &maintenanceStub{revisions: []int64{1, 3}}
+	service := &AuthService{Store: store, Provider: provider, Maintenance: gate, Now: func() time.Time { return now }}
+	err := service.Callback(context.Background(), "transaction", "state", "code", false)
+	if errorCode(err) != "TEMPORARY_UNAVAILABLE" || store.failCalls != 1 || store.claimCalls != 1 || store.verifyCalls != 1 || provider.calls != 1 {
+		t.Fatalf("code=%s fails=%d claims=%d verifies=%d provider=%d", errorCode(err), store.failCalls, store.claimCalls, store.verifyCalls, provider.calls)
+	}
+}
+
 func TestNormalOAuthStartResponseCannotCrossACompleteMaintenanceInterval(t *testing.T) {
 	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
 	store := new(maintenanceFlowStore)
@@ -368,6 +397,36 @@ func TestMaintenanceCacheCoalescesConcurrentRefresh(t *testing.T) {
 	}
 	if reads.Load() != 1 {
 		t.Fatalf("concurrent cache refresh reads=%d", reads.Load())
+	}
+}
+
+func TestMaintenanceCacheWaiterDeadlineRemainsTemporaryUnavailable(t *testing.T) {
+	var reads atomic.Int32
+	release := make(chan struct{})
+	started := make(chan struct{})
+	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
+	gate := &MaintenanceGate{Environment: "development", Now: func() time.Time { return now }}
+	gate.readControl = func(context.Context) (MaintenanceControl, error) {
+		reads.Add(1)
+		close(started)
+		<-release
+		return MaintenanceControl{Environment: "development", State: MaintenanceNormal, Revision: 1, UpdatedAt: now, MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "INITIALIZATION"}, nil
+	}
+	leader := make(chan error, 1)
+	go func() { leader <- gate.Check(context.Background()) }()
+	<-started
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	err := gate.Check(ctx)
+	if errorCode(err) != "TEMPORARY_UNAVAILABLE" || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("code=%s err=%v", errorCode(err), err)
+	}
+	close(release)
+	if err := <-leader; err != nil {
+		t.Fatal(err)
+	}
+	if reads.Load() != 1 {
+		t.Fatalf("waiter started an extra read: %d", reads.Load())
 	}
 }
 

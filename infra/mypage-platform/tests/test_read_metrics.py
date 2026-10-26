@@ -99,7 +99,7 @@ class ReadMetricsTest(unittest.TestCase):
                         plan = plan_fixture(enabled, stage, action)
                         original = deepcopy(plan)
                         self.assertEqual(r.validate_plan(plan, stage), {
-                            "resources": 29 if stage == "runtime_public" else 28,
+                            "resources": 30 if stage == "runtime_public" else 29,
                             "creates": 11 if action == "create" else 0,
                         })
                         self.assertEqual(plan, original)

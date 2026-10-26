@@ -1,4 +1,4 @@
-"""DEV runtime admission; no credentials, cloud I/O or secret payloads."""
+"""Environment-bound runtime admission; no credentials, cloud I/O or secret payloads."""
 from __future__ import annotations
 
 from copy import deepcopy
@@ -11,8 +11,8 @@ import foundation_contract as c
 def commit_sha(value):
     return re.fullmatch(r"[a-f0-9]{40}", value) is not None
 
-ORIGIN = "https://test--study-space.web.app"
-REPOSITORY = "asia-southeast2-docker.pkg.dev/" + c.PROJECT + "/mypage/mypage-api"
+ORIGIN = c.ORIGIN
+REPOSITORY = c.REGION + "-docker.pkg.dev/" + c.PROJECT + "/mypage/mypage-api"
 SERVICE = "module.platform[0].google_cloud_run_v2_service.api[0]"
 FIRESTORE = "module.platform[0].google_project_iam_member.firestore_user[0]"
 INVOKER = "module.platform[0].google_cloud_run_v2_service_iam_member.public_invoker[0]"
@@ -26,6 +26,7 @@ MAINTENANCE_BOOTSTRAP_FIRESTORE = "module.platform[0].google_project_iam_member.
 MAINTENANCE_POOL = "module.platform[0].google_iam_workload_identity_pool.maintenance_github[0]"
 MAINTENANCE_PROVIDER = "module.platform[0].google_iam_workload_identity_pool_provider.maintenance_github[0]"
 MAINTENANCE_WIF = "module.platform[0].google_service_account_iam_member.maintenance_workload_identity[0]"
+MAINTENANCE_INSPECT_WIF = "module.platform[0].google_service_account_iam_member.maintenance_bootstrap_workload_identity[0]"
 MAINTENANCE_JOB = "module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]"
 MAINTENANCE_JOB_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_invoker[0]"
 MAINTENANCE_BREAKGLASS_JOB = "module.platform[0].google_cloud_run_v2_job.maintenance_breakglass[0]"
@@ -37,10 +38,23 @@ MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-opera
          "maintenance-upgrade-plan": "maintenance_upgrade", "maintenance-upgrade-apply": "maintenance_upgrade",
          "runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
          "runtime-public-plan": "runtime_public", "runtime-public-apply": "runtime_public"}
-PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/asia-southeast2/services/mypage-api"
+PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/services/mypage-api"
 PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
 FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "privacy_version", "terms_version",
           "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision", "maintenance_operator_enabled", "maintenance_operator_image_digest", "maintenance_operator_image_source_sha"}
+
+
+def maintenance_provider_condition():
+    transition = "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@" + c.REF
+    inspect = "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance-inspect.yml@" + c.REF
+    return (
+        "assertion.repository_id == '340900071' && assertion.repository_owner_id == '54093651' && "
+        "assertion.actor_id == '54093651' && assertion.actor == 'kani3camp' && assertion.run_attempt == '1' && "
+        "assertion.event_name == 'workflow_dispatch' && assertion.ref == '" + c.REF + "' && "
+        "((assertion.workflow_ref == '" + transition + "' && assertion.environment == 'mypage-maintenance-" + c.ENVIRONMENT + "') || "
+        "(assertion.workflow_ref == '" + inspect + "' && assertion.environment == 'mypage-maintenance-inspect-" + c.ENVIRONMENT + "')) && "
+        "assertion.workflow_sha == assertion.sha"
+    )
 
 
 def settings(value):
@@ -49,6 +63,7 @@ def settings(value):
     # JSON admission is deliberately stricter than Terraform's type conversion.
     c.need(type(value["read_metrics_enabled"]) is bool, "runtime-read-metrics-type")
     c.need(type(value["maintenance_operator_enabled"]) is bool, "runtime-maintenance-operator-type")
+    c.need(c.TARGET == "development" or (not value["read_metrics_enabled"] and value["read_metrics_from_revision"] == ""), "runtime-production-read-metrics")
     c.need(all(type(v) is str for k, v in value.items() if k not in {"read_metrics_enabled", "maintenance_operator_enabled"}), "runtime-settings-types")
     c.need(re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["image_digest"]), "runtime-image")
     c.need(value["maintenance_operator_enabled"] and re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["maintenance_operator_image_digest"]) and commit_sha(value["maintenance_operator_image_source_sha"]), "runtime-maintenance-operator-image")
@@ -87,24 +102,18 @@ def maintenance_resource_contract(value=None):
         MAINTENANCE_POOL: {"project": c.PROJECT, "workload_identity_pool_id": "mypage-maintenance", "display_name": "MyPage maintenance GitHub", "disabled": False},
         MAINTENANCE_PROVIDER: {"project": c.PROJECT, "workload_identity_pool_id": "mypage-maintenance", "workload_identity_pool_provider_id": "github", "disabled": False},
         MAINTENANCE_WIF: {"role": "roles/iam.workloadIdentityUser"},
-        MAINTENANCE_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-operator", "location": "asia-southeast2", "deletion_protection": True},
-        MAINTENANCE_JOB_INVOKER: {"project": c.PROJECT, "location": "asia-southeast2", "name": "mypage-maintenance-operator", "role": "roles/run.jobsExecutorWithOverrides", "member": "serviceAccount:" + invoker_email},
-        MAINTENANCE_BREAKGLASS_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-breakglass", "location": "asia-southeast2", "deletion_protection": True},
-        MAINTENANCE_BOOTSTRAP_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-bootstrap-check", "location": "asia-southeast2", "deletion_protection": True},
-        MAINTENANCE_BOOTSTRAP_PLAN_INVOKER: {"project": c.PROJECT, "location": "asia-southeast2", "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-foundation-plan@" + c.PROJECT + ".iam.gserviceaccount.com"},
-        MAINTENANCE_BOOTSTRAP_APPLY_INVOKER: {"project": c.PROJECT, "location": "asia-southeast2", "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-foundation-apply@" + c.PROJECT + ".iam.gserviceaccount.com"},
-        MAINTENANCE_BOOTSTRAP_BACKEND_INVOKER: {"project": c.PROJECT, "location": "asia-southeast2", "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"},
+        MAINTENANCE_INSPECT_WIF: {"role": "roles/iam.workloadIdentityUser"},
+        MAINTENANCE_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-operator", "location": c.REGION, "deletion_protection": True},
+        MAINTENANCE_JOB_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator", "role": "roles/run.jobsExecutorWithOverrides", "member": "serviceAccount:" + invoker_email},
+        MAINTENANCE_BREAKGLASS_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-breakglass", "location": c.REGION, "deletion_protection": True},
+        MAINTENANCE_BOOTSTRAP_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-bootstrap-check", "location": c.REGION, "deletion_protection": True},
+        MAINTENANCE_BOOTSTRAP_PLAN_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-foundation-plan@" + c.PROJECT + ".iam.gserviceaccount.com"},
+        MAINTENANCE_BOOTSTRAP_APPLY_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-foundation-apply@" + c.PROJECT + ".iam.gserviceaccount.com"},
+        MAINTENANCE_BOOTSTRAP_BACKEND_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-bootstrap-check", "role": "roles/run.invoker", "member": "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"},
     }
     if value is not None:
-        condition = (
-            "assertion.repository_id == '340900071' && assertion.repository_owner_id == '54093651' && "
-            "assertion.actor_id == '54093651' && assertion.actor == 'kani3camp' && assertion.run_attempt == '1' && "
-            "assertion.event_name == 'workflow_dispatch' && assertion.ref == 'refs/heads/integration/mypage-canon-20261006' && "
-            "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@refs/heads/integration/mypage-canon-20261006' && "
-            "assertion.environment == 'mypage-maintenance-development' && assertion.workflow_sha == assertion.sha"
-        )
         resources[MAINTENANCE_PROVIDER] |= {
-            "attribute_condition": condition,
+            "attribute_condition": maintenance_provider_condition(),
             "attribute_mapping": {
                 "attribute.actor": "assertion.actor", "attribute.actor_id": "assertion.actor_id",
                 "attribute.environment": "assertion.environment",
@@ -118,7 +127,11 @@ def maintenance_resource_contract(value=None):
         }
         resources[MAINTENANCE_WIF] |= {
             "service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + invoker_email,
-            "member": "principalSet://iam.googleapis.com/projects/" + c.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance/attribute.repository_id/340900071",
+            "member": "principalSet://iam.googleapis.com/projects/" + c.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance/attribute.workflow_ref/kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@" + c.REF,
+        }
+        resources[MAINTENANCE_INSPECT_WIF] |= {
+            "service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + bootstrap_email,
+            "member": "principalSet://iam.googleapis.com/projects/" + c.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance/attribute.workflow_ref/kani3camp/youtube-study-space/.github/workflows/mypage-maintenance-inspect.yml@" + c.REF,
         }
         resources[MAINTENANCE_JOB]["template"] = [{
             "task_count": 1, "parallelism": 1,
@@ -129,7 +142,7 @@ def maintenance_resource_contract(value=None):
                     "resources": [{"limits": {"cpu": "1", "memory": "512Mi"}}],
                     "env": [
                         {"name": "GOOGLE_CLOUD_PROJECT", "value": c.PROJECT},
-                        {"name": "MYPAGE_ENVIRONMENT", "value": "development"},
+                        {"name": "MYPAGE_ENVIRONMENT", "value": c.ENVIRONMENT},
                     ],
                 }],
             }],
@@ -143,7 +156,7 @@ def maintenance_resource_contract(value=None):
                     "resources": [{"limits": {"cpu": "1", "memory": "512Mi"}}],
                     "env": [
                         {"name": "GOOGLE_CLOUD_PROJECT", "value": c.PROJECT},
-                        {"name": "MYPAGE_ENVIRONMENT", "value": "development"},
+                        {"name": "MYPAGE_ENVIRONMENT", "value": c.ENVIRONMENT},
                     ],
                 }],
             }],
@@ -157,7 +170,7 @@ def maintenance_resource_contract(value=None):
                     "resources": [{"limits": {"cpu": "1", "memory": "512Mi"}}],
                     "env": [
                         {"name": "GOOGLE_CLOUD_PROJECT", "value": c.PROJECT},
-                        {"name": "MYPAGE_ENVIRONMENT", "value": "development"},
+                        {"name": "MYPAGE_ENVIRONMENT", "value": c.ENVIRONMENT},
                     ],
                 }],
             }],
@@ -167,16 +180,17 @@ def maintenance_resource_contract(value=None):
 
 def resource_contract(stage, value=None):
     c.need(stage in {"maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"}, "runtime-stage")
-    resources = c.resource_contract("registry") | maintenance_resource_contract(value)
+    base_stage = "registry" if c.TARGET == "development" else "foundation"
+    resources = c.resource_contract(base_stage) | maintenance_resource_contract(value)
     if stage == "maintenance_operator":
         return resources
     resources |= {
         FIRESTORE: {"project": c.PROJECT, "role": "roles/datastore.user", "member": "serviceAccount:" + c.EMAIL},
-        SERVICE: {"project": c.PROJECT, "name": "mypage-api", "location": "asia-southeast2",
+        SERVICE: {"project": c.PROJECT, "name": "mypage-api", "location": c.REGION,
                   "ingress": "INGRESS_TRAFFIC_ALL", "deletion_protection": True, "invoker_iam_disabled": False},
     }
     if stage in {"maintenance_upgrade", "runtime_public"}:
-        resources[INVOKER] = {"project": c.PROJECT, "location": "asia-southeast2", "name": "mypage-api",
+        resources[INVOKER] = {"project": c.PROJECT, "location": c.REGION, "name": "mypage-api",
                               "role": "roles/run.invoker", "member": "allUsers"}
     return resources
 
@@ -187,7 +201,7 @@ def public_invoker_import_config():
 
 
 def plain_environment(value):
-    env = {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": "development", "MYPAGE_REGION": "asia-southeast2",
+    env = {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": c.ENVIRONMENT, "MYPAGE_REGION": c.REGION,
            "MYPAGE_SIGNER_EMAIL": c.EMAIL, "MYPAGE_INFRASTRUCTURE_READY": "true"}
     for name, field in (("MYPAGE_PROJECT_NUMBER", "project_number"), ("MYPAGE_WEB_APP_ID", "web_app_id"),
                         ("MYPAGE_PUBLIC_ORIGIN", "public_origin"), ("MYPAGE_PRIVACY_VERSION", "privacy_version"),
@@ -236,14 +250,7 @@ def validate_maintenance_resource(address, after, unknown, value):
         c.need(after.get("display_name") == "MyPage maintenance GitHub", "maintenance-pool-display")
         return
     if address == MAINTENANCE_PROVIDER:
-        expected_condition = (
-            "assertion.repository_id == '340900071' && assertion.repository_owner_id == '54093651' && "
-            "assertion.actor_id == '54093651' && assertion.actor == 'kani3camp' && assertion.run_attempt == '1' && "
-            "assertion.event_name == 'workflow_dispatch' && assertion.ref == 'refs/heads/integration/mypage-canon-20261006' && "
-            "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@refs/heads/integration/mypage-canon-20261006' && "
-            "assertion.environment == 'mypage-maintenance-development' && assertion.workflow_sha == assertion.sha"
-        )
-        c.need(after.get("attribute_condition") == expected_condition, "maintenance-provider-condition")
+        c.need(after.get("attribute_condition") == maintenance_provider_condition(), "maintenance-provider-condition")
         c.need(after.get("attribute_mapping") == {
             "attribute.actor": "assertion.actor",
             "attribute.actor_id": "assertion.actor_id",
@@ -261,12 +268,15 @@ def validate_maintenance_resource(address, after, unknown, value):
         oidc = one(after.get("oidc"), "maintenance-provider-oidc")
         c.need(oidc.get("issuer_uri") == "https://token.actions.githubusercontent.com" and not oidc.get("allowed_audiences"), "maintenance-provider-issuer")
         return
-    if address == MAINTENANCE_WIF:
+    if address in {MAINTENANCE_WIF, MAINTENANCE_INSPECT_WIF}:
+        email = invoker_email if address == MAINTENANCE_WIF else bootstrap_email
+        workflow = "mypage-maintenance.yml" if address == MAINTENANCE_WIF else "mypage-maintenance-inspect.yml"
         c.need(after.get("service_account_id") in {
-            "projects/" + c.PROJECT + "/serviceAccounts/" + invoker_email,
-            "projects/-/serviceAccounts/" + invoker_email,
+            "projects/" + c.PROJECT + "/serviceAccounts/" + email,
+            "projects/-/serviceAccounts/" + email,
         }, "maintenance-wif-service-account")
-        c.need(re.fullmatch(r"principalSet://iam\.googleapis\.com/projects/[^/]+/locations/global/workloadIdentityPools/mypage-maintenance/attribute\.repository_id/340900071", after.get("member", "")) is not None, "maintenance-wif-member")
+        expected_member = "principalSet://iam.googleapis.com/projects/" + c.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance/attribute.workflow_ref/kani3camp/youtube-study-space/.github/workflows/" + workflow + "@" + c.REF
+        c.need(after.get("member") == expected_member, "maintenance-wif-member")
         return
     if address in {MAINTENANCE_JOB, MAINTENANCE_BREAKGLASS_JOB}:
         template = one(after.get("template"), "maintenance-job-template")
@@ -277,7 +287,7 @@ def validate_maintenance_resource(address, after, unknown, value):
         expected_command = "/app/mypage-maintenance-operator" if address == MAINTENANCE_JOB else "/app/mypage-maintenance-breakglass"
         c.need(container.get("image") == value["maintenance_operator_image_digest"] and container.get("command") == [expected_command] and not container.get("args"), "maintenance-job-image-command")
         env = {item.get("name"): item.get("value") for item in container.get("env", [])}
-        c.need(env == {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": "development"}, "maintenance-job-environment")
+        c.need(env == {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": c.ENVIRONMENT}, "maintenance-job-environment")
         resources = one(container.get("resources"), "maintenance-job-resources")
         c.need(resources.get("limits") == {"cpu": "1", "memory": "512Mi"}, "maintenance-job-limits")
         return
@@ -289,7 +299,7 @@ def validate_maintenance_resource(address, after, unknown, value):
         container = one(task.get("containers"), "maintenance-bootstrap-container")
         c.need(container.get("image") == value["maintenance_operator_image_digest"] and container.get("command") == ["/app/mypage-maintenance-bootstrap-check"] and not container.get("args"), "maintenance-bootstrap-image-command")
         env = {item.get("name"): item.get("value") for item in container.get("env", [])}
-        c.need(env == {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": "development"}, "maintenance-bootstrap-environment")
+        c.need(env == {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": c.ENVIRONMENT}, "maintenance-bootstrap-environment")
         resources = one(container.get("resources"), "maintenance-bootstrap-resources")
         c.need(resources.get("limits") == {"cpu": "1", "memory": "512Mi"}, "maintenance-bootstrap-limits")
         return
@@ -309,7 +319,7 @@ def validate_service(after, unknown, value):
     empty_options(after, ("annotations", "labels", "binary_authorization", "build_config", "custom_audiences",
                           "multi_region_settings", "ssh_enabled", "tags", "iap_enabled"))
     scaling = one(after.get("scaling"), "runtime-service-scaling")
-    c.need(scaling.get("min_instance_count") == 0 and scaling.get("max_instance_count") == 1
+    c.need(scaling.get("min_instance_count") == 0 and scaling.get("max_instance_count") == (1 if c.TARGET == "development" else 3)
            and scaling.get("scaling_mode") == "AUTOMATIC", "runtime-service-capacity")
     empty_options(scaling, ("manual_instance_count",))
     traffic = one(after.get("traffic"), "runtime-traffic")
@@ -324,7 +334,7 @@ def validate_service(after, unknown, value):
                              "vpc_access", "workload_identity_config", "health_check_disabled", "session_affinity"))
     c.need(not template.get("revision") or re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", template["revision"]), "runtime-owned-revision")
     scaling = one(template.get("scaling"), "runtime-revision-scaling")
-    c.need(scaling.get("min_instance_count") == 0 and scaling.get("max_instance_count") == 1, "runtime-revision-capacity")
+    c.need(scaling.get("min_instance_count") == 0 and scaling.get("max_instance_count") == (1 if c.TARGET == "development" else 3), "runtime-revision-capacity")
     container = one(template.get("containers"), "runtime-container")
     c.need(container.get("image") == value["image_digest"], "runtime-image-value")
     empty_options(container, ("args", "command", "depends_on", "base_image_uri", "sandbox_launcher", "volume_mounts", "working_dir"))
@@ -457,7 +467,7 @@ def validate_owner_hosting_image_refresh(item, planned, value):
     # Auto-generated revision names are observed on latest_ready_revision;
     # Run leaves the optional desired template.revision empty before and after.
     ready = after.get("latest_ready_revision")
-    ready_match = re.fullmatch(r"(?:projects/" + re.escape(c.PROJECT) + r"/locations/asia-southeast2/services/mypage-api/revisions/)?(mypage-api-[a-z0-9-]{1,50})", ready) if type(ready) is str else None
+    ready_match = re.fullmatch(r"(?:projects/" + re.escape(c.PROJECT) + r"/locations/" + re.escape(c.REGION) + r"/services/mypage-api/revisions/)?(mypage-api-[a-z0-9-]{1,50})", ready) if type(ready) is str else None
     c.need(ready_match is not None and after.get("latest_created_revision") == ready, "runtime-owner-refresh-ready")
     revision = ready_match[1]
     desired_revision = new_template.get("revision")
@@ -493,9 +503,10 @@ def validate_initial_plan(plan, stage):
     expected = resource_contract(stage, value)
     changes = plan.get("resource_changes", [])
     c.need(type(changes) is list, "runtime-plan-resources")
-    base = set(c.resource_contract("registry"))
+    base_stage = "registry" if c.TARGET == "development" else "foundation"
+    base = set(c.resource_contract(base_stage))
     foundation = deepcopy(plan)
-    foundation["variables"]["stage"]["value"] = "registry"
+    foundation["variables"]["stage"]["value"] = base_stage
     foundation["resource_changes"] = [item for item in changes if item.get("address") in base]
     foundation["resource_drift"] = []
     drift_seen = set()
@@ -518,14 +529,14 @@ def validate_initial_plan(plan, stage):
             # Removing temporary bootstrap access changes the same shared
             # policy etag, while these fixed managed members stay unchanged.
             c.need(address in {FIRESTORE, INVOKER, MAINTENANCE_FIRESTORE, MAINTENANCE_BOOTSTRAP_FIRESTORE,
-                               MAINTENANCE_WIF, MAINTENANCE_JOB_INVOKER, MAINTENANCE_BOOTSTRAP_PLAN_INVOKER,
+                               MAINTENANCE_WIF, MAINTENANCE_INSPECT_WIF, MAINTENANCE_JOB_INVOKER, MAINTENANCE_BOOTSTRAP_PLAN_INVOKER,
                                MAINTENANCE_BOOTSTRAP_APPLY_INVOKER, MAINTENANCE_BOOTSTRAP_BACKEND_INVOKER}
                    and address in expected, "runtime-drift-address")
             member_values = expected[address]
             if address == INVOKER and item.get("change", {}).get("after", {}).get("name") == PUBLIC_INVOKER_NAME:
                 member_values = member_values | {"name": PUBLIC_INVOKER_NAME}
             c.validate_iam_etag_refresh(item, planned, member_values)
-    c.validate_plan(foundation, "registry")
+    c.validate_plan(foundation, base_stage)
     seen = set()
     for item in changes:
         address = item.get("address")
@@ -556,7 +567,7 @@ def validate_initial_plan(plan, stage):
                 continue
             if address == MAINTENANCE_PROVIDER and key in {"attribute_condition", "attribute_mapping", "oidc"}:
                 continue
-            if address == MAINTENANCE_WIF and key in {"service_account_id", "member"}:
+            if address in {MAINTENANCE_WIF, MAINTENANCE_INSPECT_WIF} and key in {"service_account_id", "member"}:
                 continue
             if address == INVOKER and key == "name":
                 valid = after.get(key) in {expected_value, PUBLIC_INVOKER_NAME}

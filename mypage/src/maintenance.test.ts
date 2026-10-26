@@ -165,6 +165,70 @@ describe('public maintenance status', () => {
 		dispose()
 	})
 
+	it('keeps unchanged NORMAL usable during a background poll', async () => {
+		vi.useFakeTimers()
+		browserFixture()
+		let call = 0
+		let release: (response: Response) => void = () => {}
+		const phases: string[] = []
+		const normal = {
+			state: 'NORMAL' as const,
+			updatedAt: '2026-10-27T02:00:00Z',
+			messageTemplate: 'MYPAGE_MAINTENANCE_V1' as const,
+		}
+		const request = vi.fn<typeof fetch>(async () => {
+			call++
+			if (call === 1) return Response.json(normal)
+			return new Promise<Response>((resolve) => {
+				release = resolve
+			})
+		})
+		const monitor = new MaintenanceMonitor(request, (phase) =>
+			phases.push(phase),
+		)
+		const dispose = monitor.mount()
+		monitor.setRouteActive(true)
+		await settle()
+		expect(monitor.getSnapshot().phase).toBe('normal')
+		phases.length = 0
+		await vi.advanceTimersByTimeAsync(120_000)
+		expect(monitor.getSnapshot().phase).toBe('normal')
+		expect(phases).toEqual([])
+		release(Response.json(normal))
+		await settle()
+		expect(monitor.getSnapshot().phase).toBe('normal')
+		expect(phases).toEqual([])
+		dispose()
+	})
+
+	it('invalidates private state when a background NORMAL revision changes', async () => {
+		vi.useFakeTimers()
+		browserFixture()
+		let updatedAt = '2026-10-27T02:00:00Z'
+		const phases: string[] = []
+		const monitor = new MaintenanceMonitor(
+			async () =>
+				Response.json({
+					state: 'NORMAL',
+					updatedAt,
+					messageTemplate: 'MYPAGE_MAINTENANCE_V1',
+				}),
+			(phase) => phases.push(phase),
+		)
+		const dispose = monitor.mount()
+		monitor.setRouteActive(true)
+		await settle()
+		phases.length = 0
+		updatedAt = '2026-10-27T02:05:00Z'
+		await vi.advanceTimersByTimeAsync(120_000)
+		expect(monitor.getSnapshot()).toMatchObject({
+			phase: 'normal',
+			status: { updatedAt },
+		})
+		expect(phases).toEqual(['checking'])
+		dispose()
+	})
+
 	it('recovers ACTIVE to NORMAL when a hidden tab becomes visible', async () => {
 		const { documentTarget } = browserFixture()
 		let state: 'ACTIVE' | 'NORMAL' = 'ACTIVE'
@@ -229,12 +293,14 @@ describe('public maintenance status', () => {
 		const { windowTarget } = browserFixture()
 		let release: (response: Response) => void = () => {}
 		const phases: string[] = []
-		const monitor = new MaintenanceMonitor(
+		const request = vi.fn<typeof fetch>(
 			() =>
 				new Promise<Response>((resolve) => {
 					release = resolve
 				}),
-			(phase) => phases.push(phase),
+		)
+		const monitor = new MaintenanceMonitor(request, (phase) =>
+			phases.push(phase),
 		)
 		const dispose = monitor.mount()
 		monitor.setRouteActive(true)
@@ -251,8 +317,17 @@ describe('public maintenance status', () => {
 		expect(monitor.getSnapshot().phase).toBe('normal')
 		monitor.setRouteActive(true, true)
 		expect(monitor.getSnapshot().phase).toBe('checking')
-		windowTarget.dispatchEvent(new Event('pageshow'))
+		const ordinaryShow = Object.assign(new Event('pageshow'), {
+			persisted: false,
+		})
+		windowTarget.dispatchEvent(ordinaryShow)
+		expect(request).toHaveBeenCalledTimes(2)
+		const restoredShow = Object.assign(new Event('pageshow'), {
+			persisted: true,
+		})
+		windowTarget.dispatchEvent(restoredShow)
 		expect(monitor.getSnapshot().phase).toBe('checking')
+		expect(request).toHaveBeenCalledTimes(3)
 		dispose()
 	})
 })

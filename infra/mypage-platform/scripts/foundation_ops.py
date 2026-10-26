@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run an isolated DEV foundation plan; all raw cloud evidence stays private."""
+"""Run an environment-bound foundation plan; raw cloud evidence stays private."""
 from __future__ import annotations
 
 import base64
@@ -102,7 +102,7 @@ def stage(env):
     need(re.fullmatch(r"[0-9]{12}", env.get("MYPAGE_STATE_ACCOUNT", "")))
     bucket = env.get("MYPAGE_STATE_BUCKET", "")
     contract.backend_policy(bucket, kind)
-    need(env.get("MYPAGE_BACKEND_ROLE_ARN") == "arn:aws:iam::" + env["MYPAGE_STATE_ACCOUNT"] + ":role/youtube-study-space-mypage-dev-" + kind)
+    need(env.get("MYPAGE_BACKEND_ROLE_ARN") == "arn:aws:iam::" + env["MYPAGE_STATE_ACCOUNT"] + ":role/youtube-study-space-" + contract.GITHUB_ENVIRONMENT + "-" + kind)
     need(re.fullmatch(r"AROA[A-Z0-9]{17}", env.get("MYPAGE_BACKEND_ROLE_ID", "")))
     expected_sa = "mypage-foundation-" + kind + "@" + contract.PROJECT + ".iam.gserviceaccount.com"
     need(env.get("MYPAGE_GCP_SERVICE_ACCOUNT") == expected_sa)
@@ -120,8 +120,8 @@ def stage(env):
         value = runtime_settings(env)
         (root / "runtime-settings.json").write_bytes(contract.canonical({"runtime_settings": value}))
         if contract.stage_for_mode(env["MYPAGE_MODE"]) == "runtime_public":
-            (root / "source/environments/dev/owner-public-invoker-import.tf").write_text(runtime_contract.public_invoker_import_config())
-    print("Development foundation preflight passed; no cloud credentials requested yet.")
+            (root / ("source/environments/" + contract.CONFIG["state"] + "/owner-public-invoker-import.tf")).write_text(runtime_contract.public_invoker_import_config())
+    print("Environment-bound foundation preflight passed; no cloud credentials requested yet.")
 
 
 def oidc(env, *, image=False):
@@ -136,9 +136,9 @@ def oidc(env, *, image=False):
              "ref": contract.REF, "workflow_ref": contract.CALLER, "job_workflow_ref": contract.REUSABLE,
              "workflow_sha": env["GITHUB_SHA"], "job_workflow_sha": env["GITHUB_SHA"],
              "actor_id": "54093651", "actor": "kani3camp", "run_attempt": "1",
-             "environment": "mypage-dev-" + kind, "event_name": "workflow_dispatch"}
+             "environment": contract.GITHUB_ENVIRONMENT + "-" + kind, "event_name": "workflow_dispatch"}
     need(all(claims.get(k) == v for k, v in exact.items()))
-    print("Exact development OIDC claims verified; AWS/GCP still validate the signed token.")
+    print("Exact environment-bound OIDC claims verified; AWS/GCP still validate the signed token.")
 
 
 def state_version(env):
@@ -163,9 +163,9 @@ def reject_unowned_resources(env, plan):
                  for name, secret_id in contract.SECRET_IDS.items()})
     urls["module.platform[0].google_artifact_registry_repository.mypage[0]"] = (
         "https://artifactregistry.googleapis.com/v1/projects/" + contract.PROJECT +
-        "/locations/asia-southeast2/repositories/mypage")
+        "/locations/" + contract.REGION + "/repositories/mypage")
     urls[runtime_contract.SERVICE] = (
-        "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/asia-southeast2/services/mypage-api")
+        "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/services/mypage-api")
     urls.update({
         runtime_contract.MAINTENANCE_OPERATOR_SA:
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/mypage-maintenance-job@" + contract.PROJECT + ".iam.gserviceaccount.com",
@@ -182,11 +182,11 @@ def reject_unowned_resources(env, plan):
         runtime_contract.MAINTENANCE_PROVIDER:
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance/providers/github",
         runtime_contract.MAINTENANCE_JOB:
-            "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/asia-southeast2/jobs/mypage-maintenance-operator",
+            "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/jobs/mypage-maintenance-operator",
         runtime_contract.MAINTENANCE_BREAKGLASS_JOB:
-            "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/asia-southeast2/jobs/mypage-maintenance-breakglass",
+            "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/jobs/mypage-maintenance-breakglass",
         runtime_contract.MAINTENANCE_BOOTSTRAP_JOB:
-            "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/asia-southeast2/jobs/mypage-maintenance-bootstrap-check",
+            "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/jobs/mypage-maintenance-bootstrap-check",
     })
     for item in plan["resource_changes"]:
         if item["address"] not in urls or item["change"]["actions"] != ["create"]:
@@ -210,7 +210,7 @@ def runtime_settings(env):
         return result
     value = runtime_contract.settings(json.loads(raw, object_pairs_hook=pairs))
     release_file = REPO / "infra/mypage-platform/environments/dev/runtime-release.json"
-    if release_file.exists():
+    if contract.TARGET == "development" and release_file.exists():
         contract.need(release_file.is_file() and not release_file.is_symlink(), "runtime-release-file")
         release = json.loads(release_file.read_text(), object_pairs_hook=pairs)
         contract.need(type(release) is dict and set(release) == {"image_digest", "image_source_sha", "hosting_backend_host", "previous_image_digest"}, "runtime-release-fields")
@@ -234,7 +234,7 @@ def verify_runtime_inputs(env, value):
         image_tree = run(["git", "rev-parse", source + ":system"], cwd=REPO).strip()
         contract.need(re.fullmatch(r"[a-f0-9]{40}", current_tree) and current_tree == image_tree,
                       "runtime-image-source-tree")
-    prefix = "projects/" + contract.PROJECT + "/locations/asia-southeast2/repositories/mypage/packages/mypage-api"
+    prefix = "projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/repositories/mypage/packages/mypage-api"
     tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source, env["MYPAGE_GCP_ACCESS_TOKEN"])
     expected = prefix + "/versions/sha256:" + value["image_digest"].split("@sha256:")[1]
     contract.need(tag.get("version") == expected, "runtime-source-image-digest")
@@ -254,7 +254,7 @@ def verify_runtime_inputs(env, value):
 
 
 def verify_owner_public_invoker(env):
-    url = "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/asia-southeast2/services/mypage-api:getIamPolicy?options.requestedPolicyVersion=3"
+    url = "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/services/mypage-api:getIamPolicy?options.requestedPolicyVersion=3"
     policy = request(url, env["MYPAGE_GCP_ACCESS_TOKEN"])
     public = [b for b in policy.get("bindings", []) if "allUsers" in b.get("members", [])]
     contract.need(len(public) == 1 and public[0].get("role") == "roles/run.invoker"
@@ -305,9 +305,9 @@ def prepare(env):
     PHASE = "identity"
     identity = json.loads(run(["aws", "sts", "get-caller-identity", "--output", "json"]))
     need(identity["Account"] == env["MYPAGE_STATE_ACCOUNT"] and identity["UserId"].split(":")[0] == env["MYPAGE_BACKEND_ROLE_ID"])
-    need(identity["Arn"].startswith("arn:aws:sts::" + env["MYPAGE_STATE_ACCOUNT"] + ":assumed-role/youtube-study-space-mypage-dev-" + kind + "/"))
+    need(identity["Arn"].startswith("arn:aws:sts::" + env["MYPAGE_STATE_ACCOUNT"] + ":assumed-role/youtube-study-space-" + contract.GITHUB_ENVIRONMENT + "-" + kind + "/"))
     version = state_version(env)
-    work = root / "source/environments/dev"
+    work = root / ("source/environments/" + contract.CONFIG["state"])
     PHASE = "init"
     expected_version = (REPO / "infra/mypage-platform/.terraform-version").read_text().strip()
     need(json.loads(run(["terraform", "version", "-json"]))["terraform_version"] == expected_version)
@@ -343,7 +343,7 @@ def prepare(env):
         (root / "metrics-state-version.json").write_bytes(contract.canonical(version))
     with open(env["GITHUB_OUTPUT"], "a") as output:
         output.write("commitment=" + digest + "\nplan_time=" + str(time.time()) + "\n")
-    print("Development foundation plan accepted: " + str(summary["resources"]) + " resources, " + str(summary["creates"]) +
+    print("Environment-bound foundation plan accepted: " + str(summary["resources"]) + " resources, " + str(summary["creates"]) +
           " creates; accepted computed metadata refreshes: " + str(len(plan.get("resource_drift", []) or [])) + ". No apply.")
 
 
@@ -357,7 +357,7 @@ def apply_saved(env):
     saved = root / "foundation.tfplan"
     receipt = json.loads((root / "prepared.json").read_text())
     need(receipt == {"sha256": hashlib.sha256(saved.read_bytes()).hexdigest(), "source": env["GITHUB_SHA"]})
-    work = root / "source/environments/dev"
+    work = root / ("source/environments/" + contract.CONFIG["state"])
     PHASE = "apply"
     stage = contract.stage_for_mode(env["MYPAGE_MODE"])
     if stage in set(runtime_contract.MODES.values()):
@@ -385,7 +385,7 @@ def apply_saved(env):
     resources = runtime_contract.resource_contract(stage) if stage in set(runtime_contract.MODES.values()) else contract.resource_contract(stage)
     need(addresses == set(resources))
     need(state_version(env) != "absent")
-    print("Development foundation saved Plan applied and expected State resources read back.")
+    print("Environment-bound foundation saved Plan applied and expected State resources read back.")
 
 
 def main():

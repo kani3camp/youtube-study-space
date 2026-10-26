@@ -91,6 +91,17 @@ export class MaintenanceMonitor {
 	}
 
 	private publish(state: MaintenanceSnapshot) {
+		const previous = this.state
+		if (
+			state.phase === 'normal' &&
+			previous.phase === 'normal' &&
+			previous.status.updatedAt !== state.status.updatedAt
+		)
+			// A changed NORMAL revision can mean this tab missed a complete
+			// NORMAL -> ACTIVE -> NORMAL interval. Invalidate private state before
+			// publishing the new authoritative snapshot without flashing CHECKING on
+			// every unchanged background poll.
+			this.closePrivateGate('checking')
 		this.state = state
 		if (state.phase !== 'normal') this.closePrivateGate(state.phase)
 		for (const listener of this.listeners) listener()
@@ -104,7 +115,7 @@ export class MaintenanceMonitor {
 	private schedule() {
 		this.stopTimer()
 		if (!this.mounted || !this.routeActive || !this.visible) return
-		this.timer = setTimeout(() => this.recheck(), POLL_MS)
+		this.timer = setTimeout(() => this.recheck(false), POLL_MS)
 	}
 
 	markActive() {
@@ -129,15 +140,18 @@ export class MaintenanceMonitor {
 			this.stopTimer()
 			return
 		}
-		this.recheck()
+		this.recheck(true)
 	}
 
-	private recheck() {
+	private recheck(closeSynchronously: boolean) {
 		if (!this.mounted || !this.routeActive || !this.visible) return
-		// Close the private-data gate synchronously when the previous status could
-		// still permit personal data. ACTIVE and UNKNOWN are already safe states;
-		// preserve their stable UI while a background poll is in flight.
-		if (this.state.phase === 'normal' || this.state.phase === 'checking')
+		// Route and bfcache restoration are synchronous safety boundaries. A
+		// routine visible-tab poll keeps a confirmed NORMAL snapshot usable until
+		// the new response proves ACTIVE, UNKNOWN, or a changed NORMAL revision.
+		if (
+			closeSynchronously &&
+			(this.state.phase === 'normal' || this.state.phase === 'checking')
+		)
 			this.publish({ phase: 'checking', status: null })
 		void this.check()
 	}
@@ -181,19 +195,20 @@ export class MaintenanceMonitor {
 			const visible = document.visibilityState === 'visible'
 			if (visible === this.visible) return
 			this.visible = visible
-			if (visible && this.routeActive) this.recheck()
+			if (visible && this.routeActive) this.recheck(false)
 			else {
 				this.controller?.abort()
 				this.stopTimer()
 			}
 		}
-		const show = () => {
+		const show = (event: PageTransitionEvent) => {
+			if (!event.persisted) return
 			this.visible = document.visibilityState === 'visible'
-			if (this.visible && this.routeActive) this.recheck()
+			if (this.visible && this.routeActive) this.recheck(true)
 		}
 		document.addEventListener('visibilitychange', visibility)
 		window.addEventListener('pageshow', show)
-		if (this.routeActive && this.visible) this.recheck()
+		if (this.routeActive && this.visible) this.recheck(true)
 		return () => {
 			this.mounted = false
 			this.controller?.abort()

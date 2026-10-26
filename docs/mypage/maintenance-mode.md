@@ -22,7 +22,7 @@
 
 workflowは`MyPage Maintenance Mode`（`.github/workflows/mypage-maintenance.yml`）。DEVは`integration/mypage-canon-20261006`、PRODは`main`の、レビュー済みexact SHAからだけ実行できる。rerun、fork、pull request、別ref、repository/owner/actor ID不一致、actorとtriggering actor不一致は認証前に拒否する。
 
-1. 対象環境の直前の成功run artifactでcurrent revisionを確認する。公開statusはrevisionを出さないため、90日保持されるbounded transition receiptを使う。
+1. 対象環境の直前の成功run artifactでcurrent revisionを確認する。公開statusはrevisionを出さないため、90日保持されるbounded transition receiptを使う。receiptが失効・不明な場合は`.github/workflows/mypage-maintenance-inspect.yml`をexact ref/SHAから手動実行し、Firestore読取専用identityが生成する7日保持のauthoritative readback receiptを使う。推測したrevisionや公開statusからの算出は使わない。
 2. `environment`、`NORMAL|ACTIVE`、`expected_revision`、固定`reason_category`、exact `expected_sha`を入力する。`ACTIVE`だけ14日以内のRFC3339 `estimated_end_at`を任意入力でき、認証前にcanonical UTCかつFirestoreのmicrosecond精度へ正規化される。`ACTIVE`開始は`PLANNED_MAINTENANCE|DATA_MIGRATION|SECURITY_MAINTENANCE`、解除は`RECOVERY`だけを使う。保守延長・短縮・見込み未定への変更は、current revisionと同じ`reason_category`を使って`ACTIVE`のまま新しいrunを開始する。
 3. PRODでは`PRODUCTION ACTIVE`または`PRODUCTION NORMAL`をexact入力し、GitHub Environment approvalを通す。
 4. 初期`NORMAL`以外では、認証前にcanonical originの厳密な公開statusとHTML内の固定`MYPAGE_MAINTENANCE_V1` capability markerを読み、Backend guardとFrontend UXが両方配備済みであること、遷移前state/終了見込みのexact値を確認する。未配備・不明ならFirestoreを変更しない。
@@ -35,9 +35,18 @@ GitHub Environment `mypage-maintenance-development` / `mypage-maintenance-produc
 - `MYPAGE_MAINTENANCE_WIF_PROVIDER`
 - `MYPAGE_MAINTENANCE_SERVICE_ACCOUNT`（`mypage-maintenance-invoker@<project>.iam.gserviceaccount.com`）
 
+read-only inspect用のGitHub Environment `mypage-maintenance-inspect-development` / `mypage-maintenance-inspect-production`には次を設定する。
+
+- `MYPAGE_MAINTENANCE_INSPECT_WIF_PROVIDER`
+- `MYPAGE_MAINTENANCE_INSPECT_SERVICE_ACCOUNT`（`mypage-maintenance-bootstrap@<project>.iam.gserviceaccount.com`）
+
+inspect workflowはcontrol documentをFirestore RESTでreadするだけで、Job実行権限・control write権限・通常operator identityを持たない。厳密schema、project/environment、`NORMAL|ACTIVE`、revision、timestamp、固定enumを検証し、secretやtokenを含まない短期receiptだけを保存する。transitionとinspectのservice account impersonation bindingはそれぞれのexact `workflow_ref`に分離する。
+
 WIF providerはsource固定の対象project numberを含むexact resource nameと一致しなければ、認証前に拒否する。attribute conditionで参照するGitHub OIDC claimはすべてprovider mappingにも明示し、immutable numeric owner/repository/actor ID、workflow/ref/SHA、environment、初回attemptを束縛する。公開originもsource固定であり、GitHub Environment variableから別環境や任意hostへ差し替えない。
 
 Terraformでは`runtime_settings.maintenance_operator_enabled=true`とAPI用digestから分離した`maintenance_operator_image_digest` / `maintenance_operator_image_source_sha`を、`maintenance_operator`以降のstageで必須にする。source SHAは実行中commitのancestorであり、Artifact Registryの同SHA tagがoperator digestを指すことをPlan/Applyの双方で検証する。通常のTerraform identity、MyPage API runtime identity、backend deployerをmaintenance workflowへ流用しない。独立した承認者がいる運用体制ではPROD Environmentにrequired reviewerを設定する。単独運用では自己承認required reviewerを要求せず、exact confirmation、`main` / exact SHA、immutable owner/actor ID、初回runだけという機械的制約を維持する。
+
+operatorを構築するauthenticated foundation workflowは`target=development|production`を明示する。Productionでは`main`、exact SHA、独立した`mypage-prod-plan` / `mypage-prod-apply` Environment、prod State key、prod専用AWS role/GCP service accountに固定し、`maintenance-operator-plan|apply`以外を認証前に拒否する。source上の経路が存在しても、Environment/secret/stateの設定や実Plan/Applyを完了したことにはならない。
 
 ## GitHub Actions障害時のbreak-glass
 

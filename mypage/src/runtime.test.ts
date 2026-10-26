@@ -237,7 +237,9 @@ describe('browser authentication runtime', () => {
 			expect(runtime.memory.getSnapshot().data).not.toBeNull(),
 		)
 		windowTarget.dispatchEvent(new Event('pagehide'))
-		windowTarget.dispatchEvent(new Event('pageshow'))
+		windowTarget.dispatchEvent(
+			Object.assign(new Event('pageshow'), { persisted: true }),
+		)
 		expect(runtime.maintenance.getSnapshot().phase).toBe('checking')
 		expect(runtime.memory.getSnapshot().data).toBeNull()
 		release(

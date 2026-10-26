@@ -3,6 +3,9 @@ name: MyPage Foundation Authenticated
 on:
   workflow_call:
     inputs:
+      target:
+        required: true
+        type: string
       mode:
         required: true
         type: string
@@ -32,15 +35,43 @@ permissions:
 
 # A Foundation Apply cannot race a Plan or another Apply on the same State.
 concurrency:
-  group: mypage-development-foundation
+  group: mypage-${{ inputs.target }}-foundation
   cancel-in-progress: false
 
 jobs:
+  target_contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      MYPAGE_TARGET: ${{ inputs.target }}
+      MYPAGE_MODE: ${{ inputs.mode }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Reject unsupported target and operation before protected environments
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, 'infra/mypage-platform/scripts')
+          import foundation_contract
+
+          mode = os.environ['MYPAGE_MODE']
+          if mode == 'image-build':
+              foundation_contract.need(foundation_contract.TARGET == 'development', 'production-maintenance-mode')
+          else:
+              foundation_contract.stage_for_mode(mode)
+          PY
+
   foundation_plan:
+    needs: target_contract
     if: ${{ inputs.mode != 'image-build' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: mypage-dev-plan
+    environment: ${{ inputs.target == 'production' && 'mypage-prod-plan' || 'mypage-dev-plan' }}
     permissions:
       contents: read
       id-token: write
@@ -49,6 +80,7 @@ jobs:
       plan_time: ${{ steps.plan.outputs.plan_time }}
     env:
       MYPAGE_MODE: ${{ inputs.mode }}
+      MYPAGE_TARGET: ${{ inputs.target }}
       MYPAGE_ROLE: plan
       MYPAGE_EXPECTED_SHA: ${{ inputs.expected_sha }}
       MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
@@ -91,7 +123,7 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
-          project_id: test-youtube-study-space
+          project_id: ${{ inputs.target == 'production' && 'youtube-study-space' || 'test-youtube-study-space' }}
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
@@ -101,8 +133,8 @@ jobs:
         if: ${{ inputs.mode == 'runtime-private-plan' || inputs.mode == 'runtime-public-plan' }}
         run: |
           gcloud run jobs execute mypage-maintenance-bootstrap-check \
-            --project=test-youtube-study-space \
-            --region=asia-southeast2 \
+            --project=${{ inputs.target == 'production' && 'youtube-study-space' || 'test-youtube-study-space' }} \
+            --region=${{ inputs.target == 'production' && 'asia-northeast2' || 'asia-southeast2' }} \
             --wait \
             --quiet
       - name: Plan bounded private foundation resources
@@ -115,16 +147,17 @@ jobs:
         run: python3 infra/mypage-platform/scripts/foundation_ops.py cleanup
 
   foundation_apply:
-    needs: foundation_plan
+    needs: [target_contract, foundation_plan]
     if: ${{ inputs.mode == 'foundation-apply' || inputs.mode == 'foundation-metadata-apply' || inputs.mode == 'registry-apply' || inputs.mode == 'maintenance-operator-apply' || inputs.mode == 'maintenance-upgrade-apply' || inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: mypage-dev-apply
+    environment: ${{ inputs.target == 'production' && 'mypage-prod-apply' || 'mypage-dev-apply' }}
     permissions:
       contents: read
       id-token: write
     env:
       MYPAGE_MODE: ${{ inputs.mode }}
+      MYPAGE_TARGET: ${{ inputs.target }}
       MYPAGE_ROLE: apply
       MYPAGE_EXPECTED_SHA: ${{ inputs.expected_sha }}
       MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
@@ -167,7 +200,7 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
-          project_id: test-youtube-study-space
+          project_id: ${{ inputs.target == 'production' && 'youtube-study-space' || 'test-youtube-study-space' }}
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
@@ -177,8 +210,8 @@ jobs:
         if: ${{ inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply' }}
         run: |
           gcloud run jobs execute mypage-maintenance-bootstrap-check \
-            --project=test-youtube-study-space \
-            --region=asia-southeast2 \
+            --project=${{ inputs.target == 'production' && 'youtube-study-space' || 'test-youtube-study-space' }} \
+            --region=${{ inputs.target == 'production' && 'asia-northeast2' || 'asia-southeast2' }} \
             --wait \
             --quiet
       - name: Independently reproduce saved Plan
@@ -207,7 +240,8 @@ jobs:
         run: python3 infra/mypage-platform/scripts/foundation_ops.py cleanup
 
   image_build:
-    if: ${{ inputs.mode == 'image-build' }}
+    needs: target_contract
+    if: ${{ inputs.target == 'development' && inputs.mode == 'image-build' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: mypage-dev-apply
@@ -216,6 +250,7 @@ jobs:
       id-token: write
     env:
       MYPAGE_MODE: ${{ inputs.mode }}
+      MYPAGE_TARGET: ${{ inputs.target }}
       MYPAGE_ROLE: apply
       MYPAGE_EXPECTED_SHA: ${{ inputs.expected_sha }}
       MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}

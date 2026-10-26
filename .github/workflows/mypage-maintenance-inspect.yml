@@ -1,0 +1,118 @@
+name: MyPage Maintenance Inspect
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [development, production]
+      expected_sha:
+        description: Exact 40-character commit SHA reviewed for this read
+        required: true
+        type: string
+      production_confirmation:
+        description: For production only, enter PRODUCTION INSPECT
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: mypage-maintenance-inspect-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Inspect ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: mypage-maintenance-inspect-${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout the exact reviewed commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Reject untrusted context before authentication
+        id: context
+        env:
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          INPUT_EXPECTED_SHA: ${{ inputs.expected_sha }}
+          INPUT_PRODUCTION_CONFIRMATION: ${{ inputs.production_confirmation }}
+          MYPAGE_TRIGGERING_ACTOR_ID: ${{ github.event.sender.id }}
+        run: python3 .github/scripts/mypage_maintenance_inspect.py
+
+      - name: Validate and mask the dedicated read-only identity
+        env:
+          PROVIDER: ${{ secrets.MYPAGE_MAINTENANCE_INSPECT_WIF_PROVIDER }}
+          EXPECTED_PROVIDER: ${{ steps.context.outputs.provider }}
+          SERVICE_ACCOUNT: ${{ secrets.MYPAGE_MAINTENANCE_INSPECT_SERVICE_ACCOUNT }}
+          EXPECTED_SERVICE_ACCOUNT: ${{ steps.context.outputs.service_account }}
+        run: |
+          set -euo pipefail
+          [[ "${PROVIDER}" == "${EXPECTED_PROVIDER}" ]]
+          [[ "${SERVICE_ACCOUNT}" == "${EXPECTED_SERVICE_ACCOUNT}" ]]
+          for value in "${PROVIDER}" "${SERVICE_ACCOUNT}" "${SERVICE_ACCOUNT%%@*}"; do
+            echo "::add-mask::${value}"
+          done
+
+      - name: Authenticate the environment-scoped read-only identity
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.MYPAGE_MAINTENANCE_INSPECT_WIF_PROVIDER }}
+          service_account: ${{ secrets.MYPAGE_MAINTENANCE_INSPECT_SERVICE_ACCOUNT }}
+          project_id: ${{ steps.context.outputs.project }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+          token_format: access_token
+          access_token_lifetime: 300s
+
+      - name: Read and strictly validate the authoritative control
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          DOCUMENT_URL: ${{ steps.context.outputs.document_url }}
+          ENVIRONMENT: ${{ steps.context.outputs.environment }}
+          PROJECT: ${{ steps.context.outputs.project }}
+          RECEIPT: ${{ runner.temp }}/mypage-maintenance-inspect.json
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, urllib.request
+          from pathlib import Path
+
+          sys.path.insert(0, '.github/scripts')
+          from mypage_maintenance_inspect import parse_document
+
+          try:
+              request = urllib.request.Request(
+                  os.environ['DOCUMENT_URL'],
+                  headers={
+                      'Authorization': 'Bearer ' + os.environ['ACCESS_TOKEN'],
+                      'Accept-Encoding': 'identity',
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  assert response.status == 200
+                  raw = response.read(65537)
+                  assert len(raw) <= 65536
+              receipt = parse_document(json.loads(raw), os.environ['ENVIRONMENT'], os.environ['PROJECT'])
+              Path(os.environ['RECEIPT']).write_text(json.dumps(receipt, sort_keys=True), encoding='utf-8')
+          except Exception:
+              raise SystemExit('maintenance inspect failed')
+          PY
+
+      - name: Preserve short-lived read-only receipt
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: mypage-maintenance-inspect-${{ steps.context.outputs.environment }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/mypage-maintenance-inspect.json
+          if-no-files-found: error
+          retention-days: 7

@@ -209,20 +209,25 @@ func (s *AuthService) Callback(ctx context.Context, id, state, code string, deni
 		return apiError("OAUTH_TRANSACTION_REQUIRED")
 	}
 	purpose := ""
+	callbackRevision := int64(0)
 	if purposeStore, ok := s.Store.(interface {
-		ReadPurpose(context.Context, string, time.Time) (string, error)
+		ReadPurpose(context.Context, string, time.Time) (string, int64, error)
 	}); ok {
 		var err error
-		purpose, err = purposeStore.ReadPurpose(ctx, id, s.Now().UTC())
+		purpose, callbackRevision, err = purposeStore.ReadPurpose(ctx, id, s.Now().UTC())
 		if err != nil {
 			return fmt.Errorf("read OAuth callback purpose: %w", err)
 		}
 		if purpose == "login" && s.Maintenance != nil {
-			if err := s.Maintenance.CheckAuthoritative(ctx); err != nil {
+			revision, checkErr := s.Maintenance.CheckAuthoritativeRevision(ctx)
+			if checkErr == nil && revision != callbackRevision {
+				checkErr = apiError("TEMPORARY_UNAVAILABLE")
+			}
+			if checkErr != nil {
 				if failErr := s.Store.Fail(ctx, id); failErr != nil {
-					err = errors.Join(err, fmt.Errorf("fail maintenance OAuth transaction: %w", failErr))
+					checkErr = errors.Join(checkErr, fmt.Errorf("fail maintenance OAuth transaction: %w", failErr))
 				}
-				return fmt.Errorf("check maintenance before OAuth callback: %w", err)
+				return fmt.Errorf("check maintenance before OAuth callback: %w", checkErr)
 			}
 		}
 	}
@@ -269,11 +274,15 @@ func (s *AuthService) Callback(ctx context.Context, id, state, code string, deni
 		return fmt.Errorf("verify OAuth transaction: %w", err)
 	}
 	if purpose == "login" && s.Maintenance != nil {
-		if err := s.Maintenance.CheckAuthoritative(ctx); err != nil {
+		revision, checkErr := s.Maintenance.CheckAuthoritativeRevision(ctx)
+		if checkErr == nil && revision != callbackRevision {
+			checkErr = apiError("TEMPORARY_UNAVAILABLE")
+		}
+		if checkErr != nil {
 			if failErr := s.Store.Fail(ctx, id); failErr != nil {
-				err = errors.Join(err, fmt.Errorf("fail completed maintenance OAuth transaction: %w", failErr))
+				checkErr = errors.Join(checkErr, fmt.Errorf("fail completed maintenance OAuth transaction: %w", failErr))
 			}
-			return fmt.Errorf("check maintenance after OAuth callback: %w", err)
+			return fmt.Errorf("check maintenance after OAuth callback: %w", checkErr)
 		}
 	}
 	return nil

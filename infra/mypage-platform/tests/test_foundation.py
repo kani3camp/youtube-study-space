@@ -665,7 +665,9 @@ class FoundationTest(unittest.TestCase):
         self.assertFalse(workflow['concurrency']['cancel-in-progress'])
         for kind in ('plan', 'apply'):
             job = workflow['jobs']['foundation_' + kind]
-            self.assertEqual(job['environment'], 'mypage-dev-' + kind)
+            self.assertIn("inputs.target == 'production'", job['environment'])
+            self.assertIn('mypage-prod-' + kind, job['environment'])
+            self.assertIn('mypage-dev-' + kind, job['environment'])
             self.assertEqual(job['steps'][-1]['if'], '${{ always() }}')
             self.assertEqual(job['steps'][1]['run'].split()[-1], 'stage')
         apply = workflow['jobs']['foundation_apply']
