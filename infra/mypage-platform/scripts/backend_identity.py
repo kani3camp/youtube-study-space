@@ -76,7 +76,7 @@ def apply():
     sa_member = '--member=serviceAccount:' + ACCOUNT
     command('gcloud', ['run', 'services', 'add-iam-policy-binding', 'mypage-api',
                        '--region=asia-southeast2', '--role=projects/' + c.PROJECT + '/roles/' + ROLE,
-                       sa_member, '--condition=None', *common])
+                       sa_member, *common])
     command('gcloud', ['iam', 'service-accounts', 'add-iam-policy-binding', c.EMAIL,
                        '--role=roles/iam.serviceAccountUser', sa_member, *common])
     command('gcloud', ['artifacts', 'repositories', 'add-iam-policy-binding', 'mypage',
