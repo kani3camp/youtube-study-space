@@ -275,6 +275,44 @@ class RuntimeTest(unittest.TestCase):
             r.validate_plan(rejected, "maintenance_upgrade")
         self.assertEqual(str(error.exception), "maintenance-role-unknown")
 
+    def test_maintenance_wif_and_iam_capabilities_are_exact(self):
+        mutations = (
+            (r.MAINTENANCE_POOL,
+             lambda item: item["change"]["after"].update(mode="TRUST_DOMAIN"),
+             "runtime-resource-value-" + r.MAINTENANCE_POOL + "-mode"),
+            (r.MAINTENANCE_POOL,
+             lambda item: item["change"].update(after_unknown={"mode": True}),
+             "runtime-resource-value-" + r.MAINTENANCE_POOL + "-mode"),
+            (r.MAINTENANCE_PROVIDER,
+             lambda item: item["change"]["after"]["oidc"][0].update(allowed_audiences=["https://example.invalid"]),
+             "maintenance-provider-issuer"),
+            (r.MAINTENANCE_PROVIDER,
+             lambda item: item["change"].update(after_unknown={"oidc": [{"allowed_audiences": True}]}),
+             "maintenance-provider-unknown"),
+            (r.MAINTENANCE_PROVIDER,
+             lambda item: item["change"]["after"]["oidc"][0].update(jwks_json="{}"),
+             "maintenance-provider-oidc-options"),
+            (r.MAINTENANCE_WIF,
+             lambda item: item["change"]["after"].update(condition=[{"expression": "true"}]),
+             "runtime-resource-after"),
+            (r.MAINTENANCE_INSPECT_WIF,
+             lambda item: item["change"].update(after_unknown={"condition": True}),
+             "maintenance-wif-unknown"),
+            (r.MAINTENANCE_FIRESTORE,
+             lambda item: item["change"]["after"].update(condition=[{"expression": "true"}]),
+             "runtime-resource-after"),
+            (r.MAINTENANCE_JOB_INVOKER,
+             lambda item: item["change"].update(after_unknown={"condition": True}),
+             "maintenance-iam-unknown"),
+        )
+        for address, mutate, check in mutations:
+            rejected = fixture("maintenance_upgrade")
+            item = next(item for item in rejected["resource_changes"] if item["address"] == address)
+            mutate(item)
+            with self.subTest(address=address, check=check), self.assertRaises(c.ContractError) as error:
+                r.validate_plan(rejected, "maintenance_upgrade")
+            self.assertEqual(str(error.exception), check)
+
     def test_noop_revision_must_equal_the_exact_observed_ready_revision(self):
         cases = (
             ("runtime_private", r.SERVICE, "mypage-api-ready", "runtime-owned-revision"),

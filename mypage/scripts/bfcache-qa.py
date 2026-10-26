@@ -42,6 +42,21 @@ with sync_playwright() as p:
    page.get_by_role('link',name=restart).click()
    page.get_by_role('heading',name='お問い合わせ' if support else 'マイページへログイン',exact=True).wait_for()
    results.append({'purpose':'support' if support else 'login','pending':pending,'persisted':True,'restartWorks':True,'staleSuccessDisplayed':False})
+ for support in [False,True]:
+  login_path='/login?supportChallenge='+'a'*64 if support else '/login'
+  page.goto(args.base_url+'/runtime-visual.html?'+urlencode({'path':login_path}))
+  heading='問い合わせの本人確認' if support else 'マイページへログイン'
+  action='YouTubeで本人確認を始める' if support else 'YouTubeでログイン'
+  page.get_by_role('heading',name=heading,exact=True).wait_for()
+  for checkbox in page.get_by_role('checkbox').all():checkbox.check()
+  page.locator('#synthetic-hold').click();page.get_by_role('button',name=action,exact=True).click()
+  page.get_by_role('button',name='手続きを開始しています…',exact=True).wait_for();page.evaluate('document.fonts.ready')
+  page.goto(args.base_url+'/');page.go_back(wait_until='commit')
+  assert page.evaluate('window.__bfRestored===true'), 'OAuth start page did not return through actual bfcache'
+  page.get_by_role('button',name=action,exact=True).wait_for()
+  page.locator('#synthetic-release').click();page.wait_for_timeout(100)
+  assert page.url.startswith(args.base_url+'/runtime-visual.html'), 'Late OAuth start response navigated after bfcache return'
+  results.append({'purpose':'support-start' if support else 'login-start','persisted':True,'lateRedirect':False})
  page.goto(args.base_url+'/runtime-visual.html?'+urlencode({'path':'/maintenance','mode':'maintenance-active-authenticated'}))
  page.get_by_role('heading',name='ただいまメンテナンス中です').wait_for();page.evaluate('document.fonts.ready')
  page.locator('#synthetic-maintenance-normal').click()
@@ -64,4 +79,4 @@ with sync_playwright() as p:
  assert not errors,errors
  browser.close()
 (out/'report.json').write_text(json.dumps({'syntheticOnly':True,'actualBfcache':True,'cases':results,'externalRequests':len(external),'pageErrors':errors},indent=2))
-print('PASS: 6 real bfcache cases, including delayed ACTIVE detection and NORMAL recovery, without stale private or maintenance UI.')
+print('PASS:',len(results),'real bfcache cases, including delayed OAuth start/ACTIVE detection and NORMAL recovery, without stale private or maintenance UI.')

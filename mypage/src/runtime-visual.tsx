@@ -275,12 +275,19 @@ if (import.meta.env.DEV) {
 		}
 		if (path === '/api/auth/session/complete')
 			return new Response(null, { status: 204 })
-		if (path === '/api/auth/youtube/start')
+		if (path === '/api/auth/youtube/start') {
+			if (holdNext) {
+				holdNext = false
+				await new Promise<void>((resolve) => {
+					release = resolve
+				})
+			}
 			return Response.json({
 				authorizationUrl:
 					'https://accounts.google.com/o/oauth2/v2/auth?state=synthetic',
 				expiresAt: fixture.generatedAt,
 			})
+		}
 		if (path !== '/api/mypage')
 			return Response.json(
 				{ error: { code: 'INVALID_REQUEST' } },

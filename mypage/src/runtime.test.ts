@@ -78,6 +78,35 @@ describe('browser authentication runtime', () => {
 		await expect(done).rejects.toMatchObject({ code: 'MAINTENANCE_ACTIVE' })
 	})
 
+	it.each([
+		['login', undefined],
+		['support', 'a'.repeat(64)],
+	])('rejects a delayed %s OAuth start response after its page lifecycle aborts', async (_purpose, challenge) => {
+		const { session } = sessionFixture()
+		let release: (response: Response) => void = () => {}
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			vi.fn<typeof fetch>(
+				async () =>
+					new Promise<Response>((resolve) => {
+						release = resolve
+					}),
+			),
+		)
+		const controller = new AbortController()
+		const done = runtime.start(controller.signal, challenge)
+		await settle()
+		controller.abort()
+		release(
+			Response.json({
+				authorizationUrl:
+					'https://accounts.google.com/o/oauth2/v2/auth?state=synthetic',
+			}),
+		)
+		await expect(done).rejects.toMatchObject({ code: 'TEMPORARY_UNAVAILABLE' })
+	})
+
 	it('signs out a late normal OAuth sign-in completed after maintenance activation', async () => {
 		const { session, setUID } = sessionFixture()
 		let finishSignIn: () => void = () => {}

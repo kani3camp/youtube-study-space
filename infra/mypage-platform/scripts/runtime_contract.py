@@ -37,6 +37,11 @@ MAINTENANCE_BOOTSTRAP_APPLY_INVOKER = "module.platform[0].google_cloud_run_v2_jo
 MAINTENANCE_BOOTSTRAP_BACKEND_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_bootstrap_backend_deployer[0]"
 MAINTENANCE_INSPECT_SERVICE = "module.platform[0].google_cloud_run_v2_service.maintenance_inspect[0]"
 MAINTENANCE_INSPECT_SERVICE_INVOKER = "module.platform[0].google_cloud_run_v2_service_iam_member.maintenance_inspect_invoker[0]"
+MAINTENANCE_FIXED_IAM_MEMBERS = {
+    MAINTENANCE_FIRESTORE, MAINTENANCE_BOOTSTRAP_FIRESTORE, MAINTENANCE_JOB_INVOKER,
+    MAINTENANCE_BOOTSTRAP_PLAN_INVOKER, MAINTENANCE_BOOTSTRAP_APPLY_INVOKER,
+    MAINTENANCE_BOOTSTRAP_BACKEND_INVOKER, MAINTENANCE_INSPECT_SERVICE_INVOKER,
+}
 MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-operator-apply": "maintenance_operator",
          "maintenance-upgrade-plan": "maintenance_upgrade", "maintenance-upgrade-apply": "maintenance_upgrade",
          "runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
@@ -132,8 +137,13 @@ def maintenance_resource_contract(value=None):
                                      "stage": "GA", "deletion_policy": "PREVENT",
                                      "permissions": ["datastore.databases.get", "datastore.entities.get"]},
         MAINTENANCE_BOOTSTRAP_FIRESTORE: {"project": c.PROJECT, "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceBootstrapReader", "member": "serviceAccount:" + bootstrap_email},
-        MAINTENANCE_POOL: {"project": c.PROJECT, "workload_identity_pool_id": "mypage-maintenance", "display_name": "MyPage maintenance GitHub", "disabled": False},
-        MAINTENANCE_PROVIDER: {"project": c.PROJECT, "workload_identity_pool_id": "mypage-maintenance", "workload_identity_pool_provider_id": "github", "disabled": False},
+        MAINTENANCE_POOL: {"project": c.PROJECT, "workload_identity_pool_id": "mypage-maintenance", "display_name": "MyPage maintenance GitHub",
+                           "description": "Environment-scoped GitHub Actions trust for maintenance Job invocation.",
+                           "disabled": False, "mode": "FEDERATION_ONLY", "deletion_policy": "PREVENT"},
+        MAINTENANCE_PROVIDER: {"project": c.PROJECT, "workload_identity_pool_id": "mypage-maintenance", "workload_identity_pool_provider_id": "github",
+                               "display_name": "MyPage maintenance workflow",
+                               "description": "GitHub OIDC provider restricted to reviewed maintenance workflows.",
+                               "disabled": False, "deletion_policy": "PREVENT"},
         MAINTENANCE_WIF: {"role": "roles/iam.workloadIdentityUser"},
         MAINTENANCE_INSPECT_WIF: {"role": "roles/iam.workloadIdentityUser"},
         MAINTENANCE_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-operator", "location": c.REGION,
@@ -383,9 +393,17 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
                "maintenance-role-deleted")
         return
     if address == MAINTENANCE_POOL:
+        outputs = {"id", "name", "state"}
+        validate_unknown_paths(unknown, {(name,) for name in outputs}, "maintenance-pool-unknown")
+        fixed_options(after, set(maintenance_resource_contract()[address]) | outputs,
+                      "maintenance-pool-options")
         c.need(after.get("display_name") == "MyPage maintenance GitHub", "maintenance-pool-display")
         return
     if address == MAINTENANCE_PROVIDER:
+        outputs = {"id", "name", "state"}
+        validate_unknown_paths(unknown, {(name,) for name in outputs}, "maintenance-provider-unknown")
+        fixed_options(after, set(maintenance_resource_contract(value)[address]) | outputs,
+                      "maintenance-provider-options")
         c.need(after.get("attribute_condition") == maintenance_provider_condition(), "maintenance-provider-condition")
         c.need(after.get("attribute_mapping") == {
             "attribute.actor": "assertion.actor",
@@ -402,9 +420,14 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
             "google.subject": "assertion.sub",
         }, "maintenance-provider-mapping")
         oidc = one(after.get("oidc"), "maintenance-provider-oidc")
-        c.need(oidc.get("issuer_uri") == "https://token.actions.githubusercontent.com" and not oidc.get("allowed_audiences"), "maintenance-provider-issuer")
+        fixed_options(oidc, {"issuer_uri", "allowed_audiences"}, "maintenance-provider-oidc-options")
+        c.need(oidc.get("issuer_uri") == "https://token.actions.githubusercontent.com"
+               and oidc.get("allowed_audiences") in (None, []), "maintenance-provider-issuer")
         return
     if address in {MAINTENANCE_WIF, MAINTENANCE_INSPECT_WIF}:
+        validate_unknown_paths(unknown, {("etag",), ("id",)}, "maintenance-wif-unknown")
+        fixed_options(after, set(maintenance_resource_contract(value)[address]) | {"etag", "id"},
+                      "maintenance-wif-options")
         email = invoker_email if address == MAINTENANCE_WIF else inspect_invoker_email
         workflow = "mypage-maintenance.yml" if address == MAINTENANCE_WIF else "mypage-maintenance-inspect.yml"
         c.need(after.get("service_account_id") in {
@@ -413,6 +436,11 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
         }, "maintenance-wif-service-account")
         expected_member = "principalSet://iam.googleapis.com/projects/" + c.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance/attribute.workflow_ref/kani3camp/youtube-study-space/.github/workflows/" + workflow + "@" + c.REF
         c.need(after.get("member") == expected_member, "maintenance-wif-member")
+        return
+    if address in MAINTENANCE_FIXED_IAM_MEMBERS:
+        validate_unknown_paths(unknown, {("etag",), ("id",)}, "maintenance-iam-unknown")
+        fixed_options(after, set(maintenance_resource_contract(value)[address]) | {"etag", "id"},
+                      "maintenance-iam-options")
         return
     if address in {MAINTENANCE_JOB, MAINTENANCE_BREAKGLASS_JOB}:
         validate_unknown_paths(unknown, {(name,) for name in JOB_OBSERVED_OPTIONS}, "maintenance-job-unknown")

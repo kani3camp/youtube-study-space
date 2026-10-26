@@ -505,7 +505,22 @@ export function createApp(
 		const [busy, setBusy] = useState(false)
 		const [error, setError] = useState<string | null>(null)
 		const controller = useRef<AbortController | null>(null)
-		useEffect(() => () => controller.current?.abort(), [])
+		useEffect(() => {
+			const interrupt = () => {
+				const pending = controller.current
+				controller.current = null
+				pending?.abort()
+				setBusy(false)
+				setError(null)
+			}
+			window.addEventListener('pagehide', interrupt)
+			return () => {
+				window.removeEventListener('pagehide', interrupt)
+				const pending = controller.current
+				controller.current = null
+				pending?.abort()
+			}
+		}, [])
 		if (!supportMode && maintenance.phase === 'active')
 			return <Navigate to="/maintenance" replace />
 		if (!supportMode && maintenance.phase !== 'normal')
@@ -524,21 +539,23 @@ export function createApp(
 		const start = async () => {
 			if (controller.current || !privacy || !terms || search.supportInvalid)
 				return
-			controller.current = new AbortController()
+			const current = new AbortController()
+			controller.current = current
 			setBusy(true)
 			setError(null)
 			receipt.set(null)
 			try {
 				if (!supportMode) privacyServices.analytics.event('login_started')
-				const url = await runtime.start(
-					controller.current.signal,
-					search.supportChallenge,
-				)
-				if (!controller.current.signal.aborted) location.assign(url)
+				const url = await runtime.start(current.signal, search.supportChallenge)
+				if (controller.current === current && !current.signal.aborted)
+					location.assign(url)
 			} catch (e) {
-				setError(message(e))
-				controller.current = null
-				setBusy(false)
+				if (controller.current === current) setError(message(e))
+			} finally {
+				if (controller.current === current) {
+					controller.current = null
+					setBusy(false)
+				}
 			}
 		}
 		return (

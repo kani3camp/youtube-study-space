@@ -533,9 +533,10 @@ export class BrowserRuntime {
 			},
 			signal,
 		)
+		if (signal.aborted) throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
 		if (
 			supportChallenge === undefined &&
-			(signal.aborted || normalOAuthGeneration !== this.normalOAuthGeneration)
+			normalOAuthGeneration !== this.normalOAuthGeneration
 		)
 			throw this.normalOAuthError()
 		if (

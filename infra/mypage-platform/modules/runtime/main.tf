@@ -486,6 +486,8 @@ resource "google_iam_workload_identity_pool" "maintenance_github" {
   display_name              = "MyPage maintenance GitHub"
   description               = "Environment-scoped GitHub Actions trust for maintenance Job invocation."
   disabled                  = false
+  mode                      = "FEDERATION_ONLY"
+  deletion_policy           = "PREVENT"
 }
 
 resource "google_iam_workload_identity_pool_provider" "maintenance_github" {
@@ -494,7 +496,9 @@ resource "google_iam_workload_identity_pool_provider" "maintenance_github" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.maintenance_github[0].workload_identity_pool_id
   workload_identity_pool_provider_id = "github"
   display_name                       = "MyPage maintenance workflow"
+  description                        = "GitHub OIDC provider restricted to reviewed maintenance workflows."
   disabled                           = false
+  deletion_policy                    = "PREVENT"
   attribute_mapping = {
     "google.subject"                = "assertion.sub"
     "attribute.actor"               = "assertion.actor"
@@ -511,7 +515,8 @@ resource "google_iam_workload_identity_pool_provider" "maintenance_github" {
   }
   attribute_condition = "assertion.repository_id == '340900071' && assertion.repository_owner_id == '54093651' && assertion.actor_id == '54093651' && assertion.actor == 'kani3camp' && assertion.run_attempt == '1' && assertion.event_name == 'workflow_dispatch' && assertion.ref == '${local.maintenance_ref}' && ((assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@${local.maintenance_ref}' && assertion.environment == '${local.maintenance_github_environment}') || (assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/mypage-maintenance-inspect.yml@${local.maintenance_ref}' && assertion.environment == '${local.maintenance_inspect_github_environment}')) && assertion.workflow_sha == assertion.sha"
   oidc {
-    issuer_uri = "https://token.actions.githubusercontent.com"
+    issuer_uri        = "https://token.actions.githubusercontent.com"
+    allowed_audiences = []
   }
 }
 
