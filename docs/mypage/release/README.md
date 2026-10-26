@@ -20,16 +20,16 @@
 | support | request/purpose/channel binding、fresh proof、opaque参照、[demo限定dry-run](../../../system/cmd/mypage-operator-dryrun/main.go)、[無効のアプリ内受付](../privacy-intake.md) | 初期公開は返信可能な人的Privacy窓口と既存fresh OAuth / private CLI / Runbookの実運用。実連絡先・担当・期限管理・返信deliveryは未確定 |
 | 削除 / operator実行 | [削除workflow・offline CLI](../support-delete.md)と[trusted operator source](../support-operator.md)を合成検証 | live adapter / registry / CLI bootstrapなし。`--execute`拒否を維持。全store横断・復元/再生成防止・完了確認の実証跡 |
 | public policy | anonymous routes、明示同意、公開情報差込とdraft文面 | 運営値・実送信/保持との照合、本文承認、D02の規約適合性確認 |
-| GA4 | consent世代、同意前非送信、撤回/cross-tab、safe固定UTM、loader。未接続時は同意バナーを非表示にし、旧v1選択を引き継がない | DEV/本番の個別プロパティ・ストリーム作成、各Measurement IDの登録、Console/全tag inventory・実Network・保持設定 |
+| GA4 | consent世代、同意前非送信、撤回/cross-tab、safe固定UTM、loader。未接続時は同意バナーを非表示にし、旧v1選択を引き継がない | Firebase既存のMyPage用DEV/本番プロパティ・Webストリームを採用済み。環境別Measurement IDのbuild設定反映、Console/全tag inventory・実Network・保持設定 |
 | Hosting | [pure候補](../../../mypage/src/hosting.ts)、明示CSP inventory、API優先rewrite、asset検査 | 所有target、実SDKのinventory、callback/access-log、実security headers |
 | Bot入口 | 正本で `!app`/alias・固定public入口/UTMを決定済み。設定・受入条件は本runbookで準備 | runtimeコマンド接続は本PRに含めない。別の実装scope承認、Phase 1の実URL設定・live導線/流入確認 |
 | 表示・操作 | visual/runtime/privacy/font/bfcache合成QA | 実端末・実account差。受容済みMyPage見た目を再設計しない |
 
 support proofやdry-runは削除実行ではない。古い `mypage-users` mapping向け運用コードを、channel UIDの現在契約へ確認なしで流用しない。metadata cleanupは定期呼出しcallback・durable monitor・期限付きJSON health sinkのsourceまでで、実schedulerや監視宛先が作成済みとは扱わない。`mypage-server` の起動もkeyless credential、Firestore client、OAuth provider、HTTP listenに依存し、現行sourceや配置templateだけでは稼働中のdev Hosting→Cloud Run経路を証明できない。[2026-10-22のread-only確認](e2e.md#2026-10-22-devの限定確認)は既存DEVの匿名拒否と非機密metadataだけであり、[S01/S04実経路手順](e2e.md#canon-s01s04-実経路セキュリティ検証)の複数回線・全層ログや実OAuthはpending。deployやIAM/ログ設定変更は行っていない。
 
-### GA4の環境別セットアップ（未接続）
+### GA4の環境別セットアップ（Firebase既存MyPageプロパティ採用済み・実送信未有効）
 
-Google Analyticsアカウントは原則1つとし、**Development / Productionの2つの独立したGA4プロパティ**（各Webデータストリーム1つ）を使う。ストリームURLは承認済みの環境別public originと一致させる。開発用のテストアクセスが本番集計に混ざらないよう、異なる `G-...` Measurement IDをそれぞれのVite buildへ供給する。Google Analytics管理画面での作成と実IDの受入は未完了であり、環境の設定完了を宣言しない。
+MyPageのGA4は、各Firebaseプロジェクトに既存でリンクされている **`mypage` 用GA4プロパティ**（各Webデータストリーム1つ）を使う。`youtube-monitor` 用プロパティはMyPageでは使用しない。Measurement IDは **DEV `G-E31NHW939V` / PROD `G-ZJ1VPVT2L2`** を採用する。ストリームURLは承認済みの環境別public originと整合させ、開発用アクセスを本番集計へ送らない。ID採用は確定済みだが、環境別build設定への反映・Console設定の受入・実Network/Realtime検証が終わるまではGA4実送信の有効化完了とは扱わない。
 
 - 両プロパティで広告連携、Google Signals、広告パーソナライズを使用せず、保持14か月・新規アクティビティによる保持期間reset OFFを確認する。SPA側で手動page viewを送るため、GA4のEnhanced Measurementのhistory由来自動page view等による重複・余計な送信を無効にする。
 - `VITE_MYPAGE_ANALYTICS_READY=true`、`VITE_MYPAGE_GA4_ID=<その環境の測定ID>`、`VITE_MYPAGE_PUBLIC_ORIGIN=<その環境のHTTPS origin>` を環境別frontend build設定に与える。測定ID自体は公開値でありsecret扱いしない。公開manifestの整合性検査とHosting CSPの別承認が必要。
