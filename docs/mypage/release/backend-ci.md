@@ -8,7 +8,7 @@
 2. 別のsource-only PRで [runtime-release.json](../../../infra/mypage-platform/environments/dev/runtime-release.json) のbuild元SHA/digestを実結果へ固定する。previous digestは現在配信中の値、hostは既存値を維持する。配備元とbuild元の `system/` tree全体の一致、immutable tag→digestをCIが検証する。
 3. 統合後、既存 **CI** を `integration/mypage-canon-20261006` から `mypage_backend=true` / `mypage_backend_expected_sha=<統合HEADの40桁SHA>` で手動実行。他の認証操作とHosting配備は全てfalseにする。PR/main/別branch/別actor/再実行/SHA不一致は拒否する。
 4. Repository/System成功後、専用Environmentの短命tokenで、Cloud Run v1の元resourceVersionを保持したPUTを1回だけ行う。v2のetagだけを競合防止と扱わない。直前revision/UID/generation/前digest、Hosting版、統合HEADを照合し、image以外の全設定を保持する。
-5. 新Ready revision、generation+1、最新100% traffic、v1/v2全設定不変を確認。Hosting/直接Runの匿名APIがアプリ自身の `APP_CHECK_REQUIRED` / 403 / no-storeで拒否され、Hostingの `/` と `/mypage` が配信されることを確認する。実利用者のtoken/dataを使わない。
+5. 新Ready revision、generation+1、最新100% traffic、v1/v2全設定不変を確認。Hostingの匿名APIが `APP_CHECK_REQUIRED` / 403、直接RunがHost境界の `INVALID_REQUEST` / 400をそれぞれno-storeで返し、Hostingの `/` と `/mypage` が配信されることを確認する。実利用者のtoken/dataを使わない。
 6. 成功時だけ既存Foundation workflowの `runtime-public-apply` を同じCI内で実行する。独立Plan/Apply Environment、HMAC、saved Plan、限定refresh/State readback/cleanupを維持する。Terraformの一般update権限やdrift許容を追加しない。
 7. `mypage-backend-verified-record` とCI Gate成功まで確認する。State照合失敗もCI失敗。配信が旧版へ戻ったとは扱わない。
 

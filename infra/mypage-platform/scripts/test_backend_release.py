@@ -62,6 +62,20 @@ def v1service(*, after=False):
 
 
 class BackendReleaseTest(unittest.TestCase):
+    def test_smoke_verifies_host_boundary_and_app_check_not_arbitrary_rejection(self):
+        def response(url):
+            direct = url.startswith('https://mypage-api-')
+            return (400 if direct else 403, {'Cache-Control': 'private, no-store'},
+                    json.dumps({'error': {'code': 'INVALID_REQUEST' if direct else 'APP_CHECK_REQUIRED'}}).encode())
+        with patch.object(b, 'public_get', side_effect=response), \
+             patch.object(b.hosting, 'http', return_value=(200, {}, b'<html>synthetic</html>')):
+            b.smoke()
+        for invalid in ((200, {}, b'{}'), (403, {'Cache-Control': 'no-store'}, b'{"error":{"code":"UNKNOWN"}}'),
+                        (400, {'Cache-Control': 'no-store'}, b'upstream html')):
+            with self.subTest(response=invalid), patch.object(b, 'public_get', return_value=invalid), \
+                 self.assertRaises((ValueError, b.c.ContractError)):
+                b.smoke()
+
     def test_new_identity_is_bound_to_exact_dev_source_actor_and_environment(self):
         condition = identity.condition()
         for text in ('assertion.ref == ' + json.dumps(b.c.REF),

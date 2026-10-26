@@ -120,18 +120,29 @@ def validate_result(after, before, value):
     c.need(live.api_configuration(after) == live.api_configuration(expected), 'backend-result-config')
 
 
+def public_get(url):
+    # Never follow redirects, retain application data or use real credentials.
+    import urllib.error
+    import urllib.request
+    c.need(url in (hosting.ORIGIN + '/api/mypage',
+                   'https://mypage-api-eu5mhkcewq-et.a.run.app/api/mypage'), 'backend-smoke-url')
+    try:
+        with urllib.request.build_opener(live.NoRedirect()).open(url, timeout=30) as response:
+            return response.status, response.headers, response.read(65537)
+    except urllib.error.HTTPError as error:
+        return error.code, error.headers, error.read(65537)
+
+
 def smoke():
-    for url in (hosting.ORIGIN + '/api/mypage', 'https://mypage-api-eu5mhkcewq-et.a.run.app/api/mypage'):
-        # Never follow redirects, retain application data or use real credentials.
-        import urllib.error
-        import urllib.request
-        try:
-            with urllib.request.build_opener(live.NoRedirect()).open(url, timeout=30) as response:
-                status, headers, data = response.status, response.headers, response.read(65537)
-        except urllib.error.HTTPError as error:
-            status, headers, data = error.code, error.headers, error.read(65537)
-        c.need(len(data) <= 65536 and status == 403 and
-               json.loads(data).get('error', {}).get('code') == 'APP_CHECK_REQUIRED' and
+    # The direct URL rejects at the Host boundary before App Check. Preserve
+    # both application rejections; an arbitrary upstream 400/403 is not proof.
+    for url, wanted_status, wanted_code in (
+        (hosting.ORIGIN + '/api/mypage', 403, 'APP_CHECK_REQUIRED'),
+        ('https://mypage-api-eu5mhkcewq-et.a.run.app/api/mypage', 400, 'INVALID_REQUEST'),
+    ):
+        status, headers, data = public_get(url)
+        c.need(len(data) <= 65536 and status == wanted_status and
+               json.loads(data).get('error', {}).get('code') == wanted_code and
                'no-store' in {part.strip().lower() for part in headers.get('Cache-Control', '').split(',')},
                'backend-anonymous-smoke')
     for route in ('/', '/mypage'):
