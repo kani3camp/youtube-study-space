@@ -133,7 +133,9 @@ def readback(number):
     env_url = 'repos/' + c.REPOSITORY + '/environments/' + ENVIRONMENT
     environment = command('gh', ['api', env_url])
     c.need(environment.get('deployment_branch_policy') == {'protected_branches': False, 'custom_branch_policies': True}
-           and not environment.get('protection_rules'), 'backend-bootstrap-environment-readback')
+           and environment.get('protection_rules') == [environment['protection_rules'][0]]
+           and environment['protection_rules'][0].get('type') == 'branch_policy',
+           'backend-bootstrap-environment-readback')
     policies = command('gh', ['api', env_url + '/deployment-branch-policies'])
     c.need(policies['total_count'] == 1 and policies['branch_policies'][0]['name'] == c.REF.removeprefix('refs/heads/')
            and policies['branch_policies'][0]['type'] == 'branch', 'backend-bootstrap-branch-readback')

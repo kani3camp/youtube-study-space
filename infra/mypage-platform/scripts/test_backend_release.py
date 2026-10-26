@@ -73,6 +73,12 @@ class BackendReleaseTest(unittest.TestCase):
             identity.command('gh', ['api', 'synthetic'])
             self.assertEqual(run.call_args.args[0][0], 'synthetic-gh.exe')
 
+    def test_environment_readback_requires_exact_branch_policy(self):
+        source = Path(identity.__file__).read_text(encoding='utf-8')
+        self.assertIn("environment['protection_rules'][0].get('type') == 'branch_policy'", source)
+        self.assertIn("policies['total_count'] == 1", source)
+        self.assertIn("policies['branch_policies'][0]['name'] == c.REF.removeprefix('refs/heads/')", source)
+
     def test_smoke_verifies_host_boundary_and_app_check_not_arbitrary_rejection(self):
         def response(url):
             direct = url.startswith('https://mypage-api-')
