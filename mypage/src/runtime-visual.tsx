@@ -54,19 +54,23 @@ if (import.meta.env.DEV) {
 		appCheck: async () => 'synthetic-app',
 		subscribe: (listener) => {
 			listeners.add(listener)
-			const timer = setTimeout(
-				() => {
-					if (restoringAuth) uid = 'synthetic-a'
-					listener(uid)
-				},
-				mode?.includes('late-restoring-auth')
-					? 800
-					: mode?.startsWith('maintenance-active-delayed-support')
-						? 400
-						: 20,
-			)
+			const synchronous = mode === 'polling-authenticated'
+			const timer = synchronous
+				? null
+				: setTimeout(
+						() => {
+							if (restoringAuth) uid = 'synthetic-a'
+							listener(uid)
+						},
+						mode?.includes('late-restoring-auth')
+							? 800
+							: mode?.startsWith('maintenance-active-delayed-support')
+								? 400
+								: 20,
+					)
+			if (synchronous) listener(uid)
 			return () => {
-				clearTimeout(timer)
+				if (timer !== null) clearTimeout(timer)
 				listeners.delete(listener)
 			}
 		},

@@ -1,6 +1,7 @@
 """Exercise the real router and polling gate with synthetic auth/data only."""
 import argparse
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -24,8 +25,15 @@ with sync_playwright() as p:
                    else route.abort())
         page.clock.install(time='2026-10-24T02:00:00Z')
         page.goto('http://127.0.0.1:18081/runtime-visual.html?' +
-                  urlencode({'path': path, 'mode': 'authenticated'}))
-        page.wait_for_function("JSON.parse(document.querySelector('#synthetic-requests').textContent).includes('/api/auth/session/complete')")
+                  urlencode({'path': path, 'mode': 'polling-authenticated'}))
+        # This dedicated visual-fixture mode restores synthetic auth without a
+        # timer so the installed clock controls only the polling behavior under
+        # test. Other runtime QA continues to cover delayed auth restoration.
+        page.clock.run_for(1)
+        if path.startswith('/mypage'):
+            page.locator(
+                '#synthetic-requests', has_text='/api/auth/session/complete'
+            ).wait_for(state='attached')
         if expected:
             page.get_by_text('読書', exact=True).wait_for()
         else:
@@ -45,7 +53,10 @@ with sync_playwright() as p:
             assert reads() == 2, (path, 'away', reads())
             page.get_by_role('link', name='マイページへ戻る', exact=True).click()
             page.get_by_text('読書', exact=True).wait_for()
-            page.wait_for_function("JSON.parse(document.querySelector('#synthetic-requests').textContent).filter(p => p === '/api/mypage').length === 3")
+            page.locator(
+                '#synthetic-requests',
+                has_text=re.compile(r'(?:/api/mypage.*){3}'),
+            ).wait_for(state='attached')
             assert reads() == 3, (path, 'return', reads())
         results.append({'route': path, 'initialReads': expected, 'passed': True})
         page.close()
