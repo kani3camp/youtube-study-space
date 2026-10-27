@@ -17,20 +17,14 @@ DOMAIN_GROUPS = {
     'infra': ('aws_cdk', 'node_projects'),
     'gcp-terraform-validate': ('gcp_terraform',),
 }
-DEPENDENCIES = {'changes', 'repository', 'gcp-user-activity-schema-audit', 'mypage-foundation-authenticated', 'mypage-hosting-authenticated', 'mypage-backend-authenticated', *DOMAIN_GROUPS}
+DEPENDENCIES = {'changes', 'repository', 'operations', *DOMAIN_GROUPS}
 
 
-def validate(needs, audit_requested, foundation_requested='false', hosting_requested='false', backend_requested='false'):
+def validate(needs, operation_requested):
     if set(needs) != DEPENDENCIES:
         raise ValueError('CI Gate must receive every expected dependency')
-    if audit_requested not in ('true', 'false'):
-        raise ValueError('Schema audit selection must be an explicit boolean')
-    if foundation_requested not in ('true', 'false'):
-        raise ValueError('MyPage foundation selection must be an explicit boolean')
-    if hosting_requested not in ('true', 'false'):
-        raise ValueError('MyPage Hosting selection must be an explicit boolean')
-    if backend_requested not in ('true', 'false'):
-        raise ValueError('MyPage Backend selection must be an explicit boolean')
+    if operation_requested not in ('true', 'false'):
+        raise ValueError('Operation selection must be an explicit boolean')
     for name, job in needs.items():
         result = job.get('result')
         if result not in ('success', 'skipped'):
@@ -45,23 +39,17 @@ def validate(needs, audit_requested, foundation_requested='false', hosting_reque
         selected = outputs['all'] == 'true' or any(outputs[group] == 'true' for group in groups)
         if selected and needs[name]['result'] != 'success':
             raise ValueError(f'{name}: selected validation must succeed')
-    if audit_requested == 'true' and needs['gcp-user-activity-schema-audit']['result'] != 'success':
-        raise ValueError('Requested schema audit must succeed')
-    if foundation_requested == 'true' and needs['mypage-foundation-authenticated']['result'] != 'success':
-        raise ValueError('Requested MyPage foundation must succeed')
-    if hosting_requested == 'true' and needs['mypage-hosting-authenticated']['result'] != 'success':
-        raise ValueError('Requested MyPage Hosting release must succeed')
-    if backend_requested == 'true' and needs['mypage-backend-authenticated']['result'] != 'success':
-        raise ValueError('Requested MyPage Backend release and State readback must succeed')
+    if operation_requested == 'true' and needs['operations']['result'] != 'success':
+        raise ValueError('Requested authenticated operation must succeed')
 
 
 def main():
     try:
-        validate(json.loads(os.environ['CI_NEEDS']), os.environ['CI_SCHEMA_AUDIT_REQUESTED'], os.environ.get('CI_MYPAGE_FOUNDATION_REQUESTED', 'false'), os.environ.get('CI_MYPAGE_HOSTING_REQUESTED', 'false'), os.environ.get('CI_MYPAGE_BACKEND_REQUESTED', 'false'))
+        validate(json.loads(os.environ['CI_NEEDS']), os.environ['CI_OPERATION_REQUESTED'])
     except (KeyError, TypeError, ValueError, AttributeError) as error:
         print(f'::error::{error}', file=sys.stderr)
         return 1
-    print('All selected CI validations succeeded; unselected validations may be skipped.')
+    print('All selected CI validations and requested operations succeeded.')
     return 0
 
 
