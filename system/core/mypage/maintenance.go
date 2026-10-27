@@ -682,7 +682,9 @@ func maintenanceAuditPreviousMatches(event maintenanceAuditEvent, request Mainte
 }
 
 // VerifyMaintenanceTransition is a non-mutating receipt check. It requires the
-// committed control and immutable audit event to match the requested CAS.
+// committed control and immutable audit event to match the requested CAS. The
+// request execution identifies this separate verify invocation; the audit
+// event retains and independently validates the apply invocation.
 func VerifyMaintenanceTransition(ctx context.Context, client *firestore.Client, request MaintenanceTransition, now time.Time) (MaintenanceTransitionResult, error) {
 	request = normalizeMaintenanceTransition(request)
 	if client == nil || ValidateMaintenanceTransitionReceipt(request) != nil {
@@ -701,7 +703,7 @@ func VerifyMaintenanceTransition(ctx context.Context, client *firestore.Client, 
 	if err != nil || event.Authority != request.Authority || event.Environment != request.Environment || !maintenanceAuditPreviousMatches(event, request) || event.State != request.State ||
 		event.PreviousRevision != request.ExpectedRevision || event.Revision != current.Revision || event.ReasonCategory != request.ReasonCategory ||
 		!event.UpdatedAt.Equal(current.UpdatedAt) || event.MessageTemplate != current.MessageTemplate || event.Result != "COMMITTED" || event.CommitSHA != request.CommitSHA ||
-		event.CloudRunExecution != request.CloudRunExecution || !maintenanceAuditProvenanceMatches(event, request) || !sameOptionalTime(event.EstimatedEndAt, current.EstimatedEndAt) ||
+		!maintenanceAuditProvenanceMatches(event, request) || !sameOptionalTime(event.EstimatedEndAt, current.EstimatedEndAt) ||
 		(request.Authority == MaintenanceAuthorityGitHub && !githubExecution.MatchString(event.CloudRunExecution)) ||
 		(request.Authority == MaintenanceAuthorityBreakGlass && !breakGlassExecution.MatchString(event.CloudRunExecution)) {
 		return MaintenanceTransitionResult{}, apiError("TEMPORARY_UNAVAILABLE")

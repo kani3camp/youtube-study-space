@@ -77,16 +77,18 @@ func TestMaintenancePreviewDoesNotMutateAndVerifyChecksReceipt(t *testing.T) {
 	if _, err := ApplyMaintenanceTransition(ctx, client, request, now); err != nil {
 		t.Fatal(err)
 	}
-	verified, err := VerifyMaintenanceTransition(ctx, client, request, now.Add(time.Second))
+	verification := request
+	verification.CloudRunExecution = "mypage-maintenance-operator-verify"
+	verified, err := VerifyMaintenanceTransition(ctx, client, verification, now.Add(time.Second))
 	if err != nil || verified.Current.Revision != 1 {
 		t.Fatalf("verified=%+v err=%v", verified, err)
 	}
 	eventRef := client.Collection(maintenanceEvents).Doc(request.ActionRef)
-	if _, err := eventRef.Update(ctx, []firestore.Update{{Path: "cloudRunExecution", Value: "mypage-maintenance-operator-other"}}); err != nil {
+	if _, err := eventRef.Update(ctx, []firestore.Update{{Path: "cloudRunExecution", Value: "mypage-maintenance-breakglass-other"}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := VerifyMaintenanceTransition(ctx, client, request, now.Add(time.Second)); err == nil {
-		t.Fatal("verify accepted a different valid Cloud Run execution")
+	if _, err := VerifyMaintenanceTransition(ctx, client, verification, now.Add(time.Second)); err == nil {
+		t.Fatal("verify accepted an apply execution from a different authority")
 	}
 	if _, err := eventRef.Update(ctx, []firestore.Update{{Path: "cloudRunExecution", Value: request.CloudRunExecution}}); err != nil {
 		t.Fatal(err)
@@ -94,17 +96,17 @@ func TestMaintenancePreviewDoesNotMutateAndVerifyChecksReceipt(t *testing.T) {
 	if _, err := eventRef.Update(ctx, []firestore.Update{{Path: "previousState", Value: MaintenanceActive}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := VerifyMaintenanceTransition(ctx, client, request, now.Add(time.Second)); err == nil {
+	if _, err := VerifyMaintenanceTransition(ctx, client, verification, now.Add(time.Second)); err == nil {
 		t.Fatal("verify accepted an inconsistent previous state")
 	}
 	if _, err := eventRef.Update(ctx, []firestore.Update{{Path: "previousState", Value: "MISSING"}, {Path: "privateNote", Value: "must-not-be-accepted"}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := VerifyMaintenanceTransition(ctx, client, request, now.Add(time.Second)); err == nil {
+	if _, err := VerifyMaintenanceTransition(ctx, client, verification, now.Add(time.Second)); err == nil {
 		t.Fatal("verify accepted an unknown audit field")
 	}
-	request.ActionRef = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-	if _, err := VerifyMaintenanceTransition(ctx, client, request, now.Add(time.Second)); err == nil {
+	verification.ActionRef = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	if _, err := VerifyMaintenanceTransition(ctx, client, verification, now.Add(time.Second)); err == nil {
 		t.Fatal("verify accepted a missing audit receipt")
 	}
 }
@@ -164,7 +166,9 @@ func TestMaintenanceBreakGlassAuditDoesNotInventGitHubProvenance(t *testing.T) {
 	if _, err := ApplyMaintenanceTransition(ctx, client, request, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := VerifyMaintenanceTransition(ctx, client, request, now.Add(2*time.Minute)); err != nil {
+	verification := request
+	verification.CloudRunExecution = "mypage-maintenance-breakglass-verify"
+	if _, err := VerifyMaintenanceTransition(ctx, client, verification, now.Add(2*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	doc, err := client.Collection(maintenanceEvents).Doc(request.ActionRef).Get(ctx)
