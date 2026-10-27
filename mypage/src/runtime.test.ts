@@ -53,6 +53,181 @@ afterEach(() => {
 })
 
 describe('browser authentication runtime', () => {
+	it('invalidates a delayed normal OAuth start response when maintenance becomes active', async () => {
+		const { session } = sessionFixture()
+		let release: (response: Response) => void = () => {}
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			vi.fn<typeof fetch>(
+				async () =>
+					new Promise<Response>((resolve) => {
+						release = resolve
+					}),
+			),
+		)
+		const done = runtime.start(new AbortController().signal)
+		await settle()
+		runtime.maintenance.markActive()
+		release(
+			Response.json({
+				authorizationUrl:
+					'https://accounts.google.com/o/oauth2/v2/auth?state=synthetic',
+			}),
+		)
+		await expect(done).rejects.toMatchObject({ code: 'MAINTENANCE_ACTIVE' })
+	})
+
+	it.each([
+		['login', undefined],
+		['support', 'a'.repeat(64)],
+	])('rejects a delayed %s OAuth start response after its page lifecycle aborts', async (_purpose, challenge) => {
+		const { session } = sessionFixture()
+		let release: (response: Response) => void = () => {}
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			vi.fn<typeof fetch>(
+				async () =>
+					new Promise<Response>((resolve) => {
+						release = resolve
+					}),
+			),
+		)
+		const controller = new AbortController()
+		const done = runtime.start(controller.signal, challenge)
+		await settle()
+		controller.abort()
+		release(
+			Response.json({
+				authorizationUrl:
+					'https://accounts.google.com/o/oauth2/v2/auth?state=synthetic',
+			}),
+		)
+		await expect(done).rejects.toMatchObject({ code: 'TEMPORARY_UNAVAILABLE' })
+	})
+
+	it('signs out a late normal OAuth sign-in completed after maintenance activation', async () => {
+		const { session, setUID } = sessionFixture()
+		let finishSignIn: () => void = () => {}
+		session.signIn = vi.fn(
+			async () =>
+				new Promise<string>((resolve) => {
+					finishSignIn = () => {
+						setUID('synthetic')
+						resolve('synthetic')
+					}
+				}),
+		)
+		const request = vi.fn<typeof fetch>(async (path) =>
+			path === '/api/auth/youtube/confirm'
+				? Response.json({ purpose: 'login', customToken: 'synthetic-custom' })
+				: new Response(null, { status: 204 }),
+		)
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		const done = runtime.confirm('a'.repeat(64), new AbortController().signal)
+		await settle()
+		runtime.maintenance.markActive()
+		finishSignIn()
+		await expect(done).rejects.toMatchObject({ code: 'MAINTENANCE_ACTIVE' })
+		expect(session.signOut).toHaveBeenCalledOnce()
+		expect(session.currentUID()).toBeNull()
+		expect(request.mock.calls.map(([path]) => path)).toEqual([
+			'/api/auth/youtube/confirm',
+		])
+	})
+
+	it('rejects a delayed normal confirmation before sign-in when maintenance becomes active', async () => {
+		const { session } = sessionFixture()
+		let release: (response: Response) => void = () => {}
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			vi.fn<typeof fetch>(
+				async () =>
+					new Promise<Response>((resolve) => {
+						release = resolve
+					}),
+			),
+		)
+		const done = runtime.confirm('a'.repeat(64), new AbortController().signal)
+		await settle()
+		runtime.maintenance.markActive()
+		release(
+			Response.json({ purpose: 'login', customToken: 'synthetic-custom' }),
+		)
+		await expect(done).rejects.toMatchObject({ code: 'MAINTENANCE_ACTIVE' })
+		expect(session.signIn).not.toHaveBeenCalled()
+	})
+
+	it('turns a maintenance API response into immediate private-memory clearing', async () => {
+		const { session, setUID } = sessionFixture()
+		setUID('synthetic')
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			async () =>
+				Response.json(
+					{
+						error: {
+							code: 'MAINTENANCE_ACTIVE',
+							message: 'request rejected',
+							requestId: 'synthetic',
+						},
+					},
+					{ status: 503 },
+				),
+		)
+		await expect(
+			runtime.start(new AbortController().signal),
+		).rejects.toMatchObject({
+			code: 'MAINTENANCE_ACTIVE',
+		})
+		expect(runtime.memory.getSnapshot()).toMatchObject({
+			phase: 'maintenance',
+			data: null,
+			error: 'MAINTENANCE_ACTIVE',
+		})
+		expect(runtime.maintenance.getSnapshot().phase).toBe('active')
+		runtime.memory.dispose()
+	})
+	it.each([
+		'confirm',
+		'session-complete',
+	] as const)('preserves MAINTENANCE_ACTIVE during login %s instead of remapping it to auth', async (boundary) => {
+		const { session } = sessionFixture()
+		const request = vi.fn<typeof fetch>(async (path) => {
+			if (path === '/api/auth/youtube/confirm')
+				return boundary === 'confirm'
+					? Response.json(
+							{ error: { code: 'MAINTENANCE_ACTIVE' } },
+							{ status: 503 },
+						)
+					: Response.json({ purpose: 'login', customToken: 'synthetic' })
+			if (path === '/api/auth/session/complete')
+				return Response.json(
+					{ error: { code: 'MAINTENANCE_ACTIVE' } },
+					{ status: 503 },
+				)
+			return Response.json(fixture)
+		})
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		await expect(
+			runtime.confirm('a'.repeat(64), new AbortController().signal),
+		).rejects.toMatchObject({ code: 'MAINTENANCE_ACTIVE' })
+		expect(runtime.memory.getSnapshot()).toMatchObject({
+			phase: 'maintenance',
+			data: null,
+		})
+	})
 	it.each([
 		'uid',
 		'same-uid-relogin',
@@ -908,6 +1083,49 @@ describe('browser authentication runtime', () => {
 			expect(runtime.memory.getSnapshot().data).not.toBeNull(),
 		)
 		expect(session.signIn).not.toHaveBeenCalled()
+		dispose()
+	})
+	it('keeps a maintenance-gated route bootstrapping until the initial auth observer fires', async () => {
+		browserFixture()
+		let uid: string | null = 'persisted-synthetic'
+		let reportInitial: (uid: string | null) => void = () => {}
+		const session: BrowserSession = {
+			currentUID: () => uid,
+			idToken: async () => 'synthetic-id',
+			appCheck: async () => 'synthetic-app',
+			subscribe: (listener) => {
+				reportInitial = listener
+				return () => {}
+			},
+			recheck: async () => uid,
+			signIn: async () => uid ?? '',
+			signOut: async () => {
+				uid = null
+			},
+		}
+		const request = vi.fn<typeof fetch>(async (path) =>
+			path === '/api/auth/session/complete'
+				? new Response(null, { status: 204 })
+				: Response.json(fixture),
+		)
+		const runtime = new BrowserRuntime(
+			session,
+			{ privacy: 'p1', terms: 't1' },
+			request,
+		)
+		runtime.memory.enterMaintenance('TEMPORARY_UNAVAILABLE')
+		const dispose = runtime.mountSession()
+		runtime.memory.resumeAfterMaintenance()
+		expect(runtime.memory.getSnapshot().phase).toBe('bootstrapping')
+		expect(request).not.toHaveBeenCalled()
+
+		reportInitial(uid)
+		await settle()
+		expect(request.mock.calls.map(([path]) => path)).toEqual([
+			'/api/auth/session/complete',
+			'/api/mypage',
+		])
+		expect(runtime.memory.getSnapshot().phase).toBe('authenticated')
 		dispose()
 	})
 	it('restored auth retries transient completion at most three times then signs out without fetching data', async () => {

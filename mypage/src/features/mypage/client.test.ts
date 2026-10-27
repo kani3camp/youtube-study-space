@@ -129,6 +129,28 @@ describe('same-origin MyPage client boundary', () => {
 		).rejects.toMatchObject({ retryAfter: 3600 })
 	})
 	it.each([
+		401, 403, 429, 500,
+	])('does not trust MAINTENANCE_ACTIVE on non-503 status %s', async (status) => {
+		await expect(
+			checkedJSON(
+				Response.json({ error: { code: 'MAINTENANCE_ACTIVE' } }, { status }),
+			),
+		).rejects.toMatchObject({
+			status,
+			code: status === 401 ? 'AUTH_REQUIRED' : 'TEMPORARY_UNAVAILABLE',
+		})
+	})
+	it('preserves MAINTENANCE_ACTIVE only for its 503 contract', async () => {
+		await expect(
+			checkedJSON(
+				Response.json(
+					{ error: { code: 'MAINTENANCE_ACTIVE' } },
+					{ status: 503 },
+				),
+			),
+		).rejects.toMatchObject({ status: 503, code: 'MAINTENANCE_ACTIVE' })
+	})
+	it.each([
 		'SERVICE_ACCESS_RESTRICTED',
 		'DATA_DELETION_IN_PROGRESS',
 	])('preserves the stable restriction code %s without exposing server details', async (code) => {

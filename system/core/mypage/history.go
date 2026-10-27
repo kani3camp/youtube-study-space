@@ -44,12 +44,13 @@ type HistoryTier struct {
 }
 
 type HistoryService struct {
-	Client      *firestore.Client
-	Access      serviceaccess.Reader
-	Environment string
-	Cipher      *historyCipher
-	TierFor     func(context.Context, string, WebAccount) (HistoryTier, error)
-	Now         func() time.Time
+	MaintenanceEnabled bool
+	Client             *firestore.Client
+	Access             serviceaccess.Reader
+	Environment        string
+	Cipher             *historyCipher
+	TierFor            func(context.Context, string, WebAccount) (HistoryTier, error)
+	Now                func() time.Time
 }
 
 func (s *HistoryService) authorization(ctx context.Context, uid string, account WebAccount, p historyPolicy) (HistoryTier, string, error) {

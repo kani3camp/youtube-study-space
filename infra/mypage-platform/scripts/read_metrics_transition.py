@@ -122,8 +122,8 @@ def validate_plan(plan, stage, value):
     for candidate in (before, after):
         for key, fixed in expected[r.SERVICE].items():
             c.need(candidate.get(key) == fixed, "metrics-transition-boundary")
-    r.validate_service(before, {}, value | {"read_metrics_enabled": not value["read_metrics_enabled"]})
-    r.validate_service(after, unknown, value)
+    r.validate_service(before, {}, value | {"read_metrics_enabled": not value["read_metrics_enabled"]}, ["no-op"])
+    r.validate_service(after, unknown, value, ["no-op"])
     normalized = deepcopy(configuration(before))
     old_container, new_container = container(normalized), container(after)
     # Order may move when inserting/removing the sole dynamic env entry; all
@@ -171,7 +171,7 @@ def validate_readback(state, plan, stage):
             c.need(actual == expected, "metrics-readback-other-resource")
             continue
         c.need(configuration(actual) == configuration(expected), "metrics-readback-config")
-        r.validate_service(actual, {}, value)
+        r.validate_service(actual, {}, value, ["no-op"])
         before = planned["change"]["before"]
         c.need(ready_revision(actual) != value["read_metrics_from_revision"], "metrics-readback-old-revision")
         c.need(int(actual["generation"]) == int(before["generation"]) + 1, "metrics-readback-generation")

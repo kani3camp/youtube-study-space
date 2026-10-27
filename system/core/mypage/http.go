@@ -25,11 +25,12 @@ type (
 )
 
 type HTTPHandler struct {
-	Auth     *AuthService
-	BFF      *BFF
-	Intake   PrivacyIntake
-	History  *HistoryService
-	Verifier RequestVerifier
+	Maintenance MaintenanceReader
+	Auth        *AuthService
+	BFF         *BFF
+	Intake      PrivacyIntake
+	History     *HistoryService
+	Verifier    RequestVerifier
 	// One fixed HTTPS origin per environment. Never derive it from request
 	// headers; actual Hosting/proxy host forwarding must be verified at deploy.
 	PublicOrigin string
@@ -43,7 +44,8 @@ type HTTPHandler struct {
 }
 
 var routeMethods = map[string]string{
-	"/api/auth/youtube/start": "POST", "/api/auth/youtube/callback": "GET",
+	"/api/public/mypage-status": "GET",
+	"/api/auth/youtube/start":   "POST", "/api/auth/youtube/callback": "GET",
 	"/api/auth/youtube/channel": "GET", "/api/auth/youtube/confirm": "POST",
 	"/api/auth/session/complete": "POST", "/api/mypage": "GET",
 	"/api/mypage/history":   "GET",
@@ -61,6 +63,9 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		requestID = "unavailable"
 	}
 	w.Header().Set("Cache-Control", "private, no-store")
+	if r.URL.Path == "/api/public/mypage-status" {
+		w.Header().Set("Cache-Control", "no-store")
+	}
 	w.Header().Set("X-Request-Id", requestID)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Referrer-Policy", "no-referrer")
@@ -89,13 +94,34 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, 400, "INVALID_REQUEST", requestID)
 		return
 	}
-	if h.Auth == nil || h.Verifier == nil || h.Auth.Now == nil {
+	publicStatus := r.URL.Path == "/api/public/mypage-status"
+	if (publicStatus && h.Maintenance == nil) || (!publicStatus && (h.Auth == nil || h.Verifier == nil || h.Auth.Now == nil)) {
 		writeAPIError(w, 503, "TEMPORARY_UNAVAILABLE", requestID)
 		return
 	}
 	if err := h.checkRequestOrigin(r); err != nil {
 		code := errorCode(err)
 		writeAPIError(w, statusFor(code), code, requestID)
+		return
+	}
+	if publicStatus {
+		ip, err := h.clientIP(r)
+		if err != nil {
+			writeAPIError(w, 400, "INVALID_REQUEST", requestID)
+			return
+		}
+		if ok, retry := h.limiter.allow("maintenance-status:"+ip, 120, 30, time.Now().UTC()); !ok {
+			rateError(w, retry, requestID)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		result, err := h.Maintenance.PublicStatus(ctx)
+		if err != nil {
+			writeAPIError(w, 503, "TEMPORARY_UNAVAILABLE", requestID)
+			return
+		}
+		writeJSON(w, 200, result)
 		return
 	}
 	if sessionCookieCount(r) > 1 {
@@ -184,6 +210,12 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	authenticated := r.URL.Path == "/api/mypage" || historyRoute || r.URL.Path == "/api/auth/session/complete" || privacyRoute
 	var identity VerifiedIdentity
 	var account WebAccount
+	if !privacyRoute && !strings.HasPrefix(r.URL.Path, "/api/auth/youtube/") && h.Maintenance != nil {
+		if err := h.Maintenance.Check(ctx); err != nil {
+			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
+			return
+		}
+	}
 	if authenticated {
 		bearer := r.Header.Get("Authorization")
 		if !strings.HasPrefix(bearer, "Bearer ") || strings.Contains(strings.TrimPrefix(bearer, "Bearer "), " ") {
@@ -508,9 +540,14 @@ func (h *HTTPHandler) callback(w http.ResponseWriter, r *http.Request, requestID
 		writeAPIError(w, 400, "INVALID_REQUEST", requestID)
 		return
 	}
-	err = h.Auth.Callback(r.Context(), transactionID(r), state, code, providerError != "")
+	purpose, err := h.Auth.CallbackWithPurpose(r.Context(), transactionID(r), state, code, providerError != "")
 	if err == nil {
 		http.Redirect(w, r, "/login/channel-confirm", http.StatusFound)
+		return
+	}
+	if errorCode(err) == "MAINTENANCE_ACTIVE" {
+		setTransactionCookie(w, "", -1)
+		http.Redirect(w, r, "/maintenance", http.StatusFound)
 		return
 	}
 	redirectCode := "oauth_failed"
@@ -528,6 +565,11 @@ func (h *HTTPHandler) callback(w http.ResponseWriter, r *http.Request, requestID
 	}
 	if providerError == "access_denied" {
 		redirectCode = "oauth_denied"
+	}
+	if purpose == "support" {
+		setTransactionCookie(w, "", -1)
+		http.Redirect(w, r, "/contact?supportError="+url.QueryEscape(redirectCode), http.StatusFound)
+		return
 	}
 	http.Redirect(w, r, "/login?error="+redirectCode, http.StatusFound)
 }
@@ -554,7 +596,7 @@ func statusFor(code string) int {
 		return 413
 	case "RATE_LIMITED":
 		return 429
-	case "TEMPORARY_UNAVAILABLE":
+	case "MAINTENANCE_ACTIVE", "TEMPORARY_UNAVAILABLE":
 		return 503
 	case "INTERNAL_ERROR":
 		return 500

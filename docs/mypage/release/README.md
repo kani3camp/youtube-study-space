@@ -1,5 +1,7 @@
 # MyPage release preparation
 
+メンテナンスモードの初期化、開始、解除、fail-closed時の復旧は[maintenance mode v1 runbook](../maintenance-mode.md)を参照する。これは通常release、Terraform apply、Hosting公開とは独立した手動操作であり、同runbookのworkflow以外からFirestore状態を直接変更しない。
+
 このrunbookは未完の実経路Gate・本人判断を残したまま、コード・設定・試験を進める入口。DEVの2026-10-22時点の限定確認は[E2E実測記録](e2e.md#2026-10-22-devの限定確認)を参照する。設定検査や匿名拒否試験の成功は公開承認や実account E2Eの成功ではない。見た目・Phase 1のread-only scope・既存identity/data契約は維持する。
 
 プロダクト方針の正本はCurrent Canonの[04 認証](https://app.notion.com/p/3ec357a8d0ce812f8520f787fedcc6bd)、[05 Privacy](https://app.notion.com/p/3ed357a8d0ce81e7b7d2cc85ec8ab4cf)、[06 Security](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634)、[09 判断記録](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)。実装・CI・配備状態はGitHubを正とし、設計の確定を実経路PASSへ読み替えない。wire/実装は[実装contract](../README.md)、[OpenAPI](../openapi.yaml)を参照する。本人への準備事項は[owner packet](owner-packet.md)、実経路の試験・release対・rollbackは[E2E手順](e2e.md)にまとめる。
@@ -85,6 +87,7 @@ Hosting image inventoryにはチャンネル画像用の `https://yt3.ggpht.com`
 | server secret | `MYPAGE_OAUTH_CLIENT_ID/CLIENT_SECRET`, optional `MYPAGE_YOUTUBE_API_KEY` | OAuth secret/API keyは承認済みsecret供給境界。repo/chat/public artifact/Viteに入れない |
 | optional Analytics | `VITE_MYPAGE_ANALYTICS_READY`, `VITE_MYPAGE_GA4_ID` | 実Console・network inventoryが承認されるまで有効化しない。Consentを迂回しない |
 | 公開案内 | `VITE_PUBLIC_CONTACT_URL/PRIVACY_CONTACT_URL`, optional `VITE_PUBLIC_OPERATOR_NAME`, `VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE/TERMS_EFFECTIVE_DATE/JURISDICTION` | 公開に使ってよい値だけ。実名・自宅住所を必須にしない。欠落/不正は未設定、draftは維持 |
+| メンテナンス告知 | source内のDEV/PROD YouTube posts URL対応表、選択keyは`VITE_FIREBASE_PROJECT_ID` | 非secretの固定公開導線。Firestore・Backend・browser storageへ複製せず、未知projectはfallbackしない。変更はsource reviewと再buildを必須にする |
 | Bot設定案 | `MYPAGE_PUBLIC_ENTRY_URL`（runtimeへの接続は未実装） | 承認済みpublic入口だけ。user固有query/tokenを含めない。0A/0Bは未設定、Phase1承認後に設定。実装・設定の承認前に有効化しない |
 
 publicPolicy入力は一般問い合わせとPrivacy請求を分ける。形式が正しいURLでも返信機能・ログイン不要・SLA運用が確認済みとは限らない。

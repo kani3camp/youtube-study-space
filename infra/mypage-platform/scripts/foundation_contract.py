@@ -1,19 +1,43 @@
-"""Development-only MyPage foundation boundary; no credentials or cloud I/O."""
+"""Environment-bound MyPage foundation boundary; no credentials or cloud I/O."""
 from __future__ import annotations
 
 import hashlib
 import hmac
 import json
+import os
 import re
 from datetime import datetime
 
-PROJECT = "test-youtube-study-space"
-REF = "refs/heads/integration/mypage-canon-20261006"
+TARGET = os.environ.get("MYPAGE_TARGET", "development")
+TARGETS = {
+    "development": {
+        "project": "test-youtube-study-space", "project_number": "48101442817",
+        "region": "asia-southeast2", "ref": "refs/heads/integration/mypage-canon-20261006",
+        "state": "dev", "environment": "development", "github_environment": "mypage-dev",
+        "origin": "https://test--study-space.web.app",
+    },
+    "production": {
+        "project": "youtube-study-space", "project_number": "906336399194",
+        "region": "asia-northeast2", "ref": "refs/heads/main",
+        "state": "prod", "environment": "production", "github_environment": "mypage-prod",
+        "origin": "https://moku.work",
+    },
+}
+if TARGET not in TARGETS:
+    raise ValueError("foundation-target")
+CONFIG = TARGETS[TARGET]
+PROJECT = CONFIG["project"]
+PROJECT_NUMBER = CONFIG["project_number"]
+REGION = CONFIG["region"]
+REF = CONFIG["ref"]
+ENVIRONMENT = CONFIG["environment"]
+GITHUB_ENVIRONMENT = CONFIG["github_environment"]
+ORIGIN = CONFIG["origin"]
 REPOSITORY = "kani3camp/youtube-study-space"
 CALLER = REPOSITORY + "/.github/workflows/ci.yml@" + REF
 REUSABLE = REPOSITORY + "/.github/workflows/mypage-foundation-authenticated.yml@" + REF
-STATE_KEY = "youtube-study-space/mypage-platform/dev/terraform.tfstate"
-WORKSPACE_PREFIX = "youtube-study-space/mypage-platform/dev/workspaces"
+STATE_KEY = "youtube-study-space/mypage-platform/" + CONFIG["state"] + "/terraform.tfstate"
+WORKSPACE_PREFIX = "youtube-study-space/mypage-platform/" + CONFIG["state"] + "/workspaces"
 EMAIL = "mypage-api@" + PROJECT + ".iam.gserviceaccount.com"
 SECRETS = ("oauth_client_id", "oauth_client_secret", "youtube_api_key")
 SECRET_IDS = dict(zip(SECRETS, ("mypage-oauth-client-id", "mypage-oauth-client-secret", "mypage-youtube-api-key")))
@@ -35,7 +59,7 @@ def canonical(value):
 
 def subject(kind):
     need(kind in {"plan", "apply"})
-    values = ("340900071", "54093651", "mypage-dev-" + kind, REF, CALLER, REUSABLE, "workflow_dispatch")
+    values = ("340900071", "54093651", GITHUB_ENVIRONMENT + "-" + kind, REF, CALLER, REUSABLE, "workflow_dispatch")
     return ":".join(key + ":" + value.replace(":", "%3A") for key, value in zip(CLAIM_KEYS, values))
 
 
@@ -66,10 +90,14 @@ def backend_policy(bucket, kind):
 def stage_for_mode(mode):
     from runtime_contract import MODES
     if mode in MODES:
+        if TARGET == "production":
+            need(mode in {"maintenance-operator-plan", "maintenance-operator-apply",
+                          "maintenance-upgrade-plan", "maintenance-upgrade-apply"}, "production-maintenance-mode")
         return MODES[mode]
-    need(mode in {"foundation-plan", "foundation-apply", "foundation-metadata-plan", "foundation-metadata-apply", "registry-plan", "registry-apply"})
-    if mode.startswith("registry-"):
+    if mode in {"registry-plan", "registry-apply"}:
         return "registry"
+    need(TARGET == "development", "production-maintenance-mode")
+    need(mode in {"foundation-plan", "foundation-apply", "foundation-metadata-plan", "foundation-metadata-apply"})
     return "foundation_metadata" if mode.startswith("foundation-metadata-") else "foundation"
 
 
@@ -108,8 +136,8 @@ def resource_contract(stage="foundation"):
     }
     if stage == "registry":
         resources["google_artifact_registry_repository.mypage[0]"] = {
-            "project": PROJECT, "location": "asia-southeast2", "repository_id": "mypage",
-            "description": "YouTube Study Space MyPage development images",
+            "project": PROJECT, "location": REGION, "repository_id": "mypage",
+            "description": "YouTube Study Space MyPage " + ENVIRONMENT + " images",
             "format": "DOCKER", "mode": "STANDARD_REPOSITORY",
             "cleanup_policy_dry_run": True, "docker_config": [{"immutable_tags": True}],
             "remote_repository_config": [], "virtual_repository_config": [], "cleanup_policies": [],

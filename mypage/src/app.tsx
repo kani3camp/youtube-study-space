@@ -12,6 +12,7 @@ import {
 	createContext,
 	useContext,
 	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 	useSyncExternalStore,
@@ -30,6 +31,8 @@ import {
 	liveURL,
 	MyPageView,
 } from './features/mypage/view'
+import { maintenanceDestination } from './maintenance'
+import { maintenanceAnnouncementURLForProject } from './maintenance-announcement'
 import { PrivacyPolicy, PublicPolicyContact, TermsOfUse } from './policies'
 import { consentKey, createPrivacy } from './privacy'
 import { readPublicPolicyConfig } from './public-policy-config'
@@ -47,6 +50,16 @@ type LoginSearch = {
 	supportChallenge?: string
 	supportInvalid?: boolean
 }
+type ContactSearch = { supportError?: boolean }
+const supportOAuthErrors = new Set([
+	'oauth_failed',
+	'oauth_state_invalid',
+	'oauth_transaction_expired',
+	'oauth_scope_insufficient',
+	'channel_unavailable',
+	'channel_ambiguous',
+	'oauth_denied',
+])
 const SupportReceipt = createContext<{
 	proofRef: string | null
 	supportRequestRef: string | null
@@ -103,11 +116,50 @@ export function createApp(
 	runtime: BrowserRuntime,
 	history?: RouterHistory,
 	privacyServices = createPrivacy(),
+	maintenanceAnnouncementURL = maintenanceAnnouncementURLForProject(
+		import.meta.env.VITE_FIREBASE_PROJECT_ID,
+	),
 ) {
 	function useMemory() {
 		return useSyncExternalStore(
 			runtime.memory.subscribe,
 			runtime.memory.getSnapshot,
+		)
+	}
+	function useMaintenance() {
+		return useSyncExternalStore(
+			runtime.maintenance.subscribe,
+			runtime.maintenance.getSnapshot,
+		)
+	}
+	function MaintenanceGatePending() {
+		const maintenance = useMaintenance()
+		const unknown = maintenance.phase === 'unknown'
+		return (
+			<main className="main-content public-page maintenance-page">
+				<section className="card maintenance-card" aria-live="polite">
+					<p className="eyebrow">マイページ</p>
+					<h1>
+						{unknown
+							? '現在、マイページの状態を確認できません'
+							: 'マイページの利用状況を確認しています'}
+					</h1>
+					<p>
+						{unknown
+							? '安全のため、状態を確認できるまでログイン情報やマイページの内容は表示しません。'
+							: '確認が終わるまで、この画面でお待ちください。'}
+					</p>
+					{unknown && (
+						<button
+							className="button primary"
+							type="button"
+							onClick={() => window.location.reload()}
+						>
+							再読み込み
+						</button>
+					)}
+				</section>
+			</main>
 		)
 	}
 	function RestrictionNotice({ code }: { code: RestrictionCode }) {
@@ -162,11 +214,13 @@ export function createApp(
 			useState<IntakeDraft>(emptyIntakeDraft)
 		const cookieDialog = useRef<HTMLDialogElement>(null)
 		const cookieOpener = useRef<HTMLElement | null>(null)
+		const runtimeDisposer = useRef<(() => void) | null>(null)
 		const consent = useSyncExternalStore(
 			privacyServices.consent.subscribe,
 			privacyServices.consent.getSnapshot,
 		)
 		const auth = useMemory()
+		const maintenance = useMaintenance()
 		const href = useRouterState({ select: (state) => state.location.href })
 		const openCookie = () => {
 			cookieOpener.current =
@@ -183,12 +237,56 @@ export function createApp(
 				state.matches.some((match) => match.routeId === '/mypage') &&
 				!state.matches.some((match) => match.globalNotFound),
 		})
-		const publicChrome = pathname !== '/mypage' || auth.phase === 'restricted'
+		const publicChrome =
+			pathname !== '/mypage' ||
+			auth.phase === 'restricted' ||
+			maintenance.phase !== 'normal'
+		const supportLogin =
+			pathname === '/login' &&
+			new URLSearchParams(href.split('?')[1] ?? '').has('supportChallenge')
+		const protectedRoute =
+			pathname.startsWith('/mypage') || (pathname === '/login' && !supportLogin)
+		const maintenanceRoute = pathname === '/maintenance'
+		const channelConfirmRoute = pathname === '/login/channel-confirm'
 		// Set the initial route before mount can restore an authenticated UID.
 		useEffect(() => {
 			runtime.memory.setRouteActive(myPageActive)
 		}, [myPageActive])
-		useEffect(() => runtime.mount(), [])
+		useLayoutEffect(() => runtime.mountMaintenance(), [])
+		useEffect(() => {
+			if (
+				!runtimeDisposer.current &&
+				protectedRoute &&
+				maintenance.phase === 'normal'
+			)
+				runtimeDisposer.current = runtime.mountSession()
+		}, [protectedRoute, maintenance.phase])
+		useEffect(
+			() => () => {
+				runtimeDisposer.current?.()
+				runtimeDisposer.current = null
+			},
+			[],
+		)
+		useLayoutEffect(() => {
+			runtime.maintenance.setRouteActive(
+				protectedRoute || maintenanceRoute || channelConfirmRoute,
+			)
+		}, [protectedRoute, maintenanceRoute, channelConfirmRoute])
+		useEffect(() => {
+			const destination = maintenanceDestination(
+				pathname,
+				supportLogin,
+				maintenance.phase,
+			)
+			if (destination === '/maintenance') {
+				void router.navigate({ to: destination, replace: true })
+			}
+			if (destination === '/') void router.navigate({ to: '/', replace: true })
+		}, [maintenance.phase, pathname, supportLogin])
+		useEffect(() => {
+			if (maintenance.phase === 'normal') runtime.resumeAfterMaintenance()
+		}, [maintenance])
 		useEffect(() => privacyServices.analytics.mount(), [])
 		useEffect(() => {
 			privacyServices.analytics.page(href)
@@ -217,7 +315,13 @@ export function createApp(
 				if (event.persisted) clear()
 			}
 			let previousUID = runtime.session?.currentUID()
+			let identityObserved = false
 			const unsubscribe = runtime.session?.subscribe((uid) => {
+				if (!identityObserved) {
+					identityObserved = true
+					previousUID = uid
+					return
+				}
 				if (uid !== previousUID) clear()
 				previousUID = uid
 			})
@@ -411,6 +515,7 @@ export function createApp(
 	}
 	function Login() {
 		const state = useMemory()
+		const maintenance = useMaintenance()
 		const search = loginRoute.useSearch()
 		const receipt = useContext(SupportReceipt)
 		const supportMode = !!search.supportChallenge || !!search.supportInvalid
@@ -419,8 +524,30 @@ export function createApp(
 		const [busy, setBusy] = useState(false)
 		const [error, setError] = useState<string | null>(null)
 		const controller = useRef<AbortController | null>(null)
-		useEffect(() => () => controller.current?.abort(), [])
-		if (state.phase === 'bootstrapping' || state.phase === 'signing-out')
+		useEffect(() => {
+			const interrupt = () => {
+				const pending = controller.current
+				controller.current = null
+				pending?.abort()
+				setBusy(false)
+				setError(null)
+			}
+			window.addEventListener('pagehide', interrupt)
+			return () => {
+				window.removeEventListener('pagehide', interrupt)
+				const pending = controller.current
+				controller.current = null
+				pending?.abort()
+			}
+		}, [])
+		if (!supportMode && maintenance.phase === 'active')
+			return <Navigate to="/maintenance" replace />
+		if (!supportMode && maintenance.phase !== 'normal')
+			return <MaintenanceGatePending />
+		if (
+			!supportMode &&
+			(state.phase === 'bootstrapping' || state.phase === 'signing-out')
+		)
 			return (
 				<main className="main-content public-page">
 					<p role="status">ログイン状態を確認しています…</p>
@@ -431,21 +558,23 @@ export function createApp(
 		const start = async () => {
 			if (controller.current || !privacy || !terms || search.supportInvalid)
 				return
-			controller.current = new AbortController()
+			const current = new AbortController()
+			controller.current = current
 			setBusy(true)
 			setError(null)
 			receipt.set(null)
 			try {
 				if (!supportMode) privacyServices.analytics.event('login_started')
-				const url = await runtime.start(
-					controller.current.signal,
-					search.supportChallenge,
-				)
-				if (!controller.current.signal.aborted) location.assign(url)
+				const url = await runtime.start(current.signal, search.supportChallenge)
+				if (controller.current === current && !current.signal.aborted)
+					location.assign(url)
 			} catch (e) {
-				setError(message(e))
-				controller.current = null
-				setBusy(false)
+				if (controller.current === current) setError(message(e))
+			} finally {
+				if (controller.current === current) {
+					controller.current = null
+					setBusy(false)
+				}
 			}
 		}
 		return (
@@ -554,6 +683,7 @@ export function createApp(
 	}
 	function ChannelConfirm() {
 		const state = useMemory()
+		const maintenance = useMaintenance()
 		const [supportFlow, setSupportFlow] = useState(false)
 		const receipt = useContext(SupportReceipt)
 		const [channel, setChannel] = useState<ChannelConfirmation | null>(null)
@@ -578,60 +708,127 @@ export function createApp(
 			setRestriction(activeRestriction)
 		}, [activeRestriction])
 		useEffect(() => {
-			const c = new AbortController()
-			controller.current = c
+			let disposed = false
+			let interrupted = false
+			let kind: 'unknown' | 'login' | 'support' = 'unknown'
+			let hasChannel = false
 			let previousUID = runtime.session?.currentUID()
-			const invalidate = () => {
-				c.abort()
+			let identityObserved = false
+			const close = (markInterrupted: boolean) => {
+				if (markInterrupted) interrupted = true
+				controller.current?.abort()
+				controller.current = null
+				hasChannel = false
 				setChannel(null)
 				setBusy(false)
-				setError(
-					'確認が中断されました。下のリンクから手続きをやり直してください。',
-				)
+				confirming.current = false
+				if (markInterrupted)
+					setError(
+						'確認が中断されました。下のリンクから手続きをやり直してください。',
+					)
 			}
-			const unsubscribe = runtime.session?.subscribe((uid) => {
-				if (uid !== previousUID && supportConfirmation.current) invalidate()
-				previousUID = uid
-			})
-			window.addEventListener('pagehide', invalidate)
-			void runtime
-				.channel(c.signal)
-				.then((data) => {
-					if (!c.signal.aborted) {
+			const load = () => {
+				if (
+					disposed ||
+					interrupted ||
+					controller.current ||
+					hasChannel ||
+					kind === 'support'
+				)
+					return
+				const c = new AbortController()
+				controller.current = c
+				setError(null)
+				void runtime
+					.channel(c.signal)
+					.then((data) => {
+						if (disposed || c.signal.aborted || controller.current !== c) return
 						channelGeneration.current = runtime.memory.generation
-						setChannel(data)
+						kind = data.purpose
 						supportConfirmation.current = data.purpose === 'support'
 						setSupportFlow(data.purpose === 'support')
-						if (data.purpose === 'login')
-							privacyServices.analytics.event('channel_confirmation_viewed')
-					}
-				})
-				.catch((e) => {
-					if (c.signal.aborted) return
-					const restriction = restrictionFrom(e)
-					if (restriction) {
-						setChannel(null)
-						setRestriction(restriction)
-						return
-					}
-					if (
-						e instanceof RequestError &&
-						e.code.startsWith('OAUTH_TRANSACTION_')
-					) {
-						void router.navigate({
-							to: '/login',
-							search: { error: 'oauth_state_invalid', logout: true },
-						})
-					} else {
-						if (e instanceof RequestError && e.code.startsWith('SUPPORT_'))
-							setSupportFlow(true)
-						setError(message(e))
-					}
-				})
+						if (data.purpose === 'support') {
+							hasChannel = true
+							setChannel(data)
+							runtime.maintenance.setRouteActive(false)
+							return
+						}
+						privacyServices.analytics.event('channel_confirmation_viewed')
+						const current = runtime.maintenance.getSnapshot()
+						if (current.phase === 'normal') {
+							hasChannel = true
+							setChannel(data)
+						} else {
+							controller.current = null
+							if (current.phase === 'active')
+								void router.navigate({ to: '/maintenance', replace: true })
+						}
+					})
+					.catch((e) => {
+						if (disposed || c.signal.aborted || controller.current !== c) return
+						controller.current = null
+						if (
+							runtime.maintenance.getSnapshot().phase === 'active' ||
+							(e instanceof RequestError && e.code === 'MAINTENANCE_ACTIVE')
+						) {
+							void router.navigate({ to: '/maintenance', replace: true })
+							return
+						}
+						const foundRestriction = restrictionFrom(e)
+						if (foundRestriction) {
+							setChannel(null)
+							setRestriction(foundRestriction)
+							return
+						}
+						if (
+							e instanceof RequestError &&
+							e.code.startsWith('OAUTH_TRANSACTION_')
+						) {
+							void router.navigate({
+								to: '/login',
+								search: { error: 'oauth_state_invalid', logout: true },
+							})
+						} else {
+							if (e instanceof RequestError && e.code.startsWith('SUPPORT_'))
+								setSupportFlow(true)
+							setError(message(e))
+						}
+					})
+			}
+			const maintenanceChanged = () => {
+				const current = runtime.maintenance.getSnapshot()
+				if (interrupted) return
+				if (kind !== 'login') return
+				if (current.phase !== 'normal') close(false)
+				if (current.phase === 'active')
+					void router.navigate({ to: '/maintenance', replace: true })
+				else if (current.phase === 'normal') load()
+			}
+			const unsubscribe = runtime.session?.subscribe((uid) => {
+				if (!identityObserved) {
+					identityObserved = true
+					previousUID = uid
+					return
+				}
+				if (uid !== previousUID && supportConfirmation.current) close(true)
+				previousUID = uid
+			})
+			const unsubscribeMaintenance =
+				runtime.maintenance.subscribe(maintenanceChanged)
+			const pagehide = () => close(true)
+			const pageshow = (event: PageTransitionEvent) => {
+				if (event.persisted) close(true)
+			}
+			window.addEventListener('pagehide', pagehide)
+			window.addEventListener('pageshow', pageshow)
+			load()
 			return () => {
-				c.abort()
+				disposed = true
+				controller.current?.abort()
 				unsubscribe?.()
-				window.removeEventListener('pagehide', invalidate)
+				unsubscribeMaintenance()
+				window.removeEventListener('pagehide', pagehide)
+				window.removeEventListener('pageshow', pageshow)
 			}
 		}, [])
 		const confirm = async () => {
@@ -664,6 +861,14 @@ export function createApp(
 					!currentController.signal.aborted
 				) {
 					setChannel(null)
+					if (
+						channel.purpose === 'login' &&
+						e instanceof RequestError &&
+						e.code === 'MAINTENANCE_ACTIVE'
+					) {
+						void router.navigate({ to: '/maintenance', replace: true })
+						return
+					}
 					const restriction = restrictionFrom(e)
 					if (restriction) setRestriction(restriction)
 					else setError(message(e))
@@ -672,6 +877,10 @@ export function createApp(
 				}
 			}
 		}
+		if (maintenance.phase === 'active' && channel?.purpose !== 'support')
+			return <MaintenancePage />
+		if (maintenance.phase !== 'normal' && channel?.purpose !== 'support')
+			return <MaintenanceGatePending />
 		return (
 			<main className="main-content public-page channel-confirm-page">
 				{activeRestriction ? (
@@ -679,7 +888,8 @@ export function createApp(
 				) : (
 					<section className="channel-confirm">
 						<h1>YouTubeチャンネルを確認</h1>
-						{channel ? (
+						{channel?.purpose === 'support' ||
+						(maintenance.phase === 'normal' && channel) ? (
 							<>
 								{channel.purpose === 'support' ? (
 									<>
@@ -738,7 +948,11 @@ export function createApp(
 	}
 	function PrivatePage() {
 		const state = useMemory()
+		const maintenance = useMaintenance()
 		const openCookieSettings = useContext(CookieSettings)
+		if (maintenance.phase === 'active')
+			return <Navigate to="/maintenance" replace />
+		if (maintenance.phase !== 'normal') return <MaintenanceGatePending />
 		if (state.phase === 'anonymous')
 			return <Navigate to="/login" search={{ logout: true }} />
 		if (state.phase === 'restricted')
@@ -763,6 +977,10 @@ export function createApp(
 	}
 	function AccountManage() {
 		const state = useMemory()
+		const maintenance = useMaintenance()
+		if (maintenance.phase === 'active')
+			return <Navigate to="/maintenance" replace />
+		if (maintenance.phase !== 'normal') return <MaintenanceGatePending />
 		if (state.phase === 'anonymous') return <Navigate to="/login" />
 		if (state.phase === 'restricted')
 			return (
@@ -812,6 +1030,16 @@ export function createApp(
 		)
 	}
 	function Contact() {
+		const supportError = useRouterState({
+			select: (state) => {
+				const value = (state.location.search as Record<string, unknown>)
+					.supportError
+				return (
+					value === true ||
+					(typeof value === 'string' && supportOAuthErrors.has(value))
+				)
+			},
+		})
 		const receipt = useContext(SupportReceipt)
 		const draft = useContext(IntakeMemory)
 		const { purpose, body, created } = draft.value
@@ -851,6 +1079,7 @@ export function createApp(
 		}
 		useEffect(() => {
 			let previousUID = runtime.session?.currentUID()
+			let identityObserved = false
 			const clear = () => {
 				operation.current += 1
 				controller.current?.abort()
@@ -867,6 +1096,12 @@ export function createApp(
 				if (event.persisted) clear()
 			}
 			const unsubscribe = runtime.session?.subscribe((uid) => {
+				if (!identityObserved) {
+					identityObserved = true
+					previousUID = uid
+					setSessionUID(uid)
+					return
+				}
 				if (uid !== previousUID) clear()
 				previousUID = uid
 				setSessionUID(uid)
@@ -992,6 +1227,11 @@ export function createApp(
 			<main className="main-content public-page">
 				<section className="card policy-page">
 					<h1>お問い合わせ</h1>
+					{supportError && (
+						<p className="notice" role="alert">
+							YouTubeでの本人確認を完了できませんでした。依頼の参照番号をご確認のうえ、受付窓口からもう一度お手続きください。
+						</p>
+					)}
 					{receipt.proofRef && (
 						<section aria-labelledby="support-complete">
 							<h2 id="support-complete">依頼の本人確認が完了しました</h2>
@@ -1129,6 +1369,55 @@ export function createApp(
 			</main>
 		)
 	}
+	function MaintenancePage() {
+		const maintenance = useMaintenance()
+		const heading = useRef<HTMLHeadingElement>(null)
+		useEffect(() => heading.current?.focus(), [])
+		const unknown = maintenance.phase === 'unknown'
+		const checking = maintenance.phase === 'checking'
+		return (
+			<main className="main-content public-page maintenance-page">
+				<section
+					className="card maintenance-card"
+					aria-labelledby="maintenance-heading"
+					aria-live="polite"
+				>
+					<h1 id="maintenance-heading" ref={heading} tabIndex={-1}>
+						{unknown
+							? '現在、マイページの状態を確認できません'
+							: checking
+								? 'マイページの利用状況を確認しています'
+								: 'ただいまメンテナンス中です'}
+					</h1>
+					<p>
+						{unknown
+							? '安全のため、状態を確認できるまでログイン情報やマイページの内容は表示しません。'
+							: checking
+								? '確認が終わるまで、この画面でお待ちください。'
+								: '詳しくはお知らせをご確認ください。'}
+					</p>
+					{maintenance.phase === 'active' && maintenanceAnnouncementURL && (
+						<div className="maintenance-announcement">
+							<ExternalLink href={maintenanceAnnouncementURL}>
+								お知らせを見る
+							</ExternalLink>
+						</div>
+					)}
+					{(unknown || maintenance.phase === 'active') && (
+						<div className="maintenance-recovery">
+							<button
+								className="button"
+								type="button"
+								onClick={() => void runtime.maintenance.check()}
+							>
+								状態を再確認
+							</button>
+						</div>
+					)}
+				</section>
+			</main>
+		)
+	}
 	const root = createRootRoute({
 		component: Root,
 		notFoundComponent: () => (
@@ -1157,6 +1446,18 @@ export function createApp(
 				typeof raw.supportChallenge === 'string' &&
 				/^[a-f0-9]{64}$/.test(raw.supportChallenge)
 					? raw.supportChallenge
+					: undefined,
+		}),
+	})
+	const contactRoute = createRoute({
+		getParentRoute: () => root,
+		path: '/contact',
+		component: Contact,
+		validateSearch: (raw: Record<string, unknown>): ContactSearch => ({
+			supportError:
+				typeof raw.supportError === 'string' &&
+				supportOAuthErrors.has(raw.supportError)
+					? true
 					: undefined,
 		}),
 	})
@@ -1192,10 +1493,11 @@ export function createApp(
 			path: '/terms',
 			component: TermsOfUse,
 		}),
+		contactRoute,
 		createRoute({
 			getParentRoute: () => root,
-			path: '/contact',
-			component: Contact,
+			path: '/maintenance',
+			component: MaintenancePage,
 		}),
 	]
 	const router = createRouter({

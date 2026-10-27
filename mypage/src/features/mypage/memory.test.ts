@@ -114,6 +114,36 @@ describe('private MyPage memory', () => {
 		})
 		expect(result.current.data?.workName).toBe('合成作業')
 	})
+	it('clears private memory and rejects a late response when maintenance activates', async () => {
+		const late = deferred<MyPage>()
+		const onMaintenance = vi.fn()
+		const memory = new MyPageMemory(
+			vi.fn().mockResolvedValueOnce(sample()).mockReturnValueOnce(late.promise),
+			async () => {},
+			Date.now,
+			onMaintenance,
+		)
+		memory.setIdentity('synthetic')
+		await settle()
+		expect(memory.getSnapshot().data?.account.data?.displayName).toBe('Sample')
+		void memory.refresh(true)
+		await settle()
+		memory.enterMaintenance()
+		expect(memory.getSnapshot()).toEqual({
+			phase: 'maintenance',
+			data: null,
+			busy: false,
+			error: 'MAINTENANCE_ACTIVE',
+			receivedAt: null,
+		})
+		expect(onMaintenance).toHaveBeenCalledTimes(1)
+		late.resolve(sample())
+		await settle()
+		expect(memory.getSnapshot().data).toBeNull()
+		memory.resumeAfterMaintenance()
+		expect(memory.getSnapshot().phase).toBe('authenticated')
+		memory.dispose()
+	})
 	it.each([
 		'SERVICE_ACCESS_RESTRICTED',
 		'DATA_DELETION_IN_PROGRESS',

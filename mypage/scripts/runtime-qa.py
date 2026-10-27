@@ -17,6 +17,10 @@ with sync_playwright() as p:
  page.get_by_role('button',name='アカウントを開く').click();page.get_by_role('button',name='ログアウト',exact=True).click()
  page.get_by_role('heading',name='マイページへログイン').wait_for();assert page.get_by_text('読書',exact=True).count()==0
  results.append('confirmation -> session complete -> MyPage -> logout -> login')
+ for mode in ['maintenance-race-confirm','maintenance-race-session-complete']:
+  load('/login/channel-confirm',mode);page.get_by_role('button',name='このチャンネルでログイン').click()
+  page.get_by_role('heading',name='ただいまメンテナンス中です').wait_for();assert page.get_by_text('読書',exact=True).count()==0
+ results.append('normal OAuth confirm and session-complete races preserve maintenance and replace-navigate')
  load('/login/channel-confirm','channel-avatar-failure')
  page.locator('.channel-avatar svg').wait_for();assert page.locator('.channel-avatar img').count()==0
  page.get_by_role('button',name='このチャンネルでログイン').click();page.get_by_text('読書',exact=True).wait_for()
@@ -79,6 +83,49 @@ with sync_playwright() as p:
  results.append('account accordions initially closed')
  load('/unknown','authenticated');page.get_by_role('heading',name='ページが見つかりません').wait_for();assert page.get_by_text('読書',exact=True).count()==0
  results.append('unknown route without private fallback')
+
+ load('/mypage','maintenance-delayed-normal-authenticated')
+ page.get_by_role('heading',name='マイページの利用状況を確認しています').wait_for()
+ assert page.get_by_text('読書',exact=True).count()==0
+ page.get_by_text('読書',exact=True).wait_for()
+ assert page.url.endswith('runtime-visual.html?path=%2Fmypage&mode=maintenance-delayed-normal-authenticated')
+ results.append('direct protected route stays put, hides private data while checking, then resumes on NORMAL')
+ load('/maintenance','maintenance-unknown-authenticated')
+ page.get_by_role('heading',name='現在、マイページの状態を確認できません').wait_for()
+ assert page.get_by_role('button',name='状態を再確認',exact=True).count()==1
+ assert page.get_by_role('link',name='お知らせを見る').count()==0
+ results.append('direct UNKNOWN maintenance route offers an explicit status recheck')
+ for width in [390,1024]:
+  page.set_viewport_size({'width':width,'height':960})
+  load('/mypage','maintenance-active-authenticated')
+  heading=page.get_by_role('heading',name='ただいまメンテナンス中です');heading.wait_for()
+  assert page.evaluate('document.activeElement===document.querySelector("#maintenance-heading")')
+  assert page.get_by_text('読書',exact=True).count()==0
+  page.get_by_text('詳しくはお知らせをご確認ください。',exact=True).wait_for()
+  announcement=page.get_by_role('link',name='お知らせを見る')
+  assert announcement.get_attribute('href')=='https://www.youtube.com/channel/UChBj4xZePvWyGmTKct5FBcg/posts'
+  assert announcement.get_attribute('target')=='_blank'
+  assert page.get_by_text('終了見込み：2026/10/27 12:00（JST）',exact=True).count()==0
+  assert page.get_by_role('button',name='状態を再確認',exact=True).count()==1
+  assert page.get_by_role('link',name='トップへ戻る',exact=True).count()==0
+  assert page.get_by_role('link',name='プライバシー',exact=True).count()==1
+  assert page.get_by_role('link',name='利用規約').count()==1
+  assert page.get_by_role('link',name='お問い合わせ').count()==1
+  assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(width,'maintenance','horizontal overflow')
+  paths=json.loads(page.locator('#synthetic-requests').inner_text());assert paths and set(paths)=={'/api/public/mypage-status'},paths
+  if width==390:
+   page.keyboard.press('Tab');assert page.evaluate('document.activeElement?.textContent?.includes("お知らせを見る")')
+   assert announcement.bounding_box()['height']>=44
+   before=page.evaluate('JSON.stringify(localStorage)')
+   page.get_by_role('button',name='Cookie設定',exact=True).click();page.get_by_role('heading',name='Cookie設定',exact=True).wait_for()
+   page.get_by_role('button',name='閉じる',exact=True).click();assert page.evaluate('JSON.stringify(localStorage)')==before
+  page.screenshot(path=str(out/f'maintenance-{width}.png'),full_page=True)
+ results.append('ACTIVE maintenance UI, focus, legal footer, private-data clearing, and responsive widths')
+ load('/maintenance','maintenance-active-authenticated');page.get_by_role('heading',name='ただいまメンテナンス中です').wait_for()
+ page.locator('#synthetic-maintenance-normal').click()
+ page.get_by_role('button',name='状態を再確認',exact=True).click()
+ page.get_by_role('heading',name='自分のペースで、少しずつ。').wait_for()
+ results.append('manual recheck observes NORMAL and replace-navigates home')
  storage=page.evaluate('({local:Object.keys(localStorage),session:Object.fromEntries(Object.entries(sessionStorage))})');assert storage['local']==[] and all(k=='tsr-scroll-restoration-v1_3' and v=='{}' for k,v in storage['session'].items()),storage
  assert not errors,errors
  page.screenshot(path=str(out/'not-found-390.png'),full_page=True)

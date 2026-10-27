@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import fixture from '../../docs/mypage/fixtures/available.json'
 import { createApp } from './app'
 import type { MyPage } from './features/mypage/contract'
+import { maintenanceAnnouncementURLs } from './maintenance-announcement'
 import { BrowserRuntime, type BrowserSession } from './runtime'
 import './style.css'
 
@@ -21,6 +22,11 @@ if (import.meta.env.DEV) {
 		: mode?.includes('restricted-moderation')
 			? 'SERVICE_ACCESS_RESTRICTED'
 			: null
+	let maintenanceState: boolean | null = mode?.startsWith('maintenance-active')
+		? true
+		: mode?.startsWith('maintenance-unknown')
+			? null
+			: false
 	const requests: string[] = []
 	let syntheticVerified = false
 	let holdNext = false
@@ -39,9 +45,11 @@ if (import.meta.env.DEV) {
 		appCheck: async () => 'synthetic-app',
 		subscribe: (listener) => {
 			listeners.add(listener)
-			const timer = setTimeout(() => listener(uid), 20)
+			const synchronous = mode === 'polling-authenticated'
+			const timer = synchronous ? null : setTimeout(() => listener(uid), 20)
+			if (synchronous) listener(uid)
 			return () => {
-				clearTimeout(timer)
+				if (timer !== null) clearTimeout(timer)
 				listeners.delete(listener)
 			}
 		},
@@ -64,6 +72,16 @@ if (import.meta.env.DEV) {
 		requests.push(String(path))
 		const counter = document.getElementById('synthetic-requests')
 		if (counter) counter.textContent = JSON.stringify(requests)
+		if (path === '/api/public/mypage-status') {
+			if (maintenanceState === null)
+				return Response.json(
+					{ error: { code: 'TEMPORARY_UNAVAILABLE' } },
+					{ status: 503 },
+				)
+			if (mode?.startsWith('maintenance-delayed-normal'))
+				await new Promise((resolve) => setTimeout(resolve, 150))
+			return Response.json({ maintenanceEnabled: maintenanceState })
+		}
 		if (String(path).startsWith('/api/mypage/history?')) {
 			const query = new URL(String(path), location.origin).searchParams
 			if (mode === 'history-quota-authenticated')
@@ -164,7 +182,7 @@ if (import.meta.env.DEV) {
 				{ error: { code: 'OAUTH_TRANSACTION_REQUIRED' } },
 				{ status: 400 },
 			)
-		if (path === '/api/auth/youtube/channel')
+		if (path === '/api/auth/youtube/channel') {
 			return Response.json({
 				...(mode?.startsWith('support-confirm-') ||
 				mode === 'privacy-intake-authenticated'
@@ -184,12 +202,20 @@ if (import.meta.env.DEV) {
 						: null,
 				confirmationRef: 'a'.repeat(64),
 			})
+		}
 		if (path === '/api/auth/youtube/confirm') {
 			if (holdNext) {
 				holdNext = false
 				await new Promise<void>((resolve) => {
 					release = resolve
 				})
+			}
+			if (mode === 'maintenance-race-confirm') {
+				maintenanceState = true
+				return Response.json(
+					{ error: { code: 'MAINTENANCE_ACTIVE' } },
+					{ status: 503 },
+				)
 			}
 			if (mode === 'privacy-intake-authenticated') syntheticVerified = true
 			return Response.json(
@@ -205,14 +231,31 @@ if (import.meta.env.DEV) {
 		}
 		if (path === '/api/auth/session/complete' && mode?.startsWith('support-'))
 			throw new Error('support must never complete a session')
+		if (
+			path === '/api/auth/session/complete' &&
+			mode === 'maintenance-race-session-complete'
+		) {
+			maintenanceState = true
+			return Response.json(
+				{ error: { code: 'MAINTENANCE_ACTIVE' } },
+				{ status: 503 },
+			)
+		}
 		if (path === '/api/auth/session/complete')
 			return new Response(null, { status: 204 })
-		if (path === '/api/auth/youtube/start')
+		if (path === '/api/auth/youtube/start') {
+			if (holdNext) {
+				holdNext = false
+				await new Promise<void>((resolve) => {
+					release = resolve
+				})
+			}
 			return Response.json({
 				authorizationUrl:
 					'https://accounts.google.com/o/oauth2/v2/auth?state=synthetic',
 				expiresAt: fixture.generatedAt,
 			})
+		}
 		if (path !== '/api/mypage')
 			return Response.json(
 				{ error: { code: 'INVALID_REQUEST' } },
@@ -242,6 +285,8 @@ if (import.meta.env.DEV) {
 	const router = createApp(
 		runtime,
 		createMemoryHistory({ initialEntries: [initial] }),
+		undefined,
+		maintenanceAnnouncementURLs.development,
 	)
 	const root = document.getElementById('root')
 	if (root)
@@ -320,6 +365,24 @@ if (import.meta.env.DEV) {
 						onClick={() => release?.()}
 					>
 						Release response
+					</button>
+					<button
+						id="synthetic-maintenance-normal"
+						type="button"
+						onClick={() => {
+							maintenanceState = false
+						}}
+					>
+						Set maintenance NORMAL
+					</button>
+					<button
+						id="synthetic-maintenance-active"
+						type="button"
+						onClick={() => {
+							maintenanceState = true
+						}}
+					>
+						Set maintenance ACTIVE
 					</button>
 					<button
 						id="synthetic-fail-logout"

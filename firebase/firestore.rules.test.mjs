@@ -42,6 +42,7 @@ beforeEach(async () => {
       setDoc(doc(db, 'config', 'constants'), { 'max-seats': 1 }),
       setDoc(doc(db, 'config', 'private'), { secret: true }),
       setDoc(doc(db, 'unrelated', 'private'), { secret: true }),
+      setDoc(doc(db, 'config', 'mypage'), { 'maintenance-enabled': true }),
     ])
   })
 })
@@ -135,5 +136,15 @@ describe('Firestore monitor read boundary', () => {
     await assertFails(
       setDoc(doc(db, '_monitor-readers', 'other-user'), { enabled: true }),
     )
+  })
+
+  test('never exposes or mutates MyPage maintenance control', async () => {
+    for (const db of [
+      testEnv.unauthenticatedContext().firestore(),
+      testEnv.authenticatedContext(allowedUid, { monitor_reader: true }).firestore(),
+    ]) {
+      await assertFails(getDoc(doc(db, 'config', 'mypage')))
+      await assertFails(setDoc(doc(db, 'config', 'mypage'), { 'maintenance-enabled': false }))
+    }
   })
 })

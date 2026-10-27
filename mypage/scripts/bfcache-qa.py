@@ -46,4 +46,4 @@ with sync_playwright() as p:
  assert not errors,errors
  browser.close()
 (out/'report.json').write_text(json.dumps({'syntheticOnly':True,'actualBfcache':True,'cases':results,'externalRequests':len(external),'pageErrors':errors},indent=2))
-print('PASS: 4 real bfcache confirmation-return cases, explicit restart works, no late receipt/navigation.')
+print('PASS:',len(results),'real bfcache OAuth cases without stale private UI.')

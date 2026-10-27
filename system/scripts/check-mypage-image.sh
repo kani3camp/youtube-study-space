@@ -5,6 +5,15 @@ set -euo pipefail
 image="${1:?Usage: check-mypage-image.sh IMAGE}"
 test "$(docker image inspect --format '{{.Config.User}}' "$image")" = 'nonroot:nonroot'
 
+# The same immutable image is used by the API and the fixed Job. Each Go
+# binary rejects --help with exit code 1 before any
+# ADC lookup; a missing/non-executable entrypoint exits differently.
+for maintenance_binary in mypage-maintenance-operator; do
+	maintenance_status=0
+	docker run --rm --network=none --read-only --entrypoint "/app/$maintenance_binary" "$image" --help >/dev/null 2>&1 || maintenance_status=$?
+	test "$maintenance_status" = 1
+done
+
 # Missing configuration must fail before any credential discovery or listen.
 if docker run --rm --network=none --read-only "$image" --check-config; then
 	echo 'MyPage image unexpectedly accepted missing configuration.' >&2

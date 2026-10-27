@@ -38,6 +38,7 @@ class BackendWorkflowTest(unittest.TestCase):
         self.assertEqual(auth['with']['service_account'],
                          'mypage-backend-deploy@test-youtube-study-space.iam.gserviceaccount.com')
         self.assertEqual(workflow['jobs']['state']['needs'], 'deploy')
+        self.assertEqual(workflow['jobs']['state']['with']['target'], 'development')
         self.assertEqual(workflow['jobs']['state']['with']['mode'], 'runtime-public-apply')
         self.assertEqual(workflow['jobs']['receipt']['needs'], 'state')
         self.assertEqual(workflow['jobs']['receipt']['permissions'], {'contents': 'read'})

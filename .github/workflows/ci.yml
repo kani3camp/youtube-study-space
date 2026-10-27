@@ -23,12 +23,20 @@ on:
         required: false
         type: string
       mypage_foundation:
-        description: Run isolated MyPage DEV provisioning
+        description: Run isolated staged MyPage Development or Production provisioning
         required: false
         default: false
         type: boolean
+      mypage_foundation_target:
+        description: "MyPage target (Production bootstrap: registry plan/apply, image-build, then maintenance operator/upgrade plan/apply)"
+        required: false
+        default: development
+        type: choice
+        options:
+          - development
+          - production
       mypage_foundation_mode:
-        description: MyPage development provisioning operation
+        description: MyPage staged Development or Production provisioning operation
         required: false
         default: foundation-metadata-plan
         type: choice
@@ -40,12 +48,16 @@ on:
           - registry-plan
           - registry-apply
           - image-build
+          - maintenance-operator-plan
+          - maintenance-operator-apply
+          - maintenance-upgrade-plan
+          - maintenance-upgrade-apply
           - runtime-private-plan
           - runtime-private-apply
           - runtime-public-plan
           - runtime-public-apply
       mypage_foundation_expected_sha:
-        description: Exact MyPage integration branch SHA
+        description: Exact SHA on the selected target's required ref
         required: false
         type: string
       terraform_authenticated:
@@ -307,6 +319,7 @@ jobs:
       MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
       MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
     with:
+      target: ${{ inputs.mypage_foundation_target }}
       mode: ${{ inputs.mypage_foundation_mode }}
       expected_sha: ${{ inputs.mypage_foundation_expected_sha }}
 

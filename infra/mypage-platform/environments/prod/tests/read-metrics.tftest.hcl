@@ -4,15 +4,18 @@ mock_provider "google" {}
 variables {
   stage = "runtime_private"
   runtime_settings = {
-    image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    project_number              = "123456789012"
-    web_app_id                  = "1:123456789012:web:synthetic"
-    public_origin               = "https://example.test"
-    privacy_version             = "synthetic-p"
-    terms_version               = "synthetic-t"
-    oauth_client_id_version     = "1"
-    oauth_client_secret_version = "2"
-    youtube_api_key_version     = "3"
+    image_digest                          = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    project_number                        = "906336399194"
+    web_app_id                            = "1:906336399194:web:synthetic"
+    public_origin                         = "https://moku.work"
+    privacy_version                       = "synthetic-p"
+    terms_version                         = "synthetic-t"
+    oauth_client_id_version               = "1"
+    oauth_client_secret_version           = "2"
+    youtube_api_key_version               = "3"
+    maintenance_operator_enabled          = true
+    maintenance_operator_image_digest     = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    maintenance_operator_image_source_sha = "cccccccccccccccccccccccccccccccccccccccc"
   }
 }
 
@@ -28,15 +31,18 @@ run "production_metrics_explicit_false_is_off" {
   command = plan
   variables {
     runtime_settings = merge({
-      image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      project_number              = "123456789012"
-      web_app_id                  = "1:123456789012:web:synthetic"
-      public_origin               = "https://example.test"
-      privacy_version             = "synthetic-p"
-      terms_version               = "synthetic-t"
-      oauth_client_id_version     = "1"
-      oauth_client_secret_version = "2"
-      youtube_api_key_version     = "3"
+      image_digest                          = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      project_number                        = "906336399194"
+      web_app_id                            = "1:906336399194:web:synthetic"
+      public_origin                         = "https://moku.work"
+      privacy_version                       = "synthetic-p"
+      terms_version                         = "synthetic-t"
+      oauth_client_id_version               = "1"
+      oauth_client_secret_version           = "2"
+      youtube_api_key_version               = "3"
+      maintenance_operator_enabled          = true
+      maintenance_operator_image_digest     = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      maintenance_operator_image_source_sha = "cccccccccccccccccccccccccccccccccccccccc"
     }, { read_metrics_enabled = false })
   }
   assert {
@@ -51,9 +57,9 @@ run "production_refuses_metrics_in_disabled" {
     stage = "disabled"
     runtime_settings = merge({
       image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      project_number              = "123456789012"
-      web_app_id                  = "1:123456789012:web:synthetic"
-      public_origin               = "https://example.test"
+      project_number              = "906336399194"
+      web_app_id                  = "1:906336399194:web:synthetic"
+      public_origin               = "https://moku.work"
       privacy_version             = "synthetic-p"
       terms_version               = "synthetic-t"
       oauth_client_id_version     = "1"
@@ -70,9 +76,9 @@ run "production_refuses_metrics_in_foundation_metadata" {
     stage = "foundation_metadata"
     runtime_settings = merge({
       image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      project_number              = "123456789012"
-      web_app_id                  = "1:123456789012:web:synthetic"
-      public_origin               = "https://example.test"
+      project_number              = "906336399194"
+      web_app_id                  = "1:906336399194:web:synthetic"
+      public_origin               = "https://moku.work"
       privacy_version             = "synthetic-p"
       terms_version               = "synthetic-t"
       oauth_client_id_version     = "1"
@@ -89,9 +95,9 @@ run "production_refuses_metrics_in_foundation" {
     stage = "foundation"
     runtime_settings = merge({
       image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      project_number              = "123456789012"
-      web_app_id                  = "1:123456789012:web:synthetic"
-      public_origin               = "https://example.test"
+      project_number              = "906336399194"
+      web_app_id                  = "1:906336399194:web:synthetic"
+      public_origin               = "https://moku.work"
       privacy_version             = "synthetic-p"
       terms_version               = "synthetic-t"
       oauth_client_id_version     = "1"
@@ -108,9 +114,9 @@ run "production_refuses_metrics_in_runtime_private" {
     stage = "runtime_private"
     runtime_settings = merge({
       image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      project_number              = "123456789012"
-      web_app_id                  = "1:123456789012:web:synthetic"
-      public_origin               = "https://example.test"
+      project_number              = "906336399194"
+      web_app_id                  = "1:906336399194:web:synthetic"
+      public_origin               = "https://moku.work"
       privacy_version             = "synthetic-p"
       terms_version               = "synthetic-t"
       oauth_client_id_version     = "1"
@@ -127,9 +133,9 @@ run "production_refuses_metrics_in_runtime_public" {
     stage = "runtime_public"
     runtime_settings = merge({
       image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      project_number              = "123456789012"
-      web_app_id                  = "1:123456789012:web:synthetic"
-      public_origin               = "https://example.test"
+      project_number              = "906336399194"
+      web_app_id                  = "1:906336399194:web:synthetic"
+      public_origin               = "https://moku.work"
       privacy_version             = "synthetic-p"
       terms_version               = "synthetic-t"
       oauth_client_id_version     = "1"

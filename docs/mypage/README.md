@@ -8,7 +8,7 @@ source-onlyの[Privacy request intake](privacy-intake.md)はdefault offで、受
 
 横断削除Bのcheckpoint・offline CLI・adapter境界・未確認gateは[Support deletion runbook](support-delete.md)と[inventory](support-delete-inventory.md)を参照する。
 
-現行仕様から実装に必要な非機密 wire contract だけを抽出したもの。`openapi.yaml` は nine-endpoint API の契約（privacy受付2本はdefault off、明細1本はDEV限定/default off）、`fixtures/` は実ユーザーに依存しない合成例。
+現行仕様から実装に必要な非機密 wire contract だけを抽出したもの。`openapi.yaml` は ten-endpoint API の契約（公開maintenance statusを含み、privacy受付2本はdefault off、明細1本はDEV限定/default off）、`fixtures/` は実ユーザーに依存しない合成例。メンテナンスモードの状態・例外・手動切替・復旧は[maintenance mode v1 runbook](maintenance-mode.md)を参照する。
 
 - 本人識別は YouTube channel ID と同じ Firebase custom-provider uid。client から対象 ID を受け取らない。
 - OAuth callback の atomic claim と confirm の atomic consume の後に、外部 API / token mint を transaction callback の外で実行する。

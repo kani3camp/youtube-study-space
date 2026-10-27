@@ -1,10 +1,46 @@
 openapi: 3.1.0
 info:
   title: MyPage internal API
-  version: 0.3.0
+  version: 0.4.0
 servers:
 - url: /
 paths:
+  /api/public/mypage-status:
+    get:
+      operationId: getPublicMyPageStatus
+      description: Same-origin public maintenance status. No Firebase Auth or App Check is required.
+        Missing, malformed or unreadable control state fails closed with 503; it is never inferred as NORMAL.
+        The response contains no operator identity, reason category, revision, project or audit fields.
+      security: []
+      responses:
+        '200':
+          description: Validated public maintenance status
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceStatus'
+        '429':
+          description: Public status request rate limit exceeded
+          headers:
+            Retry-After:
+              description: Seconds until the caller may retry
+              schema:
+                type: string
+                pattern: '^[0-9]+$'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Authoritative status is unknown
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/auth/youtube/start:
     post:
       operationId: startYouTubeLogin
@@ -402,6 +438,13 @@ components:
       name: __session
       description: Opaque ID; HttpOnly; Secure; SameSite=Lax; Path=/; no Domain; Max-Age=600.
   schemas:
+    MaintenanceStatus:
+      type: object
+      additionalProperties: false
+      required: [maintenanceEnabled]
+      properties:
+        maintenanceEnabled:
+          type: boolean
     PrivacyIntakeRequest:
       type: object
       additionalProperties: false
@@ -1003,6 +1046,7 @@ components:
               - CHANNEL_AMBIGUOUS
               - WEB_ACCOUNT_REQUIRED
               - RATE_LIMITED
+              - MAINTENANCE_ACTIVE
               - FEATURE_UNAVAILABLE
               - INVALID_CURSOR
               - HISTORY_NOT_READY

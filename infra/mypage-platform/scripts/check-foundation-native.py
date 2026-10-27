@@ -13,14 +13,14 @@ result = subprocess.run(["terraform", "test", "-filter=tests/foundation-contract
 need(result.returncode == 0)
 plans = [event["test_plan"] for line in result.stdout.splitlines()
          if (event := json.loads(line)).get("type") == "test_plan"]
-need(len(plans) == 5)
+need(len(plans) == 6)
 # terraform test emits the renderer's Plan envelope, not terraform show's
 # native envelope. Preserve the actual provider-generated changes/unknowns;
 # only supply the test run's known stage and successful completion metadata.
 # The authenticated path continues to require the real native envelope.
-for rendered, stage, creates in zip(plans, ("foundation_metadata", "foundation", "registry", "runtime_private", "runtime_public"), (4, 8, 9, 11, 12)):
+for rendered, stage in zip(plans, ("foundation_metadata", "foundation", "registry", "maintenance_operator", "runtime_private", "runtime_public")):
     variables = {"stage": {"value": stage}}
-    if stage.startswith("runtime_"):
+    if stage in set(runtime_contract.MODES.values()):
         variables["runtime_settings"] = {"value": json.loads((root / "tests/runtime-settings.fixture.json").read_text())}
     envelope = {"format_version": rendered["plan_format_version"],
                          "complete": True, "errored": False,
@@ -28,19 +28,20 @@ for rendered, stage, creates in zip(plans, ("foundation_metadata", "foundation",
                          "resource_changes": rendered.get("resource_changes", []),
                          "resource_drift": rendered.get("resource_drift", []),
                          "deferred_changes": rendered.get("deferred_changes", [])}
-    validator = runtime_contract.validate_plan if stage.startswith("runtime_") else validate_plan
-    if stage == "runtime_public":
-        # Canonical HCL describes a new member, while the authenticated public
-        # path requires an owner-existing member and generates an exact import.
-        # Preserve this provider-generated create Plan and prove its rejection;
-        # do not rewrite native actions into a fabricated import/no-op.
+    validator = runtime_contract.validate_plan if stage in set(runtime_contract.MODES.values()) else validate_plan
+    if stage in {"runtime_private", "runtime_public"}:
+        # Every run in this credentialless native test starts without State, so
+        # provider-generated runtime Plans try to create the maintenance
+        # boundary again. Prove that skipping the operator/bootstrap stage is
+        # rejected; exact existing-resource no-op Plans are covered separately.
         try:
             validator(envelope, stage)
         except ContractError as error:
-            need(str(error) == "runtime-invoker-owner-managed")
+            need(str(error) == "runtime-maintenance-bootstrap-complete")
         else:
             need(False)
     else:
         summary = validator(envelope, stage)
-        need(summary == {"resources": creates, "creates": creates})
-print("Native mocked Plans accepted: four / eight / nine / private eleven; public member creation correctly rejected; no cloud I/O.")
+        resources = len(envelope["resource_changes"])
+        need(summary == {"resources": resources, "creates": resources})
+print("Native mocked maintenance operator Plan accepted; direct runtime creation without completed bootstrap rejected; no cloud I/O.")

@@ -175,4 +175,33 @@ describe('public policy draft rendering', () => {
 		expect(html).not.toContain('supportChallenge')
 		expect(request).not.toHaveBeenCalled()
 	})
+	it('shows only allowlisted support OAuth failures on the public contact route', () => {
+		const renderContact = (entry: string) => {
+			const runtime = new BrowserRuntime(
+				null,
+				{ privacy: 'synthetic-v1', terms: 'synthetic-v1' },
+				vi.fn<typeof fetch>(),
+				'LOGIN_UNAVAILABLE',
+			)
+			const router = createApp(
+				runtime,
+				createMemoryHistory({ initialEntries: [entry] }),
+			)
+			const Contact = router.routesById['/contact'].options.component
+			if (!Contact) throw new Error('Contact route missing')
+			return renderToStaticMarkup(
+				<RouterContextProvider router={router}>
+					<Contact />
+				</RouterContextProvider>,
+			)
+		}
+		const failure = renderContact('/contact?supportError=oauth_denied')
+		expect(failure).toContain('YouTubeでの本人確認を完了できませんでした。')
+		expect(failure).toContain('受付窓口からもう一度お手続きください。')
+		const untrusted = renderContact(
+			'/contact?supportError=private-provider-detail',
+		)
+		expect(untrusted).not.toContain('本人確認を完了できませんでした。')
+		expect(untrusted).not.toContain('private-provider-detail')
+	})
 })

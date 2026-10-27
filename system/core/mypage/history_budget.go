@@ -176,6 +176,11 @@ func (s *HistoryService) reserve(ctx context.Context, uid, checkpoint, key, fing
 	}
 	opKey := digest(key)
 	err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		if s.MaintenanceEnabled {
+			if err := transactionMaintenance(tx, s.Client); err != nil {
+				return err
+			}
+		}
 		clocks, err := tx.GetAll([]*firestore.DocumentRef{s.Client.Collection(serviceaccess.Collection).Doc(uid)})
 		if err != nil || len(clocks) != 1 || clocks[0].ReadTime.IsZero() {
 			return apiError("TEMPORARY_UNAVAILABLE")
@@ -265,6 +270,11 @@ func (s *HistoryService) release(claim historyClaim) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		if s.MaintenanceEnabled {
+			if err := transactionMaintenance(tx, s.Client); err != nil {
+				return err
+			}
+		}
 		ref := s.Client.Collection(historyBudgets).Doc(digest(s.Environment + "\x00" + claim.UID))
 		doc, err := tx.Get(ref)
 		if status.Code(err) == codes.NotFound {

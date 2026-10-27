@@ -92,6 +92,9 @@ func TestBrowserHTTPDemo(t *testing.T) {
 	client, err := firestore.NewClient(ctx, project, option.WithoutAuthentication())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
+	_, _, err = SetMaintenance(ctx, client, false)
+	require.NoError(t, err)
+	t.Cleanup(func() { _, err := maintenanceRef(client).Delete(context.Background()); require.NoError(t, err) })
 	refs := []*firestore.DocumentRef{
 		client.Collection("users").Doc(uid),
 		client.Collection("seats").Doc(uid),
@@ -207,7 +210,8 @@ func TestBrowserHTTPDemo(t *testing.T) {
 			events = append(events, browserHTTPEvent{
 				Method: r.Method, Path: r.URL.Path, Status: status.status,
 				RetryAfter: w.Header().Get("Retry-After"), Verified: sdk.verifications.Load() - before,
-				NoStore:    w.Header().Get("Cache-Control") == "private, no-store",
+				NoStore: (r.URL.Path == "/api/public/mypage-status" && w.Header().Get("Cache-Control") == "no-store") ||
+					(r.URL.Path != "/api/public/mypage-status" && w.Header().Get("Cache-Control") == "private, no-store"),
 				NoReferrer: w.Header().Get("Referrer-Policy") == "no-referrer",
 				RequestID:  w.Header().Get("X-Request-Id") != "",
 			})

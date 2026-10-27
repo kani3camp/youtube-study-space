@@ -88,7 +88,8 @@ jobs:
             pnpm dev --host 127.0.0.1 --port 18081 --strictPort
           ) > "$RUNNER_TEMP/mypage-vite.log" 2>&1 &
           vite_pid=$!
-          trap 'kill "$vite_pid" 2>/dev/null || true' EXIT
+          bfcache_pid=''
+          trap 'kill "$vite_pid" ${bfcache_pid:-} 2>/dev/null || true' EXIT
           for attempt in $(seq 1 45); do
             if curl --fail --silent --output /dev/null http://127.0.0.1:18081/http-qa.html; then
               break
@@ -97,8 +98,22 @@ jobs:
           done
           curl --fail --silent --output /dev/null http://127.0.0.1:18081/http-qa.html
 
+          python3 mypage/scripts/runtime-qa.py --output "$MYPAGE_QA_OUTPUT/runtime"
           python3 mypage/scripts/polling-qa.py --output "$MYPAGE_QA_OUTPUT/polling"
           python3 mypage/scripts/history-qa.py --output "$MYPAGE_QA_OUTPUT/history"
+
+          (cd mypage && pnpm exec vite build --config scripts/bfcache.vite.config.ts)
+          python3 -m http.server 18082 --bind 127.0.0.1 --directory /tmp/mypage-bfcache-qa \
+            > "$RUNNER_TEMP/mypage-bfcache.log" 2>&1 &
+          bfcache_pid=$!
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:18082/runtime-visual.html; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent --output /dev/null http://127.0.0.1:18082/runtime-visual.html
+          python3 mypage/scripts/bfcache-qa.py --output "$MYPAGE_QA_OUTPUT/bfcache"
 
           firebase emulators:exec \
             --config firebase/firebase.json \

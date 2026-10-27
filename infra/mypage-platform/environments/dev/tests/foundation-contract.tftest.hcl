@@ -26,6 +26,18 @@ run "registry_contract" {
   }
 }
 
+run "maintenance_operator_contract" {
+  command = plan
+  variables {
+    stage            = "maintenance_operator"
+    runtime_settings = jsondecode(file("tests/runtime-settings.fixture.json"))
+  }
+  assert {
+    condition     = !module.platform[0].runtime_enabled && !module.platform[0].public_invoker_enabled && module.platform[0].maintenance_operator_enabled
+    error_message = "The maintenance bootstrap stage must provision only the operator boundary, never activate the API."
+  }
+}
+
 run "runtime_private_contract" {
   command = plan
   variables {
