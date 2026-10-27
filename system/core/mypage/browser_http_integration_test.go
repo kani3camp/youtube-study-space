@@ -65,7 +65,7 @@ type browserHTTPEvent struct {
 	Status     int    `json:"status"`
 	RetryAfter string `json:"retryAfter,omitempty"`
 	Verified   int32  `json:"tokenVerifications"`
-	NoStore    bool   `json:"noStore"`
+	CacheSafe  bool   `json:"cacheSafe"`
 	NoReferrer bool   `json:"noReferrer"`
 	RequestID  bool   `json:"requestIDPresent"`
 }
@@ -205,10 +205,14 @@ func TestBrowserHTTPDemo(t *testing.T) {
 			before := sdk.verifications.Load()
 			status := &browserHTTPStatus{ResponseWriter: w, status: 200}
 			handler.ServeHTTP(status, r)
+			cacheControl := "private, no-store"
+			if r.URL.Path == "/api/public/mypage-status" {
+				cacheControl = "no-store"
+			}
 			events = append(events, browserHTTPEvent{
 				Method: r.Method, Path: r.URL.Path, Status: status.status,
 				RetryAfter: w.Header().Get("Retry-After"), Verified: sdk.verifications.Load() - before,
-				NoStore:    w.Header().Get("Cache-Control") == "private, no-store",
+				CacheSafe:  w.Header().Get("Cache-Control") == cacheControl,
 				NoReferrer: w.Header().Get("Referrer-Policy") == "no-referrer",
 				RequestID:  w.Header().Get("X-Request-Id") != "",
 			})
@@ -261,7 +265,7 @@ func TestBrowserHTTPDemo(t *testing.T) {
 	}
 	require.Equal(t, observed(events), observed(browserReport.Responses), "browser/API observations must be the same real handler calls")
 	for _, event := range events {
-		require.True(t, event.NoStore && event.NoReferrer && event.RequestID)
+		require.True(t, event.CacheSafe && event.NoReferrer && event.RequestID)
 	}
 	evidence, err := json.MarshalIndent(events, "", "  ")
 	require.NoError(t, err)
