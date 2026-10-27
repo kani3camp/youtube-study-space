@@ -16,6 +16,7 @@ from pathlib import Path
 GITHUB_DIR = Path(__file__).parents[1]
 WORKFLOW = GITHUB_DIR / "workflows" / "gcp-user-activity-schema-audit.yml"
 CALLER = GITHUB_DIR / "workflows" / "ci.yml"
+OPERATIONS = GITHUB_DIR / "workflows" / "ci-operations.yml"
 SUMMARY = GITHUB_DIR.parent / "infra" / "gcp" / "scripts" / "schema_audit_summary.py"
 HANDOFF_FIXTURES = GITHUB_DIR.parent / "infra" / "gcp" / "tests" / "fixtures" / "environment-secret-handoff"
 spec = importlib.util.spec_from_file_location("schema_audit_summary", SUMMARY)
@@ -58,6 +59,7 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.text = WORKFLOW.read_text(encoding="utf-8")
         cls.caller = CALLER.read_text(encoding="utf-8")
+        cls.operations = OPERATIONS.read_text(encoding="utf-8")
 
     def test_reusable_workflow_is_not_directly_triggerable(self) -> None:
         self.assertIn("workflow_call:", self.text)
@@ -176,10 +178,15 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
     def test_caller_exposes_only_explicit_manual_toggle(self) -> None:
         self.assertIn("gcp_user_activity_schema_audit:", self.caller)
         self.assertIn("inputs.gcp_user_activity_schema_audit == true", self.caller)
-        self.assertIn("uses: ./.github/workflows/gcp-user-activity-schema-audit.yml", self.caller)
-        # Stop at any next top-level job; another operation must not make this
-        # audit appear to inherit that operation's unrelated secrets.
-        call = re.split(r"\n  [a-z][a-z0-9-]*:\n", self.caller.split("  gcp-user-activity-schema-audit:\n", 1)[1], maxsplit=1)[0]
+        self.assertIn("uses: ./.github/workflows/ci-operations.yml", self.caller)
+        self.assertIn("uses: ./.github/workflows/gcp-user-activity-schema-audit.yml", self.operations)
+        # Stop at any next top-level job; the nested call receives only this
+        # audit's dedicated secrets even though the router supports other operations.
+        call = re.split(
+            r"\n  [a-z][a-z0-9-]*:\n",
+            self.operations.split("  gcp-user-activity-schema-audit:\n", 1)[1],
+            maxsplit=1,
+        )[0]
         expected = {"GCP_TERRAFORM_WIF_PROVIDER", "GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT"}
         declared = self.text.split("    secrets:\n", 1)[1].split("\npermissions:", 1)[0]
         self.assertEqual(set(re.findall(r"^      ([A-Z_]+):$", declared, re.MULTILINE)), expected)

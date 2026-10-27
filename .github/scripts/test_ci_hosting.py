@@ -29,13 +29,20 @@ class HostingWorkflowTest(unittest.TestCase):
         self.assertFalse(auth['with']['export_environment_variables'])
         self.assertEqual(auth['with']['project_id'], 'test-youtube-study-space')
         publish = next(s for s in jobs['apply']['steps'] if s.get('run', '').endswith(' deploy'))
-        self.assertEqual(publish['env']['MYPAGE_HOSTING_PACKAGE_DIGEST'], '${{ needs.build.outputs.digest }}')
+        self.assertEqual(
+            publish['env']['MYPAGE_HOSTING_PACKAGE_DIGEST'],
+            '${{ needs.build.outputs.digest }}',
+        )
 
-    def test_existing_operations_cannot_run_alongside_hosting(self):
-        caller = load(ROOT / '.github/workflows/ci.yml')
-        for name in ('gcp-terraform-authenticated', 'mypage-foundation-authenticated', 'gcp-user-activity-schema-audit'):
-            self.assertIn('inputs.mypage_hosting != true', caller['jobs'][name]['if'])
-        hosting = caller['jobs']['mypage-hosting-authenticated']
-        self.assertEqual(hosting['needs'], ['repository', 'frontend'])
+    def test_release_is_selected_only_through_operations_boundary(self):
+        operations = load(ROOT / '.github/workflows/ci-operations.yml')
+        hosting = operations['jobs']['mypage-hosting-authenticated']
+        self.assertEqual(hosting['needs'], 'validate-selection')
+        self.assertEqual(hosting['if'], '${{ inputs.mypage_hosting }}')
+        self.assertEqual(hosting['permissions'], {'contents': 'read', 'id-token': 'write'})
+        self.assertEqual(hosting['uses'], './.github/workflows/mypage-hosting-authenticated.yml')
         self.assertNotIn('secrets', hosting)
-        self.assertEqual(hosting['with']['other_operation'], '${{ inputs.terraform_authenticated == true || inputs.mypage_foundation == true || inputs.gcp_user_activity_schema_audit == true }}')
+        self.assertEqual(hosting['with'], {
+            'expected_sha': '${{ inputs.mypage_hosting_expected_sha }}',
+            'other_operation': False,
+        })
