@@ -302,15 +302,6 @@ func (g *MaintenanceGate) PublicStatus(ctx context.Context) (MaintenanceStatus, 
 	return MaintenanceStatus{State: value.State, UpdatedAt: value.UpdatedAt, EstimatedEndAt: value.EstimatedEndAt, MessageTemplate: value.MessageTemplate}, nil
 }
 
-// RequireMaintenanceInitialized is the read-only deployment barrier used
-// before a serving revision containing the maintenance guard may be planned.
-// A strict initialized control is required, but ACTIVE is valid: maintenance
-// must never prevent a recovery deploy or rollback of the guarded service.
-func RequireMaintenanceInitialized(ctx context.Context, client *firestore.Client, environment string) error {
-	_, err := (&MaintenanceGate{Client: client, Environment: environment}).read(ctx)
-	return err
-}
-
 type maintenanceRevisionContextKey struct{}
 
 func withMaintenanceRevision(ctx context.Context, revision int64) context.Context {

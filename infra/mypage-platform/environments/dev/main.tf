@@ -145,11 +145,3 @@ output "maintenance_workload_identity_provider" {
 output "maintenance_invoker_service_account" {
   value = var.stage == "disabled" ? null : module.platform[0].maintenance_invoker_service_account
 }
-
-output "maintenance_inspect_service_account" {
-  value = var.stage == "disabled" ? null : module.platform[0].maintenance_inspect_service_account
-}
-
-output "maintenance_inspect_service_url" {
-  value = var.stage == "disabled" ? null : module.platform[0].maintenance_inspect_service_url
-}

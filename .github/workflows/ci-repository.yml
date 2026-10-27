@@ -68,7 +68,6 @@ jobs:
           .github/workflows/mypage-backend-authenticated.yml
           .github/workflows/mypage-foundation-authenticated.yml
           .github/workflows/mypage-maintenance.yml
-          .github/workflows/mypage-maintenance-inspect.yml
       - name: Test bounded Hosting release contracts
         run: python -m unittest discover -s infra/mypage-platform/scripts -p 'test_hosting_release.py' -v
       - name: Test bounded Backend release contracts

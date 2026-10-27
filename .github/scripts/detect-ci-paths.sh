@@ -69,7 +69,7 @@ set_all_groups() {
 
 path_is_ci_config() {
 	case "$1" in
-		.github/dependabot.yml|.github/workflows/*|.github/codeql/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/check-ci-results.py|.github/scripts/install-ci-source-tools.sh|.github/scripts/test_ci_*.py|.github/scripts/mypage_maintenance.py|.github/scripts/mypage_maintenance_inspect.py|.github/scripts/test_mypage_maintenance.py|.github/scripts/run-firestore-integration-tests.sh|.github/scripts/base-image-update-report*.mjs|.github/actions/*)
+		.github/dependabot.yml|.github/workflows/*|.github/codeql/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/check-ci-results.py|.github/scripts/install-ci-source-tools.sh|.github/scripts/test_ci_*.py|.github/scripts/mypage_maintenance.py|.github/scripts/test_mypage_maintenance.py|.github/scripts/run-firestore-integration-tests.sh|.github/scripts/base-image-update-report*.mjs|.github/actions/*)
 			return 0
 			;;
 		*)

@@ -174,8 +174,6 @@ def reject_unowned_resources(env, plan):
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/mypage-maintenance-invoker@" + contract.PROJECT + ".iam.gserviceaccount.com",
         runtime_contract.MAINTENANCE_BOOTSTRAP_SA:
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/mypage-maintenance-bootstrap@" + contract.PROJECT + ".iam.gserviceaccount.com",
-        runtime_contract.MAINTENANCE_INSPECT_INVOKER_SA:
-            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/mypage-maint-inspect-invoker@" + contract.PROJECT + ".iam.gserviceaccount.com",
         runtime_contract.MAINTENANCE_ROLE:
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/roles/mypageMaintenanceOperator",
         runtime_contract.MAINTENANCE_BOOTSTRAP_ROLE:
@@ -190,8 +188,6 @@ def reject_unowned_resources(env, plan):
             "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/jobs/mypage-maintenance-breakglass",
         runtime_contract.MAINTENANCE_BOOTSTRAP_JOB:
             "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/jobs/mypage-maintenance-bootstrap-check",
-        runtime_contract.MAINTENANCE_INSPECT_SERVICE:
-            "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/services/mypage-maintenance-inspect",
     })
     for item in plan["resource_changes"]:
         if item["address"] not in urls or item["change"]["actions"] != ["create"]:

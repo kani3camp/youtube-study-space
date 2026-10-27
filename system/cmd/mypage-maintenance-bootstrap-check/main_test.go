@@ -32,7 +32,7 @@ func TestBootstrapCheckRejectsBeforeCredentialDiscovery(t *testing.T) {
 				args = nil
 			}
 			connected := false
-			err := run(context.Background(), args, func(key string) string { return env[key] }, func(context.Context, string) (*firestore.Client, error) {
+			_, err := run(context.Background(), args, func(key string) string { return env[key] }, func(context.Context, string) (*firestore.Client, error) {
 				connected = true
 				return nil, nil
 			})

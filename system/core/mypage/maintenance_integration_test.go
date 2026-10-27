@@ -135,22 +135,22 @@ func TestMaintenanceApplyNormalizesFirestoreTimestampAndLateVerify(t *testing.T)
 	}
 }
 
-func TestMaintenanceBootstrapRequiresValidInitializedControlAndAllowsActiveRecovery(t *testing.T) {
+func TestMaintenanceInspectionRequiresValidInitializedControlAndAllowsActiveRecovery(t *testing.T) {
 	client := maintenanceIntegrationClient(t)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	if RequireMaintenanceInitialized(ctx, client, "development") == nil {
+	if _, err := InspectMaintenanceControl(ctx, client, "development"); err == nil {
 		t.Fatal("missing bootstrap control accepted")
 	}
 	seedNormalMaintenance(t, client, "development", now)
-	if err := RequireMaintenanceInitialized(ctx, client, "development"); err != nil {
+	if _, err := InspectMaintenanceControl(ctx, client, "development"); err != nil {
 		t.Fatal(err)
 	}
 	_, err := maintenanceRef(client).Set(ctx, MaintenanceControl{Environment: "development", State: MaintenanceActive, Revision: 2, UpdatedAt: now.Add(time.Second), MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "PLANNED_MAINTENANCE"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := RequireMaintenanceInitialized(ctx, client, "development"); err != nil {
+	if receipt, err := InspectMaintenanceControl(ctx, client, "development"); err != nil || receipt.State != MaintenanceActive || receipt.Revision != 2 {
 		t.Fatalf("ACTIVE must permit a recovery deploy or rollback: %v", err)
 	}
 }

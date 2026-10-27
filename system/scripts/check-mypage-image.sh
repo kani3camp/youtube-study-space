@@ -5,10 +5,10 @@ set -euo pipefail
 image="${1:?Usage: check-mypage-image.sh IMAGE}"
 test "$(docker image inspect --format '{{.Config.User}}' "$image")" = 'nonroot:nonroot'
 
-# The same immutable image is used by the API, three fixed Jobs and the fixed
-# readback service. Each Go binary rejects --help with exit code 1 before any
+# The same immutable image is used by the API and three fixed Jobs. Each Go
+# binary rejects --help with exit code 1 before any
 # ADC lookup; a missing/non-executable entrypoint exits differently.
-for maintenance_binary in mypage-maintenance-operator mypage-maintenance-breakglass mypage-maintenance-bootstrap-check mypage-maintenance-inspect; do
+for maintenance_binary in mypage-maintenance-operator mypage-maintenance-breakglass mypage-maintenance-bootstrap-check; do
 	maintenance_status=0
 	docker run --rm --network=none --read-only --entrypoint "/app/$maintenance_binary" "$image" --help >/dev/null 2>&1 || maintenance_status=$?
 	test "$maintenance_status" = 1

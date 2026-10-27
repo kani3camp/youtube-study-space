@@ -75,9 +75,6 @@ print(json.dumps({
         self.assertIn('member   = "serviceAccount:${local.maintenance_invoker_email}"', source)
         self.assertNotIn('roles/datastore.user"\n  member  = "serviceAccount:${local.maintenance_invoker_email}', source)
         self.assertIn('command = ["/app/mypage-maintenance-operator"]', source)
-        self.assertRegex(source, r'account_id\s+= "mypage-maint-inspect-invoker"')
-        self.assertIn('member   = "serviceAccount:${local.maintenance_inspect_invoker_email}"', source)
-        self.assertNotIn('serviceAccount:${local.maintenance_inspect_invoker_email}"\n\n  depends_on = [google_project_iam_member.maintenance_bootstrap_reader]', source)
 
     def test_operator_graph_directly_orders_identity_consumers(self):
         source = (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text()
@@ -87,7 +84,7 @@ print(json.dumps({
         self.assertIn('google_project_iam_custom_role.maintenance_firestore,', source)
         self.assertIn('google_project_iam_custom_role.maintenance_bootstrap_reader,', source)
         self.assertIn('google_cloud_run_v2_job.maintenance_operator,', source)
-        self.assertEqual(source.count('google_iam_workload_identity_pool_provider.maintenance_github,'), 2)
+        self.assertEqual(source.count('google_iam_workload_identity_pool_provider.maintenance_github,'), 1)
         self.assertEqual(len(re.findall(r'service_account\s+= local\.maintenance_operator_email', source)), 2)
         self.assertRegex(source, r'service_account\s+= local\.maintenance_bootstrap_email')
         self.assertIn('depends_on = [google_project_iam_member.maintenance_firestore]', source)
@@ -104,8 +101,6 @@ print(json.dumps({
         self.assertIn("assertion.workflow_sha == assertion.sha", source)
         self.assertNotIn("assertion.job_workflow_sha", source)
         self.assertIn("local.maintenance_github_environment", source)
-        self.assertIn("local.maintenance_inspect_github_environment", source)
-        self.assertIn("mypage-maintenance-inspect.yml", source)
         self.assertNotIn("pull_request", source)
         self.assertIn('var.environment == "production" ? "906336399194" : "48101442817"', source)
         self.assertIn("projects/${local.maintenance_project_number}/locations/global/workloadIdentityPools/mypage-maintenance/attribute.workflow_ref", source)
@@ -122,7 +117,7 @@ print(json.dumps({
         self.assertIn('command = ["/app/mypage-maintenance-bootstrap-check"]', source)
         self.assertIn('command = ["/app/mypage-maintenance-breakglass"]', source)
         self.assertIn('member   = "serviceAccount:${local.backend_deployer_email}"', source)
-        self.assertEqual(source.count('role     = "roles/run.invoker"'), 5)  # public API, three bootstrap callers, fixed inspect service
+        self.assertEqual(source.count('role     = "roles/run.invoker"'), 4)  # public API and three bootstrap callers
 
     def test_bootstrap_stage_precedes_api_and_override_role_is_exact(self):
         source = (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text()
@@ -137,7 +132,6 @@ print(json.dumps({
             "mypage-maintenance-operator",
             "mypage-maintenance-breakglass",
             "mypage-maintenance-bootstrap-check",
-            "mypage-maintenance-inspect",
         ):
             self.assertIn(binary, image_check)
 

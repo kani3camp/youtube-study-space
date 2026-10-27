@@ -51,7 +51,6 @@ class FoundationTest(unittest.TestCase):
             ops.runtime_contract.MAINTENANCE_OPERATOR_SA: f'https://iam.googleapis.com/v1/projects/{project}/serviceAccounts/mypage-maintenance-job@{project}.iam.gserviceaccount.com',
             ops.runtime_contract.MAINTENANCE_INVOKER_SA: f'https://iam.googleapis.com/v1/projects/{project}/serviceAccounts/mypage-maintenance-invoker@{project}.iam.gserviceaccount.com',
             ops.runtime_contract.MAINTENANCE_BOOTSTRAP_SA: f'https://iam.googleapis.com/v1/projects/{project}/serviceAccounts/mypage-maintenance-bootstrap@{project}.iam.gserviceaccount.com',
-            ops.runtime_contract.MAINTENANCE_INSPECT_INVOKER_SA: f'https://iam.googleapis.com/v1/projects/{project}/serviceAccounts/mypage-maint-inspect-invoker@{project}.iam.gserviceaccount.com',
             ops.runtime_contract.MAINTENANCE_ROLE: f'https://iam.googleapis.com/v1/projects/{project}/roles/mypageMaintenanceOperator',
             ops.runtime_contract.MAINTENANCE_BOOTSTRAP_ROLE: f'https://iam.googleapis.com/v1/projects/{project}/roles/mypageMaintenanceBootstrapReader',
             ops.runtime_contract.MAINTENANCE_POOL: f'https://iam.googleapis.com/v1/projects/{c.PROJECT_NUMBER}/locations/global/workloadIdentityPools/mypage-maintenance',
@@ -59,7 +58,6 @@ class FoundationTest(unittest.TestCase):
             ops.runtime_contract.MAINTENANCE_JOB: f'https://run.googleapis.com/v2/projects/{project}/locations/asia-southeast2/jobs/mypage-maintenance-operator',
             ops.runtime_contract.MAINTENANCE_BREAKGLASS_JOB: f'https://run.googleapis.com/v2/projects/{project}/locations/asia-southeast2/jobs/mypage-maintenance-breakglass',
             ops.runtime_contract.MAINTENANCE_BOOTSTRAP_JOB: f'https://run.googleapis.com/v2/projects/{project}/locations/asia-southeast2/jobs/mypage-maintenance-bootstrap-check',
-            ops.runtime_contract.MAINTENANCE_INSPECT_SERVICE: f'https://run.googleapis.com/v2/projects/{project}/locations/asia-southeast2/services/mypage-maintenance-inspect',
         }
         plan = {'resource_changes': [
             {'address': address, 'change': {'actions': ['create']}} for address in expected
