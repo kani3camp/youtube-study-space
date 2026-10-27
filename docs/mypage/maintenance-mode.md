@@ -16,7 +16,7 @@
 
 公開トップ、プライバシー、利用規約、お問い合わせ、本人確認済みprivacy request受付・状態確認、目的がserver-side support requestに束縛されたsupport OAuthは利用可能である。clientがsupport目的や対象channelを自己申告して例外になることはない。
 
-`GET /api/public/mypage-status`はsame-origin、認証/App Check不要、`no-store`で、`state`、`updatedAt`、任意`estimatedEndAt`、固定message templateだけを返す。Frontendは取得失敗を`UNKNOWN`として安全側のmaintenance画面に留まり、`NORMAL`を推測しない。
+`GET /api/public/mypage-status`はsame-origin、認証/App Check不要、`no-store`で、`state`、`updatedAt`、任意`estimatedEndAt`、固定message templateだけを返す。Frontendは取得失敗を`UNKNOWN`として安全側のmaintenance画面に留まり、`NORMAL`を推測しない。`/maintenance`へ直接到達した`UNKNOWN`画面には状態を再取得するための「再読み込み」だけを表示する。
 
 `ACTIVE`画面の表示内容は「ただいまメンテナンス中です」「詳しくはお知らせをご確認ください。」「お知らせを見る」の3要素に限定する。開始・終了時刻、再読み込み、ログアウト、トップへのカード内導線は表示せず、既存ブランドheaderとPrivacy Policy・利用規約・Cookie設定・お問い合わせのfooterを維持する。status確認、visible復帰時の再確認、低頻度poll、`NORMAL`確認後の`/`へのreplace遷移は画面上の操作とは独立して継続する。
 

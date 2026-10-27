@@ -111,6 +111,20 @@ func validateMaintenanceControl(value MaintenanceControl, environment string) er
 		(value.State != MaintenanceNormal && value.State != MaintenanceActive) || value.MessageTemplate != MaintenanceMessageTemplate || !validMaintenanceReason(value.ReasonCategory) {
 		return apiError("TEMPORARY_UNAVAILABLE")
 	}
+	if value.State == MaintenanceNormal {
+		if value.Revision == 1 && value.ReasonCategory != "INITIALIZATION" {
+			return apiError("TEMPORARY_UNAVAILABLE")
+		}
+		if value.Revision > 1 && value.ReasonCategory != "RECOVERY" {
+			return apiError("TEMPORARY_UNAVAILABLE")
+		}
+	}
+	if value.State == MaintenanceActive {
+		activeReason := value.ReasonCategory == "PLANNED_MAINTENANCE" || value.ReasonCategory == "DATA_MIGRATION" || value.ReasonCategory == "SECURITY_MAINTENANCE"
+		if value.Revision < 2 || !activeReason {
+			return apiError("TEMPORARY_UNAVAILABLE")
+		}
+	}
 	if value.State == MaintenanceNormal && value.EstimatedEndAt != nil {
 		return apiError("TEMPORARY_UNAVAILABLE")
 	}
@@ -687,7 +701,7 @@ func VerifyMaintenanceTransition(ctx context.Context, client *firestore.Client, 
 	if err != nil || event.Authority != request.Authority || event.Environment != request.Environment || !maintenanceAuditPreviousMatches(event, request) || event.State != request.State ||
 		event.PreviousRevision != request.ExpectedRevision || event.Revision != current.Revision || event.ReasonCategory != request.ReasonCategory ||
 		!event.UpdatedAt.Equal(current.UpdatedAt) || event.MessageTemplate != current.MessageTemplate || event.Result != "COMMITTED" || event.CommitSHA != request.CommitSHA ||
-		!maintenanceAuditProvenanceMatches(event, request) || !sameOptionalTime(event.EstimatedEndAt, current.EstimatedEndAt) ||
+		event.CloudRunExecution != request.CloudRunExecution || !maintenanceAuditProvenanceMatches(event, request) || !sameOptionalTime(event.EstimatedEndAt, current.EstimatedEndAt) ||
 		(request.Authority == MaintenanceAuthorityGitHub && !githubExecution.MatchString(event.CloudRunExecution)) ||
 		(request.Authority == MaintenanceAuthorityBreakGlass && !breakGlassExecution.MatchString(event.CloudRunExecution)) {
 		return MaintenanceTransitionResult{}, apiError("TEMPORARY_UNAVAILABLE")

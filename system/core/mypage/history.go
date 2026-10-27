@@ -229,11 +229,12 @@ func (s *HistoryService) Page(ctx context.Context, uid string, account WebAccoun
 		if s.beforeBudgetRelease != nil {
 			s.beforeBudgetRelease()
 		}
-		if err := s.release(claim); err != nil && resultErr == nil {
-			result = HistoryPage{}
+		if err := s.release(claim); err != nil {
 			if errorCode(err) == "MAINTENANCE_ACTIVE" {
+				result = HistoryPage{}
 				resultErr = fmt.Errorf("release history lease before response: %w", err)
-			} else {
+			} else if resultErr == nil {
+				result = HistoryPage{}
 				resultErr = apiError("TEMPORARY_UNAVAILABLE")
 			}
 		}

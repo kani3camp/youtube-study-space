@@ -51,6 +51,14 @@ with sync_playwright() as p:
   assert page.get_by_role('button',name='この依頼の本人確認を完了').count()==1
   assert page.get_by_text('確認が中断されました。下のリンクから手続きをやり直してください。',exact=True).count()==0
  results.append('first persisted-auth observer notification establishes the support-confirmation baseline in NORMAL and ACTIVE')
+ load('/login/channel-confirm','support-confirm-delete-late-restoring-auth')
+ page.get_by_role('button',name='この依頼の本人確認を完了').click()
+ page.get_by_role('heading',name='依頼の本人確認が完了しました').wait_for()
+ assert page.locator('.proof-reference').inner_text()=='b'*64
+ page.wait_for_timeout(900)
+ assert page.get_by_role('heading',name='依頼の本人確認が完了しました').count()==1
+ assert page.locator('.proof-reference').inner_text()=='b'*64
+ results.append('delayed first persisted-auth observer notification preserves an already-issued support receipt')
  for change in ['uid-change','logout-relogin','pagehide-pageshow','route-leave']:
   load('/login/channel-confirm','support-confirm-delete')
   page.get_by_role('button',name='この依頼の本人確認を完了').wait_for()
@@ -131,6 +139,11 @@ with sync_playwright() as p:
  assert page.get_by_role('button',name='Cookie設定',exact=True).count()==1
  assert page.get_by_role('link',name='お問い合わせ',exact=True).count()==1
  results.append('UNKNOWN is fail-safe without falsely claiming planned maintenance')
+ load('/maintenance','maintenance-unknown-authenticated')
+ page.get_by_role('heading',name='現在、マイページの状態を確認できません').wait_for()
+ assert page.get_by_role('button',name='再読み込み',exact=True).count()==1
+ assert page.get_by_role('link',name='お知らせを見る').count()==0
+ results.append('direct UNKNOWN maintenance route offers an explicit reload recovery action')
  for width in [320,390,768,1024,1440]:
   page.set_viewport_size({'width':width,'height':960})
   load('/mypage','maintenance-active-authenticated')

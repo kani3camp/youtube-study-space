@@ -58,7 +58,11 @@ if (import.meta.env.DEV) {
 					if (restoringAuth) uid = 'synthetic-a'
 					listener(uid)
 				},
-				mode?.startsWith('maintenance-active-delayed-support') ? 400 : 20,
+				mode?.includes('late-restoring-auth')
+					? 800
+					: mode?.startsWith('maintenance-active-delayed-support')
+						? 400
+						: 20,
 			)
 			return () => {
 				clearTimeout(timer)

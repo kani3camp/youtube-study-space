@@ -1151,6 +1151,11 @@ summary {
 	justify-content: center;
 	margin-top: 18px;
 }
+.maintenance-recovery {
+	display: flex;
+	justify-content: center;
+	margin-top: 24px;
+}
 .maintenance-announcement .external-link {
 	font-size: 14px;
 	font-weight: 700;

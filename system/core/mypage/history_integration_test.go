@@ -128,6 +128,26 @@ func TestHistoryPageReturnsMaintenanceWhenActivationBlocksLeaseRelease(t *testin
 	require.Empty(t, result.Items)
 }
 
+func TestHistoryPageMaintenanceReleaseOverridesPreflightFailure(t *testing.T) {
+	s, uid, account, q := historyServiceFixture(t, 1, false)
+	ctx := context.Background()
+	_, err := s.Client.Collection(repository.WorkMonths).Doc(repository.WorkMonthID(uid, q.From.Format("2006-01"))).Delete(ctx)
+	require.NoError(t, err)
+	var activationErr error
+	s.beforeBudgetRelease = func() {
+		_, activationErr = maintenanceRef(s.Client).Set(context.Background(), MaintenanceControl{
+			Environment: "development", State: MaintenanceActive, Revision: 2,
+			UpdatedAt: time.Now().UTC(), MessageTemplate: MaintenanceMessageTemplate,
+			ReasonCategory: "PLANNED_MAINTENANCE",
+		})
+	}
+
+	result, err := s.Page(ctx, uid, account, q, strings.Repeat("q", 32))
+	require.NoError(t, activationErr)
+	require.Equal(t, "MAINTENANCE_ACTIVE", errorCode(err))
+	require.Empty(t, result.Items)
+}
+
 func TestHistoryCursorPagesHaveStableTiesAndSnapshotDuringConcurrentAdds(t *testing.T) {
 	s, uid, account, q := historyServiceFixture(t, 5, true)
 	ctx := context.Background()

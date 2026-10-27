@@ -558,6 +558,34 @@ func TestMaintenanceTransitionValidationIsClosedAndExact(t *testing.T) {
 	}
 }
 
+func TestMaintenanceControlValidationRequiresCanonicalStateReasonRevisionCombinations(t *testing.T) {
+	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
+	valid := []MaintenanceControl{
+		{Environment: "development", State: MaintenanceNormal, Revision: 1, UpdatedAt: now, MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "INITIALIZATION"},
+		{Environment: "development", State: MaintenanceNormal, Revision: 3, UpdatedAt: now, MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "RECOVERY"},
+		{Environment: "development", State: MaintenanceActive, Revision: 2, UpdatedAt: now, MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "PLANNED_MAINTENANCE"},
+		{Environment: "development", State: MaintenanceActive, Revision: 4, UpdatedAt: now, MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "DATA_MIGRATION"},
+		{Environment: "development", State: MaintenanceActive, Revision: 6, UpdatedAt: now, MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "SECURITY_MAINTENANCE"},
+	}
+	for _, value := range valid {
+		if err := validateMaintenanceControl(value, "development"); err != nil {
+			t.Fatalf("valid control rejected: %+v: %v", value, err)
+		}
+	}
+	invalid := []MaintenanceControl{
+		{Environment: "development", State: MaintenanceNormal, Revision: 1, UpdatedAt: now, MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "RECOVERY"},
+		{Environment: "development", State: MaintenanceNormal, Revision: 2, UpdatedAt: now, MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "INITIALIZATION"},
+		{Environment: "development", State: MaintenanceNormal, Revision: 2, UpdatedAt: now, MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "PLANNED_MAINTENANCE"},
+		{Environment: "development", State: MaintenanceActive, Revision: 1, UpdatedAt: now, MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "PLANNED_MAINTENANCE"},
+		{Environment: "development", State: MaintenanceActive, Revision: 2, UpdatedAt: now, MessageTemplate: MaintenanceMessageTemplate, ReasonCategory: "RECOVERY"},
+	}
+	for _, value := range invalid {
+		if err := validateMaintenanceControl(value, "development"); errorCode(err) != "TEMPORARY_UNAVAILABLE" {
+			t.Fatalf("invalid control accepted: %+v", value)
+		}
+	}
+}
+
 func TestMaintenanceReceiptValidationDoesNotExpireCommittedEstimate(t *testing.T) {
 	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
 	estimate := now.Add(time.Minute)

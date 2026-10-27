@@ -314,7 +314,13 @@ export function createApp(
 				if (event.persisted) clear()
 			}
 			let previousUID = runtime.session?.currentUID()
+			let identityObserved = false
 			const unsubscribe = runtime.session?.subscribe((uid) => {
+				if (!identityObserved) {
+					identityObserved = true
+					previousUID = uid
+					return
+				}
 				if (uid !== previousUID) clear()
 				previousUID = uid
 			})
@@ -1079,6 +1085,7 @@ export function createApp(
 		}
 		useEffect(() => {
 			let previousUID = runtime.session?.currentUID()
+			let identityObserved = false
 			const clear = () => {
 				operation.current += 1
 				controller.current?.abort()
@@ -1095,6 +1102,12 @@ export function createApp(
 				if (event.persisted) clear()
 			}
 			const unsubscribe = runtime.session?.subscribe((uid) => {
+				if (!identityObserved) {
+					identityObserved = true
+					previousUID = uid
+					setSessionUID(uid)
+					return
+				}
 				if (uid !== previousUID) clear()
 				previousUID = uid
 				setSessionUID(uid)
@@ -1394,6 +1407,17 @@ export function createApp(
 							<ExternalLink href={maintenanceAnnouncementURL}>
 								お知らせを見る
 							</ExternalLink>
+						</div>
+					)}
+					{unknown && (
+						<div className="maintenance-recovery">
+							<button
+								className="button"
+								type="button"
+								onClick={() => window.location.reload()}
+							>
+								再読み込み
+							</button>
 						</div>
 					)}
 				</section>

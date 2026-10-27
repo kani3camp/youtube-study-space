@@ -82,6 +82,15 @@ func TestMaintenancePreviewDoesNotMutateAndVerifyChecksReceipt(t *testing.T) {
 		t.Fatalf("verified=%+v err=%v", verified, err)
 	}
 	eventRef := client.Collection(maintenanceEvents).Doc(request.ActionRef)
+	if _, err := eventRef.Update(ctx, []firestore.Update{{Path: "cloudRunExecution", Value: "mypage-maintenance-operator-other"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyMaintenanceTransition(ctx, client, request, now.Add(time.Second)); err == nil {
+		t.Fatal("verify accepted a different valid Cloud Run execution")
+	}
+	if _, err := eventRef.Update(ctx, []firestore.Update{{Path: "cloudRunExecution", Value: request.CloudRunExecution}}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := eventRef.Update(ctx, []firestore.Update{{Path: "previousState", Value: MaintenanceActive}}); err != nil {
 		t.Fatal(err)
 	}
@@ -400,6 +409,58 @@ func TestMaintenanceTransactionBarrierRejectsNormalOAuthWrite(t *testing.T) {
 	}
 	if _, err := client.Collection("oauth-transactions").Doc(id).Get(ctx); status.Code(err) != codes.NotFound {
 		t.Fatalf("maintenance write committed: %v", err)
+	}
+}
+
+func TestActiveMaintenancePrecedesNormalOAuthLifecycleErrorsButSupportPreservesThem(t *testing.T) {
+	client := maintenanceIntegrationClient(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	_, err := maintenanceRef(client).Set(ctx, MaintenanceControl{
+		Environment: "development", State: MaintenanceActive, Revision: 2,
+		UpdatedAt: now, MessageTemplate: MaintenanceMessageTemplate,
+		ReasonCategory: "PLANNED_MAINTENANCE",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &FirestoreAuthStore{Client: client, Environment: "development"}
+	for _, tc := range []struct {
+		name, status, supportCode string
+		expiresAt                 time.Time
+	}{
+		{name: "expired", status: "channel_verified", supportCode: "OAUTH_TRANSACTION_EXPIRED", expiresAt: now.Add(-time.Second)},
+		{name: "pending", status: "pending", supportCode: "OAUTH_TRANSACTION_PENDING", expiresAt: now.Add(time.Minute)},
+		{name: "consumed", status: "consumed", supportCode: "OAUTH_TRANSACTION_CONSUMED", expiresAt: now.Add(time.Minute)},
+	} {
+		for _, purpose := range []string{"login", "support"} {
+			t.Run(tc.name+"/"+purpose, func(t *testing.T) {
+				id := digest(t.Name())
+				value := OAuthTransaction{
+					Purpose: purpose, Status: tc.status, ExpiresAt: tc.expiresAt,
+					PrivacyPolicyVersion: "p1", TermsVersion: "t1", PrivacyConsentedAt: now,
+					CreatedAt: now, ConfirmationRef: digest("confirmation"),
+					Channel:    Channel{ID: "UCsynthetic0000000000001", DisplayName: "Sample Channel"},
+					VerifiedAt: now, MaintenanceRevision: 1,
+				}
+				if purpose == "support" {
+					value.Support = &SupportBinding{RequestRef: digest("request"), RequestID: digest("request-id"), Environment: "development", Purpose: SupportDelete, ChallengeHash: digest("challenge")}
+				}
+				if _, err := client.Collection("oauth-transactions").Doc(id).Set(ctx, value); err != nil {
+					t.Fatal(err)
+				}
+				want := "MAINTENANCE_ACTIVE"
+				if purpose == "support" {
+					want = tc.supportCode
+				}
+				if _, err := store.ReadVerified(ctx, id, now); errorCode(err) != want {
+					t.Fatalf("ReadVerified code=%s want=%s", errorCode(err), want)
+				}
+				if _, err := store.Consume(ctx, id, value.ConfirmationRef, "absent", Policy{Privacy: "p1", Terms: "t1"}, now); errorCode(err) != want {
+					t.Fatalf("Consume code=%s want=%s", errorCode(err), want)
+				}
+			})
+		}
 	}
 }
 

@@ -200,9 +200,6 @@ func (s *FirestoreAuthStore) ReadVerified(ctx context.Context, id string, now ti
 		if err != nil {
 			return err
 		}
-		if err := checkTransaction(value, now, "channel_verified"); err != nil {
-			return err
-		}
 		if transactionPurpose(value) == "login" {
 			if value.MaintenanceRevision < 1 {
 				return apiError("TEMPORARY_UNAVAILABLE")
@@ -210,6 +207,9 @@ func (s *FirestoreAuthStore) ReadVerified(ctx context.Context, id string, now ti
 			if err := transactionMaintenance(tx, s.Client, s.Environment, value.MaintenanceRevision); err != nil {
 				return err
 			}
+		}
+		if err := checkTransaction(value, now, "channel_verified"); err != nil {
+			return err
 		}
 		result = value
 		return nil
@@ -231,17 +231,19 @@ func (s *FirestoreAuthStore) Consume(ctx context.Context, id, confirmation, chec
 		if err != nil {
 			return err
 		}
+		if transactionPurpose(value) == "login" {
+			if value.MaintenanceRevision < 1 {
+				return apiError("TEMPORARY_UNAVAILABLE")
+			}
+			if err := transactionMaintenance(tx, s.Client, s.Environment, value.MaintenanceRevision); err != nil {
+				return err
+			}
+		}
 		if err := checkTransaction(value, now, "channel_verified"); err != nil {
 			return err
 		}
 		if transactionPurpose(value) != "login" || value.Support != nil {
 			return apiError("SUPPORT_CHALLENGE_INVALID")
-		}
-		if value.MaintenanceRevision < 1 {
-			return apiError("TEMPORARY_UNAVAILABLE")
-		}
-		if err := transactionMaintenance(tx, s.Client, s.Environment, value.MaintenanceRevision); err != nil {
-			return err
 		}
 		if subtle.ConstantTimeCompare([]byte(value.ConfirmationRef), []byte(confirmation)) != 1 {
 			return apiError("OAUTH_TRANSACTION_CHANGED")
