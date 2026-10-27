@@ -59,6 +59,8 @@ const supportOAuthErrors = new Set([
 	'channel_ambiguous',
 	'oauth_denied',
 ])
+const maintenanceAnnouncementURL =
+	'https://kani3camp.github.io/youtube-study-space/'
 const SupportReceipt = createContext<{
 	proofRef: string | null
 	supportRequestRef: string | null
@@ -706,6 +708,7 @@ export function createApp(
 			let maintenanceUpdatedAt =
 				runtime.maintenance.getSnapshot().status?.updatedAt ?? null
 			let previousUID = runtime.session?.currentUID()
+			let identityObserved = false
 			const close = (markInterrupted: boolean) => {
 				if (markInterrupted) interrupted = true
 				controller.current?.abort()
@@ -802,6 +805,11 @@ export function createApp(
 				else if (current.phase === 'normal') load()
 			}
 			const unsubscribe = runtime.session?.subscribe((uid) => {
+				if (!identityObserved) {
+					identityObserved = true
+					previousUID = uid
+					return
+				}
 				if (uid !== previousUID && supportConfirmation.current) close(true)
 				previousUID = uid
 			})
@@ -1356,25 +1364,8 @@ export function createApp(
 	}
 	function MaintenancePage() {
 		const maintenance = useMaintenance()
-		const auth = useMemory()
-		const [sessionUID, setSessionUID] = useState(
-			() => runtime.session?.currentUID() ?? null,
-		)
 		const heading = useRef<HTMLHeadingElement>(null)
 		useEffect(() => heading.current?.focus(), [])
-		useEffect(
-			() =>
-				runtime.session?.subscribe((uid) => setSessionUID(uid)) ?? (() => {}),
-			[],
-		)
-		const estimate = maintenance.status?.estimatedEndAt
-		const estimateText = estimate
-			? new Intl.DateTimeFormat('ja-JP', {
-					dateStyle: 'medium',
-					timeStyle: 'short',
-					timeZone: 'Asia/Tokyo',
-				}).format(Date.parse(estimate))
-			: null
 		const unknown = maintenance.phase === 'unknown'
 		const checking = maintenance.phase === 'checking'
 		return (
@@ -1382,8 +1373,8 @@ export function createApp(
 				<section
 					className="card maintenance-card"
 					aria-labelledby="maintenance-heading"
+					aria-live="polite"
 				>
-					<p className="eyebrow">マイページ</p>
 					<h1 id="maintenance-heading" ref={heading} tabIndex={-1}>
 						{unknown
 							? '現在、マイページの状態を確認できません'
@@ -1396,40 +1387,15 @@ export function createApp(
 							? '安全のため、状態を確認できるまでログイン情報やマイページの内容は表示しません。'
 							: checking
 								? '確認が終わるまで、この画面でお待ちください。'
-								: 'マイページを一時的にご利用いただけません。時間をおいて、もう一度お試しください。'}
+								: '詳しくはお知らせをご確認ください。'}
 					</p>
-					<div className="maintenance-status" aria-live="polite" role="status">
-						{maintenance.phase === 'checking' && '利用状況を確認しています…'}
-						{maintenance.phase === 'unknown' &&
-							'現在の利用状況を確認できません。安全のため、この画面でお待ちください。'}
-						{maintenance.phase === 'active' &&
-							(estimateText
-								? `終了見込み：${estimateText}（JST）`
-								: '終了時刻は未定です。')}
-					</div>
-					<div className="hero-links maintenance-actions">
-						<button
-							className="button primary"
-							type="button"
-							onClick={() => window.location.reload()}
-						>
-							再読み込み
-						</button>
-						{sessionUID && (
-							<button
-								className="button"
-								type="button"
-								onClick={() => void runtime.memory.logout()}
-							>
-								{auth.error === 'LOGOUT_FAILED'
-									? 'ログアウトを再試行'
-									: 'ログアウト'}
-							</button>
-						)}
-						<Link className="button" to="/">
-							トップへ戻る
-						</Link>
-					</div>
+					{maintenance.phase === 'active' && (
+						<div className="maintenance-announcement">
+							<ExternalLink href={maintenanceAnnouncementURL}>
+								お知らせを見る
+							</ExternalLink>
+						</div>
+					)}
 				</section>
 			</main>
 		)

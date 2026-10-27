@@ -111,6 +111,23 @@ func TestHistoryLeaseReleaseCannotCommitAfterMaintenanceActivation(t *testing.T)
 	require.Equal(t, claim.Until, state.Leases[claim.Key])
 }
 
+func TestHistoryPageReturnsMaintenanceWhenActivationBlocksLeaseRelease(t *testing.T) {
+	s, uid, account, q := historyServiceFixture(t, 1, false)
+	var activationErr error
+	s.beforeBudgetRelease = func() {
+		_, activationErr = maintenanceRef(s.Client).Set(context.Background(), MaintenanceControl{
+			Environment: "development", State: MaintenanceActive, Revision: 2,
+			UpdatedAt: time.Now().UTC(), MessageTemplate: MaintenanceMessageTemplate,
+			ReasonCategory: "PLANNED_MAINTENANCE",
+		})
+	}
+
+	result, err := s.Page(context.Background(), uid, account, q, strings.Repeat("p", 32))
+	require.NoError(t, activationErr)
+	require.Equal(t, "MAINTENANCE_ACTIVE", errorCode(err))
+	require.Empty(t, result.Items)
+}
+
 func TestHistoryCursorPagesHaveStableTiesAndSnapshotDuringConcurrentAdds(t *testing.T) {
 	s, uid, account, q := historyServiceFixture(t, 5, true)
 	ctx := context.Background()

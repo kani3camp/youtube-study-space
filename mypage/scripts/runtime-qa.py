@@ -44,6 +44,13 @@ with sync_playwright() as p:
   if purpose=='delete':page.screenshot(path=str(out/'support-receipt-390.png'),full_page=True)
   page.evaluate("window.dispatchEvent(new Event('pagehide'))");page.locator('.proof-reference').wait_for(state='detached')
  results.append('all support purposes -> receipt without signIn/session-complete; pagehide clears proof')
+ for mode in ['support-confirm-delete-restoring-auth','maintenance-active-delayed-support-restoring-auth']:
+  load('/login/channel-confirm',mode)
+  page.get_by_role('button',name='この依頼の本人確認を完了').wait_for()
+  page.wait_for_timeout(500)
+  assert page.get_by_role('button',name='この依頼の本人確認を完了').count()==1
+  assert page.get_by_text('確認が中断されました。下のリンクから手続きをやり直してください。',exact=True).count()==0
+ results.append('first persisted-auth observer notification establishes the support-confirmation baseline in NORMAL and ACTIVE')
  for change in ['uid-change','logout-relogin','pagehide-pageshow','route-leave']:
   load('/login/channel-confirm','support-confirm-delete')
   page.get_by_role('button',name='この依頼の本人確認を完了').wait_for()
@@ -130,16 +137,21 @@ with sync_playwright() as p:
   heading=page.get_by_role('heading',name='ただいまメンテナンス中です');heading.wait_for()
   assert page.evaluate('document.activeElement===document.querySelector("#maintenance-heading")')
   assert page.get_by_text('読書',exact=True).count()==0
-  page.get_by_text('終了見込み：2026/10/27 12:00（JST）',exact=True).wait_for()
+  page.get_by_text('詳しくはお知らせをご確認ください。',exact=True).wait_for()
+  announcement=page.get_by_role('link',name='お知らせを見る')
+  assert announcement.get_attribute('href')=='https://kani3camp.github.io/youtube-study-space/'
+  assert announcement.get_attribute('target')=='_blank'
+  assert page.get_by_text('終了見込み：2026/10/27 12:00（JST）',exact=True).count()==0
+  assert page.get_by_role('button',name='再読み込み',exact=True).count()==0
+  assert page.get_by_role('link',name='トップへ戻る',exact=True).count()==0
   assert page.get_by_role('link',name='プライバシー',exact=True).count()==1
   assert page.get_by_role('link',name='利用規約').count()==1
   assert page.get_by_role('link',name='お問い合わせ').count()==1
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(width,'maintenance','horizontal overflow')
   paths=json.loads(page.locator('#synthetic-requests').inner_text());assert paths and set(paths)=={'/api/public/mypage-status'},paths
   if width==320:
-   page.keyboard.press('Tab');assert page.evaluate('document.activeElement?.textContent?.trim()==="再読み込み"')
-   for label in ['再読み込み','ログアウト','トップへ戻る']:
-    assert page.get_by_role('button' if label!='トップへ戻る' else 'link',name=label,exact=True).bounding_box()['height']>=44
+   page.keyboard.press('Tab');assert page.evaluate('document.activeElement?.textContent?.includes("お知らせを見る")')
+   assert announcement.bounding_box()['height']>=44
   if width==390:
    before=page.evaluate('JSON.stringify(localStorage)')
    page.get_by_role('button',name='Cookie設定',exact=True).click();page.get_by_role('heading',name='Cookie設定',exact=True).wait_for()
@@ -147,22 +159,17 @@ with sync_playwright() as p:
   if width in [320,390,1024,1440]:page.screenshot(path=str(out/f'maintenance-{width}.png'),full_page=True)
  results.append('ACTIVE maintenance UI, focus, legal footer, private-data clearing, and responsive widths')
  load('/maintenance','maintenance-active-delayed-auth');page.get_by_role('heading',name='ただいまメンテナンス中です').wait_for()
- page.get_by_role('button',name='ログアウト',exact=True).wait_for();paths=json.loads(page.locator('#synthetic-requests').inner_text());assert paths and set(paths)=={'/api/public/mypage-status'},paths
- page.get_by_role('button',name='ログアウト',exact=True).click();page.get_by_role('button',name='ログアウト',exact=True).wait_for(state='detached')
- results.append('direct ACTIVE route reacts to delayed persisted auth and offers logout without private APIs')
+ page.wait_for_timeout(200);paths=json.loads(page.locator('#synthetic-requests').inner_text());assert paths and set(paths)=={'/api/public/mypage-status'},paths
+ assert page.get_by_role('button',name='ログアウト',exact=True).count()==0
+ results.append('direct ACTIVE route ignores delayed persisted auth and does not call private APIs')
  load('/maintenance','maintenance-active-authenticated');page.get_by_role('heading',name='ただいまメンテナンス中です').wait_for()
- page.get_by_role('button',name='ログアウト',exact=True).click();page.get_by_role('button',name='ログアウト',exact=True).wait_for(state='detached')
+ page.reload(wait_until='load')
  page.get_by_role('heading',name='ただいまメンテナンス中です').wait_for()
- results.append('authenticated user can log out while ACTIVE')
- with page.expect_navigation(wait_until='load'):
-  page.get_by_role('button',name='再読み込み',exact=True).click()
- page.get_by_role('heading',name='ただいまメンテナンス中です').wait_for()
- results.append('maintenance primary action performs a browser reload of the same route')
+ results.append('browser reload rechecks status and keeps ACTIVE on the same route')
  page.evaluate("history.replaceState(null,'','/runtime-visual.html?path=%2Fmaintenance&mode=maintenance-normal-authenticated')")
- with page.expect_navigation(wait_until='load'):
-  page.get_by_role('button',name='再読み込み',exact=True).click()
+ page.reload(wait_until='load')
  page.get_by_role('heading',name='自分のペースで、少しずつ。').wait_for()
- results.append('maintenance reload observes NORMAL and replace-navigates home')
+ results.append('browser reload observes NORMAL and replace-navigates home')
  load('/maintenance','maintenance-active-authenticated');page.get_by_role('heading',name='ただいまメンテナンス中です').wait_for()
  page.evaluate("Object.defineProperty(document,'visibilityState',{configurable:true,value:'hidden'});document.dispatchEvent(new Event('visibilitychange'))")
  page.locator('#synthetic-maintenance-normal').click()

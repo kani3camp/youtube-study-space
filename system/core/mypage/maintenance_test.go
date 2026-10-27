@@ -327,6 +327,46 @@ func TestSupportOAuthCallbackFailuresStayOnPublicSupportPathDuringMaintenance(t 
 			if body := w.Body.String(); strings.Contains(body, "private-code") || strings.Contains(body, "private-state") {
 				t.Fatal("OAuth input entered the redirect response")
 			}
+			if gate.authorityCalls != 0 {
+				t.Fatalf("support callback unexpectedly used the normal maintenance fence: %d", gate.authorityCalls)
+			}
+		})
+	}
+}
+
+func TestNormalOAuthCallbackFailuresYieldToFinalMaintenanceFence(t *testing.T) {
+	now := time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name        string
+		purposeErr  error
+		providerErr error
+		gateErrors  []error
+		provider    int
+		fails       int
+	}{
+		{name: "expired", purposeErr: apiError("OAUTH_TRANSACTION_EXPIRED"), gateErrors: []error{apiError("MAINTENANCE_ACTIVE")}, fails: 1},
+		{name: "scope", providerErr: apiError("OAUTH_SCOPE_INSUFFICIENT"), gateErrors: []error{nil, apiError("MAINTENANCE_ACTIVE")}, provider: 1, fails: 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &maintenanceFlowStore{tx: OAuthTransaction{Purpose: "login", MaintenanceRevision: 1}, purposeErr: tc.purposeErr}
+			provider := &maintenanceProvider{err: tc.providerErr}
+			gate := &maintenanceStub{authoritative: tc.gateErrors}
+			h := &HTTPHandler{
+				PublicOrigin: "https://mypage.example.test", Maintenance: gate,
+				Verifier: &boundaryVerifier{},
+				Auth:     &AuthService{Store: store, Provider: provider, Maintenance: gate, Now: func() time.Time { return now }},
+			}
+			r := httptest.NewRequest(http.MethodGet, "https://mypage.example.test/api/auth/youtube/callback?code=private-code&state=private-state", nil)
+			r.Header.Set("Origin", h.PublicOrigin)
+			r.AddCookie(&http.Cookie{Name: "__session", Value: strings.Repeat("a", 64)})
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			if w.Code != http.StatusFound || w.Header().Get("Location") != "/maintenance" || provider.calls != tc.provider || store.failCalls != tc.fails {
+				t.Fatalf("status=%d location=%s provider=%d fails=%d", w.Code, w.Header().Get("Location"), provider.calls, store.failCalls)
+			}
+			if body := w.Body.String(); strings.Contains(body, "private-code") || strings.Contains(body, "private-state") {
+				t.Fatal("OAuth input entered the redirect response")
+			}
 		})
 	}
 }

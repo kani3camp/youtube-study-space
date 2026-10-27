@@ -209,33 +209,50 @@ func (s *AuthService) Callback(ctx context.Context, id, state, code string, deni
 	return err
 }
 
+func (s *AuthService) callbackMaintenance(ctx context.Context, id string, expectedRevision int64) error {
+	revision, err := s.Maintenance.CheckAuthoritativeRevision(ctx)
+	if err == nil && revision != expectedRevision {
+		err = apiError("TEMPORARY_UNAVAILABLE")
+	}
+	if err == nil {
+		return nil
+	}
+	if failErr := s.Store.Fail(ctx, id); failErr != nil {
+		err = errors.Join(err, fmt.Errorf("fail maintenance OAuth transaction: %w", failErr))
+	}
+	return err
+}
+
 // CallbackWithPurpose returns only the server-owned, fixed transaction
 // purpose. The HTTP boundary uses it to keep support failures on the public
 // support path without reflecting OAuth inputs or trusting callback query data.
-func (s *AuthService) CallbackWithPurpose(ctx context.Context, id, state, code string, denied bool) (string, error) {
+func (s *AuthService) CallbackWithPurpose(ctx context.Context, id, state, code string, denied bool) (purpose string, resultErr error) {
 	if id == "" || state == "" {
 		return "", apiError("OAUTH_TRANSACTION_REQUIRED")
 	}
-	purpose := ""
 	callbackRevision := int64(0)
 	if purposeStore, ok := s.Store.(interface {
 		ReadPurpose(context.Context, string, time.Time) (string, int64, error)
 	}); ok {
-		var err error
-		purpose, callbackRevision, err = purposeStore.ReadPurpose(ctx, id, s.Now().UTC())
-		if err != nil {
-			return purpose, fmt.Errorf("read OAuth callback purpose: %w", err)
-		}
-		if purpose == "login" && s.Maintenance != nil {
-			revision, checkErr := s.Maintenance.CheckAuthoritativeRevision(ctx)
-			if checkErr == nil && revision != callbackRevision {
-				checkErr = apiError("TEMPORARY_UNAVAILABLE")
-			}
-			if checkErr != nil {
-				if failErr := s.Store.Fail(ctx, id); failErr != nil {
-					checkErr = errors.Join(checkErr, fmt.Errorf("fail maintenance OAuth transaction: %w", failErr))
+		purpose, callbackRevision, resultErr = purposeStore.ReadPurpose(ctx, id, s.Now().UTC())
+		finalMaintenanceCheck := purpose == "login" && s.Maintenance != nil
+		if finalMaintenanceCheck {
+			defer func() {
+				if !finalMaintenanceCheck {
+					return
 				}
-				return purpose, fmt.Errorf("check maintenance before OAuth callback: %w", checkErr)
+				if err := s.callbackMaintenance(ctx, id, callbackRevision); err != nil {
+					resultErr = fmt.Errorf("check maintenance after OAuth callback: %w", err)
+				}
+			}()
+		}
+		if resultErr != nil {
+			return purpose, fmt.Errorf("read OAuth callback purpose: %w", resultErr)
+		}
+		if finalMaintenanceCheck {
+			if err := s.callbackMaintenance(ctx, id, callbackRevision); err != nil {
+				finalMaintenanceCheck = false
+				return purpose, fmt.Errorf("check maintenance before OAuth callback: %w", err)
 			}
 		}
 	}
@@ -280,18 +297,6 @@ func (s *AuthService) CallbackWithPurpose(ctx context.Context, id, state, code s
 			}
 		}
 		return purpose, fmt.Errorf("verify OAuth transaction: %w", err)
-	}
-	if purpose == "login" && s.Maintenance != nil {
-		revision, checkErr := s.Maintenance.CheckAuthoritativeRevision(ctx)
-		if checkErr == nil && revision != callbackRevision {
-			checkErr = apiError("TEMPORARY_UNAVAILABLE")
-		}
-		if checkErr != nil {
-			if failErr := s.Store.Fail(ctx, id); failErr != nil {
-				checkErr = errors.Join(checkErr, fmt.Errorf("fail completed maintenance OAuth transaction: %w", failErr))
-			}
-			return purpose, fmt.Errorf("check maintenance after OAuth callback: %w", checkErr)
-		}
 	}
 	return purpose, nil
 }

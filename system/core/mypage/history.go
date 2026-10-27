@@ -55,6 +55,9 @@ type HistoryService struct {
 	// beforeBudgetWrite is a deterministic integration-test seam used to
 	// exercise transaction ordering. Production constructors leave it nil.
 	beforeBudgetWrite func()
+	// beforeBudgetRelease deterministically activates faults after a page has
+	// been read but before its lease-release transaction. Production leaves it nil.
+	beforeBudgetRelease func()
 }
 
 func (s *HistoryService) authorization(ctx context.Context, uid string, account WebAccount, p historyPolicy) (HistoryTier, string, error) {
@@ -223,9 +226,16 @@ func (s *HistoryService) Page(ctx context.Context, uid string, account WebAccoun
 		return result, err
 	}
 	defer func() {
+		if s.beforeBudgetRelease != nil {
+			s.beforeBudgetRelease()
+		}
 		if err := s.release(claim); err != nil && resultErr == nil {
 			result = HistoryPage{}
-			resultErr = apiError("TEMPORARY_UNAVAILABLE")
+			if errorCode(err) == "MAINTENANCE_ACTIVE" {
+				resultErr = fmt.Errorf("release history lease before response: %w", err)
+			} else {
+				resultErr = apiError("TEMPORARY_UNAVAILABLE")
+			}
 		}
 	}()
 	asOf, consistent, err := s.preflight(ctx, uid, q, cursor.AsOf, p.MaxIndexEntries)

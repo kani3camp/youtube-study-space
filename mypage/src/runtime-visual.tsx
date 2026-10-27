@@ -37,6 +37,7 @@ if (import.meta.env.DEV) {
 	let releaseChannel: (() => void) | null = null
 	let channelReads = 0
 	const listeners = new Set<(uid: string | null) => void>()
+	const restoringAuth = mode?.endsWith('restoring-auth') ?? false
 	const emit = (next: string | null) => {
 		uid = next
 		for (const listener of listeners) listener(next)
@@ -52,7 +53,13 @@ if (import.meta.env.DEV) {
 		appCheck: async () => 'synthetic-app',
 		subscribe: (listener) => {
 			listeners.add(listener)
-			const timer = setTimeout(() => listener(uid), 20)
+			const timer = setTimeout(
+				() => {
+					if (restoringAuth) uid = 'synthetic-a'
+					listener(uid)
+				},
+				mode?.startsWith('maintenance-active-delayed-support') ? 400 : 20,
+			)
 			return () => {
 				clearTimeout(timer)
 				listeners.delete(listener)
@@ -212,13 +219,13 @@ if (import.meta.env.DEV) {
 			return Response.json({
 				...(mode?.startsWith('support-confirm-') ||
 				mode === 'privacy-intake-authenticated' ||
-				mode === 'maintenance-active-delayed-support'
+				mode?.startsWith('maintenance-active-delayed-support')
 					? {
 							purpose: 'support',
 							supportPurpose:
 								mode === 'privacy-intake-authenticated'
 									? 'delete'
-									: mode === 'maintenance-active-delayed-support'
+									: mode?.startsWith('maintenance-active-delayed-support')
 										? 'delete'
 										: mode.split('-')[2],
 						}
