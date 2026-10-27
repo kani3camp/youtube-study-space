@@ -21,7 +21,7 @@ class GateResultsTest(unittest.TestCase):
         needs['repository']['result'] = 'success'
         return needs
 
-    def test_unselected_domains_can_skip(self):
+    def test_unselected_domains_and_operations_can_skip(self):
         gate.validate(self.fixture(), 'false')
 
     def test_all_selected_domains_must_succeed(self):
@@ -42,7 +42,7 @@ class GateResultsTest(unittest.TestCase):
                 with self.subTest(name=name, group=group), self.assertRaises(ValueError):
                     gate.validate(needs, 'false')
 
-    def test_every_failure_or_cancellation_reaches_gate_including_reusables(self):
+    def test_every_failure_or_cancellation_reaches_gate(self):
         for name in gate.DEPENDENCIES:
             for result in ('failure', 'cancelled', '', 'unknown', None):
                 needs = self.fixture()
@@ -73,43 +73,27 @@ class GateResultsTest(unittest.TestCase):
                 with self.subTest(group=group, bad=bad), self.assertRaises(ValueError):
                     gate.validate(needs, 'false')
 
-    def test_authenticated_dispatch_only_requires_terraform_and_repository(self):
+    def test_authenticated_dispatch_requires_terraform_validation(self):
         needs = self.fixture(gcp_terraform='true')
+        with self.assertRaises(ValueError):
+            gate.validate(needs, 'false')
         needs['gcp-terraform-validate']['result'] = 'success'
         gate.validate(needs, 'false')
 
-    def test_schema_audit_remains_optional_but_requested_audit_must_succeed(self):
+    def test_requested_operation_cannot_skip_or_fail(self):
         needs = self.fixture()
-        with self.assertRaises(ValueError):
-            gate.validate(needs, 'true')
-        needs['gcp-user-activity-schema-audit']['result'] = 'success'
+        for status in ('skipped', 'failure', 'cancelled'):
+            needs['operations']['result'] = status
+            with self.subTest(status=status), self.assertRaises(ValueError):
+                gate.validate(needs, 'true')
+        needs['operations']['result'] = 'success'
         gate.validate(needs, 'true')
-        for bad in ('', 'TRUE', '1'):
+        for bad in ('', 'TRUE', '1', True):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 gate.validate(needs, bad)
 
-    def test_requested_foundation_cannot_skip_or_fail(self):
-        needs = self.fixture()
-        with self.assertRaises(ValueError):
-            gate.validate(needs, 'false', 'true')
-        needs['mypage-foundation-authenticated']['result'] = 'success'
-        gate.validate(needs, 'false', 'true')
-        for bad in ('', 'TRUE', '1'):
-            with self.subTest(bad=bad), self.assertRaises(ValueError):
-                gate.validate(needs, 'false', bad)
-
     def test_real_gate_entrypoint_returns_nonzero_on_bad_or_missing_json(self):
         for payload, expected in ((json.dumps(self.fixture()), 0), ('{}', 1), ('not-json', 1), ('[]', 1)):
-            env = dict(os.environ, CI_NEEDS=payload, CI_SCHEMA_AUDIT_REQUESTED='false')
+            env = dict(os.environ, CI_NEEDS=payload, CI_OPERATION_REQUESTED='false')
             result = subprocess.run([sys.executable, str(SCRIPT)], env=env, capture_output=True)
             self.assertEqual(result.returncode, expected, result.stderr)
-
-    def test_requested_hosting_includes_build_apply_and_browser_result(self):
-        needs = self.fixture()
-        with self.assertRaises(ValueError):
-            gate.validate(needs, 'false', 'false', 'true')
-        needs['mypage-hosting-authenticated']['result'] = 'success'
-        gate.validate(needs, 'false', 'false', 'true')
-        for bad in ('', 'TRUE', '1'):
-            with self.subTest(bad=bad), self.assertRaises(ValueError):
-                gate.validate(needs, 'false', 'false', bad)
