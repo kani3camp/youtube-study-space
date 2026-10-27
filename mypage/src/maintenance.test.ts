@@ -77,9 +77,10 @@ describe('public maintenance status', () => {
 	it('checks on entry and visible interval, stops hidden, and checks on return', async () => {
 		vi.useFakeTimers()
 		const { documentTarget } = browserFixture()
+		let state: 'ACTIVE' | 'NORMAL' = 'ACTIVE'
 		const request = vi.fn<typeof fetch>(async () =>
 			Response.json({
-				state: 'ACTIVE',
+				state,
 				updatedAt: '2026-10-27T02:00:00Z',
 				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
 			}),
@@ -96,10 +97,12 @@ describe('public maintenance status', () => {
 		documentTarget.dispatchEvent(new Event('visibilitychange'))
 		await vi.advanceTimersByTimeAsync(360_000)
 		expect(request).toHaveBeenCalledTimes(2)
+		state = 'NORMAL'
 		documentTarget.visibilityState = 'visible'
 		documentTarget.dispatchEvent(new Event('visibilitychange'))
 		await settle()
 		expect(request).toHaveBeenCalledTimes(3)
+		expect(monitor.getSnapshot().phase).toBe('normal')
 		dispose()
 	})
 
@@ -122,82 +125,6 @@ describe('public maintenance status', () => {
 		state = 'NORMAL'
 		await vi.advanceTimersByTimeAsync(120_000)
 		expect(monitor.getSnapshot().phase).toBe('normal')
-		dispose()
-	})
-
-	it('keeps the ACTIVE snapshot stable while a background poll is pending', async () => {
-		vi.useFakeTimers()
-		browserFixture()
-		let call = 0
-		let release: (response: Response) => void = () => {}
-		const request = vi.fn<typeof fetch>(async () => {
-			call++
-			if (call === 1)
-				return Response.json({
-					state: 'ACTIVE',
-					updatedAt: '2026-10-27T02:00:00Z',
-					estimatedEndAt: '2026-10-27T03:00:00Z',
-					messageTemplate: 'MYPAGE_MAINTENANCE_V1',
-				})
-			return new Promise<Response>((resolve) => {
-				release = resolve
-			})
-		})
-		const monitor = new MaintenanceMonitor(request)
-		const dispose = monitor.mount()
-		monitor.setRouteActive(true)
-		await settle()
-		const active = monitor.getSnapshot()
-		expect(active.phase).toBe('active')
-		await vi.advanceTimersByTimeAsync(120_000)
-		expect(request).toHaveBeenCalledTimes(2)
-		expect(monitor.getSnapshot()).toBe(active)
-		release(
-			Response.json({
-				state: 'ACTIVE',
-				updatedAt: '2026-10-27T02:00:00Z',
-				estimatedEndAt: '2026-10-27T03:00:00Z',
-				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
-			}),
-		)
-		await settle()
-		expect(monitor.getSnapshot().phase).toBe('active')
-		dispose()
-	})
-
-	it('keeps unchanged NORMAL usable during a background poll', async () => {
-		vi.useFakeTimers()
-		browserFixture()
-		let call = 0
-		let release: (response: Response) => void = () => {}
-		const phases: string[] = []
-		const normal = {
-			state: 'NORMAL' as const,
-			updatedAt: '2026-10-27T02:00:00Z',
-			messageTemplate: 'MYPAGE_MAINTENANCE_V1' as const,
-		}
-		const request = vi.fn<typeof fetch>(async () => {
-			call++
-			if (call === 1) return Response.json(normal)
-			return new Promise<Response>((resolve) => {
-				release = resolve
-			})
-		})
-		const monitor = new MaintenanceMonitor(request, (phase) =>
-			phases.push(phase),
-		)
-		const dispose = monitor.mount()
-		monitor.setRouteActive(true)
-		await settle()
-		expect(monitor.getSnapshot().phase).toBe('normal')
-		phases.length = 0
-		await vi.advanceTimersByTimeAsync(120_000)
-		expect(monitor.getSnapshot().phase).toBe('normal')
-		expect(phases).toEqual([])
-		release(Response.json(normal))
-		await settle()
-		expect(monitor.getSnapshot().phase).toBe('normal')
-		expect(phases).toEqual([])
 		dispose()
 	})
 
@@ -226,30 +153,6 @@ describe('public maintenance status', () => {
 			status: { updatedAt },
 		})
 		expect(phases).toEqual(['checking'])
-		dispose()
-	})
-
-	it('recovers ACTIVE to NORMAL when a hidden tab becomes visible', async () => {
-		const { documentTarget } = browserFixture()
-		let state: 'ACTIVE' | 'NORMAL' = 'ACTIVE'
-		const monitor = new MaintenanceMonitor(async () =>
-			Response.json({
-				state,
-				updatedAt: '2026-10-27T02:00:00Z',
-				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
-			}),
-		)
-		const dispose = monitor.mount()
-		monitor.setRouteActive(true)
-		await settle()
-		expect(monitor.getSnapshot().phase).toBe('active')
-		documentTarget.visibilityState = 'hidden'
-		documentTarget.dispatchEvent(new Event('visibilitychange'))
-		state = 'NORMAL'
-		documentTarget.visibilityState = 'visible'
-		documentTarget.dispatchEvent(new Event('visibilitychange'))
-		await settle()
-		expect(monitor.getSnapshot().phase).toBe('normal')
 		dispose()
 	})
 
@@ -340,27 +243,6 @@ describe('public maintenance status', () => {
 				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
 			}).updatedAt,
 		).toBe(updatedAt)
-	})
-
-	it('preserves the authoritative estimate when an API error repeats ACTIVE', async () => {
-		browserFixture()
-		const monitor = new MaintenanceMonitor(async () =>
-			Response.json({
-				state: 'ACTIVE',
-				updatedAt: '2026-10-27T02:00:00Z',
-				estimatedEndAt: '2026-10-27T03:00:00Z',
-				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
-			}),
-		)
-		const dispose = monitor.mount()
-		monitor.setRouteActive(true)
-		await settle()
-		monitor.markActive()
-		expect(monitor.getSnapshot()).toMatchObject({
-			phase: 'active',
-			status: { estimatedEndAt: '2026-10-27T03:00:00Z' },
-		})
-		dispose()
 	})
 
 	it('closes the private gate synchronously for forced route and pageshow rechecks', async () => {

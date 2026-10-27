@@ -43,6 +43,10 @@ WIF providerはsource固定の対象project numberを含むexact resource name�
 
 Terraformでは`runtime_settings.maintenance_operator_enabled=true`とAPI用digestから分離した`maintenance_operator_image_digest` / `maintenance_operator_image_source_sha`を、`maintenance_operator`以降のstageで必須にする。source SHAは実行中commitのancestorであり、Artifact Registryの同SHA tagがoperator digestを指すことをPlan/Applyの双方で検証する。通常のTerraform identity、MyPage API runtime identity、backend deployerをmaintenance workflowへ流用しない。独立した承認者がいる運用体制ではPROD Environmentにrequired reviewerを設定する。単独運用では自己承認required reviewerを要求せず、exact confirmation、`main` / exact SHA、immutable owner/actor ID、初回runだけという機械的制約を維持する。
 
+## 検証の責務
+
+同じ条件を複数層で文字列比較しない。Frontend unit testは公開schema・route遷移・polling lifecycle、Go unit testは認証境界・fail-closed・response/write fence、Firestore EmulatorはCASとcontrol/auditの原子性、Terraform native testは実Plan上のIAM・resource境界、workflow Python testは認証前入力検証と公開postconditionを担当する。実Planを検証する層がある場合、Terraform resource総数やsource内の記述順を別テストの固定値として複製しない。例外は、credential取得前の拒否や秘密情報の非公開など、層をまたぐ安全境界を直接証明する最小限の検証だけとする。
+
 operatorを構築するauthenticated foundation workflowは`target=development|production`を明示する。Productionではprotected Environmentへ入る前に`main`、exact SHA、repository/owner/actorのimmutable ID、workflow refを検査し、`mypage-prod-plan` / `mypage-prod-apply` Environment自体もdeployment branchを`main`だけに固定する。prod State key、prod専用AWS role/GCP service accountに分離し、`registry-plan|apply`、`image-build`、`maintenance-operator-plan|apply`、既存runtimeを保持する`maintenance-upgrade-plan|apply`以外を認証前に拒否する。image-buildはAWS/State credentialを受け取らず、対象Production repositoryだけを照合してimmutable tagをpush/readbackする。source上の経路が存在しても、Environment/secret/stateの設定や実Plan/Apply/image pushを完了したことにはならない。
 
 ## GitHub Actions障害時のbreak-glass

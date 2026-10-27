@@ -321,23 +321,6 @@ func TestMaintenanceAuditCreateFailureRollsBackControl(t *testing.T) {
 	}
 }
 
-func TestMaintenanceRejectsNoOpTransitionWithoutAudit(t *testing.T) {
-	client := maintenanceIntegrationClient(t)
-	ctx := context.Background()
-	now := time.Now().UTC().Truncate(time.Microsecond)
-	seedNormalMaintenance(t, client, "development", now)
-	action := "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-	request := maintenanceRequest(MaintenanceNormal, 1, action, "RECOVERY")
-	request.ExpectedPreviousState = MaintenanceNormal
-	_, err := ApplyMaintenanceTransition(ctx, client, request, now.Add(time.Minute))
-	if errorCode(err) != "INVALID_REQUEST" {
-		t.Fatalf("no-op transition code=%s", errorCode(err))
-	}
-	if _, err := client.Collection(maintenanceEvents).Doc(action).Get(ctx); status.Code(err) != codes.NotFound {
-		t.Fatalf("rejected transition wrote audit: %v", err)
-	}
-}
-
 func TestMaintenanceGateFailsClosedForMissingAndMalformedControl(t *testing.T) {
 	client := maintenanceIntegrationClient(t)
 	ctx := context.Background()

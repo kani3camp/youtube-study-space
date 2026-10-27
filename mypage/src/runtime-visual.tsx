@@ -31,20 +31,13 @@ if (import.meta.env.DEV) {
 			: 'NORMAL'
 	const requests: string[] = []
 	let syntheticVerified = false
-	let apiMaintenanceOnce = mode === 'maintenance-api-recovery-authenticated'
 	let holdNext = false
 	let release: (() => void) | null = null
-	let holdNextChannel = false
-	let releaseChannel: (() => void) | null = null
-	let channelReads = 0
 	const listeners = new Set<(uid: string | null) => void>()
-	const restoringAuth = mode?.endsWith('restoring-auth') ?? false
 	const emit = (next: string | null) => {
 		uid = next
 		for (const listener of listeners) listener(next)
 	}
-	if (mode === 'maintenance-active-delayed-auth')
-		setTimeout(() => emit('synthetic-a'), 150)
 	const session: BrowserSession = {
 		currentUID: () => uid,
 		idToken: async (wanted) => {
@@ -55,19 +48,7 @@ if (import.meta.env.DEV) {
 		subscribe: (listener) => {
 			listeners.add(listener)
 			const synchronous = mode === 'polling-authenticated'
-			const timer = synchronous
-				? null
-				: setTimeout(
-						() => {
-							if (restoringAuth) uid = 'synthetic-a'
-							listener(uid)
-						},
-						mode?.includes('late-restoring-auth')
-							? 800
-							: mode?.startsWith('maintenance-active-delayed-support')
-								? 400
-								: 20,
-					)
+			const timer = synchronous ? null : setTimeout(() => listener(uid), 20)
 			if (synchronous) listener(uid)
 			return () => {
 				if (timer !== null) clearTimeout(timer)
@@ -211,38 +192,18 @@ if (import.meta.env.DEV) {
 				{ status: 400 },
 			)
 		if (path === '/api/auth/youtube/channel') {
-			channelReads++
-			if (holdNextChannel) {
-				holdNextChannel = false
-				await new Promise<void>((resolve) => {
-					releaseChannel = resolve
-				})
-			}
-			if (mode?.startsWith('maintenance-active-delayed-'))
-				await new Promise((resolve) => setTimeout(resolve, 250))
-			if (mode === 'maintenance-active-delayed-failure')
-				return Response.json(
-					{ error: { code: 'TEMPORARY_UNAVAILABLE' } },
-					{ status: 503 },
-				)
 			return Response.json({
 				...(mode?.startsWith('support-confirm-') ||
-				mode === 'privacy-intake-authenticated' ||
-				mode?.startsWith('maintenance-active-delayed-support')
+				mode === 'privacy-intake-authenticated'
 					? {
 							purpose: 'support',
 							supportPurpose:
 								mode === 'privacy-intake-authenticated'
 									? 'delete'
-									: mode?.startsWith('maintenance-active-delayed-support')
-										? 'delete'
-										: mode.split('-')[2],
+									: mode.split('-')[2],
 						}
 					: { purpose: 'login' }),
-				displayName:
-					mode === 'channel-visibility-refresh'
-						? `Sample Channel ${channelReads}`
-						: 'Sample Channel',
+				displayName: 'Sample Channel',
 				handle: '@sample',
 				avatarUrl:
 					mode === 'channel-avatar-failure'
@@ -309,14 +270,6 @@ if (import.meta.env.DEV) {
 				{ error: { code: 'INVALID_REQUEST' } },
 				{ status: 404 },
 			)
-		if (apiMaintenanceOnce) {
-			apiMaintenanceOnce = false
-			maintenanceState = 'NORMAL'
-			return Response.json(
-				{ error: { code: 'MAINTENANCE_ACTIVE' } },
-				{ status: 503 },
-			)
-		}
 		const response = structuredClone(fixture) as MyPage
 		const token = new Headers(init?.headers).get('Authorization')
 		if (token?.includes('synthetic-b') && response.current.data)
@@ -421,22 +374,6 @@ if (import.meta.env.DEV) {
 						onClick={() => release?.()}
 					>
 						Release response
-					</button>
-					<button
-						id="synthetic-hold-channel"
-						type="button"
-						onClick={() => {
-							holdNextChannel = true
-						}}
-					>
-						Hold channel response
-					</button>
-					<button
-						id="synthetic-release-channel"
-						type="button"
-						onClick={() => releaseChannel?.()}
-					>
-						Release channel response
 					</button>
 					<button
 						id="synthetic-maintenance-normal"

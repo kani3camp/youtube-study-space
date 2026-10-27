@@ -6,6 +6,12 @@ import {
 
 describe('maintenance announcement destinations', () => {
 	it('selects the reviewed DEV and PROD channels from the public project ID', () => {
+		expect(maintenanceAnnouncementURLs).toEqual({
+			development:
+				'https://www.youtube.com/channel/UChBj4xZePvWyGmTKct5FBcg/posts',
+			production:
+				'https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/posts',
+		})
 		expect(
 			maintenanceAnnouncementURLForProject('test-youtube-study-space'),
 		).toBe(maintenanceAnnouncementURLs.development)
@@ -22,18 +28,5 @@ describe('maintenance announcement destinations', () => {
 		'other-project',
 	])('does not fall back across environments for %s', (projectID) => {
 		expect(maintenanceAnnouncementURLForProject(projectID)).toBeNull()
-	})
-
-	it('keeps both destinations canonical, public YouTube posts URLs', () => {
-		for (const destination of Object.values(maintenanceAnnouncementURLs)) {
-			const url = new URL(destination)
-			expect(url.protocol).toBe('https:')
-			expect(url.hostname).toBe('www.youtube.com')
-			expect(url.pathname).toMatch(/^\/channel\/UC[A-Za-z0-9_-]+\/posts$/)
-			expect(url.search).toBe('')
-			expect(url.hash).toBe('')
-			expect(url.username).toBe('')
-			expect(url.password).toBe('')
-		}
 	})
 })

@@ -18,7 +18,7 @@ need(len(plans) == 6)
 # native envelope. Preserve the actual provider-generated changes/unknowns;
 # only supply the test run's known stage and successful completion metadata.
 # The authenticated path continues to require the real native envelope.
-for rendered, stage, resources in zip(plans, ("foundation_metadata", "foundation", "registry", "maintenance_operator", "runtime_private", "runtime_public"), (4, 8, 9, 26, 28, 29)):
+for rendered, stage in zip(plans, ("foundation_metadata", "foundation", "registry", "maintenance_operator", "runtime_private", "runtime_public")):
     variables = {"stage": {"value": stage}}
     if stage in set(runtime_contract.MODES.values()):
         variables["runtime_settings"] = {"value": json.loads((root / "tests/runtime-settings.fixture.json").read_text())}
@@ -42,5 +42,6 @@ for rendered, stage, resources in zip(plans, ("foundation_metadata", "foundation
             need(False)
     else:
         summary = validator(envelope, stage)
+        resources = len(envelope["resource_changes"])
         need(summary == {"resources": resources, "creates": resources})
 print("Native mocked maintenance operator Plan accepted; direct runtime creation without completed bootstrap rejected; no cloud I/O.")

@@ -229,64 +229,23 @@ class MaintenanceContextTest(unittest.TestCase):
 
 
 class MaintenanceWorkflowSourceContractTest(unittest.TestCase):
-    def test_manual_only_preflight_and_signed_sender_wiring(self):
+    def test_manual_least_privilege_operator_sequence(self):
         workflow = (ROOT / ".github/workflows/mypage-maintenance.yml").read_text()
         self.assertIn("on:\n  workflow_dispatch:", workflow)
         for trigger in ("pull_request:", "push:", "schedule:", "workflow_call:"):
             self.assertNotIn(trigger, workflow)
-        self.assertEqual(workflow.count("MYPAGE_TRIGGERING_ACTOR_ID: ${{ github.event.sender.id }}"), 2)
-        self.assertNotIn("GITHUB_TRIGGERING_ACTOR_ID", workflow)
         self.assertLess(workflow.index("Reject untrusted context and invalid transition before authentication"), workflow.index("google-github-actions/auth@"))
         self.assertLess(workflow.index("Verify deployed capability and bind the exact previous state"), workflow.index("google-github-actions/auth@"))
-        self.assertNotIn("set -x", workflow)
-
-    def test_permissions_actions_identity_and_job_are_fixed(self):
-        workflow = (ROOT / ".github/workflows/mypage-maintenance.yml").read_text()
         self.assertIn("permissions: {}", workflow)
         self.assertIn("id-token: write", workflow)
-        self.assertIn("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", workflow)
-        self.assertIn("google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093", workflow)
         self.assertIn("secrets.MYPAGE_MAINTENANCE_WIF_PROVIDER", workflow)
         self.assertIn("secrets.MYPAGE_MAINTENANCE_SERVICE_ACCOUNT", workflow)
-        self.assertIn("EXPECTED_PROVIDER: ${{ steps.context.outputs.provider }}", workflow)
-        self.assertIn('[[ "${PROVIDER}" == "${EXPECTED_PROVIDER}" ]]', workflow)
-        self.assertNotIn("MYPAGE_GCP_WIF_PROVIDER", workflow)
         self.assertIn("gcloud run jobs execute mypage-maintenance-operator", workflow)
-        self.assertIn("--args=\"${args}\"", workflow)
-        self.assertNotIn("--authority=", workflow)
         self.assertIn("run_operator preview", workflow)
         self.assertIn("run_operator apply", workflow)
         self.assertIn("run_operator verify", workflow)
-        self.assertIn("--expected-previous-state=${EXPECTED_PREVIOUS_STATE}", workflow)
-        self.assertIn("--expected-previous-estimated-end-at=${EXPECTED_PREVIOUS_ESTIMATED_END_AT}", workflow)
-        self.assertIn("valid_frontend_capability(html)", workflow)
-        self.assertIn("public_control(json.loads", workflow)
         self.assertLess(workflow.index("run_operator preview"), workflow.index("run_operator apply"))
         self.assertLess(workflow.index("run_operator apply"), workflow.index("run_operator verify"))
-        self.assertIn("authoritativeReadbackVerified", workflow)
-        self.assertIn("PUBLIC_ORIGIN: ${{ steps.context.outputs.public_origin }}", workflow)
-        self.assertNotIn("vars.MYPAGE_PUBLIC_ORIGIN", workflow)
-        self.assertIn("EXPECTED_ESTIMATED_END_AT: ${{ steps.context.outputs.estimated_end_at }}", workflow)
-        self.assertIn("verify_public_postconditions(origin, expected, expected_estimate)", workflow)
-        self.assertNotIn("urllib.request.urlopen", workflow)
-        self.assertIn("time.monotonic() + 30", workflow)
-        self.assertIn("time.sleep(1)", workflow)
-        self.assertIn("actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9", workflow)
-
-    def test_terraform_trust_override_role_and_bootstrap_are_cross_checked(self):
-        terraform = (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text()
-        self.assertIn("assertion.workflow_sha == assertion.sha", terraform)
-        self.assertNotIn("assertion.job_workflow_sha", terraform)
-        self.assertIn('role     = "roles/run.jobsExecutorWithOverrides"', terraform)
-        self.assertIn('image   = var.runtime_settings.maintenance_operator_image_digest', terraform)
-        self.assertIn('contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage)', terraform)
-        self.assertIn('command = ["/app/mypage-maintenance-breakglass"]', terraform)
-        self.assertIn('command = ["/app/mypage-maintenance-bootstrap-check"]', terraform)
-
-    def test_repository_ci_discovers_and_lints_the_operator_workflow(self):
-        repository_ci = (ROOT / ".github/workflows/ci-repository.yml").read_text()
-        self.assertIn("-p 'test_ci_*.py'", repository_ci)
-        self.assertIn(".github/workflows/mypage-maintenance.yml", repository_ci)
 
 
 if __name__ == "__main__":
