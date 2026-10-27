@@ -152,7 +152,7 @@ with sync_playwright() as p:
   assert page.get_by_text('読書',exact=True).count()==0
   page.get_by_text('詳しくはお知らせをご確認ください。',exact=True).wait_for()
   announcement=page.get_by_role('link',name='お知らせを見る')
-  assert announcement.get_attribute('href')=='https://kani3camp.github.io/youtube-study-space/'
+  assert announcement.get_attribute('href')=='https://www.youtube.com/channel/UChBj4xZePvWyGmTKct5FBcg/posts'
   assert announcement.get_attribute('target')=='_blank'
   assert page.get_by_text('終了見込み：2026/10/27 12:00（JST）',exact=True).count()==0
   assert page.get_by_role('button',name='再読み込み',exact=True).count()==0

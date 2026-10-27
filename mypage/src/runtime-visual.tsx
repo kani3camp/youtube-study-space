@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import fixture from '../../docs/mypage/fixtures/available.json'
 import { createApp } from './app'
 import type { MyPage } from './features/mypage/contract'
+import { maintenanceAnnouncementURLs } from './maintenance-announcement'
 import { BrowserRuntime, type BrowserSession } from './runtime'
 import './style.css'
 
@@ -336,6 +337,8 @@ if (import.meta.env.DEV) {
 	const router = createApp(
 		runtime,
 		createMemoryHistory({ initialEntries: [initial] }),
+		undefined,
+		maintenanceAnnouncementURLs.development,
 	)
 	const root = document.getElementById('root')
 	if (root)

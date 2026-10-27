@@ -87,6 +87,7 @@ Hosting image inventoryにはチャンネル画像用の `https://yt3.ggpht.com`
 | server secret | `MYPAGE_OAUTH_CLIENT_ID/CLIENT_SECRET`, optional `MYPAGE_YOUTUBE_API_KEY` | OAuth secret/API keyは承認済みsecret供給境界。repo/chat/public artifact/Viteに入れない |
 | optional Analytics | `VITE_MYPAGE_ANALYTICS_READY`, `VITE_MYPAGE_GA4_ID` | 実Console・network inventoryが承認されるまで有効化しない。Consentを迂回しない |
 | 公開案内 | `VITE_PUBLIC_CONTACT_URL/PRIVACY_CONTACT_URL`, optional `VITE_PUBLIC_OPERATOR_NAME`, `VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE/TERMS_EFFECTIVE_DATE/JURISDICTION` | 公開に使ってよい値だけ。実名・自宅住所を必須にしない。欠落/不正は未設定、draftは維持 |
+| メンテナンス告知 | source内のDEV/PROD YouTube posts URL対応表、選択keyは`VITE_FIREBASE_PROJECT_ID` | 非secretの固定公開導線。Firestore・Backend・browser storageへ複製せず、未知projectはfallbackしない。変更はsource reviewと再buildを必須にする |
 | Bot設定案 | `MYPAGE_PUBLIC_ENTRY_URL`（runtimeへの接続は未実装） | 承認済みpublic入口だけ。user固有query/tokenを含めない。0A/0Bは未設定、Phase1承認後に設定。実装・設定の承認前に有効化しない |
 
 publicPolicy入力は一般問い合わせとPrivacy請求を分ける。形式が正しいURLでも返信機能・ログイン不要・SLA運用が確認済みとは限らない。

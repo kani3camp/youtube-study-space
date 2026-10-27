@@ -20,6 +20,8 @@
 
 `ACTIVE`画面の表示内容は「ただいまメンテナンス中です」「詳しくはお知らせをご確認ください。」「お知らせを見る」の3要素に限定する。開始・終了時刻、再読み込み、ログアウト、トップへのカード内導線は表示せず、既存ブランドheaderとPrivacy Policy・利用規約・Cookie設定・お問い合わせのfooterを維持する。status確認、visible復帰時の再確認、低頻度poll、`NORMAL`確認後の`/`へのreplace遷移は画面上の操作とは独立して継続する。
 
+「お知らせを見る」は、既存の公開build入力`VITE_FIREBASE_PROJECT_ID`からreview済みの公開YouTube posts URLを選ぶ。`test-youtube-study-space`はDEVチャンネル`https://www.youtube.com/channel/UChBj4xZePvWyGmTKct5FBcg/posts`、`youtube-study-space`はPRODチャンネル`https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/posts`へ対応する。この対応表は非secretのsource定数であり、Firestore、Backend runtime、browser storage、運用stateへ保存しない。未知project IDでは別環境へfallbackせずリンクを非表示にし、release設定の不備として扱う。URL変更はsource review、テスト、再build・releaseを必要とする。
+
 ## GitHub Actionsによる手動切替
 
 workflowは`MyPage Maintenance Mode`（`.github/workflows/mypage-maintenance.yml`）。DEVは`integration/mypage-canon-20261006`、PRODは`main`の、レビュー済みexact SHAからだけ実行できる。rerun、fork、pull request、別ref、repository/owner/actor ID不一致、actorとtriggering actor不一致は認証前に拒否する。

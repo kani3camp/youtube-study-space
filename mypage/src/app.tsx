@@ -32,6 +32,7 @@ import {
 	MyPageView,
 } from './features/mypage/view'
 import { maintenanceDestination } from './maintenance'
+import { maintenanceAnnouncementURLForProject } from './maintenance-announcement'
 import { PrivacyPolicy, PublicPolicyContact, TermsOfUse } from './policies'
 import { consentKey, createPrivacy } from './privacy'
 import { readPublicPolicyConfig } from './public-policy-config'
@@ -59,8 +60,6 @@ const supportOAuthErrors = new Set([
 	'channel_ambiguous',
 	'oauth_denied',
 ])
-const maintenanceAnnouncementURL =
-	'https://kani3camp.github.io/youtube-study-space/'
 const SupportReceipt = createContext<{
 	proofRef: string | null
 	supportRequestRef: string | null
@@ -117,6 +116,9 @@ export function createApp(
 	runtime: BrowserRuntime,
 	history?: RouterHistory,
 	privacyServices = createPrivacy(),
+	maintenanceAnnouncementURL = maintenanceAnnouncementURLForProject(
+		import.meta.env.VITE_FIREBASE_PROJECT_ID,
+	),
 ) {
 	function useMemory() {
 		return useSyncExternalStore(
@@ -1402,7 +1404,7 @@ export function createApp(
 								? '確認が終わるまで、この画面でお待ちください。'
 								: '詳しくはお知らせをご確認ください。'}
 					</p>
-					{maintenance.phase === 'active' && (
+					{maintenance.phase === 'active' && maintenanceAnnouncementURL && (
 						<div className="maintenance-announcement">
 							<ExternalLink href={maintenanceAnnouncementURL}>
 								お知らせを見る
