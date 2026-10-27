@@ -46,9 +46,10 @@ const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
 
 type SeatsProps = {
 	menuItems: Menu[]
+	onReadError: () => void
 }
 
-const Seats: FC<SeatsProps> = ({ menuItems }) => {
+const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 	const router = useRouter()
 
 	const [latestGeneralSeats, setLatestGeneralSeats] = useState<Seat[]>([])
@@ -86,8 +87,8 @@ const Seats: FC<SeatsProps> = ({ menuItems }) => {
 			alert('NEXT_PUBLIC_API_KEY is not defined')
 		}
 
-		initFirestore()
-	}, [])
+		return initFirestore()
+	}, [onReadError])
 
 	useInterval(() => {
 		refreshPageIndex()
@@ -170,7 +171,7 @@ const Seats: FC<SeatsProps> = ({ menuItems }) => {
 		}
 	}
 
-	const initFirestore = () => {
+	const initFirestore = (): (() => void) => {
 		const app = getFirebaseApp()
 		const db = getFirestore(app)
 
@@ -181,58 +182,87 @@ const Seats: FC<SeatsProps> = ({ menuItems }) => {
 		const generalSeatsQuery = query(collection(db, 'seats')).withConverter(
 			seatConverter,
 		)
-		onSnapshot(generalSeatsQuery, (querySnapshot) => {
-			const seats: Seat[] = []
-			for (const doc of querySnapshot.docs) {
-				seats.push(doc.data())
-			}
-			setLatestGeneralSeats(seats)
-		})
+		const unsubscribers = [
+			onSnapshot(
+				generalSeatsQuery,
+				(querySnapshot) => {
+					const seats: Seat[] = []
+					for (const doc of querySnapshot.docs) {
+						seats.push(doc.data())
+					}
+					setLatestGeneralSeats(seats)
+				},
+				onReadError,
+			),
+		]
 		const memberSeatsQuery = query(
 			collection(db, 'member-seats'),
 		).withConverter(seatConverter)
-		onSnapshot(memberSeatsQuery, (querySnapshot) => {
-			const seats: Seat[] = []
-			for (const doc of querySnapshot.docs) {
-				seats.push(doc.data())
-			}
-			setLatestMemberSeats(seats)
-		})
+		unsubscribers.push(
+			onSnapshot(
+				memberSeatsQuery,
+				(querySnapshot) => {
+					const seats: Seat[] = []
+					for (const doc of querySnapshot.docs) {
+						seats.push(doc.data())
+					}
+					setLatestMemberSeats(seats)
+				},
+				onReadError,
+			),
+		)
 
 		const workNameTrendQuery = query(
 			collection(db, 'work-name-trend'),
 		).withConverter(workNameTrendConverter)
-		onSnapshot(workNameTrendQuery, (querySnapshot) => {
-			const workNameTrend: WorkNameTrend[] = []
-			for (const doc of querySnapshot.docs) {
-				workNameTrend.push(doc.data())
-			}
-			if (workNameTrend.length === 1) {
-				setLatestWorkNameTrend(workNameTrend[0])
-			} else if (workNameTrend.length > 1) {
-				throw new Error(
-					`Found ${workNameTrend.length} work name trend documents in Firestore, but only one is expected. This may cause incorrect application behavior. Please ensure that only one document exists in the 'work-name-trend' collection.`,
-				)
-			}
-		})
-
-		onSnapshot(
-			doc(db, 'config', 'constants').withConverter(constantsConverter),
-			(doc) => {
-				const generalMaxSeats = (doc.data() as SystemConstants).max_seats
-				const memberMaxSeats = (doc.data() as SystemConstants).member_max_seats
-				const minVacancyRate = (doc.data() as SystemConstants).min_vacancy_rate
-				const youtubeMembershipEnabled = (doc.data() as SystemConstants)
-					.youtube_membership_enabled
-				const fixedMaxSeatsEnabled = (doc.data() as SystemConstants)
-					.fixed_max_seats_enabled
-				setLatestGeneralMaxSeats(generalMaxSeats)
-				setLatestMemberMaxSeats(memberMaxSeats)
-				setLatestMinVacancyRate(minVacancyRate)
-				setLatestYoutubeMembershipEnabled(youtubeMembershipEnabled)
-				setLatestFixedMaxSeatsEnabled(fixedMaxSeatsEnabled)
-			},
+		unsubscribers.push(
+			onSnapshot(
+				workNameTrendQuery,
+				(querySnapshot) => {
+					const workNameTrend: WorkNameTrend[] = []
+					for (const doc of querySnapshot.docs) {
+						workNameTrend.push(doc.data())
+					}
+					if (workNameTrend.length === 1) {
+						setLatestWorkNameTrend(workNameTrend[0])
+					} else if (workNameTrend.length > 1) {
+						throw new Error(
+							`Found ${workNameTrend.length} work name trend documents in Firestore, but only one is expected. This may cause incorrect application behavior. Please ensure that only one document exists in the 'work-name-trend' collection.`,
+						)
+					}
+				},
+				onReadError,
+			),
 		)
+
+		unsubscribers.push(
+			onSnapshot(
+				doc(db, 'config', 'constants').withConverter(constantsConverter),
+				(doc) => {
+					const generalMaxSeats = (doc.data() as SystemConstants).max_seats
+					const memberMaxSeats = (doc.data() as SystemConstants)
+						.member_max_seats
+					const minVacancyRate = (doc.data() as SystemConstants)
+						.min_vacancy_rate
+					const youtubeMembershipEnabled = (doc.data() as SystemConstants)
+						.youtube_membership_enabled
+					const fixedMaxSeatsEnabled = (doc.data() as SystemConstants)
+						.fixed_max_seats_enabled
+					setLatestGeneralMaxSeats(generalMaxSeats)
+					setLatestMemberMaxSeats(memberMaxSeats)
+					setLatestMinVacancyRate(minVacancyRate)
+					setLatestYoutubeMembershipEnabled(youtubeMembershipEnabled)
+					setLatestFixedMaxSeatsEnabled(fixedMaxSeatsEnabled)
+				},
+				onReadError,
+			),
+		)
+
+		return () => {
+			for (const unsubscribe of unsubscribers) {
+				unsubscribe()
+			}
+		}
 	}
 
 	/**
