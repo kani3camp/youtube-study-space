@@ -1,9 +1,7 @@
 import { checkedJSON, objectValue } from './features/mypage/client'
 
 export type PublicMaintenanceStatus = {
-	state: 'NORMAL' | 'ACTIVE'
-	updatedAt: string
-	messageTemplate: 'MYPAGE_MAINTENANCE_V1'
+	maintenanceEnabled: boolean
 }
 
 export type MaintenanceSnapshot =
@@ -25,50 +23,14 @@ export function maintenanceDestination(
 	return '/maintenance'
 }
 
-function timestamp(value: unknown) {
-	if (typeof value !== 'string') return false
-	const match =
-		/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|([+-])(\d{2}):(\d{2}))$/.exec(
-			value,
-		)
-	if (!match) return false
-	const [, yearText, monthText, dayText, hourText, minuteText, secondText] =
-		match
-	const year = Number(yearText)
-	const month = Number(monthText)
-	const day = Number(dayText)
-	const hour = Number(hourText)
-	const minute = Number(minuteText)
-	const second = Number(secondText)
-	const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
-	const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-	return (
-		year >= 1 &&
-		month >= 1 &&
-		month <= 12 &&
-		day >= 1 &&
-		day <= days[month - 1] &&
-		hour <= 23 &&
-		minute <= 59 &&
-		second <= 59 &&
-		(match[8] === 'Z' ||
-			(Number(match[10]) <= 23 && Number(match[11]) <= 59)) &&
-		Number.isFinite(Date.parse(value))
-	)
-}
-
 export function parseMaintenanceStatus(
 	value: unknown,
 ): PublicMaintenanceStatus {
 	const status = objectValue(value)
 	if (!status) throw new Error('invalid maintenance status')
-	const keys = Object.keys(status).sort().join(',')
-
 	if (
-		keys !== 'messageTemplate,state,updatedAt' ||
-		(status.state !== 'NORMAL' && status.state !== 'ACTIVE') ||
-		!timestamp(status.updatedAt) ||
-		status.messageTemplate !== 'MYPAGE_MAINTENANCE_V1'
+		Object.keys(status).length !== 1 ||
+		typeof status.maintenanceEnabled !== 'boolean'
 	)
 		throw new Error('invalid maintenance status')
 	return status as PublicMaintenanceStatus
@@ -112,11 +74,7 @@ export class MaintenanceMonitor {
 		if (this.state.phase !== 'active')
 			this.publish({
 				phase: 'active',
-				status: {
-					state: 'ACTIVE',
-					updatedAt: new Date().toISOString(),
-					messageTemplate: 'MYPAGE_MAINTENANCE_V1',
-				},
+				status: { maintenanceEnabled: true },
 			})
 	}
 
@@ -161,7 +119,7 @@ export class MaintenanceMonitor {
 			if (controller.signal.aborted || this.controller !== controller) return
 			const status = parseMaintenanceStatus(value)
 			this.publish({
-				phase: status.state === 'ACTIVE' ? 'active' : 'normal',
+				phase: status.maintenanceEnabled ? 'active' : 'normal',
 				status,
 			})
 		} catch {

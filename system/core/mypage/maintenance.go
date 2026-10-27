@@ -10,21 +10,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const (
-	MaintenanceNormal          = "NORMAL"
-	MaintenanceActive          = "ACTIVE"
-	MaintenanceMessageTemplate = "MYPAGE_MAINTENANCE_V1"
-)
-
 type MaintenanceControl struct {
 	Enabled   bool      `firestore:"maintenance-enabled"`
 	UpdatedAt time.Time `firestore:"updated-at"`
 }
 
 type MaintenanceStatus struct {
-	State           string    `json:"state"`
-	UpdatedAt       time.Time `json:"updatedAt"`
-	MessageTemplate string    `json:"messageTemplate"`
+	MaintenanceEnabled bool `json:"maintenanceEnabled"`
 }
 
 type MaintenanceReader interface {
@@ -84,11 +76,7 @@ func (g *MaintenanceGate) PublicStatus(ctx context.Context) (MaintenanceStatus, 
 	if err != nil {
 		return MaintenanceStatus{}, err
 	}
-	state := MaintenanceNormal
-	if value.Enabled {
-		state = MaintenanceActive
-	}
-	return MaintenanceStatus{State: state, UpdatedAt: value.UpdatedAt, MessageTemplate: MaintenanceMessageTemplate}, nil
+	return MaintenanceStatus{MaintenanceEnabled: value.Enabled}, nil
 }
 
 // The control is read in the same transaction as a protected write, so a

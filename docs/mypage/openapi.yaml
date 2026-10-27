@@ -441,16 +441,10 @@ components:
     MaintenanceStatus:
       type: object
       additionalProperties: false
-      required: [state, updatedAt, messageTemplate]
+      required: [maintenanceEnabled]
       properties:
-        state:
-          type: string
-          enum: [NORMAL, ACTIVE]
-        updatedAt:
-          type: string
-          format: date-time
-        messageTemplate:
-          const: MYPAGE_MAINTENANCE_V1
+        maintenanceEnabled:
+          type: boolean
     PrivacyIntakeRequest:
       type: object
       additionalProperties: false

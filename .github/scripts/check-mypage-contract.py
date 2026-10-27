@@ -121,13 +121,12 @@ for code in ["SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS", "MAINTENA
     error.validate({"error": {"code": code, "message": code, "requestId": "synthetic-request"}})
 
 maintenance = contract_validator("MaintenanceStatus")
-maintenance.validate({"state": "NORMAL", "updatedAt": "2026-10-27T02:00:00Z", "messageTemplate": "MYPAGE_MAINTENANCE_V1"})
-maintenance.validate({"state": "ACTIVE", "updatedAt": "2026-10-27T02:00:00Z", "messageTemplate": "MYPAGE_MAINTENANCE_V1"})
+for enabled in (True, False):
+    maintenance.validate({"maintenanceEnabled": enabled})
 for invalid in [
-    {"state": "UNKNOWN", "updatedAt": "2026-10-27T02:00:00Z", "messageTemplate": "MYPAGE_MAINTENANCE_V1"},
-    {"state": "ACTIVE", "updatedAt": "2026-10-27T02:00:00Z", "messageTemplate": "MYPAGE_MAINTENANCE_V1", "revision": 2},
-    {"state": "ACTIVE", "updatedAt": "2026-10-27T02:00:00Z", "messageTemplate": "operator text"},
-    {"state": "NORMAL", "updatedAt": "2026-10-27T02:00:00Z", "estimatedEndAt": "2026-10-27T03:00:00Z", "messageTemplate": "MYPAGE_MAINTENANCE_V1"},
+    {}, {"maintenanceEnabled": "false"}, {"maintenanceEnabled": None},
+    {"maintenanceEnabled": False, "updatedAt": "2026-10-27T02:00:00Z"},
+    {"state": "NORMAL", "updatedAt": "2026-10-27T02:00:00Z", "messageTemplate": "MYPAGE_MAINTENANCE_V1"},
 ]:
     assert not maintenance.is_valid(invalid)
 

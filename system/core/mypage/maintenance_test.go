@@ -3,10 +3,32 @@ package mypage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
 )
+
+func TestPublicMaintenanceStatusReturnsOnlyBoolean(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		h, _, _, _ := boundaryFixture()
+		h.Maintenance = &MaintenanceGate{readControl: func(context.Context) (MaintenanceControl, error) {
+			return MaintenanceControl{Enabled: enabled, UpdatedAt: time.Now()}, nil
+		}}
+		response := boundaryRequest(h, "GET", "/api/public/mypage-status", "")
+		if response.Code != http.StatusOK || response.Body.String() != fmt.Sprintf("{\"maintenanceEnabled\":%t}\n", enabled) {
+			t.Fatalf("enabled=%t status=%d body=%s", enabled, response.Code, response.Body.String())
+		}
+	}
+	h, _, _, _ := boundaryFixture()
+	h.Maintenance = &MaintenanceGate{readControl: func(context.Context) (MaintenanceControl, error) {
+		return MaintenanceControl{}, errors.New("unavailable")
+	}}
+	response := boundaryRequest(h, "GET", "/api/public/mypage-status", "")
+	if response.Code != http.StatusServiceUnavailable || responseCode(t, response) != "TEMPORARY_UNAVAILABLE" {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
 
 func TestMaintenanceProtectedAPI(t *testing.T) {
 	for _, tt := range []struct {

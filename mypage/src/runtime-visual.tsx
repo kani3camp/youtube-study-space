@@ -22,13 +22,11 @@ if (import.meta.env.DEV) {
 		: mode?.includes('restricted-moderation')
 			? 'SERVICE_ACCESS_RESTRICTED'
 			: null
-	let maintenanceState: 'NORMAL' | 'ACTIVE' | 'UNKNOWN' = mode?.startsWith(
-		'maintenance-active',
-	)
-		? 'ACTIVE'
+	let maintenanceState: boolean | null = mode?.startsWith('maintenance-active')
+		? true
 		: mode?.startsWith('maintenance-unknown')
-			? 'UNKNOWN'
-			: 'NORMAL'
+			? null
+			: false
 	const requests: string[] = []
 	let syntheticVerified = false
 	let holdNext = false
@@ -75,18 +73,14 @@ if (import.meta.env.DEV) {
 		const counter = document.getElementById('synthetic-requests')
 		if (counter) counter.textContent = JSON.stringify(requests)
 		if (path === '/api/public/mypage-status') {
-			if (maintenanceState === 'UNKNOWN')
+			if (maintenanceState === null)
 				return Response.json(
 					{ error: { code: 'TEMPORARY_UNAVAILABLE' } },
 					{ status: 503 },
 				)
 			if (mode?.startsWith('maintenance-delayed-normal'))
 				await new Promise((resolve) => setTimeout(resolve, 150))
-			return Response.json({
-				state: maintenanceState,
-				updatedAt: '2026-10-27T02:00:00Z',
-				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
-			})
+			return Response.json({ maintenanceEnabled: maintenanceState })
 		}
 		if (String(path).startsWith('/api/mypage/history?')) {
 			const query = new URL(String(path), location.origin).searchParams
@@ -217,7 +211,7 @@ if (import.meta.env.DEV) {
 				})
 			}
 			if (mode === 'maintenance-race-confirm') {
-				maintenanceState = 'ACTIVE'
+				maintenanceState = true
 				return Response.json(
 					{ error: { code: 'MAINTENANCE_ACTIVE' } },
 					{ status: 503 },
@@ -241,7 +235,7 @@ if (import.meta.env.DEV) {
 			path === '/api/auth/session/complete' &&
 			mode === 'maintenance-race-session-complete'
 		) {
-			maintenanceState = 'ACTIVE'
+			maintenanceState = true
 			return Response.json(
 				{ error: { code: 'MAINTENANCE_ACTIVE' } },
 				{ status: 503 },
@@ -376,7 +370,7 @@ if (import.meta.env.DEV) {
 						id="synthetic-maintenance-normal"
 						type="button"
 						onClick={() => {
-							maintenanceState = 'NORMAL'
+							maintenanceState = false
 						}}
 					>
 						Set maintenance NORMAL
@@ -385,7 +379,7 @@ if (import.meta.env.DEV) {
 						id="synthetic-maintenance-active"
 						type="button"
 						onClick={() => {
-							maintenanceState = 'ACTIVE'
+							maintenanceState = true
 						}}
 					>
 						Set maintenance ACTIVE
