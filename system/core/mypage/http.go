@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"net"
@@ -26,9 +25,9 @@ type (
 )
 
 type HTTPHandler struct {
+	Maintenance MaintenanceReader
 	Auth        *AuthService
 	BFF         *BFF
-	Maintenance MaintenanceReader
 	Intake      PrivacyIntake
 	History     *HistoryService
 	Verifier    RequestVerifier
@@ -51,16 +50,6 @@ var routeMethods = map[string]string{
 	"/api/auth/session/complete": "POST", "/api/mypage": "GET",
 	"/api/mypage/history":   "GET",
 	"/api/privacy/requests": "POST", "/api/privacy/requests/status": "POST",
-}
-
-var maintenanceExemptRoutes = map[string]bool{
-	"/api/public/mypage-status":    true,
-	"/api/privacy/requests":        true,
-	"/api/privacy/requests/status": true,
-	"/api/auth/youtube/start":      true, // AuthService distinguishes login from support.
-	"/api/auth/youtube/callback":   true, // AuthService reads the server-owned transaction purpose.
-	"/api/auth/youtube/channel":    true,
-	"/api/auth/youtube/confirm":    true,
 }
 
 type PrivacyIntake interface {
@@ -127,12 +116,12 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		status, err := h.Maintenance.PublicStatus(ctx)
+		result, err := h.Maintenance.PublicStatus(ctx)
 		if err != nil {
-			writeAPIError(w, http.StatusServiceUnavailable, "TEMPORARY_UNAVAILABLE", requestID)
+			writeAPIError(w, 503, "TEMPORARY_UNAVAILABLE", requestID)
 			return
 		}
-		writeJSON(w, http.StatusOK, status)
+		writeJSON(w, 200, result)
 		return
 	}
 	if sessionCookieCount(r) > 1 {
@@ -221,6 +210,12 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	authenticated := r.URL.Path == "/api/mypage" || historyRoute || r.URL.Path == "/api/auth/session/complete" || privacyRoute
 	var identity VerifiedIdentity
 	var account WebAccount
+	if !privacyRoute && !strings.HasPrefix(r.URL.Path, "/api/auth/youtube/") && h.Maintenance != nil {
+		if err := h.Maintenance.Check(ctx); err != nil {
+			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
+			return
+		}
+	}
 	if authenticated {
 		bearer := r.Header.Get("Authorization")
 		if !strings.HasPrefix(bearer, "Bearer ") || strings.Contains(strings.TrimPrefix(bearer, "Bearer "), " ") {
@@ -248,18 +243,6 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-	}
-	// Authentication and App Check identify the caller before the global gate.
-	// SAC/account/policy and all personal-data reads remain after this point.
-	if !maintenanceExemptRoutes[r.URL.Path] {
-		if h.Maintenance != nil {
-			if err := h.Maintenance.Check(ctx); err != nil {
-				writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
-				return
-			}
-		}
-	}
-	if authenticated {
 		if !privacyRoute {
 			checkpoint, accessErr := readAccess(ctx, h.Auth.Access, identity.UID, "")
 			if accessErr != nil {
@@ -320,9 +303,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
-		if !h.writePersonalJSON(w, ctx, 200, page, requestID, identity.UID, page.MaintenanceRevision) {
-			return
-		}
+		writeJSON(w, 200, page)
 	case "/api/privacy/requests":
 		response, err := h.Intake.Create(ctx, identity.UID, intake.SubmissionKey, intake.Purpose, intake.Body, now)
 		if err != nil {
@@ -345,19 +326,6 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
-		if start.SupportChallenge == nil && h.Maintenance != nil {
-			revision, err := h.Maintenance.CheckAuthoritativeRevision(ctx)
-			if err != nil || response.MaintenanceRevision < 1 || revision != response.MaintenanceRevision {
-				if err == nil {
-					err = apiError("TEMPORARY_UNAVAILABLE")
-				}
-				if failErr := h.Auth.Store.Fail(ctx, id); failErr != nil {
-					err = errors.Join(err, fmt.Errorf("fail maintenance OAuth transaction: %w", failErr))
-				}
-				writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
-				return
-			}
-		}
 		setTransactionCookie(w, id, 600)
 		writeJSON(w, 200, response)
 	case "/api/auth/youtube/channel":
@@ -366,59 +334,27 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
-		if response.Purpose == "login" {
-			if !h.writePersonalJSON(w, ctx, 200, response, requestID, "", response.MaintenanceRevision) {
-				return
-			}
-		} else {
-			writeJSON(w, 200, response)
-		}
+		writeJSON(w, 200, response)
 	case "/api/auth/youtube/confirm":
 		response, err := h.Auth.ConfirmResult(ctx, transactionID(r), confirmation.ConfirmationRef)
 		if err != nil {
 			code := errorCode(err)
-			if code == "TEMPORARY_UNAVAILABLE" || code == "MAINTENANCE_ACTIVE" || code == "OAUTH_TRANSACTION_CONSUMED" {
+			if code == "TEMPORARY_UNAVAILABLE" || code == "OAUTH_TRANSACTION_CONSUMED" {
 				setTransactionCookie(w, "", -1)
 			}
 			writeAPIError(w, statusFor(code), code, requestID)
 			return
 		}
 		setTransactionCookie(w, "", -1)
-		if response.Purpose == "login" {
-			if !h.writePersonalJSON(w, ctx, 200, response, requestID, "", response.MaintenanceRevision) {
-				return
-			}
-		} else {
-			writeJSON(w, 200, response)
-		}
+		writeJSON(w, 200, response)
 	case "/api/auth/session/complete":
-		maintenanceRevision := int64(0)
-		operationContext := ctx
-		if h.Maintenance != nil {
-			maintenanceRevision, err = h.Maintenance.CheckAuthoritativeRevision(ctx)
-			if err != nil {
-				writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
-				return
-			}
-			operationContext = withMaintenanceRevision(ctx, maintenanceRevision)
-		}
-		if err := h.Auth.Store.CompleteSession(operationContext, identity.UID, account.AccessCheckpoint, h.Auth.Policy, now); err != nil {
+		if err := h.Auth.Store.CompleteSession(ctx, identity.UID, account.AccessCheckpoint, h.Auth.Policy, now); err != nil {
 			code := errorCode(err)
 			if code == "INTERNAL_ERROR" {
 				code = "TEMPORARY_UNAVAILABLE"
 			}
 			writeAPIError(w, statusFor(code), code, requestID)
 			return
-		}
-		if h.Maintenance != nil {
-			revision, err := h.Maintenance.CheckAuthoritativeRevision(ctx)
-			if err != nil || revision != maintenanceRevision {
-				if err == nil {
-					err = apiError("TEMPORARY_UNAVAILABLE")
-				}
-				writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
-				return
-			}
 		}
 		w.WriteHeader(204)
 	case "/api/mypage":
@@ -431,30 +367,8 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
-		if !h.writePersonalJSON(w, ctx, 200, response, requestID, identity.UID, response.MaintenanceRevision) {
-			return
-		}
+		writeJSON(w, 200, response)
 	}
-}
-
-func (h *HTTPHandler) writePersonalJSON(w http.ResponseWriter, ctx context.Context, status int, value any, requestID, uid string, expectedMaintenanceRevision int64) bool {
-	if h.Maintenance == nil {
-		writeJSON(w, status, value)
-		return true
-	}
-	revision, err := h.Maintenance.CheckAuthoritativeRevision(ctx)
-	if err != nil || expectedMaintenanceRevision < 1 || revision != expectedMaintenanceRevision {
-		if err == nil {
-			err = apiError("TEMPORARY_UNAVAILABLE")
-		}
-		if uid != "" && h.BFF != nil {
-			h.BFF.Invalidate(uid)
-		}
-		writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
-		return false
-	}
-	writeJSON(w, status, value)
-	return true
 }
 
 func (h *HTTPHandler) checkRequestOrigin(r *http.Request) error {
@@ -605,26 +519,6 @@ func setTransactionCookie(w http.ResponseWriter, id string, age int) {
 	http.SetCookie(w, &http.Cookie{Name: "__session", Value: id, Path: "/", MaxAge: age, HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
 }
 
-func oauthRedirectCode(err error, providerError string) string {
-	redirectCode := "oauth_failed"
-	switch errorCode(err) {
-	case "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED":
-		redirectCode = "oauth_state_invalid"
-	case "OAUTH_TRANSACTION_EXPIRED":
-		redirectCode = "oauth_transaction_expired"
-	case "OAUTH_SCOPE_INSUFFICIENT":
-		redirectCode = "oauth_scope_insufficient"
-	case "CHANNEL_UNAVAILABLE":
-		redirectCode = "channel_unavailable"
-	case "CHANNEL_AMBIGUOUS":
-		redirectCode = "channel_ambiguous"
-	}
-	if providerError == "access_denied" {
-		redirectCode = "oauth_denied"
-	}
-	return redirectCode
-}
-
 func (h *HTTPHandler) callback(w http.ResponseWriter, r *http.Request, requestID string) {
 	if len(r.URL.RawQuery) > 8192 {
 		writeAPIError(w, 400, "INVALID_REQUEST", requestID)
@@ -651,15 +545,30 @@ func (h *HTTPHandler) callback(w http.ResponseWriter, r *http.Request, requestID
 		http.Redirect(w, r, "/login/channel-confirm", http.StatusFound)
 		return
 	}
-	redirectCode := oauthRedirectCode(err, providerError)
-	if purpose == "support" {
-		setTransactionCookie(w, "", -1)
-		http.Redirect(w, r, "/contact?supportError="+url.QueryEscape(redirectCode), http.StatusFound)
-		return
-	}
 	if errorCode(err) == "MAINTENANCE_ACTIVE" {
 		setTransactionCookie(w, "", -1)
 		http.Redirect(w, r, "/maintenance", http.StatusFound)
+		return
+	}
+	redirectCode := "oauth_failed"
+	switch errorCode(err) {
+	case "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED":
+		redirectCode = "oauth_state_invalid"
+	case "OAUTH_TRANSACTION_EXPIRED":
+		redirectCode = "oauth_transaction_expired"
+	case "OAUTH_SCOPE_INSUFFICIENT":
+		redirectCode = "oauth_scope_insufficient"
+	case "CHANNEL_UNAVAILABLE":
+		redirectCode = "channel_unavailable"
+	case "CHANNEL_AMBIGUOUS":
+		redirectCode = "channel_ambiguous"
+	}
+	if providerError == "access_denied" {
+		redirectCode = "oauth_denied"
+	}
+	if purpose == "support" {
+		setTransactionCookie(w, "", -1)
+		http.Redirect(w, r, "/contact?supportError="+url.QueryEscape(redirectCode), http.StatusFound)
 		return
 	}
 	http.Redirect(w, r, "/login?error="+redirectCode, http.StatusFound)

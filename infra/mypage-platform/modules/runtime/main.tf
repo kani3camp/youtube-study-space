@@ -65,7 +65,6 @@ locals {
   maintenance_github_environment = "mypage-maintenance-${var.environment}"
   maintenance_operator_email     = "mypage-maintenance-job@${var.project_id}.iam.gserviceaccount.com"
   maintenance_invoker_email      = "mypage-maintenance-invoker@${var.project_id}.iam.gserviceaccount.com"
-  maintenance_bootstrap_email    = "mypage-maintenance-bootstrap@${var.project_id}.iam.gserviceaccount.com"
   foundation_plan_email          = "mypage-foundation-plan@${var.project_id}.iam.gserviceaccount.com"
   foundation_apply_email         = "mypage-foundation-apply@${var.project_id}.iam.gserviceaccount.com"
   backend_deployer_email         = "mypage-backend-deploy@${var.project_id}.iam.gserviceaccount.com"
@@ -368,7 +367,7 @@ resource "google_service_account" "maintenance_operator" {
   project         = var.project_id
   account_id      = "mypage-maintenance-job"
   display_name    = "MyPage maintenance state operator"
-  description     = "Keyless Cloud Run Job identity for the fixed maintenance CAS binary."
+  description     = "Keyless Cloud Run Job identity for the fixed maintenance operator."
   disabled        = false
   deletion_policy = "PREVENT"
   lifecycle {
@@ -389,27 +388,12 @@ resource "google_service_account" "maintenance_invoker" {
   }
 }
 
-# This identity is deliberately read-only. Foundation and release identities
-# can invoke its fixed Job but cannot pass arguments or read Firestore directly.
-resource "google_service_account" "maintenance_bootstrap" {
-  count           = local.maintenance_operator ? 1 : 0
-  project         = var.project_id
-  account_id      = "mypage-maintenance-bootstrap"
-  display_name    = "MyPage maintenance bootstrap reader"
-  description     = "Read-only identity for the fixed pre-deployment initialized-control check."
-  disabled        = false
-  deletion_policy = "PREVENT"
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
 resource "google_project_iam_custom_role" "maintenance_firestore" {
   count           = local.maintenance_operator ? 1 : 0
   project         = var.project_id
   role_id         = "mypageMaintenanceOperator"
   title           = "MyPage maintenance control writer"
-  description     = "Minimum Firestore entity permissions for the maintenance control and audit transaction."
+  description     = "Minimum Firestore entity permissions for the maintenance control document."
   deletion_policy = "PREVENT"
   permissions = [
     "datastore.databases.get",
@@ -432,35 +416,6 @@ resource "google_project_iam_member" "maintenance_firestore" {
   depends_on = [
     google_project_iam_custom_role.maintenance_firestore,
     google_service_account.maintenance_operator,
-  ]
-}
-
-resource "google_project_iam_custom_role" "maintenance_bootstrap_reader" {
-  count           = local.maintenance_operator ? 1 : 0
-  project         = var.project_id
-  role_id         = "mypageMaintenanceBootstrapReader"
-  title           = "MyPage maintenance bootstrap reader"
-  description     = "Read-only Firestore entity permissions for the fixed initialized-control deployment barrier."
-  deletion_policy = "PREVENT"
-  permissions = [
-    "datastore.databases.get",
-    "datastore.entities.get",
-  ]
-  stage = "GA"
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "google_project_iam_member" "maintenance_bootstrap_reader" {
-  count   = local.maintenance_operator ? 1 : 0
-  project = var.project_id
-  role    = "projects/${var.project_id}/roles/mypageMaintenanceBootstrapReader"
-  member  = "serviceAccount:${local.maintenance_bootstrap_email}"
-
-  depends_on = [
-    google_project_iam_custom_role.maintenance_bootstrap_reader,
-    google_service_account.maintenance_bootstrap,
   ]
 }
 
@@ -573,126 +528,6 @@ resource "google_cloud_run_v2_job_iam_member" "maintenance_invoker" {
     google_service_account.maintenance_invoker,
     google_cloud_run_v2_job.maintenance_operator,
   ]
-}
-
-# Break-glass uses a different fixed command and Job. No human principal is
-# permanently bound here; the runbook grants short-lived, resource-level
-# execution authority to this Job only and relies on Cloud Audit Logs.
-resource "google_cloud_run_v2_job" "maintenance_breakglass" {
-  count               = local.maintenance_operator ? 1 : 0
-  project             = var.project_id
-  name                = "mypage-maintenance-breakglass"
-  location            = var.region
-  deletion_policy     = "PREVENT"
-  deletion_protection = true
-  launch_stage        = "GA"
-
-  template {
-    task_count  = 1
-    parallelism = 1
-    template {
-      service_account       = local.maintenance_operator_email
-      max_retries           = 0
-      timeout               = "60s"
-      execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
-      containers {
-        image   = var.runtime_settings.maintenance_operator_image_digest
-        command = ["/app/mypage-maintenance-breakglass"]
-        resources {
-          limits = {
-            cpu    = "1"
-            memory = "512Mi"
-          }
-        }
-        env {
-          name  = "GOOGLE_CLOUD_PROJECT"
-          value = var.project_id
-        }
-        env {
-          name  = "MYPAGE_ENVIRONMENT"
-          value = var.environment
-        }
-      }
-    }
-  }
-
-  depends_on = [google_project_iam_member.maintenance_firestore]
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "google_cloud_run_v2_job" "maintenance_bootstrap" {
-  count               = local.maintenance_operator ? 1 : 0
-  project             = var.project_id
-  name                = "mypage-maintenance-bootstrap-check"
-  location            = var.region
-  deletion_policy     = "PREVENT"
-  deletion_protection = true
-  launch_stage        = "GA"
-
-  template {
-    task_count  = 1
-    parallelism = 1
-    template {
-      service_account       = local.maintenance_bootstrap_email
-      max_retries           = 0
-      timeout               = "30s"
-      execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
-      containers {
-        image   = var.runtime_settings.maintenance_operator_image_digest
-        command = ["/app/mypage-maintenance-bootstrap-check"]
-        resources {
-          limits = {
-            cpu    = "1"
-            memory = "512Mi"
-          }
-        }
-        env {
-          name  = "GOOGLE_CLOUD_PROJECT"
-          value = var.project_id
-        }
-        env {
-          name  = "MYPAGE_ENVIRONMENT"
-          value = var.environment
-        }
-      }
-    }
-  }
-
-  depends_on = [google_project_iam_member.maintenance_bootstrap_reader]
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-# Exact Job-level invocation only; roles/run.invoker cannot override its
-# command, arguments, environment, service account or task configuration.
-resource "google_cloud_run_v2_job_iam_member" "maintenance_bootstrap_foundation_plan" {
-  count    = local.maintenance_operator ? 1 : 0
-  project  = var.project_id
-  location = var.region
-  name     = google_cloud_run_v2_job.maintenance_bootstrap[0].name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${local.foundation_plan_email}"
-}
-
-resource "google_cloud_run_v2_job_iam_member" "maintenance_bootstrap_foundation_apply" {
-  count    = local.maintenance_operator ? 1 : 0
-  project  = var.project_id
-  location = var.region
-  name     = google_cloud_run_v2_job.maintenance_bootstrap[0].name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${local.foundation_apply_email}"
-}
-
-resource "google_cloud_run_v2_job_iam_member" "maintenance_bootstrap_backend_deployer" {
-  count    = local.maintenance_operator ? 1 : 0
-  project  = var.project_id
-  location = var.region
-  name     = google_cloud_run_v2_job.maintenance_bootstrap[0].name
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${local.backend_deployer_email}"
 }
 
 output "runtime_enabled" {

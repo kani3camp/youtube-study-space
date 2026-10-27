@@ -14,13 +14,14 @@ import (
 	"testing"
 	"time"
 
-	"app.modules/internal/integrationtest"
 	"cloud.google.com/go/firestore"
 	"firebase.google.com/go/v4/auth"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"app.modules/internal/integrationtest"
 )
 
 func TestConstructedServerOAuthConfirmAndSessionCompleteWithSignedAppCheckAndEmulator(t *testing.T) {
@@ -30,11 +31,13 @@ func TestConstructedServerOAuthConfirmAndSessionCompleteWithSignedAppCheckAndEmu
 	client, err := firestore.NewClient(ctx, project, option.WithoutAuthentication())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
+	_, _, err = SetMaintenance(ctx, client, false)
+	require.NoError(t, err)
+	t.Cleanup(func() { _, err := maintenanceRef(client).Delete(ctx); require.NoError(t, err) })
 	now := time.Now().UTC().Truncate(time.Second)
 	uid := "UCserver" + strings.Repeat("0", 15) + "1"
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	seedNormalMaintenance(t, client, "development", now)
 	claims := syntheticAppClaims(now)
 	appToken := syntheticAppCheck(t, key, "synthetic-key", claims, "JWT")
 	jwks := publicJWKS(t, key, "synthetic-key")

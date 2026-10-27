@@ -68,14 +68,13 @@ type Account struct {
 }
 
 type Response struct {
-	MaintenanceRevision int64            `json:"-"`
-	GeneratedAt         time.Time        `json:"generatedAt"`
-	Timezone            string           `json:"timezone"`
-	Partial             bool             `json:"partial"`
-	Current             Section[Current] `json:"current"`
-	Summary             Section[Summary] `json:"summary"`
-	Recent7Days         RecentSection    `json:"recent7Days"`
-	Account             Section[Account] `json:"account"`
+	GeneratedAt time.Time        `json:"generatedAt"`
+	Timezone    string           `json:"timezone"`
+	Partial     bool             `json:"partial"`
+	Current     Section[Current] `json:"current"`
+	Summary     Section[Summary] `json:"summary"`
+	Recent7Days RecentSection    `json:"recent7Days"`
+	Account     Section[Account] `json:"account"`
 }
 
 func ptr[T any](v T) *T { return &v }

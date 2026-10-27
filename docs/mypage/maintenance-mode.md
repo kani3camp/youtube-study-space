@@ -1,72 +1,22 @@
-# MyPage maintenance mode v1 runbook
+# MyPage メンテナンスモード v1
 
-この文書は、MyPageだけを安全に停止・再開するv1の実装・運用契約である。状態は`NORMAL`と`ACTIVE`の2つだけで、予告状態、予約切替、自動解除はない。`estimatedEndAt`は運用readback用の任意metadataであり、v1画面には表示しない。時刻を過ぎても状態は変わらない。
+計画メンテナンス中に MyPage の通常利用を停止するための機能です。セキュリティ事故への即時遮断装置ではありません。切替時に進行中の通常 read が完了する場合があります。通常 write は同じ Firestore transaction 内で状態を確認し、Custom Token は発行直前に再確認します。Privacy / Support の専用経路は維持します。
 
-## 状態とデータ境界
+## 制御データと動作
 
-各Firebase projectの`mypage-runtime-control/current`を唯一の制御文書とする。`environment`、単調増加する`revision`、`state`、`updatedAt`、固定`messageTemplate=MYPAGE_MAINTENANCE_V1`、固定選択の`reasonCategory`を必須とし、`estimatedEndAt`は`ACTIVE`時だけ任意で保持する。文書の欠損、余分なfield、型不正、環境不一致、読取失敗はすべてfail-closedであり、`NORMAL`とはみなさない。
+各環境の `config/mypage` が正本です。`maintenance-enabled` は boolean、`updated-at` は Firestore Timestamp です。制御文書がない、壊れている、または読み取れない場合、通常利用は安全側に停止します。ブラウザからこの文書を直接読み書きすることはできません。
 
-遷移と`mypage-maintenance-events/{actionRef}`の監査eventは同一Firestore transactionで確定する。更新には現在のrevisionが必要で、競合した古いworkflowは失敗する。`NORMAL → ACTIVE`と`ACTIVE → NORMAL`に加え、`ACTIVE`中の終了見込み変更だけは`ACTIVE → ACTIVE`のmetadata更新として新revisionを発行する。終了見込みが同一の純粋なno-opは拒否する。通常経路の監査eventには`authority=GITHUB_ACTIONS`、immutableなrepository/owner/actor ID、triggering actor、run ID/attempt、Git ref、commit SHA、workflow ref、applyを行った実Cloud Run execution、前後state/revision・終了見込み、固定reasonを残す。別executionのverifyは自身のexecutionを独立に検証し、監査eventにはapply executionが保持されていることを検証する。break-glassは別の`authority=GCP_BREAK_GLASS`とし、GitHub provenanceを偽装せず、実execution、承認参照、Cloud Audit Logと照合するclaimed operatorを残す。token、URL、OAuth code、cookie、credential、自由記述は保存・出力しない。
+Backend は通常の保護対象処理を開始するときに最新の制御を読み、enabled の場合は `503 MAINTENANCE_ACTIVE` を返します。書き込みは transaction 内で再確認します。Firestore や token 発行の状態変更の直前確認は、処理中に切り替わった場合の危険な操作を防ぐためです。外部 token 発行と Firestore 切替の完全な原子性はありません。
 
-初期文書はTerraformで暗黙作成しない。API serving imageとは別の固定`maintenance_operator_image_digest`と、その不変tagを作成した`maintenance_operator_image_source_sha`を使う。空環境ではまず対象環境の`registry` stageでimmutable repositoryを構築し、AWS/State credentialを持たない`image-build`でreview済みexact SHAからoperator、break-glass、bootstrap-checkの3固定entrypointを含むimageをoffline検査・push・digest readbackする。その後`maintenance_operator` stageで3つのJobと専用WIF/IAMだけを構築する（このstageはCloud Run APIを作成・更新しない）。この初期stageが取り込むruntime設定はoperatorの有効化・digest・source SHAだけであり、未作成のAPI serving image、OAuth/API key Secret version、Hosting設定を要求しない。既存の完全な設定JSONを渡しても、それらの無関係な値はoperator Planへ影響しない。既に`runtime_public`がStateにある環境では、専用`maintenance_upgrade` stageだけを使い、既存API・Firestore member・public Invokerをすべてno-opに保ったままmaintenance資源だけを追加する。通常の`maintenance_operator`へ戻して既存runtimeを削除するPlanは許可しない。環境ごとにworkflowから`state=NORMAL`、`expected_revision=0`、`reason_category=INITIALIZATION`を一度だけ実行し、authoritative readbackを確認する。その後のruntime plan/applyと通常Backend releaseは、引数上書き不可・Firestore読取専用identityの固定`mypage-maintenance-bootstrap-check` Jobが厳密で初期化済みのcontrolを確認できなければ、serving mutation前に停止する。このJobは同じread-only検査のsanitized JSONを出力するため、直前receiptが失効した場合の手動revision確認にも再利用する。runtime Planの2回のcommitment一致を確認してからJobを実行し、保存済みPlanのApply前にbarrierを置く。Job実行で変わるTerraformのcomputed execution metadataだけは、固定Job・no-op・既知fieldを厳密に照合して次回Planのdriftとして受理する。`NORMAL`と`ACTIVE`はいずれもvalidで、メンテナンス中の復旧deploy/rollbackを妨げない。runtime stageはmaintenance資源の新規作成も拒否する。これにより「registry/image → operator構築または既存runtimeの安全なupgrade → 初期NORMAL → Backend guard → Frontend」の順序を機械的に固定する。
+画面は保護ルートに入るときに状態を確認し、ACTIVE または API の `MAINTENANCE_ACTIVE` でメンテナンス画面へ遷移します。「お知らせを見る」と「状態を再確認」を表示します。自動 polling やタブ復帰時の自動確認は行いません。解除後は利用者が再読み込みするか「状態を再確認」を押して通常画面へ戻ります。
 
-## 停止対象と例外
+## 初期化と切替
 
-`ACTIVE`では`GET /api/mypage`、明細、通常OAuth start/callback/channel/confirm、custom token発行、session complete、account metadata更新を`503 MAINTENANCE_ACTIVE`で拒否する。プロセスキャッシュは最大5秒だが、token発行、transaction内の個人データwrite、aggregate cache publish、個人レスポンス返却の直前には制御文書を直接再読する。通常OAuth transactionと各writeは開始時のmaintenance revisionにも束縛し、処理中に`ACTIVE → NORMAL`まで完了していても古いrequestを復活させない。切替前に始まった処理から切替後に個人データやtokenが返らないことを優先する。
+1. 対象環境と承認済み image digest を確認し、Terraform の `maintenance_operator`（既存公開 runtime がある場合は `maintenance_upgrade`）で専用 Service Account、WIF と単一 Cloud Run Job を準備します。実際の plan / apply は別途承認が必要です。
+2. GitHub Actions **MyPage Maintenance Mode** の `workflow_dispatch` で対象 `environment` と `enabled=false` を指定して初期化します。欠損 document の作成も同じ Job が行います。
+3. 開始時は `enabled=true`、解除時は `enabled=false` を指定します。Job は入力を検証し、transaction で現在値を読んで更新し、commit 後に読み返して結果をログに出力します。同じ値は成功する no-op です。
+4. 実行の成功・失敗と Job ログを確認します。読取・更新・readback の失敗は成功扱いになりません。失敗時は対象環境と権限、Firestore の文書状態を調査し、復旧後に同じ workflow を再実行します。
 
-公開トップ、プライバシー、利用規約、お問い合わせ、本人確認済みprivacy request受付・状態確認、目的がserver-side support requestに束縛されたsupport OAuthは利用可能である。clientがsupport目的や対象channelを自己申告して例外になることはない。
+GitHub からの WIF identity は固定 Job を実行でき、Firestore の直接アクセス権は持ちません。Job 自体は専用 Service Account で動作します。Firestore IAM は collection 単位ではないため、Job identity の権限はプロジェクト内の他の document にも及びます。
 
-`GET /api/public/mypage-status`はsame-origin、認証/App Check不要、`no-store`で、`state`、`updatedAt`、任意`estimatedEndAt`、固定message templateだけを返す。Frontendは取得失敗を`UNKNOWN`として安全側のmaintenance画面に留まり、`NORMAL`を推測しない。`/maintenance`へ直接到達した`UNKNOWN`画面には状態を再取得するための「再読み込み」だけを表示する。
-
-`ACTIVE`画面の表示内容は「ただいまメンテナンス中です」「詳しくはお知らせをご確認ください。」「お知らせを見る」の3要素に限定する。開始・終了時刻、再読み込み、ログアウト、トップへのカード内導線は表示せず、既存ブランドheaderとPrivacy Policy・利用規約・Cookie設定・お問い合わせのfooterを維持する。status確認、visible復帰時の再確認、低頻度poll、`NORMAL`確認後の`/`へのreplace遷移は画面上の操作とは独立して継続する。
-
-「お知らせを見る」は、既存の公開build入力`VITE_FIREBASE_PROJECT_ID`からreview済みの公開YouTube posts URLを選ぶ。`test-youtube-study-space`はDEVチャンネル`https://www.youtube.com/channel/UChBj4xZePvWyGmTKct5FBcg/posts`、`youtube-study-space`はPRODチャンネル`https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/posts`へ対応する。この対応表は非secretのsource定数であり、Firestore、Backend runtime、browser storage、運用stateへ保存しない。未知project IDでは別環境へfallbackせずリンクを非表示にし、release設定の不備として扱う。URL変更はsource review、テスト、再build・releaseを必要とする。
-
-## GitHub Actionsによる手動切替
-
-workflowは`MyPage Maintenance Mode`（`.github/workflows/mypage-maintenance.yml`）。DEVは`integration/mypage-canon-20261006`、PRODは`main`の、レビュー済みexact SHAからだけ実行できる。rerun、fork、pull request、別ref、repository/owner/actor ID不一致、actorとtriggering actor不一致は認証前に拒否する。
-
-1. 対象環境の直前の成功run artifactでcurrent revisionを確認する。公開statusはrevisionを出さないため、90日保持されるbounded transition receiptを使う。receiptが失効・不明な場合は、対象projectの固定`mypage-maintenance-bootstrap-check` Jobを引数上書きなしで手動実行し、Cloud Loggingへ出るsanitized JSONのrevisionを確認する。このJobはFirestore読取専用identityでauthoritative singleton以外を読めない。推測したrevisionや公開statusからの算出は使わない。
-2. `environment`、`NORMAL|ACTIVE`、`expected_revision`、固定`reason_category`、exact `expected_sha`を入力する。`ACTIVE`だけ14日以内のRFC3339 `estimated_end_at`を任意入力でき、認証前にcanonical UTCかつFirestoreのmicrosecond精度へ正規化される。`ACTIVE`開始は`PLANNED_MAINTENANCE|DATA_MIGRATION|SECURITY_MAINTENANCE`、解除は`RECOVERY`だけを使う。保守延長・短縮・見込み未定への変更は、current revisionと同じ`reason_category`を使って`ACTIVE`のまま新しいrunを開始する。
-3. PRODでは`PRODUCTION ACTIVE`または`PRODUCTION NORMAL`をexact入力し、GitHub Environment approvalを通す。
-4. 初期`NORMAL`以外では、認証前にcanonical originの厳密な公開statusとHTML内の固定`MYPAGE_MAINTENANCE_V1` capability markerを読み、Backend guardとFrontend UXが両方配備済みであること、遷移前state/終了見込みのexact値を確認する。未配備・不明ならFirestoreを変更しない。
-5. workflowが専用WIFで`mypage-maintenance-invoker`へ連携し、特定Cloud Run Jobだけを起動する。GitHub側identityにはFirestore権限がない。
-6. Jobは認証前に固定した遷移前state/終了見込みも含め、最初にnon-mutating previewでcurrent state/revisionと遷移可否を確認し、次のexecutionでCAS・監査append・authoritative readbackを実行し、最後のnon-mutating verifyでcontrolとaudit eventの前後値がexactに一致することを確認する。
-7. 初期`NORMAL`以外はsourceで環境ごとに固定したcanonical HTTPS origin（DEVは`https://test--study-space.web.app`、PRODは`https://moku.work`）の公開statusが、必須timestampを含む厳密schemaで指定stateとexact `estimated_end_at`（未指定ならfield非存在）を返し、公開トップ、MyPage shell、Privacy、Terms、Contactが応答することを確認する。3段のJobとHTTP postconditionが成功したときだけ、revision/state/actionRefを含むreceipt artifactを保存する。初期`NORMAL`はAPI未配備を許すためHTTP確認を`not-yet-deployed`として分離する。
-
-GitHub Environment `mypage-maintenance-development` / `mypage-maintenance-production`には、対応環境のTerraform outputから次を設定する。
-
-- `MYPAGE_MAINTENANCE_WIF_PROVIDER`
-- `MYPAGE_MAINTENANCE_SERVICE_ACCOUNT`（`mypage-maintenance-invoker@<project>.iam.gserviceaccount.com`）
-
-WIF providerはsource固定の対象project numberを含むexact resource nameと一致しなければ、認証前に拒否する。attribute conditionで参照するGitHub OIDC claimはすべてprovider mappingにも明示し、immutable numeric owner/repository/actor ID、workflow/ref/SHA、environment、初回attemptを束縛する。公開originもsource固定であり、GitHub Environment variableから別環境や任意hostへ差し替えない。
-
-Terraformでは`runtime_settings.maintenance_operator_enabled=true`とAPI用digestから分離した`maintenance_operator_image_digest` / `maintenance_operator_image_source_sha`を、`maintenance_operator`以降のstageで必須にする。source SHAは実行中commitのancestorであり、Artifact Registryの同SHA tagがoperator digestを指すことをPlan/Applyの双方で検証する。通常のTerraform identity、MyPage API runtime identity、backend deployerをmaintenance workflowへ流用しない。独立した承認者がいる運用体制ではPROD Environmentにrequired reviewerを設定する。単独運用では自己承認required reviewerを要求せず、exact confirmation、`main` / exact SHA、immutable owner/actor ID、初回runだけという機械的制約を維持する。
-
-## 検証の責務
-
-同じ条件を複数層で文字列比較しない。Frontend unit testは公開schema・route遷移・polling lifecycle、Go unit testは認証境界・fail-closed・response/write fence、Firestore EmulatorはCASとcontrol/auditの原子性、Terraform native testは実Plan上のIAM・resource境界、workflow Python testは認証前入力検証と公開postconditionを担当する。実Planを検証する層がある場合、Terraform resource総数やsource内の記述順を別テストの固定値として複製しない。例外は、credential取得前の拒否や秘密情報の非公開など、層をまたぐ安全境界を直接証明する最小限の検証だけとする。
-
-operatorを構築するauthenticated foundation workflowは`target=development|production`を明示する。Productionではprotected Environmentへ入る前に`main`、exact SHA、repository/owner/actorのimmutable ID、workflow refを検査し、`mypage-prod-plan` / `mypage-prod-apply` Environment自体もdeployment branchを`main`だけに固定する。prod State key、prod専用AWS role/GCP service accountに分離し、`registry-plan|apply`、`image-build`、`maintenance-operator-plan|apply`、既存runtimeを保持する`maintenance-upgrade-plan|apply`以外を認証前に拒否する。image-buildはAWS/State credentialを受け取らず、対象Production repositoryだけを照合してimmutable tagをpush/readbackする。source上の経路が存在しても、Environment/secret/stateの設定や実Plan/Apply/image pushを完了したことにはならない。
-
-## GitHub Actions障害時のbreak-glass
-
-GitHub Actionsの障害だけを理由にFirestore Consoleや`gcloud firestore`でcontrol/auditを直接変更しない。通常Jobとは別の固定`mypage-maintenance-breakglass` command/Jobから、同一CAS、同一transactional audit、同一verifyを使う。authorityは各binaryに固定され、引数や環境変数では選べない。これは通常手順ではなく、インシデント責任者が承認参照と対象環境・state・revision・review済みoperator source SHAを記録した場合だけ行う。
-
-1. 対象Jobの現行image digest/source SHAとcurrent state/revisionをread-onlyで確認する。承認参照は`INCIDENT_123`形式、operatorは実GCP principalのemailを使う。
-2. 管理者はそのprincipalだけに、対象環境の`mypage-maintenance-breakglass` Job資源上で、短い有効期限条件付き`roles/run.jobsExecutorWithOverrides`を一時付与する。通常`mypage-maintenance-operator` Job、project全体、Firestore、Terraform SA、通常backend deployerへは付与しない。
-3. `gcloud run jobs execute mypage-maintenance-breakglass --wait --quiet --args=...`で、`--break-glass-approval-ref`、`--claimed-operator`、exact project/environment/state/expected revision、`--expected-previous-state`、任意の`--expected-previous-estimated-end-at`、reason/action ref/ref/source SHAを渡し、`preview`、`apply`、`verify`を別executionでこの順に実行する。`--authority`およびGitHub repository/run/workflow fieldsは渡せず、渡した実行はFirestore接続前に拒否される。
-4. `verify`成功後、公開statusと例外routeを通常workflowと同じ条件で確認し、3 execution ID、control/audit readback、Cloud Audit Logのinitiating principal、承認参照をインシデント記録へ保存する。claimed operatorとAudit Log principalが違えば失敗として扱う。
-5. 一時Job IAM bindingを直ちに削除し、readbackで消失を確認する。途中失敗時も自動再試行や同一actionRef再利用をせず、current revision/audit/Audit Logを再確認する。
-
-具体的な引数列はoperatorの`--help`から組み立てず、このrunbookの必須fieldを二者確認する。`actionRef`は承認参照・execution目的・環境・stateからオフラインで生成した64桁hexとし、tokenや説明文を含めない。
-
-## 復旧と失敗時
-
-- CAS不一致: 状態を上書きせず、新revisionを確認して意図を再評価し、新しいworkflow runを開始する。rerunは使わない。
-- Job失敗・readback失敗: 成功とみなさない。公開statusと監査eventを読み取り、状態が不明ならfail-closedを維持する。
-- 制御文書破損: 手作業で補修せず、原因とcurrent documentを限定的に確認してから、review済みの復旧変更または専用operator拡張を行う。通常APIを一時的にfail-openへ変更しない。
-- 解除: `state=NORMAL`、current revision、`reason_category=RECOVERY`で新しいrunを開始する。終了予定は付けない。公開statusが`NORMAL`になり、`/maintenance`の再読み込みで`/`へ置換遷移することを確認する。
-- rollback: code rollbackと運用state rollbackは別操作である。codeを戻してもFirestore stateを暗黙変更しない。必要なら安全なcodeを配備した後、別の承認済みworkflowで`NORMAL`へ遷移する。
-
-live deploy、Terraform apply、GitHub Environment/secret設定、初期`NORMAL`作成、実環境の開始・解除は、個別に明示承認された運用作業であり、source mergeだけでは実施済みと扱わない。
+配備時は Job を用意し初期 `enabled=false` を確認してから Backend と Frontend を配備します。IaC の変更だけでは実環境への適用や初期化は行われません。

@@ -58,7 +58,6 @@ describe('public maintenance status', () => {
 		const valid = {
 			state: 'ACTIVE',
 			updatedAt: '2026-10-27T02:00:00Z',
-			estimatedEndAt: '2026-10-27T03:00:00Z',
 			messageTemplate: 'MYPAGE_MAINTENANCE_V1',
 		}
 		expect(parseMaintenanceStatus(valid)).toEqual(valid)
@@ -69,14 +68,14 @@ describe('public maintenance status', () => {
 			{ ...valid, messageTemplate: 'operator text' },
 			{ ...valid, updatedAt: 'not-a-time' },
 			{ ...valid, updatedAt: '2026-10-27T02:00:00' },
-			{ ...valid, state: 'NORMAL' },
+			{ ...valid, estimatedEndAt: '2026-10-27T03:00:00Z' },
 		])
 			expect(() => parseMaintenanceStatus(invalid)).toThrow()
 	})
 
-	it('checks on entry and visible interval, stops hidden, and checks on return', async () => {
+	it('checks on entry and recovers only after an explicit recheck', async () => {
 		vi.useFakeTimers()
-		const { documentTarget } = browserFixture()
+		const { documentTarget, windowTarget } = browserFixture()
 		let state: 'ACTIVE' | 'NORMAL' = 'ACTIVE'
 		const request = vi.fn<typeof fetch>(async () =>
 			Response.json({
@@ -90,111 +89,18 @@ describe('public maintenance status', () => {
 		monitor.setRouteActive(true)
 		await settle()
 		expect(monitor.getSnapshot().phase).toBe('active')
-		expect(request).toHaveBeenCalledTimes(1)
-		await vi.advanceTimersByTimeAsync(120_000)
-		expect(request).toHaveBeenCalledTimes(2)
-		documentTarget.visibilityState = 'hidden'
-		documentTarget.dispatchEvent(new Event('visibilitychange'))
+		state = 'NORMAL'
 		await vi.advanceTimersByTimeAsync(360_000)
+		documentTarget.dispatchEvent(new Event('visibilitychange'))
+		windowTarget.dispatchEvent(
+			Object.assign(new Event('pageshow'), { persisted: true }),
+		)
+		await settle()
+		expect(request).toHaveBeenCalledTimes(1)
+		expect(monitor.getSnapshot().phase).toBe('active')
+		await monitor.check()
 		expect(request).toHaveBeenCalledTimes(2)
-		state = 'NORMAL'
-		documentTarget.visibilityState = 'visible'
-		documentTarget.dispatchEvent(new Event('visibilitychange'))
-		await settle()
-		expect(request).toHaveBeenCalledTimes(3)
 		expect(monitor.getSnapshot().phase).toBe('normal')
-		dispose()
-	})
-
-	it('recovers ACTIVE to NORMAL on the next visible poll', async () => {
-		vi.useFakeTimers()
-		browserFixture()
-		let state: 'ACTIVE' | 'NORMAL' = 'ACTIVE'
-		const request = vi.fn<typeof fetch>(async () =>
-			Response.json({
-				state,
-				updatedAt: '2026-10-27T02:00:00Z',
-				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
-			}),
-		)
-		const monitor = new MaintenanceMonitor(request)
-		const dispose = monitor.mount()
-		monitor.setRouteActive(true)
-		await settle()
-		expect(monitor.getSnapshot().phase).toBe('active')
-		state = 'NORMAL'
-		await vi.advanceTimersByTimeAsync(120_000)
-		expect(monitor.getSnapshot().phase).toBe('normal')
-		dispose()
-	})
-
-	it('invalidates private state when a background NORMAL revision changes', async () => {
-		vi.useFakeTimers()
-		browserFixture()
-		let updatedAt = '2026-10-27T02:00:00Z'
-		const phases: string[] = []
-		const monitor = new MaintenanceMonitor(
-			async () =>
-				Response.json({
-					state: 'NORMAL',
-					updatedAt,
-					messageTemplate: 'MYPAGE_MAINTENANCE_V1',
-				}),
-			(phase) => phases.push(phase),
-		)
-		const dispose = monitor.mount()
-		monitor.setRouteActive(true)
-		await settle()
-		phases.length = 0
-		updatedAt = '2026-10-27T02:05:00Z'
-		await vi.advanceTimersByTimeAsync(120_000)
-		expect(monitor.getSnapshot()).toMatchObject({
-			phase: 'normal',
-			status: { updatedAt },
-		})
-		expect(phases).toEqual(['checking'])
-		dispose()
-	})
-
-	it('closes a prior NORMAL snapshot before a delayed visibility recheck', async () => {
-		const { documentTarget } = browserFixture()
-		let call = 0
-		let release: (response: Response) => void = () => {}
-		const phases: string[] = []
-		const monitor = new MaintenanceMonitor(
-			async () => {
-				call++
-				if (call === 1)
-					return Response.json({
-						state: 'NORMAL',
-						updatedAt: '2026-10-27T02:00:00Z',
-						messageTemplate: 'MYPAGE_MAINTENANCE_V1',
-					})
-				return new Promise<Response>((resolve) => {
-					release = resolve
-				})
-			},
-			(phase) => phases.push(phase),
-		)
-		const dispose = monitor.mount()
-		monitor.setRouteActive(true)
-		await settle()
-		expect(monitor.getSnapshot().phase).toBe('normal')
-		documentTarget.visibilityState = 'hidden'
-		documentTarget.dispatchEvent(new Event('visibilitychange'))
-		documentTarget.visibilityState = 'visible'
-		documentTarget.dispatchEvent(new Event('visibilitychange'))
-		expect(monitor.getSnapshot().phase).toBe('checking')
-		expect(phases.at(-1)).toBe('checking')
-		release(
-			Response.json({
-				state: 'ACTIVE',
-				updatedAt: '2026-10-27T02:01:00Z',
-				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
-			}),
-		)
-		await settle()
-		expect(monitor.getSnapshot().phase).toBe('active')
 		dispose()
 	})
 
@@ -243,47 +149,5 @@ describe('public maintenance status', () => {
 				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
 			}).updatedAt,
 		).toBe(updatedAt)
-	})
-
-	it('closes the private gate synchronously for forced route and pageshow rechecks', async () => {
-		const { windowTarget } = browserFixture()
-		let release: (response: Response) => void = () => {}
-		const phases: string[] = []
-		const request = vi.fn<typeof fetch>(
-			() =>
-				new Promise<Response>((resolve) => {
-					release = resolve
-				}),
-		)
-		const monitor = new MaintenanceMonitor(request, (phase) =>
-			phases.push(phase),
-		)
-		const dispose = monitor.mount()
-		monitor.setRouteActive(true)
-		expect(monitor.getSnapshot().phase).toBe('checking')
-		expect(phases.at(-1)).toBe('checking')
-		release(
-			Response.json({
-				state: 'NORMAL',
-				updatedAt: '2026-10-27T02:00:00Z',
-				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
-			}),
-		)
-		await settle()
-		expect(monitor.getSnapshot().phase).toBe('normal')
-		monitor.setRouteActive(true, true)
-		expect(monitor.getSnapshot().phase).toBe('checking')
-		const ordinaryShow = Object.assign(new Event('pageshow'), {
-			persisted: false,
-		})
-		windowTarget.dispatchEvent(ordinaryShow)
-		expect(request).toHaveBeenCalledTimes(2)
-		const restoredShow = Object.assign(new Event('pageshow'), {
-			persisted: true,
-		})
-		windowTarget.dispatchEvent(restoredShow)
-		expect(monitor.getSnapshot().phase).toBe('checking')
-		expect(request).toHaveBeenCalledTimes(3)
-		dispose()
 	})
 })

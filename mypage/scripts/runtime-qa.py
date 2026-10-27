@@ -92,9 +92,9 @@ with sync_playwright() as p:
  results.append('direct protected route stays put, hides private data while checking, then resumes on NORMAL')
  load('/maintenance','maintenance-unknown-authenticated')
  page.get_by_role('heading',name='現在、マイページの状態を確認できません').wait_for()
- assert page.get_by_role('button',name='再読み込み',exact=True).count()==1
+ assert page.get_by_role('button',name='状態を再確認',exact=True).count()==1
  assert page.get_by_role('link',name='お知らせを見る').count()==0
- results.append('direct UNKNOWN maintenance route offers an explicit reload recovery action')
+ results.append('direct UNKNOWN maintenance route offers an explicit status recheck')
  for width in [390,1024]:
   page.set_viewport_size({'width':width,'height':960})
   load('/mypage','maintenance-active-authenticated')
@@ -106,7 +106,7 @@ with sync_playwright() as p:
   assert announcement.get_attribute('href')=='https://www.youtube.com/channel/UChBj4xZePvWyGmTKct5FBcg/posts'
   assert announcement.get_attribute('target')=='_blank'
   assert page.get_by_text('終了見込み：2026/10/27 12:00（JST）',exact=True).count()==0
-  assert page.get_by_role('button',name='再読み込み',exact=True).count()==0
+  assert page.get_by_role('button',name='状態を再確認',exact=True).count()==1
   assert page.get_by_role('link',name='トップへ戻る',exact=True).count()==0
   assert page.get_by_role('link',name='プライバシー',exact=True).count()==1
   assert page.get_by_role('link',name='利用規約').count()==1
@@ -122,11 +122,10 @@ with sync_playwright() as p:
   page.screenshot(path=str(out/f'maintenance-{width}.png'),full_page=True)
  results.append('ACTIVE maintenance UI, focus, legal footer, private-data clearing, and responsive widths')
  load('/maintenance','maintenance-active-authenticated');page.get_by_role('heading',name='ただいまメンテナンス中です').wait_for()
- page.evaluate("Object.defineProperty(document,'visibilityState',{configurable:true,value:'hidden'});document.dispatchEvent(new Event('visibilitychange'))")
  page.locator('#synthetic-maintenance-normal').click()
- page.evaluate("Object.defineProperty(document,'visibilityState',{configurable:true,value:'visible'});document.dispatchEvent(new Event('visibilitychange'))")
+ page.get_by_role('button',name='状態を再確認',exact=True).click()
  page.get_by_role('heading',name='自分のペースで、少しずつ。').wait_for()
- results.append('visible return rechecks ACTIVE, observes NORMAL, and replace-navigates home')
+ results.append('manual recheck observes NORMAL and replace-navigates home')
  storage=page.evaluate('({local:Object.keys(localStorage),session:Object.fromEntries(Object.entries(sessionStorage))})');assert storage['local']==[] and all(k=='tsr-scroll-restoration-v1_3' and v=='{}' for k,v in storage['session'].items()),storage
  assert not errors,errors
  page.screenshot(path=str(out/'not-found-390.png'),full_page=True)

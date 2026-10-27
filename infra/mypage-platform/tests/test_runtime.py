@@ -34,7 +34,7 @@ def fixture(stage="runtime_private"):
             "resource_changes": [{"address": address, "mode": "managed", "provider_name": "registry.terraform.io/hashicorp/google",
                                   "change": {"actions": (["create"] if address in r.maintenance_resource_contract() else ["no-op"]) if stage == "maintenance_upgrade" else (["no-op"] if address in r.maintenance_resource_contract() else ["create"]), "after": values, "after_unknown": {}}} for address, values in after.items()]}
     for item in result["resource_changes"]:
-        if item["address"] in {r.MAINTENANCE_ROLE, r.MAINTENANCE_BOOTSTRAP_ROLE} and item["change"]["actions"] == ["no-op"]:
+        if item["address"] in {r.MAINTENANCE_ROLE} and item["change"]["actions"] == ["no-op"]:
             item["change"]["after"]["deleted"] = False
     if stage == "runtime_public":
         change = next(x['change'] for x in result['resource_changes'] if x['address'] == r.INVOKER)
@@ -106,7 +106,7 @@ class RuntimeTest(unittest.TestCase):
                 'completion_time': completed,
             }]
 
-        for address in (r.MAINTENANCE_JOB, r.MAINTENANCE_BREAKGLASS_JOB, r.MAINTENANCE_BOOTSTRAP_JOB):
+        for address in (r.MAINTENANCE_JOB,):
             with self.subTest(address=address):
                 plan = fixture('runtime_private')
                 for item in plan['resource_changes']:
@@ -150,7 +150,7 @@ class RuntimeTest(unittest.TestCase):
                         r.validate_plan(rejected, 'runtime_private')
 
     def test_every_fixed_maintenance_job_rejects_nested_runtime_overrides(self):
-        addresses = (r.MAINTENANCE_JOB, r.MAINTENANCE_BREAKGLASS_JOB, r.MAINTENANCE_BOOTSTRAP_JOB)
+        addresses = (r.MAINTENANCE_JOB,)
         mutations = (
             (lambda job: job['template'][0]['template'][0].update(volumes=[{'empty_dir': [{}], 'name': 'shadow'}]), 'task-options'),
             (lambda job: job['template'][0]['template'][0].update(execution_environment='EXECUTION_ENVIRONMENT_GEN1'), 'runtime'),
@@ -166,12 +166,12 @@ class RuntimeTest(unittest.TestCase):
                 rejected = fixture('maintenance_upgrade')
                 job = next(item for item in rejected['resource_changes'] if item['address'] == address)['change']['after']
                 mutate(job)
-                prefix = 'maintenance-bootstrap-' if address == r.MAINTENANCE_BOOTSTRAP_JOB else 'maintenance-job-'
+                prefix = 'maintenance-job-'
                 with self.subTest(address=address, suffix=suffix), self.assertRaisesRegex(c.ContractError, '^' + prefix + suffix + '$'):
                     r.validate_plan(rejected, 'maintenance_upgrade')
 
     def test_cloud_run_optional_inputs_are_fixed_and_create_cannot_pin_a_revision(self):
-        addresses = (r.MAINTENANCE_JOB, r.MAINTENANCE_BREAKGLASS_JOB, r.MAINTENANCE_BOOTSTRAP_JOB)
+        addresses = (r.MAINTENANCE_JOB,)
         for address in addresses:
             for field, invalid in (("deletion_policy", "ABANDON"), ("launch_stage", "ALPHA")):
                 rejected = fixture("maintenance_upgrade")
@@ -199,8 +199,6 @@ class RuntimeTest(unittest.TestCase):
         mutations = (
             (r.MAINTENANCE_JOB, "maintenance_upgrade",
              {"template": [{"template": [{"volumes": True}]}]}, "maintenance-job-unknown"),
-            (r.MAINTENANCE_BOOTSTRAP_JOB, "maintenance_upgrade",
-             {"template": [{"template": [{"vpc_access": True}]}]}, "maintenance-bootstrap-unknown"),
             (r.SERVICE, "runtime_private",
              {"template": [{"containers": [{"volume_mounts": True}]}]}, "runtime-config-unknown"),
         )

@@ -3,79 +3,45 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
-	"cloud.google.com/go/firestore"
+	"app.modules/core/mypage"
 )
 
-func operatorArgs() []string {
-	return []string{
-		"--operation=apply",
-		"--project=test-youtube-study-space",
-		"--environment=development",
-		"--state=ACTIVE",
-		"--expected-revision=1",
-		"--reason-category=PLANNED_MAINTENANCE",
-		"--action-ref=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		"--repository-id=340900071",
-		"--repository-owner-id=54093651",
-		"--actor-id=54093651",
-		"--triggering-actor-id=54093651",
-		"--run-id=123",
-		"--run-attempt=1",
-		"--git-ref=refs/heads/integration/mypage-canon-20261006",
-		"--commit-sha=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-		"--workflow-ref=kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@refs/heads/integration/mypage-canon-20261006",
-		"--expected-previous-state=NORMAL",
-	}
-}
-
-func TestOperatorRejectsBeforeCredentialDiscovery(t *testing.T) {
-	now := func() time.Time { return time.Date(2026, 10, 27, 2, 0, 0, 0, time.UTC) }
-	baseEnv := map[string]string{"GOOGLE_CLOUD_PROJECT": "test-youtube-study-space", "MYPAGE_ENVIRONMENT": "development", "CLOUD_RUN_EXECUTION": "mypage-maintenance-operator-abcde"}
-	for name, mutate := range map[string]func([]string, map[string]string) ([]string, map[string]string){
-		"unknown operation": func(args []string, env map[string]string) ([]string, map[string]string) {
-			args[0] = "--operation=delete"
-			return args, env
-		},
-		"unknown state": func(args []string, env map[string]string) ([]string, map[string]string) {
-			args[3] = "--state=NOTICE"
-			return args, env
-		},
-		"wrong project": func(args []string, env map[string]string) ([]string, map[string]string) {
-			env["GOOGLE_CLOUD_PROJECT"] = "youtube-study-space"
-			return args, env
-		},
-		"credential file": func(args []string, env map[string]string) ([]string, map[string]string) {
-			env["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/forbidden"
-			return args, env
-		},
-		"missing execution": func(args []string, env map[string]string) ([]string, map[string]string) {
-			delete(env, "CLOUD_RUN_EXECUTION")
-			return args, env
-		},
-		"rerun": func(args []string, env map[string]string) ([]string, map[string]string) {
-			args[12] = "--run-attempt=2"
-			return args, env
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			args := append([]string(nil), operatorArgs()...)
-			env := map[string]string{}
-			for key, value := range baseEnv {
-				env[key] = value
-			}
-			args, env = mutate(args, env)
-			connected := false
+func TestRunValidatesAndReportsOutcome(t *testing.T) {
+	for _, tt := range []struct {
+		arg  string
+		want bool
+	}{{"true", true}, {"false", false}} {
+		t.Run(tt.arg, func(t *testing.T) {
 			var output bytes.Buffer
-			err := run(context.Background(), args, &output, func(key string) string { return env[key] }, now, func(context.Context, string) (*firestore.Client, error) {
-				connected = true
-				return nil, nil
+			err := run(context.Background(), []string{"--enabled=" + tt.arg}, &output, func(_ context.Context, enabled bool) (mypage.MaintenanceControl, bool, error) {
+				if enabled != tt.want {
+					t.Fatal("wrong enabled value")
+				}
+				return mypage.MaintenanceControl{Enabled: enabled, UpdatedAt: time.Unix(1, 0).UTC()}, false, nil
 			})
-			if err == nil || connected || output.Len() != 0 {
-				t.Fatalf("err=%v connected=%v output=%q", err, connected, output.String())
+			if err != nil || !strings.Contains(output.String(), `"changed":false`) {
+				t.Fatalf("%v %s", err, output.String())
 			}
 		})
+	}
+	called := false
+	err := run(context.Background(), []string{"--enabled=1"}, &bytes.Buffer{}, func(context.Context, bool) (mypage.MaintenanceControl, bool, error) {
+		called = true
+		return mypage.MaintenanceControl{}, false, nil
+	})
+	if err == nil || called {
+		t.Fatal("invalid input reached Firestore")
+	}
+	failure := errors.New("firestore failure")
+	err = run(context.Background(), []string{"--enabled=true"}, &bytes.Buffer{}, func(context.Context, bool) (mypage.MaintenanceControl, bool, error) {
+		return mypage.MaintenanceControl{}, false, failure
+	})
+	if !errors.Is(err, failure) {
+		t.Fatalf("lost error: %v", err)
 	}
 }

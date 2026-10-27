@@ -172,22 +172,14 @@ def reject_unowned_resources(env, plan):
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/mypage-maintenance-job@" + contract.PROJECT + ".iam.gserviceaccount.com",
         runtime_contract.MAINTENANCE_INVOKER_SA:
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/mypage-maintenance-invoker@" + contract.PROJECT + ".iam.gserviceaccount.com",
-        runtime_contract.MAINTENANCE_BOOTSTRAP_SA:
-            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/mypage-maintenance-bootstrap@" + contract.PROJECT + ".iam.gserviceaccount.com",
         runtime_contract.MAINTENANCE_ROLE:
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/roles/mypageMaintenanceOperator",
-        runtime_contract.MAINTENANCE_BOOTSTRAP_ROLE:
-            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/roles/mypageMaintenanceBootstrapReader",
         runtime_contract.MAINTENANCE_POOL:
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance",
         runtime_contract.MAINTENANCE_PROVIDER:
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance/providers/github",
         runtime_contract.MAINTENANCE_JOB:
             "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/jobs/mypage-maintenance-operator",
-        runtime_contract.MAINTENANCE_BREAKGLASS_JOB:
-            "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/jobs/mypage-maintenance-breakglass",
-        runtime_contract.MAINTENANCE_BOOTSTRAP_JOB:
-            "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/jobs/mypage-maintenance-bootstrap-check",
     })
     for item in plan["resource_changes"]:
         if item["address"] not in urls or item["change"]["actions"] != ["create"]:

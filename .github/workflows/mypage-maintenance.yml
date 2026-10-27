@@ -8,231 +8,53 @@ on:
         required: true
         type: choice
         options: [development, production]
-      state:
-        description: Exact target state
+      enabled:
+        description: Enable or disable planned maintenance
         required: true
         type: choice
-        options: [NORMAL, ACTIVE]
-      expected_revision:
-        description: Current revision (0 only for initial NORMAL)
-        required: true
-        type: string
-      estimated_end_at:
-        description: Optional RFC3339 end estimate for ACTIVE
-        required: false
-        type: string
-      reason_category:
-        description: Fixed audit reason
-        required: true
-        type: choice
-        options: [INITIALIZATION, PLANNED_MAINTENANCE, DATA_MIGRATION, SECURITY_MAINTENANCE, RECOVERY]
-      expected_sha:
-        description: Exact 40-character commit SHA reviewed for this run
-        required: true
-        type: string
-      production_confirmation:
-        description: For production only, enter PRODUCTION followed by the state
-        required: false
-        type: string
+        options: ['true', 'false']
 
 permissions: {}
-
 concurrency:
   group: mypage-maintenance-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
   transition:
-    name: ${{ inputs.environment }} ${{ inputs.state }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
-    environment:
-      name: mypage-maintenance-${{ inputs.environment }}
+    environment: mypage-maintenance-${{ inputs.environment }}
     permissions:
       contents: read
       id-token: write
     steps:
-      - name: Checkout the exact reviewed commit
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-
-      - name: Reject untrusted context and invalid transition before authentication
-        id: context
+      - name: Validate the target and input
         env:
-          INPUT_ENVIRONMENT: ${{ inputs.environment }}
-          INPUT_STATE: ${{ inputs.state }}
-          INPUT_EXPECTED_REVISION: ${{ inputs.expected_revision }}
-          INPUT_ESTIMATED_END_AT: ${{ inputs.estimated_end_at }}
-          INPUT_REASON_CATEGORY: ${{ inputs.reason_category }}
-          INPUT_EXPECTED_SHA: ${{ inputs.expected_sha }}
-          INPUT_PRODUCTION_CONFIRMATION: ${{ inputs.production_confirmation }}
-          MYPAGE_TRIGGERING_ACTOR_ID: ${{ github.event.sender.id }}
-        run: python3 .github/scripts/mypage_maintenance.py
-
-      - name: Verify deployed capability and bind the exact previous state
-        id: capability
-        env:
-          PUBLIC_ORIGIN: ${{ steps.context.outputs.public_origin }}
-          EXPECTED_REVISION: ${{ steps.context.outputs.expected_revision }}
-          TARGET_STATE: ${{ steps.context.outputs.state }}
-        run: |
-          python3 - <<'PY'
-          import json, os, sys, urllib.error, urllib.request
-          sys.path.insert(0, '.github/scripts')
-          from mypage_maintenance import public_control, valid_frontend_capability
-
-          output = os.environ['GITHUB_OUTPUT']
-          if os.environ['EXPECTED_REVISION'] == '0':
-              with open(output, 'a', encoding='utf-8') as stream:
-                  stream.write('previous_state=MISSING\nprevious_estimated_end_at=\n')
-              raise SystemExit(0)
-
-          class NoRedirect(urllib.request.HTTPRedirectHandler):
-              def redirect_request(self, req, fp, code, msg, headers, newurl):
-                  return None
-
-          def read(path, maximum):
-              request = urllib.request.Request(
-                  os.environ['PUBLIC_ORIGIN'] + path,
-                  headers={'Cache-Control': 'no-cache', 'Accept-Encoding': 'identity'},
-              )
-              with urllib.request.build_opener(NoRedirect()).open(request, timeout=20) as response:
-                  assert response.status == 200
-                  body = response.read(maximum + 1)
-                  assert len(body) <= maximum
-                  return body
-
-          control = public_control(json.loads(read('/api/public/mypage-status', 65536)))
-          assert control is not None, 'maintenance-capable backend is not deployed'
-          assert not (control['state'] == 'NORMAL' and os.environ['TARGET_STATE'] == 'NORMAL'), 'invalid NORMAL to NORMAL transition'
-          html = read('/?maintenance-capability=MYPAGE_MAINTENANCE_V1', 1048576).decode('utf-8')
-          assert valid_frontend_capability(html), 'maintenance-capable frontend is not deployed'
-          with open(output, 'a', encoding='utf-8') as stream:
-              stream.write('previous_state=' + control['state'] + '\n')
-              stream.write('previous_estimated_end_at=' + control['estimated_end_at'] + '\n')
-          PY
-
-      - name: Validate and mask the dedicated Job invoker identity
-        env:
-          PROVIDER: ${{ secrets.MYPAGE_MAINTENANCE_WIF_PROVIDER }}
-          EXPECTED_PROVIDER: ${{ steps.context.outputs.provider }}
-          SERVICE_ACCOUNT: ${{ secrets.MYPAGE_MAINTENANCE_SERVICE_ACCOUNT }}
-          PROJECT: ${{ steps.context.outputs.project }}
+          TARGET: ${{ inputs.environment }}
+          ENABLED: ${{ inputs.enabled }}
         run: |
           set -euo pipefail
-          [[ "${PROVIDER}" == "${EXPECTED_PROVIDER}" ]]
-          [[ "${SERVICE_ACCOUNT}" == "mypage-maintenance-invoker@${PROJECT}.iam.gserviceaccount.com" ]]
-          for value in "${PROVIDER}" "${SERVICE_ACCOUNT}" "${SERVICE_ACCOUNT%%@*}"; do
-            echo "::add-mask::${value}"
-          done
-
-      - name: Authenticate the environment-scoped Job invoker
+          case "${TARGET}:${ENABLED}" in
+            development:true|development:false) project=test-youtube-study-space; region=asia-southeast2 ;;
+            production:true|production:false) project=youtube-study-space; region=asia-northeast2 ;;
+            *) exit 1 ;;
+          esac
+          echo "project=${project}" >> "$GITHUB_OUTPUT"
+          echo "region=${region}" >> "$GITHUB_OUTPUT"
+        id: target
+      - name: Authenticate the dedicated job invoker
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           workload_identity_provider: ${{ secrets.MYPAGE_MAINTENANCE_WIF_PROVIDER }}
-          service_account: ${{ secrets.MYPAGE_MAINTENANCE_SERVICE_ACCOUNT }}
-          project_id: ${{ steps.context.outputs.project }}
-          create_credentials_file: true
-          export_environment_variables: true
-          cleanup_credentials: true
-          token_format: access_token
-          access_token_lifetime: 600s
-
-      - name: Preview, apply and verify the fixed CAS transition
+          service_account: mypage-maintenance-invoker@${{ steps.target.outputs.project }}.iam.gserviceaccount.com
+          project_id: ${{ steps.target.outputs.project }}
+      - name: Set and read back the maintenance switch
         env:
-          PROJECT: ${{ steps.context.outputs.project }}
-          REGION: ${{ steps.context.outputs.region }}
-          ENVIRONMENT: ${{ steps.context.outputs.environment }}
-          STATE: ${{ steps.context.outputs.state }}
-          EXPECTED_REVISION: ${{ steps.context.outputs.expected_revision }}
-          EXPECTED_PREVIOUS_STATE: ${{ steps.capability.outputs.previous_state }}
-          EXPECTED_PREVIOUS_ESTIMATED_END_AT: ${{ steps.capability.outputs.previous_estimated_end_at }}
-          ESTIMATED_END_AT: ${{ steps.context.outputs.estimated_end_at }}
-          REASON: ${{ steps.context.outputs.reason }}
-          ACTION_REF: ${{ steps.context.outputs.action_ref }}
-          EXPECTED_SHA: ${{ steps.context.outputs.expected_sha }}
-          WORKFLOW_REF: ${{ steps.context.outputs.workflow_ref }}
-          MYPAGE_TRIGGERING_ACTOR_ID: ${{ github.event.sender.id }}
+          PROJECT: ${{ steps.target.outputs.project }}
+          ENABLED: ${{ inputs.enabled }}
+          REGION: ${{ steps.target.outputs.region }}
         run: |
           set -euo pipefail
-          run_operator() {
-            local operation="$1"
-            local args="--operation=${operation},--project=${PROJECT},--environment=${ENVIRONMENT},--state=${STATE},--expected-revision=${EXPECTED_REVISION},--expected-previous-state=${EXPECTED_PREVIOUS_STATE},--reason-category=${REASON},--action-ref=${ACTION_REF},--repository-id=${GITHUB_REPOSITORY_ID},--repository-owner-id=${GITHUB_REPOSITORY_OWNER_ID},--actor-id=${GITHUB_ACTOR_ID},--triggering-actor-id=${MYPAGE_TRIGGERING_ACTOR_ID},--run-id=${GITHUB_RUN_ID},--run-attempt=${GITHUB_RUN_ATTEMPT},--git-ref=${GITHUB_REF},--commit-sha=${EXPECTED_SHA},--workflow-ref=${WORKFLOW_REF}"
-            if [[ -n "${EXPECTED_PREVIOUS_ESTIMATED_END_AT}" ]]; then
-              args="${args},--expected-previous-estimated-end-at=${EXPECTED_PREVIOUS_ESTIMATED_END_AT}"
-            fi
-            if [[ -n "${ESTIMATED_END_AT}" ]]; then
-              args="${args},--estimated-end-at=${ESTIMATED_END_AT}"
-            fi
-            gcloud run jobs execute mypage-maintenance-operator \
-              --project="${PROJECT}" \
-              --region="${REGION}" \
-              --args="${args}" \
-              --wait \
-              --quiet
-          }
-          run_operator preview
-          run_operator apply
-          run_operator verify
-
-      - name: Verify public postconditions when the API is already deployed
-        if: ${{ steps.context.outputs.expected_revision != '0' }}
-        env:
-          PUBLIC_ORIGIN: ${{ steps.context.outputs.public_origin }}
-          EXPECTED_STATE: ${{ steps.context.outputs.state }}
-          EXPECTED_ESTIMATED_END_AT: ${{ steps.context.outputs.estimated_end_at }}
-        run: |
-          python3 - <<'PY'
-          import os, sys, time, urllib.error
-          sys.path.insert(0, '.github/scripts')
-          from mypage_maintenance import verify_public_postconditions
-          origin = os.environ['PUBLIC_ORIGIN']
-          expected = os.environ['EXPECTED_STATE']
-          expected_estimate = os.environ['EXPECTED_ESTIMATED_END_AT']
-          deadline = time.monotonic() + 30
-          body = None
-          while time.monotonic() < deadline:
-              try:
-                  body = verify_public_postconditions(origin, expected, expected_estimate)
-                  break
-              except (urllib.error.URLError, TimeoutError, UnicodeError, ValueError):
-                  pass
-              time.sleep(1)
-          assert body is not None, 'public status did not converge before the bounded deadline'
-          PY
-
-      - name: Create bounded transition receipt
-        env:
-          RECEIPT: ${{ runner.temp }}/mypage-maintenance-receipt.json
-          ENVIRONMENT: ${{ steps.context.outputs.environment }}
-          STATE: ${{ steps.context.outputs.state }}
-          EXPECTED_REVISION: ${{ steps.context.outputs.expected_revision }}
-          ACTION_REF: ${{ steps.context.outputs.action_ref }}
-          INITIALIZATION: ${{ steps.context.outputs.expected_revision == '0' }}
-        run: |
-          python3 - <<'PY'
-          import json, os
-          from pathlib import Path
-          receipt = {
-              'environment': os.environ['ENVIRONMENT'],
-              'state': os.environ['STATE'],
-              'previousRevision': int(os.environ['EXPECTED_REVISION']),
-              'revision': int(os.environ['EXPECTED_REVISION']) + 1,
-              'actionRef': os.environ['ACTION_REF'],
-              'previewVerified': True,
-              'mutationApplied': True,
-              'authoritativeReadbackVerified': True,
-              'publicPostcondition': 'not-yet-deployed' if os.environ['INITIALIZATION'] == 'true' else 'passed',
-          }
-          Path(os.environ['RECEIPT']).write_text(json.dumps(receipt, sort_keys=True), encoding='utf-8')
-          PY
-
-      - name: Preserve transition receipt
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: mypage-maintenance-${{ steps.context.outputs.environment }}-${{ steps.context.outputs.action_ref }}
-          path: ${{ runner.temp }}/mypage-maintenance-receipt.json
-          if-no-files-found: error
-          retention-days: 90
+          gcloud run jobs execute mypage-maintenance-operator \
+            --project="${PROJECT}" --region="${REGION}" \
+            --args="--enabled=${ENABLED}" --wait --quiet

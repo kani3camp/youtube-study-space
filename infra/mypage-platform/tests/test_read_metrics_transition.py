@@ -29,7 +29,7 @@ def fixture(enabled=True, stage="runtime_private"):
                                 ("MYPAGE_YOUTUBE_API_KEY", "mypage-youtube-api-key", "youtube_api_key_version")):
         env.append({"name": name, "value_source": [{"secret_key_ref": [{"secret": secret, "version": value[field]}]}]})
     resources = r.resource_contract(stage, value)
-    for address in (r.MAINTENANCE_ROLE, r.MAINTENANCE_BOOTSTRAP_ROLE):
+    for address in (r.MAINTENANCE_ROLE,):
         resources[address]["deleted"] = False
     resources[r.SERVICE].update(
         scaling=[{"min_instance_count": 0, "max_instance_count": 1, "scaling_mode": "AUTOMATIC"}],

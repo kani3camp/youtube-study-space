@@ -449,20 +449,8 @@ components:
         updatedAt:
           type: string
           format: date-time
-        estimatedEndAt:
-          type: string
-          format: date-time
-          description: Optional only while ACTIVE. This is an estimate, not an automatic release schedule.
         messageTemplate:
           const: MYPAGE_MAINTENANCE_V1
-      allOf:
-      - if:
-          properties:
-            state:
-              const: NORMAL
-        then:
-          not:
-            required: [estimatedEndAt]
     PrivacyIntakeRequest:
       type: object
       additionalProperties: false

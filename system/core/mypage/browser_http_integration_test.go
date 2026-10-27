@@ -65,7 +65,7 @@ type browserHTTPEvent struct {
 	Status     int    `json:"status"`
 	RetryAfter string `json:"retryAfter,omitempty"`
 	Verified   int32  `json:"tokenVerifications"`
-	CacheSafe  bool   `json:"cacheSafe"`
+	NoStore    bool   `json:"noStore"`
 	NoReferrer bool   `json:"noReferrer"`
 	RequestID  bool   `json:"requestIDPresent"`
 }
@@ -92,6 +92,9 @@ func TestBrowserHTTPDemo(t *testing.T) {
 	client, err := firestore.NewClient(ctx, project, option.WithoutAuthentication())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
+	_, _, err = SetMaintenance(ctx, client, false)
+	require.NoError(t, err)
+	t.Cleanup(func() { _, err := maintenanceRef(client).Delete(ctx); require.NoError(t, err) })
 	refs := []*firestore.DocumentRef{
 		client.Collection("users").Doc(uid),
 		client.Collection("seats").Doc(uid),
@@ -106,7 +109,6 @@ func TestBrowserHTTPDemo(t *testing.T) {
 		}
 	})
 	now := time.Now().UTC().Truncate(time.Second)
-	seedNormalMaintenance(t, client, "development", now)
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	appToken := syntheticAppCheck(t, key, "synthetic-key", syntheticAppClaims(now), "JWT")
@@ -205,14 +207,10 @@ func TestBrowserHTTPDemo(t *testing.T) {
 			before := sdk.verifications.Load()
 			status := &browserHTTPStatus{ResponseWriter: w, status: 200}
 			handler.ServeHTTP(status, r)
-			cacheControl := "private, no-store"
-			if r.URL.Path == "/api/public/mypage-status" {
-				cacheControl = "no-store"
-			}
 			events = append(events, browserHTTPEvent{
 				Method: r.Method, Path: r.URL.Path, Status: status.status,
 				RetryAfter: w.Header().Get("Retry-After"), Verified: sdk.verifications.Load() - before,
-				CacheSafe:  w.Header().Get("Cache-Control") == cacheControl,
+				NoStore:    w.Header().Get("Cache-Control") == "private, no-store",
 				NoReferrer: w.Header().Get("Referrer-Policy") == "no-referrer",
 				RequestID:  w.Header().Get("X-Request-Id") != "",
 			})
@@ -265,7 +263,7 @@ func TestBrowserHTTPDemo(t *testing.T) {
 	}
 	require.Equal(t, observed(events), observed(browserReport.Responses), "browser/API observations must be the same real handler calls")
 	for _, event := range events {
-		require.True(t, event.CacheSafe && event.NoReferrer && event.RequestID)
+		require.True(t, event.NoStore && event.NoReferrer && event.RequestID)
 	}
 	evidence, err := json.MarshalIndent(events, "", "  ")
 	require.NoError(t, err)

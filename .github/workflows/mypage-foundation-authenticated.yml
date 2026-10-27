@@ -138,14 +138,6 @@ jobs:
         env:
           MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
         run: python3 infra/mypage-platform/scripts/foundation_ops.py execute
-      - name: Require initialized maintenance control after planning a guarded runtime
-        if: ${{ inputs.mode == 'runtime-private-plan' || inputs.mode == 'runtime-public-plan' }}
-        run: |
-          gcloud run jobs execute mypage-maintenance-bootstrap-check \
-            --project=${{ inputs.target == 'production' && 'youtube-study-space' || 'test-youtube-study-space' }} \
-            --region=${{ inputs.target == 'production' && 'asia-northeast2' || 'asia-southeast2' }} \
-            --wait \
-            --quiet
       - name: Remove private evidence
         if: ${{ always() }}
         run: python3 infra/mypage-platform/scripts/foundation_ops.py cleanup
@@ -215,14 +207,6 @@ jobs:
         env:
           MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
         run: python3 infra/mypage-platform/scripts/foundation_ops.py execute
-      - name: Require initialized maintenance control before applying the matching guarded runtime Plan
-        if: ${{ (inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply') && steps.prepared.outputs.commitment == needs.foundation_plan.outputs.commitment && steps.prepared.outputs.commitment != '' }}
-        run: |
-          gcloud run jobs execute mypage-maintenance-bootstrap-check \
-            --project=${{ inputs.target == 'production' && 'youtube-study-space' || 'test-youtube-study-space' }} \
-            --region=${{ inputs.target == 'production' && 'asia-northeast2' || 'asia-southeast2' }} \
-            --wait \
-            --quiet
       # HMAC outputs stay in the expression engine, never runner env/with logs.
       - name: Apply matching saved Plan
         id: applied

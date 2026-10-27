@@ -271,7 +271,6 @@ export function createApp(
 		useLayoutEffect(() => {
 			runtime.maintenance.setRouteActive(
 				protectedRoute || maintenanceRoute || channelConfirmRoute,
-				maintenanceRoute,
 			)
 		}, [protectedRoute, maintenanceRoute, channelConfirmRoute])
 		useEffect(() => {
@@ -713,8 +712,6 @@ export function createApp(
 			let interrupted = false
 			let kind: 'unknown' | 'login' | 'support' = 'unknown'
 			let hasChannel = false
-			let maintenanceUpdatedAt =
-				runtime.maintenance.getSnapshot().status?.updatedAt ?? null
 			let previousUID = runtime.session?.currentUID()
 			let identityObserved = false
 			const close = (markInterrupted: boolean) => {
@@ -800,14 +797,9 @@ export function createApp(
 			}
 			const maintenanceChanged = () => {
 				const current = runtime.maintenance.getSnapshot()
-				const changedNormal =
-					current.phase === 'normal' &&
-					maintenanceUpdatedAt !== null &&
-					current.status.updatedAt !== maintenanceUpdatedAt
-				maintenanceUpdatedAt = current.status?.updatedAt ?? null
 				if (interrupted) return
 				if (kind !== 'login') return
-				if (current.phase !== 'normal' || changedNormal) close(false)
+				if (current.phase !== 'normal') close(false)
 				if (current.phase === 'active')
 					void router.navigate({ to: '/maintenance', replace: true })
 				else if (current.phase === 'normal') load()
@@ -1411,14 +1403,14 @@ export function createApp(
 							</ExternalLink>
 						</div>
 					)}
-					{unknown && (
+					{(unknown || maintenance.phase === 'active') && (
 						<div className="maintenance-recovery">
 							<button
 								className="button"
 								type="button"
-								onClick={() => window.location.reload()}
+								onClick={() => void runtime.maintenance.check()}
 							>
-								再読み込み
+								状態を再確認
 							</button>
 						</div>
 					)}

@@ -101,33 +101,6 @@ func TestSupportConfirmThroughHTTPNeverMintsOrCreatesWebAccount(t *testing.T) {
 	}
 }
 
-func TestMaintenanceBlocksNormalOAuthButKeepsServerBoundSupportPurpose(t *testing.T) {
-	s, store, _, _, challenge, id, _ := supportAuthFixture(t)
-	gate := &maintenanceStub{authoritative: []error{apiError("MAINTENANCE_ACTIVE")}}
-	s.Maintenance = gate
-	request := StartRequest{PrivacyPolicyVersion: s.Policy.Privacy, PrivacyAccepted: true, TermsVersion: s.Policy.Terms, TermsAccepted: true}
-	if _, _, err := s.Start(context.Background(), "", request); errorCode(err) != "MAINTENANCE_ACTIVE" {
-		t.Fatalf("normal login maintenance code=%s", errorCode(err))
-	}
-	request.SupportChallenge = &challenge
-	if _, supportID, err := s.Start(context.Background(), "", request); err != nil {
-		t.Fatalf("support start during maintenance: %v", err)
-	} else {
-		t.Cleanup(func() {
-			if _, deleteErr := store.Client.Collection("oauth-transactions").Doc(supportID).Delete(context.Background()); deleteErr != nil {
-				t.Error(deleteErr)
-			}
-		})
-	}
-	channel, err := s.Channel(context.Background(), id)
-	if err != nil || channel.Purpose != "support" {
-		t.Fatalf("support channel during maintenance=%+v err=%v", channel, err)
-	}
-	if gate.authorityCalls != 1 {
-		t.Fatal("support purpose unexpectedly crossed the normal maintenance gate")
-	}
-}
-
 func TestSupportConfirmIsAtomicAcrossConcurrentTransactions(t *testing.T) {
 	s, store, minter, requestRef, _, id, now := supportAuthFixture(t)
 	channel, err := s.Channel(context.Background(), id)
@@ -254,5 +227,32 @@ func TestSupportTwoFreshOAuthTransactionsCannotProveTheSameRequestTwice(t *testi
 	}
 	if winners != 1 || minter.calls.Load() != 0 {
 		t.Fatal("one support challenge proved through multiple OAuth transactions")
+	}
+}
+
+func TestMaintenanceKeepsServerBoundSupportPurpose(t *testing.T) {
+	s, store, _, _, challenge, id, _ := supportAuthFixture(t)
+	calls := 0
+	s.Maintenance = &MaintenanceGate{readControl: func(context.Context) (MaintenanceControl, error) {
+		calls++
+		return MaintenanceControl{Enabled: true, UpdatedAt: time.Now()}, nil
+	}}
+	request := StartRequest{PrivacyPolicyVersion: s.Policy.Privacy, PrivacyAccepted: true, TermsVersion: s.Policy.Terms, TermsAccepted: true}
+	if _, _, err := s.Start(context.Background(), "", request); errorCode(err) != "MAINTENANCE_ACTIVE" {
+		t.Fatalf("normal login: %v", err)
+	}
+	request.SupportChallenge = &challenge
+	_, supportID, err := s.Start(context.Background(), "", request)
+	if err != nil {
+		t.Fatalf("support start: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := store.Client.Collection("oauth-transactions").Doc(supportID).Delete(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	channel, err := s.Channel(context.Background(), id)
+	if err != nil || channel.Purpose != "support" || calls != 1 {
+		t.Fatalf("support channel=%+v err=%v checks=%d", channel, err, calls)
 	}
 }

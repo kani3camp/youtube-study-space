@@ -33,17 +33,10 @@ class BackendWorkflowTest(unittest.TestCase):
         deploy = workflow['jobs']['deploy']
         self.assertEqual(deploy['environment'], 'mypage-dev-backend')
         auth = next(s for s in deploy['steps'] if s.get('id') == 'auth')
-        self.assertTrue(auth['with']['create_credentials_file'])
-        self.assertTrue(auth['with']['export_environment_variables'])
-        self.assertTrue(auth['with']['cleanup_credentials'])
+        self.assertFalse(auth['with']['create_credentials_file'])
+        self.assertFalse(auth['with']['export_environment_variables'])
         self.assertEqual(auth['with']['service_account'],
                          'mypage-backend-deploy@test-youtube-study-space.iam.gserviceaccount.com')
-        names = [step.get('name') for step in deploy['steps']]
-        self.assertLess(names.index('Require initialized maintenance control before mutating the serving revision'),
-                        names.index('Conditionally update only the source-pinned image and verify serving'))
-        bootstrap = next(step for step in deploy['steps'] if step.get('name', '').startswith('Require initialized maintenance control'))
-        self.assertIn('gcloud run jobs execute mypage-maintenance-bootstrap-check', bootstrap['run'])
-        self.assertNotIn('--args', bootstrap['run'])
         self.assertEqual(workflow['jobs']['state']['needs'], 'deploy')
         self.assertEqual(workflow['jobs']['state']['with']['target'], 'development')
         self.assertEqual(workflow['jobs']['state']['with']['mode'], 'runtime-public-apply')

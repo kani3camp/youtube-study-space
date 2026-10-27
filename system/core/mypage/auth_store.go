@@ -14,8 +14,8 @@ import (
 )
 
 type FirestoreAuthStore struct {
-	Client      *firestore.Client
-	Environment string
+	Client             *firestore.Client
+	MaintenanceEnabled bool
 }
 
 func validOpaque(id string) bool {
@@ -57,11 +57,10 @@ func (s *FirestoreAuthStore) Create(ctx context.Context, id, previous string, va
 		return err
 	}
 	err = s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		if value.MaintenanceRevision < 1 {
-			return apiError("TEMPORARY_UNAVAILABLE")
-		}
-		if err := transactionMaintenance(tx, s.Client, s.Environment, value.MaintenanceRevision); err != nil {
-			return err
+		if s.MaintenanceEnabled {
+			if err := transactionMaintenance(tx, s.Client); err != nil {
+				return err
+			}
 		}
 		if validOpaque(previous) {
 			oldRef, err := s.transactionRef(previous)
@@ -99,11 +98,8 @@ func (s *FirestoreAuthStore) change(ctx context.Context, id string, guardLogin b
 		if err != nil {
 			return err
 		}
-		if guardLogin && transactionPurpose(old) == "login" {
-			if old.MaintenanceRevision < 1 {
-				return apiError("TEMPORARY_UNAVAILABLE")
-			}
-			if err := transactionMaintenance(tx, s.Client, s.Environment, old.MaintenanceRevision); err != nil {
+		if guardLogin && s.MaintenanceEnabled && transactionPurpose(old) == "login" {
+			if err := transactionMaintenance(tx, s.Client); err != nil {
 				return err
 			}
 		}
@@ -122,6 +118,22 @@ func (s *FirestoreAuthStore) change(ctx context.Context, id string, guardLogin b
 	return nil
 }
 
+func (s *FirestoreAuthStore) ReadPurpose(ctx context.Context, id string) (string, error) {
+	ref, err := s.transactionRef(id)
+	if err != nil {
+		return "", err
+	}
+	doc, err := ref.Get(ctx)
+	if err != nil {
+		return "", fmt.Errorf("read OAuth purpose: %w", err)
+	}
+	var value OAuthTransaction
+	if err := doc.DataTo(&value); err != nil {
+		return "", fmt.Errorf("decode OAuth purpose: %w", err)
+	}
+	return transactionPurpose(value), nil
+}
+
 func (s *FirestoreAuthStore) Claim(ctx context.Context, id, stateHash string, now time.Time) error {
 	return s.change(ctx, id, true, func(tx OAuthTransaction) (OAuthTransaction, error) {
 		if err := checkTransaction(tx, now, "pending"); err != nil {
@@ -133,34 +145,6 @@ func (s *FirestoreAuthStore) Claim(ctx context.Context, id, stateHash string, no
 		tx.Status = "processing"
 		return tx, nil
 	})
-}
-
-func (s *FirestoreAuthStore) ReadPurpose(ctx context.Context, id string, now time.Time) (string, int64, error) {
-	ref, err := s.transactionRef(id)
-	if err != nil {
-		return "", 0, err
-	}
-	var purpose string
-	var maintenanceRevision int64
-	err = s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		value, err := s.readTransaction(tx, ref)
-		if err != nil {
-			return err
-		}
-		purpose = transactionPurpose(value)
-		if purpose != "login" && purpose != "support" {
-			return apiError("INVALID_REQUEST")
-		}
-		maintenanceRevision = value.MaintenanceRevision
-		if !now.Before(value.ExpiresAt) {
-			return apiError("OAUTH_TRANSACTION_EXPIRED")
-		}
-		return nil
-	}, firestore.ReadOnly)
-	if err != nil {
-		return purpose, maintenanceRevision, fmt.Errorf("read transaction purpose: %w", err)
-	}
-	return purpose, maintenanceRevision, nil
 }
 
 func (s *FirestoreAuthStore) Verify(ctx context.Context, id string, channel Channel, confirmation string, now time.Time) error {
@@ -200,14 +184,6 @@ func (s *FirestoreAuthStore) ReadVerified(ctx context.Context, id string, now ti
 		if err != nil {
 			return err
 		}
-		if transactionPurpose(value) == "login" {
-			if value.MaintenanceRevision < 1 {
-				return apiError("TEMPORARY_UNAVAILABLE")
-			}
-			if err := transactionMaintenance(tx, s.Client, s.Environment, value.MaintenanceRevision); err != nil {
-				return err
-			}
-		}
 		if err := checkTransaction(value, now, "channel_verified"); err != nil {
 			return err
 		}
@@ -227,17 +203,14 @@ func (s *FirestoreAuthStore) Consume(ctx context.Context, id, confirmation, chec
 	}
 	var channel Channel
 	err = s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		if s.MaintenanceEnabled {
+			if err := transactionMaintenance(tx, s.Client); err != nil {
+				return err
+			}
+		}
 		value, err := s.readTransaction(tx, ref)
 		if err != nil {
 			return err
-		}
-		if transactionPurpose(value) == "login" {
-			if value.MaintenanceRevision < 1 {
-				return apiError("TEMPORARY_UNAVAILABLE")
-			}
-			if err := transactionMaintenance(tx, s.Client, s.Environment, value.MaintenanceRevision); err != nil {
-				return err
-			}
 		}
 		if err := checkTransaction(value, now, "channel_verified"); err != nil {
 			return err
@@ -323,8 +296,10 @@ func (s *FirestoreAuthStore) CompleteSession(ctx context.Context, uid, checkpoin
 	}
 	ref := s.Client.Collection("web-accounts").Doc(uid)
 	err := s.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		if err := transactionMaintenance(tx, s.Client, s.Environment, maintenanceRevisionFromContext(ctx)); err != nil {
-			return err
+		if s.MaintenanceEnabled {
+			if err := transactionMaintenance(tx, s.Client); err != nil {
+				return err
+			}
 		}
 		if err := s.transactionAccess(tx, uid, checkpoint); err != nil {
 			return err

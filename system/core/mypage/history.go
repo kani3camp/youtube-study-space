@@ -24,16 +24,15 @@ type HistoryEntry struct {
 }
 
 type HistoryPage struct {
-	MaintenanceRevision int64          `json:"-"`
-	SourceConsistent    bool           `json:"sourceConsistent"`
-	AsOf                time.Time      `json:"asOf"`
-	Timezone            string         `json:"timezone"`
-	Selection           string         `json:"selection"`
-	Coverage            string         `json:"coverage"`
-	From                string         `json:"from"`
-	To                  string         `json:"to"`
-	Items               []HistoryEntry `json:"items"`
-	NextCursor          *string        `json:"nextCursor"`
+	SourceConsistent bool           `json:"sourceConsistent"`
+	AsOf             time.Time      `json:"asOf"`
+	Timezone         string         `json:"timezone"`
+	Selection        string         `json:"selection"`
+	Coverage         string         `json:"coverage"`
+	From             string         `json:"from"`
+	To               string         `json:"to"`
+	Items            []HistoryEntry `json:"items"`
+	NextCursor       *string        `json:"nextCursor"`
 }
 
 // TierFor is an injected authoritative server entitlement reader. The default
@@ -45,19 +44,13 @@ type HistoryTier struct {
 }
 
 type HistoryService struct {
-	Client      *firestore.Client
-	Access      serviceaccess.Reader
-	Maintenance MaintenanceReader
-	Environment string
-	Cipher      *historyCipher
-	TierFor     func(context.Context, string, WebAccount) (HistoryTier, error)
-	Now         func() time.Time
-	// beforeBudgetWrite is a deterministic integration-test seam used to
-	// exercise transaction ordering. Production constructors leave it nil.
-	beforeBudgetWrite func()
-	// beforeBudgetRelease deterministically activates faults after a page has
-	// been read but before its lease-release transaction. Production leaves it nil.
-	beforeBudgetRelease func()
+	MaintenanceEnabled bool
+	Client             *firestore.Client
+	Access             serviceaccess.Reader
+	Environment        string
+	Cipher             *historyCipher
+	TierFor            func(context.Context, string, WebAccount) (HistoryTier, error)
+	Now                func() time.Time
 }
 
 func (s *HistoryService) authorization(ctx context.Context, uid string, account WebAccount, p historyPolicy) (HistoryTier, string, error) {
@@ -174,28 +167,6 @@ func (s *HistoryService) Page(ctx context.Context, uid string, account WebAccoun
 	}
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
-	maintenanceRevision := int64(0)
-	if s.Maintenance != nil {
-		var err error
-		maintenanceRevision, err = s.Maintenance.CheckAuthoritativeRevision(ctx)
-		if err != nil {
-			return result, fmt.Errorf("check maintenance before history read: %w", err)
-		}
-		ctx = withMaintenanceRevision(ctx, maintenanceRevision)
-		defer func() {
-			if resultErr == nil {
-				revision, err := s.Maintenance.CheckAuthoritativeRevision(ctx)
-				if err != nil || revision != maintenanceRevision {
-					if err == nil {
-						err = apiError("TEMPORARY_UNAVAILABLE")
-					}
-					result, resultErr = HistoryPage{}, fmt.Errorf("check maintenance before history response: %w", err)
-				} else {
-					result.MaintenanceRevision = maintenanceRevision
-				}
-			}
-		}()
-	}
 	p, err := s.loadPolicy(ctx)
 	if err != nil {
 		return result, err
@@ -226,17 +197,9 @@ func (s *HistoryService) Page(ctx context.Context, uid string, account WebAccoun
 		return result, err
 	}
 	defer func() {
-		if s.beforeBudgetRelease != nil {
-			s.beforeBudgetRelease()
-		}
-		if err := s.release(claim); err != nil {
-			if errorCode(err) == "MAINTENANCE_ACTIVE" {
-				result = HistoryPage{}
-				resultErr = fmt.Errorf("release history lease before response: %w", err)
-			} else if resultErr == nil {
-				result = HistoryPage{}
-				resultErr = apiError("TEMPORARY_UNAVAILABLE")
-			}
+		if err := s.release(claim); err != nil && resultErr == nil {
+			result = HistoryPage{}
+			resultErr = apiError("TEMPORARY_UNAVAILABLE")
 		}
 	}()
 	asOf, consistent, err := s.preflight(ctx, uid, q, cursor.AsOf, p.MaxIndexEntries)

@@ -85,9 +85,6 @@ if (import.meta.env.DEV) {
 			return Response.json({
 				state: maintenanceState,
 				updatedAt: '2026-10-27T02:00:00Z',
-				...(maintenanceState === 'ACTIVE'
-					? { estimatedEndAt: '2026-10-27T03:00:00Z' }
-					: {}),
 				messageTemplate: 'MYPAGE_MAINTENANCE_V1',
 			})
 		}

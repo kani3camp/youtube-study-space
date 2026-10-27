@@ -3,7 +3,6 @@ import { checkedJSON, objectValue } from './features/mypage/client'
 export type PublicMaintenanceStatus = {
 	state: 'NORMAL' | 'ACTIVE'
 	updatedAt: string
-	estimatedEndAt?: string
 	messageTemplate: 'MYPAGE_MAINTENANCE_V1'
 }
 
@@ -25,8 +24,6 @@ export function maintenanceDestination(
 	if (!protectedRoute || phase !== 'active') return null
 	return '/maintenance'
 }
-
-const POLL_MS = 120_000
 
 function timestamp(value: unknown) {
 	if (typeof value !== 'string') return false
@@ -66,18 +63,12 @@ export function parseMaintenanceStatus(
 	const status = objectValue(value)
 	if (!status) throw new Error('invalid maintenance status')
 	const keys = Object.keys(status).sort().join(',')
-	const expected =
-		status.estimatedEndAt === undefined
-			? 'messageTemplate,state,updatedAt'
-			: 'estimatedEndAt,messageTemplate,state,updatedAt'
+
 	if (
-		keys !== expected ||
+		keys !== 'messageTemplate,state,updatedAt' ||
 		(status.state !== 'NORMAL' && status.state !== 'ACTIVE') ||
 		!timestamp(status.updatedAt) ||
-		status.messageTemplate !== 'MYPAGE_MAINTENANCE_V1' ||
-		(status.estimatedEndAt !== undefined &&
-			!timestamp(status.estimatedEndAt)) ||
-		(status.state === 'NORMAL' && status.estimatedEndAt !== undefined)
+		status.messageTemplate !== 'MYPAGE_MAINTENANCE_V1'
 	)
 		throw new Error('invalid maintenance status')
 	return status as PublicMaintenanceStatus
@@ -87,10 +78,8 @@ export class MaintenanceMonitor {
 	private state: MaintenanceSnapshot = { phase: 'checking', status: null }
 	private listeners = new Set<() => void>()
 	private controller: AbortController | null = null
-	private timer: ReturnType<typeof setTimeout> | null = null
 	private mounted = false
 	private routeActive = false
-	private visible = true
 	private request: typeof fetch
 	private closePrivateGate: (phase: 'checking' | 'unknown' | 'active') => void
 
@@ -113,31 +102,9 @@ export class MaintenanceMonitor {
 	}
 
 	private publish(state: MaintenanceSnapshot) {
-		const previous = this.state
-		if (
-			state.phase === 'normal' &&
-			previous.phase === 'normal' &&
-			previous.status.updatedAt !== state.status.updatedAt
-		)
-			// A changed NORMAL revision can mean this tab missed a complete
-			// NORMAL -> ACTIVE -> NORMAL interval. Invalidate private state before
-			// publishing the new authoritative snapshot without flashing CHECKING on
-			// every unchanged background poll.
-			this.closePrivateGate('checking')
 		this.state = state
 		if (state.phase !== 'normal') this.closePrivateGate(state.phase)
 		for (const listener of this.listeners) listener()
-	}
-
-	private stopTimer() {
-		if (this.timer !== null) clearTimeout(this.timer)
-		this.timer = null
-	}
-
-	private schedule() {
-		this.stopTimer()
-		if (!this.mounted || !this.routeActive || !this.visible) return
-		this.timer = setTimeout(() => this.recheck(false), POLL_MS)
 	}
 
 	markActive() {
@@ -151,7 +118,6 @@ export class MaintenanceMonitor {
 					messageTemplate: 'MYPAGE_MAINTENANCE_V1',
 				},
 			})
-		this.schedule()
 	}
 
 	setRouteActive(active: boolean, forceCheck = false) {
@@ -159,17 +125,14 @@ export class MaintenanceMonitor {
 		this.routeActive = active
 		if (!active) {
 			this.controller?.abort()
-			this.stopTimer()
 			return
 		}
 		this.recheck(true)
 	}
 
 	private recheck(closeSynchronously: boolean) {
-		if (!this.mounted || !this.routeActive || !this.visible) return
-		// Route and bfcache restoration are synchronous safety boundaries. A
-		// routine visible-tab poll keeps a confirmed NORMAL snapshot usable until
-		// the new response proves ACTIVE, UNKNOWN, or a changed NORMAL revision.
+		if (!this.mounted || !this.routeActive) return
+		// Close private state while checking a newly entered protected route.
 		if (
 			closeSynchronously &&
 			(this.state.phase === 'normal' || this.state.phase === 'checking')
@@ -179,7 +142,7 @@ export class MaintenanceMonitor {
 	}
 
 	async check() {
-		if (!this.mounted || !this.routeActive || !this.visible) return
+		if (!this.mounted || !this.routeActive) return
 		this.controller?.abort()
 		const controller = new AbortController()
 		this.controller = controller
@@ -206,39 +169,15 @@ export class MaintenanceMonitor {
 			this.publish({ phase: 'unknown', status: null })
 		} finally {
 			if (this.controller === controller) this.controller = null
-			this.schedule()
 		}
 	}
 
 	mount() {
 		this.mounted = true
-		this.visible = document.visibilityState === 'visible'
-		const visibility = () => {
-			const visible = document.visibilityState === 'visible'
-			if (visible === this.visible) return
-			this.visible = visible
-			// A hidden tab may have missed NORMAL -> ACTIVE. Close private state
-			// synchronously before the foreground read proves the current state.
-			if (visible && this.routeActive) this.recheck(true)
-			else {
-				this.controller?.abort()
-				this.stopTimer()
-			}
-		}
-		const show = (event: PageTransitionEvent) => {
-			if (!event.persisted) return
-			this.visible = document.visibilityState === 'visible'
-			if (this.visible && this.routeActive) this.recheck(true)
-		}
-		document.addEventListener('visibilitychange', visibility)
-		window.addEventListener('pageshow', show)
-		if (this.routeActive && this.visible) this.recheck(true)
+		if (this.routeActive) this.recheck(true)
 		return () => {
 			this.mounted = false
 			this.controller?.abort()
-			this.stopTimer()
-			document.removeEventListener('visibilitychange', visibility)
-			window.removeEventListener('pageshow', show)
 			this.listeners.clear()
 		}
 	}

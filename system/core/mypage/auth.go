@@ -26,7 +26,7 @@ func errorCode(err error) string {
 			return e.Code
 		}
 		switch e.Code {
-		case "INVALID_REQUEST", "PAYLOAD_TOO_LARGE", "PRIVACY_CONSENT_REQUIRED", "POLICY_VERSION_OUTDATED", "AUTH_REQUIRED", "APP_CHECK_REQUIRED", "SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS", "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_EXPIRED", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED", "PRIVACY_RECONSENT_REQUIRED", "SUPPORT_CHALLENGE_INVALID", "SUPPORT_CHANNEL_MISMATCH", "INTAKE_KEY_CONFLICT", "OAUTH_FAILED", "OAUTH_SCOPE_INSUFFICIENT", "CHANNEL_UNAVAILABLE", "CHANNEL_AMBIGUOUS", "WEB_ACCOUNT_REQUIRED", "RATE_LIMITED", "MAINTENANCE_ACTIVE", "MAINTENANCE_REVISION_MISMATCH", "TEMPORARY_UNAVAILABLE", "INTERNAL_ERROR":
+		case "INVALID_REQUEST", "PAYLOAD_TOO_LARGE", "PRIVACY_CONSENT_REQUIRED", "POLICY_VERSION_OUTDATED", "AUTH_REQUIRED", "APP_CHECK_REQUIRED", "SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS", "OAUTH_TRANSACTION_REQUIRED", "OAUTH_TRANSACTION_PENDING", "OAUTH_TRANSACTION_EXPIRED", "OAUTH_TRANSACTION_CONSUMED", "OAUTH_TRANSACTION_CHANGED", "PRIVACY_RECONSENT_REQUIRED", "SUPPORT_CHALLENGE_INVALID", "SUPPORT_CHANNEL_MISMATCH", "INTAKE_KEY_CONFLICT", "OAUTH_FAILED", "OAUTH_SCOPE_INSUFFICIENT", "CHANNEL_UNAVAILABLE", "CHANNEL_AMBIGUOUS", "WEB_ACCOUNT_REQUIRED", "RATE_LIMITED", "MAINTENANCE_ACTIVE", "TEMPORARY_UNAVAILABLE", "INTERNAL_ERROR":
 			return e.Code
 		}
 	}
@@ -59,7 +59,6 @@ type OAuthTransaction struct {
 	Channel              Channel         `firestore:"channel"`
 	VerifiedAt           time.Time       `firestore:"verifiedAt"`
 	ConsumedAt           time.Time       `firestore:"consumedAt"`
-	MaintenanceRevision  int64           `firestore:"maintenanceRevision"`
 }
 
 type WebAccount struct {
@@ -104,9 +103,9 @@ type CustomTokenMinter interface {
 }
 
 type AuthService struct {
+	Maintenance MaintenanceReader
 	Access      serviceaccess.Reader
 	Store       AuthStore
-	Maintenance MaintenanceReader
 	Provider    YouTubeOAuth
 	Minter      CustomTokenMinter
 	Policy      Policy
@@ -123,19 +122,17 @@ type StartRequest struct {
 }
 
 type StartResponse struct {
-	MaintenanceRevision int64     `json:"-"`
-	AuthorizationURL    string    `json:"authorizationUrl"`
-	ExpiresAt           time.Time `json:"expiresAt"`
+	AuthorizationURL string    `json:"authorizationUrl"`
+	ExpiresAt        time.Time `json:"expiresAt"`
 }
 
 type ChannelResponse struct {
-	MaintenanceRevision int64          `json:"-"`
-	Purpose             string         `json:"purpose"`
-	SupportPurpose      SupportPurpose `json:"supportPurpose,omitempty"`
-	DisplayName         string         `json:"displayName"`
-	Handle              *string        `json:"handle"`
-	AvatarURL           *string        `json:"avatarUrl"`
-	ConfirmationRef     string         `json:"confirmationRef"`
+	Purpose         string         `json:"purpose"`
+	SupportPurpose  SupportPurpose `json:"supportPurpose,omitempty"`
+	DisplayName     string         `json:"displayName"`
+	Handle          *string        `json:"handle"`
+	AvatarURL       *string        `json:"avatarUrl"`
+	ConfirmationRef string         `json:"confirmationRef"`
 }
 
 func opaque() (string, error) {
@@ -152,6 +149,11 @@ func digest(value string) string {
 }
 
 func (s *AuthService) Start(ctx context.Context, previousID string, request StartRequest) (StartResponse, string, error) {
+	if request.SupportChallenge == nil && s.Maintenance != nil {
+		if err := s.Maintenance.Check(ctx); err != nil {
+			return StartResponse{}, "", fmt.Errorf("check maintenance before OAuth start: %w", err)
+		}
+	}
 	if !request.PrivacyAccepted || !request.TermsAccepted {
 		return StartResponse{}, "", apiError("PRIVACY_CONSENT_REQUIRED")
 	}
@@ -160,14 +162,6 @@ func (s *AuthService) Start(ctx context.Context, previousID string, request Star
 	}
 	if request.PrivacyPolicyVersion != s.Policy.Privacy || request.TermsVersion != s.Policy.Terms {
 		return StartResponse{}, "", apiError("POLICY_VERSION_OUTDATED")
-	}
-	maintenanceRevision := int64(0)
-	if request.SupportChallenge == nil && s.Maintenance != nil {
-		var err error
-		maintenanceRevision, err = s.Maintenance.CheckAuthoritativeRevision(ctx)
-		if err != nil {
-			return StartResponse{}, "", fmt.Errorf("check maintenance before OAuth start: %w", err)
-		}
 	}
 	id, err := opaque()
 	if err != nil {
@@ -178,7 +172,7 @@ func (s *AuthService) Start(ctx context.Context, previousID string, request Star
 		return StartResponse{}, "", err
 	}
 	now := s.Now().UTC()
-	tx := OAuthTransaction{Purpose: "login", StateHash: digest(state), Status: "pending", PrivacyPolicyVersion: request.PrivacyPolicyVersion, TermsVersion: request.TermsVersion, PrivacyConsentedAt: now, CreatedAt: now, ExpiresAt: now.Add(10 * time.Minute), MaintenanceRevision: maintenanceRevision}
+	tx := OAuthTransaction{Purpose: "login", StateHash: digest(state), Status: "pending", PrivacyPolicyVersion: request.PrivacyPolicyVersion, TermsVersion: request.TermsVersion, PrivacyConsentedAt: now, CreatedAt: now, ExpiresAt: now.Add(10 * time.Minute)}
 	var storeErr error
 	if request.SupportChallenge != nil {
 		if s.Support == nil || !validOpaque(*request.SupportChallenge) {
@@ -201,104 +195,65 @@ func (s *AuthService) Start(ctx context.Context, previousID string, request Star
 	if err := storeErr; err != nil {
 		return StartResponse{}, "", fmt.Errorf("start OAuth transaction: %w", err)
 	}
-	return StartResponse{MaintenanceRevision: maintenanceRevision, AuthorizationURL: s.Provider.AuthorizationURL(state), ExpiresAt: tx.ExpiresAt}, id, nil
+	return StartResponse{AuthorizationURL: s.Provider.AuthorizationURL(state), ExpiresAt: tx.ExpiresAt}, id, nil
+}
+
+func (s *AuthService) CallbackWithPurpose(ctx context.Context, id, state, code string, denied bool) (string, error) {
+	purpose := ""
+	if store, ok := s.Store.(interface {
+		ReadPurpose(context.Context, string) (string, error)
+	}); ok {
+		var err error
+		purpose, err = store.ReadPurpose(ctx, id)
+		if err != nil {
+			return purpose, fmt.Errorf("read OAuth purpose: %w", err)
+		}
+		if purpose == "login" && s.Maintenance != nil {
+			if err := s.Maintenance.Check(ctx); err != nil {
+				return purpose, fmt.Errorf("check maintenance before callback: %w", err)
+			}
+		}
+	}
+	return purpose, s.Callback(ctx, id, state, code, denied)
 }
 
 func (s *AuthService) Callback(ctx context.Context, id, state, code string, denied bool) error {
-	_, err := s.CallbackWithPurpose(ctx, id, state, code, denied)
-	return err
-}
-
-func (s *AuthService) callbackMaintenance(ctx context.Context, id string, expectedRevision int64) error {
-	revision, err := s.Maintenance.CheckAuthoritativeRevision(ctx)
-	if err == nil && revision != expectedRevision {
-		err = apiError("TEMPORARY_UNAVAILABLE")
-	}
-	if err == nil {
-		return nil
-	}
-	if failErr := s.Store.Fail(ctx, id); failErr != nil {
-		err = errors.Join(err, fmt.Errorf("fail maintenance OAuth transaction: %w", failErr))
-	}
-	return err
-}
-
-// CallbackWithPurpose returns only the server-owned, fixed transaction
-// purpose. The HTTP boundary uses it to keep support failures on the public
-// support path without reflecting OAuth inputs or trusting callback query data.
-func (s *AuthService) CallbackWithPurpose(ctx context.Context, id, state, code string, denied bool) (purpose string, resultErr error) {
 	if id == "" || state == "" {
-		return "", apiError("OAUTH_TRANSACTION_REQUIRED")
-	}
-	callbackRevision := int64(0)
-	if purposeStore, ok := s.Store.(interface {
-		ReadPurpose(context.Context, string, time.Time) (string, int64, error)
-	}); ok {
-		purpose, callbackRevision, resultErr = purposeStore.ReadPurpose(ctx, id, s.Now().UTC())
-		finalMaintenanceCheck := purpose == "login" && s.Maintenance != nil
-		if finalMaintenanceCheck {
-			defer func() {
-				if !finalMaintenanceCheck {
-					return
-				}
-				if err := s.callbackMaintenance(ctx, id, callbackRevision); err != nil {
-					resultErr = fmt.Errorf("check maintenance after OAuth callback: %w", err)
-				}
-			}()
-		}
-		if resultErr != nil {
-			return purpose, fmt.Errorf("read OAuth callback purpose: %w", resultErr)
-		}
-		if finalMaintenanceCheck {
-			if err := s.callbackMaintenance(ctx, id, callbackRevision); err != nil {
-				finalMaintenanceCheck = false
-				return purpose, fmt.Errorf("check maintenance before OAuth callback: %w", err)
-			}
-		}
+		return apiError("OAUTH_TRANSACTION_REQUIRED")
 	}
 	if err := s.Store.Claim(ctx, id, digest(state), s.Now().UTC()); err != nil {
-		if errorCode(err) == "MAINTENANCE_ACTIVE" {
-			if failErr := s.Store.Fail(ctx, id); failErr != nil {
-				err = errors.Join(err, fmt.Errorf("fail activated OAuth transaction: %w", failErr))
-			}
-		}
-		return purpose, fmt.Errorf("claim OAuth callback: %w", err)
+		return fmt.Errorf("claim OAuth callback: %w", err)
 	}
 	if denied {
 		if err := s.Store.Fail(ctx, id); err != nil {
-			return purpose, fmt.Errorf("fail denied OAuth transaction: %w", err)
+			return fmt.Errorf("fail denied OAuth transaction: %w", err)
 		}
-		return purpose, apiError("OAUTH_FAILED")
+		return apiError("OAUTH_FAILED")
 	}
 	channels, err := s.Provider.Resolve(ctx, code)
 	if err != nil {
 		if failErr := s.Store.Fail(ctx, id); failErr != nil {
-			return purpose, fmt.Errorf("fail OAuth transaction: %w", failErr)
+			return fmt.Errorf("fail OAuth transaction: %w", failErr)
 		}
-		return purpose, fmt.Errorf("resolve OAuth channel: %w", err)
+		return fmt.Errorf("resolve OAuth channel: %w", err)
 	}
 	if len(channels) != 1 || channels[0].ID == "" || channels[0].DisplayName == "" {
 		if err := s.Store.Fail(ctx, id); err != nil {
-			return purpose, fmt.Errorf("fail unavailable channel: %w", err)
+			return fmt.Errorf("fail unavailable channel: %w", err)
 		}
 		if len(channels) > 1 {
-			return purpose, apiError("CHANNEL_AMBIGUOUS")
+			return apiError("CHANNEL_AMBIGUOUS")
 		}
-		return purpose, apiError("CHANNEL_UNAVAILABLE")
+		return apiError("CHANNEL_UNAVAILABLE")
 	}
 	confirmation, err := opaque()
 	if err != nil {
-		return purpose, err
+		return err
 	}
 	if err := s.Store.Verify(ctx, id, channels[0], confirmation, s.Now().UTC()); err != nil {
-		if errorCode(err) == "MAINTENANCE_ACTIVE" {
-			if failErr := s.Store.Fail(ctx, id); failErr != nil {
-				err = errors.Join(err, fmt.Errorf("fail activated OAuth verification: %w", failErr))
-			}
-		}
-		return purpose, fmt.Errorf("verify OAuth transaction: %w", err)
+		return fmt.Errorf("verify OAuth transaction: %w", err)
 	}
-	return purpose, nil
+	return nil
 }
 
 func (s *AuthService) Channel(ctx context.Context, id string) (ChannelResponse, error) {
@@ -312,7 +267,7 @@ func (s *AuthService) Channel(ctx context.Context, id string) (ChannelResponse, 
 			return ChannelResponse{}, apiError("SUPPORT_CHALLENGE_INVALID")
 		}
 		if err := s.Support.CheckBinding(ctx, *tx.Support, tx.Channel.ID, s.Now().UTC()); err != nil {
-			return ChannelResponse{}, err
+			return ChannelResponse{}, fmt.Errorf("check support binding: %w", err)
 		}
 		return ChannelResponse{Purpose: purpose, SupportPurpose: tx.Support.Purpose, DisplayName: tx.Channel.DisplayName, Handle: tx.Channel.Handle, AvatarURL: tx.Channel.AvatarURL, ConfirmationRef: tx.ConfirmationRef}, nil
 	}
@@ -320,18 +275,14 @@ func (s *AuthService) Channel(ctx context.Context, id string) (ChannelResponse, 
 		return ChannelResponse{}, apiError("INVALID_REQUEST")
 	}
 	if s.Maintenance != nil {
-		revision, err := s.Maintenance.CheckAuthoritativeRevision(ctx)
-		if err != nil || revision != tx.MaintenanceRevision {
-			if err == nil {
-				err = apiError("TEMPORARY_UNAVAILABLE")
-			}
-			return ChannelResponse{}, fmt.Errorf("check maintenance before login channel: %w", err)
+		if err := s.Maintenance.Check(ctx); err != nil {
+			return ChannelResponse{}, fmt.Errorf("check maintenance before channel read: %w", err)
 		}
 	}
 	if _, err := readAccess(ctx, s.Access, tx.Channel.ID, ""); err != nil {
 		return ChannelResponse{}, err
 	}
-	return ChannelResponse{MaintenanceRevision: tx.MaintenanceRevision, Purpose: purpose, DisplayName: tx.Channel.DisplayName, Handle: tx.Channel.Handle, AvatarURL: tx.Channel.AvatarURL, ConfirmationRef: tx.ConfirmationRef}, nil
+	return ChannelResponse{Purpose: purpose, DisplayName: tx.Channel.DisplayName, Handle: tx.Channel.Handle, AvatarURL: tx.Channel.AvatarURL, ConfirmationRef: tx.ConfirmationRef}, nil
 }
 
 func (s *AuthService) Confirm(ctx context.Context, id, confirmation string) (string, error) {
@@ -346,12 +297,8 @@ func (s *AuthService) Confirm(ctx context.Context, id, confirmation string) (str
 		return "", apiError("SUPPORT_CHALLENGE_INVALID")
 	}
 	if s.Maintenance != nil {
-		revision, err := s.Maintenance.CheckAuthoritativeRevision(ctx)
-		if err != nil || revision != value.MaintenanceRevision {
-			if err == nil {
-				err = apiError("TEMPORARY_UNAVAILABLE")
-			}
-			return "", fmt.Errorf("check maintenance before login consume: %w", err)
+		if err := s.Maintenance.Check(ctx); err != nil {
+			return "", fmt.Errorf("check maintenance before confirmation: %w", err)
 		}
 	}
 	checkpoint, err := readAccess(ctx, s.Access, value.Channel.ID, "")
@@ -368,12 +315,8 @@ func (s *AuthService) Confirm(ctx context.Context, id, confirmation string) (str
 		return "", err
 	}
 	if s.Maintenance != nil {
-		revision, err := s.Maintenance.CheckAuthoritativeRevision(ctx)
-		if err != nil || revision != value.MaintenanceRevision {
-			if err == nil {
-				err = apiError("TEMPORARY_UNAVAILABLE")
-			}
-			return "", fmt.Errorf("check maintenance before custom token mint: %w", err)
+		if err := s.Maintenance.Check(ctx); err != nil {
+			return "", fmt.Errorf("check maintenance before token mint: %w", err)
 		}
 	}
 	token, err := s.Minter.Mint(ctx, channel.ID)
@@ -382,15 +325,6 @@ func (s *AuthService) Confirm(ctx context.Context, id, confirmation string) (str
 	}
 	if _, err := readAccess(ctx, s.Access, channel.ID, checkpoint); err != nil {
 		return "", err
-	}
-	if s.Maintenance != nil {
-		revision, err := s.Maintenance.CheckAuthoritativeRevision(ctx)
-		if err != nil || revision != value.MaintenanceRevision {
-			if err == nil {
-				err = apiError("TEMPORARY_UNAVAILABLE")
-			}
-			return "", fmt.Errorf("check maintenance after custom token mint: %w", err)
-		}
 	}
 	return token, nil
 }
@@ -421,9 +355,8 @@ type supportAuthStore interface {
 }
 
 type ConfirmResponse struct {
-	MaintenanceRevision int64  `json:"-"`
-	Purpose             string `json:"purpose"`
-	CustomToken         string `json:"customToken,omitempty"`
+	Purpose     string `json:"purpose"`
+	CustomToken string `json:"customToken,omitempty"`
 	// RequestRef is the existing proof receipt. SupportRequestRef identifies
 	// the server-bound request record for authenticated status lookup only.
 	RequestRef        string `json:"requestRef,omitempty"`
@@ -447,7 +380,7 @@ func (s *AuthService) ConfirmResult(ctx context.Context, id, confirmation string
 		if err != nil {
 			return ConfirmResponse{}, err
 		}
-		return ConfirmResponse{MaintenanceRevision: tx.MaintenanceRevision, Purpose: "login", CustomToken: token}, nil
+		return ConfirmResponse{Purpose: "login", CustomToken: token}, nil
 	}
 	store, ok := s.Store.(supportAuthStore)
 	if !ok || s.Support == nil || transactionPurpose(tx) != "support" || tx.Support == nil {
