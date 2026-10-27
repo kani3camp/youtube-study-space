@@ -1,28 +1,23 @@
 """Backend release must include serving verification and bounded State readback."""
 import unittest
 from test_ci_workflows import ROOT, load, FOUNDATION_SECRETS
-import test_ci_results as results
 
 
 class BackendWorkflowTest(unittest.TestCase):
-    def test_release_requires_system_tests_and_propagates_failures(self):
-        caller = load(ROOT / '.github/workflows/ci.yml')
-        call = caller['jobs']['mypage-backend-authenticated']
-        self.assertEqual(call['needs'], ['repository', 'system'])
-        self.assertEqual(call['secrets'], {key: '${{ secrets.' + key + ' }}' for key in FOUNDATION_SECRETS})
-        for name in ('gcp-terraform-authenticated', 'mypage-foundation-authenticated',
-                     'gcp-user-activity-schema-audit', 'mypage-hosting-authenticated'):
-            self.assertIn('inputs.mypage_backend != true', caller['jobs'][name]['if'])
-        needs = results.GateResultsTest().fixture()
-        for status in ('skipped', 'cancelled', 'failure'):
-            needs['mypage-backend-authenticated']['result'] = status
-            with self.assertRaises(ValueError):
-                results.gate.validate(needs, 'false', 'false', 'false', 'true')
-        needs['mypage-backend-authenticated']['result'] = 'success'
-        results.gate.validate(needs, 'false', 'false', 'false', 'true')
-        for invalid in ('', 'TRUE', True):
-            with self.assertRaises(ValueError):
-                results.gate.validate(needs, 'false', 'false', 'false', invalid)
+    def test_release_is_selected_only_through_operations_boundary(self):
+        operations = load(ROOT / '.github/workflows/ci-operations.yml')
+        call = operations['jobs']['mypage-backend-authenticated']
+        self.assertEqual(call['needs'], 'validate-selection')
+        self.assertEqual(call['if'], '${{ inputs.mypage_backend }}')
+        self.assertEqual(call['permissions'], {'contents': 'read', 'id-token': 'write'})
+        self.assertEqual(call['uses'], './.github/workflows/mypage-backend-authenticated.yml')
+        self.assertEqual(call['secrets'], {
+            key: '${{ secrets.' + key + ' }}' for key in FOUNDATION_SECRETS
+        })
+        self.assertEqual(call['with'], {
+            'expected_sha': '${{ inputs.mypage_backend_expected_sha }}',
+            'other_operation': False,
+        })
 
     def test_isolated_deployer_and_sequential_state_proof(self):
         workflow = load(ROOT / '.github/workflows/mypage-backend-authenticated.yml')
@@ -35,8 +30,10 @@ class BackendWorkflowTest(unittest.TestCase):
         auth = next(s for s in deploy['steps'] if s.get('id') == 'auth')
         self.assertFalse(auth['with']['create_credentials_file'])
         self.assertFalse(auth['with']['export_environment_variables'])
-        self.assertEqual(auth['with']['service_account'],
-                         'mypage-backend-deploy@test-youtube-study-space.iam.gserviceaccount.com')
+        self.assertEqual(
+            auth['with']['service_account'],
+            'mypage-backend-deploy@test-youtube-study-space.iam.gserviceaccount.com',
+        )
         self.assertEqual(workflow['jobs']['state']['needs'], 'deploy')
         self.assertEqual(workflow['jobs']['state']['with']['target'], 'development')
         self.assertEqual(workflow['jobs']['state']['with']['mode'], 'runtime-public-apply')
