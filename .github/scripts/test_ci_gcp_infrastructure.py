@@ -94,10 +94,10 @@ class GcpInfrastructureWorkflowTest(unittest.TestCase):
         self.assertEqual(job['uses'], './.github/workflows/mypage-foundation-authenticated.yml')
         self.assertEqual(
             job['with']['mode'],
-            "${{ inputs.action == 'apply' && 'runtime-public-apply' || 'runtime-public-plan' }}",
+            "${{ inputs.action == 'apply' && 'desired-apply' || 'desired-plan' }}",
         )
-        # Bootstrap stages remain internal to the legacy bootstrap workflow and
-        # cannot be selected through this normal desired-state boundary.
+        # Bootstrap stages remain internal to the legacy bootstrap workflow; the
+        # normal boundary resolves a reviewed per-environment desired stage.
         public = str(call['inputs']) + str(self.mypage['jobs']['validate'])
         for retired in (
             'foundation-metadata', 'foundation-plan', 'registry-plan',
