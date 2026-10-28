@@ -32,11 +32,16 @@ class GcpTerraformWorkflowTest(unittest.TestCase):
         for required in (
             'test_terraform_authenticated_workflow.py',
             'test_gcp_user_activity_schema_audit_workflow.py',
+            'infra/gcp/tests/test_runtime_ownership.py',
+            'infra/gcp/tests/test_production_readiness.py',
+            'infra/gcp/tests/test_production_backend_packet.py',
+            'infra/gcp/tests/test_production_execution_contract.py',
             'terraform fmt -check -recursive infra/gcp',
             'test_terraform_normal_ops_native.py',
             'providers lock',
             'cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/gcp/environments/prod/.terraform.lock.hcl',
             'bash infra/mypage-platform/scripts/check-local.sh',
+            'bash infra/mypage-oauth-ttl/scripts/check-local.sh',
         ):
             self.assertIn(required, commands)
 
