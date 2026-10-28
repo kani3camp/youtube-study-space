@@ -10,7 +10,7 @@ jobs:
   validate:
     name: GCP Terraform Validate
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -92,3 +92,6 @@ jobs:
 
       - name: Verify provider locks match
         run: cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/gcp/environments/prod/.terraform.lock.hcl
+
+      - name: Validate MyPage platform desired state
+        run: bash infra/mypage-platform/scripts/check-local.sh
