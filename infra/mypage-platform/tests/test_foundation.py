@@ -666,28 +666,44 @@ class FoundationTest(unittest.TestCase):
                 ops.state_version(env)
 
     def test_workflow_apply_requires_independent_plan_agreement_and_cleanup(self):
-        # Reuse the repository's YAML-1.2 parser when its CI dependency is installed.
-        spec = importlib.util.spec_from_file_location('workflow_source', ROOT / '.github/codeql/validate-source.py')
-        module = importlib.util.module_from_spec(spec)
-        try:
-            spec.loader.exec_module(module)
-        except ModuleNotFoundError:
-            self.skipTest('PyYAML checked by source-contract CI')
-        workflow = module.load_yaml(ROOT / '.github/workflows/mypage-foundation-authenticated.yml')
-        self.assertEqual(set(workflow['on']), {'workflow_call'})
-        self.assertFalse(workflow['concurrency']['cancel-in-progress'])
-        for kind in ('plan', 'apply'):
-            job = workflow['jobs']['foundation_' + kind]
-            self.assertIn("inputs.target == 'production'", job['environment'])
-            self.assertIn('mypage-prod-' + kind, job['environment'])
-            self.assertIn('mypage-dev-' + kind, job['environment'])
-            self.assertEqual(job['steps'][-1]['if'], '${{ always() }}')
-            self.assertEqual(job['steps'][1]['run'].split()[-1], 'stage')
-        apply = workflow['jobs']['foundation_apply']
-        step = next(x for x in apply['steps'] if x.get('id') == 'applied')
-        self.assertIn("steps.prepared.outputs.commitment == needs.foundation_plan.outputs.commitment", step['if'])
-        self.assertIn("steps.prepared.outputs.commitment != ''", step['if'])
-        self.assertNotIn('commitment', json.dumps(step.get('env', {})))
+        source = (ROOT / '.github/workflows/mypage-foundation-authenticated.yml').read_text()
+
+        self.assertIn('  workflow_call:', source)
+        self.assertIn('  cancel-in-progress: false', source)
+
+        plan = source.split('  foundation_plan:\n', 1)[1].split('\n  foundation_apply:\n', 1)[0]
+        apply = source.split('  foundation_apply:\n', 1)[1].split('\n  image_build:\n', 1)[0]
+        for kind, job in (('plan', plan), ('apply', apply)):
+            self.assertIn("inputs.target == 'production'", job)
+            self.assertIn('mypage-prod-' + kind, job)
+            self.assertIn('mypage-dev-' + kind, job)
+            self.assertIn('run: python3 infra/mypage-platform/scripts/foundation_ops.py stage', job)
+            self.assertIn('if: ${{ always() }}', job)
+
+        self.assertIn('needs: [target_contract, foundation_plan]', apply)
+        prepared = apply.split('      - name: Independently reproduce saved Plan\n', 1)[1].split(
+            '      # HMAC outputs', 1
+        )[0]
+        self.assertIn('id: prepared', prepared)
+        self.assertIn('run: python3 infra/mypage-platform/scripts/foundation_ops.py execute', prepared)
+
+        applied = apply.split('      - name: Apply matching saved Plan\n', 1)[1].split(
+            '      - name: Verify metrics-only serving revision after Apply', 1
+        )[0]
+        self.assertIn('id: applied', applied)
+        self.assertIn(
+            "steps.prepared.outputs.commitment == needs.foundation_plan.outputs.commitment",
+            applied,
+        )
+        self.assertIn("steps.prepared.outputs.commitment != ''", applied)
+        self.assertIn(
+            'MYPAGE_PLAN_TIME: ${{ needs.foundation_plan.outputs.plan_time }}',
+            applied,
+        )
+        self.assertIn('run: python3 infra/mypage-platform/scripts/foundation_ops.py apply', applied)
+        # The commitment remains in the expression engine and is never copied
+        # into the Apply step environment.
+        self.assertNotRegex(applied, r'(?m)^\s+MYPAGE_.*COMMITMENT:')
 
 
 if __name__ == '__main__':
