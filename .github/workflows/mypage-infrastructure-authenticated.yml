@@ -62,7 +62,7 @@ jobs:
     uses: ./.github/workflows/mypage-foundation-authenticated.yml
     with:
       target: ${{ inputs.target }}
-      mode: ${{ inputs.action == 'apply' && 'runtime-public-apply' || 'runtime-public-plan' }}
+      mode: ${{ inputs.action == 'apply' && 'desired-apply' || 'desired-plan' }}
       expected_sha: ${{ inputs.expected_sha }}
     secrets:
       MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
