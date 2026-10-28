@@ -64,7 +64,7 @@ See [`../../youtube-monitor/README.md`](../../youtube-monitor/README.md) for bui
 
 ## Firestore access boundaries
 
-### 2026-10-25 pre-release monitor authentication decision (source implemented; live rollout pending)
+### Monitor authentication
 
 The OBS `youtube-monitor` is a Firebase browser Client SDK caller. Repository source now requires a dedicated Firebase Auth principal plus the monitor claim/allowlist for reads of `seats`, `member-seats`, `menu`, `work-name-trend`, and `config/constants`; anonymous and normal MyPage users are rejected. This source state does **not** prove that DEV or PROD Rules and monitor assets have been deployed together. **Server Go/Admin SDK accesses use IAM and application authorization, not these Rules.** Security Rules do not serve as a WAF or a spending cap.
 

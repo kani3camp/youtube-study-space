@@ -1,8 +1,8 @@
 # MyPage real E2E preparation and rollback
 
-2026-10-22のDEV匿名拒否試験とread-only metadata確認は[実測記録](#2026-10-22-devの限定確認)を参照する。実Google OAuth、複数account/回線、S01/S04全層、deploy/rollback rehearsalは未完了。追加のlive操作は対象・account・release対・取得/保存する証跡を先に確定し、[runbook Gate](README.md)後に実施する。local/Emulatorの成功を実Google/Firebase/Hostingの成功へ読み替えない。現行の[server entrypoint](../../../system/cmd/mypage-server/main.go)はkeyless credential、Firestore、OAuth provider、HTTP listenのbootstrapが必要で、sourceやdeploy templateだけではdevelopmentのHosting→Cloud Run経路が存在・稼働する証拠にならない。
+対象 release の実 Google/Firebase/Hosting 経路で受入を行う。[release gate](README.md)と本手順の matrix を使い、結果は release record と対応する Issue / PR / Actions に記録する。合成検証を実環境の成功へ読み替えない。
 
-## 2026-10-25 追加の0B公開前受入（未実施）
+## 0B公開前受入
 
 正式構成はFirebase Hosting `/api/**` → Cloud Run Go API + Firebase Auth / Firestoreで、Managed WAF・外部LBなし。[Current Canon 06](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634)、[公開受入 #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)、[monitor auth #1459](https://github.com/kani3camp/youtube-study-space/issues/1459)を参照する。0Aの運営者限定試験中に作業できるが、次の項目が未確認なら0Bを開始しない。
 
@@ -45,57 +45,9 @@
 | SUP03 | D01選択後の横断削除/再実行/復元/遅延writer/cache | 承認対象だけ、全storeとbackup/export/log確認、古いdata復活なし、完了通知 | live adapter/実inventory待ち、dry-runは実行証拠でない |
 | C01 | GA4 unset/deny/grant/withdraw/他tab、callback/support query | opt-in前request0、過去event再送0、private値0、拒否でもlogin可 | GA4/privacy/runtime tests; real Console/network別 |
 | U01 | PC/mobile/320px/keyboard/200%/image/font失敗/bfcache | 読める/操作可、画面外overflowなし、前UID/late response/proofを復活させない | visual/font/privacy/runtime/実bfcache local |
-| B01 | 別scopeで実装後、Phase1の !app/!mypage/!page/!my page | 全alias同じ固定public入口/UTM、secret/UIDなし、従来my option不変 | 本PRはruntime機能を追加しない。正本のalias/UTM契約と別実装時のparser/workspaceapp testsで確認 |
+| B01 | 実装後、Phase1の !app/!mypage/!page/!my page | 全alias同じ固定public入口/UTM、secret/UIDなし、従来my option不変 | 正本のalias/UTM契約とparser/workspaceapp testsで確認 |
 
 false/未実施をPASSへ置換しない。実E2Eごとにscope、対象release対、開始/完了時刻、sanitized evidence参照、結果（pass/fail/pending）を残す。
-
-## 2026-10-22 DEVの限定確認
-
-2026-10-22 16:08:21〜16:11 JST（07:08:21〜07:11 UTC）に、DEV `test--study-space.web.app` と[固定backend host](../../../infra/mypage-platform/environments/dev/runtime-release.json)へ匿名の少量requestを送り、Cloud Run・Logging・IAMの非機密metadataだけをread-onlyで確認した。実OAuth開始、callback、実account/token、実data更新、rate limit到達、deploy、IAM/ログ設定変更は行っていない。API拒否試験は各8件を2回実施した。初回は検査側が仕様上の固定`message` fieldを除外したためenvelope検査が不合格となり、仕様に合わせた再確認8件がすべて成功した。最初の失敗をsecurity gateのFAILや漏えい検出とは扱わない。
-
-試験前後のCloud Run metadataはgeneration `3`、latest Ready/Created `mypage-api-00003-hcq`、同revisionへのtraffic `100%`で一致した。実revisionのdigestは`runtime-release.json`の`image_digest`と一致し、source参照は同fileの`image_source_sha`とした。Hosting release ID/配信assetの同一性は今回readbackしておらず、完全なFE/BE release対の受入証跡ではない。Go binaryのbuild versionや新image配備をこの確認から推定しない。
-
-| 確認した匿名request | 観測結果 |
-| --- | --- |
-| Hosting `GET /`, `/privacy`, `/terms`, `/contact`, `/mypage` | 5件とも200、HTML、CSP/X-Frame-Options/Referrer-Policy/nosniffあり。`/mypage`は公開static shellの到達確認のみ |
-| Hosting `GET /api/mypage`、App Check/Authなし | 403 `APP_CHECK_REQUIRED` |
-| Hosting `GET /api/mypage`、不正な合成App Check | 403 `APP_CHECK_REQUIRED` |
-| Hosting `GET /api/mypage`、別Origin | 400 `INVALID_REQUEST` |
-| Hosting `POST /api/auth/youtube/start`、同一Origin/空JSON、App Checkなし | 403 `APP_CHECK_REQUIRED`。OAuth transaction/state発行は行わない |
-| Hosting `POST /api/auth/session/complete`、同一Origin/空body、App Checkなし | 403 `APP_CHECK_REQUIRED` |
-| 直接Run `GET /api/mypage`、通常のbackend Host | 400 `INVALID_REQUEST` |
-| 直接Run `GET /api/mypage`、公開Hostを申告するX-Forwarded-Host/https、App Checkなし | 403 `APP_CHECK_REQUIRED` |
-| 直接Run `GET /api/mypage`、上記転送headerと別Origin | 400 `INVALID_REQUEST` |
-
-8件のAPI再確認では、bodyが固定の`error.code/message/requestId`だけであり、`message`が`request rejected`、`Cache-Control: private, no-store`、`Set-Cookie`なしであることも検査した。直接Run URLには到達できるため、ネットワーク遮断済みとは扱わない。転送headerは本人確認にはならず、直接経路でもアプリguardが必要。有効App CheckでAuth欠落/不正Authを拒否する401、別UIDの隔離、同意・ServiceAccessControl、実CookieとOAuthの成功/失敗はこの匿名試験では未検証である。
-
-Logging metadataではproject内sinkは`_Default`/`_Required`のみで、`_Default`の`mypage-sensitive-request-url` exclusionが有効、filterは[review済みJSON](../../../infra/mypage-platform/environments/dev/request-log-exclusion.json)と一致した。除外作成時刻2026-10-21 11:32:10.927480464 UTC以降の同filter該当request logは、上限1001件のmetadata件数照会で0件。今回の固有User-Agent/時間窓による通常API request logは16件（400が6件、403が10件）で、queryなしAPIのログは維持されていた。code/state、Cookie、token、request URL、log本文は取得・出力していない。新しいcallback markerも生成していないため、この0件だけでcallback到達や全層S04の成功を宣言しない。
-
-`global`のlog bucketは`_Default`がACTIVE/30日、`_Required`がACTIVE/400日/lockedだった。これは当該bucketの保持設定で、OAuth情報が400日残るという意味ではない。除外前の既存記録の処置、Hosting/CDN、ancestor sink、他region/destination、app/security log、閲覧者・転送先は未検証。sinkは独立にroutingを評価するため、`_Default` exclusionだけでは全層への非保存を保証しない（[Cloud Logging routing](https://docs.cloud.google.com/logging/docs/routing/overview)）。
-
-DEV runtime専用SAにはproject IAMの`roles/datastore.user`が実在した。server SDKはSecurity Rulesで評価されずIAMで認可される（[Firebase server libraries](https://firebase.google.com/docs/firestore/client/libraries)）。通常APIのUID認可とは別に、runtime侵害時には他のFirestore dataにも影響し得る残余リスクがある。不要な操作permissionを減らすcustom roleやdatabase境界の条件を別途評価し、collection単位の隔離ができたとは扱わない。今回IAMは変更していない。
-
-2026-10-22のGitHub read-only inventoryでは、default branchのopen Dependabot alertは103件（Critical 7 / High 41 / Medium 42 / Low 13）、内訳はsystem 1 / monitor 16 / docs 47 / video 14 / menu 21 / CDK 4件だった。MyPageはdefault branchへ未統合のため当該manifest/alertに現れず、安全証明にならない。systemのcompressは今回の修正対象で、他packageの残件は既存Security Issue #864で別途対応する。CodeQLのopen alertは6件（Critical 1 / High 3 / Medium 2）で、monitor/BGMとvideoBGM/common sanitizerが対象、MyPage該当はなかった。修正PRやCI成功だけでこれらを完了/0件に変更しない（[Dependabot](https://github.com/kani3camp/youtube-study-space/security/dependabot)、[Code scanning](https://github.com/kani3camp/youtube-study-space/security/code-scanning)）。
-
-S01（複数の実回線、bucket分離、429/Retry-After、偽装XFF）、全層S04、通常/Brand/複数account間の隔離、完全なrelease対、緊急遮断/復旧rehearsalは引き続き`pending`。0B/一般公開Gateは閉じたままとする。
-
-## 2026-10-22 セキュリティ更新のlocal検証
-
-既存DEVの上記read-only確認と、以下の修正後local検証は別のreleaseとして扱う。Go / Node / dependencyの正確な版は各canonical config / lockfileを正とする。今回の検査入力はGo 1.27.3、Node 24.22.1、Vite 8.3.5、Vitest 4.1.12、Goのcompress 1.18.7 / x/net 0.60.0。3 Dockerfileは修正版builderのdigestを固定し、`GOTOOLCHAIN=local`と`go.mod`とのcompiler一致検査で古いbuilderを自動downloadにより隠すことを防ぐ。
-
-| local検査 | 実施結果 |
-| --- | --- |
-| MyPage frozen install / check / typecheck / test / build | Node修正版で成功。13 test files / 196 tests |
-| MyPage `pnpm audit --audit-level=high --json` | Critical / High / Moderate / Lowすべて0。途中の旧npm audit API timeoutは再実行で解消し、CIで失敗を無視する設定は追加していない |
-| Go `go test -shuffle=on ./...` / lint / `I18N_BASELINE=ja go generate ./...` | 成功、意図しない生成差分なし。Go対応のlint版はCI設定を参照。room-image-promptのtest/lintも成功 |
-| Go `govulncheck -test ./...` | 到達可能な脆弱性0件。required module内のみのopenpgp `GO-2026-5932`が1件残るが、import/call graphには含まれない |
-| MyPage linux/amd64実image / offline nonroot check | buildと設定不足拒否/合成設定受入が成功。抽出binaryのGo 1.27.3、CGO無効、修正版依存を確認 |
-| Trivy v0.76.1 / OS + library | 実imageのHigh / Criticalは0、未修正版を一括除外していない。開発依存を含むfrontend lockfile検査でもHigh / Criticalは0で、同じ検査が変更前lockfileのHigh / Criticalを拒否することも確認 |
-| CI契約 / routing / actionlint / API契約 / 文書参照 | 19 CI契約test、path routing、変更workflow構文、8 endpoint / fixtures検査、文書リンク検査が成功 |
-
-local image IDは`sha256:3e73f3e7dc9f2f75953e57526e75e8d3abe5516fd942ec6552ddcdee27223776`。これはlocal DockerのIDで、Artifact Registryへ公開したmanifest digestやDEVに配備されたimage digestではない。`-s -w`の実binaryに対するgovulncheck binary modeはsymbolがないためmodule粒度へfallbackし、上記openpgpを検出してexit 3となった。同条件のstripなしbinaryでは到達0件/required moduleのみ1件となる比較を実施した。sourceのimport/call graphとTrivyのHigh/Critical結果を根拠とし、「全moduleの指摘0」とは扱わない。
-
-変更したsourceのGitHub Actions、統合、registry push、DEV更新、実release対での再試験はこのlocal検証の完了とは別条件。Dependabot設定もdefault branchへ反映するまで日次運用開始とは扱わない。既存DEVを修正済みと宣言せず、S01/S04・複数account・復旧・公開前Gateを維持する。
 
 ## Canon S01/S04 実経路セキュリティ検証
 

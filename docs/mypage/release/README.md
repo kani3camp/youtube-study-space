@@ -2,49 +2,28 @@
 
 メンテナンスモードの初期化、開始、解除、fail-closed時の復旧は[maintenance mode v1 runbook](../maintenance-mode.md)を参照する。これは通常release、Terraform apply、Hosting公開とは独立した手動操作であり、同runbookのworkflow以外からFirestore状態を直接変更しない。
 
-このrunbookは未完の実経路Gate・本人判断を残したまま、コード・設定・試験を進める入口。DEVの2026-10-22時点の限定確認は[E2E実測記録](e2e.md#2026-10-22-devの限定確認)を参照する。設定検査や匿名拒否試験の成功は公開承認や実account E2Eの成功ではない。見た目・Phase 1のread-only scope・既存identity/data契約は維持する。
+この runbook は設定検査・配備・公開条件の入口。実装契約は [MyPage](../README.md)、API は [OpenAPI](../openapi.yaml)、受入項目と復旧試験は [E2E 手順](e2e.md) を参照する。配備・検証結果は対象 release の Issue / PR / Actions に記録する。現在の統合状況は [PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)、未完の公開受入は [Issue #1133](https://github.com/kani3camp/youtube-study-space/issues/1133) で追跡する。設定検査・合成 QA・設計決定を実経路 PASS や公開承認へ読み替えない。
 
-プロダクト方針の正本はCurrent Canonの[04 認証](https://app.notion.com/p/3ec357a8d0ce812f8520f787fedcc6bd)、[05 Privacy](https://app.notion.com/p/3ed357a8d0ce81e7b7d2cc85ec8ab4cf)、[06 Security](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634)、[09 判断記録](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)。実装・CI・配備状態はGitHubを正とし、設計の確定を実経路PASSへ読み替えない。wire/実装は[実装contract](../README.md)、[OpenAPI](../openapi.yaml)を参照する。本人への準備事項は[owner packet](owner-packet.md)、実経路の試験・release対・rollbackは[E2E手順](e2e.md)にまとめる。
+プロダクト方針は Current Canon の [04 認証](https://app.notion.com/p/3ec357a8d0ce812f8520f787fedcc6bd)、[05 Privacy](https://app.notion.com/p/3ed357a8d0ce81e7b7d2cc85ec8ab4cf)、[06 Security](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634)、[09 判断記録](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f) を参照する。
 
-2026-10-24の限定DEV配備対、上限付きFirestore測定、観測OFF、実409競合拒否、一時権限解除、正常0の認証smokeは[原価測定記録](../dev-cost-measurement-20261024.md)を参照する。表の公開Gate全体を完了した証跡ではない。
+## 構成と配備の入口
 
-## 0. 2026-10-25 現行構成・公開前Gate（過去の手順より優先）
+Development / Production とも Firebase Hosting (React/Vite) + `/api/**` rewrite + Cloud Run Go BFF + Firebase Authentication + Firestore。Cloudflare は Registrar/DNS only。初期構成は Managed WAF / Cloud Armor / 専用外部 LB / Cloud Run Web を含めない。標準 `run.app` への直接到達を許容するため、Hosting と直接 Run の両方で認証・App Check・SAC・Origin・IP/UID limiter・S01/S04 を検証する。
 
-**現行の採用目標**：Development/ProductionともFirebase Hosting (React/Vite) + `/api/**` Cloud Run Go BFF rewrite + Firebase Authentication + Firestoreを継続。CloudflareはRegistrar/DNS onlyで、**Cloudflare HTTP Proxy/WAF、Cloud Armor、専用外部LB、Cloud Run Webは初期採用しない**。標準 `run.app` への直接到達は許容するが、認証・App Check・SAC・Cookie/state/Origin・IP/UID limiter・S01/S04を全経路で検証する。[Notion 07](https://app.notion.com/p/3ef357a8d0ce81b5892ac1dc2c99e587) / [06](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634) を正とし、旧Managed WAF必須のチェック項目は履歴として扱う。
+公開ドメインは `https://moku.work/`。登録の Active 状態、DNS/TLS、OAuth callback、Production 配備は対象環境の readback で確認する。
 
-**Phase 0A** は運営者限定でE2E検証を続行可能。**Phase 0B** はURLを知る実ユーザーがアクセス可能となるため、次の受入を追加する。monitor認証と制限Rulesのrepository sourceは実装済みだが、以下のlive受入はすべてPENDINGであり、仕様記載・source・Emulator CIだけでGate完了とは扱わない。
+| 対象 | 手順・契約 |
+| --- | --- |
+| 基盤・keyless identity・環境別 State | [MyPage platform](../../../infra/mypage-platform/README.md) |
+| OAuth transaction TTL | [専用 Terraform](../../../infra/mypage-oauth-ttl/README.md)。application の10分失効と非同期 TTL 削除を区別する |
+| Backend image 更新 | [Backend CI](backend-ci.md)。image-build → digest 固定 PR → CI 配備・限定 State readback |
+| Frontend | 下記の DEV Hosting CI と静的 cache 契約 |
+| metadata 保持・監視 | [cleanup / watchdog](metadata-monitoring.md)。source と実 scheduler / sink の結線を区別する |
+| 横断削除 | [削除手順](../support-delete.md)・[調査対象](../support-delete-inventory.md)。live adapter 未接続の `--execute` 拒否を運用完了と扱わない |
 
-- [ ] [monitor認証必須 #1459](https://github.com/kani3camp/youtube-study-space/issues/1459)：実装済みのOBS Interactログイン、local persistence、monitor claim + UID allowlist、制限Rulesを同じrelease pairとしてDEV/PRODへ段階適用する。repository Rulesは `seats` / `member-seats` / `menu` / `work-name-trend` / `config/constants` の匿名read/listを廃止し、専用monitor主体にのみ必要なreadを許可する。一般MyPage UIDや匿名・別projectは拒否、書込は禁止。
-- [ ] OBS/CEFの実再起動・PC再起動・scene変更・long-running token refresh・権限失効時通知/復旧と、既存monitor seat-count制御の回帰を確認。まずDEV、その後ProductionのRulesとmonitorを整合させて段階適用。未対応Rulesだけ先にdeployしない。
-- [ ] DEV min0/max1、PROD min0/max3、request-based、timeout/body/query予算をTerraformとGCP実値で照合。Cloud Run max instancesは料金hard capではない。
-- [ ] **費用とabuse監視**：環境別にCloud Billing Budgetの多段階アラート・通知先・実着信を検証。Cloud MonitoringでRun request/instance/429/5xx、Firestore reads、YouTube quota、異常アクセスを監視。予算額・thresholdは正常時請求から決め、Budgetは自動停止ではないと明示。Cloud Run Spend Cap previewは利用可能性・同じprojectの他Cloud Run停止影響を確認するまで採用済み扱いしない。Firestoreは別管理。
-- [ ] 既存S01（Hostingと`run.app`直接、IP偽装/429/誤制限）・S04（OAuth callbackのcode/state/Cookie/Tokenを全層ログで確認）・Auth/App Check/UID/IDOR・Privacy削除・D02/D03実値、release pair / rollbackを引き続きPASSにする。
-- [ ] 実行結果は[公開受入 #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)と[E2E matrix](e2e.md)へ対象environment、revision、時刻、証拠、未確認箇所を記録し、0B/一般公開を個別判定する。
+## 公開設定
 
-## 1. 現在ある実装と、残る完了条件
-
-DEV Backendのimage更新をCIへ移す経路は [Backend CI手順](backend-ci.md) を参照する。既存image-build→レビュー済みdigest promotion→CIでCloud Run更新/匿名smoke/限定State readbackの順序。専用identityの接続と実CI配備は同手順の実受入記録で判定する。
-
-| 領域 | 既存実装・localで検証できること | 公開前に残ること |
-| --- | --- | --- |
-| OAuth / identity | [AuthService](../../../system/core/mypage/auth.go)、atomic claim/consume、channel確認、短命token、purpose分離 | 実Google account/Brand Account/channel選択・審査 |
-| OAuth transaction TTL | [MyPage専用Terraform](../../../infra/mypage-oauth-ttl/README.md)、dev/prod定義、credential不要mock/限定plan contract | owner-approved target/state、別途承認したplan/apply、両環境のTTL ACTIVE・自然削除観測。applicationの10分失効は維持 |
-| MyPage Cloud Run platform IaC | [専用Terraform](../../../infra/mypage-platform/README.md)はdev/prod別root。DEVの配信revision/固定digest、Hosting経由の匿名拒否を2026-10-22にread-only確認 | Production、完全なFE/BE release対、費用/rollback、S01/S04全層、Privacy公開Gateは未完了 |
-| API / Firebase | [server assembly](../../../system/core/mypage/server.go)、keyless SDK、署名/claim、Origin、6 endpoints。DEVのApp Check欠落/不正・別Origin・直接Runを限定確認 | 有効App Check/Auth、複数account隔離、実OAuth/cookie、runtime signer/Firestoreの正常経路、緊急遮断/復旧 |
-| metadata | refresh、正常なchannel不在のclear、29日cleanup、[定期呼出しrunner・durable監視・期限付きalert source](metadata-monitoring.md)、23時間heartbeat判定 | 実scheduler/独立watchdog/監視sink/alert宛先の結線、実inventory、自然実行 |
-| 作業集計 | Firestore snapshot/readTime、JST境界、小数秒fixture、欠損/partial | history coverage・writer atomicity・query indexの実証跡 |
-| ServiceAccessControl | [MyPage guardとtrusted moderation CLI](../service-access-control.md)、独立reasonとtransaction/checkpoint、合成QA | 実environmentの権限・runtime・運用結線、全runtime drainと横断削除B |
-| support | request/purpose/channel binding、fresh proof、opaque参照、[demo限定dry-run](../../../system/cmd/mypage-operator-dryrun/main.go)、[無効のアプリ内受付](../privacy-intake.md) | 初期公開は返信可能な人的Privacy窓口と既存fresh OAuth / private CLI / Runbookの実運用。実連絡先・担当・期限管理・返信deliveryは未確定 |
-| 削除 / operator実行 | [削除workflow・offline CLI](../support-delete.md)と[trusted operator source](../support-operator.md)を合成検証 | live adapter / registry / CLI bootstrapなし。`--execute`拒否を維持。全store横断・復元/再生成防止・完了確認の実証跡 |
-| public policy | anonymous routes、明示同意、公開情報差込とdraft文面 | 運営値・実送信/保持との照合、本文承認、D02の規約適合性確認 |
-| GA4 | consent世代、同意前非送信、撤回/cross-tab、safe固定UTM、loader。未接続時は同意バナーを非表示にし、旧v1選択を引き継がない | Firebase既存のMyPage用DEV/本番プロパティ・Webストリームを採用済み。環境別Measurement IDのbuild設定反映、Console/全tag inventory・実Network・保持設定 |
-| Hosting | [pure候補](../../../mypage/src/hosting.ts)、明示CSP inventory、API優先rewrite、asset検査 | 所有target、実SDKのinventory、callback/access-log、実security headers |
-| Bot入口 | 正本で `!app`/alias・固定public入口/UTMを決定済み。設定・受入条件は本runbookで準備 | runtimeコマンド接続は本PRに含めない。別の実装scope承認、Phase 1の実URL設定・live導線/流入確認 |
-| 表示・操作 | visual/runtime/privacy/font/bfcache合成QA | 実端末・実account差。受容済みMyPage見た目を再設計しない |
-
-support proofやdry-runは削除実行ではない。古い `mypage-users` mapping向け運用コードを、channel UIDの現在契約へ確認なしで流用しない。metadata cleanupは定期呼出しcallback・durable monitor・期限付きJSON health sinkのsourceまでで、実schedulerや監視宛先が作成済みとは扱わない。`mypage-server` の起動もkeyless credential、Firestore client、OAuth provider、HTTP listenに依存し、現行sourceや配置templateだけでは稼働中のdev Hosting→Cloud Run経路を証明できない。[2026-10-22のread-only確認](e2e.md#2026-10-22-devの限定確認)は既存DEVの匿名拒否と非機密metadataだけであり、[S01/S04実経路手順](e2e.md#canon-s01s04-実経路セキュリティ検証)の複数回線・全層ログや実OAuthはpending。deployやIAM/ログ設定変更は行っていない。
-
-### GA4の環境別セットアップ（Firebase既存MyPageプロパティ採用済み・実送信未有効）
+### GA4の環境別セットアップ
 
 MyPageのGA4は、各Firebaseプロジェクトに既存でリンクされている **`mypage` 用GA4プロパティ**（各Webデータストリーム1つ）を使う。`youtube-monitor` 用プロパティはMyPageでは使用しない。Measurement IDは **DEV `G-E31NHW939V` / PROD `G-ZJ1VPVT2L2`** を採用する。ストリームURLは承認済みの環境別public originと整合させ、開発用アクセスを本番集計へ送らない。ID採用は確定済みだが、環境別build設定への反映・Console設定の受入・実Network/Realtime検証が終わるまではGA4実送信の有効化完了とは扱わない。
 
@@ -53,7 +32,7 @@ MyPageのGA4は、各Firebaseプロジェクトに既存でリンクされてい
 - 未接続時は初回の同意バナーを表示しない。既存のv1同意設定は、接続前に取得した選択なので再利用しない（v2へ更新）。GA4を有効化した最初のアクセスで、ユーザーへGoogle Analytics・Cookie等を使うサイト改善のためのアクセス解析を案内し、明示的に同意/拒否を選んでもらう。
 - DEVから先に、同意前・拒否中のGA4 network request 0、許可後の実イベント/URLのサニタイズ、拒否への変更後の非送信とCookie、Realtime表示、CSP・外部送信表示を実ブラウザで確認する。ローカル合成テストではConsole/実vendorの証明にならない。DEVの検証結果をProductionの検証に読み替えない。
 
-## 2. 外部接続なしの設定preflight
+## 外部接続なしの設定preflight
 
 public設定は[Vite/Firebase/GA4](../../../mypage/src/firebase.ts)、server設定は[entrypoint](../../../system/cmd/mypage-server/main.go)が使う既存契約へ揃える。設定値の元は選択済みproject/appの管理画面・承認済みinventoryであり、例の値を実projectへ流用しない。
 
@@ -92,7 +71,7 @@ Hosting image inventoryにはチャンネル画像用の `https://yt3.ggpht.com`
 
 publicPolicy入力は一般問い合わせとPrivacy請求を分ける。形式が正しいURLでも返信機能・ログイン不要・SLA運用が確認済みとは限らない。
 
-## 3. 再利用するlocal acceptance
+## ローカル検証
 
 依存は各packageのlock/toolchain設定を使う。秘密や実ユーザーdataは不要。以下はrepository-nativeの確認で、real OAuth/Hostingを代替しない。
 
@@ -124,7 +103,7 @@ Go変更の必須checksは[AGENTS.md](../../../AGENTS.md)。生成後の意図�
 
 browserはlocal Viteをport18081で起動し、[runtime](../../../mypage/scripts/runtime-qa.py)・[privacy](../../../mypage/scripts/privacy-qa.py)・[visual](../../../mypage/scripts/visual-qa.py)・[font](../../../mypage/scripts/font-qa.py)を使う。各scriptは外部requestを遮断する。実bfcacheは[専用static build](../../../mypage/scripts/bfcache.vite.config.ts)と[既存QA](../../../mypage/scripts/bfcache-qa.py)を使い、dev HMRを証拠にしない。設定済みpublic文面は専用testとbrowserで匿名到達/安全なlinkを確認する。実ユーザー画面をpublic QA artifactへ保存しない。
 
-### DEV HostingをCIで配備する（2026-10-25）
+### DEV HostingをCIで配備する
 
 基盤のTerraform Applyとページの配備は別の操作だが、DEVページの更新も既存`CI`の手動実行から完結させる。`integration/mypage-canon-20261006`を選び、`mypage_hosting=true`と`mypage_hosting_expected_sha=<レビュー済み統合HEADの40桁SHA>`を指定する。他の認証操作は同時指定しない。PR実行・main・他branch・別owner・再実行・SHA不一致は拒否する。失敗時にRunの再実行で継続せず、現在状態を確認して新しい実行を開始する。
 
@@ -153,7 +132,7 @@ Hosting Emulatorで既知asset、`/`、`/mypage`、`/api/mypage`、未知`/asset
 
 ### DEV専用：MyPageのFirestore読み取り原価計測
 
-設計候補は[Notion D06](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f)。データソースの正本は[03｜統計](https://app.notion.com/p/3ec357a8d0ce81ac94eef9e6ac0c9964)。収集フックのsource実装だけでは、**実DEVでのデプロイ・計測・index適用を行ったことにはならない**。2026-10-24に実施した限定配備・直接SDK測定と、その範囲外のGateは[実測記録](../dev-cost-measurement-20261024.md)を参照する。
+[原価モデルの前提](../cost-notes.md)に従い、対象 release と予算を固定して計測する。収集フックの source だけでは実 DEV の配備・計測・index 適用を証明しない。
 
 - DEVの明示環境設定 `MYPAGE_READ_METRICS=true` の時だけ、BFFのCache Missから生じたFirestore snapshotの**成功したread-only transaction**ごとに `mypage_snapshot_read` を出力する。Productionではこの設定があっても無効。設定追加はDEV Cloud Run / Terraformの既存env allowlistとrelease承認を通して行う。
 - 記録内容は `user_lookups`（UserDoc lookup数）、`seat_queries` / `seats_returned` / `seat_query_errors`、`segment_queries` / `segments_returned` / `segment_query_error`、`elapsed_ms` の数値・真偽値のみ。uid/channel ID、氏名、path、作業名、segment本文、OAuth/Cookie、エラー本文などの秘匿値を記録しない。
@@ -162,7 +141,7 @@ Hosting Emulatorで既知asset、`/`、`/mypage`、`/api/mypage`、未知`/asset
 - 合成テスト対象：User不存在、履歴0/10/100/500/1000件（可能なら1001件検知）、同一IDの通常席/メンバー席、JST日曜→月曜・月末境界、coverage欠損、クエリ失敗と認証拒否。受け取った文書数だけでなく、失敗/上限時に履歴を0として表示しないことを確認する。
 - 毎回の処理量（read/write/index read/CPU/latency）と1人・1日あたりのrequest回数を組み合わせて、実測原価を計算する。**現行のQuery `work-segments` は`ended-at`と`started-at`の複数の範囲条件を含むため、index entry readの請求をQuery Explain Analyzeで確認する。** 安全な値として`limit(1001)`があっても、同等数の課金readに収まる保証にはならない。
 - 代表的な2時間滞在なら、定期refreshは旧60秒120回→新5分24回が**目標値**。手動操作/ログイン/再試行は別集計。複数インスタンスのヒット率、App CheckのreCAPTCHA評価回数、追加書き込み/キャッシュ維持費も別途算出する。
-- writer inventory：`workspaceapp/command_seat.go`、`workspaceapp/utils.go`、`workspaceapp/batch.go`、`workspaceapp/command_moderation.go` と中央の`PrepareWorkSegmentWrites`/commitをPR #1442で接続し、月次rollupとrawのatomicity・重複・rollbackをCI/Emulatorで検証した。旧dailyを正本へ復活させない。source実装の確認と全runtimeへの実配備は区別する。DEVには常駐Botがないとownerが確認し、既存Batch/Lambdaの固定imageは監査できたが、現sourceのbuild/deploy receipt照合と切替は別Gate。
+- writer は [削除 inventory の起動経路](../support-delete-inventory.md#起動と再生成経路の調査先)と中央 `PrepareWorkSegmentWrites` を照合する。旧 daily を正本へ戻さず、Bot / Batch / Lambda の実 build・配備・drain を確認する。
 
 ### 月次履歴の明示移行と復旧
 
@@ -185,7 +164,7 @@ go run ./cmd/mypage-history-rebuild --environment=development \
 
 新しいclose writerとrebuildはprivacyDeletionをtransactionで確認し、SAC解除後も旧admission/checkpointの再生成を拒否する。genericなBot moderation/入室/User更新まで共通停止にしたわけではないため、横断削除のlegacy pause/drainは引き続き必要。削除adapter/inventoryは原記録と`work-months`を同じprimary scopeで消し、UserのmarkerもUser削除に含む。inactive SAC checkpoint・独立moderationは保持する。cache/flight・backup/export/restoreまで含むBの完了条件は従来どおりで、このCLIをPrivacy削除の実行経路へ転用しない。
 
-## 4. Gateと承認の順序
+## Gateと承認の順序
 
 | checkpoint | 完了を示す証跡 | 未完時 |
 | --- | --- | --- |
@@ -195,9 +174,9 @@ go run ./cmd/mypage-history-rebuild --environment=development \
 | 0B受入 | 0A実経路とCanon S01/S04の検証PASS（必要なら局所修正後）、MONのDEV/PROD monitor認証・OBS永続化・失敗通知・max-seat回帰、COSTの実課金境界・Budget実着信・異常利用監視、D01実装証跡、D02両取消経路の規約適合性確認、D03実値、人的Privacy窓口、7暦日削除/cleanup、実metadata/log/backup inventory | 実ユーザー受入を停止 |
 | Phase 1一般公開 | OAuth verification完了、0B実account/端末QA、Bot/外部導線、rollback、monitoring | 日付やCI成功だけで告知しない |
 
-初期公開のPrivacy請求は[人的窓口と既存部品の最小運用](owner-packet.md#privacy請求の受付準備)を前提とする。[アプリ内source package](../privacy-intake.md)の有効化は0Bの必須条件ではない。公開manifestの`VITE_PRIVACY_INTAKE_ENABLED`は現時点で`false`のみ受理し、server側も`EnablePrivacyIntake=false`を維持する。no-sessionも同じ人的窓口で扱い、新しいbearer credentialを導入しない。アプリ内受付・返信UIを後で使う場合は独立した公開判断が必要。
+初期公開のPrivacy請求は[人的Privacy・削除の運用](#人的privacyと削除の運用)を前提とする。[アプリ内source package](../privacy-intake.md)の有効化は0Bの必須条件ではない。公開manifestの`VITE_PRIVACY_INTAKE_ENABLED`は現時点で`false`のみ受理し、server側も`EnablePrivacyIntake=false`を維持する。no-sessionも同じ人的窓口で扱い、新しいbearer credentialを導入しない。アプリ内受付・返信UIを後で使う場合は独立した公開判断が必要。
 
-### 0B前の人的Privacy・削除最小運用チェック
+### 人的Privacyと削除の運用
 
 - D03で返信できるログイン不要の窓口、担当、受付時刻・期限管理、実公開文面を確定する。匿名の一般意見窓口やOAuth user support emailを自動的に流用しない。
 - 依頼目的・environment・対象channel・受付時刻を記録し、fresh OAuthを同じ依頼へ束縛する。削除の7暦日は受付時刻から固定し、proof再発行・ACK喪失・再試行で延長しない。
@@ -205,12 +184,16 @@ go run ./cmd/mypage-history-rebuild --environment=development \
 - [削除inventory](../support-delete-inventory.md)で実runtime・legacy writer・Auth/BQ/cache/backup/export/vendor/logを確認し、D01 guard、全fleet pause/drain、session revoke、横断削除、復元・古い処理の再生成防止、store別の不存在確認、完了通知まで実証する。部分失敗はpendingのまま再開する。
 - D02は外部Google取消検知のrefresh保存・pollingを採用しない確定方針。アプリ内とGoogle設定画面の両取消経路について適合確認が終わるまで公開Gateを閉じる。新しい取消UI/APIも先行追加しない。
 
-Canon S03のchannel譲渡は利用規約で扱い、申告時の[manual block / session revoke](../service-access-control.md)を維持する。自動ownership監視や周期再認証は追加しない。既存moderation CLIのsource機能を、対象environmentの権限・監査・実運用の確認済み証跡と混同しない。S02のFirestore公開範囲はこの文書整合PRの対象外。
+Canon S03のchannel譲渡は利用規約で扱い、申告時の[manual block / session revoke](../service-access-control.md)を維持する。自動ownership監視や周期再認証は追加しない。既存moderation CLIのsource機能を、対象environmentの権限・監査・実運用の確認済み証跡と混同しない。Firestore Client SDK の制限 Rules と monitor の同時適用は [E2E](e2e.md) の MON 受入で確認する。
 
-正常session revokeで最大約1時間の残存を許容する既定を、削除時の全writer/cache静止の代替にしない。D01方式は2026-10-07 Canonの独立ServiceAccessControlに決定済み。AのguardとBの横断削除/drain完了を区別する。D02は2026-10-09に外部Google解除検知だけを目的とするrefresh token保存・定期pollingを採用しないと確定し、規約適合性と取消後の保持済みAPI dataの扱いをverification/complianceで確認する。
+正常 session revoke の最大約1時間の残存許容を、削除時の全 writer/cache 静止の代替にしない。D01 は独立 ServiceAccessControl を使い、A の guard と B の横断削除・drain を区別する。
 
-## 5. 証跡と停止条件
+OAuth 同意画面の user support email は指定済みの専用値を安全な operator 入力で渡す。Privacy 窓口・一般問い合わせ・developer contact へ自動転用しない。公開本文は運営者の本名・自宅住所の常時掲載を前提とせず、必要な請求へ回答できる運用を用意する。公開前に返信可能・ログイン不要の Privacy 窓口、担当・受付時刻/期限管理、本人 test account/channel、未指定の developer contact、施行日・管轄を実値で照合する。
+
+OAuth scope は `youtube.readonly` のみ、callback は固定 `/api/auth/youtube/callback`。D02 は外部 Google 取消検知だけの refresh token 保存・定期 polling を採用しない。アプリ内と Google 設定画面の両取消経路、保持済み API data の扱いについて verification/compliance の確認が終わるまで公開 Gate を閉じる。設計確定や一般 OAuth 審査をこの適合確認の代用にしない。
+
+## 証跡と停止条件
 
 [release record例](release-record.example.json)にfrontend commit/Hosting release、backend image digest/revision、rewrite/pinTag、schema/同意版、試験のscopeと参照、owner承認をひと組で記録する。例はD02設計選択のみ確定済みとし、残るGateはpendingのtemplateで、入力しただけではGateを閉じない。private target/個人data/credentialをpublic PRに載せない。
 
-認証/IDOR・誤channel・code/state漏えい・同意前GA4・古いdata復活・保持/削除期限違反・rollback互換不成立はSTOP。部分失敗はunknown/pendingとして記録し、再実行で失敗を消さない。CodeQLの既存OIDC custom-claim問題とGitHub CI Gateは区別し、解析未開始をsecurity scan PASSとは呼ばない。OIDC/IAM変更はこのrunbookのコマンドには含めない。
+認証/IDOR・誤channel・code/state漏えい・同意前GA4・古いdata復活・保持/削除期限違反・rollback互換不成立はSTOP。部分失敗はunknown/pendingとして記録し、再実行で失敗を消さない。security scan の実行結果と CI Gate は区別し、解析未開始を PASS とは呼ばない。OIDC/IAM変更はこのrunbookのコマンドには含めない。
