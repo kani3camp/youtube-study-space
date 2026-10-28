@@ -21,15 +21,15 @@ jobs:
       - name: Run tests
         run: node --test .github/scripts/base-image-update-report.test.mjs
 
-  node-lts-ignore-expiry:
-    name: Node LTS Ignore Expiry
+  node-types-ignore-policy:
+    name: Node Types Ignore Policy
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Check Node LTS ignore expiry
-        run: tools/ci/check-node-lts-ignore-expiry.sh
+      - name: Check Node types ignore policy
+        run: bash tools/ci/check-node-types-ignore.sh
 
   documentation-references:
     name: Documentation References
