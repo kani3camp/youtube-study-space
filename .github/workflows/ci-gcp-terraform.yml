@@ -1,0 +1,94 @@
+name: CI GCP Terraform
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: GCP Terraform Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python for GCP contract tests
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+
+      - name: Test authenticated Terraform CI guardrails
+        run: |
+          python3 .github/scripts/test_terraform_native_runner.py
+          python3 .github/scripts/test_terraform_plan_summary.py
+          python3 .github/scripts/test_terraform_migration_contract.py
+          python3 .github/scripts/test_terraform_migration.py
+          python3 .github/scripts/test_production_initializer_controller.py
+          python3 .github/scripts/test_terraform_authenticated_workflow.py
+          python3 .github/scripts/test_terraform_identity_smoke.py
+          python3 .github/scripts/test_terraform_email_adoption_gate.py
+          python3 .github/scripts/test_terraform_protected_plan.py
+          python3 .github/scripts/test_terraform_plan_diagnostic.py
+          python3 .github/scripts/test_terraform_baseline_drift_diagnostic.py
+          python3 infra/gcp/tests/test_runtime_plan_contract.py
+          python3 -B infra/gcp/tests/test_terraform_normal_ops.py
+          python3 -B infra/gcp/tests/test_enable_normal_integration.py
+          python3 -B infra/gcp/tests/test_production_normal_ops.py
+          python3 -B infra/gcp/tests/test_bootstrap_production_normal_ops.py
+          python3 .github/scripts/test_terraform_quota_create_gate.py
+          python3 .github/scripts/test_terraform_quota_refresh_gate.py
+          python3 .github/scripts/test_terraform_export_topic_gate.py
+          python3 .github/scripts/test_terraform_export_scheduler_gate.py
+          python3 .github/scripts/test_terraform_export_function_gate.py
+          python3 .github/scripts/test_gcp_user_activity_schema_audit_workflow.py
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.4"
+          terraform_wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive infra/gcp
+
+      - name: Test pure production initializer with pinned local Terraform
+        run: python3 .github/scripts/test_production_initializer.py
+
+      - name: Initialize and validate roots
+        run: |
+          set -euo pipefail
+          for env in dev prod; do
+            terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly
+            terraform -chdir="infra/gcp/environments/$env" validate
+          done
+
+      - name: Test output-only initialization with native S3 locking
+        run: python3 .github/scripts/test_production_initializer_s3.py
+
+      - name: Test Pool import fidelity with credentialless mocks
+        run: python3 -B infra/gcp/tests/test_runtime_pool_import_fidelity.py
+
+      - name: Test quota alert mock plans and import-only boundary
+        run: python3 -B .github/scripts/run_terraform_native_tests.py --workers 2
+
+      - name: Test Terraform create/update/delete/replace
+        run: python3 -B infra/gcp/tests/test_terraform_normal_ops_native.py
+
+      - name: Verify multi-platform provider locks are complete
+        run: |
+          set -euo pipefail
+          for env in dev prod; do
+            terraform -chdir="infra/gcp/environments/$env" providers lock \
+              -platform=linux_amd64 \
+              -platform=darwin_arm64
+          done
+
+          git diff --exit-code -- \
+            infra/gcp/environments/dev/.terraform.lock.hcl \
+            infra/gcp/environments/prod/.terraform.lock.hcl
+
+      - name: Verify provider locks match
+        run: cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/gcp/environments/prod/.terraform.lock.hcl
