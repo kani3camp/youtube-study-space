@@ -140,7 +140,7 @@ classify_path() {
 			youtube_monitor=true
 			matched=true
 			;;
-		mypage/*|docs/mypage/*|infra/mypage-oauth-ttl/*|.github/scripts/check-mypage-contract.py)
+		mypage/*|docs/mypage/*|.github/scripts/check-mypage-contract.py)
 			mypage=true
 			matched=true
 			;;
@@ -161,7 +161,7 @@ classify_path() {
 			aws_cdk=true
 			matched=true
 			;;
-		infra/mypage-platform/*)
+		infra/mypage-platform/*|infra/mypage-oauth-ttl/*)
 			gcp_terraform=true
 			mypage=true
 			matched=true
