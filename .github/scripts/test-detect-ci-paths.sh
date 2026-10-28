@@ -63,6 +63,9 @@ assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/modules/runtime
 assert_exact_groups gcp_terraform infra/gcp/README.md
 assert_exact_groups gcp_terraform infra/gcp/environments/dev/main.tf
 assert_exact_groups gcp_terraform infra/gcp/environments/prod/main.tf
+assert_exact_groups gcp_terraform infra/mypage-platform/environments/dev/main.tf
+assert_exact_groups gcp_terraform infra/mypage-platform/environments/dev/desired-stage.txt
+assert_exact_groups gcp_terraform infra/mypage-platform/scripts/foundation_contract.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_pool_import_fidelity.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_plan_summary.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_plan_summary.py
