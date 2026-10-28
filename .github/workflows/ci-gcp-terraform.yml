@@ -20,6 +20,12 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.4"
+          terraform_wrapper: false
+
       - name: Test authenticated Terraform CI guardrails
         run: |
           python3 .github/scripts/test_terraform_native_runner.py
@@ -48,12 +54,6 @@ jobs:
           python3 .github/scripts/test_terraform_export_scheduler_gate.py
           python3 .github/scripts/test_terraform_export_function_gate.py
           python3 .github/scripts/test_gcp_user_activity_schema_audit_workflow.py
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_version: "1.16.4"
-          terraform_wrapper: false
 
       - name: Check formatting
         run: terraform fmt -check -recursive infra/gcp
