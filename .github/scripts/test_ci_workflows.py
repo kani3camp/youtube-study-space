@@ -52,6 +52,7 @@ MANUAL_OPERATIONS = (
     'gcp-plan',
     'gcp-apply',
     'gcp-user-activity-schema-audit',
+    'mypage-image-build',
     'mypage-hosting-release',
     'mypage-backend-release',
 )
