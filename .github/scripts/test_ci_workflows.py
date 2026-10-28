@@ -84,10 +84,16 @@ def validate(caller, modules):
         'CI_OPERATION_REQUESTED': "${{ github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.gcp_user_activity_schema_audit == true || inputs.mypage_foundation == true || inputs.mypage_hosting == true || inputs.mypage_backend == true) }}",
     }, 'Gate receives aggregate operation selection')
 
-    require(jobs['gcp-terraform-validate']['name'] == 'GCP Terraform Validate'
-            and 'runs-on' in jobs['gcp-terraform-validate'] and 'uses' not in jobs['gcp-terraform-validate'],
-            'Terraform required check stays direct')
-    require(jobs['gcp-terraform-validate']['needs'] == 'changes', 'Terraform depends on detection')
+    terraform = jobs['gcp-terraform-validate']
+    require(set(terraform) == {'name', 'needs', 'if', 'uses'},
+            'Terraform validation is a bounded reusable call')
+    require(terraform['name'] == 'GCP Terraform'
+            and terraform['uses'] == './.github/workflows/ci-gcp-terraform.yml',
+            'Terraform validation uses its dedicated workflow')
+    require(terraform['needs'] == 'changes', 'Terraform depends on detection')
+    require(terraform['if']
+            == "${{ needs.changes.outputs.gcp_terraform == 'true' || needs.changes.outputs.all == 'true' }}",
+            'Terraform validation follows path selection')
     require(jobs['changes']['outputs'] == {
         g: '${{ steps.detect.outputs.' + g + ' }}' for g in GROUPS
     }, 'All detection outputs reach callers')
