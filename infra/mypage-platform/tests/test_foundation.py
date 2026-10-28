@@ -392,6 +392,7 @@ class FoundationTest(unittest.TestCase):
             admitted.add(match[1])
 
         expected_apply = {
+            'desired-apply',
             'foundation-metadata-apply',
             'foundation-apply',
             'registry-apply',
@@ -403,6 +404,13 @@ class FoundationTest(unittest.TestCase):
         self.assertEqual(admitted, expected_apply)
         for mode in expected_apply | {m.removesuffix('-apply') + '-plan' for m in expected_apply}:
             c.stage_for_mode(mode)
+
+        self.assertEqual(c.stage_for_mode('desired-plan'), 'runtime_public')
+        self.assertEqual(c.stage_for_mode('desired-apply'), 'runtime_public')
+        self.assertEqual(
+            (ROOT / 'infra/mypage-platform/environments/prod/desired-stage.txt').read_text().strip(),
+            'disabled',
+        )
 
         operations = loader.load_yaml(ROOT / '.github/workflows/ci-operations.yml')
         self.assertEqual(
