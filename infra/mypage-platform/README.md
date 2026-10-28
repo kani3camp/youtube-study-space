@@ -22,9 +22,11 @@ DEV配備・適用・試験の最新状態は[統合PR #1236](https://github.com
 
 Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-platform provider lockを使用する。Development専用のAWS backend Plan/Apply role、GCP WIF/構築SA、GitHub Environmentを接続し、metadata段階の実Plan/ApplyとState readbackが成功した。[Development Foundation構築](docs/development-foundation.md)を参照し、既存 `infra/gcp` 用のState roleを流用しない。Private `backend.hcl` と認証情報をcommitしない。
 
-## 段階ごとの責務
+## 通常desired stateとbootstrap内部stage
 
-ソースの `stage = "disabled"` は未構築rootの既定で、**Module count=0／新GCP resource=0**。構築済みDevelopmentでは実行workflowが当該段階を明示する。既定値を実Stateの状態と混同せず、次の段階へ進むには対象・plan・権限を独立にレビューする。
+通常運用では `ci.yml` の `operation=gcp-plan` / `gcp-apply` と `environment=development|production` だけを利用する。MyPage側は `mypage-infrastructure-authenticated.yml` が最終desired state（現在は `runtime_public` 相当）へ固定してPlan/Applyし、利用者はstageを選ばない。Core GCPとはStateを分離したまま、同じGCP Infrastructure runで両方を扱う。
+
+以下のstageは**初回bootstrapと既存のfail-closed契約を維持する内部実装**である。通常の手動UIには露出させない。ソースの `stage = "disabled"` は未構築rootの既定で、**Module count=0／新GCP resource=0**。bootstrap時だけ段階を明示し、既定値を実Stateの状態と混同しない。
 
 | Stage | Terraformが管理するもの | 意図的に含めないもの |
 | --- | --- | --- |
@@ -63,7 +65,9 @@ bash infra/mypage-platform/scripts/check-local.sh
 
 このスクリプトは `terraform fmt -check`、両rootの `init -backend=false -lockfile=readonly`、`validate`、`mock_provider` を使った `terraform test` を行う。安全な合成project番号・appID・digestはtests内だけ。mock planの成功は実GCP planやbudget / E2Eの承認ではない。
 
-## 実適用までの作業と停止条件
+## 初回bootstrap・公開準備の作業と停止条件
+
+通常の変更ではこの段階一覧を手動選択せず、`gcp-plan` で両Stateの差分を確認し、承認した差分だけ `gcp-apply` する。以下は空環境からのbootstrapや公開準備の履歴・停止条件であり、日常の操作UIではない。
 
 1. **Live inventory**：Dev/ProdのSA名、Cloud Runサービス名、Secret ID、Firestore、Firebase Hosting、Google APIsとIAM既存値をread-only収集。既存作成物があれば「新規create」で上書きしない。特に他のTerraform State ownerの有無を確認する。
 2. **Backend/権限準備**：MyPage専用S3 keyと `.tflock`、AWS identity、GCP Workload Identityの**正確なref / workflow / target / principal**を確認。GitHub public PRや任意branchには認証を渡さない。[Development Foundation経路](docs/development-foundation.md)は8資源だけを許可する専用workflowとguardを持つ。専用AWS/GCP/GitHub接続とmetadata段階の実適用は成功済み。同じ境界をtarget-awareに拡張したProduction source経路は、protected Environment進入前のcontext検査に加え、`mypage-prod-plan/apply` Environmentのdeployment branchを`main`だけに固定する。exact SHA・prod専用State/AWS role/GCP SAへ分離し、registry plan/apply、image-build、maintenance operator/upgrade plan/applyだけを許可する。ProductionのEnvironment/secret/state設定と実Plan/Applyは未実施である。
