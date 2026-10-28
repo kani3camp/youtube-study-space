@@ -34,28 +34,52 @@ permissions:
   contents: read
 
 jobs:
-  validate:
-    name: Validate MyPage Infrastructure Request
+  resolve:
+    name: Resolve MyPage Desired State
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      stage: ${{ steps.desired.outputs.stage }}
     steps:
-      - name: Require desired-state operation
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Resolve reviewed desired stage
+        id: desired
         env:
           TARGET: ${{ inputs.target }}
           ACTION: ${{ inputs.action }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          ACTUAL_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          [[ "${EXPECTED_SHA}" == "${ACTUAL_SHA}" ]]
           case "${TARGET}:${ACTION}" in
-            development:plan|development:apply|production:plan|production:apply) ;;
+            development:plan|development:apply) state=dev ;;
+            production:plan|production:apply) state=prod ;;
             *)
               echo "::error::MyPage infrastructure accepts only development/production and plan/apply"
               exit 1
               ;;
           esac
+          file="infra/mypage-platform/environments/${state}/desired-stage.txt"
+          [[ -f "${file}" && ! -L "${file}" ]]
+          stage="$(tr -d '[:space:]' < "${file}")"
+          case "${stage}" in
+            disabled|foundation_metadata|foundation|registry|maintenance_operator|maintenance_upgrade|runtime_private|runtime_public) ;;
+            *)
+              echo "::error::Invalid reviewed MyPage desired stage"
+              exit 1
+              ;;
+          esac
+          echo "stage=${stage}" >> "$GITHUB_OUTPUT"
 
   infrastructure:
     name: MyPage Desired State
-    needs: validate
+    needs: resolve
+    if: ${{ needs.resolve.outputs.stage != 'disabled' }}
     permissions:
       contents: read
       id-token: write
@@ -73,3 +97,24 @@ jobs:
       MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
       MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
       MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
+
+  gate:
+    name: MyPage Infrastructure Gate
+    if: ${{ always() }}
+    needs: [resolve, infrastructure]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      RESOLVE_RESULT: ${{ needs.resolve.result }}
+      STAGE: ${{ needs.resolve.outputs.stage }}
+      INFRASTRUCTURE_RESULT: ${{ needs.infrastructure.result }}
+    steps:
+      - name: Require desired-state result
+        run: |
+          set -euo pipefail
+          [[ "${RESOLVE_RESULT}" == "success" ]]
+          if [[ "${STAGE}" == "disabled" ]]; then
+            [[ "${INFRASTRUCTURE_RESULT}" == "skipped" ]]
+          else
+            [[ "${INFRASTRUCTURE_RESULT}" == "success" ]]
+          fi
