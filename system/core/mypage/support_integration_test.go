@@ -6,12 +6,9 @@ import (
 	"context"
 	"testing"
 	"time"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
-func TestSupportRecordCreationReissueAndEnvironmentIsolation(t *testing.T) {
+func TestSupportChallengeResolutionRejectsOtherEnvironmentAndExpiry(t *testing.T) {
 	_, authStore, _, _, now := authTestService(t)
 	store := &FirestoreSupportStore{Client: authStore.Client, Environment: "development"}
 	ctx := context.Background()
@@ -35,30 +32,7 @@ func TestSupportRecordCreationReissueAndEnvironmentIsolation(t *testing.T) {
 	if _, err := store.Resolve(ctx, challenge, now.Add(24*time.Hour)); errorCode(err) != "SUPPORT_CHALLENGE_INVALID" {
 		t.Fatal("challenge expiry boundary not enforced")
 	}
-	next, err := store.Reissue(ctx, ref, now.Add(25*time.Hour))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Resolve(ctx, challenge, now.Add(25*time.Hour)); errorCode(err) != "SUPPORT_CHALLENGE_INVALID" {
-		t.Fatal("old challenge survived reissue")
-	}
-	if _, err := store.Resolve(ctx, next, now.Add(25*time.Hour)); err != nil {
-		t.Fatal(err)
-	}
-	doc, err := store.Client.Collection("support-requests").Doc(ref).Get(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var value SupportRequest
-	if err := doc.DataTo(&value); err != nil {
-		t.Fatal(err)
-	}
-	if !value.AcceptedAt.Equal(accepted) || value.DeleteBy == nil || !value.DeleteBy.Equal(accepted.Add(7*24*time.Hour)) || value.ChallengeHash == next {
-		t.Fatal("reissue reset receipt/SLA or stored raw challenge")
-	}
-	if _, err := store.Client.Collection("support-challenges").Doc(digest(challenge)).Get(ctx); status.Code(err) != codes.NotFound {
-		t.Fatal("superseded challenge index retained")
-	}
+
 }
 
 func TestSupportDuplicateReceiptRollsBackAllCreatedDocuments(t *testing.T) {

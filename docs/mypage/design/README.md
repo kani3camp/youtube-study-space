@@ -23,15 +23,14 @@ Phase 1のデザイン方針は[Notion 01｜画面・機能仕様](https://app.n
 - Privacy / Terms / Cookie / Contact、利用制限、削除処理中。
 - 直近7日のfocus/tap選択、正常0分の選択、グラフ外の説明、時刻ラベルの収まり。
 
-表示単体は[visual entrypoint](../../../mypage/src/visual.tsx)と[visual QA](../../../mypage/scripts/visual-qa.py)、認証・routeを含む操作は[runtime QA](../../../mypage/scripts/runtime-qa.py)を使用する。これらはdev専用の合成検証で、productionの入口に含めない。
+表示単体は[visual entrypoint](../../../mypage/src/visual.tsx)で確認し、認証・routeを含む状態遷移は[runtime test](../../../mypage/src/runtime.test.ts)で検証する。visual entrypointはdev専用で、productionの入口に含めない。
 
 ```sh
 cd mypage
 pnpm dev --host 127.0.0.1
 # 別shell、Playwright/Chromiumを利用できる環境
 python -m pip install -r visual-requirements.txt
-python scripts/visual-qa.py --output /tmp/mypage-visual-qa
-python scripts/runtime-qa.py --output /tmp/mypage-runtime-qa
+pnpm test
 python scripts/font-qa.py --output /tmp/mypage-font-qa
 ```
 
@@ -39,18 +38,9 @@ python scripts/font-qa.py --output /tmp/mypage-font-qa
 
 ## bfcache・利用制限の確認
 
-HMR を含まない合成静的 build と Chromium で確認する。通常 / support × pending 有無の4ケースで `pageshow.persisted=true`、中断表示・再開始操作、古い応答・receipt・本人データの非復活を確認する。
+旧 session の遅延応答・復帰時の再検証・制限後の非復活は[runtime test](../../../mypage/src/runtime.test.ts)と[private memory test](../../../mypage/src/features/mypage/memory.test.ts)の代表ケースで検証する。
 
-```sh
-cd mypage
-pnpm exec vite build --config scripts/bfcache.vite.config.ts
-python3 -m http.server 18082 --bind 127.0.0.1 --directory /tmp/mypage-bfcache-qa
-# 別shell
-python3 scripts/bfcache-qa.py
-python3 scripts/service-access-qa.py
-```
-
-利用制限 / 削除中の確認は320 / 390 / 1440px、確認・完了・旧 session、bfcache 復帰、問い合わせ・トップ・fresh login・logout を対象とする。拒否後の自動 retry と旧データ復活を認めない。専用 build は production の入口に含めず配備しない。
+実 Hosting / Chromium の bfcache 復帰、利用制限 / 削除中の320 / 390 / 1440px表示、問い合わせ・fresh login・logout は[実経路E2E](../release/e2e.md)で確認する。HMRを実bfcacheの証拠にせず、拒否後の自動retryと旧データ復活を認めない。
 
 ## 仕様の優先順位
 

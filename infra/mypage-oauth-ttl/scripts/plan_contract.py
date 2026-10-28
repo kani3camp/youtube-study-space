@@ -128,31 +128,6 @@ def check_change(resource, scope):
     return actions[0]
 
 
-def value_resources(module):
-    require(isinstance(module, dict), "planned_values_invalid")
-    resources = module.get("resources", [])
-    require(isinstance(resources, list), "planned_values_invalid")
-    result = list(resources)
-    children = module.get("child_modules", [])
-    require(isinstance(children, list), "planned_values_invalid")
-    for child in children:
-        result.extend(value_resources(child))
-    return result
-
-
-def config_resources(module):
-    require(isinstance(module, dict), "configuration_invalid")
-    resources = module.get("resources", [])
-    require(isinstance(resources, list), "configuration_invalid")
-    result = list(resources)
-    calls = module.get("module_calls", {})
-    require(isinstance(calls, dict), "configuration_invalid")
-    for call in calls.values():
-        require(isinstance(call, dict), "configuration_invalid")
-        result.extend(config_resources(call.get("module")))
-    return result
-
-
 def validate_plan(plan, target):
     scope = target_scope(target)
     require(isinstance(plan, dict), "plan_invalid")
@@ -170,6 +145,8 @@ def validate_plan(plan, target):
     }, "input_binding_mismatch")
     changes = plan.get("resource_changes")
     require(isinstance(changes, list) and len(changes) == 1, "resource_count_invalid")
+    # resource_changes is the execution delta. Terraform native tests validate
+    # HCL; do not reconstruct configuration expressions or planned_values here.
     action = check_change(changes[0], scope)
     require(type(plan.get("applyable")) is bool and
             (action == "no-op" or plan["applyable"]), "plan_action_mismatch")
@@ -179,25 +156,6 @@ def validate_plan(plan, target):
     require(isinstance(output, dict) and output.get("after") == scope and
             not list(true_paths(output.get("after_unknown", False))) and
             not list(true_paths(output.get("after_sensitive", False))), "environment_binding_mismatch")
-    planned = plan.get("planned_values")
-    require(isinstance(planned, dict), "planned_values_invalid")
-    resources = value_resources(planned.get("root_module"))
-    require(len(resources) == 1 and resources[0].get("address") == ADDRESS and
-            resources[0].get("mode") == "managed" and resources[0].get("provider_name") == PROVIDER and
-            resources[0].get("values") == changes[0]["change"]["after"] and
-            not list(true_paths(resources[0].get("sensitive_values", False))), "planned_values_mismatch")
-    require(set(planned.get("outputs", {})) == {"scope"} and
-            planned["outputs"]["scope"].get("value") == scope and
-            planned["outputs"]["scope"].get("sensitive") is False, "planned_output_mismatch")
-    configuration = plan.get("configuration", {})
-    require(isinstance(configuration, dict), "configuration_invalid")
-    configured = config_resources(configuration.get("root_module"))
-    require(len(configured) == 1 and configured[0].get("type") == "google_firestore_field" and
-            configured[0].get("mode") == "managed", "configuration_scope_invalid")
-    expressions = configured[0].get("expressions", {})
-    require(isinstance(expressions, dict) and set(expressions) == {
-        "project", "database", "collection", "field", "deletion_policy", "skip_wait", "ttl_config",
-    } and expressions["ttl_config"] == [{}], "ttl_configuration_invalid")
     return action
 
 

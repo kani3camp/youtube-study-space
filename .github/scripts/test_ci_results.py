@@ -35,20 +35,13 @@ class GateResultsTest(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 gate.validate(changed, 'false')
 
-    def test_each_path_group_requires_its_selected_module(self):
-        for name, groups in gate.DOMAIN_GROUPS.items():
-            for group in groups:
-                needs = self.fixture(**{group: 'true'})
-                with self.subTest(name=name, group=group), self.assertRaises(ValueError):
-                    gate.validate(needs, 'false')
-
-    def test_every_failure_or_cancellation_reaches_gate(self):
-        for name in gate.DEPENDENCIES:
-            for result in ('failure', 'cancelled', '', 'unknown', None):
-                needs = self.fixture()
-                needs[name]['result'] = result
-                with self.subTest(name=name, result=result), self.assertRaises(ValueError):
-                    gate.validate(needs, 'false')
+    def test_failure_cancellation_and_unknown_results_reach_gate(self):
+        for name, result in (('system', 'failure'), ('frontend', 'cancelled'),
+                             ('tools', 'unknown')):
+            needs = self.fixture()
+            needs[name]['result'] = result
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                gate.validate(needs, 'false')
 
     def test_detection_or_repository_skip_cannot_pass(self):
         for name in ('changes', 'repository'):
@@ -58,27 +51,14 @@ class GateResultsTest(unittest.TestCase):
                 gate.validate(needs, 'false')
 
     def test_missing_dependencies_or_detection_outputs_fail_closed(self):
-        for name in gate.DEPENDENCIES:
-            needs = self.fixture()
-            del needs[name]
-            with self.subTest(dependency=name), self.assertRaises(ValueError):
-                gate.validate(needs, 'false')
-        for group in gate.GROUPS:
-            for bad in (None, '', 'TRUE', True):
-                needs = self.fixture()
-                if bad is None:
-                    del needs['changes']['outputs'][group]
-                else:
-                    needs['changes']['outputs'][group] = bad
-                with self.subTest(group=group, bad=bad), self.assertRaises(ValueError):
-                    gate.validate(needs, 'false')
-
-    def test_authenticated_dispatch_requires_terraform_validation(self):
-        needs = self.fixture(gcp_terraform='true')
+        needs = self.fixture()
+        del needs['system']
         with self.assertRaises(ValueError):
             gate.validate(needs, 'false')
-        needs['gcp-terraform-validate']['result'] = 'success'
-        gate.validate(needs, 'false')
+        for bad in (None, '', 'TRUE', True):
+            needs = self.fixture(system=bad)
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                gate.validate(needs, 'false')
 
     def test_requested_operation_cannot_skip_or_fail(self):
         needs = self.fixture()

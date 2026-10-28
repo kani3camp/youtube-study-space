@@ -44,7 +44,7 @@ jobs:
         run: python3 .github/scripts/check-doc-references.py
 
   ci-contracts:
-    name: CI Workflow Contracts
+    name: Workflow Lint & Safety Checks
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -56,7 +56,7 @@ jobs:
           python-version: '3.12'
       - name: Install pinned source validation tools
         run: bash .github/scripts/install-ci-source-tools.sh "$RUNNER_TEMP/ci-source-tools"
-      - name: Test CI selection, required checks and authentication boundary
+      - name: Test routing, required gate and credential boundary
         run: python -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v
       - name: Lint CI and operational workflow calls
         run: >-
@@ -70,7 +70,3 @@ jobs:
           .github/workflows/mypage-backend-authenticated.yml
           .github/workflows/mypage-foundation-authenticated.yml
           .github/workflows/mypage-maintenance.yml
-      - name: Test bounded Hosting release contracts
-        run: python -m unittest discover -s infra/mypage-platform/scripts -p 'test_hosting_release.py' -v
-      - name: Test bounded Backend release contracts
-        run: python -m unittest discover -s infra/mypage-platform/scripts -p 'test_backend_release.py' -v

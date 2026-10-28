@@ -18,7 +18,7 @@ Terraformの固定版は[.terraform-version](.terraform-version)、providerは�
 bash infra/mypage-oauth-ttl/scripts/check-local.sh
 ```
 
-このscriptはbackendを初期化せず、provider download・validate・mock_providerによるplan・plan contract回帰・docs/routingを検証する。Terraform testは全runでmockを使い、applyや実Google API呼出しをしない。CIは `contents: read` のみで、OIDC・cloud credential・認証workflowを使わない。provider downloadのnetworkは必要。例のproject/databaseは合成fixtureで、liveへ流用しない。
+このscriptはbackendを初期化せず、provider download・validate・mock_providerによるplan・plan contract回帰を検証する。Terraform testは全runでmockを使い、applyや実Google API呼出しをしない。CIは `contents: read` のみで、OIDC・cloud credential・認証workflowを使わない。provider downloadのnetworkは必要。例のproject/databaseは合成fixtureで、liveへ流用しない。
 
 ## 限定plan contract
 

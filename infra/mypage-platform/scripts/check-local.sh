@@ -4,6 +4,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../../.."
 python3 -m unittest discover -s infra/mypage-platform/tests -p 'test_*.py' -v
+python3 -m unittest discover -s infra/mypage-platform/scripts -p 'test_*_release.py' -v
 terraform fmt -check -diff -recursive infra/mypage-platform
 
 cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/mypage-platform/environments/dev/.terraform.lock.hcl

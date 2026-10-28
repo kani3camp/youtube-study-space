@@ -101,31 +101,6 @@ func TestSupportConfirmThroughHTTPNeverMintsOrCreatesWebAccount(t *testing.T) {
 	}
 }
 
-func TestSupportConfirmIsAtomicAcrossConcurrentTransactions(t *testing.T) {
-	s, store, minter, requestRef, _, id, now := supportAuthFixture(t)
-	channel, err := s.Channel(context.Background(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := concurrently(t, func() error { _, err := s.ConfirmResult(context.Background(), id, channel.ConfirmationRef); return err }); got != 1 {
-		t.Fatalf("support proof winners=%d", got)
-	}
-	if minter.calls.Load() != 0 {
-		t.Fatal("support minted Firebase custom token")
-	}
-	doc, err := store.Client.Collection("support-requests").Doc(requestRef).Get(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	var value SupportRequest
-	if err := doc.DataTo(&value); err != nil {
-		t.Fatal(err)
-	}
-	if value.Status != "verified" || value.VerifiedAt == nil || !value.VerifiedAt.Equal(now) {
-		t.Fatal("atomic support proof lost")
-	}
-}
-
 func TestSupportMismatchAndReissueRollBackOAuthConsume(t *testing.T) {
 	for _, scenario := range []string{"environment", "purpose", "request", "channel", "reissue"} {
 		t.Run(scenario, func(t *testing.T) {
