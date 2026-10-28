@@ -149,7 +149,7 @@ def validate(caller, modules):
     require(operations['name'] == 'Authenticated Operations'
             and operations['uses'] == './.github/workflows/ci-operations.yml',
             'Operations use the call-only module')
-    require(operations['needs'] == ['repository', 'frontend', 'system', 'gcp-terraform-validate'],
+    require(operations['needs'] == ['repository', 'frontend', 'system', 'tools', 'infra', 'gcp-terraform-validate'],
             'Operations receive all prerequisite results')
     require(operations['if']
             == "${{ always() && github.event_name == 'workflow_dispatch' && inputs.operation != 'validate' }}",
@@ -162,6 +162,8 @@ def validate(caller, modules):
         'repository_result': '${{ needs.repository.result }}',
         'frontend_result': '${{ needs.frontend.result }}',
         'system_result': '${{ needs.system.result }}',
+        'tools_result': '${{ needs.tools.result }}',
+        'infra_result': '${{ needs.infra.result }}',
         'gcp_terraform_validate_result': '${{ needs.gcp-terraform-validate.result }}',
     }, 'Operations receive only simplified user intent and prerequisite results')
     require(operations['secrets'] == {
