@@ -33,6 +33,7 @@ class OperationsWorkflowTest(unittest.TestCase):
         for fragment in (
             'gcp-plan|gcp-apply',
             'gcp-user-activity-schema-audit',
+            'mypage-image-build',
             'mypage-hosting-release',
             'mypage-backend-release',
             'REPOSITORY_RESULT',
@@ -50,6 +51,7 @@ class OperationsWorkflowTest(unittest.TestCase):
             'validate-selection',
             'gcp-infrastructure',
             'gcp-user-activity-schema-audit',
+            'mypage-image-build',
             'mypage-hosting-authenticated',
             'mypage-backend-authenticated',
         })
@@ -76,6 +78,16 @@ class OperationsWorkflowTest(unittest.TestCase):
         self.assertEqual(audit['if'], "${{ inputs.operation == 'gcp-user-activity-schema-audit' }}")
         self.assertEqual(set(audit['secrets']), set(AUDIT_SECRETS))
         self.assertEqual(audit['with'], {'target': 'dev'})
+
+        image = jobs['mypage-image-build']
+        self.assertEqual(image['if'], "${{ inputs.operation == 'mypage-image-build' }}")
+        self.assertEqual(image['uses'], './.github/workflows/mypage-foundation-authenticated.yml')
+        self.assertEqual(set(image['secrets']), set(FOUNDATION_SECRETS))
+        self.assertEqual(image['with'], {
+            'target': '${{ inputs.environment }}',
+            'mode': 'image-build',
+            'expected_sha': '${{ github.sha }}',
+        })
 
         hosting = jobs['mypage-hosting-authenticated']
         self.assertEqual(hosting['if'], "${{ inputs.operation == 'mypage-hosting-release' }}")
