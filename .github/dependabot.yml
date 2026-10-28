@@ -62,9 +62,8 @@ updates:
     commit-message:
       prefix: build(deps)
     open-pull-requests-limit: 10
-    # Keep @types/node on Node 24 LTS for now.
-    # Node 26 is expected to become LTS on 2026-10-28.
-    # CI has an expiry check and will fail after that date to force revisiting this rule.
+    # Keep @types/node aligned with the runtime major in .node-version.
+    # CI requires the first ignored major to be runtime major + 1.
     ignore:
       - dependency-name: "@types/node"
         versions:
