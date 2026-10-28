@@ -374,12 +374,15 @@ class FoundationTest(unittest.TestCase):
             with self.subTest(mutation=mutate), self.assertRaises(ValueError):
                 c.validate_plan(rejected)
 
-    def test_every_dispatch_apply_mode_reaches_the_independent_apply_job(self):
+    def test_bootstrap_apply_modes_stay_internal_and_reach_the_independent_apply_job(self):
         spec = importlib.util.spec_from_file_location('workflow_yaml', ROOT / '.github/codeql/validate-source.py')
         loader = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(loader)
+
         dispatch = loader.load_yaml(ROOT / '.github/workflows/ci.yml')['on']['workflow_dispatch']['inputs']
-        modes = dispatch['mypage_foundation_mode']['options']
+        self.assertNotIn('mypage_foundation_mode', dispatch)
+        self.assertNotIn('mypage_foundation_target', dispatch)
+
         jobs = loader.load_yaml(ROOT / '.github/workflows/mypage-foundation-authenticated.yml')['jobs']
         expression = jobs['foundation_apply']['if'].removeprefix('${{').removesuffix('}}').strip()
         admitted = set()
@@ -387,10 +390,25 @@ class FoundationTest(unittest.TestCase):
             match = re.fullmatch(r"inputs.mode == '([^']+)'", term)
             self.assertIsNotNone(match)
             admitted.add(match[1])
-        self.assertEqual(admitted, {mode for mode in modes if mode.endswith('-apply')})
-        for mode in modes:
-            if mode != "image-build":
-                c.stage_for_mode(mode)
+
+        expected_apply = {
+            'foundation-metadata-apply',
+            'foundation-apply',
+            'registry-apply',
+            'maintenance-operator-apply',
+            'maintenance-upgrade-apply',
+            'runtime-private-apply',
+            'runtime-public-apply',
+        }
+        self.assertEqual(admitted, expected_apply)
+        for mode in expected_apply | {m.removesuffix('-apply') + '-plan' for m in expected_apply}:
+            c.stage_for_mode(mode)
+
+        operations = loader.load_yaml(ROOT / '.github/workflows/ci-operations.yml')
+        self.assertEqual(
+            operations['jobs']['mypage-image-build']['with']['mode'],
+            'image-build',
+        )
 
     def test_registry_stage_adds_only_the_immutable_dev_repository(self):
         plan = plan_fixture()
