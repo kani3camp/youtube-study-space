@@ -166,7 +166,7 @@ classify_path() {
 			mypage=true
 			matched=true
 			;;
-		infra/gcp/*)
+		infra/gcp/*|infra/mypage-platform/*)
 			gcp_terraform=true
 			matched=true
 			;;
