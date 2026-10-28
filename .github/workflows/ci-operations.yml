@@ -118,14 +118,16 @@ jobs:
             esac
           done
 
+          if [[ "${OPERATION}" != "gcp-user-activity-schema-audit" ]]; then
+            if [[ "${GCP_TERRAFORM_VALIDATE_RESULT}" != "success" || "${SYSTEM_RESULT}" != "success" ||
+                  "${FRONTEND_RESULT}" != "success" || "${TOOLS_RESULT}" != "success" || "${INFRA_RESULT}" != "success" ]]; then
+              echo "::error::Full credentialless CI must succeed before a write-capable operation"
+              exit 1
+            fi
+          fi
+
           case "${OPERATION}" in
-            gcp-plan|gcp-apply|mypage-image-build|mypage-hosting-release|mypage-backend-release)
-              if [[ "${GCP_TERRAFORM_VALIDATE_RESULT}" != "success" || "${SYSTEM_RESULT}" != "success" ||
-                    "${FRONTEND_RESULT}" != "success" || "${TOOLS_RESULT}" != "success" || "${INFRA_RESULT}" != "success" ]]; then
-                echo "::error::Full credentialless CI must succeed before a write-capable operation"
-                exit 1
-              fi
-              ;;
+            gcp-plan|gcp-apply|mypage-image-build) ;;
             gcp-user-activity-schema-audit)
               [[ "${ENVIRONMENT}" == "development" ]] || {
                 echo "::error::Schema audit is development-only"
