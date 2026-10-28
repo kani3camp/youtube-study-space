@@ -1,0 +1,60 @@
+name: MyPage Maintenance Mode
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [development, production]
+      enabled:
+        description: Enable or disable planned maintenance
+        required: true
+        type: choice
+        options: ['true', 'false']
+
+permissions: {}
+concurrency:
+  group: mypage-maintenance-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  transition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: mypage-maintenance-${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Validate the target and input
+        env:
+          TARGET: ${{ inputs.environment }}
+          ENABLED: ${{ inputs.enabled }}
+        run: |
+          set -euo pipefail
+          case "${TARGET}:${ENABLED}" in
+            development:true|development:false) project=test-youtube-study-space; region=asia-southeast2 ;;
+            production:true|production:false) project=youtube-study-space; region=asia-northeast2 ;;
+            *) exit 1 ;;
+          esac
+          echo "project=${project}" >> "$GITHUB_OUTPUT"
+          echo "region=${region}" >> "$GITHUB_OUTPUT"
+        id: target
+      - name: Authenticate the dedicated job invoker
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.MYPAGE_MAINTENANCE_WIF_PROVIDER }}
+          service_account: mypage-maintenance-invoker@${{ steps.target.outputs.project }}.iam.gserviceaccount.com
+          project_id: ${{ steps.target.outputs.project }}
+      - name: Set and read back the maintenance switch
+        env:
+          PROJECT: ${{ steps.target.outputs.project }}
+          ENABLED: ${{ inputs.enabled }}
+          REGION: ${{ steps.target.outputs.region }}
+        run: |
+          set -euo pipefail
+          gcloud run jobs execute mypage-maintenance-operator \
+            --project="${PROJECT}" --region="${REGION}" \
+            --args="--enabled=${ENABLED}" --wait --quiet
