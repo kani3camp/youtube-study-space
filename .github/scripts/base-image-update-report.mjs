@@ -110,27 +110,54 @@ export function publicGalleryUrl(taggedRef) {
   return `https://gallery.ecr.aws/${repository}`;
 }
 
-export function dockerHubUrl(image, tag) {
+const SHA256_DIGEST = /^sha256:[0-9a-f]{64}$/i;
+const IMAGE_MANIFEST_MEDIA_TYPES = new Set([
+  "application/vnd.oci.image.manifest.v1+json",
+  "application/vnd.docker.distribution.manifest.v2+json",
+]);
+
+function isSha256Digest(value) {
+  return typeof value === "string" && SHA256_DIGEST.test(value);
+}
+
+// Docker Hub image detail pages use a platform manifest digest, not a multi-arch index digest.
+export function selectDockerHubManifestDigest(manifest) {
+  if (Array.isArray(manifest?.manifests)) {
+    const linuxAmd64 = manifest.manifests.find(
+      (entry) =>
+        entry.platform?.os === "linux" &&
+        entry.platform?.architecture === "amd64" &&
+        IMAGE_MANIFEST_MEDIA_TYPES.has(entry.mediaType),
+    );
+    return isSha256Digest(linuxAmd64?.digest) ? linuxAmd64.digest.toLowerCase() : null;
+  }
+
+  // For a single-platform image, the registry digest is already the image manifest digest.
+  return IMAGE_MANIFEST_MEDIA_TYPES.has(manifest?.mediaType) && isSha256Digest(manifest.digest)
+    ? manifest.digest.toLowerCase()
+    : null;
+}
+
+export function dockerHubUrl(image, tag, imageManifestDigest = null) {
   if (registryHost(image) !== "docker.io") return null;
 
   let repository = image;
   if (repository.startsWith("docker.io/")) {
     repository = repository.slice("docker.io/".length);
   }
-
   if (repository.startsWith("library/")) {
     repository = repository.slice("library/".length);
   }
-
   if (!repository) return null;
 
-  const encodedTag = encodeURIComponent(tag);
-  if (!repository.includes("/")) {
-    return `https://hub.docker.com/_/${encodeURIComponent(repository)}/tags?name=${encodedTag}`;
-  }
+  const imagePath = repository.includes("/") ? repository : `library/${repository}`;
+  const encodedPath = imagePath.split("/").map(encodeURIComponent).join("/");
+  const detailUrl = `https://hub.docker.com/layers/${encodedPath}/${encodeURIComponent(tag)}`;
 
-  const encodedRepository = repository.split("/").map(encodeURIComponent).join("/");
-  return `https://hub.docker.com/r/${encodedRepository}/tags?name=${encodedTag}`;
+  // Fall back to the tag detail page when the architecture manifest cannot be determined.
+  return isSha256Digest(imageManifestDigest)
+    ? `${detailUrl}/images/${imageManifestDigest.toLowerCase().replace(":", "-")}`
+    : detailUrl;
 }
 
 export function googleArtifactRegistryUrl(image) {
@@ -165,10 +192,10 @@ export function renderReport(entries) {
   ];
 
   for (const entry of entries) {
-    const { file, stage, line, oldImage, newImage, resolvedDigest, verificationError } = entry;
+    const { file, stage, line, oldImage, newImage, resolvedDigest, verificationError, dockerHubManifestDigest } = entry;
     const matches = resolvedDigest === newImage.digest;
     const galleryUrl = publicGalleryUrl(newImage.taggedRef);
-    const hubUrl = dockerHubUrl(newImage.image, newImage.tag);
+    const hubUrl = dockerHubUrl(newImage.image, newImage.tag, matches ? dockerHubManifestDigest : null);
     const artifactRegistryUrl = googleArtifactRegistryUrl(newImage.image);
 
     lines.push(`### ${matches ? "✅" : "❌"} \`${newImage.taggedRef}\``);
@@ -201,7 +228,10 @@ export function renderReport(entries) {
       lines.push("");
     }
     if (hubUrl) {
-      lines.push(`🔗 [View \`${newImage.taggedRef}\` in Docker Hub](${hubUrl})`);
+      const hubTarget = matches && dockerHubManifestDigest
+        ? `image details${dockerHubManifestDigest !== newImage.digest ? " (linux/amd64)" : ""}`
+        : "tag details";
+      lines.push(`🔗 [View \`${newImage.taggedRef}\` ${hubTarget} in Docker Hub](${hubUrl})`);
       lines.push("");
     }
     if (artifactRegistryUrl) {
@@ -285,12 +315,17 @@ async function getFileContent(repository, path, ref) {
   return Buffer.from(response.content.replaceAll("\n", ""), "base64").toString("utf8");
 }
 
-function resolveTagDigest(taggedRef) {
-  return execFileSync(
+function inspectTagManifest(taggedRef) {
+  const output = execFileSync(
     "docker",
-    ["buildx", "imagetools", "inspect", taggedRef, "--format", "{{.Manifest.Digest}}"],
+    ["buildx", "imagetools", "inspect", taggedRef, "--format", "{{json .Manifest}}"],
     { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 120_000 },
-  ).trim().toLowerCase();
+  );
+  const manifest = JSON.parse(output);
+  if (!isSha256Digest(manifest?.digest)) {
+    throw new Error(`Unexpected registry manifest digest for ${taggedRef}`);
+  }
+  return manifest;
 }
 
 async function findExistingReportComment(repository, pullNumber) {
@@ -347,17 +382,22 @@ async function main() {
     for (const update of detectDigestUpdates(baseContent, headContent)) {
       let resolvedDigest = null;
       let verificationError = null;
+      let dockerHubManifestDigest = null;
       if (!canVerifyRegistryUpdate(update.oldImage, update.newImage)) {
         verificationError =
           "Automatic verification skipped because the image repository changed or the registry is not allowlisted.";
       } else {
         try {
-          resolvedDigest = resolveTagDigest(update.newImage.taggedRef);
+          const manifest = inspectTagManifest(update.newImage.taggedRef);
+          resolvedDigest = manifest.digest.toLowerCase();
+          if (resolvedDigest === update.newImage.digest && registryHost(update.newImage.image) === "docker.io") {
+            dockerHubManifestDigest = selectDockerHubManifestDigest(manifest);
+          }
         } catch (error) {
           verificationError = error instanceof Error ? error.message : String(error);
         }
       }
-      entries.push({ file, ...update, resolvedDigest, verificationError });
+      entries.push({ file, ...update, resolvedDigest, verificationError, dockerHubManifestDigest });
     }
   }
 

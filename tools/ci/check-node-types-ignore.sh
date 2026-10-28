@@ -9,7 +9,7 @@ if [[ "$node_version" != "$nvm_version" ]]; then
   exit 1
 fi
 
-if [[ ! "$node_version" =~ ^([0-9]+)\. ]]; then
+if [[ ! "$node_version" =~ ^([0-9]+)(\.|$) ]]; then
   echo "::error::Unsupported Node version format: $node_version"
   exit 1
 fi
