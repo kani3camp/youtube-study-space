@@ -89,21 +89,40 @@ class GcpInfrastructureWorkflowTest(unittest.TestCase):
             'action': {'required': True, 'type': 'string'},
             'expected_sha': {'required': True, 'type': 'string'},
         })
-        self.assertEqual(set(self.mypage['jobs']), {'validate', 'infrastructure'})
+        self.assertEqual(set(self.mypage['jobs']), {'resolve', 'infrastructure', 'gate'})
+        resolve = self.mypage['jobs']['resolve']
+        self.assertEqual(resolve['outputs']['stage'], '${{ steps.desired.outputs.stage }}')
+        self.assertIn('desired-stage.txt', resolve['steps'][-1]['run'])
         job = self.mypage['jobs']['infrastructure']
         self.assertEqual(job['uses'], './.github/workflows/mypage-foundation-authenticated.yml')
+        self.assertEqual(job['needs'], 'resolve')
+        self.assertEqual(job['if'], "${{ needs.resolve.outputs.stage != 'disabled' }}")
         self.assertEqual(
             job['with']['mode'],
             "${{ inputs.action == 'apply' && 'desired-apply' || 'desired-plan' }}",
         )
         # Bootstrap stages remain internal to the legacy bootstrap workflow; the
         # normal boundary resolves a reviewed per-environment desired stage.
-        public = str(call['inputs']) + str(self.mypage['jobs']['validate'])
+        public = str(call['inputs'])
         for retired in (
             'foundation-metadata', 'foundation-plan', 'registry-plan',
             'maintenance-upgrade', 'runtime-private',
         ):
             self.assertNotIn(retired, public)
+
+        gate = self.mypage['jobs']['gate']
+        self.assertEqual(gate['if'], '${{ always() }}')
+        command = gate['steps'][0]['run']
+        self.assertIn('[[ "${INFRASTRUCTURE_RESULT}" == "skipped" ]]', command)
+        self.assertIn('[[ "${INFRASTRUCTURE_RESULT}" == "success" ]]', command)
+        self.assertEqual(
+            (ROOT / 'infra/mypage-platform/environments/dev/desired-stage.txt').read_text().strip(),
+            'runtime_public',
+        )
+        self.assertEqual(
+            (ROOT / 'infra/mypage-platform/environments/prod/desired-stage.txt').read_text().strip(),
+            'disabled',
+        )
 
 
 if __name__ == '__main__':
