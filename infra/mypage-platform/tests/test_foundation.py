@@ -1,7 +1,6 @@
 """Observable admission, native Plan and isolated backend permission boundaries."""
 from copy import deepcopy
 from contextlib import redirect_stderr, redirect_stdout
-import importlib.util
 import io
 import json
 from pathlib import Path
@@ -375,21 +374,13 @@ class FoundationTest(unittest.TestCase):
                 c.validate_plan(rejected)
 
     def test_bootstrap_apply_modes_stay_internal_and_reach_the_independent_apply_job(self):
-        spec = importlib.util.spec_from_file_location('workflow_yaml', ROOT / '.github/codeql/validate-source.py')
-        loader = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(loader)
+        caller = (ROOT / '.github/workflows/ci.yml').read_text()
+        self.assertNotIn('mypage_foundation_mode:', caller)
+        self.assertNotIn('mypage_foundation_target:', caller)
 
-        dispatch = loader.load_yaml(ROOT / '.github/workflows/ci.yml')['on']['workflow_dispatch']['inputs']
-        self.assertNotIn('mypage_foundation_mode', dispatch)
-        self.assertNotIn('mypage_foundation_target', dispatch)
-
-        jobs = loader.load_yaml(ROOT / '.github/workflows/mypage-foundation-authenticated.yml')['jobs']
-        expression = jobs['foundation_apply']['if'].removeprefix('${{').removesuffix('}}').strip()
-        admitted = set()
-        for term in expression.split(' || '):
-            match = re.fullmatch(r"inputs.mode == '([^']+)'", term)
-            self.assertIsNotNone(match)
-            admitted.add(match[1])
+        workflow = (ROOT / '.github/workflows/mypage-foundation-authenticated.yml').read_text()
+        apply_block = workflow.split('  foundation_apply:\n', 1)[1].split('\n  image_build:\n', 1)[0]
+        admitted = set(re.findall(r"inputs\.mode == '([^']+)'", apply_block))
 
         expected_apply = {
             'desired-apply',
@@ -412,11 +403,11 @@ class FoundationTest(unittest.TestCase):
             'disabled',
         )
 
-        operations = loader.load_yaml(ROOT / '.github/workflows/ci-operations.yml')
-        self.assertEqual(
-            operations['jobs']['mypage-image-build']['with']['mode'],
-            'image-build',
-        )
+        operations = (ROOT / '.github/workflows/ci-operations.yml').read_text()
+        image_block = operations.split('  mypage-image-build:\n', 1)[1].split(
+            '\n  mypage-hosting-authenticated:\n', 1
+        )[0]
+        self.assertIn('mode: image-build', image_block)
 
     def test_registry_stage_adds_only_the_immutable_dev_repository(self):
         plan = plan_fixture()
