@@ -18,6 +18,12 @@ on:
       system_result:
         required: true
         type: string
+      tools_result:
+        required: true
+        type: string
+      infra_result:
+        required: true
+        type: string
       gcp_terraform_validate_result:
         required: true
         type: string
@@ -73,6 +79,8 @@ jobs:
       REPOSITORY_RESULT: ${{ inputs.repository_result }}
       FRONTEND_RESULT: ${{ inputs.frontend_result }}
       SYSTEM_RESULT: ${{ inputs.system_result }}
+      TOOLS_RESULT: ${{ inputs.tools_result }}
+      INFRA_RESULT: ${{ inputs.infra_result }}
       GCP_TERRAFORM_VALIDATE_RESULT: ${{ inputs.gcp_terraform_validate_result }}
     steps:
       - name: Require supported operation and validation prerequisites
@@ -100,10 +108,21 @@ jobs:
             exit 1
           fi
 
+          for result in "${FRONTEND_RESULT}" "${SYSTEM_RESULT}" "${TOOLS_RESULT}" "${INFRA_RESULT}" "${GCP_TERRAFORM_VALIDATE_RESULT}"; do
+            case "${result}" in
+              success|skipped) ;;
+              *)
+                echo "::error::Credentialless validation failed before authenticated operation"
+                exit 1
+                ;;
+            esac
+          done
+
           case "${OPERATION}" in
-            gcp-plan|gcp-apply)
-              if [[ "${GCP_TERRAFORM_VALIDATE_RESULT}" != "success" || "${SYSTEM_RESULT}" != "success" || "${FRONTEND_RESULT}" != "success" ]]; then
-                echo "::error::Full GCP infrastructure validation prerequisites must succeed"
+            gcp-plan|gcp-apply|mypage-image-build|mypage-hosting-release|mypage-backend-release)
+              if [[ "${GCP_TERRAFORM_VALIDATE_RESULT}" != "success" || "${SYSTEM_RESULT}" != "success" ||
+                    "${FRONTEND_RESULT}" != "success" || "${TOOLS_RESULT}" != "success" || "${INFRA_RESULT}" != "success" ]]; then
+                echo "::error::Full credentialless CI must succeed before a write-capable operation"
                 exit 1
               fi
               ;;
@@ -117,29 +136,15 @@ jobs:
                 exit 1
               }
               ;;
-            mypage-image-build)
-              [[ "${SYSTEM_RESULT}" == "success" ]] || {
-                echo "::error::System validation must succeed before MyPage image build"
-                exit 1
-              }
-              ;;
             mypage-hosting-release)
               [[ "${ENVIRONMENT}" == "development" ]] || {
                 echo "::error::MyPage Hosting release is development-only"
-                exit 1
-              }
-              [[ "${FRONTEND_RESULT}" == "success" ]] || {
-                echo "::error::Frontend validation must succeed before Hosting release"
                 exit 1
               }
               ;;
             mypage-backend-release)
               [[ "${ENVIRONMENT}" == "development" ]] || {
                 echo "::error::MyPage Backend release is development-only"
-                exit 1
-              }
-              [[ "${SYSTEM_RESULT}" == "success" ]] || {
-                echo "::error::System validation must succeed before Backend release"
                 exit 1
               }
               ;;
