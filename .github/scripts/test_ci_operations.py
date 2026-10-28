@@ -19,12 +19,12 @@ class OperationsWorkflowTest(unittest.TestCase):
         call = self.workflow['on']['workflow_call']
         self.assertEqual(call['inputs']['operation'], {'required': True, 'type': 'string'})
         self.assertEqual(call['inputs']['environment'], {'required': True, 'type': 'string'})
-        for result in ('repository_result', 'frontend_result', 'system_result',
-                       'gcp_terraform_validate_result'):
+        for result in ('repository_result', 'frontend_result', 'system_result', 'tools_result',
+                       'infra_result', 'gcp_terraform_validate_result'):
             self.assertEqual(call['inputs'][result], {'required': True, 'type': 'string'})
         self.assertEqual(set(call['inputs']), {
             'operation', 'environment', 'repository_result', 'frontend_result',
-            'system_result', 'gcp_terraform_validate_result',
+            'system_result', 'tools_result', 'infra_result', 'gcp_terraform_validate_result',
         })
 
         validator = self.workflow['jobs']['validate-selection']
@@ -40,8 +40,12 @@ class OperationsWorkflowTest(unittest.TestCase):
             'GCP_TERRAFORM_VALIDATE_RESULT',
             'FRONTEND_RESULT',
             'SYSTEM_RESULT',
+            'TOOLS_RESULT',
+            'INFRA_RESULT',
         ):
             self.assertIn(fragment, command)
+        self.assertIn('Full credentialless CI must succeed before a write-capable operation', command)
+        self.assertIn('success|skipped', command)
         for retired in ('selected=$((selected + 1))', 'mypage_foundation', 'terraform_authenticated'):
             self.assertNotIn(retired, command)
 
