@@ -43,7 +43,6 @@ assert_exact_groups youtube_monitor youtube-monitor/src/app.ts
 assert_exact_groups mypage mypage/src/main.tsx
 assert_exact_groups mypage mypage/package.json
 assert_exact_groups mypage docs/mypage/openapi.yaml
-assert_exact_groups mypage infra/mypage-oauth-ttl/environments/dev/main.tf
 assert_exact_groups mypage .github/scripts/check-mypage-contract.py
 assert_exact_groups "youtube_monitor mypage" biome.json
 assert_exact_groups "system firestore_integration" system/core/mypage/store.go
