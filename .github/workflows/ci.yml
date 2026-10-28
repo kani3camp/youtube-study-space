@@ -119,7 +119,7 @@ jobs:
 
   operations:
     name: Authenticated Operations
-    needs: [repository, frontend, system, gcp-terraform-validate]
+    needs: [repository, frontend, system, tools, infra, gcp-terraform-validate]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.operation != 'validate' }}
     permissions:
       contents: read
@@ -131,6 +131,8 @@ jobs:
       repository_result: ${{ needs.repository.result }}
       frontend_result: ${{ needs.frontend.result }}
       system_result: ${{ needs.system.result }}
+      tools_result: ${{ needs.tools.result }}
+      infra_result: ${{ needs.infra.result }}
       gcp_terraform_validate_result: ${{ needs.gcp-terraform-validate.result }}
     secrets:
       GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
