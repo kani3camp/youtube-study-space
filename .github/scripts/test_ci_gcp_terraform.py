@@ -18,7 +18,7 @@ class GcpTerraformWorkflowTest(unittest.TestCase):
         job = self.workflow['jobs']['validate']
         self.assertEqual(job['name'], 'GCP Terraform Validate')
         self.assertEqual(job['runs-on'], 'ubuntu-latest')
-        self.assertEqual(job['timeout-minutes'], 10)
+        self.assertEqual(job['timeout-minutes'], 25)
         for forbidden in ('if', 'needs', 'secrets', 'environment', 'continue-on-error', 'permissions'):
             self.assertNotIn(forbidden, job)
 
@@ -36,6 +36,7 @@ class GcpTerraformWorkflowTest(unittest.TestCase):
             'test_terraform_normal_ops_native.py',
             'providers lock',
             'cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/gcp/environments/prod/.terraform.lock.hcl',
+            'bash infra/mypage-platform/scripts/check-local.sh',
         ):
             self.assertIn(required, commands)
 
