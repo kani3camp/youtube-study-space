@@ -34,6 +34,10 @@ jobs:
           python3 .github/scripts/test_terraform_plan_diagnostic.py
           python3 .github/scripts/test_terraform_baseline_drift_diagnostic.py
           python3 infra/gcp/tests/test_runtime_plan_contract.py
+          python3 infra/gcp/tests/test_runtime_ownership.py
+          python3 infra/gcp/tests/test_production_readiness.py
+          python3 infra/gcp/tests/test_production_backend_packet.py
+          python3 infra/gcp/tests/test_production_execution_contract.py
           python3 -B infra/gcp/tests/test_terraform_normal_ops.py
           python3 -B infra/gcp/tests/test_enable_normal_integration.py
           python3 -B infra/gcp/tests/test_production_normal_ops.py
@@ -95,3 +99,6 @@ jobs:
 
       - name: Validate MyPage platform desired state
         run: bash infra/mypage-platform/scripts/check-local.sh
+
+      - name: Validate MyPage OAuth TTL Terraform
+        run: bash infra/mypage-oauth-ttl/scripts/check-local.sh
