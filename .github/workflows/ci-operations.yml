@@ -80,7 +80,7 @@ jobs:
           set -euo pipefail
 
           case "${OPERATION}" in
-            gcp-plan|gcp-apply|gcp-user-activity-schema-audit|mypage-hosting-release|mypage-backend-release) ;;
+            gcp-plan|gcp-apply|gcp-user-activity-schema-audit|mypage-image-build|mypage-hosting-release|mypage-backend-release) ;;
             *)
               echo "::error::Unsupported authenticated operation"
               exit 1
@@ -114,6 +114,12 @@ jobs:
               }
               [[ "${GCP_TERRAFORM_VALIDATE_RESULT}" == "success" ]] || {
                 echo "::error::GCP Terraform validation must succeed before schema audit"
+                exit 1
+              }
+              ;;
+            mypage-image-build)
+              [[ "${SYSTEM_RESULT}" == "success" ]] || {
+                echo "::error::System validation must succeed before MyPage image build"
                 exit 1
               }
               ;;
@@ -182,6 +188,28 @@ jobs:
       GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT: ${{ secrets.GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT }}
     with:
       target: dev
+
+  mypage-image-build:
+    name: MyPage Image Build
+    needs: validate-selection
+    if: ${{ inputs.operation == 'mypage-image-build' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-foundation-authenticated.yml
+    with:
+      target: ${{ inputs.environment }}
+      mode: image-build
+      expected_sha: ${{ github.sha }}
+    secrets:
+      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
+      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
+      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
+      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
 
   mypage-hosting-authenticated:
     name: MyPage DEV Hosting Release
