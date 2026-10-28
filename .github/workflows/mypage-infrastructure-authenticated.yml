@@ -1,0 +1,75 @@
+name: MyPage Infrastructure Authenticated
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+      action:
+        required: true
+        type: string
+      expected_sha:
+        required: true
+        type: string
+    secrets:
+      MYPAGE_STATE_BUCKET:
+        required: false
+      MYPAGE_STATE_ACCOUNT:
+        required: false
+      MYPAGE_BACKEND_ROLE_ARN:
+        required: false
+      MYPAGE_BACKEND_ROLE_ID:
+        required: false
+      MYPAGE_GCP_WIF_PROVIDER:
+        required: false
+      MYPAGE_GCP_SERVICE_ACCOUNT:
+        required: false
+      MYPAGE_PLAN_HMAC_KEY:
+        required: false
+      MYPAGE_RUNTIME_SETTINGS_JSON:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate MyPage Infrastructure Request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require desired-state operation
+        env:
+          TARGET: ${{ inputs.target }}
+          ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          case "${TARGET}:${ACTION}" in
+            development:plan|development:apply|production:plan|production:apply) ;;
+            *)
+              echo "::error::MyPage infrastructure accepts only development/production and plan/apply"
+              exit 1
+              ;;
+          esac
+
+  infrastructure:
+    name: MyPage Desired State
+    needs: validate
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-foundation-authenticated.yml
+    with:
+      target: ${{ inputs.target }}
+      mode: ${{ inputs.action == 'apply' && 'runtime-public-apply' || 'runtime-public-plan' }}
+      expected_sha: ${{ inputs.expected_sha }}
+    secrets:
+      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
+      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
+      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
+      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
