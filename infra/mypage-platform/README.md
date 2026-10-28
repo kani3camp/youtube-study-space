@@ -57,7 +57,7 @@ Revision imageは**Artifact Registry digest固定**（`@sha256:...`）、tagやl
 
 ## Credentiallessチェック
 
-GitHub PRでは専用 `mypage-platform.yml` が**読み取り権限だけ**で実行する。S3/GCPへのOIDC、secret、実State、plan/apply、deployは一切使わない。
+GitHub PRではRequired `CI Gate` 配下の `CI GCP Terraform` がMyPage platformのcredentialless検証も実行する。S3/GCPへのOIDC、secret、実State、plan/apply、deployは一切使わない。独立した `mypage-platform.yml` workflowは廃止し、GCP IaC検証を一つの必須経路へ集約する。
 
 ```bash
 bash infra/mypage-platform/scripts/check-local.sh
