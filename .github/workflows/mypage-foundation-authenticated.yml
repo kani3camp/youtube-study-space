@@ -41,6 +41,8 @@ concurrency:
 jobs:
   target_contract:
     runs-on: ubuntu-latest
+    outputs:
+      stage: ${{ steps.contract.outputs.stage }}
     timeout-minutes: 5
     permissions:
       contents: read
@@ -55,6 +57,7 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Reject unsupported target and operation before protected environments
+        id: contract
         run: |
           python3 - <<'PY'
           import os, sys
@@ -64,10 +67,14 @@ jobs:
           mode = os.environ['MYPAGE_MODE']
           if mode == 'image-build':
               foundation_contract.context(os.environ, 'apply', image=True)
+              stage = 'image-build'
           else:
               # Reject the wrong ref/SHA/actor/repository before requesting any
               # protected Environment or making its secrets available.
               foundation_contract.context(os.environ, 'plan')
+              stage = foundation_contract.stage_for_mode(mode)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write('stage=' + stage + '\n')
           PY
 
   foundation_plan:
@@ -216,7 +223,7 @@ jobs:
           MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
         run: python3 infra/mypage-platform/scripts/foundation_ops.py apply
       - name: Verify metrics-only serving revision after Apply
-        if: ${{ steps.applied.outcome == 'success' && (inputs.mode == 'desired-apply' || inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply') }}
+        if: ${{ steps.applied.outcome == 'success' && (inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply' || (inputs.mode == 'desired-apply' && (needs.target_contract.outputs.stage == 'runtime_private' || needs.target_contract.outputs.stage == 'runtime_public'))) }}
         env:
           MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
         run: python3 infra/mypage-platform/scripts/read_metrics_transition.py readback
