@@ -1,38 +1,31 @@
-# MyPage増分原価の前提
+# MyPage 増分原価モデル
 
-[入力値](cost-model.json)と[再生成可能な試算](cost-scenarios.md)を正とする。`python mypage/scripts/cost-model.py --test`で会計・構成の回帰を検査し、`--input`で感度を変え、`--output docs/mypage/cost-scenarios.md`で表を生成する。請求書・公開価格・公開利用枠の確定ではない。
+[入力値](cost-model.json)と [calculator](../../mypage/scripts/cost-model.py) で、利用量・構成・集計方式を変えた試算を生成する。入力の `verifiedAtJST` は価格確認日であり、現在の料金や請求実績を保証しない。再利用時は対象 region と公式料金を再確認する。公式出典は入力の `sources` に集約する。
 
-## 比較する構成
+```sh
+python3 mypage/scripts/cost-model.py --test
+python3 mypage/scripts/cost-model.py --output /tmp/mypage-cost-report.md
+# 感度を変える場合は入力の private copy を作り --input で指定する。
+```
 
-> **2026-10-25 現行採用方式**：Firebase Hosting + Cloud Run Go BFF + Firestore + Firebase Authentication、Cloudflare Registrar/DNS only。Cloud Armor/Global LB/Cloud Run Webの `armor-run` は**以前検討した比較シナリオであり初期採用していない**。下記の推定表は当時のTCO感度を残したもので、Productionの実料金・承認済み予算ではない。0B公開までにCloud Billing Budget多段階通知・実着信、Run/Firestoreの異常利用監視とCloud Run min0/DEV max1/PROD max3の実照合が必要。Budgetやmax instancesを費用hard capと扱わず、Cloud Run Spend Cap previewは提供範囲・別リソース停止影響を確認してから採否を判断する（Firestoreの料金停止は対象外）。
+生成表は作業資料として扱い、repository へ重複保存しない。請求照合と未完の実測は [公開受入 #1133](https://github.com/kani3camp/youtube-study-space/issues/1133) で追跡する。
 
-`hosting-run`は現行Firebase Hosting（静的配信とAPI rewrite）＋API Cloud Run。`armor-run`はNotion 06の確定前に比較していたGlobal LB＋同一Armor policy・8 rules＋Web/APIの2 Cloud Run、CDNなしの旧検討構成。後者だけに本番固定$31.25と常設DEV固定$31.25を計上する。構築済み・現行候補とは扱わない。静的ファイルにもRun request/割当CPU・RAM、WAF、LB入出力、Internet送信を計上し、Hosting転送と重ねない。browser cacheはCDNと別で、HTMLは毎回no-storeのまま。
+## 構成と入力の意味
 
-標準は200 MyPage DAU・visible 2時間/日・30日。overviewの初期取得を含み60秒726,000→5分150,000 GET/月。別に1 documentあたり1回のsession完了をsource見積もりで加え、標準では6000 POST/月と4 read相当/POSTを計上する。route外・hidden・offlineの削減、singleflight/cache hitは未測定なので追加控除しない。Bot DAUは別入力で、月次writer追加費をMyPage利用者だけに限定しない。小規模ではwriterの追加費がraw削減を上回る場合があり、月次方式を無条件に安いとしない。
+- 採用構成は `hosting-run`（Firebase Hosting + Cloud Run API）。`armor-run` は不採用の LB / Armor / Run Web 比較シナリオで、calculator の先頭表はこの旧構成の感度比較。採用構成の値は `hosting-run` の行を使う。構築状態・承認済み予算を示す表ではない。
+- DAU、滞在時間、raw 件数・index entry、月 lookup 平均、cache hit、課金 wall time、転送量、writer retry はすべて試算入力。小規模な合成 fixture や端末からの SDK latency を利用者平均・Run CPU・請求値へ一般化しない。
+- overview、session 完了 POST、明細、全 Bot 利用者の月次 writer を別々に加算する。5分 polling への変更が session 回数や App Check assessment を同じ割合で減らすとは仮定しない。
+- 月次 lookup は最大2文書だが、API 全体が2 readになる意味ではない。認可・WebAccount・User・空 seat query の最低課金、metadata 更新、transaction retry、index entry を含めて評価する。cache hit でも認可 read は必要。
+- `limit(1001)` は index scan の課金上限ではない。Query Explain Analyze 自体も課金対象。明細の weighted quota は実 read 数と区別し、失敗・ACK 不明・quota 管理の増分も計上する。
+- Run の秒数は割当資源の課金 wall time の仮定。100ms 丸め・起動・同時実行を別に確認する。static cache は初回訪問・release 更新時の再 download を残し、HTML/API の no-store と分ける。
+- App Check / reCAPTCHA は organization 全体の assessment に対する増分。polling と独立し、別 project の利用も確認する。
 
-## 確認した値と未測定の値
+## 会計と除外
 
-- 2026-10-24 JSTの公式地域選択でFirestore Standard read $0.038/10万、write $0.115/10万、delete $0.013/10万を大阪・ジャカルタで確認。保存は大阪$0.195/GiB月、ジャカルタ$0.192。旧Iowa $0.03を流用しない。公式SKU groupで両regionの公開read/write/delete IDを確認し、Jakarta readの8C8F-C8C6-5DC5は実render表でも$0.038/10万と一致した。実accountの課金SKU割当と請求照合は未完。Catalog APIは既存DEVでSERVICE_DISABLEDの403で、API有効化・新API key作成は行っていない。
-- Runは大阪CPU $0.000024/vCPU秒・RAM $0.0000025/GiB秒、ジャカルタは各1.4倍。request $0.40/100万。0.2秒は**割当資源の課金wall time/requestの仮定**で、process CPUの測定値ではない。100ms丸め・起動・並行処理を実測する必要がある。Web配信0.05秒/requestも仮定。追加DEV cohortでは7分windowの課金割当1.1秒・1 vCPU・0.5 GiB・9 requests（overview6、session完了3）を取得したが、process CPUや人口平均ではない。0.2秒を単発0.122秒/HTTP requestで置き換えない。
-- 月次readerはEmulatorでraw query 0・最大2月lookupを確認し、[DEV実測](dev-cost-measurement-20261024.md)でもraw 0/10/100/500/1000/1001と直近日跨ぎでraw query 0・この日付では1月lookupを確認した。別の月跨ぎ原記録は直近window外のため作成・再構築のみ確認し、実2月lookupは未実証。平均1.2は未測定。認可/metadataの6 SAC＋WebAccount1、snapshotのUser1＋2 seat query最低課金を加え、cache missは通常11～12 read相当。cache hitには3 SAC＋WebAccount1の計4 read相当を計上。transaction retry、metadata更新、Auth、App Check等は別で、請求上限の保証ではない。session完了POSTはSAC2＋WebAccount2のsource見積もり4 readを独立計上する。初回Web loginの追加write、OAuth・metadata更新、retryはこの通常session見積もりの外。
-- 実DEVの同日fixtureではraw返却0/10/100/500/1000/1001に対しAnalyzeのdocument scanも同数、index scanも同数だった。0件queryのreadOperationsは1、1,000件では1,001、1,001件では1,003だった。実利用者の分布は測っていないため、raw平均20文書/miss、index 1,000 entries/missという既定シナリオは比較用仮定として残す。空query最低1 readとindex 1,000件単位の切上げを別計算する。limit=1001をindex scan課金上限とみなさない。Query Explain Analyzeも通常query料金が発生する。
-- 月次writerはcloseあたり追加read 5.05・write 2.05を仮置き（再実行・月跨ぎ比率を含む推定）。raw自体の既存書込費は既存利益側に含め、増分に重ねない。全Bot DAUを対象にする。競合retry、移行・rebuild・削除・障害復旧は通常closeの外で別予算。
-- 明細は既定50/max100件、候補index 20,000 entries、control read推定32、quota reserve/release write 2。Firestore推定はpage size＋sentinel＋controlとindexを別算出。予約103 weighted units（最大pageなら153）は**実課金read数ではない**。複数attempt・失敗・ACK不明の増分は実測が必要。応答32KiBは仮定で、最大側の感度は128KiB。明細費表はRun/WAF/通信/管理費を含む総額差分で、Firestore専用値と区別する。分析・出力機能の実装や無制限Premiumを意味しない。
-- DEV release 1792857234818000では、JS/CSS/4 fontの正確なhash付きpathに1年immutableを配備し、8 filesのbody SHA256一致とHTML/API/未知hashのno-storeを確認した。4 fontのsource合計4,278,928 bytesはwire実測ではない。1 documentあたり4.5MB/7 requests、cache後平均0.2MB/1.2 requestsは未測定の仮定。追加180件cohortの非空overview5回ではRun HTTP request message平均3303 bytes、response平均2092.4 bytesだった（headers込み）。API inboundだけ3303 bytesの測定参照へ更新し、静的requestの1024 bytes仮定へ流用しない。responseの8192 bytes予算は維持し、Hosting最終転送量・人口平均と混同しない。初回訪問・更新releaseでは再downloadがあり、0.2/1.5/4.5MB感度を併記する。
-- App Checkは1時間TTLの約半分でrefreshするSDK挙動から2 assessments/滞在時間を仮置きし、pollingと独立計算。既存organization利用10,000を加え、reCAPTCHAのorganization共有課金の**増分**を求める。成長シナリオではこの費用が支配的であり、5分pollだけで1/5としない。
+Firestore 無料枠は project の対象 DB・日単位、Run 無料枠は請求先 account の全 project で共有。Hosting は全 site/channel と旧 release 保存量を合算する。利用可能残は入力で明示し、DEV/PROD に二重控除しない。Hosting の GB と Firestore / LB の GiB を区別する。
 
-## 無料枠・未計上・採算
+既存 workload は baseline 利益に含め、新 Web 増分だけを引く。候補会費・手取り率・為替・税は仮定で、商品価格の承認ではない。upgrade は既存会費との差額だけを収益に加える。Bot writer と DEV の変動費・image 保存も別に加算する。
 
-既存利益は利用者申告の新Web前月30,000円を1回だけ使用。候補690円の新規加入は690×手取り率、290円からのupgradeは差額400×手取り率。手取り率0.7・為替150円/USD・税倍率1（税別）は仮定で、実際の手数料・税・返金・事業契約を確認する。維持人数は新Web増分全額を埋め、既存30,000円を維持する人数。
+storage、index、古い release、ログ保持、backup/PITR、migration/deletion、Auth / Identity Platform、Monitoring、YouTube quota、abuse、税・手数料・返金は必要に応じて追加する。入力が0でも無料の証明にはならず、このモデルを完全な請求総額や費用 hard cap と呼ばない。
 
-Firestore無料枠はprojectの対象DB・日単位でBot等と共有。Run無料枠は**請求先アカウント全projectで共有**（Tier1換算CPU $4.32、RAM $0.90、requests $0.80/月）。本モデルの利用可能残は既定0で、Production側だけから控除しDEVにも二重適用しない。DEV変動費は独立入力で、今回追加したwriter 2 imageの保管allowance $0.05/月を含む。既存private ECRの公式$0.10/GB月を参照し、compressed合計160,264,117 bytesではなく未圧縮合計492,453,123 bytesから丸めた保守的上限を採用した。free tier・layer dedupは控除せず、請求実績とはしない。既存workloadの通常費を二重加算しない。合成試験は承認された一時予算で別管理する。
-
-Firebase HostingはGB、LB/FirestoreはGiBで換算。Hosting公式料金表の360MB/日とusage文書の10GB/月に無料転送枠表記の相違があるため、既定0とする。全site/channelと旧release保存量を合算して確認する。Loggingは既存費を差し引いた新規増分だけを計算する。
-
-新規Firestore storage、Hosting release storage、通常追加ログは未測定で既定0。値が0だから無料という意味ではない。index/文書サイズ、旧release保持、30日超ログ保持、backup/PITR、migration/deletion、Auth/Identity Platformの実課金条件、Monitoring custom metrics、YouTube quota、abuse traffic、DEV変動費、税を別途確認する。モデルは記載範囲の増分予算であり、実構成の完全な請求総額ではない。通常既存workloadは既存利益に含む。
-
-DEVのON/OFF・409競合拒否・合成削除・一時権限解除は[実測記録](dev-cost-measurement-20261024.md)を参照。1,000件fixtureのraw query部分を月次1文書へ置換しても、API全体が1 readになるわけではない。owner端末→JakartaのSDK経過時間はCloud Run CPU・課金wall timeではない。追加の認証付き180件はraw/月次どちらも記録済み3分・累計3分のUIと200応答を確認し、元SDKの180秒一致と照合した。raw再取得の前分asOf維持はcache再利用を示すが、内部hit計数/率・response本文全体のbyte比較は未実施。追加分を含めraw2793/write-delete予約5628/データ窓終了時read見積19391（追加配備確認allowance込み19424）、合成data window合計約17分31秒で全削除を確認した。
-
-App Checkの1時間TTLを確認し、同じ日単位key集計の前後66→66を取得したが、反映遅延と集計粒度のため評価回数0やpolling別単価の実証とはしない。
-
-公式出典は[inputのsources](cost-model.json)へ集約。実測・配備・残Gateは既存[Issue #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)で追跡する。
+実運用の instance 上限・Budget 実着信・異常利用監視は [release gate](release/README.md) と [E2E](release/e2e.md) で確認する。

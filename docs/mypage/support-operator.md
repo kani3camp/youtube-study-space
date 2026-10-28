@@ -1,16 +1,12 @@
 # Trusted Privacy support operator (source only)
 
-## Task contract
+## 用途と制約
 
-**Goal:** Review a verified in-app Privacy receipt, stage one operator reply with an atomic body-free audit event, and close disclosure or Firebase-session revoke requests only after independently verified action evidence and reply-delivery acknowledgement. Deletion closes only through the existing fenced deletion `Finalize` workflow.
+Review a verified in-app Privacy receipt, stage one operator reply with an atomic body-free audit event, and close disclosure or Firebase-session revoke requests only after independently verified action evidence and reply-delivery acknowledgement. Deletion closes only through the existing fenced deletion `Finalize` workflow.
 
-**Invariants:** Request ref and support challenge are not operator authority. Environment, project, purpose, request ref, proof ref, stable operation ID and expected revision must agree. A reply never means the requested action is complete. A deletion claim blocks a new reply. Terminal records contain no body, reply, channel, proof, OAuth link or submission index. Public HTTP routes cannot write operator state. Both Privacy intake feature flags stay off.
+Request ref and support challenge are not operator authority. Environment, project, purpose, request ref, proof ref, stable operation ID and expected revision must agree. A reply never means the requested action is complete. A deletion claim blocks a new reply. Terminal records contain no body, reply, channel, proof, OAuth link or submission index. Public HTTP routes cannot write operator state. Both Privacy intake feature flags stay off.
 
-**Non-goals:** Live execution, real OAuth client/sign-in or JWKS traffic, operator identity provisioning, IAM, external response delivery, provider action execution, historical audit backfill, audit retention policy, a no-session status credential, and Google-grant/session/data linkage changes.
-
-**Acceptance:** A missing or mismatched trusted authority fails closed. Identical reply retries survive lost acknowledgements; changed content or a second operation conflicts. Completion needs authority-verified action and delivery evidence and scrubs sensitive fields and indexes atomically. Deletion finalization emits a minimal terminal audit event inside its existing transaction. Emulator and CLI tests cover the denial and cleanup boundaries.
-
-**Verification:** `go test -shuffle=on ./...`, `go test -race -shuffle=on ./core/mypage ./cmd/mypage-support-operator`, lint, Firestore Emulator integration and client-rules denial tests, documentation references, and public diff and secret checks.
+受入条件: A missing or mismatched trusted authority fails closed. Identical reply retries survive lost acknowledgements; changed content or a second operation conflicts. Completion needs authority-verified action and delivery evidence and scrubs sensitive fields and indexes atomically. Deletion finalization emits a minimal terminal audit event inside its existing transaction. Emulator and CLI tests cover the denial and cleanup boundaries.
 
 ## Boundary and operation
 
@@ -38,4 +34,4 @@ For `delete`, the existing deletion engine retains sole control of `Finalize`. T
 
 ## Remaining release facts
 
-Before a live operator path can be implemented, the owner must supply the real operator identity source and minimal permission scope, approve audit retention and access controls, establish a reply-capable delivery and acknowledgement procedure, and publish the human exception contact for users without a usable Firebase session. The response channel must handle account deletion and lost sessions. D02's 2026-10-09 design decision is to avoid refresh-token storage and periodic polling solely for external Google grant-cancellation detection; policy compliance and the handling of retained API data after cancellation remain unconfirmed for verification/compliance review. D03 contact values remain undecided. The 0B gates and both feature flags remain unchanged; passing synthetic tests or merging source does not mean a released Privacy feature.
+Before a live operator path can be implemented, the owner must supply the real operator identity source and minimal permission scope, approve audit retention and access controls, establish a reply-capable delivery and acknowledgement procedure, and publish the human exception contact for users without a usable Firebase session. The response channel must handle account deletion and lost sessions. D02's design decision is to avoid refresh-token storage and periodic polling solely for external Google grant-cancellation detection; policy compliance and the handling of retained API data after cancellation remain unconfirmed for verification/compliance review. D03 contact values remain undecided. The 0B gates and both feature flags remain unchanged; passing synthetic tests or merging source does not mean a released Privacy feature.
