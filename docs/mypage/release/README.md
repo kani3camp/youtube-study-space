@@ -126,7 +126,7 @@ browserはlocal Viteをport18081で起動し、[runtime](../../../mypage/scripts
 
 ### DEV HostingをCIで配備する（2026-10-25）
 
-基盤のTerraform Applyとページの配備は別の操作だが、DEVページの更新も既存`CI`の手動実行から完結させる。`integration/mypage-canon-20261006`を選び、`mypage_hosting=true`と`mypage_hosting_expected_sha=<レビュー済み統合HEADの40桁SHA>`を指定する。他の認証操作は同時指定しない。PR実行・main・他branch・別owner・再実行・SHA不一致は拒否する。失敗時にRunの再実行で継続せず、現在状態を確認して新しい実行を開始する。
+基盤のTerraform Applyとページの配備は別の操作だが、DEVページの更新も既存`CI`の手動実行から完結させる。`integration/mypage-canon-20261006`を選び、`operation=mypage-hosting-release` / `environment=development` を指定する。実行SHAは選択refの `github.sha` を使い、手入力しない。PR実行・main・他branch・別owner・再実行・SHA不一致は拒否する。失敗時にRunの再実行で継続せず、現在状態を確認して新しい実行を開始する。
 
 1. 既存Repository/Frontend検査に成功後、cloud credentialのないBuild jobで固定依存の検査・test・DEV公開設定の検査・buildを行う。
 2. 同じrunのartifactを別Apply jobへ渡し、source SHA/run ID/30分期限/configと全fileのSHA256を再検証する。Applyは専用WIFと短命tokenを使用する。SA keyやFirebase login tokenは使わない。
