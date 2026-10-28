@@ -28,6 +28,8 @@ Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-
 
 以下のstageは**初回bootstrapと既存のfail-closed契約を維持する内部実装**である。通常の手動UIには露出させない。ソースの `stage = "disabled"` は未構築rootの既定で、**Module count=0／新GCP resource=0**。bootstrap時だけ段階を明示し、既定値を実Stateの状態と混同しない。
 
+通常経路が採用するstageは `environments/{dev,prod}/desired-stage.txt` をレビューして決める。現在はDEV=`runtime_public`、Production=`disabled`。Productionが`disabled`の間はMyPage用のCloud credentialを要求せず、Core GCPだけを通常運用できる。ProductionのMyPage公開準備を進める場合は、このdesired stage変更自体をPRレビューし、必要なEnvironment/IAM/State準備と同じ変更単位で扱う。
+
 | Stage | Terraformが管理するもの | 意図的に含めないもの |
 | --- | --- | --- |
 | `disabled` | 新resourceなし | 運用中のTerraform State変更 |
