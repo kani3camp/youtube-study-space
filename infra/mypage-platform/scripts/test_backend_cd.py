@@ -129,8 +129,7 @@ class CDTest(unittest.TestCase):
         self.assertEqual(commit["image_source_sha"], env()["GITHUB_SHA"])
         self.assertEqual(commit["hosting_backend_host"], cd.HOST)
         self.assertEqual(mutations[2][2]["base"], cd.BRANCH)
-        self.assertEqual(mutations[3][2]["inputs"], {"operation": "validate",
-                                                      "environment": "development"})
+        self.assertEqual(mutations[3][2], {"ref": "automation/mypage-dev-image-" + "a" * 12})
         self.assertFalse(any("terraform" in path or "run.googleapis" in path
                              for _, path, _ in calls))
 
