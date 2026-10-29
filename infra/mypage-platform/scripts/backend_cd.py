@@ -167,9 +167,9 @@ def release_pr(env, api=github):
     check(url.startswith("https://github.com/" + c.REPOSITORY + "/pull/"), "pr-result")
     # GITHUB_TOKEN-created PRs do not emit pull_request CI events. Explicitly
     # dispatch the normal credentialless validation on the exact PR head.
-    api(env, "POST", "/actions/workflows/ci.yml/dispatches", {
-        "ref": branch, "inputs": {"operation": "validate", "environment": "development"}
-    })
+    # The reviewed branch defaults to operation=validate. Avoid passing inputs whose
+    # schema might differ on the repository's default branch.
+    api(env, "POST", "/actions/workflows/ci.yml/dispatches", {"ref": branch})
     print("MyPage DEV release PR created and CI validation dispatched: " + url)
     if env.get("GITHUB_STEP_SUMMARY"):
         with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as out:
