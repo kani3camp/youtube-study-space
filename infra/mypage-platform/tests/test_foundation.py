@@ -498,6 +498,29 @@ class FoundationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             c.validate_plan(plan)
 
+    def test_dev_push_auth_is_explicitly_bounded_and_prod_remains_manual(self):
+        env = {
+            'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
+            'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_EVENT_NAME': 'push',
+            'GITHUB_ACTOR': 'kani3camp', 'GITHUB_ACTOR_ID': '54093651',
+            'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1',
+            'GITHUB_REF': c.REF, 'GITHUB_WORKFLOW_REF': c.CALLER,
+            'TF_WORKSPACE': 'default', 'GITHUB_SHA': 'a' * 40,
+            'MYPAGE_EXPECTED_SHA': 'a' * 40,
+            'MYPAGE_MODE': 'runtime-public-apply',
+        }
+        c.context(env, 'plan')
+        c.context(env, 'apply')
+        c.context(env | {'MYPAGE_MODE': 'image-build'}, 'apply', image=True)
+        for mode in ('foundation-apply', 'registry-apply', 'desired-apply',
+                     'runtime-private-apply', 'maintenance-operator-apply'):
+            with self.subTest(mode=mode), self.assertRaises(ValueError):
+                c.context(env | {'MYPAGE_MODE': mode}, 'apply')
+        with self.assertRaises(ValueError):
+            c.context(env | {'GITHUB_EVENT_NAME': 'workflow_run'}, 'apply')
+        self.assertNotEqual(c.subject('apply', 'push'), c.subject('apply'))
+        self.assertEqual(len(c.trust_policy('123456789012', 'apply')['Statement']), 2)
+
     def test_exact_actor_ref_and_sha_before_credentials(self):
         env = {'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
                'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_EVENT_NAME': 'workflow_dispatch',
