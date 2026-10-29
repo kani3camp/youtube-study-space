@@ -45,12 +45,13 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def context(env):
+def context(env, *, event_name='workflow_dispatch'):
+    need(event_name in ('workflow_dispatch', 'push'), 'execution-event')
     expected = {
         'GITHUB_REPOSITORY': REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
         'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_ACTOR_ID': '54093651',
         'GITHUB_ACTOR': 'kani3camp', 'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
-        'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_RUN_ATTEMPT': '1',
+        'GITHUB_EVENT_NAME': event_name, 'GITHUB_RUN_ATTEMPT': '1',
         'GITHUB_REF': REF, 'GITHUB_WORKFLOW_REF': CALLER,
         'MYPAGE_OTHER_OPERATION': 'false',
     }
