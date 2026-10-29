@@ -169,7 +169,9 @@ describe('public policy draft rendering', () => {
 		)
 		expect(html).toContain('href="https://contact.example.invalid/general"')
 		expect(html).toContain('href="mailto:privacy@example.invalid"')
-		expect(html).toContain('本人確認付きの請求窓口は準備中です。')
+		expect(html).toContain(
+			'依頼受付後、同じチャンネルを新しいYouTubeの許可で確認します。',
+		)
 		expect(html).toContain('通常のログインだけで依頼を実行しません。')
 		expect(html).toContain('ログインや本人確認を利用できない場合も')
 		expect(html).not.toContain('supportChallenge')

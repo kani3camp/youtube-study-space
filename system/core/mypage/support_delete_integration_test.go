@@ -189,9 +189,9 @@ func TestDeletionMissingTraceWrongTargetAndBindingLeaveNoGuard(t *testing.T) {
 func TestDeletionFreshGenerationAndRequestCASPreserveModerationAndScrubLinks(t *testing.T) {
 	s, start, oauthRef := deletionFixture(t)
 	ctx := context.Background()
-	operator := syntheticOperator(s.Client)
-	reply := ReplyOperation{Intent: OperatorIntent{Environment: "development", ProjectID: "demo-youtube-study-space-ci", RequestRef: start.Selector.RequestRef, Purpose: SupportDelete, OperationID: digest("deletion-terminal-reply"), Action: "reply"}, ProofRef: start.Selector.ProofRef, Body: "Synthetic private reply", At: start.Now}
-	require.NoError(t, operator.Reply(ctx, reply))
+	// 廃止済み受付/返信の残存フィールドもfinalizeの置換で消去する。
+	_, seedErr := s.Client.Collection("support-requests").Doc(start.Selector.RequestRef).Set(ctx, map[string]any{"body": "Synthetic private request", "operatorReply": "Synthetic private reply"}, firestore.MergeAll)
+	require.NoError(t, seedErr)
 	controls := &serviceaccess.FirestoreStore{Client: s.Client}
 	_, err := controls.Change(ctx, start.Selector.Target.ChannelID, serviceaccess.Change{Reason: serviceaccess.Moderation, Active: true, ReasonCode: "SECURITY", Reference: digest("moderation1")}, start.Now)
 	require.NoError(t, err)
@@ -236,8 +236,6 @@ func TestDeletionFreshGenerationAndRequestCASPreserveModerationAndScrubLinks(t *
 			require.Len(t, doc.Data(), 4)
 		}
 	}
-	_, err = operator.auditRef(reply.Intent).Get(ctx)
-	require.NoError(t, err, "body-free reply audit survives terminal receipt cleanup")
 	for _, r := range []*firestore.DocumentRef{s.Client.Collection("oauth-transactions").Doc(oauthRef), s.Client.Collection(supportDeleteClaims).Doc(start.Selector.ProofRef)} {
 		_, err := r.Get(ctx)
 		require.Equal(t, codes.NotFound, status.Code(err))

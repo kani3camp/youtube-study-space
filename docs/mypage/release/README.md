@@ -111,7 +111,7 @@ Go変更の必須検査は[AGENTS.md](../../../AGENTS.md)に従い、生成後�
 3. 対象は`test-youtube-study-space`の`test--study-space`だけとする。現在のHostingのCSP・書き換えなどと、APIの同意バージョン・固定オリジン・Readyリビジョンを照合する。意図しない設定変更、別サイト、途中のHosting・API・ブランチ変更は拒否する。公開版の作成・アップロード・確定後、最後にリリースを切り替える。書き込みを自動再試行しない。
 4. 配備後は全ファイルのバイト列・Cache-Control・CSPなど、`/`と`/mypage`、匿名APIの403、APIメタデータの不変を確認する。別の認証情報なしBrowserジョブで、匿名画面・Cookie設定・GA4通信0件を確認する。失敗はCI Gateに伝える。実GA4送信・認証済みE2E・公開条件の完了を意味しない。
 
-GitHub Environmentの`mypage-dev-hosting`には、公開項目だけの`MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`と専用プロバイダー名`MYPAGE_HOSTING_WIF_PROVIDER`をVariablesに設定する。前者は既存の公開マニフェストスキーマを使い、`VITE_MYPAGE_ANALYTICS_READY=false`、`VITE_PRIVACY_INTAKE_ENABLED=false`、`analyticsApproved=false`を必須とする。サーバー環境の書き出し、OAuth・認証情報・Secretの値は渡さない。公開済みDEVと同じオリジン・Firebaseアプリ・同意バージョン・CSP接続先一覧を引き継ぐ。設定変更は既存の事前検査とレビューを通す。
+GitHub Environmentの`mypage-dev-hosting`には、公開項目だけの`MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`と専用プロバイダー名`MYPAGE_HOSTING_WIF_PROVIDER`をVariablesに設定する。前者は既存の公開マニフェストスキーマを使い、`VITE_MYPAGE_ANALYTICS_READY=false`、`analyticsApproved=false`を必須とする。サーバー環境の書き出し、OAuth・認証情報・Secretの値は渡さない。公開済みDEVと同じオリジン・Firebaseアプリ・同意バージョン・CSP接続先一覧を引き継ぐ。設定変更は既存の事前検査とレビューを通す。
 
 権限の初期設定は、専用の`mypage-hosting` WIF pool/providerと`mypage-hosting-deploy` SAに分ける。プロバイダーは、固定リポジトリ・所有者・actor ID、初回workflow_dispatch、統合ref、呼び出し元`ci.yml`、再利用先`mypage-hosting-authenticated.yml`、同一workflow SHA、Environment `mypage-dev-hosting`をすべて検査する。既存TerraformのWIF・SA・Stateは変更しない。
 
@@ -174,7 +174,7 @@ go run ./cmd/mypage-history-rebuild --environment=development \
 | 0B受入 | 0A実経路とCanon S01/S04の検証PASS（必要なら局所修正後）、MONのDEV/PROD monitor認証・OBS永続化・失敗通知・max-seat回帰、COSTの実課金境界・Budget実着信・異常利用監視、D01実装証跡、D02両取消経路の規約適合性確認、D03実値、人的Privacy窓口、7暦日削除/cleanup、実metadata/log/backup inventory | 実ユーザー受入を停止 |
 | Phase 1一般公開 | OAuth verification完了、0B実account/端末QA、Bot/外部導線、rollback、monitoring | 日付やCI成功だけで告知しない |
 
-初期公開のプライバシー請求は[有人窓口と削除の運用](#人的privacyと削除の運用)を前提にする。[アプリ内の実装パッケージ](../privacy-intake.md)の有効化は0Bの必須条件ではない。公開マニフェストの`VITE_PRIVACY_INTAKE_ENABLED`は現時点で`false`だけを受理し、サーバー側も`EnablePrivacyIntake=false`を維持する。セッションなしの場合も同じ有人窓口で扱い、新しいBearer認証情報は導入しない。アプリ内の受付・返信UIを後で使う場合は、独立した公開判断を必要とする。
+初期公開のプライバシー請求は[有人窓口と削除の運用](#人的privacyと削除の運用)を前提にする。アプリ内受付・返信UIはPhase 1対象外として撤去した。セッションなしの場合も同じ有人窓口で扱い、新しいBearer認証情報は導入しない。将来受付・返信UIを追加する場合は独立した設計・公開判断を必要とする。
 
 ### 人的Privacyと削除の運用
 

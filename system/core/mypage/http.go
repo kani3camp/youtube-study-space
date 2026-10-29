@@ -28,7 +28,6 @@ type HTTPHandler struct {
 	Maintenance MaintenanceReader
 	Auth        *AuthService
 	BFF         *BFF
-	Intake      PrivacyIntake
 	Verifier    RequestVerifier
 	// 環境ごとにHTTPSオリジンを1つ固定し、リクエストヘッダーから導出しない。
 	// 実際のHostingやプロキシのホスト転送は配備時に検証する。
@@ -47,12 +46,6 @@ var routeMethods = map[string]string{
 	"/api/auth/youtube/start":   "POST", "/api/auth/youtube/callback": "GET",
 	"/api/auth/youtube/channel": "GET", "/api/auth/youtube/confirm": "POST",
 	"/api/auth/session/complete": "POST", "/api/mypage": "GET",
-	"/api/privacy/requests": "POST", "/api/privacy/requests/status": "POST",
-}
-
-type PrivacyIntake interface {
-	Create(context.Context, string, string, SupportPurpose, string, time.Time) (PrivacyIntakeReceipt, error)
-	Status(context.Context, string, string) (PrivacyRequestStatus, error)
 }
 
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -138,14 +131,6 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var confirmation struct {
 		ConfirmationRef string `json:"confirmationRef"`
 	}
-	var intake struct {
-		SubmissionKey string         `json:"submissionKey"`
-		Purpose       SupportPurpose `json:"purpose"`
-		Body          string         `json:"body"`
-	}
-	var statusRequest struct {
-		RequestRef string `json:"requestRef"`
-	}
 	if r.Method == http.MethodPost {
 		var target any
 		switch r.URL.Path {
@@ -153,10 +138,6 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			target = &start
 		case "/api/auth/youtube/confirm":
 			target = &confirmation
-		case "/api/privacy/requests":
-			target = &intake
-		case "/api/privacy/requests/status":
-			target = &statusRequest
 		}
 		if err := strictBody(w, r, target); err != nil {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
@@ -181,17 +162,6 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	privacyRoute := strings.HasPrefix(r.URL.Path, "/api/privacy/requests")
-	if privacyRoute {
-		if h.Intake == nil {
-			writeAPIError(w, 503, "TEMPORARY_UNAVAILABLE", requestID)
-			return
-		}
-		if ok, retry := h.limiter.allow("privacy-pre:"+ip, 6, 3, now); !ok {
-			rateError(w, retry, requestID)
-			return
-		}
-	}
 	if callback {
 		h.callback(w, r, requestID)
 		return
@@ -201,10 +171,10 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, 403, "APP_CHECK_REQUIRED", requestID)
 		return
 	}
-	authenticated := r.URL.Path == "/api/mypage" || r.URL.Path == "/api/auth/session/complete" || privacyRoute
+	authenticated := r.URL.Path == "/api/mypage" || r.URL.Path == "/api/auth/session/complete"
 	var identity VerifiedIdentity
 	var account WebAccount
-	if !privacyRoute && !strings.HasPrefix(r.URL.Path, "/api/auth/youtube/") && h.Maintenance != nil {
+	if !strings.HasPrefix(r.URL.Path, "/api/auth/youtube/") && h.Maintenance != nil {
 		if err := h.Maintenance.Check(ctx); err != nil {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
@@ -225,66 +195,42 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rateError(w, retry, requestID)
 			return
 		}
-		if privacyRoute {
-			if ok, retry := h.limiter.allow("privacy-uid:"+identity.UID, 2, 2, now); !ok {
-				rateError(w, retry, requestID)
-				return
-			}
-		}
 		if r.URL.Path == "/api/mypage" {
 			if ok, retry := h.limiter.allow("mypage:"+identity.UID, 10, 10, now); !ok {
 				rateError(w, retry, requestID)
 				return
 			}
 		}
-		if !privacyRoute {
-			checkpoint, accessErr := readAccess(ctx, h.Auth.Access, identity.UID, "")
-			if accessErr != nil {
-				if h.BFF != nil {
-					h.BFF.Invalidate(identity.UID)
-				}
-				writeAPIError(w, statusFor(errorCode(accessErr)), errorCode(accessErr), requestID)
-				return
+		checkpoint, accessErr := readAccess(ctx, h.Auth.Access, identity.UID, "")
+		if accessErr != nil {
+			if h.BFF != nil {
+				h.BFF.Invalidate(identity.UID)
 			}
-			account, err = h.Auth.Store.ReadAccount(ctx, identity.UID)
-			if err != nil {
-				if h.BFF != nil {
-					h.BFF.Invalidate(identity.UID)
-				}
-				code := errorCode(err)
-				if code == "INTERNAL_ERROR" {
-					code = "TEMPORARY_UNAVAILABLE"
-				}
-				writeAPIError(w, statusFor(code), code, requestID)
-				return
+			writeAPIError(w, statusFor(errorCode(accessErr)), errorCode(accessErr), requestID)
+			return
+		}
+		account, err = h.Auth.Store.ReadAccount(ctx, identity.UID)
+		if err != nil {
+			if h.BFF != nil {
+				h.BFF.Invalidate(identity.UID)
 			}
-			account.AccessCheckpoint = checkpoint
-			if err := checkPolicy(account, h.Auth.Policy); err != nil {
-				if h.BFF != nil {
-					h.BFF.Invalidate(identity.UID)
-				}
-				writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
-				return
+			code := errorCode(err)
+			if code == "INTERNAL_ERROR" {
+				code = "TEMPORARY_UNAVAILABLE"
 			}
+			writeAPIError(w, statusFor(code), code, requestID)
+			return
+		}
+		account.AccessCheckpoint = checkpoint
+		if err := checkPolicy(account, h.Auth.Policy); err != nil {
+			if h.BFF != nil {
+				h.BFF.Invalidate(identity.UID)
+			}
+			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
+			return
 		}
 	}
 	switch r.URL.Path {
-	case "/api/privacy/requests":
-		response, err := h.Intake.Create(ctx, identity.UID, intake.SubmissionKey, intake.Purpose, intake.Body, now)
-		if err != nil {
-			code := errorCode(err)
-			writeAPIError(w, statusFor(code), code, requestID)
-			return
-		}
-		writeJSON(w, 200, response)
-	case "/api/privacy/requests/status":
-		response, err := h.Intake.Status(ctx, identity.UID, statusRequest.RequestRef)
-		if err != nil {
-			code := errorCode(err)
-			writeAPIError(w, statusFor(code), code, requestID)
-			return
-		}
-		writeJSON(w, 200, response)
 	case "/api/auth/youtube/start":
 		response, id, err := h.Auth.Start(ctx, transactionID(r), start)
 		if err != nil {
