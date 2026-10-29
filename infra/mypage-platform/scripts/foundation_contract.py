@@ -7,6 +7,7 @@ import json
 import os
 import re
 from datetime import datetime
+from pathlib import Path
 
 TARGET = os.environ.get("MYPAGE_TARGET", "development")
 TARGETS = {
@@ -87,8 +88,20 @@ def backend_policy(bucket, kind):
     ]}
 
 
+def desired_stage():
+    path = Path(__file__).resolve().parents[1] / "environments" / CONFIG["state"] / "desired-stage.txt"
+    need(path.is_file() and not path.is_symlink(), "desired-stage-file")
+    stage = path.read_text(encoding="utf-8").strip()
+    need(stage in {"disabled", "foundation_metadata", "foundation", "registry",
+                   "maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"},
+         "desired-stage-value")
+    return stage
+
+
 def stage_for_mode(mode):
     from runtime_contract import MODES
+    if mode in {"desired-plan", "desired-apply"}:
+        return desired_stage()
     if mode in MODES:
         if TARGET == "production":
             need(mode in {"maintenance-operator-plan", "maintenance-operator-apply",
@@ -119,7 +132,9 @@ def context(env, kind, *, image=False):
 
 
 def resource_contract(stage="foundation"):
-    need(stage in {"foundation_metadata", "foundation", "registry"})
+    need(stage in {"disabled", "foundation_metadata", "foundation", "registry"})
+    if stage == "disabled":
+        return {}
     resources = {"google_service_account.runtime": {"project": PROJECT, "account_id": "mypage-api"}}
     for name, secret_id in SECRET_IDS.items():
         resources["google_secret_manager_secret." + name] = {

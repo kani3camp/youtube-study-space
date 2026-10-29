@@ -1,4 +1,4 @@
-"""Contracts for modular PR validation and the authenticated operations boundary."""
+"""Contracts for modular PR validation and the simplified manual-operation boundary."""
 import copy
 import importlib.util
 import itertools
@@ -45,9 +45,17 @@ FOUNDATION_SECRETS = ('MYPAGE_STATE_BUCKET', 'MYPAGE_STATE_ACCOUNT', 'MYPAGE_BAC
                       'MYPAGE_BACKEND_ROLE_ID', 'MYPAGE_GCP_WIF_PROVIDER',
                       'MYPAGE_GCP_SERVICE_ACCOUNT', 'MYPAGE_PLAN_HMAC_KEY',
                       'MYPAGE_RUNTIME_SETTINGS_JSON')
-OPERATION_TOGGLES = ('terraform_authenticated', 'gcp_user_activity_schema_audit',
-                     'mypage_foundation', 'mypage_hosting', 'mypage_backend')
+GCP_INFRA_SECRETS = set(AUTH_SECRETS) | set(FOUNDATION_SECRETS)
 ALL_OPERATION_SECRETS = set(AUTH_SECRETS) | set(AUDIT_SECRETS) | set(FOUNDATION_SECRETS)
+MANUAL_OPERATIONS = (
+    'validate',
+    'gcp-plan',
+    'gcp-apply',
+    'gcp-user-activity-schema-audit',
+    'mypage-image-build',
+    'mypage-hosting-release',
+    'mypage-backend-release',
+)
 
 
 def selected(expression, flags, inputs=None):
@@ -81,8 +89,8 @@ def validate(caller, modules):
             'Execute the tested result gate unconditionally')
     require(check['env'] == {
         'CI_NEEDS': '${{ toJSON(needs) }}',
-        'CI_OPERATION_REQUESTED': "${{ github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.gcp_user_activity_schema_audit == true || inputs.mypage_foundation == true || inputs.mypage_hosting == true || inputs.mypage_backend == true) }}",
-    }, 'Gate receives aggregate operation selection')
+        'CI_OPERATION_REQUESTED': "${{ github.event_name == 'workflow_dispatch' && inputs.operation != 'validate' }}",
+    }, 'Gate receives the simplified operation selection')
 
     terraform = jobs['gcp-terraform-validate']
     require(set(terraform) == {'name', 'needs', 'if', 'uses'},
@@ -100,8 +108,8 @@ def validate(caller, modules):
     detect = jobs['changes']['steps'][-1]
     require(detect['run'] == 'bash .github/scripts/detect-ci-paths.sh', 'Use canonical detector')
     require(detect['env']['CI_AUTHENTICATED_TERRAFORM_DISPATCH']
-            == "${{ github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.gcp_user_activity_schema_audit == true || inputs.mypage_foundation == true) }}",
-            'Credentialed Terraform-family operations use bounded Terraform validation routing')
+            == "${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'gcp-user-activity-schema-audit' }}",
+            'Only the read-only schema audit keeps narrow Terraform validation routing')
 
     for name, members in MODULES.items():
         call = jobs[name]
@@ -141,33 +149,23 @@ def validate(caller, modules):
     require(operations['name'] == 'Authenticated Operations'
             and operations['uses'] == './.github/workflows/ci-operations.yml',
             'Operations use the call-only module')
-    require(operations['needs'] == ['repository', 'frontend', 'system', 'gcp-terraform-validate'],
+    require(operations['needs'] == ['repository', 'frontend', 'system', 'tools', 'infra', 'gcp-terraform-validate'],
             'Operations receive all prerequisite results')
     require(operations['if']
-            == "${{ always() && github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.gcp_user_activity_schema_audit == true || inputs.mypage_foundation == true || inputs.mypage_hosting == true || inputs.mypage_backend == true) }}",
-            'Operations are manual and aggregate every supported operation')
+            == "${{ always() && github.event_name == 'workflow_dispatch' && inputs.operation != 'validate' }}",
+            'Only explicit non-validation manual operations enter the authenticated boundary')
     require(operations['permissions'] == {'contents': 'read', 'id-token': 'write'},
             'Only the operations boundary receives OIDC from the top-level caller')
-    expected_with = {
-        'terraform_authenticated': '${{ inputs.terraform_authenticated }}',
-        'terraform_target': '${{ inputs.terraform_target }}',
-        'terraform_mode': '${{ inputs.terraform_mode }}',
-        'terraform_expected_sha': '${{ inputs.terraform_expected_sha }}',
-        'gcp_user_activity_schema_audit': '${{ inputs.gcp_user_activity_schema_audit }}',
-        'mypage_foundation': '${{ inputs.mypage_foundation }}',
-        'mypage_foundation_target': '${{ inputs.mypage_foundation_target }}',
-        'mypage_foundation_mode': '${{ inputs.mypage_foundation_mode }}',
-        'mypage_foundation_expected_sha': '${{ inputs.mypage_foundation_expected_sha }}',
-        'mypage_hosting': '${{ inputs.mypage_hosting }}',
-        'mypage_hosting_expected_sha': '${{ inputs.mypage_hosting_expected_sha }}',
-        'mypage_backend': '${{ inputs.mypage_backend }}',
-        'mypage_backend_expected_sha': '${{ inputs.mypage_backend_expected_sha }}',
+    require(operations['with'] == {
+        'operation': '${{ inputs.operation }}',
+        'environment': '${{ inputs.environment }}',
         'repository_result': '${{ needs.repository.result }}',
         'frontend_result': '${{ needs.frontend.result }}',
         'system_result': '${{ needs.system.result }}',
+        'tools_result': '${{ needs.tools.result }}',
+        'infra_result': '${{ needs.infra.result }}',
         'gcp_terraform_validate_result': '${{ needs.gcp-terraform-validate.result }}',
-    }
-    require(operations['with'] == expected_with, 'Operations receive typed inputs and prerequisite results')
+    }, 'Operations receive only simplified user intent and prerequisite results')
     require(operations['secrets'] == {
         key: '${{ secrets.' + key + ' }}' for key in ALL_OPERATION_SECRETS
     }, 'Operations receive only the explicit union of existing operational secrets')
@@ -176,35 +174,31 @@ def validate(caller, modules):
         require(key != 'continue-on-error', 'Caller failures cannot be ignored')
 
     dispatch = caller['on']['workflow_dispatch']['inputs']
-    require(set(dispatch) == {
-        'terraform_authenticated', 'terraform_target', 'terraform_mode', 'terraform_expected_sha',
-        'gcp_user_activity_schema_audit', 'mypage_foundation', 'mypage_foundation_target',
-        'mypage_foundation_mode', 'mypage_foundation_expected_sha', 'mypage_hosting',
-        'mypage_hosting_expected_sha', 'mypage_backend', 'mypage_backend_expected_sha',
-    }, 'No retired operational mode/input returns')
-    for toggle in OPERATION_TOGGLES:
-        require(dispatch[toggle]['type'] == 'boolean' and dispatch[toggle]['default'] is False
-                and dispatch[toggle]['required'] is False, 'Operations remain opt-in')
-    for key, default, options in (
-        ('terraform_target', 'dev', ['dev', 'prod']),
-        ('mypage_foundation_target', 'development', ['development', 'production']),
-        ('mypage_foundation_mode', 'foundation-metadata-plan',
-         ['foundation-metadata-plan', 'foundation-metadata-apply', 'foundation-plan',
-          'foundation-apply', 'registry-plan', 'registry-apply', 'image-build',
-          'maintenance-operator-plan', 'maintenance-operator-apply',
-          'maintenance-upgrade-plan', 'maintenance-upgrade-apply',
-          'runtime-private-plan', 'runtime-private-apply',
-          'runtime-public-plan', 'runtime-public-apply']),
-        ('terraform_mode', 'migration-plan',
-         ['migration-plan', 'migration-apply', 'normal-plan', 'normal-apply', 'normal-e2e']),
+    require(set(dispatch) == {'operation', 'environment'}, 'Manual UI exposes only operation and environment')
+    require(dispatch['operation'] == {
+        'description': 'Manual operation',
+        'required': False,
+        'default': 'validate',
+        'type': 'choice',
+        'options': list(MANUAL_OPERATIONS),
+    }, 'Operation choices stay small and stable')
+    require(dispatch['environment'] == {
+        'description': 'Target environment for manual operations',
+        'required': False,
+        'default': 'development',
+        'type': 'choice',
+        'options': ['development', 'production'],
+    }, 'Environment is the only target selector')
+    for retired in (
+        'mypage_foundation_mode', 'mypage_foundation_target', 'terraform_mode',
+        'terraform_target', 'terraform_expected_sha', 'mypage_foundation_expected_sha',
+        'mypage_hosting_expected_sha', 'mypage_backend_expected_sha',
     ):
-        require(dispatch[key]['type'] == 'choice' and dispatch[key]['default'] == default
-                and dispatch[key]['options'] == options and dispatch[key]['required'] is False,
-                'Dispatch choices stay fixed')
+        require(retired not in dispatch, 'Staged infrastructure controls stay out of the manual UI')
 
     require(caller['concurrency'] == {
         'group': '${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}',
-        'cancel-in-progress': "${{ !(github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.gcp_user_activity_schema_audit == true || inputs.mypage_foundation == true || inputs.mypage_hosting == true || inputs.mypage_backend == true)) }}",
+        'cancel-in-progress': "${{ !(github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') }}",
     }, 'Authenticated execution cannot be auto-cancelled')
 
 
@@ -271,8 +265,8 @@ class WorkflowContractsTest(unittest.TestCase):
                 uses='./.github/workflows/ci-infra.yml'),
             lambda c, m: c['jobs']['operations'].update(uses='./.github/workflows/ci-infra.yml'),
             lambda c, m: c['jobs']['operations'].update(permissions={'contents': 'read'}),
-            lambda c, m: c['on']['workflow_dispatch']['inputs'][
-                'gcp_user_activity_schema_audit'].update(default=True),
+            lambda c, m: c['on']['workflow_dispatch']['inputs']['operation']['options'].append(
+                'maintenance-upgrade-plan'),
         ]
         for mutate in mutations:
             caller, modules = copy.deepcopy(self.caller), copy.deepcopy(self.modules)

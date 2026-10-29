@@ -10,15 +10,21 @@ jobs:
   validate:
     name: GCP Terraform Validate
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Python for GCP contract tests
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.16.4"
+          terraform_wrapper: false
 
       - name: Test authenticated Terraform CI guardrails
         run: |
@@ -34,6 +40,10 @@ jobs:
           python3 .github/scripts/test_terraform_plan_diagnostic.py
           python3 .github/scripts/test_terraform_baseline_drift_diagnostic.py
           python3 infra/gcp/tests/test_runtime_plan_contract.py
+          python3 infra/gcp/tests/test_runtime_ownership.py
+          python3 infra/gcp/tests/test_production_readiness.py
+          python3 infra/gcp/tests/test_production_backend_packet.py
+          python3 infra/gcp/tests/test_production_execution_contract.py
           python3 -B infra/gcp/tests/test_terraform_normal_ops.py
           python3 -B infra/gcp/tests/test_enable_normal_integration.py
           python3 -B infra/gcp/tests/test_production_normal_ops.py
@@ -44,12 +54,6 @@ jobs:
           python3 .github/scripts/test_terraform_export_scheduler_gate.py
           python3 .github/scripts/test_terraform_export_function_gate.py
           python3 .github/scripts/test_gcp_user_activity_schema_audit_workflow.py
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_version: "1.16.4"
-          terraform_wrapper: false
 
       - name: Check formatting
         run: terraform fmt -check -recursive infra/gcp
@@ -92,3 +96,9 @@ jobs:
 
       - name: Verify provider locks match
         run: cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/gcp/environments/prod/.terraform.lock.hcl
+
+      - name: Validate MyPage platform desired state
+        run: bash infra/mypage-platform/scripts/check-local.sh
+
+      - name: Validate MyPage OAuth TTL Terraform
+        run: bash infra/mypage-oauth-ttl/scripts/check-local.sh

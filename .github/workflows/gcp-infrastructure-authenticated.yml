@@ -1,0 +1,190 @@
+name: GCP Infrastructure Authenticated
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      action:
+        required: true
+        type: string
+    secrets:
+      GCP_TERRAFORM_NORMAL_WIF_PROVIDER:
+        required: false
+      GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT:
+        required: false
+      AWS_TERRAFORM_BACKEND_ROLE_ARN:
+        required: false
+      AWS_TERRAFORM_BACKEND_ROLE_ID:
+        required: false
+      AWS_TERRAFORM_STATE_BUCKET:
+        required: false
+      AWS_TERRAFORM_STATE_ACCOUNT_ID:
+        required: false
+      GCP_TERRAFORM_WIF_PROVIDER:
+        required: false
+      GCP_TERRAFORM_SERVICE_ACCOUNT:
+        required: false
+      GCP_TERRAFORM_MANAGED_INPUTS_JSON:
+        required: false
+      MYPAGE_STATE_BUCKET:
+        required: false
+      MYPAGE_STATE_ACCOUNT:
+        required: false
+      MYPAGE_BACKEND_ROLE_ARN:
+        required: false
+      MYPAGE_BACKEND_ROLE_ID:
+        required: false
+      MYPAGE_GCP_WIF_PROVIDER:
+        required: false
+      MYPAGE_GCP_SERVICE_ACCOUNT:
+        required: false
+      MYPAGE_PLAN_HMAC_KEY:
+        required: false
+      MYPAGE_RUNTIME_SETTINGS_JSON:
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gcp-infrastructure-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate GCP Infrastructure Request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require environment and action
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          case "${ENVIRONMENT}:${ACTION}" in
+            development:plan|development:apply|production:plan|production:apply) ;;
+            *)
+              echo "::error::GCP infrastructure accepts only development/production and plan/apply"
+              exit 1
+              ;;
+          esac
+
+  core-plan:
+    name: Core GCP Plan
+    needs: validate
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/gcp-terraform-authenticated.yml
+    with:
+      target: ${{ inputs.environment == 'production' && 'prod' || 'dev' }}
+      mode: normal-plan
+      expected_sha: ${{ github.sha }}
+    secrets:
+      GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
+      GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
+      AWS_TERRAFORM_BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+      AWS_TERRAFORM_BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+      AWS_TERRAFORM_STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      GCP_TERRAFORM_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+      GCP_TERRAFORM_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+      GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
+
+  mypage-plan:
+    name: MyPage GCP Plan
+    needs: validate
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-infrastructure-authenticated.yml
+    with:
+      target: ${{ inputs.environment }}
+      action: plan
+      expected_sha: ${{ github.sha }}
+    secrets:
+      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
+      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
+      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
+      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
+
+  core-apply:
+    name: Core GCP Apply
+    needs: [core-plan, mypage-plan]
+    if: ${{ inputs.action == 'apply' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/gcp-terraform-authenticated.yml
+    with:
+      target: ${{ inputs.environment == 'production' && 'prod' || 'dev' }}
+      mode: normal-apply
+      expected_sha: ${{ github.sha }}
+    secrets:
+      GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
+      GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
+      AWS_TERRAFORM_BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+      AWS_TERRAFORM_BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+      AWS_TERRAFORM_STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      GCP_TERRAFORM_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
+      GCP_TERRAFORM_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
+      GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
+
+  mypage-apply:
+    name: MyPage GCP Apply
+    needs: [core-plan, mypage-plan, core-apply]
+    if: ${{ inputs.action == 'apply' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-infrastructure-authenticated.yml
+    with:
+      target: ${{ inputs.environment }}
+      action: apply
+      expected_sha: ${{ github.sha }}
+    secrets:
+      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
+      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
+      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
+      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
+
+  gate:
+    name: GCP Infrastructure Gate
+    if: ${{ always() }}
+    needs: [validate, core-plan, mypage-plan, core-apply, mypage-apply]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ACTION: ${{ inputs.action }}
+      VALIDATE_RESULT: ${{ needs.validate.result }}
+      CORE_PLAN_RESULT: ${{ needs.core-plan.result }}
+      MYPAGE_PLAN_RESULT: ${{ needs.mypage-plan.result }}
+      CORE_APPLY_RESULT: ${{ needs.core-apply.result }}
+      MYPAGE_APPLY_RESULT: ${{ needs.mypage-apply.result }}
+    steps:
+      - name: Require complete infrastructure result
+        run: |
+          set -euo pipefail
+          [[ "${VALIDATE_RESULT}" == "success" ]]
+          [[ "${CORE_PLAN_RESULT}" == "success" ]]
+          [[ "${MYPAGE_PLAN_RESULT}" == "success" ]]
+          if [[ "${ACTION}" == "apply" ]]; then
+            [[ "${CORE_APPLY_RESULT}" == "success" ]]
+            [[ "${MYPAGE_APPLY_RESULT}" == "success" ]]
+          else
+            [[ "${ACTION}" == "plan" ]]
+            [[ "${CORE_APPLY_RESULT}" == "skipped" ]]
+            [[ "${MYPAGE_APPLY_RESULT}" == "skipped" ]]
+          fi
