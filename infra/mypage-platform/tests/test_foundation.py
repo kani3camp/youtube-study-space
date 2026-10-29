@@ -510,7 +510,9 @@ class FoundationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             c.context(env | {'GITHUB_EVENT_NAME': 'workflow_run'}, 'apply')
         self.assertNotEqual(c.subject('apply', 'push'), c.subject('apply'))
-        self.assertEqual(len(c.trust_policy('123456789012', 'apply')['Statement']), 2)
+        self.assertEqual(len(c.trust_policy('123456789012', 'apply')['Statement']), 1)
+        self.assertEqual(c.trust_policy('123456789012', 'apply')['Statement'][0]['Condition']['StringEquals']['token.actions.githubusercontent.com:sub'],
+                         c.subject('apply'))
 
     def test_exact_actor_ref_and_sha_before_credentials(self):
         env = {'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
