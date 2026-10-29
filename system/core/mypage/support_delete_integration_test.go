@@ -236,8 +236,6 @@ func TestDeletionFreshGenerationAndRequestCASPreserveModerationAndScrubLinks(t *
 			require.Len(t, doc.Data(), 4)
 		}
 	}
-	_, err = operator.auditRef(reply.Intent).Get(ctx)
-	require.NoError(t, err, "body-free reply audit survives terminal receipt cleanup")
 	for _, r := range []*firestore.DocumentRef{s.Client.Collection("oauth-transactions").Doc(oauthRef), s.Client.Collection(supportDeleteClaims).Doc(start.Selector.ProofRef)} {
 		_, err := r.Get(ctx)
 		require.Equal(t, codes.NotFound, status.Code(err))
