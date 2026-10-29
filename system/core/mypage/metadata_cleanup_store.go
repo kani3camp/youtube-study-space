@@ -12,8 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Only the caller's explicitly selected existing project may be inspected.
-// No credentials, scheduler, IAM or API/provider is created by this adapter.
+// 調査できるのは、呼び出し元が明示して選んだ既存プロジェクトだけとする。
+// このアダプターは認証情報・スケジューラー・IAM・APIやプロバイダーを作らない。
 type FirestoreMetadataCleanupStore struct {
 	Client    *firestore.Client
 	ProjectID string
@@ -85,8 +85,8 @@ func (s *FirestoreMetadataCleanupStore) Clear(ctx context.Context, candidate Met
 			outcome = "changed"
 			return nil
 		}
-		// Retention applies independently of login/policy/access state. Preserve all
-		// identity, consent, lifecycle and blocked fields; never recreate a document.
+		// 保持期限はログイン・ポリシー・アクセス状態にかかわらず適用する。
+		// 本人情報・同意・ライフサイクル・ブロックの全フィールドを維持し、文書は再作成しない。
 		if err := tx.Update(ref, metadataClearUpdates(now)); err != nil {
 			return fmt.Errorf("clear expired metadata: %w", err)
 		}

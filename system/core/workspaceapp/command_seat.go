@@ -143,8 +143,8 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			}
 		}
 
-		// A move or name change closes exactly one source interval. Read its
-		// monthly state and privacy fence before an optional order history write.
+		// 移動や名前変更では、原記録の区間を正確に1つ終了する。
+		// 任意の注文履歴を書き込む前に、月次状態とプライバシー保護状態を読む。
 		if isInRoom && (inOption.IsSeatIDSet || inOption.MinWorkOrderOption.IsWorkNameSet) {
 			segment, err := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
 			if err != nil {

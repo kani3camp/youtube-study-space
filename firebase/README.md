@@ -2,18 +2,19 @@
 
 This directory contains the repository-managed Firestore Security Rules, indexes, and emulator configuration. Treat these files as the existing project definition. Do **not** run `firebase init firestore` as a routine setup step because it can overwrite or regenerate repository-managed configuration.
 
-## MyPage Phase 0B prerequisite: authenticated OBS monitor (source implemented, NOT deployed)
+## MyPage Phase 0Bの前提となるOBSモニター認証
 
-The repository `firestore.rules` requires a dedicated monitor claim plus an enabled UID allowlist entry for reads of `seats`, `member-seats`, `menu`, `work-name-trend`, and `config/constants`; anonymous and normal MyPage users are denied. The monitor source gates subscriptions on the dedicated claim. These source changes are **not live deployment evidence**: any environment still running older Rules may retain the former anonymous exposure.
+リポジトリの`firestore.rules`は、`seats`・`member-seats`・`menu`・`work-name-trend`・`config/constants`の読み取りに、専用monitor claimと有効なUID許可リスト項目を必要とする。匿名と通常MyPageユーザーは拒否する。モニターのソースも専用claimを確認してから購読する。これは実装済みだが、実配備の証拠ではない。古いRulesの環境では、従来の匿名公開が残っている場合がある。
 
-Before the first externally usable MyPage Phase 0B release, [Issue #1459](https://github.com/kani3camp/youtube-study-space/issues/1459) requires:
-- Provision the dedicated monitor-only Firebase Auth principal, claim, and allowlist entry, then use the implemented interactive sign-in with Firebase local persistence. Persistence after actual OBS/CEF restarts has **not** been proven.
-- Deploy the matching monitor and Rules as a reviewed release pair, then prove that anonymous, normal MyPage users, and all browser writes are rejected in each target environment.
-- Keep repository Client SDK / Security Rules tests for anonymous, authorized monitor, wrong UID, disabled allowlist, and read/list/write behavior. Separately validate wrong-project and expired-session rejection against the selected DEV and PROD projects, including restart, renewal, and operator notification paths.
-- Separate Client SDK enforcement from server-side Go/IAM, which bypasses Security Rules. Do not add service-account credentials to browser bundles or accept an API-key/project split as authorization.
-- In each environment, stage credential/login support **before** enforcing deny-only rules; verify rollback without restoring unrestricted anonymous access.
+外部利用が可能になる最初のMyPage Phase 0B公開前に、[Issue #1459](https://github.com/kani3camp/youtube-study-space/issues/1459)は次を必要とする。
 
-This section describes an **implemented source boundary and an incomplete live release gate**, not a completed deployment. Keep existing Go Bot and monitor seat-count-control behavior unchanged unless separately approved. Related [MyPage release gate #1133](https://github.com/kani3camp/youtube-study-space/issues/1133) and [Notion Security Canon](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634).
+- モニター専用のFirebase Auth本人情報・claim・許可リスト項目を用意し、実装済みの対話ログインとFirebaseローカル永続化を使う。実OBS/CEF再起動後の保持は未検証である。
+- 対応するモニターとRulesをレビュー済みの組として配備し、各対象環境で匿名・通常MyPageユーザー・全ブラウザ書き込みの拒否を確認する。
+- Client SDK / Security Rulesのテストで、匿名・認可済みモニター・誤UID・無効許可リスト・read/list/write動作を検証し続ける。選択したDEV/PRODで、誤プロジェクトと期限切れセッションの拒否を別途検証し、再起動・更新・運用担当者への通知も確認する。
+- Client SDKの制御と、Security Rulesを経由しないサーバー側Go/IAMを分ける。ブラウザバンドルにサービスアカウント認証情報を追加せず、APIキーやプロジェクトの分離を認可の代替にしない。
+- 各環境で、拒否ルールの適用前に認証情報とログイン手段を準備する。無制限の匿名アクセスを戻さずに復旧できることを検証する。
+
+この節は実装済みの制御と、未完了の実環境公開条件を記述しており、配備完了は示さない。別途承認がない限り、既存Go Botとモニターの座席数制御を維持する。関連する[MyPage公開条件 #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)と[Notion Security Canon](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634)も参照する。
 
 ## Test layers
 
@@ -39,7 +40,7 @@ bash .github/scripts/run-firestore-integration-tests.sh
 
 Requirements are Node.js, Java 21 or later, and the pinned Firebase CLI version used by CI. The script starts Firestore Emulator and runs the Go integration suite. It does not require a real Firebase project or production credentials.
 
-The script installs the isolated dependencies in this directory, runs `firestore.rules.test.mjs` with `@firebase/rules-unit-testing`, and then runs the Go integration suite. The Go layer validates Firestore serialization, transactions, and repository/application behavior against Emulator semantics. The Rules test separately exercises browser Client SDK allow/deny behavior.
+スクリプトはこのディレクトリに独立した依存関係を導入し、`@firebase/rules-unit-testing`で`firestore.rules.test.mjs`を実行してから、Go統合テストを実行する。Go層はEmulatorの動作に対してFirestoreのシリアライズ・トランザクション・リポジトリ/アプリケーション動作を検証する。Rulesテストは、ブラウザClient SDKの許可・拒否を別に検証する。
 
 ### 3. Client SDK / Security Rules behavior
 
@@ -47,7 +48,7 @@ When `firestore.rules` changes, reason explicitly about browser/client access se
 
 A Go test using server credentials can bypass the question that Security Rules answer. Do not treat a passing Go Emulator integration suite as sufficient evidence for a client-access policy change.
 
-The monitor read boundary requires both `monitor_reader: true` in the Firebase ID token and an enabled `_monitor-readers/{uid}` document. Client rules never expose or mutate that allowlist. Provision claims and allowlist documents only through trusted Admin/server operations, and see [`../youtube-monitor/README.md`](../youtube-monitor/README.md) for the staged rollout and fail-closed rollback procedure.
+モニター読み取りにはFirebase IDトークンの`monitor_reader: true`と、有効な`_monitor-readers/{uid}`文書の両方を必要とする。クライアントルールは許可リストの公開・変更を認めない。claimと許可リスト文書は信頼済みAdmin/サーバー操作だけで作る。段階導入と、拒否を維持する復旧手順は[`../youtube-monitor/README.md`](../youtube-monitor/README.md)を参照する。
 
 ## Existing project: inspect before deploying
 

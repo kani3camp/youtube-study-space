@@ -12,8 +12,8 @@ import (
 	"app.modules/core/serviceaccess"
 )
 
-// APIError carries only a stable allowlisted code. Dependency errors are never
-// used as public messages or normal log fields.
+// APIErrorは安定した許可済みコードだけを持つ。
+// 依存先エラーを公開メッセージや通常のログ項目に使わない。
 type APIError struct{ Code string }
 
 func (e *APIError) Error() string { return e.Code }
@@ -64,7 +64,7 @@ type OAuthTransaction struct {
 type WebAccount struct {
 	Revision         time.Time `firestore:"-"`
 	AccessCheckpoint string    `firestore:"-"`
-	// AccessBlocked is decoded for compatibility only; ServiceAccessControl is authoritative.
+	// AccessBlockedはデコード互換のためだけに残す。認可の判断にはServiceAccessControlを使う。
 	AccessBlocked        bool       `firestore:"accessBlocked"`
 	PrivacyPolicyVersion string     `firestore:"privacyPolicyVersion"`
 	TermsVersion         string     `firestore:"termsVersion"`
@@ -78,8 +78,8 @@ type WebAccount struct {
 	UpdatedAt            time.Time  `firestore:"updatedAt"`
 }
 
-// AuthStore methods are atomic; no external provider call belongs in their
-// transaction callbacks. Neither store contains OAuth or Firebase tokens.
+// AuthStoreの各操作はアトミックとし、トランザクションのコールバック内で外部プロバイダーを呼ばない。
+// どちらのストアにもOAuthやFirebaseのトークンは保存しない。
 type AuthStore interface {
 	Create(context.Context, string, string, OAuthTransaction, time.Time) error
 	Claim(context.Context, string, string, time.Time) error
@@ -91,8 +91,8 @@ type AuthStore interface {
 	CompleteSession(context.Context, string, string, Policy, time.Time) error
 }
 
-// Provider implementations discard the exchanged OAuth token before returning
-// verified channels and must check youtube.readonly in the granted scope.
+// プロバイダー実装は、確認済みチャンネルを返す前に交換したOAuthトークンを破棄する。
+// 付与スコープにyoutube.readonlyがあることも確認する必要がある。
 type YouTubeOAuth interface {
 	AuthorizationURL(state string) string
 	Resolve(context.Context, string) ([]Channel, error)
@@ -309,8 +309,8 @@ func (s *AuthService) Confirm(ctx context.Context, id, confirmation string) (str
 	if err != nil {
 		return "", fmt.Errorf("consume confirmed channel: %w", err)
 	}
-	// Consume is committed before mint. A timeout or failed mint cannot be retried
-	// from this transaction, even when the provider may have issued a token.
+	// 発行前にConsumeをコミットする。タイムアウトや発行失敗時に、このトランザクションを再試行できない。
+	// プロバイダーがトークンを発行済みの可能性があっても同じ扱いにする。
 	if _, err := readAccess(ctx, s.Access, channel.ID, checkpoint); err != nil {
 		return "", err
 	}
@@ -357,8 +357,8 @@ type supportAuthStore interface {
 type ConfirmResponse struct {
 	Purpose     string `json:"purpose"`
 	CustomToken string `json:"customToken,omitempty"`
-	// RequestRef is the existing proof receipt. SupportRequestRef identifies
-	// the server-bound request record for authenticated status lookup only.
+	// RequestRefは既存の本人確認受付参照を表す。SupportRequestRefは、
+	// 認証付き状態照会だけに使う、サーバーで結び付けた申請レコードを識別する。
 	RequestRef        string `json:"requestRef,omitempty"`
 	SupportRequestRef string `json:"supportRequestRef,omitempty"`
 }

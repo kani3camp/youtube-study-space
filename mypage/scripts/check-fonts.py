@@ -1,4 +1,4 @@
-"""Offline font integrity/rendering check; install font-requirements.txt first."""
+"""フォントの整合性・描画をオフライン検査する。先にfont-requirements.txtを導入する。"""
 
 import hashlib
 import json
@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def preserved_tables_sha256(font):
-    """Include all tables except gasp; normalize only head.checkSumAdjustment."""
+    """gasp以外の全テーブルを含め、head.checkSumAdjustmentだけを正規化する。"""
     digest = hashlib.sha256()
     for tag in sorted(set(font.keys()) - {"GlyphOrder", "gasp"}):
         data = font.getTableData(tag)
@@ -32,7 +32,7 @@ def check_fonts():
         assert len(data) == face["woff2Bytes"], path.name
         assert hashlib.sha256(data).hexdigest() == face["woff2SHA256"], path.name
         with TTFont(path, recalcTimestamp=False) as font:
-            # Read raw tables before semantic access can trigger lazy recompile.
+            # 意味を解釈するアクセスで遅延再コンパイルが始まる前に、元のテーブルを読む。
             assert preserved_tables_sha256(font) == face["preservedTablesSHA256"], path.name
             assert font.flavor == "woff2", path.name
             assert font["gasp"].version == 1, path.name

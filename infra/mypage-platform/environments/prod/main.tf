@@ -8,7 +8,7 @@ terraform {
     }
   }
 
-  # Independent MyPage state, never the imported infra/gcp root state.
+  # MyPage専用の独立Stateを使い、取り込み済みinfra/gcpルートのStateは使わない。
   backend "s3" {}
 }
 
@@ -61,7 +61,7 @@ variable "runtime_settings" {
     youtube_api_key_version     = ""
   }
 
-  # Reject even in disabled/foundation stages; do not silently accept a DEV flag.
+  # disabled/foundation段階でも拒否し、DEV専用フラグを黙って受け入れない。
   validation {
     condition = !contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) || (
       var.runtime_settings.maintenance_operator_enabled &&

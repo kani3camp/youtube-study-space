@@ -88,6 +88,6 @@ pnpm cdk:deploy AwsCdkStack --profile soraride-prod --require-approval never --p
     ```
   - 初回のみ、指定したメールに AWS から届く **Confirm subscription** のリンクを開いて承認する。コンソールから行う場合は **SNS → Topics → `AlarmsTopic` に相当するトピック → Subscriptions** で Pending を Confirm する。
 
-### ローカルQAファイルとimage context
+### ローカルQAファイルとイメージ作成範囲
 
-Lambda/FargateのCDK assetは、localにインストールしたtoolやprivate QA receiptを含む`**/node_modules`をstaging時に除外する。GitのignoreだけをDocker contextの境界とみなさない。テストは実stagingにreceiptがないこと、receipt追加前後でasset tagが不変であること、writer sourceの変更が両imageへ反映されることを検証する。Source asset tagの一致だけでlive image/sourceの証明やdeploy済みを宣言せず、immutable digestとbuild/deploy receiptを別に照合する。
+Lambda/FargateのCDKアセットは、ローカル導入ツールや非公開QA記録を含む`**/node_modules`をステージング時に除外する。Gitの除外設定だけを、Dockerコンテキストに含める範囲の制限としない。テストでは、実ステージングにQA記録がないこと、記録の追加前後でアセットタグが変わらないこと、書き込み処理のソース変更が両イメージに反映されることを検証する。ソースアセットのタグ一致だけで実イメージとの一致や配備済みを宣言せず、不変ダイジェストとビルド・配備記録を別途照合する。

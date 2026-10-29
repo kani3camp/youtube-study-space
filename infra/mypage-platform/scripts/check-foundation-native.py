@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the deployment boundary against Terraform's native mocked Plan JSON."""
+"""TerraformのネイティブモックPlan JSONで、配備の許可範囲を検証する。"""
 import json
 from pathlib import Path
 import subprocess
@@ -14,10 +14,9 @@ need(result.returncode == 0)
 plans = [event["test_plan"] for line in result.stdout.splitlines()
          if (event := json.loads(line)).get("type") == "test_plan"]
 need(len(plans) == 6)
-# terraform test emits the renderer's Plan envelope, not terraform show's
-# native envelope. Preserve the actual provider-generated changes/unknowns;
-# only supply the test run's known stage and successful completion metadata.
-# The authenticated path continues to require the real native envelope.
+# terraform testは描画用のPlan形式を出力し、terraform showのネイティブ形式とは異なる。
+# プロバイダーが生成した変更とunknownは保持し、テストで既知のstageと成功完了情報だけを補う。
+# 認証ありの処理では、引き続き実際のネイティブ形式を必須とする。
 for rendered, stage in zip(plans, ("foundation_metadata", "foundation", "registry", "maintenance_operator", "runtime_private", "runtime_public")):
     variables = {"stage": {"value": stage}}
     if stage in set(runtime_contract.MODES.values()):
@@ -30,10 +29,9 @@ for rendered, stage in zip(plans, ("foundation_metadata", "foundation", "registr
                          "deferred_changes": rendered.get("deferred_changes", [])}
     validator = runtime_contract.validate_plan if stage in set(runtime_contract.MODES.values()) else validate_plan
     if stage in {"runtime_private", "runtime_public"}:
-        # Every run in this credentialless native test starts without State, so
-        # provider-generated runtime Plans try to create the maintenance
-        # boundary again. Prove that skipping the operator/bootstrap stage is
-        # rejected; exact existing-resource no-op Plans are covered separately.
+        # この認証不要のネイティブテストは毎回Stateなしで開始するため、
+        # プロバイダーが生成するランタイムPlanはメンテナンス資源を再作成しようとする。
+        # 運用担当者・初期構築段階の省略を拒否することを確認する。既存資源の完全なno-op Planは別に検証する。
         try:
             validator(envelope, stage)
         except ContractError as error:

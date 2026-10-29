@@ -11,7 +11,7 @@ const normalize = (index) => ({
 });
 
 test('deploys the composite index required by the MyPage snapshot query', () => {
-  // The emulator does not enforce composite indexes; Go query tests cannot catch removal.
+  // エミュレーターは複合インデックスを要求しないため、Goのクエリテストでは削除を検出できない。
   const required = normalize(read('../docs/mypage/query-index.json'));
   assert.ok(read('./firestore.indexes.json').indexes.some((index) =>
     isDeepStrictEqual(normalize(index), required)));

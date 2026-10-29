@@ -1,4 +1,4 @@
-"""Reproducible incremental MyPage scenarios from explicit assumptions."""
+"""明示した仮定から、再現可能なMyPageの増分試算を生成する。"""
 import argparse
 import copy
 import json
@@ -42,7 +42,7 @@ def scenario(model, case, mode='monthly', region='asia-northeast2', static_cache
     reads += writer_reads + details * detail_reads + session_requests * a.get('sessionCompleteReads', 0)
     index_reads += details * detail_index
     writes = writer_writes + details * a['detailWritesPerOperation']
-    # Firestore is per project/day and shared with the existing workload.
+    # Firestoreの無料枠はプロジェクト・日単位で、既存処理と共有する。
     paid_reads = max(0, (reads + index_reads) / a['days'] - a['availableFirestoreReadsPerProjectDay']) * a['days']
     paid_writes = max(0, writes / a['days'] - a['availableFirestoreWritesPerProjectDay']) * a['days']
     firestore = paid_reads * p['firestoreRead100k'] / 100000 + paid_writes * p['firestoreWrite100k'] / 100000
@@ -50,8 +50,8 @@ def scenario(model, case, mode='monthly', region='asia-northeast2', static_cache
     if profile not in ('hosting-run', 'armor-run'):
         raise ValueError('unknown architecture profile')
     static_bytes = a['staticBytesPerDocumentAfterCacheAverage'] if static_cache else a['staticBytesPerDocumentBefore']
-    # The proposed WAF architecture has a separate Run web service, no CDN.
-    # A browser-cache hit avoids a transfer; it does not eliminate the HTML load.
+    # WAF構成案では独立したRun Webサービスを使い、CDNは使わない。
+    # ブラウザキャッシュのヒットで転送は避けられるが、HTMLの読み込みはなくならない。
     static_requests = documents * (a['staticRequestsPerDocumentAfterCache'] if static_cache else a['staticRequestsPerDocumentBefore'])
     web_seconds = static_requests * a['effectiveWebBilledSecondsPerRequest'] if profile == 'armor-run' else 0
     api_requests = requests + details + session_requests
@@ -68,8 +68,8 @@ def scenario(model, case, mode='monthly', region='asia-northeast2', static_cache
     inbound_gib = (api_requests * a.get('apiRequestBytesAverage', a['requestBytesAverage']) + (static_requests * a['requestBytesAverage'] if profile == 'armor-run' else 0)) / 2**30
     outbound_gib = api_gib + (static_total / 2**30 if profile == 'armor-run' else 0)
     network = ((inbound_gib + outbound_gib) * p['lbGiBEachDirection'] + outbound_gib * p['japanEgressGiB']) if profile == 'armor-run' else 0
-    # Hosting rewrites transfer API responses too; Run->Hosting is not charged
-    # as a second public internet transfer in this separate current profile.
+    # Hostingの書き換えではAPIレスポンスも転送する。現在の独立したモデルでは、
+    # Run→Hostingを2回目の公開インターネット転送として課金しない。
     hosting_gb = (static_total + api_bytes) / 10**9
     hosting = max(0, hosting_gb - a['availableHostingGBPerProjectMonth']) * model['prices']['hostingTransferGB'] if profile == 'hosting-run' else 0
     if profile == 'hosting-run':
@@ -116,8 +116,8 @@ def validate(model):
 
 
 def self_test():
-    # Independent fixed fixture: editable --input data must not change expected
-    # regression values (31-day months and unused shared credits are valid).
+    # 独立した固定テストデータを使う。編集可能な--inputで期待値を変えない。
+    # 31日の月や、共有無料枠の未使用分も有効な入力である。
     a = dict(candidatePremiumJPY=690, existingMemberJPY=290, effectiveNetCollectionRatio=0.7,
              days=30, pollSecondsBefore=60, pollSecondsAfter=300, cacheHitRatio=0,
              monthlyLookupsAverage=1.2, rawSegmentsPerMiss=20, rawIndexEntriesPerMiss=1000,

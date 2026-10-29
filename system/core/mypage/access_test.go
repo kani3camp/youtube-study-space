@@ -128,7 +128,7 @@ func TestAccessConcurrentDetachedFlightAndAnotherInstance(t *testing.T) {
 	access.set(blocked, nil)
 	_, err = other.Get(context.Background(), "synthetic", account)
 	require.Equal(t, "SERVICE_ACCESS_RESTRICTED", errorCode(err))
-	// A block/unblock cycle still invalidates the old flight's captured decision.
+	// ブロック後に解除しても、旧共有処理が保存した判定は無効になる。
 	blocked.Control.Moderation = serviceaccess.ReasonState{}
 	blocked.Control.Generation++
 	blocked.Revision = blocked.Revision.Add(time.Second)

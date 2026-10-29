@@ -35,9 +35,9 @@ type HistoryPage struct {
 	NextCursor       *string        `json:"nextCursor"`
 }
 
-// TierFor is an injected authoritative server entitlement reader. The default
-// is Standard, including existing YouTube members; client plan/claims are not
-// accepted as a Premium grant. Revision must change when entitlement changes.
+// TierForは、信頼するサーバー側利用権限の読み取り処理を外から受け取る。
+// 既存YouTubeメンバーを含め既定はStandardとし、クライアントのプランやclaimをPremium付与に使わない。
+// 利用権限が変わった場合はRevisionを変更する必要がある。
 type HistoryTier struct {
 	Premium  bool
 	Revision string
@@ -187,9 +187,8 @@ func (s *HistoryService) Page(ctx context.Context, uid string, account WebAccoun
 	if tier.Premium {
 		limit = p.PremiumDailyUnits
 	}
-	// A fixed conservative reservation bounds document/index work and quota
-	// management itself. Failure/cancellation is not a free retry. Overview,
-	// logout and Privacy never consume these units.
+	// 余裕を持たせた固定の予約量で、文書・インデックス処理と利用枠管理自体を制限する。
+	// 失敗やキャンセルの再試行も無料にはしない。概要・ログアウト・Privacyはこの単位を消費しない。
 	units := int64(q.PageSize+1) + (p.MaxIndexEntries+999)/1000 + 32
 	fingerprint := digest(fmt.Sprintf("%s\x00%s\x00%d\x00%s\x00%s", q.From.Format("2006-01-02"), q.To.Format("2006-01-02"), q.PageSize, q.Cursor, authorization))
 	claim, err := s.reserve(ctx, uid, account.AccessCheckpoint, key, fingerprint, p, limit, units)

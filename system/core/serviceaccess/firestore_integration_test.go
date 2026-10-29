@@ -80,8 +80,8 @@ func TestFirestoreClientRulesDenyControlReadAndWrite(t *testing.T) {
 	_, err := store.Change(ctx, id, sampleChange(serviceaccess.Moderation), time.Now().UTC())
 	require.NoError(t, err)
 	endpoint := "http://" + os.Getenv("FIRESTORE_EMULATOR_HOST") + "/v1/projects/demo-youtube-study-space-ci/databases/(default)/documents/" + serviceaccess.Collection + "/" + id
-	// Firestore Emulator accepts unsigned Firebase identity tokens; these have
-	// no real credentials and exercise rules independently of the Admin SDK.
+	// Firestore Emulatorは未署名Firebase本人トークンを受け入れる。
+	// 実認証情報は含まず、Admin SDKとは独立してルールを検証する。
 	encode := base64.RawURLEncoding.EncodeToString
 	token := encode([]byte(`{"alg":"none","typ":"JWT"}`)) + "." + encode([]byte(`{"iss":"https://securetoken.google.com/demo-youtube-study-space-ci","aud":"demo-youtube-study-space-ci","sub":"synthetic-rules-user","user_id":"synthetic-rules-user","iat":1780000000,"exp":2090000000,"firebase":{"sign_in_provider":"custom"}}`)) + "."
 	client := &http.Client{Timeout: time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}

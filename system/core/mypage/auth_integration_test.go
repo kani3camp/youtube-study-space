@@ -197,8 +197,8 @@ func TestAuthSessionCompletionPreservesFirstLogin(t *testing.T) {
 		t.Fatal(err)
 	}
 	uid := "UCsynthetic0000000000001"
-	// Independent tests may share this synthetic uid; clear only the first-login
-	// field to assert a deterministic first completion in this test.
+	// 独立テストでこの合成uidを共有する場合がある。
+	// このテストの初回完了を確定的に検証するため、初回ログインのフィールドだけを消去する。
 	if _, err := store.Client.Collection("web-accounts").Doc(uid).Update(context.Background(), []firestore.Update{{Path: "firstWebLoginAt", Value: firestore.Delete}}); err != nil {
 		t.Fatal(err)
 	}

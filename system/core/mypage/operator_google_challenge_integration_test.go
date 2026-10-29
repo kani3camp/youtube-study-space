@@ -93,8 +93,8 @@ func TestGoogleOperatorFirestoreChallengeRestartAndParallelTakeNeverResurrect(t 
 	close(start)
 	wg.Wait()
 	require.Equal(t, int32(1), winners.Load())
-	// Model an ACK lost after the successful atomic take: another process must
-	// neither replay the take nor recreate the same nonce with a delayed Put.
+	// アトミックな取得成功後のACK消失を再現する。別プロセスから取得を再実行したり、
+	// 遅れたPutで同じnonceを再作成したりできないことを確認する。
 	_, err := restarted.Consume(ctx, record.NonceHash, record.Binding, func() time.Time { return record.IssuedAt.Add(time.Minute) })
 	require.ErrorIs(t, err, ErrOperatorDenied)
 	require.ErrorIs(t, restarted.FirestoreGoogleOperatorChallenges.Put(ctx, record), ErrOperatorDenied)
@@ -194,7 +194,7 @@ func TestGoogleOperatorFirestoreChallengeSignedAuthorityRemainsBoundAndPrivate(t
 	for _, field := range []string{"token", "nonce", "state", "sub", "email", "proofRef", "requestRef", "body"} {
 		require.NotContains(t, doc.Data(), field)
 	}
-	// A separately constructed client represents the next process invocation.
+	// 別途構築したクライアントで、次のプロセス実行を再現する。
 	f.authority.Challenges = googleChallengeEmulator(t)
 	identity, err := f.authority.Authorize(context.Background(), f.intent)
 	require.NoError(t, err)

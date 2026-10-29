@@ -224,8 +224,8 @@ func TestCleanupTimeBudgetAndInvalidConfigurationNeverRecordSuccess(t *testing.T
 	require.Zero(t, scans)
 }
 
-// This nonblocking in-memory sink is only a test fixture. Production sinks
-// must actually honor SetWriteDeadline while Write is in progress.
+// 待機しないこのメモリ出力先はテスト専用である。
+// 本番の出力先は、Write中もSetWriteDeadlineを実際に適用する必要がある。
 type cleanupBufferWriter struct{ bytes.Buffer }
 
 func (*cleanupBufferWriter) SetWriteDeadline(time.Time) error { return nil }
@@ -256,7 +256,7 @@ func TestCleanupRecorderDeadlineAndCancellationInterruptBlockedPipe(t *testing.T
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, reader.Close()); require.NoError(t, writer.Close()) })
 			require.NoError(t, writer.SetWriteDeadline(time.Now().Add(20*time.Millisecond)))
-			// Fill the pipe without a reader until the kernel write blocks.
+			// 読み取り元なしでパイプを満たし、カーネルの書き込みが待機するまで続ける。
 			_, err = writer.Write(make([]byte, 1<<20))
 			require.ErrorIs(t, err, os.ErrDeadlineExceeded)
 			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)

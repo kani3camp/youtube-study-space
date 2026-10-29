@@ -27,9 +27,9 @@ var (
 	pkceS256Challenge      = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
 )
 
-// GoogleOperatorJWKS and GoogleOperatorIDTokenSource have no live implementation.
-// A future operator-only desktop code+PKCE client and bounded Google key fetch
-// require separate review. Neither interface grants Firestore permission.
+// GoogleOperatorJWKSとGoogleOperatorIDTokenSourceには実環境用の実装がない。
+// 将来の運用担当者専用デスクトップコード・PKCEクライアントと、上限付きGoogle鍵取得は別途レビューする。
+// どちらのインターフェースもFirestore権限を付与しない。
 type GoogleOperatorJWKS interface {
 	Keys(context.Context) (jose.JSONWebKeySet, error)
 }
@@ -38,14 +38,12 @@ type GoogleOperatorIDTokenSource interface {
 	IDToken(context.Context) (string, error)
 }
 
-// GoogleOperatorChallengeStore must atomically compare the complete keyed
-// operation binding, check the current trusted time inside that atomic step,
-// and consume one live matching nonce. A mismatch must leave the nonce
-// available; an expired record and a replay must fail. Consume returns the
-// exact stored record so the verifier independently checks its time and binding
-// again after any store delay. The clock callback must be called during consume,
-// not before a potentially blocking store operation.
-// A process-local fake is sufficient only for pure tests, never for live use.
+// GoogleOperatorChallengeStoreは、鍵付き操作対応情報全体の比較、
+// 同じアトミック処理内での信頼済み時刻の確認、有効かつ一致するnonceの一度限りの消費を行う必要がある。
+// 不一致ならnonceを利用可能なまま残し、期限切れや再利用は拒否する。
+// Consumeは保存した正確なレコードを返し、ストアの遅延後も検証器が時刻と対応情報を独立して再確認する。
+// 時計コールバックは、待機し得るストア操作の前ではなく、消費処理の中で呼ぶ。
+// プロセス内の偽物は純粋なテストだけに使い、実環境では使わない。
 type GoogleOperatorChallengeStore interface {
 	Put(context.Context, GoogleOperatorChallengeRecord) error
 	Consume(context.Context, string, string, func() time.Time) (GoogleOperatorChallengeRecord, error)
@@ -65,9 +63,9 @@ type GoogleOperatorChallenge struct {
 	seal      string
 }
 
-// GoogleHumanOperatorAuthority proves one allowlisted human Google subject for
-// one operation. It is deliberately not wired into an operator command or
-// Firestore writer. Completion evidence remains independently unavailable.
+// GoogleHumanOperatorAuthorityは、許可済みの人間のGoogle subjectを1つの操作に対して証明する。
+// 運用コマンドやFirestore書き込み処理には意図的に接続しない。
+// 完了証跡は引き続き独立して取得不能とする。
 type GoogleHumanOperatorAuthority struct {
 	ClientID       string
 	AllowedSubject string
@@ -111,8 +109,8 @@ func (a *GoogleHumanOperatorAuthority) binding(intent OperatorIntent) string {
 		intent.ReplyDigest, intent.OperationDigest)
 }
 
-// Begin stores only hashes and returns fresh opaque state/nonce. It does not
-// receive a receipt body/channel, create an OAuth client or contact Google.
+// Beginはハッシュだけを保存し、新しい推測不能なstate/nonceを返す。
+// 受付本文やチャンネルを受け取らず、OAuthクライアントの作成やGoogleへの接続も行わない。
 func (a *GoogleHumanOperatorAuthority) Begin(ctx context.Context, intent OperatorIntent) (GoogleOperatorChallenge, error) {
 	if ctx.Err() != nil || !a.validIntent(intent) {
 		return GoogleOperatorChallenge{}, ErrOperatorDenied
@@ -138,9 +136,9 @@ func (a *GoogleHumanOperatorAuthority) Begin(ctx context.Context, intent Operato
 	return challenge, nil
 }
 
-// AuthorizationURL contains only the OAuth client, loopback callback, PKCE,
-// state and nonce. No receipt, proof, channel, body or operator email enters it.
-// State and code exchange verification are intentionally not implemented here.
+// AuthorizationURLにはOAuthクライアント・ループバックコールバック・PKCE・state・nonceだけを含める。
+// 受付・証拠・チャンネル・本文・運用担当者メールは含めない。
+// stateとコード交換の検証は、ここでは意図的に実装しない。
 func (a *GoogleHumanOperatorAuthority) AuthorizationURL(challenge GoogleOperatorChallenge, codeChallenge string) (string, error) {
 	if !a.ready() || !pkceS256Challenge.MatchString(codeChallenge) || len(challenge.State) != 43 || len(challenge.Nonce) != 43 ||
 		!a.Clock().Before(challenge.ExpiresAt) || challenge.ExpiresAt.After(a.Clock().Add(googleOperatorChallengeLifetime)) || a.RedirectURI == "" {
@@ -225,7 +223,7 @@ func (a *GoogleHumanOperatorAuthority) verifiedClaims(ctx context.Context, raw s
 func googleOperatorClaimsLive(claims googleOperatorClaims, now time.Time) bool {
 	return !now.IsZero() && claims.Expiry != nil && claims.IssuedAt != nil &&
 		now.Before(claims.Expiry.Time()) && !now.Before(claims.IssuedAt.Time()) &&
-		// JWT NumericDate has second precision; Begin may have subsecond precision.
+		// JWT NumericDateは秒精度だが、Beginは秒未満の精度を持つ場合がある。
 		now.Sub(claims.IssuedAt.Time()) < googleOperatorChallengeLifetime+time.Second
 }
 
@@ -248,8 +246,8 @@ func (a *GoogleHumanOperatorAuthority) Authorize(ctx context.Context, intent Ope
 		return OperatorIdentity{}, ErrOperatorDenied
 	}
 	nonceHash, binding := digest(claims.Nonce), a.binding(intent)
-	// The first snapshot follows the possibly slow JWKS fetch and signature
-	// verification. Consume reads the clock again inside its atomic check.
+	// 最初の時刻取得は、遅延し得るJWKS取得と署名検証の後に行う。
+	// Consumeはアトミックな検査内で時刻を読み直す。
 	if !googleOperatorClaimsLive(claims, a.Clock().UTC()) || ctx.Err() != nil {
 		return OperatorIdentity{}, ErrOperatorDenied
 	}
@@ -257,8 +255,8 @@ func (a *GoogleHumanOperatorAuthority) Authorize(ctx context.Context, intent Ope
 	if err != nil {
 		return OperatorIdentity{}, ErrOperatorDenied
 	}
-	// A store may block after its atomic take. Never authorize from either
-	// earlier snapshot when the token or challenge has since expired.
+	// ストアはアトミックな取得の後も待機する場合がある。
+	// その間にトークンやチャレンジが期限切れになったら、以前の時刻で許可しない。
 	now := a.Clock().UTC()
 	if record.NonceHash != nonceHash || record.Binding != binding || !googleOperatorClaimsLive(claims, now) ||
 		!googleOperatorChallengeLive(record, now) || claims.IssuedAt.Time().Before(record.IssuedAt.Truncate(time.Second)) || ctx.Err() != nil {

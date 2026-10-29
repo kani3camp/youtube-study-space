@@ -14,7 +14,7 @@ for environment in dev prod; do
   export TF_DATA_DIR="$check_tmp/$environment-data"
   terraform -chdir="$root_dir" init -backend=false -input=false -lockfile=readonly -no-color
   terraform -chdir="$root_dir" validate -no-color
-  # Mocks need provider schema but no credentials/API. Block accidental HTTP calls.
+  # モックはプロバイダーのスキーマだけを必要とし、認証情報やAPIを使わない。意図しないHTTP通信を遮断する。
   HTTP_PROXY=http://127.0.0.1:9 HTTPS_PROXY=http://127.0.0.1:9 \
     ALL_PROXY=http://127.0.0.1:9 NO_PROXY= GCE_METADATA_HOST=127.0.0.1:9 \
     GOOGLE_APPLICATION_CREDENTIALS=/nonexistent-mypage-mock-credentials \

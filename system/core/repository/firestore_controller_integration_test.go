@@ -432,7 +432,7 @@ func TestFirestoreRepository_WorkSegmentQuery(t *testing.T) {
 		},
 	}
 	for _, segment := range segments {
-		// Historical query fixtures intentionally bypass the live close writer.
+		// 過去のクエリ用テストデータは、実際の区間終了書き込みを意図的に迂回する。
 		_, err := controller.FirestoreClient().Collection(repository.WorkSegments).NewDoc().Create(context.Background(), segment)
 		require.NoError(t, err)
 	}

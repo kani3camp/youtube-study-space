@@ -81,7 +81,7 @@ it('refuses an empty build and prepares exact public assets only after an index 
 		expect(
 			JSON.parse(readFileSync(output, 'utf8')).hosting.headers[0].headers,
 		).toContainEqual({ key: 'Cache-Control', value: 'no-store' })
-		// A repeated preparation cannot silently overwrite a reviewed release.
+		// 準備処理の再実行で、レビュー済みリリースを暗黙に上書きしない。
 		expect(run().status).toBe(1)
 	} finally {
 		rmSync(temp, { recursive: true, force: true })

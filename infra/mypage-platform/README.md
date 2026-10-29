@@ -1,8 +1,8 @@
 # MyPage Platform Terraform
 
-DEV配備・適用・試験の最新状態は[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)を参照する。以下の構築記録は各段階の観測であり、過去の失敗・未配備の記述で現在状態を判断しない。公開前の未検証項目は[release Gate](../../docs/mypage/release/README.md)で個別に確認する。
+DEVへの配備・適用・試験の最新状態は[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)を参照する。以下の構築記録は各段階の観測であり、過去の失敗・未配備の記述から現在状態を判断しない。公開前の未検証項目は[公開条件](../../docs/mypage/release/README.md)で個別に確認する。
 
-マイページの新規Cloud Run API基盤と実行権限を、既存GCP Terraformの**既存資源import-only運用とは別State**で管理する。2026-10-21 JSTにDevelopmentの専用SAと3 Secret metadataを実作成し、専用Stateへ保存した。段階別の適用結果は[実構築記録](docs/development-foundation.md)と[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)の現行記録を参照する。**Cloud Run/Hosting・Secret値・Production・公開Readyの完了を意味しない**。
+マイページの新しいCloud Run API基盤と実行権限を、既存GCP Terraformの既存資源取り込み専用運用とは別のStateで管理する。2026-10-21 JSTにDevelopmentの専用SAと3個のSecretメタデータを実作成し、専用Stateに保存した。段階別の適用結果は[実構築記録](docs/development-foundation.md)と[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)の現在の記録を参照する。Cloud Run・Hosting・Secret値・本番・公開準備の完了を意味しない。
 
 - プロダクト / 環境配置: [Notion 07｜技術アーキテクチャ](https://app.notion.com/p/3ef357a8d0ce81b5892ac1dc2c99e587)
 - API・OAuth cookie・release設計: [Notion 08｜API・デプロイ設計](https://app.notion.com/p/3ef357a8d0ce81cbbce9c2ae948ebfb3)
@@ -13,7 +13,7 @@ DEV配備・適用・試験の最新状態は[統合PR #1236](https://github.com
 
 ## なぜ分離するか
 
-既存 `infra/gcp/environments/{dev,prod}` はDev31/Prod30件を管理する固定baselineで、認証workflowは **import-only/no-op**。そこで新規リソースを作れるようにIAMやapply guardを緩めない。MyPage新規作成は別の**normal-change運用契約**を要求するため、このrootはState keyも実行identityも分離する。OAuth TTLの小さな専用Stateは既存のplan contractを維持し、ここへ統合・移管しない。既存GCP所有資源・Cloud Run/Firebase管理対象との二重ownershipを発見したら停止する。
+既存の`infra/gcp/environments/{dev,prod}`はDev31件・Prod30件を管理する固定の基準構成であり、認証ワークフローはimport-only/no-opで動く。新規リソースを作るために、既存のIAMやapply保護を緩めない。MyPageの新規作成には通常変更用の別の運用仕様が必要なため、このルートはStateキーと実行用本人情報を分ける。OAuth TTLの小さな専用Stateは既存のplan仕様を維持し、ここには統合・移管しない。既存GCP資源やCloud Run/Firebase管理対象の二重管理を発見したら停止する。
 
 | Root | Cloud target | 独立State key（Productionは未構築） |
 | --- | --- | --- |
@@ -24,11 +24,11 @@ Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-
 
 ## 通常desired stateとbootstrap内部stage
 
-通常運用では `ci.yml` の `operation=gcp-plan` / `gcp-apply` と `environment=development|production` だけを利用する。MyPage側は `mypage-infrastructure-authenticated.yml` が最終desired state（現在は `runtime_public` 相当）へ固定してPlan/Applyし、利用者はstageを選ばない。Core GCPとはStateを分離したまま、同じGCP Infrastructure runで両方を扱う。
+通常運用では`ci.yml`の`operation=gcp-plan` / `gcp-apply`と`environment=development|production`だけを使う。MyPageは`mypage-infrastructure-authenticated.yml`で最終desired state（現在は`runtime_public`相当）に固定してPlan/Applyする。利用者はstageを選ばない。Core GCPとはStateを分けたまま、同じGCP Infrastructure実行内で両方を扱う。
 
-以下のstageは**初回bootstrapと既存のfail-closed契約を維持する内部実装**である。通常の手動UIには露出させない。ソースの `stage = "disabled"` は未構築rootの既定で、**Module count=0／新GCP resource=0**。bootstrap時だけ段階を明示し、既定値を実Stateの状態と混同しない。
+以下のstageは初回構築と既存の拒否条件を維持するための内部実装であり、通常の手動UIには出さない。ソースの`stage = "disabled"`は未構築ルートの既定値で、Module count=0・新GCP資源=0を意味する。初回構築時だけ段階を明示し、既定値を実Stateの状態と混同しない。
 
-通常経路が採用するstageは `environments/{dev,prod}/desired-stage.txt` をレビューして決める。現在はDEV=`runtime_public`、Production=`disabled`。Productionが`disabled`の間はMyPage用のCloud credentialを要求せず、Core GCPだけを通常運用できる。ProductionのMyPage公開準備を進める場合は、このdesired stage変更自体をPRレビューし、必要なEnvironment/IAM/State準備と同じ変更単位で扱う。
+通常経路が使うstageは、`environments/{dev,prod}/desired-stage.txt`をレビューして決める。現在はDEV=`runtime_public`、本番=`disabled`である。本番が`disabled`の間はMyPageのクラウド認証情報を求めず、Core GCPだけを通常運用できる。本番のMyPage公開準備を進める場合は、この変更自体をPRでレビューし、必要なEnvironment・IAM・Stateの準備と同じ変更単位で扱う。
 
 | Stage | Terraformが管理するもの | 意図的に含めないもの |
 | --- | --- | --- |
@@ -43,7 +43,7 @@ Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-
 
 Cloud Runは `mypage-api`、専用SA/ADC、`min_instance_count=0`、`max_instance_count=1`（Dev）/ `3`（Production）、CPU 1 / RAM 512Mi、port 8080、30秒timeout。
 
-Revision imageは**Artifact Registry digest固定**（`@sha256:...`）、tagやlatestで不用意に差し替えない。実費は起動回数、Secret Manager、ログ量、API呼出等で変わるため、**未計測で月額1ドル未満と断定しない**。<https://cloud.google.com/run/pricing> と <https://cloud.google.com/secret-manager/pricing> を参考に実target/estimateを別途レビューする。
+リビジョンのイメージはArtifact Registryのダイジェスト（`@sha256:...`）で固定し、タグやlatestで不用意に差し替えない。実費は起動回数・Secret Manager・ログ量・API呼び出しなどで変わるため、未計測で月額1ドル未満と断定しない。<https://cloud.google.com/run/pricing>と<https://cloud.google.com/secret-manager/pricing>を参考に、実対象と試算を別途レビューする。
 
 作業履歴の完全性は実データの確認済み区間だけで宣言する。`runtime_settings.history_coverage_json` は**既定が空文字の任意設定**で、空文字ならCloud Runに`MYPAGE_HISTORY_COVERAGE`は存在しない。指定する場合は最大16KiBのJSON配列を渡し、Goの[厳格parser](../../system/cmd/mypage-server/coverage.go)がUTC時刻・順序・重複・上限を起動前に検証する。`[]`や未指定は完全な履歴を表さない。実際のwriterと履歴のRead-only inventoryに基づく区間以外は指定せず、実Deploy/rollbackの設定値と欠損の扱いを照合する。
 
@@ -57,15 +57,15 @@ Revision imageは**Artifact Registry digest固定**（`@sha256:...`）、tagやl
 
 本sourceはGoogle APIsの所有権やFirebase Auth / App Check / Hosting site、IAM deployer、OAuth console client、Artifact Registry repository、Firestore database/index、Cloud Scheduler/metadata cleanup runner、Monitoring receiver、Privacy実削除を作らない。既存repoに宣言済みのAPI `google_project_service` を**二重に管理しない**。それらは最新inventoryを取得し、必要な最小差分を別PRで設計する。
 
-## Credentiallessチェック
+## 認証情報を使わない検査
 
-GitHub PRではRequired `CI Gate` 配下の `CI GCP Terraform` がMyPage platformのcredentialless検証も実行する。S3/GCPへのOIDC、secret、実State、plan/apply、deployは一切使わない。独立した `mypage-platform.yml` workflowは廃止し、GCP IaC検証を一つの必須経路へ集約する。
+GitHub PRでは必須の`CI Gate`配下の`CI GCP Terraform`が、MyPage基盤の認証情報不要の検証も実行する。S3/GCPへのOIDC・シークレット・実State・plan/apply・配備は使わない。独立した`mypage-platform.yml`ワークフローは廃止し、GCP IaC検証を1つの必須経路に集約する。
 
 ```bash
 bash infra/mypage-platform/scripts/check-local.sh
 ```
 
-このスクリプトは `terraform fmt -check`、両rootの `init -backend=false -lockfile=readonly`、`validate`、`mock_provider` を使った `terraform test` を行う。安全な合成project番号・appID・digestはtests内だけ。mock planの成功は実GCP planやbudget / E2Eの承認ではない。
+このスクリプトは`terraform fmt -check`、両ルートの`init -backend=false -lockfile=readonly`、`validate`、`mock_provider`による`terraform test`を実行する。安全な合成プロジェクト番号・appID・ダイジェストはテスト内だけで使う。モックPlanの成功は、実GCP Plan・予算・E2Eの承認ではない。
 
 ## 初回bootstrap・公開準備の作業と停止条件
 

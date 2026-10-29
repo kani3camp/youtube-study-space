@@ -1,5 +1,5 @@
-// mypage-support-operator validates private proposals offline; --mock checks a
-// fixed human-desk receipt. No live identity or credentials: execute is denied.
+// mypage-support-operatorは非公開の操作案をオフラインで検証する。
+// --mockは固定の有人受付を検査する。実本人情報や認証情報は持たず、executeは拒否する。
 package main
 
 import (
@@ -167,7 +167,7 @@ func privateReply(path string) error {
 	if err != nil {
 		return err
 	}
-	// Validation stays local; neither the body nor raw errors reach output.
+	// 検証はローカルで行い、本文や元のエラーを出力しない。
 	body := string(data)
 	if body != strings.TrimSpace(body) || !utf8.Valid(data) {
 		return fmt.Errorf("reply content")

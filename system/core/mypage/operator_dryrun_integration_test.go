@@ -75,7 +75,7 @@ func TestOperatorDryRunUsesCurrentProofSchemaWithoutMutations(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, before[r.Path].Equal(doc.UpdateTime), "read-only report changed a synthetic document")
 	}
-	// The limit is a lower bound, never an exact count after truncation.
+	// 打ち切り後の件数は下限値であり、正確な件数ではない。
 	workRefs := make([]*firestore.DocumentRef, 0, 1002)
 	for i := 0; i < 1002; i++ {
 		workRefs = append(workRefs, client.Collection("work-segments").Doc(fmt.Sprintf("synthetic-dryrun-work-%04d", i)))
@@ -125,7 +125,7 @@ func TestOperatorDryRunUsesCurrentProofSchemaWithoutMutations(t *testing.T) {
 	wrong.Purpose = SupportRevoke
 	_, err = BuildDryRun(ctx, wrong, &FirestoreDryRunReader{Client: client})
 	require.ErrorIs(t, err, ErrDryRunUnavailable)
-	// OAuth TTL removal cannot turn the diagnostic into execution approval.
+	// OAuthのTTL削除で、診断を実行承認へ変えない。
 	_, err = client.Collection("oauth-transactions").Doc(txid).Delete(ctx)
 	require.NoError(t, err)
 	selector.Now = time.Now().UTC()

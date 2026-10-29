@@ -3,9 +3,9 @@ export const maintenanceAnnouncementURLs = {
 	production: 'https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/posts',
 } as const
 
-// These are reviewed public destinations, not runtime state or secrets. The
-// existing public Firebase project ID selects the environment; an unknown
-// project must not silently send users to either channel.
+// レビュー済みの公開リンク先であり、実行時状態やシークレットは含まない。
+// 既存の公開FirebaseプロジェクトIDで環境を選ぶ。
+// 未知のプロジェクトから、どちらかのチャンネルへ暗黙に送らない。
 export function maintenanceAnnouncementURLForProject(
 	projectID: unknown,
 ): string | null {

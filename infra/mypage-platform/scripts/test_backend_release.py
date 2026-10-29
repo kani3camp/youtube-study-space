@@ -1,4 +1,4 @@
-"""Observable DEV release/competition/failure boundaries; no cloud credentials."""
+"""DEV配備・競合・失敗の観測可能な制御を検証する。クラウド認証情報は使わない。"""
 from copy import deepcopy
 import json
 from pathlib import Path

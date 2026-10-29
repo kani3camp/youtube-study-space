@@ -14,8 +14,8 @@ const HistoryReadLimit = 1001
 
 type Interval struct{ Start, End time.Time }
 
-// WorkSnapshot is populated only from one consistent Firestore snapshot. An
-// empty Coverage deliberately means unknown coverage, never seven fake zeros.
+// WorkSnapshotは、整合した1つのFirestoreスナップショットだけから作る。
+// 空のCoverageは完全性が不明なことを表し、7日分の偽の0にはしない。
 type WorkSnapshot struct {
 	AsOf                  time.Time
 	UID                   string
@@ -138,8 +138,8 @@ func lifetimeMetric(s WorkSnapshot) Metric {
 	}
 	total := int64(s.User.TotalStudySec)
 	if s.Seat != nil {
-		// Existing writer transfers the whole seat session to users at exit only.
-		// Work-name edits reset CurrentSegmentStartedAt, not this lifetime clock.
+		// 既存の書き込み処理は、退室時だけ座席セッション全体をusersへ転記する。
+		// 作業名変更でリセットするのはCurrentSegmentStartedAtであり、この累計用の時計ではない。
 		delta := int64(s.Seat.CumulativeWorkSec)
 		if s.Seat.State == repository.WorkState {
 			ongoing := secondsWithin(Interval{s.Seat.CurrentStateStartedAt, s.AsOf}, s.Seat.CurrentStateStartedAt, s.AsOf)
@@ -242,7 +242,7 @@ func (m historyModel) metric(s WorkSnapshot, start, end time.Time) Metric {
 	if m.allBad {
 		return missingMetric(DataInconsistent)
 	}
-	// Faults later in today's calendar day are not silently treated as zero.
+	// 当日の後の時刻にある不正な記録も、暗黙に0として扱わない。
 	faultEnd := end
 	if end.Equal(s.AsOf) {
 		faultEnd = StatisticsWindows(s.AsOf).Today.AddDate(0, 0, 1)

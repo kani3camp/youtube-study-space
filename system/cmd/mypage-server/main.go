@@ -1,5 +1,5 @@
-// MyPage's Cloud Run entrypoint. --check-config validates offline; lifecycle
-// tests inject synthetic bootstrap dependencies and never discover real ADC.
+// MyPageのCloud Run起動処理。--check-configはオフラインで検証する。
+// ライフサイクルテストには合成の初期化依存を渡し、実ADCは探索しない。
 package main
 
 import (
@@ -33,9 +33,8 @@ func configurationFrom(get func(string) string) (configuration, error) {
 	return configurationValuesFrom(get)
 }
 
-// configurationValuesFrom is shared by startup and offline preparation. The
-// infrastructure declaration gates startup separately; it is never verified by
-// this pure validation or promoted into evidence of readiness.
+// configurationValuesFromは、起動とオフライン準備で共有する。
+// 基盤準備の宣言は別途起動を制限する。この純粋な検証では確認せず、準備完了の証拠にも使わない。
 func configurationValuesFrom(get func(string) string) (configuration, error) {
 	fail := func() (configuration, error) { return configuration{}, errors.New("MyPage configuration unavailable") }
 	if get("FIRESTORE_EMULATOR_HOST") != "" || get("FIREBASE_AUTH_EMULATOR_HOST") != "" || get("GOOGLE_APPLICATION_CREDENTIALS") != "" {
@@ -74,9 +73,8 @@ func configurationValuesFrom(get func(string) string) (configuration, error) {
 	return config, nil
 }
 
-// Only the three external bootstrap operations are replaceable in tests. The
-// configuration gate, lazy provider/handler assembly and cleanup remain shared
-// with production startup.
+// テストで置き換えられるのは、3つの外部初期化操作だけとする。
+// 設定検査、プロバイダー・ハンドラーの遅延組み立て、終了処理は本番起動と共有する。
 type bootstrapDependencies struct {
 	credentials func(context.Context) (*google.Credentials, error)
 	firebase    func(context.Context, configuration, *google.Credentials) (mypage.FirebaseAuthClient, error)
@@ -143,8 +141,8 @@ func runWith(ctx context.Context, get func(string) string, deps bootstrapDepende
 			return errors.New("MyPage metadata provider unavailable")
 		}
 	}
-	// Opt-in only on DEV; never log channel identifiers, document contents or
-	// credentials. These are returned-document counters, not billed reads.
+	// DEVで明示的に有効化した場合だけ使い、チャンネル識別子・文書内容・認証情報はログに出さない。
+	// 返却文書の件数であり、課金読み取り数ではない。
 	var readObserver func(mypage.SnapshotReadObservation)
 	if config.server.Environment == "development" && get("MYPAGE_READ_METRICS") == "true" {
 		readObserver = func(stats mypage.SnapshotReadObservation) {
@@ -171,7 +169,7 @@ func serveHTTP(ctx context.Context, server *http.Server, serve func() error, shu
 			defer stop()
 			err := server.Shutdown(shutdownCtx)
 			if err != nil {
-				// Terminate remaining connections before releasing the database.
+				// データベースを解放する前に、残る接続を終了する。
 				server.Close() //nolint:errcheck // Report only the fixed HTTP failure; never expose connection/dependency details.
 			}
 			shutdownDone <- err
@@ -183,7 +181,7 @@ func serveHTTP(ctx context.Context, server *http.Server, serve func() error, shu
 	close(done)
 	shutdownErr := <-shutdownDone
 	if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-		// An accept failure can leave previously accepted connections running.
+		// acceptに失敗しても、受入済みの接続が動き続ける場合がある。
 		server.Close() //nolint:errcheck // Return the fixed HTTP diagnostic without dependency details.
 		return errors.New("MyPage HTTP server unavailable")
 	}

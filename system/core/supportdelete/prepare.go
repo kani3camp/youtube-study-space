@@ -7,21 +7,21 @@ import (
 	"time"
 )
 
-// SyntheticCatalog comes from independently seeded fixtures, never operator
-// input. The existing static source inventory is not a live execution catalog.
-// Preparation checks wiring and binding, not proof provenance or postconditions.
+// SyntheticCatalogは独立して用意したテストデータから取り、運用入力は使わない。
+// 既存の静的なソース一覧は実行時の実環境一覧ではない。
+// 準備では接続と対応を検査し、証拠の由来や事後条件は検査しない。
 type SyntheticCatalog struct {
 	Selector      Selector
 	Manifest      Manifest
 	Registrations []AdapterRegistration
 }
 
-// StoreFactory is invoked only after complete synthetic wiring validation.
-// The injected caller owns any client lifecycle; this package creates none.
+// StoreFactoryは合成接続の完全な検証後だけ呼び出す。
+// クライアントのライフサイクルは注入元が管理し、このパッケージでは作らない。
 type StoreFactory func(context.Context, Target) (Store, error)
 
-// PreparedDeletion does not expose mutable engine/adapter configuration. It
-// binds one selector/manifest and transfers owner only through explicit recovery.
+// PreparedDeletionは、エンジン・アダプター設定を変更可能な形で公開しない。
+// 1つの対象指定・マニフェストに固定し、明示的な復旧時だけ所有者を移す。
 type PreparedDeletion struct {
 	mu       sync.Mutex
 	engine   Engine
@@ -84,9 +84,9 @@ func (p *PreparedDeletion) Run(ctx context.Context) (Outcome, error) {
 	return p.engine.Run(ctx, p.selector, p.owner)
 }
 
-// A caller's recovery proposal is not stopped-worker evidence. The Store must
-// independently validate its trace, durable revision/generation and timestamp.
-// This local lock is never evidence that another process/fleet has drained.
+// 呼び出し元の復旧案は、旧worker停止の証拠にはならない。
+// Storeはその追跡情報・永続リビジョンと世代・時刻を独立して検証する必要がある。
+// ローカルロックは、他のプロセスや全実行系の処理完了の証拠にはしない。
 func (p *PreparedDeletion) Recover(ctx context.Context, recovery Recovery) error {
 	if p == nil || ctx == nil || nilDependency(p.engine.Store) || p.engine.Clock == nil {
 		return ErrUnavailable

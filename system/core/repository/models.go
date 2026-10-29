@@ -128,7 +128,7 @@ type SeatLimitDoc struct { // used for both collections seat-limits-black-list a
 }
 
 type UserDoc struct {
-	// Server-owned rollout marker, set only after bounded month migration.
+	// サーバー管理の導入マーカー。上限付き月次移行の後だけ設定する。
 	WorkHistoryEpoch         string    `firestore:"work-history-epoch,omitempty" json:"-"`
 	WorkHistoryActivatedAt   time.Time `firestore:"work-history-activated-at,omitempty" json:"-"`
 	WorkHistoryClosedThrough time.Time `firestore:"work-history-closed-through,omitempty" json:"-"`

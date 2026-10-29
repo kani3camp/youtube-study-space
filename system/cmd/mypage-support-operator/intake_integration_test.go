@@ -65,7 +65,7 @@ func TestHumanDeskCLIEmulatorCreatesReceiptThenRequiresExistingFreshOAuth(t *tes
 				}, time.Now)
 			}
 			t.Cleanup(func() {
-				// Delete only this fixture's receipt, indexes and OAuth transactions.
+				// このテストデータの受付・インデックス・OAuthトランザクションだけを削除する。
 				if receipt.RequestRef == "" {
 					return
 				}
@@ -108,7 +108,7 @@ func TestHumanDeskCLIEmulatorCreatesReceiptThenRequiresExistingFreshOAuth(t *tes
 			} else {
 				require.Nil(t, record.DeleteBy)
 			}
-			// Duplicate/retry never creates another receipt or resets acceptance/SLA.
+			// 重複・再試行で別の受付を作らず、受付時刻やSLAをリセットしない。
 			out.Reset()
 			require.Equal(t, 1, commandWithIntake(ctx, args, testGet, &out, factory))
 			require.Equal(t, "INTAKE_RESULT_UNCERTAIN", privateReport(t, out.String()).Code)
@@ -185,7 +185,7 @@ func TestHumanDeskCLIEmulatorCreatesReceiptThenRequiresExistingFreshOAuth(t *tes
 				return intakeGrant{}, nil
 			}, func(context.Context, intakeIntent, intakeReceipt) error { return nil }, time.Now)
 			require.Error(t, err)
-			// No deletion/mark-complete/effect adapter is available from the intake port.
+			// 受付インターフェースからは、削除・完了状態変更・副作用アダプターを利用できない。
 			require.False(t, strings.Contains(out.String(), receipt.Challenge))
 		})
 	}

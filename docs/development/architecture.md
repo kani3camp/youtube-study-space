@@ -64,11 +64,11 @@ See [`../../youtube-monitor/README.md`](../../youtube-monitor/README.md) for bui
 
 ## Firestore access boundaries
 
-### Monitor authentication
+### モニター認証
 
-The OBS `youtube-monitor` is a Firebase browser Client SDK caller. Repository source now requires a dedicated Firebase Auth principal plus the monitor claim/allowlist for reads of `seats`, `member-seats`, `menu`, `work-name-trend`, and `config/constants`; anonymous and normal MyPage users are rejected. This source state does **not** prove that DEV or PROD Rules and monitor assets have been deployed together. **Server Go/Admin SDK accesses use IAM and application authorization, not these Rules.** Security Rules do not serve as a WAF or a spending cap.
+OBSの`youtube-monitor`はFirebaseのブラウザClient SDKを使う。現在のソースでは`seats`・`member-seats`・`menu`・`work-name-trend`・`config/constants`の読み取りに、専用のFirebase Auth本人情報とmonitorのclaim・許可リストを必要とする。匿名と通常のMyPageユーザーは拒否する。このソースだけでは、DEVやPRODのRulesとモニター資産が一緒に配備済みとは証明できない。サーバー側のGo/Admin SDKは、これらのRulesではなくIAMとアプリケーション認可を使う。Security RulesはWAFや費用上限の代替にはならない。
 
-The implemented operator flow uses a single interactive OBS browser sign-in with Firebase local persistence. OBS/CEF restart behavior and token restoration still need a live acceptance test, including scene switches and notification/recovery on auth expiry. Preserve the monitor's current `set_desired_max_seats` control loop when changing Firestore subscriptions. Follow [monitor issue #1459](https://github.com/kani3camp/youtube-study-space/issues/1459), [Firebase Rules guidance](../../firebase/README.md), and [MyPage Phase 0B gate #1133](https://github.com/kani3camp/youtube-study-space/issues/1133).
+実装済みの運用手順ではOBSブラウザ上で一度対話的にログインし、Firebaseのローカル永続化を使う。OBS/CEF再起動時の動作とトークン復元は未検証であり、シーン切替、認証失効時の通知・復旧も含めて実環境で受入試験を行う必要がある。Firestore購読を変更する際は、既存の`set_desired_max_seats`制御ループを維持する。[モニター課題 #1459](https://github.com/kani3camp/youtube-study-space/issues/1459)、[Firebase Rulesの案内](../../firebase/README.md)、[MyPage Phase 0B条件 #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)に従う。
 
 Server-side Go repository tests and browser Client SDK security rules answer different questions:
 
@@ -109,7 +109,7 @@ The modules accept only typed selection flags, use read-only repository permissi
 
 Repository Ruleset が要求するCI statusは `CI Gate` だけです。`GCP Terraform Validate` は `CI Gate` 配下の安定した内部check名として維持し、Rulesetを個別job構造へ結合しません。Other validation check names acquire their caller prefix (for example, `System / Go Lint`); they are covered by `CI Gate`. The [gate result policy](../../.github/scripts/check-ci-results.py) rejects failed/cancelled reusable calls, missing or malformed detection outputs, unsuccessful detection/repository checks, and skipped selected modules. MyPage platform / OAuth TTL / Production readiness / runtime ownership を含むGCP IaC検証は `CI GCP Terraform` に集約されています。
 
-Manual operations remain top-level `ci.yml` callers because the live AWS/GCP trust contract binds `workflow_ref` to that path. The manual UI exposes only `operation` and `environment`; [ci-operations.yml](../../.github/workflows/ci-operations.yml) routes the request to GCP Infrastructure, schema audit, image build, or MyPage release boundaries. `gcp-plan` / `gcp-apply` orchestrate Core GCP and MyPage as separate Terraform States, while MyPage bootstrap stages stay internal. Write-capable operations wait for the full credentialless CI suite before authentication. Moving the top-level caller away from `ci.yml` requires a separate AWS/GCP trust rollout. CodeQL remains an independent security-analysis workflow.
+手動操作の最上位呼び出し元は`ci.yml`に残す。実AWS/GCPの信頼設定が`workflow_ref`をこのパスに固定しているためである。手動UIは`operation`と`environment`だけを公開し、[ci-operations.yml](../../.github/workflows/ci-operations.yml)がGCP Infrastructure・スキーマ監査・イメージビルド・MyPage配備へ振り分ける。`gcp-plan` / `gcp-apply`はCore GCPとMyPageを独立したTerraform Stateとして扱い、MyPageの初期構築段階は内部に留める。書き込み可能な操作は認証前に、認証情報不要のCI全体の完了を待つ。最上位呼び出し元を`ci.yml`から移す場合は、別途AWS/GCPの信頼設定を段階変更する必要がある。CodeQLは独立したセキュリティ解析ワークフローのままとする。
 
 Local source verification (with the pinned parser from `.github/codeql/requirements.txt` installed):
 
@@ -118,4 +118,4 @@ python3 -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v
 bash .github/scripts/test-detect-ci-paths.sh
 ```
 
-CI additionally runs pinned actionlint against the orchestrator, all reusable validation modules, and operational reusable workflows. Selection contracts exhaust all detection-flag combinations; result contracts exercise failures, cancellations, skipped selected modules, and incomplete detection. The independent CodeQL source-contract workflow continues to validate its own source and actionlint scope.
+CIは固定バージョンのactionlintで、統括ワークフロー、全再利用検証モジュール、運用用の再利用ワークフローも検査する。選択の仕様テストは全検出フラグの組み合わせを調べ、結果の仕様テストは失敗・キャンセル・選択済みモジュールのスキップ・不完全な検出を検証する。独立したCodeQLソース仕様ワークフローは、自身のソースとactionlint対象を引き続き検証する。

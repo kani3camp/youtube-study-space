@@ -828,8 +828,8 @@ func (app *WorkspaceApp) exitRoom(
 	return app.exitRoomAt(ctx, tx, isMemberSeat, previousSeat, previousUserDoc, previousWorkSegments, app.currentTime())
 }
 
-// exitRoomAt lets a seat move share one half-open transition boundary between
-// the old segment's close and the new seat's entry, including JST midnight.
+// exitRoomAtは座席移動で、旧区間終了と新座席入室に同じ半開区間の遷移境界を使う。
+// JSTの午前0時も対象にする。
 func (app *WorkspaceApp) exitRoomAt(
 	ctx context.Context,
 	tx *firestore.Transaction,
@@ -839,8 +839,8 @@ func (app *WorkspaceApp) exitRoomAt(
 	previousWorkSegments []repository.WorkSegmentDoc,
 	exitDate time.Time,
 ) (int, int, error) {
-	// Prepare before DeleteSeat/activity writes. A caller that already prepared
-	// this exact boundary (In with order + move) reuses its transaction-bound plan.
+	// DeleteSeatや活動記録の書き込み前に準備する。
+	// 同じ境界を準備済みの呼び出し元（注文と移動を伴うIn）は、トランザクションに固定した計画を再利用する。
 	workSegment, err := previousSeat.GenerateWorkSegment(exitDate, isMemberSeat)
 	if err != nil {
 		return 0, 0, fmt.Errorf("generate exit interval: %w", err)

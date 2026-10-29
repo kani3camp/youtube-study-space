@@ -8,9 +8,9 @@ import (
 
 type readTransactionKey struct{}
 
-// WithReadTransaction scopes legacy identity/history queries to the writer's
-// transaction without changing their public interface or nontransactional use.
-// Explicit document reads still receive their transaction argument as before.
+// WithReadTransactionは、既存の本人情報・履歴クエリを書き込み元のトランザクションに参加させる。
+// 公開インターフェースやトランザクション外の利用は変更しない。
+// 明示的な文書読み取りは、従来どおりトランザクション引数を受け取る。
 func WithReadTransaction(ctx context.Context, tx *firestore.Transaction) context.Context {
 	return context.WithValue(ctx, readTransactionKey{}, tx)
 }

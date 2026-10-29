@@ -67,7 +67,7 @@ func TestWriterIdentityQueriesParticipateInTransaction(t *testing.T) {
 	if seat.CumulativeWorkSec != 12 {
 		t.Fatalf("lost concurrent writer changes: cumulative=%d", seat.CumulativeWorkSec)
 	}
-	// Use the existing methods used by change/break/out and verify each snapshot.
+	// 作業名変更・休憩・退室が使う既存メソッドを使い、各スナップショットを検証する。
 	for _, operation := range []string{"rename", "break", "resume", "exit"} {
 		at := start.Add(30 * time.Minute)
 		err := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -82,7 +82,7 @@ func TestWriterIdentityQueriesParticipateInTransaction(t *testing.T) {
 			if _, err := repo.ReadWorkStateSegmentsBySessionID(ctx, seat.SessionID); err != nil {
 				return fmt.Errorf("emulator fixture transaction: %w", err)
 			}
-			// Shift each boundary by a minute so no zero-length fixture is needed.
+			// 各境界を1分ずらし、長さ0のテスト区間を不要にする。
 			switch operation {
 			case "break":
 				at = at.Add(time.Minute)

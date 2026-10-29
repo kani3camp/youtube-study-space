@@ -287,8 +287,8 @@ func TestCleanupRetentionSignalSurvivesNewerHealthyRunAndDeliveryFailure(t *test
 			require.NotContains(t, output.String(), sentinel.Error())
 		})
 	}
-	// An already acknowledged/replaced durable snapshot still cannot hide the
-	// current run's discovered violation when it is reported after a newer run.
+	// ACK済み・置換済みの永続スナップショットでも、現在の実行が検出した違反を隠さない。
+	// 新しい実行の後に報告された場合も同様に扱う。
 	monitor := &cleanupMonitorFake{state: updateMetadataCleanupMonitoring(MetadataCleanupMonitoringState{}, healthy)}
 	var output cleanupBufferWriter
 	r := MetadataCleanupRunner{Monitor: monitor, Now: func() time.Time { return now }, Signals: &JSONMetadataCleanupHealthRecorder{Writer: &output}}
@@ -336,7 +336,7 @@ func TestCleanupRunnerRetriesUndeliveredRetentionAlertAfterNormalCleanup(t *test
 	require.False(t, o.Succeeded)
 	require.Equal(t, 1, o.RetentionViolations)
 	require.False(t, monitor.state.PendingRetentionStartedAt.IsZero())
-	// Retry cleans no metadata, but must deliver the previous missed violation.
+	// 再試行で削除するメタデータがなくても、前回届かなかった違反は配送する必要がある。
 	now = now.Add(time.Minute)
 	runner.Signals = &JSONMetadataCleanupHealthRecorder{Writer: &output}
 	o, err = runner.Run(context.Background())

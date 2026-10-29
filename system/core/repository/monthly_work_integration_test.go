@@ -178,7 +178,7 @@ func TestMonthMigrationIsBoundedDryRunVersionedAndRepairsLateOrdering(t *testing
 func TestHistoryPrivacyFenceBlocksActiveAndOldAdmissionAfterClear(t *testing.T) {
 	repo, client, s := historyFixture(t)
 	ctx := repository.WithWorkHistoryAdmission(context.Background())
-	// Capture the original absent checkpoint in an admitted operation.
+	// 許可済み操作内で、元の不存在チェックポイントを取得する。
 	err := client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		_, err := repository.PrepareWorkSegmentWrites(ctx, tx, client, s)
 		return err
@@ -244,7 +244,7 @@ func TestHistoryReaderCutoverWatermarkMissingMonthAndRollback(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, stats.SegmentQueries)
 	require.Equal(t, repository.MonthlyWorkEpoch, snapshot.MonthlyEpoch)
-	// Close the actual source Seat after cutover and remove it in the same tx.
+	// 切替後に実際の原記録Seatを終了し、同じトランザクションで削除する。
 	s.StartedAt = now.Add(-10 * time.Minute)
 	s.EndedAt = time.Now().UTC().Truncate(time.Microsecond)
 	s.DurationSec = int(s.EndedAt.Sub(s.StartedAt) / time.Second)

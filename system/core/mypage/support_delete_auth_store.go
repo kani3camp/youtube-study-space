@@ -14,8 +14,8 @@ import (
 
 const supportDeleteAuthOwnership = "support-delete-auth-ownership"
 
-// AuthOwnershipFingerprint is for synthetic fixtures/injected inventories. It
-// does not infer attribution from document content or mint a trusted manifest.
+// AuthOwnershipFingerprintは合成テストデータや注入した一覧に使う。
+// 文書内容から帰属を推測せず、信頼済みマニフェストも発行しない。
 func AuthOwnershipFingerprint(data map[string]interface{}) (string, error) {
 	b, err := json.Marshal(data)
 	if err != nil {
@@ -118,8 +118,8 @@ func (s *FirestoreDeletionStore) currentAuthOwnership(tx *firestore.Transaction,
 	if err != nil {
 		return current, err
 	}
-	// A committed mapping removal may have lost its acknowledgement. No other
-	// snapshot change is allowed at this execution fence.
+	// マッピング削除はコミット済みでもACKが消失した可能性がある。
+	// この実行保護状態では、他のスナップショット変更を許可しない。
 	comparison := current
 	comparison.MappingsRemoved = expected.MappingsRemoved
 	if !reflect.DeepEqual(comparison, expected) || (expected.MappingsRemoved && !current.MappingsRemoved) {
@@ -142,16 +142,15 @@ func (s *FirestoreDeletionStore) CheckAuthOwnership(ctx context.Context, expecte
 	return deletionStoreError(err)
 }
 
-// scanAuthOwnership checks the injected complete relation set against bounded
-// Firestore queries plus direct legacy UID documents. Query zero is never used
-// as proof of Auth absence/completeness. An unknown/shared/new relation stops
-// the whole transaction before any delete.
+// scanAuthOwnershipは、渡された完全な関連一覧を、上限付きFirestoreクエリと旧UID文書の直接参照で照合する。
+// クエリ0件をAuthの不存在や完全性の証明にしない。
+// 未知・共有・新規の関連があれば、削除前にトランザクション全体を停止する。
 func (s *FirestoreDeletionStore) scanAuthOwnership(tx *firestore.Transaction, snapshot AuthOwnershipSnapshot, allowMissing bool) error {
 	e := snapshot.Execution
 	channel := e.Selector.Target.ChannelID
-	// Acquire already verified the OAuth proof and atomically bound its claim
-	// to this execution. TTL may remove that trace even before this snapshot;
-	// the durable binding, not renewed OAuth presence, authorizes continuation.
+	// AcquireでOAuth証拠を検証し、その確保情報をこの実行にアトミックに結び付けている。
+	// このスナップショット前にTTLで追跡記録が消える場合がある。
+	// 継続の許可には永続的な対応情報を使い、OAuthの再存在を求めない。
 	claim, err := tx.Get(s.Client.Collection(supportDeleteClaims).Doc(e.Selector.ProofRef))
 	if err != nil || len(claim.Data()) != 2 || claim.Data()["executionRef"] != e.Selector.ExecutionRef || claim.Data()["requestRef"] != e.Selector.RequestRef {
 		return supportdelete.ErrEvidence
@@ -244,7 +243,7 @@ func (s *FirestoreDeletionStore) scanAuthOwnership(tx *firestore.Transaction, sn
 		if err := query("mypage-youtube-channel-owners", "firebase-uid", i.UID, checkDoc); err != nil {
 			return err
 		}
-		// Legacy account ownership is its document ID, not an optional field.
+		// 旧アカウントの所有者は文書IDで識別し、任意フィールドは使わない。
 		doc, err := tx.Get(s.Client.Collection("mypage-users").Doc(i.UID))
 		if err == nil {
 			if err := checkDoc(doc); err != nil {
@@ -289,8 +288,8 @@ func (s *FirestoreDeletionStore) scanAuthOwnership(tx *firestore.Transaction, sn
 			return err
 		}
 	}
-	// Each receipt's current dependencies must be included explicitly. Shared
-	// OAuth proof references are ambiguous even if targetChannel matches.
+	// 各受付の現在の依存関係を明示的に含める。
+	// targetChannelが一致しても、共有OAuth証拠参照は曖昧として扱う。
 	oauthOwners := map[string]string{}
 	for request := range requests {
 		doc, err := tx.Get(s.Client.Collection("support-requests").Doc(request))
@@ -412,8 +411,8 @@ func (s *FirestoreDeletionStore) ApplyAuthRecords(ctx context.Context, op suppor
 	return deletionStoreError(err)
 }
 
-// prepareAuthOwnership reads before any writes in the enclosing lifecycle
-// transaction. Missing state is valid for workflows using other adapters.
+// prepareAuthOwnershipは、外側のライフサイクルトランザクションで書き込み前に読む。
+// 他のアダプターを使うワークフローでは、状態がなくても有効である。
 func (s *FirestoreDeletionStore) prepareAuthOwnership(tx *firestore.Transaction, old, next supportdelete.Execution, terminal bool) (func() error, error) {
 	ref := s.Client.Collection(supportDeleteAuthOwnership).Doc(old.Selector.ExecutionRef)
 	doc, err := tx.Get(ref)

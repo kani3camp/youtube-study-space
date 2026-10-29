@@ -54,8 +54,8 @@ type operatorTestFixture struct {
 	documents []*firestore.DocumentRef
 }
 
-// Each invocation owns its records, including invocations with the same t.Name.
-// The returned operations stay fixed for idempotent retries within that fixture.
+// 同じt.Nameでの呼び出しを含め、各実行が自身のレコードを所有する。
+// 同じテストデータ内の冪等な再試行では、返す操作を固定する。
 func newOperatorFixture(t *testing.T, purpose SupportPurpose) *operatorTestFixture {
 	t.Helper()
 	integrationtest.RequireFirestoreEmulator(t)
@@ -82,7 +82,7 @@ func newOperatorFixture(t *testing.T, purpose SupportPurpose) *operatorTestFixtu
 		client.Collection("oauth-transactions").Doc(oauth),
 		op.auditRef(reply.Intent), // The collision test's occupied record has no binding.
 	}}
-	// LIFO cleanup runs before client.Close, even if fixture setup/assertions fail.
+	// 準備や検証に失敗しても、LIFOの後片付けはclient.Closeより前に実行する。
 	t.Cleanup(func() { f.cleanup(t) })
 	receipt, err := intake.Create(ctx, uid, key, purpose, "Synthetic private request", now)
 	require.NoError(t, err)
@@ -98,8 +98,8 @@ func (f *operatorTestFixture) cleanup(t *testing.T) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	// Only audits bound to this unique request are eligible; never reset a DB or
-	// delete an entire collection. Capture both reply and terminal completion.
+	// この一意の申請に結び付いた監査だけを対象にする。DB初期化やコレクション全削除は行わない。
+	// 返信と完了の両方を取得する。
 	audits, err := f.operator.Client.Collection(supportOperatorAudit).Where("binding", "==", f.operator.mac("request", f.reply.Intent.RequestRef)).Documents(ctx).GetAll()
 	if err != nil {
 		t.Errorf("read fixture audits for cleanup: %v", err)
@@ -252,5 +252,5 @@ func TestOperatorParallelChangedPayloadHasOneWinner(t *testing.T) {
 	require.Equal(t, int64(1), snap.Data()["operatorRevision"])
 }
 
-// Child cleanups must remove only their own records, before closing clients.
-// No reset separates the same-name fixtures or the surviving fixture.
+// 子テストはクライアントを閉じる前に自身のレコードだけを削除する。
+// 同名のテストデータや存続するテストデータとの間でDBを初期化しない。

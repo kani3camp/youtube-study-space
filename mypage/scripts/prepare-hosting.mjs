@@ -1,4 +1,4 @@
-// Offline preparation only: no environment discovery, auth or deploy.
+// オフラインの準備だけを行い、環境探索・認証・配備は実行しない。
 import { lstat, readdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { hostingCandidate, validateHostingAssets } from '../src/hosting.ts'
@@ -19,8 +19,8 @@ try {
 	const manifest = resolve(args[1])
 	const dist = resolve(args[3])
 	const output = resolve(args[5])
-	// Deploy requires public inside this config's project root. Keep the build
-	// in a distinct subdirectory so manifests/config never become public files.
+	// 配備ではpublicがこの設定のプロジェクトルート内にある必要がある。
+	// ビルド成果物を専用サブディレクトリに置き、マニフェストや設定を公開ファイルに含めない。
 	const publicPath = relative(
 		await realpath(dirname(output)),
 		await realpath(dist),
@@ -59,7 +59,7 @@ try {
 	validateHostingAssets(paths)
 	const candidate = hostingCandidate(JSON.parse(source).hosting, paths.sort())
 	candidate.firebase.hosting.public = publicPath.split('\\').join('/')
-	// Never replace an existing release config accidentally.
+	// 既存のリリース設定を誤って上書きしない。
 	await writeFile(output, `${JSON.stringify(candidate.firebase, null, 2)}\n`, {
 		flag: 'wx',
 	})

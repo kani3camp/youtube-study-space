@@ -5,15 +5,15 @@
 > [!IMPORTANT]
 > The monitor is **not display-only in the current architecture**. `src/components/MainContent.tsx` also calculates desired general/member seat counts from room definitions and current occupancy, then can call `POST /set_desired_max_seats`. Before changing room definitions or seat counts, read [`../docs/development/architecture.md`](../docs/development/architecture.md).
 
-## Firebase Auth rollout status for OBS (Phase 0B prerequisite; not deployed)
+## OBS向けFirebase Authの導入状況
 
-The monitor source now gates browser `onSnapshot` listeners for `seats`, `member-seats`, `menu`, `work-name-trend`, and `config/constants` on a dedicated Firebase Auth claim. Repository Firestore Security Rules additionally require an enabled monitor UID allowlist entry and reject anonymous reads. This does not prove that any live environment already runs the matching monitor and Rules revisions.
+モニターのソースは専用Firebase Auth claimを確認してから、`seats`・`member-seats`・`menu`・`work-name-trend`・`config/constants`のブラウザ`onSnapshot`を購読する。リポジトリのFirestore Security Rulesは、有効なmonitor UID許可リスト項目も必須とし、匿名読み取りを拒否する。これはPhase 0Bの前提となる実装だが未配備であり、実環境で対応するモニターとRulesが稼働済みとは証明しない。
 
-[Issue #1459](https://github.com/kani3camp/youtube-study-space/issues/1459) requires provisioning **a dedicated operator-controlled Firebase Auth user** and deploying the source and Rules as a coordinated pair. General MyPage Firebase users must not receive this privilege; no Client SDK writes are enabled. The existing `/set_desired_max_seats` HTTP control path is independent and must continue to pass its existing checks.
+[Issue #1459](https://github.com/kani3camp/youtube-study-space/issues/1459)は、運用担当者が管理する専用Firebase Authユーザーの準備と、ソース・Rulesの一組での配備を必要とする。通常のMyPage Firebaseユーザーにこの権限を付けず、Client SDKの書き込みも有効にしない。既存の`/set_desired_max_seats` HTTP制御は独立しており、従来の検証を引き続き満たす必要がある。
 
-Implemented operator flow: hide the OBS browser source from the live composition, open `/operator-login` through OBS **Interact**, sign in once using the dedicated Email/Password account, and then return the source to `/`. Firebase `browserLocalPersistence` is used for subsequent sessions; a normal Chrome login is not presumed to be shared with OBS/CEF. Never use `/operator-login` as the live browser-source URL. Verify CEF IndexedDB/persistence, OBS/PC restart, scene switch, token renewal, logout/revocation, and failure notification on the actual OBS version before considering this complete. Do not store service-account keys or administrator tokens in `NEXT_PUBLIC_*`, URLs, or OBS browser parameters.
+実装済みの運用手順ではOBSブラウザソースを配信シーンから外し、OBSのInteractで`/operator-login`を開く。専用のメール・パスワードアカウントで一度ログインしてから、ソースを`/`へ戻す。以後のセッションにはFirebaseの`browserLocalPersistence`を使う。通常のChromeログインをOBS/CEFと共有しているとは仮定しない。`/operator-login`を配信用ブラウザソースURLにしてはならない。完了とする前に、実際のOBSバージョンでCEFのIndexedDB・永続化、OBS・PC再起動、シーン切替、トークン更新、ログアウト・失効、失敗通知を検証する。サービスアカウント鍵や管理者トークンを`NEXT_PUBLIC_*`・URL・OBSブラウザ引数に保存しない。
 
-Deployment ordering: create the monitor identity, claim, and allowlist; test Rules in Emulator; then, in each environment, deploy and verify the auth-capable monitor before enforcing the restrictive Rules. Complete the DEV evidence before repeating the sequence in Production and verifying its live subscriptions. On rollback, keep Rules closed and roll the monitor forward; never restore anonymous reads. See [Rollout and rollback](#rollout-and-rollback). Phase 0A owner-only MyPage testing may continue; [Phase 0B public availability is blocked](https://github.com/kani3camp/youtube-study-space/issues/1133) until this is verified.
+配備はモニター用本人情報・claim・許可リストの作成、EmulatorでのRulesテストの順に行う。各環境で認証対応モニターを先に配備・検証してから、読み取りを制限するRulesを適用する。DEVの証跡を揃えた後、本番でも同じ順序を繰り返して実購読を確認する。復旧時もRulesの拒否を維持し、認証対応モニターを修正配備する。匿名読み取りは戻さない。[Rollout and rollback](#rollout-and-rollback)を参照する。Phase 0Aの所有者限定MyPage試験は継続できるが、検証完了までは[Phase 0Bの外部公開を停止する](https://github.com/kani3camp/youtube-study-space/issues/1133)。
 
 ## Setup
 
@@ -54,7 +54,7 @@ All variables below use the `NEXT_PUBLIC_` prefix and are bundled into browser-v
 | `NEXT_PUBLIC_API_KEY` | Client-side API request configuration used by the fetcher. It must not be treated as a server secret because it is shipped to the browser. | Yes |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase/Firestore project identifier used by the client. | Yes |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase web API key used by the client SDK. It is browser-visible configuration, not a server credential. | Yes |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Auth domain for the monitor's Firebase project. | Yes |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | モニターのFirebaseプロジェクトのAuthドメイン。 | Yes |
 
 The validation/consumers are in `src/lib/constants.ts`, `src/lib/api-config.ts`, `src/lib/fetcher.ts`, and `src/lib/firestore.ts`.
 
@@ -89,25 +89,25 @@ pnpm build:ci
 
 These values are **build-only placeholders**. They do not prove connectivity or behavior against a deployed environment, and `build:ci` does not prove that runtime media has been provisioned.
 
-## Monitor operator authentication
+## モニター運用担当者の認証
 
-The monitor does not subscribe to Firestore until Firebase Auth restores a local session whose ID token contains the dedicated `monitor_reader: true` custom claim. Firestore Security Rules also require an enabled `_monitor-readers/{uid}` allowlist document. Requiring both boundaries prevents an ordinary MyPage Firebase user or a claim-only account from reading monitor collections.
+モニターは、専用の`monitor_reader: true`カスタムclaimをIDトークンに持つローカルセッションをFirebase Authが復元するまで、Firestoreを購読しない。Firestore Security Rulesは、有効な`_monitor-readers/{uid}`許可リスト文書も必要とする。両方を求めることで、通常のMyPage Firebaseユーザーやclaimだけのアカウントによるモニター用コレクションの読み取りを防ぐ。
 
-Provision each environment through trusted Firebase/Admin operations:
+各環境で、信頼済みFirebase/Admin操作を使って次を準備する。
 
-1. Enable the Firebase Auth Email/Password provider and create a dedicated monitor operator account. Do not add sign-up to the monitor.
-2. Set the account's custom claim to `monitor_reader: true` with a trusted Admin SDK operation. Never place Admin credentials or a custom-token signer in this client.
-3. Create `_monitor-readers/{uid}` with `{ "enabled": true }` through the Firebase console or a trusted server/Admin SDK. The UID is the document ID. Security Rules deny all browser reads and writes to this collection.
-4. Hide the OBS browser source from the live composition, open `/operator-login` through OBS **Interact**, and sign in once. The page uses `browserLocalPersistence`; credentials themselves are not stored by this application.
-5. Return to `/` and confirm the monitor reads all required collections. If the session, claim, or allowlist is unavailable, or Firestore returns an unrecoverable read error, the monitor unmounts its data consumers and displays a fail-closed operator status instead of continuing with unauthorized data access.
+1. Firebase AuthのEmail/Passwordプロバイダーを有効にし、モニター運用専用アカウントを作る。モニターにサインアップ機能は追加しない。
+2. 信頼済みAdmin SDK操作で、アカウントのカスタムclaimに`monitor_reader: true`を設定する。このクライアントにAdmin認証情報やCustom Token署名者を置かない。
+3. Firebaseコンソールか信頼済みサーバー/Admin SDKで、`_monitor-readers/{uid}`に`{ "enabled": true }`を作る。文書IDはUIDとする。Security Rulesはこのコレクションへの全ブラウザ読み書きを拒否する。
+4. OBSブラウザソースを配信シーンから外し、OBSのInteractで`/operator-login`を開いて一度ログインする。ページは`browserLocalPersistence`を使い、アプリケーション自体では認証情報を保存しない。
+5. `/`へ戻り、モニターが必要な全コレクションを読めることを確認する。セッション・claim・許可リストが利用不能、または復旧不能なFirestore読み取りエラーの場合、モニターはデータ利用コンポーネントをアンマウントする。認可されないアクセスを続けず、拒否状態を運用担当者に表示する。
 
-Do not use `/operator-login` as the livestream browser-source URL, and never expose that credential form in a live scene. Removing the claim, deleting the allowlist document, or changing `enabled` to `false` revokes future Rules-authorized reads after the current ID token is refreshed.
+`/operator-login`を配信用ブラウザソースURLに使わず、認証フォームを配信シーンに映さない。claimの除去、許可リスト文書の削除、`enabled`の`false`への変更は、現在のIDトークンの更新後に、以後のRulesによる読み取り許可を失効させる。
 
 ### Rollout and rollback
 
-For each environment, prepare the operator account, custom claim, and allowlist first. Deploy the auth-capable monitor and verify its authenticated subscriptions while the previous Rules are still active; then deploy the restrictive Rules and repeat the read and max-seat-control checks. Record DEV evidence before repeating the process in Production.
+各環境で、運用アカウント・カスタムclaim・許可リストを先に準備する。旧Rulesが有効な間に認証対応モニターを配備し、認証付き購読を検証する。その後、制限するRulesを配備し、読み取りと最大座席数制御を再確認する。DEVの証跡を記録してから、本番でも同じ手順を繰り返す。
 
-Do not restore anonymous Firestore Rules as a rollback. If the monitor fails after lockdown, keep Rules closed, take the source out of the live composition, and roll forward with an auth-capable monitor fix. Rules and monitor deployments are separate authorized operations; source tests alone do not prove OBS/CEF persistence, network-disconnect notification, real App Check behavior, or real-environment access.
+復旧のために匿名Firestore Rulesへ戻してはならない。制限適用後にモニターが失敗した場合、Rulesの拒否を維持し、ソースを配信シーンから外して認証対応の修正を配備する。Rulesとモニターの配備は個別の承認対象である。ソースのテストだけでは、OBS/CEF永続化、ネットワーク切断通知、実App Checkの動作、実環境アクセスを証明しない。
 
 ## Real-environment verification
 

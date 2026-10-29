@@ -79,8 +79,8 @@ func (g *MaintenanceGate) PublicStatus(ctx context.Context) (MaintenanceStatus, 
 	return MaintenanceStatus{MaintenanceEnabled: value.Enabled}, nil
 }
 
-// The control is read in the same transaction as a protected write, so a
-// concurrent activation causes Firestore to retry against the new value.
+// 保護対象の書き込みと同じトランザクションで制御状態を読む。
+// 並行して有効化された場合、Firestoreは新しい値で再試行する。
 func transactionMaintenance(tx *firestore.Transaction, client *firestore.Client) error {
 	if client == nil {
 		return apiError("TEMPORARY_UNAVAILABLE")
@@ -99,8 +99,8 @@ func transactionMaintenance(tx *firestore.Transaction, client *firestore.Client)
 	return nil
 }
 
-// SetMaintenance creates a missing control document or changes it atomically.
-// Existing malformed documents fail closed and require operator investigation.
+// SetMaintenanceは、欠落した制御文書の作成や変更をアトミックに行う。
+// 既存文書が不正な場合は拒否し、運用担当者の調査を必要とする。
 func SetMaintenance(ctx context.Context, client *firestore.Client, enabled bool) (MaintenanceControl, bool, error) {
 	if client == nil {
 		return MaintenanceControl{}, false, apiError("TEMPORARY_UNAVAILABLE")

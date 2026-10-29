@@ -29,9 +29,8 @@ func ValidWorkHistoryWatermark(user UserDoc, asOf time.Time) bool {
 		!user.WorkHistoryClosedThrough.After(asOf) && !user.WorkHistoryActivatedAt.After(asOf)
 }
 
-// A month contains at most 31 small day values. Names and original intervals
-// remain exclusively in WorkSegments. BaselineComplete is never inferred from
-// existence, creation time, or the first new writer event.
+// 1か月には最大31日の小さな値を保持する。名前と元区間はWorkSegmentsだけに置く。
+// 文書の存在・作成時刻・新書き込み処理の初回イベントからBaselineCompleteを推測しない。
 type WorkMonthDoc struct {
 	UserID           string                  `firestore:"user-id"`
 	Month            string                  `firestore:"month"`
@@ -43,7 +42,7 @@ type WorkMonthDoc struct {
 
 type WorkMonthDay struct {
 	WorkSec int64 `firestore:"work-sec"`
-	// Preserve the raw week's once-per-interval second floor across midnight.
+	// 日跨ぎでも、原記録の週集計と同じく区間ごとに一度だけ秒を切り捨てる。
 	CrossDayCarrySec      int64     `firestore:"cross-day-carry-sec"`
 	CompletedWorkSegments int64     `firestore:"completed-work-segments"`
 	SourceEnd             time.Time `firestore:"source-ended-at"`
@@ -67,8 +66,8 @@ func normalizeSegment(s WorkSegmentDoc) WorkSegmentDoc {
 	return s
 }
 
-// One source event has one immutable identity, independent of content edits.
-// A different payload with the same identity conflicts instead of double adding.
+// 1つの原イベントは、内容編集から独立した1つの不変IDを持つ。
+// 同じIDで異なる内容は二重加算せず、競合とする。
 func segmentIdentity(s WorkSegmentDoc) string {
 	return workHash(fmt.Sprintf("%s\x00%s\x00%d\x00%t\x00%s\x00%s\x00%s", s.UserID, s.SessionID, s.SeatID, s.IsMemberSeat, s.SegmentType, s.StartedAt.Format(time.RFC3339Nano), s.EndedAt.Format(time.RFC3339Nano)))
 }
@@ -111,9 +110,9 @@ func (m WorkMonthDoc) Validate(uid, month string) error {
 	return nil
 }
 
-// Append is exact for the source writer's ordered, non-overlapping intervals.
-// Late/overlapping or corrupt records invalidate affected days; callers never
-// present the resulting sum as exact. Explicit bounded rebuild can repair them.
+// Appendは、書き込み元の順序付き・重複なし区間に対して正確に集計する。
+// 遅延・重複・破損記録では対象日を無効化し、得られた合計を正確な値として表示しない。
+// 明示的な上限付き再集計で修復できる。
 func (m *WorkMonthDoc) Append(s WorkSegmentDoc) error {
 	if m.Days == nil {
 		m.Days = map[string]WorkMonthDay{}
@@ -188,8 +187,8 @@ func (m *WorkMonthDoc) Append(s WorkSegmentDoc) error {
 	return nil
 }
 
-// DecodeWorkMonth rejects missing day fields; absence must never become a
-// trusted zero completion count or a missing source-consistency bound.
+// DecodeWorkMonthは日別フィールドの欠落を拒否する。
+// 欠落を信頼できる終了件数0や、原記録の整合性境界の欠如として扱わない。
 func DecodeWorkMonth(doc *firestore.DocumentSnapshot, uid, month string) (WorkMonthDoc, error) {
 	var value WorkMonthDoc
 	if doc == nil || !doc.Exists() {
@@ -296,9 +295,9 @@ type (
 	historyAdmissionKey struct{}
 )
 
-// WithWorkHistoryAdmission binds all retry attempts of one business operation
-// to the first privacy checkpoint read for each target. Recreate-after-delete
-// cannot turn a stale admitted operation into a fresh legitimate source write.
+// WithWorkHistoryAdmissionは、1つの業務操作の全再試行を、対象ごとに最初に読んだ
+// プライバシーチェックポイントに結び付ける。削除後の再作成で、
+// 古い許可済み操作を新たな正当な書き込みに変えない。
 func WithWorkHistoryAdmission(ctx context.Context) context.Context {
 	return context.WithValue(ctx, historyAdmissionKey{}, map[string]string{})
 }
@@ -318,9 +317,9 @@ type segmentWritePlan struct {
 	user        *UserDoc
 }
 
-// PrepareWorkSegmentWrites performs ALL source, control and aggregate reads.
-// It must run before any transaction write, including order/activity/seat writes.
-// The sealed plan is bound to this exact attempt and normalized source payload.
+// PrepareWorkSegmentWritesは原記録・制御・集計の全読み取りを行う。
+// 注文・活動・座席を含む、すべてのトランザクション書き込みより前に実行する必要がある。
+// 確定計画はこの試行と、正規化した原記録の内容に結び付ける。
 func PrepareWorkSegmentWrites(ctx context.Context, tx *firestore.Transaction, client DBClient, segment WorkSegmentDoc) (context.Context, error) {
 	if tx == nil || client == nil {
 		return nil, ErrWorkHistoryConflict
@@ -342,8 +341,8 @@ func PrepareWorkSegmentWrites(ctx context.Context, tx *firestore.Transaction, cl
 	if err != nil {
 		return nil, fmt.Errorf("read history privacy fence: %w", err)
 	}
-	// Bot moderation remains independent. Only the destructive privacy window
-	// fences these new writes; changing the control forces transaction retry.
+	// Botのモデレーションは独立したままにする。
+	// この新しい書き込みを止めるのはプライバシー削除中だけで、制御変更時はトランザクションを再試行する。
 	if control.Control.PrivacyDeletion.Active {
 		return nil, serviceaccess.ErrDeletion
 	}

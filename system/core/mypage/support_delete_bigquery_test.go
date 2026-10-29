@@ -101,8 +101,8 @@ func (f *fakeBigQueryGuard) WithGuard(ctx context.Context, op supportdelete.Oper
 	return err
 }
 
-// A stateful synthetic system: rows, metadata and remote jobs live independently
-// of adapter/persistence objects. Requests ending do not settle remote jobs.
+// 状態を持つ合成システムを使う。行・メタデータ・リモートジョブは、
+// アダプターや永続化オブジェクトとは独立して存在する。リクエスト終了でリモートジョブは確定しない。
 type fakeBigQueryExecutor struct {
 	tables                                                                                           []BigQueryTable
 	source                                                                                           []BigQuerySourceJobObservation

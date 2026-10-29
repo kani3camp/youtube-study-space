@@ -7,9 +7,9 @@ import (
 	"app.modules/core/repository"
 )
 
-// The same fixture is used by the Emulator query and fixed-clock boundary tests.
+// 同じテストデータをEmulatorクエリと固定時計の境界テストで使う。
 func snapshotQuerySegments(uid string, capturedAt time.Time) []repository.WorkSegmentDoc {
-	// Align endpoints so per-day second truncation cannot turn 60 into 29+30.
+	// 日別の秒切り捨てで60が29+30にならないよう、区間端を揃える。
 	end := capturedAt.UTC().Truncate(time.Second).Add(-time.Minute)
 	return []repository.WorkSegmentDoc{
 		{UserID: uid, StartedAt: end.Add(-time.Minute), EndedAt: end, DurationSec: 60, SegmentType: repository.WorkState},
@@ -55,7 +55,7 @@ func TestSnapshotQueryFixtureAccountsAcrossJSTMidnight(t *testing.T) {
 			s.AsOf = instant(tc.asOf)
 			s.User.TotalStudySec = 600
 			s.Coverage = []Interval{{s.AsOf.AddDate(0, 0, -30), s.AsOf}}
-			// This is the matching, in-window segment returned by the query.
+			// クエリで返る、条件と期間に一致した区間。
 			s.Segments = snapshotQuerySegments(s.UID, instant(tc.capturedAt))[:1]
 			r, err := Aggregate(s, fixtureAccount())
 			if err != nil {

@@ -36,7 +36,7 @@ func TestPublicFixturesMatchWireTypes(t *testing.T) {
 			if err := json.Unmarshal(output, &after); err != nil {
 				t.Fatal(err)
 			}
-			// Round-trip equality detects missing fields and wrong nullable shapes.
+			// 往復変換の一致で、フィールド欠落と誤ったnull許容形式を検出する。
 			b, err := json.Marshal(before)
 			if err != nil {
 				t.Fatal(err)

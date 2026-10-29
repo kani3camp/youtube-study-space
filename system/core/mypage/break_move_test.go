@@ -29,7 +29,7 @@ func TestBreakSeatMovePreservesOriginalStartAndNewSegmentBoundary(t *testing.T) 
 	}
 	expectSeconds(t, r.Summary.Data.Today, 3600)
 	expectSeconds(t, r.Summary.Data.Lifetime, int64(s.User.TotalStudySec))
-	// A moved seat cannot claim an ongoing segment belonging to the old seat.
+	// 移動後の座席で、旧座席に属する進行中区間を主張できない。
 	s.Seat.CurrentSegmentStartedAt = breakStart
 	bad, err := Aggregate(s, fixtureAccount())
 	if err != nil {

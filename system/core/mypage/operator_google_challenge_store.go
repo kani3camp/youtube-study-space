@@ -10,12 +10,11 @@ import (
 
 const googleOperatorChallenges = "support-operator-challenges"
 
-// FirestoreGoogleOperatorChallenges is an injected demo-only adapter. It creates
-// no client, credentials, authentication flow, TTL policy or command bootstrap.
-// The caller supplies a trusted Emulator client; project binding alone does not
-// inspect or certify the transport of an injected client.
-// A consumed marker prevents a delayed Put retry from resurrecting a nonce.
-// Live retention/disposal and operator permissions remain separate gates.
+// FirestoreGoogleOperatorChallengesは、外から渡すdemo専用アダプターである。
+// クライアント・認証情報・認証フロー・TTLポリシー・コマンド初期化は作らない。
+// 呼び出し元が信頼済みEmulatorクライアントを渡す。プロジェクトとの対応だけでは、
+// 渡されたクライアントの通信処理を調査・証明しない。消費済みマーカーで、遅延Put再試行によるnonce復活を防ぐ。
+// 実環境の保持・廃棄・運用権限は別の確認事項として残す。
 type FirestoreGoogleOperatorChallenges struct {
 	client    *firestore.Client
 	projectID string
@@ -47,8 +46,8 @@ func (s *FirestoreGoogleOperatorChallenges) Put(ctx context.Context, record Goog
 	if !s.ready() || ctx == nil || ctx.Err() != nil || !validOperatorChallengeRecord(record) {
 		return ErrOperatorDenied
 	}
-	// Exact UTC strings preserve nanoseconds; Firestore timestamps are rounded to
-	// microseconds and must not shift a one-use proof's expiry boundary.
+	// 正確なUTC文字列でナノ秒を保持する。Firestore Timestampはマイクロ秒に丸められるため、
+	// 一度限りの証拠の期限境界をずらさないようにする。
 	_, err := s.client.Collection(googleOperatorChallenges).Doc(record.NonceHash).Create(ctx, map[string]any{
 		"schemaVersion": int64(1), "nonceHash": record.NonceHash, "binding": record.Binding,
 		"issuedAt": record.IssuedAt.UTC().Format(time.RFC3339Nano), "expiresAt": record.ExpiresAt.UTC().Format(time.RFC3339Nano), "consumed": false,
@@ -86,7 +85,7 @@ func (s *FirestoreGoogleOperatorChallenges) Consume(ctx context.Context, nonceHa
 			return ErrOperatorDenied
 		}
 		record, valid := decodeOperatorChallenge(doc.Data())
-		// Read trusted time after the possibly blocking read, on every retry.
+		// 待機し得る読み取りの後で、再試行のたびに信頼済み時刻を読み直す。
 		if !valid || record.NonceHash != nonceHash || record.Binding != binding || !googleOperatorChallengeLive(record, clock().UTC()) || ctx.Err() != nil {
 			return ErrOperatorDenied
 		}
@@ -96,8 +95,8 @@ func (s *FirestoreGoogleOperatorChallenges) Consume(ctx context.Context, nonceHa
 		result = record
 		return nil
 	})
-	// A successful take whose acknowledgement was late is still consumed. Never
-	// authorize on an expired response or reset its marker for a retry.
+	// 取得が成功してACKだけが遅れた場合も、消費済みのままにする。
+	// 期限切れ応答で許可せず、再試行のためにマーカーをリセットしない。
 	if err != nil {
 		return GoogleOperatorChallengeRecord{}, ErrOperatorDenied
 	}

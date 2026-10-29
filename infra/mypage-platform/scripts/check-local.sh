@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Credentialless only: neither S3 backend nor Google API authentication.
+# 認証情報は使わず、S3バックエンドにもGoogle APIにも認証しない。
 set -euo pipefail
 
 cd "$(dirname "$0")/../../.."

@@ -48,7 +48,7 @@ func (f *fakeGoogleOperatorToken) Set(raw string) {
 	f.mu.Unlock()
 }
 
-// The fake's lock makes consuming a nonce an indivisible state transition.
+// 偽ストアのロックで、nonceの消費を分割できない状態遷移にする。
 type fakeGoogleOperatorChallenges struct {
 	mu            sync.Mutex
 	records       map[string]GoogleOperatorChallengeRecord
@@ -86,9 +86,9 @@ func (f *fakeGoogleOperatorChallenges) Consume(_ context.Context, nonceHash, bin
 	return record, nil
 }
 
-// Reuse this contract with every future durable challenge-store implementation.
-// The store checks a fresh clock within atomic match/take; the authority checks
-// the returned record again after any delay on the way back to the caller.
+// 将来の永続チャレンジストアでも、この仕様テストを再利用する。
+// ストアはアトミックな照合・取得内で最新時刻を確認し、
+// 権限検証側も呼び出し元へ戻る途中の遅延後に返却レコードを再確認する。
 func testGoogleOperatorChallengeStoreContract(t *testing.T, newStore func() GoogleOperatorChallengeStore) {
 	t.Helper()
 	t.Run("exact record and binding mismatch", func(t *testing.T) {
@@ -500,8 +500,8 @@ func TestGoogleHumanOperatorOIDCChecksCurrentTimeAfterBlockingDependencies(t *te
 			f.store.mu.Unlock()
 			require.Equal(t, !tc.consumed, exists, "consume may take once, but must never authorize after expiry")
 
-			// A consumed or expired proof cannot be reused. A fresh operation-bound
-			// challenge can still be completed after the clock advances.
+			// 消費済み・期限切れの証拠は再利用できない。
+			// 時刻が進んだ後も、新たな操作に結び付けたチャレンジは完了できる。
 			f.store.beforeConsume, f.store.afterConsume = nil, nil
 			if tc.delay == "keys" {
 				keys, ok := f.authority.Keys.(fakeGoogleOperatorKeys)

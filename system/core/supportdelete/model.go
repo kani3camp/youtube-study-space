@@ -1,5 +1,5 @@
-// Package supportdelete coordinates request-bound deletion. It contains no SDK
-// bootstrap: trusted stores and effect adapters must be supplied explicitly.
+// Package supportdeleteは、申請に結び付いた削除を調整する。SDK初期化は含めない。
+// 信頼済みストアと操作アダプターは明示的に渡す必要がある。
 package supportdelete
 
 import (
@@ -44,8 +44,8 @@ func (s Selector) Validate() error {
 }
 func ValidRef(s string) bool { return opaque.MatchString(s) }
 
-// Manifest is supplied by a trusted adapter registry, never a user manifest.
-// Its digest identifies the exact writer fleet, restore policy and prior state.
+// Manifestは信頼済みアダプター登録処理が渡し、ユーザーマニフェストは使わない。
+// ダイジェストは、対象の書き込み処理群・復元ポリシー・開始前状態を正確に識別する。
 type Manifest struct {
 	Ref  string `firestore:"ref"`
 	Mode string `firestore:"mode"`
@@ -94,9 +94,9 @@ type Recovery struct {
 	ObservedAt                                           time.Time
 }
 
-// Acquire atomically consumes proof into a single execution and turns on the
-// privacy guard. Refresh/Commit/Finalize fence owner, revision, request and
-// control generation. There is no lease timeout or implicit takeover.
+// Acquireは証拠を単一実行へアトミックに確保し、プライバシー保護を有効にする。
+// Refresh/Commit/Finalizeは、所有者・リビジョン・申請・制御世代で実行を保護する。
+// リース期限や暗黙の引き継ぎは設けない。
 type Store interface {
 	Acquire(context.Context, Start) (Execution, error)
 	Refresh(context.Context, Execution, time.Time) (Execution, error)
@@ -124,8 +124,8 @@ func Steps() []Step {
 			steps = append(steps, Step{"delete", s})
 		}
 	}
-	// Canon 05 deletes Auth only after primary, web, derived and analytics
-	// cleanup. The catalog order is not the execution order.
+	// Canon 05では、主データ・Web・派生データ・分析データの消去後にAuthを削除する。
+	// 一覧の並びは実行順序ではない。
 	steps = append(steps, Step{"delete", "firebase-auth"})
 	for _, s := range DeletionScopes() {
 		steps = append(steps, Step{"inspect", s})
@@ -180,8 +180,8 @@ func (v Evidence) Validate(op Operation, now time.Time) error {
 	return nil
 }
 
-// Apply must reconcile its stable operation ID after timeout/lost acknowledgement.
-// Returning unknown is safe; inferring fleet drain from handler counts is not.
+// ApplyはタイムアウトやACK消失後も、安定した操作IDで結果を照合する必要がある。
+// unknownを返すことは安全だが、ハンドラー件数から全処理の完了を推測してはならない。
 type Effects interface {
 	Apply(context.Context, Operation) (Evidence, error)
 }

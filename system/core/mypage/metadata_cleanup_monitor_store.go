@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// The existing default-deny client rules cover this server-only singleton.
-// No credentials, IAM, retention configuration or scheduler are provisioned.
+// このサーバー専用単一文書には、既存の既定拒否クライアントルールが適用される。
+// 認証情報・IAM・保持設定・スケジューラーは構築しない。
 type FirestoreMetadataCleanupMonitor struct {
 	Client    *firestore.Client
 	ProjectID string
@@ -69,9 +69,9 @@ func (s *FirestoreMetadataCleanupMonitor) Record(ctx context.Context, next Metad
 	return nil
 }
 
-// NewFirestoreMetadataCleanupRunner binds account cleanup and durable monitoring
-// to the same explicitly selected existing project/client. It starts no work;
-// the caller owns the approved runtime, schedule and deadline-capable signal sink.
+// NewFirestoreMetadataCleanupRunnerは、アカウント削除処理と永続監視を、
+// 明示して選んだ同じ既存プロジェクト・クライアントに結び付ける。構築時に処理は開始しない。
+// 承認済みランタイム・スケジュール・期限対応の監視出力先は呼び出し元が管理する。
 func NewFirestoreMetadataCleanupRunner(client *firestore.Client, projectID string, signals MetadataCleanupHealthRecorder, now func() time.Time, batchSize, maxPages int) (*MetadataCleanupRunner, error) {
 	store := &FirestoreMetadataCleanupStore{Client: client, ProjectID: projectID}
 	if !store.valid() || signals == nil || now == nil || batchSize < 1 || batchSize > 1000 || maxPages < 1 || maxPages > 1000 {
@@ -83,8 +83,8 @@ func NewFirestoreMetadataCleanupRunner(client *firestore.Client, projectID strin
 	}, nil
 }
 
-// Acknowledgement means acceptance by the deadline-capable signal sink, not
-// receipt by an operator. Compare-and-clear preserves a concurrent newer event.
+// ACKは期限対応の監視出力先が受理したことを示し、運用担当者の受領は意味しない。
+// 比較後の消去で、並行して発生した新しいイベントを保持する。
 func (s *FirestoreMetadataCleanupMonitor) AcknowledgeRetention(ctx context.Context, startedAt time.Time) error {
 	if !s.valid() || startedAt.IsZero() {
 		return ErrMetadataCleanupIncomplete

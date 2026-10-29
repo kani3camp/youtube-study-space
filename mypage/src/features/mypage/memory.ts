@@ -149,9 +149,9 @@ export function mergeResponse(
 	}
 }
 
-// Private data lives only in this instance. Epoch changes make delayed responses
-// harmless even when a fetch implementation ignores AbortSignal.
-// Keep regular refresh affordable without delaying first load or manual updates.
+// 個人データはこのインスタンス内だけに置く。世代を変更することで、
+// fetch実装がAbortSignalを無視しても遅延レスポンスを無効にする。
+// 初回取得や手動更新を遅らせず、定期更新の費用を抑える。
 const VISIBLE_POLL_INTERVAL_MS = 5 * 60_000
 
 export class MyPageMemory {
@@ -249,8 +249,8 @@ export class MyPageMemory {
 		return this.state.phase === 'restricted' && uid === this.uid
 	}
 
-	// A definitive denial is terminal for this identity until a fresh login.
-	// Clearing increments the epoch before publishing, rejecting late responses.
+	// 確定した拒否は、新たにログインするまで同じ本人に対して維持する。
+	// 消去時は通知前に世代を進め、遅延レスポンスを拒否する。
 	restrict(code: RestrictionCode, uid = this.uid) {
 		this.uid = uid
 		this.clear('restricted', code)
@@ -295,8 +295,8 @@ export class MyPageMemory {
 			if (this.timer !== null) clearTimeout(this.timer)
 			this.timer = null
 		} else {
-			// A quick tab switch must not restart the same expensive history read.
-			// Errors still retry via the existing backoff and Retry-After rules.
+			// 短いタブ切替で、費用の大きい同じ履歴読み取りを再開しない。
+			// エラー時は既存の待機時間とRetry-Afterの規則に従って再試行する。
 			const elapsed =
 				this.state.receivedAt === null
 					? Number.POSITIVE_INFINITY
@@ -311,7 +311,7 @@ export class MyPageMemory {
 		}
 	}
 
-	// pagehide clears pixels and cached private values before a bfcache snapshot.
+	// pagehideでは、bfcacheの保存前に画面表示とキャッシュ内の個人データを消去する。
 	suspend(freshLogin = false) {
 		if (this.state.phase === 'restricted' && !freshLogin) {
 			this.clear('restricted', this.state.error)
@@ -368,8 +368,8 @@ export class MyPageMemory {
 			this.state.phase === 'maintenance'
 		)
 			return
-		// Explicit manual retries may bypass ordinary transport backoff, but
-		// visibility/route/network events must preserve its absolute deadline.
+		// 明示的な手動再試行は通常の通信待機を省略できる。
+		// 表示・ルート・ネットワークのイベントでは、その絶対期限を維持する。
 		const remaining =
 			Math.max(this.retryAt, manual ? 0 : this.automaticRetryAt) - this.now()
 		if (remaining > 0) {
@@ -407,7 +407,7 @@ export class MyPageMemory {
 						error.status === 401 &&
 						!forceToken
 					) {
-						// Clear values before forcing a token refresh.
+						// トークンを強制更新する前に値を消去する。
 						this.publish({ ...this.state, data: null, receivedAt: null })
 						forceToken = true
 						continue

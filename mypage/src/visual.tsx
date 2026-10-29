@@ -1,5 +1,5 @@
-// Dev-server-only synthetic verification entrypoint, excluded from index.html
-// and production build inputs. Never enables mock mode in the product runtime.
+// 開発サーバー専用の合成検証エントリーポイント。index.htmlと本番ビルド入力から除外する。
+// 製品ランタイムのモックモードは有効にしない。
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import fixture from '../../docs/mypage/fixtures/available.json'

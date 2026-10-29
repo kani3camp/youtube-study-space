@@ -1,4 +1,4 @@
-"""Runtime boundary failures and exact-source image admission, without cloud I/O."""
+"""ランタイムの拒否と、ソース完全一致のイメージ受入を検証する。クラウド入出力は行わない。"""
 from copy import deepcopy
 import json
 from pathlib import Path
@@ -321,7 +321,7 @@ class RuntimeTest(unittest.TestCase):
                 mutate(rejected)
                 with self.subTest(stage=stage, mutation=mutate), self.assertRaises(ValueError):
                     r.validate_plan(rejected, stage)
-            # Keep planned/observed values equal to test the admission itself.
+            # 受入検査自体を試すため、計画値と観測値を同じに保つ。
             for field, invalid in (('generation', '3'), ('observed_generation', '1'),
                                    ('latest_ready_revision', 'mypage-api-old'), ('reconciling', True),
                                    ('terminal_condition', [{'state': 'CONDITION_FAILED'}]),

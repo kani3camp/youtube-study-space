@@ -50,8 +50,8 @@ func (r *Engine) Run(ctx context.Context, selector Selector, owner string) (Outc
 			return blocked, fmt.Errorf("commit deletion checkpoint: %w", err)
 		}
 	}
-	// Refresh may reconcile an independent moderation generation. Once resume
-	// intent is durable, no retry can return to deletion/inspection of new users.
+	// Refreshで独立したモデレーション世代を照合できる。
+	// 再開意図を永続化した後は、再試行で新規利用者の削除・調査へ戻らない。
 	e, err = r.Store.Refresh(ctx, e, r.Clock())
 	if err != nil {
 		return blocked, fmt.Errorf("refresh completion fence: %w", err)

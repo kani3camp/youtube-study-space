@@ -69,8 +69,8 @@ func TestCLIEmulatorCommitsGuardBeforeRevokeAndPreservesIndependentReasons(t *te
 				objectField(t, v, key)["channelID"] = channel
 			}
 		})
-		// The injected constructor is emulator-only. Production bootstrap is
-		// never invoked; production configuration still rejects emulator env.
+		// 注入するコンストラクターはエミュレーター専用とする。本番の初期化は呼び出さない。
+		// 本番設定では引き続きエミュレーター環境変数を拒否する。
 		get := func(k string) string {
 			switch k {
 			case "MYPAGE_ENVIRONMENT":
@@ -125,8 +125,8 @@ func TestCLIEmulatorCommitsGuardBeforeRevokeAndPreservesIndependentReasons(t *te
 	require.Equal(t, "deletion", out.Control)
 	require.Equal(t, 2, revokes, "unblock and inspect must not revoke")
 
-	// This setup-only change models an independently reviewed privacy operator.
-	// The CLI has no privacy mutation operation or record deletion capability.
+	// 準備専用のこの変更は、独立してレビューされたプライバシー運用担当者を模擬する。
+	// CLI自体はプライバシー状態の変更やレコード削除を行えない。
 	_, err = store.Change(ctx, channel, serviceaccess.Change{Reason: serviceaccess.PrivacyDeletion}, now.Add(time.Second))
 	require.NoError(t, err)
 	code, out = run("unblock")

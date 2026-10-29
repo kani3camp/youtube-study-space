@@ -41,8 +41,8 @@ func TestOfflineModesDoNotInvokeRunnerAndCannotEstablishProofOrDeletion(t *testi
 			if mode == "check-config" {
 				args = append(args, "--check-config")
 			}
-			// Format-valid selectors are accepted without pretending they resolve
-			// to trusted support records or independently verified proof.
+			// 形式の正しい対象指定は受け入れるが、信頼済みサポート記録や
+			// 独立した検証済み証拠へ解決できたとは扱わない。
 			input := requestJSON(t, func(v map[string]any) {
 				v["proofRef"] = strings.Repeat("a", 64)
 				objectField(t, v, "confirmation")["proofRef"] = strings.Repeat("a", 64)

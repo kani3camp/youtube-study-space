@@ -12,8 +12,8 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Server/Admin SDKs manage this allowlist through IAM. Browser clients must
-    // never be able to enumerate, inspect, or change authorized monitor UIDs.
+    // この許可リストはServer/Admin SDKがIAM権限で管理する。
+    // ブラウザから許可済みmonitor UIDの列挙・参照・変更を許可しない。
     match /_monitor-readers/{uid} {
       allow read, write: if false;
     }

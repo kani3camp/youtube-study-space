@@ -1,6 +1,6 @@
-"""Only routing omissions, required-gate bypasses and credential exposure belong here.
+"""振り分け漏れ・必須検査の迂回・認証情報の漏えいだけを対象にする。
 
-Actionlint owns YAML/call syntax; the called tools own application contracts.
+YAMLと呼び出しの構文はactionlint、アプリケーションの仕様は各呼び出し先で検証する。
 """
 import importlib.util
 from pathlib import Path
@@ -17,7 +17,7 @@ load = yaml_source.load_yaml
 gate = test_ci_results.gate
 
 def selected(expression, flags):
-    """Evaluate the small OR-only routing expressions, not the Actions job graph."""
+    """小さなORだけの振り分け式を評価し、Actionsのジョブグラフは評価しない。"""
     terms = expression.removeprefix('${{').removesuffix('}}').strip().split(' || ')
     groups = [re.fullmatch(r"needs.changes.outputs.(\w+) == 'true'", term) for term in terms]
     if not all(groups):

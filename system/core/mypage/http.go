@@ -31,14 +31,14 @@ type HTTPHandler struct {
 	Intake      PrivacyIntake
 	History     *HistoryService
 	Verifier    RequestVerifier
-	// One fixed HTTPS origin per environment. Never derive it from request
-	// headers; actual Hosting/proxy host forwarding must be verified at deploy.
+	// 環境ごとにHTTPSオリジンを1つ固定し、リクエストヘッダーから導出しない。
+	// 実際のHostingやプロキシのホスト転送は配備時に検証する。
 	PublicOrigin string
-	// Fixed backend host observed for Hosting rewrites. Forwarded headers are
-	// routing metadata, never proof of identity or a replacement for Auth/App Check.
+	// Hostingの書き換えで観測した固定バックエンドホスト。転送ヘッダーはルーティング情報であり、
+	// 本人確認の証拠やAuth/App Checkの代替にはしない。
 	HostingBackendHost string
-	// A deployment may inject an extractor only after verifying its actual
-	// trusted proxy chain. Default ignores all client forwarding headers.
+	// 実際の信頼済みプロキシ経路を検証した後だけ、IP抽出処理を注入できる。
+	// 既定ではクライアントの転送ヘッダーをすべて無視する。
 	RequestIP func(*http.Request) (string, error)
 	limiter   processLimiter
 }
@@ -175,8 +175,8 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, 400, "INVALID_REQUEST", requestID)
 		return
 	}
-	// Bound rejected-token traffic before either verification dependency. A
-	// process-local uid bucket alone cannot protect unauthenticated failures.
+	// どちらの検証依存を呼ぶより前に、不正トークンの通信量を制限する。
+	// プロセス内のuid制限だけでは、未認証の失敗を保護できない。
 	if ok, retry := h.limiter.allow("coarse-ip:"+ip, 60, 20, now); !ok {
 		rateError(w, retry, requestID)
 		return
@@ -443,8 +443,8 @@ func strictBody(w http.ResponseWriter, r *http.Request, target any) error {
 	return nil
 }
 
-// encoding/json matches field names without case sensitivity and accepts
-// duplicate keys. The public schema requires exact, unambiguous field names.
+// encoding/jsonはフィールド名の大小文字を区別せず、重複キーも受け入れる。
+// 公開スキーマでは、完全一致する曖昧さのないフィールド名を必須とする。
 func validObjectKeys(body []byte, target any) bool {
 	shape := reflect.TypeOf(target)
 	if shape == nil || shape.Kind() != reflect.Pointer || shape.Elem().Kind() != reflect.Struct {

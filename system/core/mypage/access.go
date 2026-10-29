@@ -9,8 +9,8 @@ import (
 	"app.modules/core/serviceaccess"
 )
 
-// accessGateError distinguishes an authorization-store outage from an ordinary
-// metadata-provider outage. It must never become a stale/partial 200 response.
+// accessGateErrorは、認可ストア障害と通常のメタデータ取得元障害を区別する。
+// 古い値や一部取得の200レスポンスに変換しない。
 type accessGateError struct{ cause error }
 
 func (e *accessGateError) Error() string { return e.cause.Error() }

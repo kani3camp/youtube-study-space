@@ -24,8 +24,8 @@ func NewFirestoreController(ctx context.Context, clientOption option.ClientOptio
 	return NewFirestoreControllerForProject(ctx, firestore.DetectProjectID, clientOption)
 }
 
-// NewFirestoreControllerForProject keeps operator tools bound to an explicit
-// selected project instead of the ambient ADC project.
+// NewFirestoreControllerForProjectは、周囲のADCプロジェクトを使わず、
+// 明示して選んだプロジェクトに運用ツールを固定する。
 func NewFirestoreControllerForProject(ctx context.Context, projectID string, clientOption option.ClientOption) (*FirestoreControllerImplements, error) {
 	client, err := firestore.NewClient(ctx, projectID, clientOption)
 	if err != nil {

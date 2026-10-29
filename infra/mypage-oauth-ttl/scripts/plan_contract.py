@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed contract for one MyPage OAuth TTL field; never authorize apply."""
+"""MyPage OAuth TTLの1フィールドを厳格に検査する。applyは承認しない。"""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ VALUE_KEYS = {
 
 
 class ContractError(Exception):
-    """Only fixed error codes may cross the CLI output boundary."""
+    """CLI出力には固定エラーコードだけを渡せる。"""
 
 
 def require(condition, code):
@@ -87,7 +87,7 @@ def check_values(value, scope, *, desired):
 
 
 def check_change(resource, scope):
-    """Shared by full saved-plan validation and real Terraform mock-plan tests."""
+    """保存Plan全体の検証と、実際のTerraformモックPlanテストで共有する。"""
     require(isinstance(resource, dict), "resource_shape_invalid")
     expected = {"address": ADDRESS, "module_address": "module.oauth_transaction_ttl",
                 "mode": "managed", "type": "google_firestore_field",
@@ -121,7 +121,7 @@ def check_change(resource, scope):
         allowed_unknown |= {("id",), ("name",)}
     if actions != ["no-op"]:
         allowed_unknown.add(("ttl_config", 0, "state"))
-        # Optional+Computed in Google 8.5.0; configuration must omit the offset.
+        # Google 8.5.0ではOptional+Computedであり、設定ではoffsetを省略する。
         allowed_unknown.add(("ttl_config", 0, "expiration_offset"))
     require(set(true_paths(change.get("after_unknown", {}))) <= allowed_unknown,
             "unknown_field_forbidden")
@@ -145,8 +145,8 @@ def validate_plan(plan, target):
     }, "input_binding_mismatch")
     changes = plan.get("resource_changes")
     require(isinstance(changes, list) and len(changes) == 1, "resource_count_invalid")
-    # resource_changes is the execution delta. Terraform native tests validate
-    # HCL; do not reconstruct configuration expressions or planned_values here.
+    # resource_changesは実行時の差分を表す。HCLはTerraformのネイティブテストで検証する。
+    # ここで設定式やplanned_valuesを再構築しない。
     action = check_change(changes[0], scope)
     require(type(plan.get("applyable")) is bool and
             (action == "no-op" or plan["applyable"]), "plan_action_mismatch")

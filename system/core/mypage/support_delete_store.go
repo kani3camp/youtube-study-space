@@ -20,9 +20,8 @@ const (
 	supportDeleteClaims     = "support-delete-proof-claims"
 )
 
-// FirestoreDeletionStore is an injected adapter. No constructor discovers ADC
-// or starts a live workflow. Claim and guard commit together; finalization
-// clears only the same request at the freshly fenced generation.
+// FirestoreDeletionStoreは外から渡すアダプターである。コンストラクターはADC探索や実ワークフローを開始しない。
+// 証拠確保と保護状態を一緒にコミットし、完了時は最新の実行保護世代にある同じ申請だけを解除する。
 type FirestoreDeletionStore struct{ Client *firestore.Client }
 
 func (s *FirestoreDeletionStore) check(selector supportdelete.Selector) error {
@@ -243,8 +242,8 @@ func (s *FirestoreDeletionStore) Refresh(ctx context.Context, expected supportde
 		result.Generation = control.Control.Generation
 		result.Revision++
 		result.UpdatedAt = now.UTC().Truncate(time.Microsecond)
-		// An independent moderation change invalidates partial absence evidence.
-		// Durable resume intent is irreversible: new legitimate use must survive.
+		// 独立したモデレーション変更は、部分的な不存在証拠を無効にする。
+		// 永続化した再開意図からは戻らず、再開後の正当な新規利用を保持する。
 		if result.Cursor > supportdelete.InspectionStart() && result.Cursor < supportdelete.ResumeStart() {
 			result.Cursor = supportdelete.InspectionStart()
 		}
@@ -289,8 +288,8 @@ func (s *FirestoreDeletionStore) Commit(ctx context.Context, expected supportdel
 }
 
 func (s *FirestoreDeletionStore) Recover(ctx context.Context, proof supportdelete.Recovery, now time.Time) error {
-	// This method accepts only evidence from a trusted runtime adapter. The CLI
-	// has no recovery JSON flag that can manufacture Stopped/TraceRef evidence.
+	// このメソッドは信頼済みランタイムアダプターの証拠だけを受け入れる。
+	// CLIに、Stopped/TraceRefの証拠を作り出せる復旧JSONフラグは設けない。
 	if s.check(proof.Selector) != nil || !proof.Stopped || !supportdelete.ValidRef(proof.TraceRef) || !supportdelete.ValidRef(proof.PreviousOwnerRef) || !supportdelete.ValidRef(proof.NewOwnerRef) || proof.PreviousOwnerRef == proof.NewOwnerRef || proof.ObservedAt.IsZero() || proof.ObservedAt.After(now) || proof.ObservedAt.Before(now.Add(-time.Minute)) {
 		return supportdelete.ErrEvidence
 	}
@@ -351,8 +350,8 @@ func (s *FirestoreDeletionStore) Finalize(ctx context.Context, expected supportd
 		if err != nil {
 			return supportdelete.ErrConflict
 		}
-		// Minimal opaque terminal receipts carry no channel/proof/request links.
-		// Inactive control checkpoints are retained without TTL/reset/deletion.
+		// 最小限の推測不能な完了受付には、チャンネル・証拠・申請への関連を残さない。
+		// 無効状態の制御チェックポイントは、TTL・リセット・削除を行わず保持する。
 		terminal := map[string]interface{}{"schemaVersion": int64(1), "acceptedAt": e.AcceptedAt, "deleteBy": e.DeleteBy, "completedAt": now.UTC().Truncate(time.Microsecond)}
 		if err := s.moveDeletionSnapshots(tx, e, e, true); err != nil {
 			return err
@@ -365,8 +364,8 @@ func (s *FirestoreDeletionStore) Finalize(ctx context.Context, expected supportd
 		if tx.Set(receiptRef, terminal) != nil || tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), map[string]interface{}{"schemaVersion": int64(1), "acceptedAt": e.AcceptedAt, "deleteBy": e.DeleteBy, "completedAt": now.UTC().Truncate(time.Microsecond), "completionBinding": completionBinding(e.Selector, e.Manifest)}) != nil || tx.Set(s.Client.Collection(serviceaccess.Collection).Doc(e.Selector.Target.ChannelID), next) != nil {
 			return supportdelete.ErrUnavailable
 		}
-		// The existing deletion engine alone owns this terminal event. Keep it
-		// body-free and unlinkable by raw channel, proof or receipt reference.
+		// この完了イベントは既存の削除エンジンだけが扱う。本文を含めず、
+		// 元のチャンネル・証拠・受付参照で関連づけられない状態を保つ。
 		if tx.Create(s.Client.Collection(supportOperatorAudit).Doc(digest("delete-finalized:"+e.Selector.ExecutionRef)), operatorAuditEvent{
 			SchemaVersion: 1, Environment: e.Selector.Target.Environment, Purpose: SupportDelete,
 			Action: "delete-finalized", Actor: "deletion-workflow", Binding: digest(e.Selector.RequestRef),
@@ -383,8 +382,8 @@ func completionBinding(selector supportdelete.Selector, manifest supportdelete.M
 	return digest(selector.Target.Environment + ":" + selector.Target.ProjectID + ":" + selector.Target.ChannelID + ":" + selector.RequestRef + ":" + selector.ExecutionRef + ":" + selector.ProofRef + ":" + manifest.Ref + ":" + manifest.Mode)
 }
 
-// Preserve the optional immutable BQ capture marker across ordinary checkpoint
-// updates. Terminal replacement deliberately removes it with all raw links.
+// 通常のチェックポイント更新では、任意の不変BQ取得マーカーを維持する。
+// 完了時の置換では、他の元参照とともに意図的に除去する。
 func mergeDeletionExecution() firestore.SetOption {
 	var paths []firestore.FieldPath
 	for _, key := range []string{"selector", "manifest", "ownerRef", "revision", "generation", "guardSince", "cutoff", "acceptedAt", "deleteBy", "updatedAt", "cursor", "evidenceDigest"} {

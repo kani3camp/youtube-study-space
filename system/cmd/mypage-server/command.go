@@ -6,9 +6,8 @@ import (
 	"io"
 )
 
-// Configuration validation is not an infrastructure check or live E2E test.
-// All report fields have bounded, fixed values; supplied configuration and
-// dependency errors must never appear in this shareable preparation evidence.
+// 設定検証は基盤検査や実環境のE2Eではない。報告項目はすべて範囲を限定した固定値とする。
+// 共有可能な準備記録へ、入力設定や依存先エラーを出さない。
 type configurationReport struct {
 	SchemaVersion               int    `json:"schemaVersion"`
 	Mode                        string `json:"mode"`
@@ -19,8 +18,8 @@ type configurationReport struct {
 	LiveE2E                     string `json:"liveE2E"`
 }
 
-// command dispatches before startup so check-only and invalid argument paths
-// cannot reach ADC discovery, external clients, or the HTTP listener.
+// commandは起動前に処理を分岐し、検査専用モードや不正引数が
+// ADC探索・外部クライアント・HTTP待ち受けへ到達しないようにする。
 func command(args []string, get func(string) string, stdout, stderr io.Writer, start func() error) int {
 	if len(args) == 0 {
 		if err := start(); err != nil {
@@ -53,8 +52,8 @@ func command(args []string, get func(string) string, stdout, stderr io.Writer, s
 	return exitCode
 }
 
-// Retain the existing safe startup stages for release diagnosis. This exact
-// allowlist prevents unexpected dependency/callback errors from becoming logs.
+// 配備診断用に、既存の安全な起動段階を維持する。
+// 厳密な許可リストで、予期しない依存先やコールバックのエラーをログに出さない。
 func startupDiagnostic(err error) string {
 	switch err.Error() {
 	case "MyPage configuration unavailable":

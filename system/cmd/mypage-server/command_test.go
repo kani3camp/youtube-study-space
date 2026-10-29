@@ -11,8 +11,8 @@ import (
 )
 
 func TestCheckConfigurationIsOfflineAndNeverClaimsInfrastructureOrLiveReadiness(t *testing.T) {
-	// Every validator constructor must remain lazy: even a future accidental
-	// request through the default transport fails this command's contract.
+	// 各検証用コンストラクターは遅延初期化を維持する。
+	// 将来、既定の通信処理で誤ってリクエストしても、このコマンドの仕様違反として検出する。
 	transport := http.DefaultTransport
 	http.DefaultTransport = rejectingTransport{t: t}
 	t.Cleanup(func() { http.DefaultTransport = transport })
@@ -55,7 +55,7 @@ func TestCheckConfigurationIsOfflineAndNeverClaimsInfrastructureOrLiveReadiness(
 }
 
 func TestCheckConfigurationRejectsRuntimeMistakesWithoutDisclosureOrBootstrap(t *testing.T) {
-	// Construct a synthetic invalid authority without a literal Basic Auth URL.
+	// Basic Auth URLそのものを使わず、不正な認証部を合成する。
 	passwordSentinel := "SYNTHETIC_PASSWORD_SENTINEL"
 	credentialOrigin := (&url.URL{Scheme: "https", Host: "example.invalid", User: url.UserPassword("synthetic-test-user", passwordSentinel), RawQuery: "synthetic-query"}).String()
 	for _, tc := range []struct{ name, key, value string }{

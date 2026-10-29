@@ -191,8 +191,8 @@ func TestManifestMustBeExact0600RegularNonSymlinkAndBounded(t *testing.T) {
 		require.NoError(t, os.Chmod(path, mode))
 		info, err := os.Lstat(path)
 		require.NoError(t, err)
-		// Some filesystems clear setuid/setgid on chmod. In that case the
-		// ordinary 0600 file is not a valid negative fixture.
+		// ファイルシステムによってはchmodでsetuid/setgidが消える。
+		// その場合、通常の0600ファイルは拒否を試すテストデータにならない。
 		if special := mode & (os.ModeSetuid | os.ModeSetgid | os.ModeSticky); special != 0 && info.Mode()&special != special {
 			t.Logf("filesystem cleared requested special mode %v", special)
 			continue

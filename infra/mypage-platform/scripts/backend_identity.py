@@ -1,7 +1,7 @@
-"""Owner bootstrap for the isolated DEV deployer; preview is the default.
+"""独立したDEV配備用権限を所有者が初期設定する。既定はプレビュー。
 
-No runtime secret values, existing Terraform identities or production targets.
-Existing names stop the bootstrap; inspect partial execution before recovery.
+ランタイムの秘密値・既存Terraform認証主体・本番対象は扱わない。
+既存名があれば停止し、部分実行後は復旧前に状態を調べる。
 """
 import json
 import os
@@ -39,7 +39,7 @@ def command(tool, arguments, *, body=None, absent=False):
     result = subprocess.run([executable, *arguments], input=json.dumps(body) if body is not None else None,
                             text=True, capture_output=True, timeout=120)
     if absent:
-        # Absence must be proven by a completed list, never inferred from 403.
+        # 403から不存在を推測せず、一覧の取得完了で確認する。
         c.need(result.returncode == 0 and json.loads(result.stdout) == [], 'backend-bootstrap-collision')
         return
     c.need(result.returncode == 0, 'backend-bootstrap-command')
@@ -50,7 +50,7 @@ def apply():
     common = ['--project=' + c.PROJECT, '--quiet', '--format=json']
     number = str(command('gcloud', ['projects', 'describe', c.PROJECT, '--format=json'])['projectNumber'])
     c.need(number.isdigit(), 'backend-bootstrap-project')
-    # Verify each proposed namespace is free before the first write.
+    # 最初の書き込み前に、候補の名前空間がすべて未使用であることを確認する。
     command('gcloud', ['iam', 'service-accounts', 'list', '--filter=email:' + ACCOUNT, *common], absent=True)
     command('gcloud', ['iam', 'workload-identity-pools', 'list', '--location=global',
                        '--filter=name:/' + POOL, *common], absent=True)

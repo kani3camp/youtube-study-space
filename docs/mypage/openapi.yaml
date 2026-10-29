@@ -8,13 +8,11 @@ paths:
   /api/public/mypage-status:
     get:
       operationId: getPublicMyPageStatus
-      description: Same-origin public maintenance status. No Firebase Auth or App Check is required.
-        Missing, malformed or unreadable control state fails closed with 503; it is never inferred as NORMAL.
-        The response contains no operator identity, reason category, revision, project or audit fields.
+      description: 同一オリジンの公開メンテナンス状態。Firebase AuthやApp Checkは不要。制御状態の欠落・形式不正・読み取り不能では503を返し、NORMALと推測しない。応答に運用担当者情報・理由区分・リビジョン・プロジェクト・監査フィールドは含めない。
       security: []
       responses:
         '200':
-          description: Validated public maintenance status
+          description: 検証済みの公開メンテナンス状態
           headers:
             Cache-Control:
               schema:
@@ -24,10 +22,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/MaintenanceStatus'
         '429':
-          description: Public status request rate limit exceeded
+          description: 公開状態照会のレート制限超過
           headers:
             Retry-After:
-              description: Seconds until the caller may retry
+              description: 呼び出し元が再試行できるまでの秒数
               schema:
                 type: string
                 pattern: '^[0-9]+$'
@@ -36,7 +34,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '503':
-          description: Authoritative status is unknown
+          description: 管理元の状態が不明
           content:
             application/json:
               schema:
@@ -48,73 +46,73 @@ paths:
       - AppCheck: []
       responses:
         '400': &id001
-          description: Safe error response
+          description: 公開してよい内容だけを含むエラーレスポンス
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '401': &id002
-          description: Safe error response
+          description: 公開してよい内容だけを含むエラーレスポンス
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '403': &id003
-          description: Safe error response
+          description: 公開してよい内容だけを含むエラーレスポンス
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '404': &id004
-          description: Safe error response
+          description: 公開してよい内容だけを含むエラーレスポンス
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '405': &id005
-          description: Safe error response
+          description: 公開してよい内容だけを含むエラーレスポンス
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '409': &id006
-          description: Safe error response
+          description: 公開してよい内容だけを含むエラーレスポンス
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '410': &id007
-          description: Safe error response
+          description: 公開してよい内容だけを含むエラーレスポンス
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '413': &id008
-          description: Safe error response
+          description: 公開してよい内容だけを含むエラーレスポンス
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '429': &id009
-          description: Safe error response
+          description: 公開してよい内容だけを含むエラーレスポンス
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '500': &id010
-          description: Safe error response
+          description: 公開してよい内容だけを含むエラーレスポンス
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '503': &id011
-          description: Safe error response
+          description: 公開してよい内容だけを含むエラーレスポンス
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '200':
-          description: Success
+          description: 成功
           headers:
             Cache-Control:
               schema:
@@ -132,9 +130,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/StartRequest'
-      description: Optional supportChallenge resolves a server-owned request; browser
-        cannot choose target or purpose. Fresh OAuth transaction expires after 10
-        minutes.
+      description: 任意のsupportChallengeからサーバー管理の申請を特定する。ブラウザは対象や目的を選べない。新しいOAuthトランザクションは10分で失効する。
   /api/auth/youtube/callback:
     get:
       operationId: completeYouTubeOAuth
@@ -152,26 +148,24 @@ paths:
         '500': *id010
         '503': *id011
         '302':
-          description: Fixed allowlisted frontend redirect
+          description: 許可済みの固定フロントエンドへのリダイレクト
       parameters:
       - in: query
         name: code
         schema:
           type: string
-        description: No duplicates. code and error are mutually exclusive.
+        description: 重複は認めない。codeとerrorは同時に指定できない。
       - in: query
         name: state
         schema:
           type: string
-        description: No duplicates. code and error are mutually exclusive.
+        description: 重複は認めない。codeとerrorは同時に指定できない。
       - in: query
         name: error
         schema:
           type: string
-        description: No duplicates. code and error are mutually exclusive.
-      description: Atomically claim pending transaction before one-time code exchange
-        outside the Firestore callback. Accept bounded provider extras. Redirects
-        never expose credentials or channel ID.
+        description: 重複は認めない。codeとerrorは同時に指定できない。
+      description: 保留中トランザクションの処理権をアトミックに確保し、その後Firestoreコールバックの外で一度だけ認可コードを交換する。上限付きでプロバイダーの追加項目を受け入れる。リダイレクトに認証情報やチャンネルIDを含めない。
   /api/auth/youtube/channel:
     get:
       operationId: getVerifiedChannel
@@ -191,7 +185,7 @@ paths:
         '500': *id010
         '503': *id011
         '200':
-          description: Success
+          description: 成功
           headers:
             Cache-Control:
               schema:
@@ -203,9 +197,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ChannelResponse'
-      description: Purpose and public channel metadata bind to confirmationRef. Support
-        purpose comes only from the server record; no internal target channel ID is
-        exposed.
+      description: 目的と公開チャンネルメタデータをconfirmationRefに結び付ける。サポートの目的はサーバーレコードだけから取得し、内部の対象チャンネルIDは公開しない。
   /api/auth/youtube/confirm:
     post:
       operationId: confirmChannel
@@ -225,7 +217,7 @@ paths:
         '500': *id010
         '503': *id011
         '200':
-          description: Success
+          description: 成功
           headers:
             Cache-Control:
               schema:
@@ -243,9 +235,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ConfirmRequest'
-      description: Atomically consumes the transaction. Login mints once outside the
-        transaction. Support verifies the fresh channel and server purpose once, returns
-        an opaque requestRef, never mints a Firebase token or changes WebAccount.
+      description: トランザクションをアトミックに消費する。ログインではトランザクション外で一度だけ発行する。サポートでは新たに確認したチャンネルとサーバー側の目的を一度検証し、推測不能なrequestRefを返す。Firebaseトークン発行やWebAccount変更は行わない。
   /api/auth/session/complete:
     post:
       operationId: completeFirebaseSession
@@ -265,11 +255,8 @@ paths:
         '500': *id010
         '503': *id011
         '204':
-          description: Idempotent session completion
-      description: Strict JSON, maximum 4096-byte POST body; no undocumented query
-        parameters; authenticated identity is verified custom-provider uid only.
-        Fresh ServiceAccessControl is checked before account/cache reads; active
-        reasons return stable 403 codes, read/decode failures return 503.
+          description: 冪等なセッション完了
+      description: POST本文は最大4096バイトの厳格なJSONとし、未定義のクエリパラメーターを認めない。本人識別には検証済みcustom-provider uidだけを使う。アカウントやキャッシュの読み取り前に最新のServiceAccessControlを確認する。有効な制限理由には固定403コード、読み取り・デコード失敗には503を返す。
   /api/mypage:
     get:
       operationId: getMyPage
@@ -289,7 +276,7 @@ paths:
         '500': *id010
         '503': *id011
         '200':
-          description: Success
+          description: 成功
           headers:
             Cache-Control:
               schema:
@@ -301,17 +288,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MyPage'
-      description: Strict JSON, maximum 4096-byte POST body; no undocumented query
-        parameters; authenticated identity is verified custom-provider uid only.
-        Fresh ServiceAccessControl is checked before account/cache reads; active
-        reasons return stable 403 codes, read/decode failures return 503.
+      description: POST本文は最大4096バイトの厳格なJSONとし、未定義のクエリパラメーターを認めない。本人識別には検証済みcustom-provider uidだけを使う。アカウントやキャッシュの読み取り前に最新のServiceAccessControlを確認する。有効な制限理由には固定403コード、読み取り・デコード失敗には503を返す。
   /api/privacy/requests:
     post:
       operationId: submitPrivacyRequest
-      description: Feature disabled by default. Existing verified Firebase custom uid is the target.
-        ServiceAccessControl does not block this narrow intake. Receipt is committed before
-        fresh purpose-bound support OAuth; no deletion, disclosure or revoke occurs here.
-        Exact retries preserve acceptedAt and deleteBy; changed input with the same key is 409.
+      description: 既定では無効。既存の検証済みFirebase custom uidを対象にする。この限定的な受付はServiceAccessControlで遮断しない。目的に結び付けた新たなサポートOAuth認証より前に受付をコミットし、ここでは削除・開示・失効を実行しない。同一内容の再試行ではacceptedAtとdeleteByを維持し、同じキーで入力が変わった場合は409を返す。
       security:
       - FirebaseAuth: []
         AppCheck: []
@@ -323,7 +304,7 @@ paths:
               $ref: '#/components/schemas/PrivacyIntakeRequest'
       responses:
         '200':
-          description: Committed receipt, including a challenge only while still awaiting proof
+          description: コミット済み受付。本人確認待ちの間だけチャレンジを含める
           content:
             application/json:
               schema:
@@ -338,9 +319,7 @@ paths:
   /api/privacy/requests/status:
     post:
       operationId: getPrivacyRequestStatus
-      description: Requires matching Firebase uid and completed fresh support OAuth proof.
-        Opaque ref alone cannot reveal a reply. Available during ordinary service restriction.
-        Completed/anonymized requests use the configured human exception contact.
+      description: Firebase uidの一致と、新たなサポートOAuthの本人確認完了を必須とする。推測不能な参照だけでは返信を閲覧できない。通常サービスの利用制限中も利用可能とする。完了・匿名化済み申請は設定済みの有人例外窓口で扱う。
       security:
       - FirebaseAuth: []
         AppCheck: []
@@ -358,7 +337,7 @@ paths:
                   pattern: ^[a-f0-9]{64}$
       responses:
         '200':
-          description: Verified status and optional operator response
+          description: 検証済み状態と任意の運用担当者返信
           content:
             application/json:
               schema:
@@ -371,13 +350,7 @@ paths:
   /api/mypage/history:
     get:
       operationId: getRecordedWorkHistory
-      description: Development-only, disabled unless an operator policy enables it. Returns
-        recorded work intervals completed in the JST half-open date range. Graphs do not
-        paginate this endpoint. Cursor freezes asOf and is bound to verified uid, consent,
-        access checkpoint, authoritative entitlement revision and query. Fixed conservative
-        work units are reserved before source preflight/read; failed or cancelled work still
-        consumes the reservation. Reusing a consumed Idempotency-Key is 409 without another
-        source read. Ordinary overview/logout/privacy do not consume these daily units.
+      description: 開発環境専用。運用ポリシーで有効にしない限り無効とする。JSTの半開日付範囲内に完了した記録済み作業区間を返す。グラフはこのエンドポイントのページを巡回しない。カーソルはasOfを固定し、検証済みuid・同意・アクセスチェックポイント・信頼する利用権限のリビジョン・クエリに結び付ける。原記録の事前検査・読み取り前に余裕を持たせた固定処理単位を予約し、失敗・取消でも消費する。消費済みIdempotency-Keyの再利用は、原記録を再読せず409を返す。通常の概要・ログアウト・プライバシー機能は、この日次単位を消費しない。
       security:
       - FirebaseAuth: []
         AppCheck: []
@@ -389,7 +362,7 @@ paths:
       - in: query
         name: to
         required: true
-        description: Exclusive JST date; at most 31 days after from.
+        description: 終端を含まないJST日付。fromから最大31日後まで。
         schema: {type: string, format: date}
       - in: query
         name: limit
@@ -403,7 +376,7 @@ paths:
         schema: {type: string, minLength: 16, maxLength: 128}
       responses:
         '200':
-          description: One bounded page of recorded intervals, not an assertion of complete history.
+          description: 上限付きの記録済み区間1ページ。履歴全体の完全性は示さない。
           content:
             application/json:
               schema: {$ref: '#/components/schemas/HistoryPage'}
@@ -414,7 +387,7 @@ paths:
         '409': *id006
         '413': *id008
         '429':
-          description: UID daily work budget or shared concurrent lease limit.
+          description: UIDごとの日次処理予算、または共有の同時リース数の上限。
           headers:
             Retry-After: {schema: {type: integer, minimum: 1}}
             X-Quota-Reset: {schema: {type: string, format: date-time}}
@@ -436,7 +409,7 @@ components:
       type: apiKey
       in: cookie
       name: __session
-      description: Opaque ID; HttpOnly; Secure; SameSite=Lax; Path=/; no Domain; Max-Age=600.
+      description: 推測不能なID。HttpOnly・Secure・SameSite=Lax・Path=/・Max-Age=600を指定し、Domainは指定しない。
   schemas:
     MaintenanceStatus:
       type: object
@@ -460,7 +433,7 @@ components:
           type: string
           minLength: 0
           maxLength: 2000
-          description: At most 2000 UTF-8 bytes; leading/trailing whitespace and controls are rejected.
+          description: UTF-8で最大2000バイト。前後の空白と制御文字は拒否する。
     PrivacyIntakeReceipt:
       type: object
       additionalProperties: false
@@ -537,7 +510,7 @@ components:
           type: integer
           minimum: 1
           maximum: 9007199254740991
-          description: Positive validated work already recorded; not a complete total.
+          description: 検証済みで記録されている正の作業時間。完全な合計ではない。
         workSec: &id013
           type:
           - integer
@@ -1005,11 +978,11 @@ components:
           requestRef:
             type: string
             pattern: ^[a-f0-9]{64}$
-            description: Existing one-time support proof reference, not a status request identifier.
+            description: 既存の一度限りのサポート本人確認参照。状態照会の申請識別子ではない。
           supportRequestRef:
             type: string
             pattern: ^[a-f0-9]{64}$
-            description: Server-bound SupportRequest record reference for authenticated status lookup. Additive during rollout; the proof reference remains separate.
+            description: 認証付き状態照会用にサーバーで結び付けたSupportRequestレコード参照。導入時に追加する項目であり、本人確認参照とは引き続き分ける。
       discriminator:
         propertyName: purpose
     Error:

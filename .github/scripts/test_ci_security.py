@@ -1,4 +1,4 @@
-"""Guard only fail-closed scanner policy and the maintenance credential boundary."""
+"""検証不能時に拒否するスキャナー方針と、メンテナンス認証情報の分離だけを検証する。"""
 import unittest
 
 from test_ci_workflows import ROOT, load

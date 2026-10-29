@@ -28,7 +28,7 @@ func TestRecoveryCLIEmulatorReconcilesUnknownACKAndPrivateHandoffFailure(t *test
 		t.Run(failure, func(t *testing.T) {
 			input := mockHumanRequest(mypage.SupportDelete)
 			store := &mypage.FirestoreSupportStore{Client: client, Environment: "development"}
-			// Simulate a committed Create whose ACK was lost: CLI only knows input.
+			// コミット済みCreateのACKが消失し、CLIが入力だけを知っている状態を再現する。
 			ref, original, err := store.Create(ctx, input.RequestID, input.Channel, mypage.SupportDelete, input.AcceptedAt, time.Now())
 			require.NoError(t, err)
 			t.Cleanup(func() {
@@ -122,7 +122,7 @@ func TestRecoveryCLIEmulatorReconcilesUnknownACKAndPrivateHandoffFailure(t *test
 			doc, err := client.Collection("support-requests").Doc(ref).Get(ctx)
 			require.NoError(t, err)
 			priorDeliveries := deliveries
-			// A copied retry of the old command cannot rotate or resend anything.
+			// 旧コマンドをコピーして再試行しても、更新や再送はできない。
 			code, exit = invoke("recover", input)
 			require.Equal(t, 1, exit)
 			require.Equal(t, "RECOVERY_RESULT_UNCERTAIN", code)
@@ -130,7 +130,7 @@ func TestRecoveryCLIEmulatorReconcilesUnknownACKAndPrivateHandoffFailure(t *test
 			unchanged, err := doc.Ref.Get(ctx)
 			require.NoError(t, err)
 			require.Equal(t, doc.UpdateTime, unchanged.UpdateTime)
-			// Explicit fresh inspection gives only metadata, never the prior secret.
+			// 明示的な最新状態の調査ではメタデータだけを返し、以前のシークレットは返さない。
 			fail = false
 			inspectInput := input
 			inspectInput.ExpectedRevision = time.Time{}

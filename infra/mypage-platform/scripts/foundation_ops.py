@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run an environment-bound foundation plan; raw cloud evidence stays private."""
+"""環境に固定した基盤Planを実行する。元のクラウド証跡は非公開に保つ。"""
 from __future__ import annotations
 
 import base64
@@ -29,8 +29,8 @@ def need(value):
 def run(args, *, cwd=None, codes=(0,), check="native-command"):
     result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=600)
     if result.returncode not in codes and check in {"metrics-refresh-show", "metrics-refresh-apply", "metrics-final-state-show", "state-version-list", "state-version-head", "saved-runtime-plan-show"}:
-        # These fixed classifications identify the failing native step without
-        # printing raw Plan/State, arguments, paths, credentials or API errors.
+        # 固定の分類で失敗したネイティブ処理を特定する。
+        # 元のPlan/State・引数・パス・認証情報・APIエラーは出力しない。
         diagnostics = result.stdout + result.stderr
         for marker, label in (
             ("Saved plan is stale", "saved-plan-stale"),
@@ -53,8 +53,8 @@ def run(args, *, cwd=None, codes=(0,), check="native-command"):
                 check += "-" + label
                 break
     if result.returncode not in codes and check == "terraform-plan":
-        # Publish only source-defined labels. Never print native diagnostics,
-        # command arguments or a permission name extracted from rejected data.
+        # ソースで定義したラベルだけを公開する。
+        # ネイティブ診断、コマンド引数、拒否データから取り出した権限名は出力しない。
         diagnostics = result.stdout + result.stderr
         for permission in (
             "artifactregistry.repositories.get", "iam.roles.get", "iam.serviceAccounts.get", "iam.serviceAccounts.getIamPolicy",
@@ -156,7 +156,7 @@ def state_version(env):
 
 
 def reject_unowned_resources(env, plan):
-    # A matching name outside this State must never be adopted by a new create.
+    # このState外の同名資源を、新規作成で取り込まない。
     urls = {"module.platform[0].google_service_account.runtime":
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/" + contract.EMAIL}
     urls.update({"module.platform[0].google_secret_manager_secret." + name:
@@ -218,9 +218,9 @@ def runtime_settings(env, stage=None):
 
 
 def verify_runtime_inputs(env, value, stage):
-    # Infrastructure-only changes may retain a reviewed image. Its immutable
-    # build commit must have the identical full Docker context, including its
-    # Dockerfile, dependencies, ignore rules and source. Never retag an image.
+    # インフラだけの変更では、レビュー済みイメージを維持できる。
+    # 固定されたビルドコミットのDockerコンテキスト全体が一致することを必須とし、
+    # Dockerfile・依存関係・除外ルール・ソースも比較する。イメージのタグは付け替えない。
     prefix = "projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/repositories/mypage/packages/mypage-api"
     if stage != "maintenance_operator":
         source = value.get("image_source_sha") or env["GITHUB_SHA"]
@@ -260,8 +260,8 @@ def verify_owner_public_invoker(env):
 
 
 def describe_runtime_drift(plan):
-    """Publish only fixed schema labels, never State/Plan values or paths."""
-    # Fixed schema labels from google provider 8.5.0; no rejected names.
+    """固定スキーマラベルだけを公開し、State/Planの値やパスは出さない。"""
+    # Googleプロバイダー8.5.0の固定スキーマラベルだけを使い、拒否された名前は含めない。
     fields = set(["name","location","project","template","annotations","containers","image","args","base_image_uri","command","depends_on","env","liveness_probe","failure_threshold","grpc","port","service","http_get","http_headers","value","path","initial_delay_seconds","period_seconds","tcp_socket","timeout_seconds","ports","container_port","readiness_probe","success_threshold","resources","cpu_idle","limits","startup_cpu_boost","sandbox_launcher","startup_probe","volume_mounts","mount_path","sub_path","working_dir","build_info","function_target","source_location","encryption_key","execution_environment","gpu_zonal_redundancy_disabled","health_check_disabled","labels","max_instance_request_concurrency","node_selector","accelerator","revision","sandboxes","templates","scaling","concurrency_utilization","cpu_utilization","max_instance_count","min_instance_count","service_account","session_affinity","timeout","volumes","cloud_sql_instance","instances","empty_dir","medium","size_limit","gcs","bucket","mount_options","read_only","nfs","server","secret","default_mode","items","mode","version","vpc_access","connector","egress","network_interfaces","network","subnetwork","tags","workload_identity_config","identity","identity_certificate_enabled","identity_type","binary_authorization","breakglass_justification","policy","use_default","build_config","base_image","enable_automatic_updates","environment_variables","image_uri","worker_pool","client","client_version","custom_audiences","default_uri_disabled","description","iap_enabled","ingress","invoker_iam_disabled","launch_stage","multi_region_settings","regions","multi_region_id","manual_instance_count","scaling_mode","ssh_enabled","traffic","percent","tag","type","conditions","execution_reason","last_transition_time","message","reason","revision_reason","severity","state","create_time","creator","delete_time","effective_annotations","effective_labels","etag","expire_time","generation","last_modifier","latest_created_revision","latest_ready_revision","observed_generation","reconciling","terminal_condition","terraform_labels","traffic_statuses","uri","uid","update_time","urls","deletion_protection","deletion_policy","value_source","secret_key_ref"])
     planned = {x.get("address"): x for x in plan.get("resource_changes", [])}
     for item in plan.get("resource_drift", []) or []:
@@ -361,8 +361,8 @@ def apply_saved(env):
         plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work, check="saved-runtime-plan-show"))
         value = runtime_contract.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
         if value["read_metrics_from_revision"]:
-            # Provider 8.5.0 omits etag on Update. NEVER apply its update Plan:
-            # use a conditional API mutation and validated refresh-only State.
+            # プロバイダー8.5.0は更新時にetagを省略するため、更新Planは絶対に適用しない。
+            # 条件付きAPI変更と、検証済みのrefresh-only Stateを使う。
             import read_metrics_live
             result = read_metrics_live.apply_saved(env, root, plan, stage)
             print("DEV metrics State-only recovery and live/State verification passed." if result == "state-recovery" else
@@ -406,11 +406,11 @@ def main():
             need(False)
         return 0
     except contract.ContractError as error:
-        # ContractError contains only source-defined labels, not rejected data.
+        # ContractErrorにはソースで定義したラベルだけを含め、拒否したデータは含めない。
         print("MyPage foundation STOP at " + PHASE + "; check=" + str(error) + ".", file=sys.stderr)
         return 1
     except Exception:
-        # Native Terraform/API diagnostics can contain private values.
+        # TerraformやAPIの元の診断には非公開値が含まれ得る。
         print("MyPage foundation STOP at " + PHASE + "; private diagnostics suppressed.", file=sys.stderr)
         return 1
 

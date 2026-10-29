@@ -29,7 +29,7 @@ export type AwsCdkStackProps = cdk.StackProps & {
 const DEFAULT_SYSTEM_DIR = path.resolve(__dirname, '../../system')
 const DOCKERFILE_LAMBDA = 'Dockerfile.lambda'
 const DOCKERFILE_FARGATE = 'Dockerfile.fargate'
-// Local QA receipts and installed tools never belong in a staged image context.
+// ローカルQAの記録や導入済みツールを、イメージ作成用のコンテキストに含めない。
 const LOCAL_CONTEXT_EXCLUDES = ['**/node_modules']
 
 // 全 Lambda で同じ build context / Dockerfile / platform を共有しているため、CDK は

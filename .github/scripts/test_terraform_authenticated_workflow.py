@@ -47,8 +47,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertNotIn('name: "Import-only migration plan', self.text)
         self.assertNotIn('name: "Import-only migration apply', self.text)
 
-        # The reusable workflow retains migration compatibility for recovery,
-        # but normal operators can no longer select those modes from CI.
+        # 再利用ワークフローは復旧用に移行互換性を残すが、通常の運用担当者はCIからこれらのモードを選べない。
         self.assertIn('migration-plan|migration-apply) ;;', self.text)
         self.assertIn('  migration_plan:', self.text)
         self.assertIn('  migration_apply:', self.text)

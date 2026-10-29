@@ -1,6 +1,6 @@
 # Support deletion B: source inventory
 
-横断削除で調査する runtime 2 種と削除 scope 11 種を示す。実環境の完全な inventory や削除権限を表すものではない。対象環境の全 revision・手動起動・外部コピーを別途照合する。
+横断削除で調査するランタイム2種類と削除対象11種類を示す。実環境の完全な一覧や削除権限を示すものではない。対象環境の全リビジョン・手動起動・外部コピーを別途照合する。
 
 | 固定 scope ID | 範囲 | 完了に必要な主な証跡 |
 | --- | --- | --- |
@@ -18,19 +18,19 @@
 | `derived-vendor` | global trend/examples、OpenAI stored Responses、Discord/YouTube copies | channel index のない派生物の provenance、vendor ownership/削除・残存証跡。合成adapterは[削除手順](support-delete.md#派生データとvendor)参照 |
 | `platform-logs` | local/CloudWatch/SFN/API/Hosting/Cloud Run/vendor logs、forwarded payload | 各 sink の実帰属と処置、遅延 forwarding drain、実設定の redaction |
 
-Canon 05 の境界は、停止前に取得・受付した古い message、seat snapshot、callback、mint/result、import/restore/retry が削除済みデータを復活させないこと。再開後の正当な新しい利用による新規データ作成は許容する。初期 SAC は MyPage のみで、既存 Bot の通常 writer、`!block` と YouTube Ban の意味を変更しない。
+Canon 05では、停止前に取得・受理した古いメッセージ、座席スナップショット、コールバック、トークン発行結果、import・restore・再試行が、削除済みデータを復活させないことを条件にする。再開後の正当な新規利用によるデータ作成は許容する。初期SACの対象はMyPageだけで、既存Botの通常書き込み、`!block`、YouTube Banの意味は変更しない。
 
-`service-access-controls/{channel}` は横断消去の対象から外し、privacy clear 後も **全 inactive checkpoint と両 reason state、generation、revision を保持する**。TTL、削除、subset tombstone、generation reset を追加しない。独立した active moderation を保持し、restore/migration による checkpoint 巻き戻しも許容しない。これは新しい retention policy の決定ではない。
+`service-access-controls/{channel}`は横断消去の対象外とする。privacy解除後も、すべて無効なチェックポイント、両方の制限理由、世代、リビジョンを保持する。TTL・削除・一部だけの削除済みマーカー・世代リセットは追加しない。独立して有効なmoderationを保持し、復元・移行によるチェックポイントの巻き戻しも許容しない。これは新しい保持ポリシーの決定ではない。
 
-プロセスログの redaction と外部配送は別に調査する。trend・SNS・退室・RP・初期化のログを固定 status にしても、OpenAI への作業名送信、owner/Discord/YouTube 通知、CloudWatch 本文転送や旧 revision のコピーは残り得る。全 sink・queue・subscription・archive の帰属、retention/hold、遅延配送を確認する。
+プロセスログの秘匿処理と外部配送は別に調査する。トレンド・SNS・退室・RP・初期化のログを固定状態に変えても、OpenAIへの作業名送信、所有者・Discord・YouTubeへの通知、CloudWatch本文転送、旧リビジョンのコピーは残る場合がある。全出力先・キュー・購読・アーカイブの帰属、保持・保全、遅延配送を確認する。
 
-完了 receipt と匿名 durable audit は別の completion adapter / workflow が担当する。この台帳は現在 receipt を削除したり completed に変更したりしない。現在の proof/index 依存を保持し、全 scope postcondition と runtime 再開・privacy clear の照合が成立してから、その completion 段階で処置する。
+完了受付と匿名の永続監査は、別の完了アダプター・ワークフローが扱う。この一覧自体は現在の受付を削除したり完了状態に変えたりしない。現在の証拠とインデックスの依存を保持し、全対象の事後条件、ランタイム再開、privacy解除の照合が成立してから、完了段階で処置する。
 
-ソースだけでは次の release gate を閉じられない。全 runtime/launch 経路と stop/drain/resume ownership、channel 未確定 callback と token mint/配達、複数 receipt と旧 UID、BQ tmp/job と mixed/soft-deleted backup の復元経路、channel index のない trend/vendor/log コピー、実権限・index/TTL・revision・hosting redaction が未確認。未知・上限超過・障害・ack loss は `unknown` として残し、0、不存在、completed に変換しない。既存期間の保持・処置判断を推測せず、必要な実環境証跡を別に取得する。
+ソースだけでは次の公開条件を完了できない。全ランタイム・起動経路と停止・完了待ち・再開の管理者、チャンネル未確定コールバックとトークン発行・配送、複数受付と旧UID、BQのtmp/jobと混合・soft-deletedバックアップの復元経路、チャンネル索引のないトレンド・ベンダー・ログのコピー、実権限・インデックス/TTL・リビジョン・Hosting秘匿処理は未確認である。不明・上限超過・障害・ACK消失は`unknown`のまま残し、0・不存在・完了に変換しない。既存期間の保持や処置判断を推測せず、必要な実環境証跡を別途取得する。
 
 ## 起動と再生成経路の調査先
 
-以下のソースを入口に、対象環境の稼働・手動実行・旧 binary・retry・scheduler を列挙する。ソースの存在は pause/drain の完了証拠ではない。
+以下のソースを手がかりに、対象環境での稼働・手動実行・旧バイナリ・再試行・スケジューラーを列挙する。ソースがあることは、停止や実行中処理の完了を示す証拠ではない。
 
 | writer | 調査先 |
 | --- | --- |
@@ -52,4 +52,4 @@ Canon 05 の境界は、停止前に取得・受付した古い message、seat s
 | `legacy-notification-log-forwarding` | [system/core/workspaceapp/utils.go](../../system/core/workspaceapp/utils.go) / [system/core/workspaceapp/command_moderation.go](../../system/core/workspaceapp/command_moderation.go) / [system/core/youtubebot/live_chat.go](../../system/core/youtubebot/live_chat.go) / [system/core/moderatorbot/discord.go](../../system/core/moderatorbot/discord.go) / [system/cmd/lambda/error_log_notify_discord/main.go](../../system/cmd/lambda/error_log_notify_discord/main.go) / [system/cmd/lambda/sns_notify_discord/main.go](../../system/cmd/lambda/sns_notify_discord/main.go) |
 | `external-export-backup-restore` | [system/core/repository/models.go](../../system/core/repository/models.go) / [system/core/mystorage/storage_controller.go](../../system/core/mystorage/storage_controller.go) |
 
-実行 identity は MyPage の keyless runtime/signer、Bot・旧管理ツールの credential-file、AWS runtime の WIF/impersonation に分かれる。実 principal・project/tenant・最小権限・停止担当を環境ごとに照合し、一つの credential で全経路を止められると推測しない。
+実行用の本人情報は、MyPageの鍵を使わないランタイム・署名者、Bot・旧管理ツールの認証情報ファイル、AWSランタイムのWIF・権限借用に分かれる。実主体・プロジェクトやテナント・最小権限・停止担当を環境ごとに照合し、1つの認証情報で全経路を止められるとは推測しない。

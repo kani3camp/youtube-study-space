@@ -6,8 +6,8 @@ import {
 	releaseInputFailure,
 } from '../src/release-config.ts'
 
-// An explicitly selected bounded manifest is the only configuration source.
-// Never read process.env, .env, ADC/key files, SDK state or external services.
+// 明示的に選んだサイズ制限付きマニフェストだけを設定元にする。
+// process.env・.env・ADC・鍵ファイル・SDK状態・外部サービスを読まない。
 async function boundedInput(args) {
 	if (args.length === 1 && args[0] === '--stdin') {
 		const chunks = []
@@ -24,8 +24,8 @@ async function boundedInput(args) {
 	}
 	if (args.length !== 2 || args[0] !== '--file' || !args[1])
 		return releaseInputFailure('INPUT_UNAVAILABLE')
-	// O_NONBLOCK avoids hanging on accidentally selected FIFOs; only regular
-	// files are read, and a bounded read handles growth after the size check.
+	// 誤ってFIFOを選んでもO_NONBLOCKで待機を防ぎ、通常ファイルだけを読む。
+	// サイズ検査後の増加にも、上限付き読み取りで対応する。
 	const file = await open(args[1], constants.O_RDONLY | constants.O_NONBLOCK)
 	try {
 		const stat = await file.stat()
@@ -60,7 +60,7 @@ let result
 try {
 	result = await boundedInput(process.argv.slice(2))
 } catch {
-	// Filesystem/JSON errors can contain paths, keys or supplied values.
+	// ファイルシステムやJSONのエラーには、パス・キー・入力値が含まれ得る。
 	result = releaseInputFailure('INPUT_UNAVAILABLE')
 }
 process.stdout.write(`${JSON.stringify(result)}\n`)

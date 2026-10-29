@@ -44,8 +44,8 @@ var (
 	}
 )
 
-// notifierSourceError keeps the original error available to errors.Is without
-// copying its potentially private text into Lambda's returned error message.
+// notifierSourceErrorは元のエラーをerrors.Isで調べられるまま保持する。
+// 機密情報を含み得るエラー本文はLambdaが返すメッセージへコピーしない。
 type notifierSourceError struct {
 	operation string
 	class     string

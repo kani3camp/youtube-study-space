@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// SupportPurpose is fixed in a server-owned record. Intake may accept a
-// validated category, but browser input never authorizes proof or an action.
+// SupportPurposeはサーバー管理レコードに固定する。受付で検証済み区分を受け入れても、
+// ブラウザ入力は本人確認や操作の実行権限にならない。
 type SupportPurpose string
 
 const (
@@ -24,8 +24,8 @@ type SupportBinding struct {
 	ChallengeHash string         `firestore:"challengeHash"`
 }
 
-// SupportRequest is server-only. The challenge is random and stored as a hash.
-// A successful proof is only identity verification, never execution approval.
+// SupportRequestはサーバー専用。チャレンジはランダムに作り、ハッシュで保存する。
+// 成功した証拠は本人確認だけを意味し、実行承認にはしない。
 type SupportRequest struct {
 	RequestID          string         `firestore:"requestId"`
 	Environment        string         `firestore:"environment"`
@@ -40,8 +40,8 @@ type SupportRequest struct {
 	ProofRef           string         `firestore:"proofRef"`
 	OAuthTransactionID string         `firestore:"oauthTransactionId"`
 	CompletedAt        *time.Time     `firestore:"completedAt"`
-	// Intake text is server-only and removed on completion. SubmissionHash
-	// binds retries to the exact original request without collapsing claims.
+	// 受付本文はサーバー専用とし、完了時に除去する。
+	// SubmissionHashで再試行を元の正確な申請に結び付け、別申請をまとめない。
 	SubmissionHash   string     `firestore:"submissionHash,omitempty"`
 	Body             string     `firestore:"body,omitempty"`
 	OperatorReply    string     `firestore:"operatorReply,omitempty"`
@@ -107,7 +107,7 @@ func verifySupportRecord(value SupportRequest, binding SupportBinding, channel, 
 	value.VerifiedAt = &at
 	value.ProofRef = proofRef
 	value.OAuthTransactionID = transactionID
-	// Consume the challenge in the same transition as successful proof.
+	// 本人確認の成功と同じ状態遷移で、チャレンジを消費する。
 	value.ChallengeHash = ""
 	value.ChallengeExpiresAt = time.Time{}
 	return value, nil

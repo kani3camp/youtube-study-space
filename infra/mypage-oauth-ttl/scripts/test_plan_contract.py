@@ -1,4 +1,4 @@
-"""Observable scope, destructive-change and private-output regression contracts."""
+"""対象範囲・破壊的変更・非公開値の出力に関する回帰仕様。"""
 
 import copy
 import json
@@ -12,7 +12,7 @@ import plan_contract as contract
 
 
 def fixture(environment="development"):
-    """Synthetic values in Terraform 1.16.4 / Google 8.5.0 saved-plan shape."""
+    """Terraform 1.16.4 / Google 8.5.0の保存Plan形式に合わせた合成値。"""
     target = {"schemaVersion": 1, "environment": environment,
               "projectID": f"demo-mypage-ttl-{environment}", "databaseID": "(default)"}
     scope = contract.target_scope(target)

@@ -1,4 +1,4 @@
-// Bounded DEV-only operator migration. Normal API handlers never invoke this.
+// DEV専用で処理量に上限のある運用移行。通常APIハンドラーからは呼ばない。
 package main
 
 import (

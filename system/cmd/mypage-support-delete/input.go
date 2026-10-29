@@ -73,10 +73,10 @@ func privateRegular(info os.FileInfo) bool {
 	return info != nil && info.Mode().IsRegular() && info.Mode().Perm() == 0o600 && info.Mode()&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky) == 0 && info.Size() <= maxInputBytes
 }
 
-// File input must stay an ordinary private file across the open. O_NOFOLLOW
-// rejects a final-component symlink even if the path changes after Lstat, and
-// O_NONBLOCK prevents a replacement FIFO from blocking before fstat rejects it.
-// Neither file paths nor raw filesystem errors may become operator reports.
+// 入力ファイルは、開く前後で非公開の通常ファイルを維持する必要がある。
+// Lstat後にパスが変わってもO_NOFOLLOWで末尾のシンボリックリンクを拒否し、
+// O_NONBLOCKで置換FIFOによる待機を防いでからfstatで拒否する。
+// ファイルパスや元のファイルシステムエラーを運用報告に含めない。
 func inputFrom(o options, stdin io.Reader) (io.Reader, func(), error) {
 	if o.stdin {
 		if stdin == nil {
@@ -102,8 +102,8 @@ func inputFrom(o options, stdin io.Reader) (io.Reader, func(), error) {
 	}, nil
 }
 
-// Strict token decoding rejects duplicate, case-variant, unknown and missing
-// fields. Ordinary struct decoding accepts duplicate and case-variant names.
+// 厳格なトークンデコードで、重複・大小文字違い・未知・欠落フィールドを拒否する。
+// 通常の構造体デコードは、重複名と大小文字違いを受け入れてしまう。
 func strictObject(data []byte, fields ...string) (map[string]json.RawMessage, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	first, err := decoder.Token()
@@ -210,8 +210,8 @@ func readRequest(input io.Reader) (request, error) {
 			return request{}, errInput
 		}
 	}
-	// Confirmation binds operator intent only. The proof reference is a selector
-	// for independent trusted evidence; no manifest assertion can establish it.
+	// 確認内容は運用担当者の操作意図だけに結び付ける。証拠参照は独立した信頼済み証拠の指定値であり、
+	// マニフェスト内の宣言だけでは証明できない。
 	return r, nil
 }
 

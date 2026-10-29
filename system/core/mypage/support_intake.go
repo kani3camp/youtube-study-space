@@ -16,9 +16,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// IntakeSecret is a server-only, per-environment secret. It must be stable
-// across instances and restarts while idempotency retries are supported.
-// A missing secret leaves intake disabled; it must never enter a Vite bundle.
+// IntakeSecretは環境ごとのサーバー専用シークレットである。
+// 冪等な再試行を受け付ける間は、インスタンスや再起動を跨いで同じ値を維持する必要がある。
+// 未設定なら受付を無効にし、Viteのバンドルには含めない。
 type FirestorePrivacyIntake struct {
 	Client       *firestore.Client
 	Environment  string
@@ -81,9 +81,8 @@ func (s *FirestorePrivacyIntake) keyed(label, uid, key string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// Create records the receipt and challenge atomically. The same identity/key
-// yields the same opaque challenge on an exact retry, including after ACK loss.
-// The signed-in uid is the target; no browser-supplied channel is accepted.
+// Createは受付とチャレンジをアトミックに記録する。同じ本人・キー・内容の再試行では、
+// ACK消失後も同じ推測不能なチャレンジを返す。対象はログイン済みuidとし、ブラウザ指定チャンネルは受け入れない。
 func (s *FirestorePrivacyIntake) Create(ctx context.Context, uid, key string, purpose SupportPurpose, body string, now time.Time) (PrivacyIntakeReceipt, error) {
 	if !s.ready() {
 		return PrivacyIntakeReceipt{}, apiError("TEMPORARY_UNAVAILABLE")
@@ -138,8 +137,8 @@ func (s *FirestorePrivacyIntake) Create(ctx context.Context, uid, key string, pu
 	return receipt, nil
 }
 
-// Status requires both the current Firebase identity and completed fresh
-// support OAuth proof. Request refs alone are never bearer credentials.
+// Statusには、現在のFirebase本人情報と、新たなサポートOAuthの本人確認完了の両方を必要とする。
+// 申請参照だけをBearer認証情報にしない。
 func (s *FirestorePrivacyIntake) Status(ctx context.Context, uid, ref string) (PrivacyRequestStatus, error) {
 	if !s.ready() {
 		return PrivacyRequestStatus{}, apiError("TEMPORARY_UNAVAILABLE")

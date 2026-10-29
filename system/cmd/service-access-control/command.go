@@ -18,8 +18,8 @@ type ports struct {
 
 type bootstrap func(context.Context, target) (ports, error)
 
-// Reports contain only fixed status/code/state vocabulary and a counter. The
-// target, references, timestamps, filesystem paths and SDK errors stay private.
+// 報告には固定のstatus/code/stateと件数だけを含める。
+// 対象・参照・時刻・ファイルパス・SDKエラーは非公開にする。
 type report struct {
 	SchemaVersion   int    `json:"schemaVersion"`
 	Mode            string `json:"mode"`
@@ -89,8 +89,8 @@ func execute(ctx context.Context, r request, p ports, now time.Time, out *report
 		out.Code = "MODERATION_CLEARED"
 	}
 	if r.Operation == "block" {
-		// A committed and validated guard is the primary enforcement boundary.
-		// Retry revocation even on an idempotent block to recover partial failure.
+		// コミット・検証済みの保護状態を主要な制御手段とする。
+		// 部分失敗から復旧できるよう、冪等なブロックでも失効を再試行する。
 		out.Code = "MODERATION_ACTIVE"
 		if p.Revoke == nil || p.Revoke(ctx, r.Target.ChannelID) != nil {
 			out.Status, out.Code, out.Revoke = "partial-failure", "REVOKE_UNAVAILABLE", "failed"

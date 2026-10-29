@@ -1,10 +1,10 @@
 # Development Foundation構築
 
-構築手順と各段階の履歴を保持する文書。最新の適用・配備状態は[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)を参照し、過去のinventoryや未実施の記録を現在状態へ読み替えない。
+構築手順と各段階の履歴を保持する文書である。最新の適用・配備状態は[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)を参照し、過去の対象一覧や未実施記録を現在状態に読み替えない。
 
-2026-10-21 JSTの適用後no-op [run 39522369969](https://github.com/kani3camp/youtube-study-space/actions/runs/39522369969)は、IAM memberの`secret_id`がprovider refresh後に短名から完全resource nameとなるため、Plan guardで停止した（Applyなし）。独立したState readbackで3件とも同じDEV project/Secretの完全名と確認した。IAM memberの当該3 fieldだけ、固定短名または`projects/test-youtube-study-space/secrets/<固定名>`の完全一致を受理する。別project・project番号・別Secret・version path・任意prefixは拒否し、Secret metadataの短名契約、予定操作、unknown、drift、全Plan HMACを維持する。修正後の正規no-opは別の実行証跡で確認する。
+2026-10-21 JSTの適用後no-op [run 39522369969](https://github.com/kani3camp/youtube-study-space/actions/runs/39522369969)は、プロバイダーの再取得後にIAMメンバーの`secret_id`が短名から完全リソース名になるため、Plan検査で停止した。Applyはしていない。独立したState再読み取りで、3件とも同じDEVプロジェクト・Secretの完全名と確認した。IAMメンバーのこの3フィールドだけ、固定短名か`projects/test-youtube-study-space/secrets/<固定名>`の完全一致を受け入れる。別プロジェクト・プロジェクト番号・別Secret・バージョンパス・任意の接頭辞は拒否する。Secretメタデータの短名仕様、予定操作、unknown、drift、全PlanのHMACは維持する。修正後の正規no-opは別の実行証跡で確認する。
 
-MyPage統合PR [#1236](https://github.com/kani3camp/youtube-study-space/pull/1236) 内の最初の構築段階。既存 `infra/gcp` のimport-only経路とは独立し、**DevelopmentのFoundationだけ**を扱う。Cloud Run、Firestore書込み権限、public invoker、Hosting、Secret値、Productionはこの経路に含めない。
+MyPage統合PR [#1236](https://github.com/kani3camp/youtube-study-space/pull/1236)内の最初の構築段階である。既存`infra/gcp`の取り込み専用経路とは独立し、開発環境のFoundationだけを扱う。Cloud Run・Firestore書き込み権限・公開invoker・Hosting・Secret値・本番は含めない。
 
 ## 構築準備の記録（2026-10-20）
 

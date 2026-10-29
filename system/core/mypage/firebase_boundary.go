@@ -8,8 +8,8 @@ import (
 	"firebase.google.com/go/v4/auth"
 )
 
-// FirebaseAuthClient is implemented by the official Admin SDK. Its constructor
-// must use a fixed project and keyless IAM signer; no emulator in a real server.
+// FirebaseAuthClientは公式Admin SDKが実装する。
+// コンストラクターは固定プロジェクトと鍵を使わないIAM署名者を使い、実サーバーではエミュレーターを使わない。
 type FirebaseAuthClient interface {
 	VerifyIDToken(context.Context, string) (*auth.Token, error)
 	CustomToken(context.Context, string) (string, error)

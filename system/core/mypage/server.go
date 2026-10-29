@@ -17,9 +17,9 @@ import (
 	"google.golang.org/api/option"
 )
 
-// NewKeylessFirebaseClient accepts an existing ADC token source, never a key
-// file. Provisioning the named signer and granting iam.serviceAccounts.signBlob
-// is a separate human-approved infrastructure operation, not this constructor.
+// NewKeylessFirebaseClientは既存ADCのtoken sourceを受け取り、鍵ファイルは使わない。
+// 指定署名者の構築とiam.serviceAccounts.signBlob付与は、
+// 人が承認する別のインフラ操作であり、このコンストラクターでは行わない。
 func NewKeylessFirebaseClient(ctx context.Context, projectID, signerEmail string, credentials *google.Credentials, client *http.Client) (*auth.Client, error) {
 	if validateKeylessSigner(projectID, signerEmail) != nil || credentials == nil || credentials.TokenSource == nil || len(credentials.JSON) != 0 || (credentials.ProjectID != "" && credentials.ProjectID != projectID) || os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") != "" || ctx.Err() != nil {
 		return nil, apiError("TEMPORARY_UNAVAILABLE")
@@ -49,25 +49,25 @@ type ServerConfig struct {
 	Environment, ProjectID, ProjectNumber, WebAppID, PublicOrigin string
 	Policy                                                        Policy
 	HostingBackendHost                                            string
-	// Default off. Enable only after the reply operator and no-session
-	// exception contact are operational and D02/D03 are resolved.
+	// 既定では無効。返信担当者とセッションなしの例外窓口が運用可能になり、
+	// D02/D03を解決した後だけ有効にする。
 	EnablePrivacyIntake bool
 	PrivacyIntakeSecret []byte
-	// Supply only verified historical coverage; nil means unavailable history.
+	// 完全性を検証した過去期間だけを渡す。nilは履歴が取得不能であることを表す。
 	Coverage []Interval
 }
 
-// Only a literal Cloud Run service hostname is configurable, with no scheme,
-// port, path, wildcard or user-controlled suffix. The caller pins the observed
-// service hostname; the header never selects a backend or a redirect target.
+// 設定できるのはCloud Runサービスのホスト名そのものだけとする。
+// スキーム・ポート・パス・ワイルドカード・利用者指定の接尾辞は認めない。
+// 呼び出し元が観測済みホスト名を固定し、ヘッダーでバックエンドやリダイレクト先を選ばない。
 var hostingBackendHostPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,61}\.a\.run\.app$`)
 
 func validHostingBackendHost(host string) bool {
 	return hostingBackendHostPattern.MatchString(host)
 }
 
-// ValidateRuntime checks fixed environment/project/app/origin and signer before
-// any ADC discovery. The readiness decision remains a human infrastructure gate.
+// ValidateRuntimeはADC探索前に、固定の環境・プロジェクト・アプリ・オリジン・署名者を確認する。
+// 準備完了の判断は、人による基盤確認として残す。
 func (config ServerConfig) ValidateRuntime(signerEmail string) error {
 	if err := config.validate(); err != nil {
 		return err
@@ -108,16 +108,16 @@ type ServerDependencies struct {
 	PublicMetadata PublicMetadataReader
 	AppCheckHTTP   *http.Client
 	Now            func() time.Time
-	// Optional DEV-only, no-identity cost observation hook.
+	// DEV専用で本人情報を含まない、任意の原価観測フック。
 	ReadObserver func(SnapshotReadObservation)
-	// Domain-separated cursor keys derive from the existing server OAuth
-	// secret. Never supplied by the browser or written to policy documents.
+	// カーソル鍵は用途を分離し、既存のサーバーOAuthシークレットから導出する。
+	// ブラウザから受け取らず、ポリシー文書にも書かない。
 	HistorySecret  []byte
 	HistoryTierFor func(context.Context, string, WebAccount) (HistoryTier, error)
 }
 
-// NewMyPageServer constructs the handler without bootstrap IO,
-// service-account creation, secret access, listen/deploy, or notifications.
+// NewMyPageServerはハンドラーを構築するだけで、初期化時の入出力、
+// サービスアカウント作成、シークレット取得、待ち受け・配備、通知は行わない。
 func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler, error) {
 	if config.validate() != nil || deps.Firestore == nil || deps.Firebase == nil || deps.OAuth == nil {
 		return nil, apiError("TEMPORARY_UNAVAILABLE")

@@ -40,8 +40,8 @@ var dryRunLookups = map[string]dryRunLookup{
 	"receipt-request-indexes":       {"support-request-ids", "requestRef", "receipt", false},
 }
 
-// Separate ownership/retention evidence is needed for these stores. Missing
-// adapters never imply absence of data or permission to perform cleanup.
+// これらのストアには、所有権と保持について独立した証拠が必要である。
+// アダプターの欠落は、データの不存在や削除権限を意味しない。
 var uninspectedDryRunStores = []string{"firebase-auth", "cache-and-inflight", "backups-and-exports", "bigquery", "platform-logs", "legacy-mypage-mappings", "other-support-oauth-bindings"}
 
 type FirestoreDryRunReader struct{ Client *firestore.Client }

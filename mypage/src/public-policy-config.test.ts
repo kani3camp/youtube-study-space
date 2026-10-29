@@ -9,8 +9,8 @@ afterEach(() => vi.unstubAllEnvs())
 
 const credentialPasswordSentinel = 'SYNTHETIC_PASSWORD_SENTINEL'
 
-// Negative URL cases are constructed at runtime from obviously synthetic parts.
-// This preserves userinfo rejection without publishing literal Basic Auth URLs.
+// 不正URLのテスト値は、明らかな合成部品から実行時に作る。
+// Basic Auth URLそのものを公開せず、userinfoを拒否する検証を維持する。
 function credentialTestURL(hostname: string, withPassword: boolean) {
 	const url = new URL(`https://${hostname}`)
 	url.username = 'synthetic-test-user'

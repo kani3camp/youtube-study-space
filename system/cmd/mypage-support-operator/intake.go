@@ -21,8 +21,8 @@ var (
 	intakeActor   = regexp.MustCompile(`^[A-Za-z0-9_-]{3,128}$`)
 )
 
-// Human correspondence stays at the human desk; no body/contact is copied.
-// The target is a claim only, awaiting the existing request-bound fresh OAuth.
+// 有人窓口のやり取りは窓口に留め、本文や連絡先をコピーしない。
+// 対象指定は申告に過ぎず、既存の申請に結び付けた新たなOAuth認証を待つ。
 type humanRequest struct {
 	RequestID        string
 	Channel          string
@@ -56,11 +56,11 @@ type intakeRuntime struct {
 	environment, project string
 	creator              supportCreator
 	recovery             supportRecovery
-	// A request ID, target channel, support challenge, Firebase identity or ADC
-	// alone is not operator authority. No live implementation is supplied.
+	// 申請ID・対象チャンネル・サポートチャレンジ・Firebase本人情報・ADCだけでは運用権限にならない。
+	// 実環境用の実装は含めない。
 	authorize func(context.Context, intakeIntent) (intakeGrant, error)
-	// Private handoff is separate from stdout/audit, and is not proof or an ACK
-	// that the request's action has completed. No real delivery is supplied.
+	// 非公開の受け渡しは標準出力や監査とは分離し、依頼された操作の完了証拠やACKとして扱わない。
+	// 実際の配送機能は含めない。
 	deliver func(context.Context, intakeIntent, intakeReceipt) error
 	clock   func() time.Time
 }
@@ -121,9 +121,9 @@ func readHumanRequest(path, action string) (humanRequest, error) {
 	return input, nil
 }
 
-// newFirestoreIntakeRuntime assembles receipt creation and fenced recovery.
-// Its caller owns the authorized client/identity/private-delivery boundary.
-// It performs no credential discovery, authentication or network operation.
+// newFirestoreIntakeRuntimeは受付作成と保護付き復旧を組み立てる。
+// 承認済みクライアント・本人情報・非公開配送の管理は呼び出し元が担う。
+// 認証情報の探索・認証・通信は行わない。
 func newFirestoreIntakeRuntime(p proposal, client *firestore.Client, authorize func(context.Context, intakeIntent) (intakeGrant, error), deliver func(context.Context, intakeIntent, intakeReceipt) error, clock func() time.Time) (*intakeRuntime, error) {
 	if client == nil || !project.MatchString(p.Project) || (p.Environment != "development" && p.Environment != "production") || authorize == nil || deliver == nil || clock == nil ||
 		!strings.HasPrefix(client.Collection("support-requests").Path, "projects/"+p.Project+"/databases/(default)/documents/") {
@@ -150,8 +150,8 @@ func runHumanIntake(ctx context.Context, p proposal, input humanRequest, factory
 	if err != nil || ctx.Err() != nil || grant.Intent != intent || !intakeActor.MatchString(grant.Actor) {
 		return "TRUSTED_INTAKE_DENIED"
 	}
-	// Read trusted time again after authorization; preserve the original receipt
-	// time. Create is called once: a timeout/ACK loss must not reset its SLA.
+	// 権限確認後に信頼済み時刻を読み直し、元の受付時刻を維持する。
+	// Createは1回だけ呼び、タイムアウトやACK消失でSLAをリセットしない。
 	now = runtime.clock().UTC()
 	if now.IsZero() || input.AcceptedAt.After(now) {
 		return "INVALID_INPUT"

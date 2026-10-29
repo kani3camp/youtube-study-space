@@ -65,9 +65,8 @@ func (deletionFixtureEffects) Apply(_ context.Context, op supportdelete.Operatio
 	return supportdelete.Evidence{Selector: e.Selector, ManifestRef: e.Manifest.Ref, OperationID: op.ID, Action: op.Step.Action, Scope: op.Step.Scope, Mode: "emulator", TraceRef: digest("synthetic-evidence:" + op.ID), Generation: e.Generation, Cutoff: e.Cutoff, ObservedAt: op.ObservedAfter, Known: true, Complete: true, AllInstances: true, OldQueueRejected: true, RestoreExcluded: true}, nil
 }
 
-// The generic checkpoint fixture uses a complete synthetic empty catalog for
-// derived/vendor. An injected Evidence alone must not bypass its durable
-// ownership snapshot when this step advances.
+// 汎用チェックポイントのテストデータには、派生データ/ベンダーの完全な合成空一覧を使う。
+// この段階を進める際、注入したEvidenceだけで永続的な所有権スナップショットを迂回しない。
 type emptyDerivedInventory struct{}
 
 func (emptyDerivedInventory) Capture(_ context.Context, op supportdelete.Operation) (DerivedInventorySnapshot, error) {

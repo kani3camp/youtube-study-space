@@ -12,8 +12,8 @@ import (
 	"app.modules/core/supportdelete"
 )
 
-// FirebaseDeletionClient is satisfied by the pinned Admin SDK's project and
-// tenant clients. No constructor, credential discovery or live wiring is here.
+// FirebaseDeletionClientは、固定したAdmin SDKのプロジェクト・テナントクライアントが満たす。
+// コンストラクター・認証情報探索・実接続はここに含めない。
 type FirebaseDeletionClient interface {
 	GetUser(context.Context, string) (*auth.UserRecord, error)
 	RevokeRefreshTokens(context.Context, string) error
@@ -26,9 +26,9 @@ var (
 	ErrAuthOwnershipMissing                        = errors.New("deletion ownership snapshot missing")
 )
 
-// FirebaseDeletionScope pins a client to an explicitly inventoried project and
-// tenant. Empty TenantID is allowed only when the inventory explicitly says so.
-// UserNotFound is an injected fake SDK classifier; nil uses auth.IsUserNotFound.
+// FirebaseDeletionScopeは、対象一覧に明示したプロジェクトとテナントにクライアントを固定する。
+// TenantIDの空文字は、一覧で明示した場合だけ許可する。
+// UserNotFoundは注入する偽SDKの分類処理で、nilならauth.IsUserNotFoundを使う。
 type FirebaseDeletionScope struct {
 	ProjectID    string
 	TenantID     string
@@ -43,8 +43,8 @@ type AuthOwnedIdentity struct {
 	OwnerChannels   []string `firestore:"ownerChannels"`
 }
 
-// Fingerprint is the digest of the entire synthetic document, not a lone UID
-// field. Attribution and completeness come from an independent inventory.
+// Fingerprintは単独のUIDフィールドではなく、合成文書全体のダイジェストとする。
+// 帰属と完全性は独立した一覧を根拠にする。
 type AuthOwnedDocument struct {
 	Collection    string   `firestore:"collection"`
 	ID            string   `firestore:"id"`
@@ -52,9 +52,9 @@ type AuthOwnedDocument struct {
 	OwnerChannels []string `firestore:"ownerChannels"`
 }
 
-// AuthOwnershipSnapshot is server-only temporary execution state. The store
-// moves its full execution fence with each checkpoint and deletes it in the
-// terminal transaction. It must never outlive a successful finalization.
+// AuthOwnershipSnapshotは、サーバー専用の一時的な実行状態である。
+// ストアはチェックポイントごとに実行保護情報全体を進め、完了トランザクションで削除する。
+// 完了成功後に残してはならない。
 type AuthOwnershipSnapshot struct {
 	SchemaVersion      int64                   `firestore:"schemaVersion"`
 	Execution          supportdelete.Execution `firestore:"execution"`
@@ -79,10 +79,9 @@ type AuthDeletionPersistence interface {
 	ApplyAuthRecords(context.Context, supportdelete.Operation, AuthOwnershipSnapshot) error
 }
 
-// The external guard holds exclusion of UID recreation/import and ownership
-// changes across the entire callback. GetUser + DeleteUser has no SDK CAS.
-// RevokedTokenChecks covers every old-token consumer independently; a revoke
-// acknowledgement does not invalidate already issued ID tokens by itself.
+// 外部の保護処理はコールバック全体で、UID再作成・import・所有権変更を排除する。
+// GetUser + DeleteUserにSDKのCASはない。RevokedTokenChecksは旧トークンの全利用先を独立して対象にする。
+// 失効ACKだけでは、発行済みIDトークン自体は無効にならない。
 type AuthDeletionPermit struct {
 	Evidence           supportdelete.Evidence
 	IncarnationLocked  bool
@@ -94,9 +93,9 @@ type AuthDeletionGuard interface {
 	WithGuard(context.Context, supportdelete.Operation, AuthOwnershipSnapshot, func(context.Context, AuthDeletionPermit) error) error
 }
 
-// FirebaseDeletionEffects is deliberately synthetic-only. Trusted completeness,
-// incarnation exclusion and token-consumer evidence must be injected even for
-// fixtures. It cannot make a live deletion workflow available.
+// FirebaseDeletionEffectsは意図的に合成検証専用とする。テストデータでも、
+// 信頼済みの完全性・同一UIDの再生成排除・トークン利用先の証拠を渡す必要がある。
+// 実削除ワークフローを利用可能にするものではない。
 type FirebaseDeletionEffects struct {
 	Store     AuthDeletionPersistence
 	Inventory AuthOwnershipInventory
@@ -224,8 +223,8 @@ func (a *FirebaseDeletionEffects) ownership(ctx context.Context, op supportdelet
 		if err = a.Store.CaptureAuthOwnership(ctx, s); err != nil {
 			return s, fmt.Errorf("capture deletion ownership: %w", err)
 		}
-		// Firestore stores timestamps at microsecond precision. Use the durable
-		// representation for subsequent exact comparisons, including first apply.
+		// Firestoreは時刻をマイクロ秒精度で保存する。
+		// 初回適用を含む後続の完全一致比較には、永続化した表現を使う。
 		s, err = a.Store.LoadAuthOwnership(ctx, op.Execution)
 		if err != nil {
 			return s, fmt.Errorf("reload captured deletion ownership: %w", err)
@@ -302,14 +301,14 @@ func reconcileOwnedAuth(ctx context.Context, scope FirebaseDeletionScope, i Auth
 	case "inspect":
 		return supportdelete.ErrEvidence
 	case "revoke":
-		// The SDK stores UTC seconds. Require the first whole second strictly
-		// after cutoff, including tokens issued in the cutoff's second.
+		// SDKはUTC秒で保存する。cutoffと同じ秒に発行したトークンも含めるため、
+		// cutoffより後の最初の整数秒以上を必須とする。
 		threshold := (op.Execution.Cutoff.Unix() + 1) * 1000
 		if u.TokensValidAfterMillis >= threshold {
 			return nil
 		}
-		// Acknowledgement is not evidence. Even errors/timeouts/lost acks are
-		// reconciled only by a definitive read of the same incarnation.
+		// ACKは証拠にならない。エラー・タイムアウト・ACK消失の場合も、
+		// 同じ実体世代を確定的に読み取った結果だけで照合する。
 		mutationErr := scope.Client.RevokeRefreshTokens(ctx, i.UID)
 		u, err = inspectOwnedAuth(ctx, scope, i)
 		if err != nil {

@@ -1,4 +1,4 @@
-"""Exact DEV metrics-only serving transition; no cloud I/O or private output."""
+"""DEVの計測設定だけの厳密な配信遷移。クラウド入出力・非公開値の出力は行わない。"""
 from copy import deepcopy
 import re
 
@@ -6,8 +6,8 @@ import foundation_contract as c
 import runtime_contract as r
 
 METRICS_ENV = "MYPAGE_READ_METRICS"
-# Output-only attributes of the pinned Cloud Run provider. Never hide unknowns
-# in configuration (including template, env, secrets, identity and traffic).
+# 固定したCloud Runプロバイダーの出力専用属性。
+# 設定内のunknownは隠さず、template・env・secrets・identity・trafficも対象にする。
 COMPUTED = frozenset({
     "etag", "generation", "observed_generation", "update_time", "last_modifier",
     "latest_created_revision", "latest_ready_revision", "terminal_condition",
@@ -42,22 +42,22 @@ def ready_revision(service):
 
 
 def configuration(service):
-    """All present attributes except an explicit output-only allowlist."""
+    """明示した出力専用許可リスト以外の、存在する全属性を返す。"""
     return {key: value for key, value in service.items() if key not in COMPUTED}
 
 
 def container(service):
     template = r.one(service.get("template"), "metrics-transition-template")
-    # A fixed revision cannot be reused for a new environment configuration.
+    # 固定リビジョンを新しい環境変数設定に再利用しない。
     c.need(template.get("revision") in (None, ""), "metrics-transition-fixed-revision")
     return r.one(template.get("containers"), "metrics-transition-container")
 
 
 def recovery_transition(plan, stage, value):
-    """Prove one already-applied toggle before a fresh State-only recovery.
+    """新たにStateだけを復旧する前に、1回の適用済み切替を証明する。
 
-    Never mutate the native Plan: its complete drift remains in both HMACs.
-    The copy is only an equivalent transition proof for existing validators.
+    元のPlanは変更せず、両方のHMACにdrift全体を残す。
+    コピーは既存検証器に対して、同等な遷移を示すためだけに使う。
     """
     if not plan.get("resource_drift"):
         return None
@@ -85,7 +85,7 @@ def recovery_transition(plan, stage, value):
 
 
 def validate_plan(plan, stage, value):
-    """Admit one env toggle, never an image rollout or generic runtime update."""
+    """環境変数1個の切替だけを許可し、イメージ配備や汎用ランタイム更新は許可しない。"""
     c.need(value["read_metrics_from_revision"] != "", "metrics-transition-declaration")
     recovered = recovery_transition(plan, stage, value)
     if recovered is not None:
@@ -126,16 +126,15 @@ def validate_plan(plan, stage, value):
     r.validate_service(after, unknown, value, ["no-op"])
     normalized = deepcopy(configuration(before))
     old_container, new_container = container(normalized), container(after)
-    # Order may move when inserting/removing the sole dynamic env entry; all
-    # other entries (including their secret references) must remain identical.
+    # 唯一の動的envエントリーを追加・除去すると順序が変わり得る。
+    # シークレット参照を含め、他のすべてのエントリーは同一のままにする。
     old_env, new_env = old_container["env"], new_container["env"]
     c.need([x for x in old_env if x["name"] != METRICS_ENV] ==
            [x for x in new_env if x["name"] != METRICS_ENV], "metrics-transition-env-only")
     old_container["env"] = deepcopy(new_env)
     c.need(normalized == configuration(after), "metrics-transition-env-only")
-    # Reuse the entire existing resource/configuration admission. Only this
-    # independently verified service action is projected to no-op in a copy;
-    # the ORIGINAL full Plan still feeds HMAC agreement and conditional API apply.
+    # 既存の資源・設定の受入検査をすべて再利用する。独立検証したこのサービスactionだけを、
+    # コピー上でno-opとして扱う。元の完全なPlanは引き続きHMAC照合と条件付きAPI適用に使う。
     checked = deepcopy(plan)
     next(x for x in checked["resource_changes"] if x["address"] == r.SERVICE)["change"]["actions"] = ["no-op"]
     result = r.validate_initial_plan(checked, stage)
@@ -143,7 +142,7 @@ def validate_plan(plan, stage, value):
 
 
 def validate_readback(state, plan, stage):
-    """Verify saved-plan result without accepting a stale serving revision."""
+    """古い配信リビジョンを受け入れず、保存Planの結果を検証する。"""
     value = r.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
     plan = recovery_transition(plan, stage, value) or plan
     validate_plan(plan, stage, value)
@@ -180,7 +179,7 @@ def validate_readback(state, plan, stage):
 
 
 def readback_saved(env):
-    """Run only in the authenticated apply job against its retained saved Plan."""
+    """認証済みApplyジョブ内で、保持した保存Planに対してだけ実行する。"""
     import hashlib
     import json
     import foundation_ops as ops

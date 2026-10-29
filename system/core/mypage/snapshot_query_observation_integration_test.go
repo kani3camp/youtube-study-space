@@ -21,8 +21,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Fault injection is confined to this Emulator client, not production hooks or
-// global state. The real reader/transaction handles an RPC failure as usual.
+// 障害注入はこのEmulatorクライアント内だけに限定し、本番フックやグローバル状態は使わない。
+// 実際の読み取り・トランザクション処理で、通常どおりRPC失敗を扱う。
 type snapshotQueryFailureStream struct {
 	grpc.ClientStream
 	failCollections map[string]bool
@@ -42,14 +42,14 @@ func (s *snapshotQueryFailureStream) SendMsg(message any) error {
 
 func (s *snapshotQueryFailureStream) RecvMsg(message any) error {
 	if s.failQuery {
-		// Non-retryable so failure assertions do not depend on SDK backoff.
+		// 再試行不能にし、失敗の検証がSDKの待機時間に依存しないようにする。
 		return status.Error(codes.FailedPrecondition, "synthetic query failure")
 	}
 	return s.ClientStream.RecvMsg(message)
 }
 
-// Use only after RequireFirestoreEmulator has checked the loopback endpoint.
-// These are the Emulator's synthetic admin credentials, not real credentials.
+// RequireFirestoreEmulatorがループバック接続先を確認した後だけ使う。
+// Emulatorの合成管理認証情報であり、実認証情報ではない。
 type snapshotEmulatorCredentials struct{}
 
 func (snapshotEmulatorCredentials) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
@@ -81,8 +81,8 @@ func TestSnapshotObservationDistinguishesQueryFailureFromEmptySuccess(t *testing
 				}
 				return &snapshotQueryFailureStream{ClientStream: stream, failCollections: tc.failCollections}, nil
 			}
-			// Emulator mode supplies a prebuilt connection, so dial options alone
-			// do not install interceptors. Pass our guarded connection explicitly.
+			// Emulatorモードは構築済み接続を渡すため、dialオプションだけではinterceptorを設定できない。
+			// 保護済み接続を明示的に渡す。
 			conn, err := grpc.NewClient("passthrough:///"+os.Getenv("FIRESTORE_EMULATOR_HOST"),
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
 				grpc.WithPerRPCCredentials(snapshotEmulatorCredentials{}),
@@ -124,14 +124,13 @@ func TestSnapshotObservationDistinguishesQueryFailureFromEmptySuccess(t *testing
 			require.NoError(t, err)
 			switch {
 			case tc.seatQueryErrors > 0:
-				// A missing seat makes every summary metric unavailable, so the
-				// established API contract omits the entire summary payload.
+				// 座席がない場合は全集計指標が取得不能になるため、既存API仕様に従い集計全体を省略する。
 				require.Equal(t, Unavailable, response.Summary.Availability)
 				require.Nil(t, response.Summary.Data)
 				require.NotNil(t, response.Summary.ReasonCode)
 				require.Equal(t, SourceUnavailable, *response.Summary.ReasonCode)
 			case tc.segmentQueryError:
-				// History failure preserves the independently available lifetime.
+				// 履歴取得に失敗しても、独立して取得可能な累計を維持する。
 				require.Equal(t, Partial, response.Summary.Availability)
 				require.NotNil(t, response.Summary.Data)
 				require.Equal(t, Unavailable, response.Summary.Data.Today.Availability)

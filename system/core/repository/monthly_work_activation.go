@@ -10,10 +10,9 @@ import (
 	"app.modules/core/serviceaccess"
 )
 
-// SetWorkMonthReader is an explicit operator cutover/rollback, never a normal
-// API side effect. The expected user revision and original privacy checkpoint
-// must come from the reviewed dry run. A cutover attests that all old writers
-// have drained; local/mock execution cannot supply that operational evidence.
+// SetWorkMonthReaderは明示的な運用切替・ロールバックであり、通常APIの副作用にはしない。
+// 想定Userリビジョンと元のプライバシーチェックポイントは、レビュー済みdry-runから取得する。
+// 切替には全旧書き込み処理の完了確認が必要であり、ローカル・モック実行ではその運用証拠を提供できない。
 func (c *FirestoreControllerImplements) SetWorkMonthReader(ctx context.Context, uid, checkpoint string, expectedUserRevision time.Time, enabled, apply bool) error {
 	if uid == "" || checkpoint == "" || expectedUserRevision.IsZero() {
 		return ErrWorkHistoryConflict
@@ -48,8 +47,8 @@ func (c *FirestoreControllerImplements) SetWorkMonthReader(ctx context.Context, 
 		if asOf.IsZero() {
 			return ErrWorkHistoryConflict
 		}
-		// Seven days can touch at most two months. Validate both, including
-		// empty days, before activating the overview path for this user.
+		// 7日間が跨ぐのは最大2か月である。この利用者の概要表示を有効にする前に、
+		// 空の日も含めて両方を検証する。
 		lastKey := ""
 		for i := 6; i >= 0; i-- {
 			month := monthStart(asOf.AddDate(0, 0, -i)).Format("2006-01")

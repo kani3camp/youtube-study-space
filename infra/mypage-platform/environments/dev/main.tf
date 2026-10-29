@@ -8,7 +8,7 @@ terraform {
     }
   }
 
-  # Independent MyPage state, never the imported infra/gcp root state.
+  # MyPage専用の独立Stateを使い、取り込み済みinfra/gcpルートのStateは使わない。
   backend "s3" {}
 }
 
@@ -61,8 +61,8 @@ variable "runtime_settings" {
     youtube_api_key_version     = ""
   }
 
-  # Explicit one-shot admission for a metrics-only serving update. It is not
-  # forwarded as an environment variable and does not permit an image rollout.
+  # 計測設定だけを変える配信更新を、一度限り明示的に許可する。
+  # 環境変数には渡さず、イメージの更新も許可しない。
   validation {
     condition = !contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) || (
       var.runtime_settings.maintenance_operator_enabled &&

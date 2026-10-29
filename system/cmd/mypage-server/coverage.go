@@ -17,8 +17,8 @@ const (
 
 var errHistoryCoverage = errors.New("invalid history coverage")
 
-// parseHistoryCoverage validates an operator-supplied completeness assertion;
-// it cannot verify the historical inventory. Never fill gaps or extend an end.
+// parseHistoryCoverageは、運用担当者が指定した完全性の宣言を検証する。
+// 過去データの一覧は検証できず、欠損の補完や終了時刻の延長は行わない。
 func parseHistoryCoverage(value string) ([]mypage.Interval, error) {
 	if value == "" {
 		return nil, nil

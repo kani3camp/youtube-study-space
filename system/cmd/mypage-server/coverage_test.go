@@ -152,7 +152,7 @@ func TestStartupTransfersCoverageToReaderAndPreservesMetricCompleteness(t *testi
 				reader, ok := handler.BFF.Reader.(*mypage.FirestoreSnapshotReader)
 				require.True(t, ok)
 				require.Equal(t, tc.coverage, reader.Coverage, "normal startup must transfer exact verified intervals")
-				// Bootstrap is mocked: the zero Firestore client is never read.
+				// 初期化はモックにし、ゼロ値のFirestoreクライアントは読み取りに使わない。
 				response, err := mypage.Aggregate(mypage.WorkSnapshot{
 					AsOf: asOf, UID: "synthetic", User: &repository.UserDoc{TotalStudySec: 6000}, Coverage: reader.Coverage,
 					Segments: []repository.WorkSegmentDoc{{UserID: "synthetic", SegmentType: repository.WorkState, StartedAt: asOf.Add(-3 * time.Hour), EndedAt: asOf.Add(-2 * time.Hour), DurationSec: 3600}},

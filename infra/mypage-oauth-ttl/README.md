@@ -1,26 +1,26 @@
 # MyPage OAuth transaction TTL
 
-[Data03](https://app.notion.com/p/3ec357a8d0ce81ac94eef9e6ac0c9964)の `oauth-transactions/expiresAt` TTLを管理するMyPage専用追加レイヤー。既存Firestore databaseのfield一つを、[dev](environments/dev/main.tf)・[prod](environments/prod/main.tf)の独立root/stateで管理する。従来GCP Terraform移行のimport-only gate・state・workflowへ追加しない。
+[Data03](https://app.notion.com/p/3ec357a8d0ce81ac94eef9e6ac0c9964)の`oauth-transactions/expiresAt` TTLを管理するMyPage専用の追加設定である。既存Firestore DBの1フィールドを、[dev](environments/dev/main.tf)・[prod](environments/prod/main.tf)の独立したルートとStateで管理する。従来GCP Terraform移行のimport-only検査・State・ワークフローには追加しない。
 
-`expiresAt` は既存アプリが作成時刻+10分のTimestampとして保存する。[applicationの期限判定](../../system/core/mypage/auth.go)は維持する。Firestore TTL削除は非同期であり、期限到達時の即時削除や認証の失効を保証しない。[Firestore TTL](https://docs.cloud.google.com/firestore/native/docs/ttl)
+`expiresAt`は、既存アプリが作成時刻から10分後のTimestampとして保存する。[アプリの期限判定](../../system/core/mypage/auth.go)は維持する。Firestore TTL削除は非同期であり、期限到達時の即時削除や認証失効を保証しない。[Firestore TTL](https://docs.cloud.google.com/firestore/native/docs/ttl)を参照する。
 
-## Scopeと停止条件
+## 対象範囲と停止条件
 
-[共有module](modules/oauth-transaction-ttl/main.tf)は `google_firestore_field` 一つ、`ttl_config {}`、offsetなし。database/API/IAM/rules/authの作成・変更は含まない。`index_config` は省略し、継承indexを維持する。既存の明示index overrideがあればplan検査で停止し、別途reviewする。空の `index_config {}` はindexを無効化するため追加しない。[固定provider仕様](https://github.com/hashicorp/terraform-provider-google/blob/v8.5.0/website/docs/r/firestore_field.html.markdown)
+[共有モジュール](modules/oauth-transaction-ttl/main.tf)は、1つの`google_firestore_field`と`ttl_config {}`を使い、offsetを指定しない。DB・API・IAM・ルール・認証の作成や変更は含めない。`index_config`を省略して継承インデックスを維持する。既存の明示的なインデックス上書きがあればPlan検査で停止し、別途レビューする。空の`index_config {}`はインデックスを無効にするため追加しない。[固定プロバイダー仕様](https://github.com/hashicorp/terraform-provider-google/blob/v8.5.0/website/docs/r/firestore_field.html.markdown)を参照する。
 
-`prevent_destroy` と `deletion_policy = "PREVENT"` を設定する。撤去・置換・TTL無効化はこの手順に含めない。support三collectionの保持/削除、新D01方式の実装、実support completion、実環境のindex/運用は別のrelease gateのまま。CI成功は公開承認やTTLのlive ACTIVE証拠ではない。
+`prevent_destroy`と`deletion_policy = "PREVENT"`を設定する。撤去・置換・TTL無効化はこの手順に含めない。サポート3コレクションの保持・削除、新D01方式の実装、実サポート受付の完了、実環境のインデックスと運用は別の公開条件として残す。CI成功は公開承認や実TTLのACTIVE状態の証拠ではない。
 
-## Credential不要の検証
+## 認証情報を使わない検証
 
-Terraformの固定版は[.terraform-version](.terraform-version)、providerは各rootのrequired_providersとlockfileを使う。repository rootから:
+Terraformの固定バージョンは[.terraform-version](.terraform-version)、プロバイダーは各ルートのrequired_providersとロックファイルを使う。リポジトリのルートから実行する。
 
 ```sh
 bash infra/mypage-oauth-ttl/scripts/check-local.sh
 ```
 
-このscriptはbackendを初期化せず、provider download・validate・mock_providerによるplan・plan contract回帰を検証する。Terraform testは全runでmockを使い、applyや実Google API呼出しをしない。CIは `contents: read` のみで、OIDC・cloud credential・認証workflowを使わない。provider downloadのnetworkは必要。例のproject/databaseは合成fixtureで、liveへ流用しない。
+このスクリプトはバックエンドを初期化せず、プロバイダーの取得・validate・mock_providerによるPlan・Plan仕様の回帰を検証する。Terraform testは全実行でモックを使い、applyや実Google API呼び出しは行わない。CIは`contents: read`だけを使い、OIDC・クラウド認証情報・認証ワークフローは使わない。プロバイダー取得のネットワークは必要である。例のプロジェクト・DBは合成テストデータであり、実環境へ流用しない。
 
-## 限定plan contract
+## Planの差分を限定する検査
 
 [plan_contract.py](scripts/plan_contract.py)は `terraform show -json` のplanと独立したowner-approved target manifestを読む。固定resource address/type/provider、environment/project/database、TTL有効、offsetなし、index不変を照合する。create・TTL有効化だけのupdate・no-opを許可し、delete/replace/import/move/drift/deferred/追加resource/data source/unknown target/sensitive targetを拒否する。provider computedのid/nameはcreate時、TTL stateと省略offsetのunknownはcreate/TTL有効化時に限って扱う。
 
@@ -30,7 +30,7 @@ python3 infra/mypage-oauth-ttl/scripts/plan_contract.py \
   --target /private/mypage-dev-target.json
 ```
 
-出力は固定status/code、plan/target SHA256、actionだけ。入力値・path・raw例外をechoしない。成功時も `executionAuthorized=false`, `releaseReady=false`。この検査はplan JSONの構造・差分の限定検査であり、入力JSONの真正性、state ownership、既存permission、実APIの状態、独立レビューを証明しない。raw plan/stateはsecretを含み得るためpublic artifact/PRへuploadしない。
+出力は固定のstatus/code、Plan・対象のSHA256、actionだけとする。入力値・パス・元の例外は表示しない。成功時も`executionAuthorized=false`、`releaseReady=false`とする。この検査はPlan JSONの構造と差分を限定するもので、入力JSONの真正性、Stateの所有権、既存権限、実API状態、独立レビューを証明しない。元のPlan/Stateはシークレットを含み得るため、公開成果物やPRにアップロードしない。
 
 ## Release順序（実行は別途承認）
 
