@@ -6,7 +6,7 @@
 
 初期公開のPrivacy受付は返信可能な人的窓口 → private CLIでSupportRequest作成 → purpose-bound fresh YouTube OAuth → private削除/revoke/開示運用とする。[運用手順](support-operator.md)を参照。アプリ内受付・返信UIと未接続Operator OIDCは撤去した。実環境検証・D02/D03・削除Gateの完了は別途必要である。
 
-横断削除Bのチェックポイント、オフラインCLI、アダプターの分担、未確認事項は[削除手順書](support-delete.md)と[対象一覧](support-delete-inventory.md)を参照する。
+横断削除Bのチェックポイント、現在storeへのprivate CLI、所有者Gate、未確認事項は[削除手順書](support-delete.md)と[対象一覧](support-delete-inventory.md)を参照する。
 
 本文は現行仕様から実装に必要な機密情報を含まない通信仕様を抽出したものである。`openapi.yaml`は7本のAPIエンドポイントの仕様を定める。公開のメンテナンス状態APIを含む。`fixtures/`には実ユーザーに依存しない合成例を置く。メンテナンスモードの状態・例外・手動切替・復旧は[メンテナンスモードv1の手順書](maintenance-mode.md)を参照する。
 
