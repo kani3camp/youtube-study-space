@@ -1,0 +1,188 @@
+// 2人の本人と、abortを無視して完了し得る2つのrequestを追う。
+// epochは循環させない。表示dataのowner/epochはモデル内の帰属検査用のghost state。
+// 一時HTTP障害の直前値保持とterminalな破棄を分ける。
+spec MyPageSession {
+  type Identity = 0..2
+  type User = 1..2
+  type Request = 1..2
+  type Value = 0..1
+  enum Phase { Anonymous, Authenticated, Restricted, Maintenance, Suspended }
+
+  state {
+    phase: Phase,
+    uid: Identity,
+    epoch: Int,
+    data_uid: Identity,
+    data_epoch: Int,
+    data_value: Value,
+    pending: Map<Request, Bool>,
+    request_uid: Map<Request, Identity>,
+    request_epoch: Map<Request, Int>,
+    transient_failure: Bool
+  }
+
+  init {
+    phase = Anonymous
+    uid = 0
+    epoch = 0
+    data_uid = 0
+    data_epoch = 0
+    data_value = 0
+    forall r: Request {
+      pending[r] = false
+      request_uid[r] = 0
+      request_epoch[r] = 0
+    }
+    transient_failure = false
+  }
+
+  @requirement("REQ-MYPAGE-SESSION-001", "本人切替・明示fresh loginは旧private dataを同期破棄しepochを更新する")
+  action set_identity(next: User, fresh_login: Bool) {
+    requires phase != Maintenance
+    requires next != uid or phase == Anonymous or phase == Suspended or (phase == Restricted and fresh_login)
+    uid = next
+    phase = Authenticated
+    epoch = epoch + 1
+    data_uid = 0
+    data_epoch = 0
+    data_value = 0
+    transient_failure = false
+    ensures old(phase) == Restricted and next == old(uid) => fresh_login
+  }
+
+  @requirement("REQ-MYPAGE-SESSION-002", "logout・pagehideは応答完了を待たずprivate dataを破棄する")
+  action logout() {
+    requires phase != Anonymous
+    uid = 0
+    phase = Anonymous
+    epoch = epoch + 1
+    data_uid = 0
+    data_epoch = 0
+    data_value = 0
+    transient_failure = false
+  }
+
+  @requirement("REQ-MYPAGE-SESSION-002", "logout・pagehideは応答完了を待たずprivate dataを破棄する")
+  action suspend() {
+    requires phase == Authenticated or phase == Restricted
+    epoch = epoch + 1
+    data_uid = 0
+    data_epoch = 0
+    data_value = 0
+    transient_failure = false
+    // 同じuidのbfcache復帰でrestrictedを解除しない。
+    if phase == Authenticated {
+      uid = 0
+      phase = Suspended
+    }
+    ensures old(phase) == Restricted => phase == Restricted
+  }
+
+  action enter_maintenance() {
+    requires phase != Maintenance
+    phase = Maintenance
+    epoch = epoch + 1
+    data_uid = 0
+    data_epoch = 0
+    data_value = 0
+    transient_failure = false
+  }
+
+  action resume_maintenance() {
+    requires phase == Maintenance
+    epoch = epoch + 1
+    if uid == 0 {
+      phase = Anonymous
+    } else {
+      phase = Authenticated
+    }
+  }
+
+  @requirement("REQ-MYPAGE-SESSION-003", "restricted/maintenance中はpoll/manual/visibility由来の取得を開始しない")
+  action begin_request(r: Request) {
+    requires phase == Authenticated
+    requires not pending[r]
+    requires forall other: Request { not pending[other] or request_epoch[other] != epoch }
+    pending[r] = true
+    request_uid[r] = uid
+    request_epoch[r] = epoch
+    ensures old(phase) == Authenticated
+  }
+
+  @requirement("REQ-MYPAGE-SESSION-004", "abortが効かない遅延成功・失敗も本人とepochが一致する場合だけ適用する")
+  action finish_success(r: Request, value: Value) {
+    requires pending[r]
+    pending[r] = false
+    if phase == Authenticated and request_uid[r] == uid and request_epoch[r] == epoch {
+      data_uid = request_uid[r]
+      data_epoch = request_epoch[r]
+      data_value = value
+      transient_failure = false
+    }
+  }
+
+  @requirement("REQ-MYPAGE-SESSION-005", "通常503は同一本人の直前の成功値を保持し取得障害を正常0へ変換しない")
+  action finish_transient_failure(r: Request) {
+    requires pending[r]
+    pending[r] = false
+    if phase == Authenticated and request_uid[r] == uid and request_epoch[r] == epoch {
+      transient_failure = true
+    }
+    ensures data_uid == old(data_uid) and data_epoch == old(data_epoch) and data_value == old(data_value)
+  }
+
+  @requirement("REQ-MYPAGE-SESSION-006", "制限403はprivate dataを破棄し通常retryや同じuidのpagehide復帰で取得を再開しない")
+  action finish_restriction(r: Request) {
+    requires pending[r]
+    pending[r] = false
+    if phase == Authenticated and request_uid[r] == uid and request_epoch[r] == epoch {
+      phase = Restricted
+      epoch = epoch + 1
+      data_uid = 0
+      data_epoch = 0
+      data_value = 0
+      transient_failure = false
+    }
+    ensures old(request_epoch[r]) != old(epoch) or old(request_uid[r]) != old(uid) => (phase == old(phase) and epoch == old(epoch) and data_uid == old(data_uid))
+  }
+
+  // session completion等、別の認可経路からのrestrictionも遅延GETより先に届き得る。
+  @requirement("REQ-MYPAGE-SESSION-006", "制限403はprivate dataを破棄し通常retryや同じuidのpagehide復帰で取得を再開しない")
+  action restrict_identity() {
+    requires phase == Authenticated
+    phase = Restricted
+    epoch = epoch + 1
+    data_uid = 0
+    data_epoch = 0
+    data_value = 0
+    transient_failure = false
+  }
+
+  @requirement("REQ-MYPAGE-SESSION-004", "abortが効かない遅延成功・失敗も本人とepochが一致する場合だけ適用する")
+  invariant PrivateDataBelongsToCurrentIdentityAndEpoch {
+    data_uid != 0 => (phase == Authenticated and data_uid == uid and data_epoch == epoch)
+  }
+
+  @requirement("REQ-MYPAGE-SESSION-002", "logout・pagehideは応答完了を待たずprivate dataを破棄する")
+  @requirement("REQ-MYPAGE-SESSION-006", "制限403はprivate dataを破棄し通常retryや同じuidのpagehide復帰で取得を再開しない")
+  invariant InactivePhasesContainNoPrivateData {
+    phase != Authenticated => data_uid == 0
+  }
+
+  invariant AuthenticatedIdentityIsPresent {
+    phase == Authenticated or phase == Restricted => uid != 0
+  }
+
+  reachable PrivateDataCanBeLoaded { data_uid == 1 }
+  reachable ConfirmedZeroCanBeLoaded { data_uid == 1 and data_value == 0 }
+  reachable SameIdentityCanChangeEpochWhileRequestIsPending {
+    exists r: Request { pending[r] and uid == request_uid[r] and request_epoch[r] < epoch and phase == Authenticated }
+  }
+  reachable FreshDataCanCoexistWithAnOldPendingResponse {
+    data_uid != 0 and exists r: Request { pending[r] and request_epoch[r] < epoch }
+  }
+  reachable TransientFailureCanRetainSuccessfulData {
+    transient_failure and data_uid != 0
+  }
+  reachable RestrictionCanBeReached { phase == Restricted }
+}

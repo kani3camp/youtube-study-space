@@ -1,0 +1,184 @@
+// 1つのOAuth transactionを追う。LoginとSupportの目的は作成後に変わらない。
+// 有効期限・同意版・captured access checkpointは真偽値へ射影する。
+// provider/mintはatomic store actionと分け、外部処理中の失敗・失効を許す。
+spec MyPageOAuth {
+  enum Purpose { Login, Support }
+  enum Status { Idle, Pending, Processing, Verified, Consumed, Failed }
+  enum MintStatus { NoMint, Ready, InFlight, Delivered, Rejected }
+
+  state {
+    purpose: Purpose,
+    status: Status,
+    mint: MintStatus,
+    unexpired: Bool,
+    policy_current: Bool,
+    login_guard_current: Bool,
+    claims: Int,
+    consumes: Int,
+    mint_attempts: Int,
+    account_written: Bool,
+    receipt_written: Bool,
+    rejected_after_external_mint: Bool
+  }
+
+  init {
+    purpose = Login
+    status = Idle
+    mint = NoMint
+    unexpired = true
+    policy_current = true
+    login_guard_current = true
+    claims = 0
+    consumes = 0
+    mint_attempts = 0
+    account_written = false
+    receipt_written = false
+    rejected_after_external_mint = false
+  }
+
+  action start(selected: Purpose) {
+    requires status == Idle
+    purpose = selected
+    status = Pending
+  }
+
+  action expire() {
+    requires status != Idle
+    requires unexpired
+    unexpired = false
+  }
+
+  action change_policy() {
+    requires policy_current
+    policy_current = false
+  }
+
+  // 古いlogin checkpointの失効は取り消さない。再ログインは別transaction。
+  action invalidate_login_guard() {
+    requires login_guard_current
+    login_guard_current = false
+  }
+
+  @requirement("REQ-MYPAGE-AUTH-001", "callbackは期限内のstate一致transactionを一度だけatomic claimする")
+  action claim(state_matches: Bool) {
+    requires status == Pending
+    requires unexpired
+    requires state_matches
+    requires purpose == Support or login_guard_current
+    status = Processing
+    claims = claims + 1
+    ensures old(unexpired) and state_matches
+  }
+
+  @requirement("REQ-MYPAGE-AUTH-002", "callbackのclaim後に唯一のchannelを確認してからconfirmへ進む")
+  action verify_channel(unique_channel: Bool) {
+    requires status == Processing
+    requires unexpired
+    requires unique_channel
+    requires purpose == Support or login_guard_current
+    status = Verified
+    ensures old(unexpired) and unique_channel
+  }
+
+  action fail() {
+    requires status == Pending or status == Processing or status == Verified
+    status = Failed
+  }
+
+  @requirement("REQ-MYPAGE-AUTH-003", "login confirmのconsumeとaccount更新は同じatomic transitionで一度だけ行う")
+  action confirm_login(confirmation_matches: Bool) {
+    requires status == Verified
+    requires purpose == Login
+    requires unexpired
+    requires policy_current
+    requires login_guard_current
+    requires confirmation_matches
+    status = Consumed
+    consumes = consumes + 1
+    account_written = true
+    mint = Ready
+    ensures old(unexpired) and old(policy_current) and old(login_guard_current) and confirmation_matches
+  }
+
+  @requirement("REQ-MYPAGE-AUTH-004", "support confirmはrequest/channel bindingを確認してproofだけを作りlogin権限を発行しない")
+  action confirm_support(confirmation_matches: Bool, binding_matches: Bool) {
+    requires status == Verified
+    requires purpose == Support
+    requires unexpired
+    requires policy_current
+    requires confirmation_matches
+    requires binding_matches
+    status = Consumed
+    consumes = consumes + 1
+    receipt_written = true
+    ensures old(unexpired) and old(policy_current) and confirmation_matches and binding_matches
+  }
+
+  @requirement("REQ-MYPAGE-AUTH-005", "mintはconsume後に一度だけ試行し失敗・ACK不明でもtransactionを再利用しない")
+  action attempt_mint(succeeds: Bool) {
+    requires mint == Ready
+    requires login_guard_current
+    mint_attempts = mint_attempts + 1
+    if succeeds {
+      mint = InFlight
+    } else {
+      mint = Rejected
+    }
+  }
+
+  @requirement("REQ-MYPAGE-AUTH-006", "外部mint中にlogin guardが失効した場合は生成tokenを返さない")
+  action finish_mint() {
+    requires mint == InFlight
+    if login_guard_current {
+      mint = Delivered
+    } else {
+      mint = Rejected
+      rejected_after_external_mint = true
+    }
+    ensures mint == Delivered => old(login_guard_current)
+  }
+
+  @requirement("REQ-MYPAGE-AUTH-001", "callbackは期限内のstate一致transactionを一度だけatomic claimする")
+  invariant SingleClaimAndConsume {
+    0 <= consumes and consumes <= claims and claims <= 1
+  }
+
+  @requirement("REQ-MYPAGE-AUTH-003", "login confirmのconsumeとaccount更新は同じatomic transitionで一度だけ行う")
+  invariant AccountRequiresConsumedLogin {
+    account_written == (status == Consumed and purpose == Login)
+  }
+
+  @requirement("REQ-MYPAGE-AUTH-004", "support confirmはrequest/channel bindingを確認してproofだけを作りlogin権限を発行しない")
+  invariant SupportCannotMintOrWriteAccount {
+    purpose == Support => (mint == NoMint and mint_attempts == 0 and not account_written)
+  }
+
+  invariant ReceiptRequiresConsumedSupport {
+    receipt_written == (status == Consumed and purpose == Support)
+  }
+
+  @requirement("REQ-MYPAGE-AUTH-005", "mintはconsume後に一度だけ試行し失敗・ACK不明でもtransactionを再利用しない")
+  invariant MintRequiresConsume {
+    0 <= mint_attempts and mint_attempts <= consumes
+  }
+
+  trans ConsumedNeverReopens {
+    old(status) == Consumed => status == Consumed
+  }
+
+  // 失敗・consume済みの停止は意図した終端。再試行には別transactionが必要。
+  terminal {
+    status == Failed or (status == Consumed and
+      (mint == NoMint or mint == Delivered or mint == Rejected or
+       (mint == Ready and not login_guard_current)))
+  }
+
+  reachable LoginTokenCanBeDelivered { mint == Delivered }
+  reachable FailedMintStaysConsumed { mint == Rejected and status == Consumed }
+  reachable SupportProofSurvivesLoginRestriction {
+    receipt_written and not login_guard_current
+  }
+  reachable InFlightMintCanBeRejected {
+    rejected_after_external_mint and mint == Rejected and not login_guard_current
+  }
+}

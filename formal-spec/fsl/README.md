@@ -27,6 +27,9 @@ bash .github/scripts/run-formal-spec-tests.sh
 ```bash
 bash formal-spec/fsl/scripts/report.sh seat_session
 bash formal-spec/fsl/scripts/report.sh seat_allocation
+bash formal-spec/fsl/scripts/report.sh mypage_oauth
+bash formal-spec/fsl/scripts/report.sh mypage_session
+bash formal-spec/fsl/scripts/report.sh mypage_access
 ```
 
 対応している FSL 開発環境は Linux x86_64 / arm64 と macOS Apple Silicon です。`fslc` は `formal-spec/fsl/.tools/` にキャッシュされ、生成した conformance JSON / HTML は `formal-spec/fsl/generated/` に置かれ、どちらもコミットされません。
@@ -42,7 +45,7 @@ bash formal-spec/fsl/scripts/report.sh seat_allocation
 
 ## Requirement traceability
 
-`SeatSession` の `REQ-SEAT-*`、`SeatAllocation` の `REQ-ALLOC-*` は FSL の正準な `@requirement(id, text)` metadata として対象 action / invariant に付与します。これにより verifier の診断や HTML レポートから、どの宣言がどの契約を担うか追跡できます。
+`SeatSession` の `REQ-SEAT-*`、`SeatAllocation` の `REQ-ALLOC-*`、MyPage の `REQ-MYPAGE-AUTH-*` / `REQ-MYPAGE-SESSION-*` / `REQ-MYPAGE-ACCESS-*` は FSL の正準な `@requirement(id, text)` metadata として対象 action / invariant / trans に付与します。これにより verifier の診断や HTML レポートから、どの宣言がどの契約を担うか追跡できます。
 
 requirement metadata は検証そのものの代替ではありません。契約の意味は action / invariant の式で検証し、ID と説明はレビュー時のトレーサビリティとして使います。
 
@@ -57,7 +60,7 @@ SeatSession: fslc conformance --depth 4
 SeatSession: Go conformance adapter (build tag: formalspec)
 ```
 
-`SeatSession` は実 Go adapter まで接続済みです。`SeatAllocation` はまず高位の割当安全条件を独立した有限モデルとして検証し、実装 conformance は Firestore transaction / WorkspaceApp 境界を壊さず接続できる方法を別途設計します。未接続なのに実装との一致を証明したとは扱いません。
+`SeatSession` は実 Go adapter まで接続済みです。`SeatAllocation` はまず高位の割当安全条件を独立した有限モデルとして検証し、実装 conformance は Firestore transaction / WorkspaceApp 境界を壊さず接続できる方法を別途設計します。`MyPageOAuth` / `MyPageSession` / `MyPageAccess` も独立した安全モデルで、実装 conformance は未接続です。[各モデルの範囲・対応実装・既存テスト](specs/README.md) を確認し、未接続のモデルを実装との一致の証明とは扱いません。
 
 Go adapter は FSL の `conformance.v1` JSON を読み、各 reachable state / action instance について `SeatDoc` の実装結果を照合します。`requires_failed` の vector では Go 側も error を返し、`SeatDoc` が変更されないことまで確認します。仕様で新しい outcome が現れた場合は自動で skip せず、分類を要求して失敗します。
 

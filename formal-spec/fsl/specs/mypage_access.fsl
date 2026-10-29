@@ -1,0 +1,108 @@
+// 1channelの独立した2つの制限理由と、1つのcaptured requestを追う。
+// checkpointは変更ごとに増える整数へ射影し、削除/再作成・wraparoundは許さない。
+// これはSAC consumerのモデルであり、削除B全29stepの完了証明ではない。
+spec MyPageAccess {
+  enum Verdict { NoResult, Allowed, Restricted, Deleting, Unavailable }
+
+  state {
+    moderation: Bool,
+    deletion: Bool,
+    readable: Bool,
+    checkpoint: Int,
+    pending: Bool,
+    captured: Int,
+    verdict: Verdict
+  }
+
+  init {
+    moderation = false
+    deletion = false
+    readable = true
+    checkpoint = 0
+    pending = false
+    captured = 0
+    verdict = NoResult
+  }
+
+  @requirement("REQ-MYPAGE-ACCESS-001", "moderationとprivacyDeletionは独立して更新し他方の制限を解除しない")
+  action set_moderation(active: Bool) {
+    moderation = active
+    if active != moderation {
+      checkpoint = checkpoint + 1
+    }
+    ensures deletion == old(deletion)
+  }
+
+  @requirement("REQ-MYPAGE-ACCESS-001", "moderationとprivacyDeletionは独立して更新し他方の制限を解除しない")
+  action set_deletion(active: Bool) {
+    deletion = active
+    if active != deletion {
+      checkpoint = checkpoint + 1
+    }
+    ensures moderation == old(moderation)
+  }
+
+  action set_readable(available: Bool) {
+    readable = available
+  }
+
+  @requirement("REQ-MYPAGE-ACCESS-002", "保護処理の前にfreshに制限状態を読み許可checkpointをcaptureする")
+  action begin_protected_request() {
+    requires not pending
+    requires readable
+    requires not moderation
+    requires not deletion
+    pending = true
+    captured = checkpoint
+    verdict = NoResult
+  }
+
+  @requirement("REQ-MYPAGE-ACCESS-003", "制限store障害やcheckpoint不一致をstale/partial成功へ変換しない")
+  @requirement("REQ-MYPAGE-ACCESS-004", "両理由がactiveなら削除中の表示を優先する")
+  action finish_protected_request() {
+    requires pending
+    pending = false
+    if not readable {
+      verdict = Unavailable
+    } else {
+      if deletion {
+        verdict = Deleting
+      } else {
+        if moderation {
+          verdict = Restricted
+        } else {
+          if captured != checkpoint {
+            verdict = Unavailable
+          } else {
+            verdict = Allowed
+          }
+        }
+      }
+    }
+    // verdictはこのread/commit/publish時点の観測。後のblockを遡及適用しない。
+    ensures verdict == Allowed => (old(readable) and not old(moderation) and not old(deletion) and old(captured) == old(checkpoint))
+    ensures old(readable) and old(deletion) => verdict == Deleting
+    ensures not old(readable) => verdict == Unavailable
+  }
+
+  @requirement("REQ-MYPAGE-ACCESS-005", "同じ制限状態の再適用はcheckpointを変えず実変更は増加させる")
+  trans CheckpointChangesOnlyWithReasons {
+    (moderation == old(moderation) and deletion == old(deletion)) => checkpoint == old(checkpoint)
+  }
+
+  @requirement("REQ-MYPAGE-ACCESS-005", "同じ制限状態の再適用はcheckpointを変えず実変更は増加させる")
+  trans ChangedReasonAdvancesCheckpoint {
+    (moderation != old(moderation) or deletion != old(deletion)) => checkpoint == old(checkpoint) + 1
+  }
+
+  invariant CapturedCheckpointNeverInFuture { captured <= checkpoint }
+
+  reachable ProtectedRequestCanSucceed { verdict == Allowed }
+  reachable IndependentReasonsCanCoexist { moderation and deletion }
+  reachable UnblockPreservesDeletion { not moderation and deletion and checkpoint >= 3 }
+  reachable RestrictionCanRejectPendingRequest { verdict == Restricted }
+  reachable DeletionTakesPrecedence { verdict == Deleting and moderation and deletion }
+  reachable ChangedCheckpointRejectsEvenAfterUnblock {
+    verdict == Unavailable and readable and not moderation and not deletion and captured < checkpoint
+  }
+}
