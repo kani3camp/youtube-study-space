@@ -182,7 +182,7 @@ class FoundationTest(unittest.TestCase):
             self.assertIn('check=' + expected + '.', output.getvalue())
             self.assertNotIn('private-', output.getvalue())
 
-    def test_retained_image_requires_identical_entire_build_context(self):
+    def test_terraform_bootstrap_image_source_may_be_an_ancestor(self):
         value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
         value['image_source_sha'] = 'b' * 40
         env = {'GITHUB_SHA': 'a' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}
@@ -190,13 +190,16 @@ class FoundationTest(unittest.TestCase):
         prefix = 'projects/' + c.PROJECT + '/locations/asia-southeast2/repositories/mypage/packages/mypage-api'
         tag = {'version': prefix + '/versions/sha256:' + value['image_digest'].split('@sha256:')[1]}
         operator_tag = {'version': prefix + '/versions/sha256:' + value['maintenance_operator_image_digest'].split('@sha256:')[1]}
-        with patch.object(ops, 'run', side_effect=['', 'c' * 40, 'c' * 40]) as run, \
+        with patch.object(ops, 'run', side_effect=['', '']) as run, \
                 patch.object(ops, 'request', side_effect=[tag, operator_tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
             ops.verify_runtime_inputs(env, value, 'runtime_private')
         self.assertEqual(run.call_args_list[0].args[0], ['git', 'fetch', '--no-tags', '--depth=1', 'origin', 'b' * 40])
         self.assertTrue(request.call_args_list[0].args[0].endswith('/tags/' + 'b' * 40))
-        with patch.object(ops, 'run', side_effect=['', 'c' * 40, 'd' * 40]), patch.object(ops, 'request') as request:
-            with self.assertRaisesRegex(c.ContractError, '^runtime-image-source-tree$'):
+        self.assertEqual(run.call_args_list[1].args[0],
+                         ['git', 'merge-base', '--is-ancestor', 'b' * 40, env['GITHUB_SHA']])
+        with patch.object(ops, 'run', side_effect=['', ValueError('unreviewed-ancestor')]), \
+             patch.object(ops, 'request') as request:
+            with self.assertRaises(ValueError):
                 ops.verify_runtime_inputs(env, value, 'runtime_private')
             request.assert_not_called()
         for source in ['--upload-pack=private', 'b' * 39, 'B' * 40]:
