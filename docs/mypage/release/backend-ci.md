@@ -22,7 +22,7 @@ PRマージを承認操作とし、ビルド・デプロイの実行権限をPR�
 4. **人がdigest変更PRとCIをレビューし、マージする。**
    これが対象イメージを配備してよいという承認であり、CIはPRを自動マージしない。
    `system/`とリリース宣言を同じpushで変更した場合は誤配備防止のため停止する。
-5. リリース宣言のみのpushではイメージを再ビルドしない。既存の
+5. リリース宣言のみのpushではイメージを再ビルドしない。**配備前に**GitHubから、\n   今回のHEADがCI bot作成のdigest単一ファイルPRをマージしたコミットであることを\n   読み取り認証で照合する。直接pushや、PR以外の変更を使った承認迂回は拒否する。既存の
    `mypage-backend-authenticated.yml` がビルド元`system` Git tree、Registry対応、
    旧配信digest、revision/UID/generation、Hosting版、最新統合HEADを確認した後、
    Cloud Runの**imageフィールドだけ**を更新する。新revisionがReady、
