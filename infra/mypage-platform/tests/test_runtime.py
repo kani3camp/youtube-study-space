@@ -276,13 +276,15 @@ class RuntimeTest(unittest.TestCase):
                           terminal_condition=[{'state': 'CONDITION_SUCCEEDED'}], reconciling=False,
                           traffic_statuses=[{'type': 'TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST', 'percent': 100, 'revision': 'mypage-api-old'}])
             before['template'][0]['revision'] = 'mypage-api-old'
+            # Fixed Hosting host already exists; CI/CD changes only the image.
+            before['template'][0]['containers'][0]['env'].append(
+                {'name': 'MYPAGE_HOSTING_BACKEND_HOST', 'value': 'mypage-api-observed-et.a.run.app'})
             after.clear()
             after.update(deepcopy(before))
             value = plan['variables']['runtime_settings']['value']
             value.update(previous_image_digest=value['image_digest'], image_digest=r.REPOSITORY + '@sha256:' + 'b' * 64,
                          hosting_backend_host='mypage-api-observed-et.a.run.app')
             after['template'][0]['containers'][0]['image'] = value['image_digest']
-            after['template'][0]['containers'][0]['env'].append({'name': 'MYPAGE_HOSTING_BACKEND_HOST', 'value': value['hosting_backend_host']})
             after['template'][0]['revision'] = 'mypage-api-new'
             after.update(generation='2', observed_generation='2', update_time='2026-10-21T01:00:00Z',
                          latest_ready_revision='mypage-api-new', latest_created_revision='mypage-api-new',
@@ -306,7 +308,7 @@ class RuntimeTest(unittest.TestCase):
                     r.validate_plan(rejected, stage)
             for mutate in (
                 lambda p: service(p).update(actions=['update']),
-                lambda p: p['variables']['runtime_settings']['value'].update(previous_image_digest=r.REPOSITORY + '@sha256:' + 'c' * 64),
+                lambda p: p['resource_drift'][0]['change']['after']['template'][0]['containers'][0].update(image='untrusted.example.invalid@sha256:' + 'c' * 64),
                 lambda p: p['resource_drift'][0]['change'].update(after_unknown={'generation': True}),
                 lambda p: p['resource_drift'][0]['change'].update(actions=['delete', 'create']),
                 lambda p: p['resource_drift'][0]['change']['before']['template'][0].update(service_account='other@example.test'),
@@ -322,7 +324,7 @@ class RuntimeTest(unittest.TestCase):
                 with self.subTest(stage=stage, mutation=mutate), self.assertRaises(ValueError):
                     r.validate_plan(rejected, stage)
             # 受入検査自体を試すため、計画値と観測値を同じに保つ。
-            for field, invalid in (('generation', '3'), ('observed_generation', '1'),
+            for field, invalid in (('generation', '1'), ('observed_generation', '1'),
                                    ('latest_ready_revision', 'mypage-api-old'), ('reconciling', True),
                                    ('terminal_condition', [{'state': 'CONDITION_FAILED'}]),
                                    ('traffic_statuses', [{'type': 'TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST', 'percent': 50, 'revision': 'mypage-api-new'}])):
@@ -361,6 +363,12 @@ class RuntimeTest(unittest.TestCase):
         original = deepcopy(plan)
         self.assertEqual(r.validate_plan(plan, 'runtime_public'), {'resources': len(plan['resource_changes']), 'creates': 0})
         self.assertEqual(plan, original)
+        # Several CI deployments without a Terraform run are a supported state.
+        multiple = deepcopy(plan)
+        service(multiple)['after'].update(generation='6', observed_generation='6')
+        multiple['resource_drift'][0]['change']['after'].update(generation='6', observed_generation='6')
+        self.assertEqual(r.validate_plan(multiple, 'runtime_public'),
+                         {'resources': len(plan['resource_changes']), 'creates': 0})
         for mutate in (
             lambda p: p['resource_drift'][0]['change']['before']['template'][0]['containers'][0]['env'][0].update(value='other'),
             lambda p: service(p).update(actions=['update']),
