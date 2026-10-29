@@ -22,8 +22,11 @@ def environment():
 
 def release():
     return {'image_source_sha': 'a' * 40, 'image_digest': b.runtime.REPOSITORY + '@sha256:' + 'b' * 64,
-            'previous_image_digest': b.runtime.REPOSITORY + '@sha256:' + 'c' * 64,
             'hosting_backend_host': 'mypage-api-eu5mhkcewq-et.a.run.app'}
+
+
+def old_image():
+    return b.runtime.REPOSITORY + '@sha256:' + 'c' * 64
 
 
 def service(*, after=False):
@@ -43,7 +46,7 @@ def service(*, after=False):
                                  'revision': revision}],
             'futureConfig': {'preserve': True}, 'ingress': 'INGRESS_TRAFFIC_ALL',
             'template': {'serviceAccount': b.c.EMAIL, 'scaling': {'maxInstanceCount': 1},
-                         'containers': [{'image': value['image_digest' if after else 'previous_image_digest'],
+                         'containers': [{'image': value['image_digest'] if after else old_image(),
                                          'env': [{'name': k, 'value': v} for k, v in env.items()] +
                                          [{'name': 'MYPAGE_OAUTH_CLIENT_SECRET', 'valueSource': {
                                              'secretKeyRef': {'secret': 'synthetic-secret-ref', 'version': '1'}}}]}]}}
@@ -111,7 +114,11 @@ class BackendReleaseTest(unittest.TestCase):
 
     def test_push_backend_release_preserves_manual_hosting_boundary(self):
         env = environment()
-        b.context(env | {'GITHUB_EVENT_NAME': 'push'})
+        b.context(env | {'GITHUB_EVENT_NAME': 'push',
+                         'MYPAGE_BACKEND_IMAGE_DIGEST': release()['image_digest'],
+                         'MYPAGE_BACKEND_IMAGE_SOURCE_SHA': env['GITHUB_SHA']})
+        with self.assertRaises(ValueError):
+            b.context(env | {'GITHUB_EVENT_NAME': 'push'})
         for bad in ('pull_request', 'workflow_run', 'schedule'):
             with self.subTest(event=bad), self.assertRaises(ValueError):
                 b.context(env | {'GITHUB_EVENT_NAME': bad})
@@ -121,6 +128,21 @@ class BackendReleaseTest(unittest.TestCase):
         for event in ('workflow_dispatch', 'push'):
             self.assertIn('assertion.event_name == "' + event + '"', identity.condition())
         self.assertIn(' || ', identity.condition())
+
+    def test_manual_release_resolves_exact_source_tag_without_json(self):
+        given = environment()
+        self.assertEqual(b.declaration(given)['image_digest'], '')
+        prefix = b.REGISTRY.removeprefix('https://artifactregistry.googleapis.com/v1/') + '/versions/'
+        with patch.object(b, 'registry_tag', return_value={'version': prefix + 'sha256:' + 'b' * 64}):
+            self.assertEqual(b.declaration(given, 'synthetic-token')['image_digest'], release()['image_digest'])
+        with patch.object(b, 'registry_tag', return_value={'version': prefix + 'sha256:' + 'bad'}), self.assertRaises(ValueError):
+            b.declaration(given, 'synthetic-token')
+        rollback = given | {'MYPAGE_BACKEND_IMAGE_SOURCE_SHA': 'f' * 40,
+                            'MYPAGE_BACKEND_IMAGE_DIGEST': release()['image_digest']}
+        b.context(rollback)
+        with patch.object(b.hosting, 'verify_head'), patch.object(b.hosting, 'command') as command:
+            b.verify_source(rollback, b.declaration(rollback))
+            self.assertIn('merge-base', command.call_args.args[0])
 
     def test_only_image_changes_and_original_resource_version_is_preserved(self):
         original = v1service()
@@ -165,7 +187,7 @@ class BackendReleaseTest(unittest.TestCase):
                 return v1service(after=True)
             host = {'name': 'sites/test--study-space/releases/old',
                     'version': {'name': 'sites/test--study-space/versions/old'}}
-            sequence = [before, before | {'etag': 'foreign'} if moved else before, after, after]
+            sequence = [before, before | {'etag': 'foreign'} if moved else before, before, after, after]
             with patch.object(b, 'declaration', return_value=release()), patch.object(b, 'verify_source'), \
                  patch.object(b, 'registry'), patch.object(b.hosting, 'verify_head'), \
                  patch.object(b.hosting, 'current', return_value=host), \
@@ -185,8 +207,9 @@ class BackendReleaseTest(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(record['publishStatus'], 'confirmed')
         self.assertEqual(record['publicReadback'], 'passed')
-        self.assertEqual(record['stateReadback'], 'pending')
-        self.assertEqual(record['previousImageDigest'], release()['previous_image_digest'])
+        self.assertNotIn('stateReadback', record)
+        self.assertEqual(record['previousImageDigest'], old_image())
+        self.assertEqual(record['schemaVersion'], 2)
 
     def test_competing_configuration_prevents_write(self):
         calls, record = self.execute(moved=True)
@@ -207,7 +230,7 @@ class BackendReleaseTest(unittest.TestCase):
                 calls, record = self.execute(**{option: True})
                 self.assertEqual(len(calls), 1)
                 self.assertEqual(record['publicReadback'], 'pending')
-                self.assertEqual(record['stateReadback'], 'pending')
+                self.assertNotIn('stateReadback', record)
 
 
 if __name__ == '__main__':
