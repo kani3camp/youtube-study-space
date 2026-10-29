@@ -346,6 +346,9 @@ resource "google_cloud_run_v2_service" "api" {
 
   lifecycle {
     prevent_destroy = true
+    # Application CI/CD owns only the container image after initial creation.
+    # All IAM, env, secrets, scale and networking fields remain Terraform-owned.
+    ignore_changes = [template[0].containers[0].image]
   }
 }
 
