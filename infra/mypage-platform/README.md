@@ -43,7 +43,7 @@ Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-
 
 Cloud Runは `mypage-api`、専用SA/ADC、`min_instance_count=0`、`max_instance_count=1`（Dev）/ `3`（Production）、CPU 1 / RAM 512Mi、port 8080、30秒timeout。
 
-リビジョンのイメージはArtifact Registryのダイジェスト（`@sha256:...`）で固定し、タグやlatestで不用意に差し替えない。実費は起動回数・Secret Manager・ログ量・API呼び出しなどで変わるため、未計測で月額1ドル未満と断定しない。<https://cloud.google.com/run/pricing>と<https://cloud.google.com/secret-manager/pricing>を参考に、実対象と試算を別途レビューする。
+リビジョンのイメージはArtifact Registryのダイジェスト（`@sha256:...`）で固定し、タグやlatestで不用意に差し替えない。 **初回Cloud Run作成後のAPIコンテナimageだけはCI/CDが所有し、Terraformは`ignore_changes`でその属性を管理しない。** 既存サービスのimage更新は[Backend CI手順](../../docs/mypage/release/backend-ci.md)のBuild→Registry digest→直接image配備→検証で行う。通常releaseごとにTerraform Plan/Applyやdigest変更PRを実行しない。実費は起動回数・Secret Manager・ログ量・API呼び出しなどで変わるため、未計測で月額1ドル未満と断定しない。<https://cloud.google.com/run/pricing>と<https://cloud.google.com/secret-manager/pricing>を参考に、実対象と試算を別途レビューする。
 
 作業履歴の完全性は実データの確認済み区間だけで宣言する。`runtime_settings.history_coverage_json` は**既定が空文字の任意設定**で、空文字ならCloud Runに`MYPAGE_HISTORY_COVERAGE`は存在しない。指定する場合は最大16KiBのJSON配列を渡し、Goの[厳格parser](../../system/cmd/mypage-server/coverage.go)がUTC時刻・順序・重複・上限を起動前に検証する。`[]`や未指定は完全な履歴を表さない。実際のwriterと履歴のRead-only inventoryに基づく区間以外は指定せず、実Deploy/rollbackの設定値と欠損の扱いを照合する。
 
@@ -85,9 +85,9 @@ DevelopmentのFoundation metadataは実作成・State readback済み。Secret ve
 
 ### Runtimeの診断と既存イメージの出所
 
-runtime設定の任意 `image_source_sha`（既定は空文字）は、既存の不変tagを作成した40桁commit SHAを示す。空文字なら従来どおり実行元SHAのtagを要求する。別SHAの場合はpublic repositoryからそのcommitを取得し、実行元とbuild元の `system` tree全体が一致することを、Plan/Applyの双方で確認する。Docker contextは `system/` 全体であり、Dockerfile、依存lock、ignore設定とGoソースを含む。tagの作り替え、出所不明digest、アプリ変更後の旧image流用は拒否する。これはinfra診断だけの変更で既存revisionを更新する必要をなくすためで、Cloud Runのupdate/delete/replaceは引き続き拒否する。
+runtime設定の任意 `image_source_sha`（既定は空文字）は、既存の不変tagを作成した40桁commit SHAを示す。空文字なら従来どおり実行元SHAのtagを要求する。別SHAの場合はそのcommitが現行HEADの祖先であることと、同SHAの不変tagがbootstrap digestを指すことを確認する。配信imageはCI/CDで別途更新されるため、実行元の`system` treeとの完全一致を要求しない。Docker contextは `system/` 全体であり、Dockerfile、依存lock、ignore設定とGoソースを含む。tagの作り替え、出所不明digest、Terraformから配信imageを巻き戻す変更を拒否する。これはinfra診断だけの変更で既存revisionを更新する必要をなくすためで、Cloud Runのupdate/delete/replaceは引き続き拒否する。
 
-maintenance operatorは通常API releaseと独立した`maintenance_operator_image_digest`と`maintenance_operator_image_source_sha`を必須にする。source SHAは現行review済みcommitのancestorに限定し、Artifact Registryの同SHA tagが指定digestを指すことを検証する。通常APIのrelease overlayはこの2値を変更せず、operatorの意図しない更新やAPI digestとの誤った同一化を行わない。
+maintenance operatorは通常API releaseと独立した`maintenance_operator_image_digest`と`maintenance_operator_image_source_sha`を必須にする。source SHAは現行review済みcommitのancestorに限定し、Artifact Registryの同SHA tagが指定digestを指すことを検証する。APIコンテナのCI/CDとは独立しており、maintenance operatorのdigestやsource SHAを自動で変更しない。
 
 Cloud Runのdrift診断は、固定allowlistに含まれる変更field名、その他fieldの件数、planned no-opの真偽だけを公開する。値、未知のfield名、State/Plan本文は公開せず、診断を理由にadmissionを緩めない。private runtimeの初回適用はrun 39566961739で成功した。続くpublic Planは `runtime-drift-address` で変更前に停止し、付与済みの一時権限3件は全て解除した。公開接続とHosting releaseは未実施。
 
@@ -103,15 +103,15 @@ CIの権限を広げず、承認済みの `mypage-api` / `roles/run.invoker` / `
 
 ### Hosting転送の固定ホストとowner image更新
 
-以下は初期接続時のowner操作記録。以後のDEV通常image更新は [Backend CI手順](../../docs/mypage/release/backend-ci.md) で専用deployerへ分離する。既存Terraform SAへRun updateを追加せず、source-pinned digest・resourceVersion・設定不変・限定State refreshを維持する。CI経路の実接続・配備結果は、対象sourceのActionsとrelease recordで確認する。
+以下は初期接続時のowner操作記録。以後のDEV通常image更新は [Backend CI手順](../../docs/mypage/release/backend-ci.md) で専用deployerへ分離する。既存Terraform SAへRun updateを追加せず、source-pinned digest・resourceVersion・設定不変を検証する。State refreshは次回のインフラPlan/Apply時にだけ行い、通常リリース時の必須操作にしない。CI経路の実接続・配備結果は、対象sourceのActionsとrelease recordで確認する。
 
 2026-10-21にownerのpublic invokerをrun 39587793777で取り込み、12資源・create/updateなしでState readbackを確認。Hosting release `1792580103818000` を公開し、8ファイルの実配信内容一致を確認した。画面は表示できたが、Hosting経由のAPIはOrigin境界で400となったため、OAuth実試験の前に転送先ホストの明示設定を追加する。S01/S04の合格を意味しない。
 
 `MYPAGE_HOSTING_BACKEND_HOST` は実metadataから得たCloud Run hostnameを固定する。未設定時は従来どおり公開Hostのみを認める。設定時も一致するbackend Host、単一の公開 `X-Forwarded-Host`、単一の `X-Forwarded-Proto: https` を要求する。転送情報は認証根拠とせず、Auth/App Check/Origin/cookie検証とIP判定を維持する。
 
-public releaseの4値だけを `environments/dev/runtime-release.json` に記録できる（image_digest/image_source_sha/hosting_backend_host/previous_image_digest）。Secret参照番号・同意版・project等は上書きできない。先にコードをreview/mergeしてそのSHAでimage-buildし、次のsource-only PRでdigestとbuild SHAを固定する。full system tree一致とimmutable digest検証を維持する。
+`environments/dev/runtime-release.json`の4値は旧方式の履歴であり、現在のCI/CD・Terraform入力ではない。アプリ更新はコードPRのレビュー後、同じActions runでbuildしたdigestをCloud Runへ直接渡す。Secret参照番号・同意版・project等の設定はimage更新で変更できない。full system tree一致とimmutable digest検証を維持する。
 
-CIに `run.services.update` を与えず、ownerがetag付きで既存serviceのcontainer imageを更新する。初回のHosting接続時だけ固定host env 1個を追加し、以後のimage更新では全envをそのまま保持する。その後のpublic applyはplanned no-opのみを認める。旧digestの明示、同一service境界、初回の固定host env追加1個または全env不変、Ready/最新revision100%、generation+1、増加したupdate_timeを照合し、観測済みcomputed metadata以外の差を拒否する。native driftはHMACへ含めて独立Applyが再現し、更新ではなくState refreshだけを実行する。
+以前はownerが手動でimageを更新していたが、今後は専用CIのbackend deployerがv1 resourceVersion付きでimageだけを変更する。初回のHosting接続時だけ固定host env 1個を追加し、以後のimage更新では全envをそのまま保持する。その後のpublic applyはplanned no-opのみを認める。旧digestの明示、同一service境界、初回の固定host env追加1個または全env不変、Ready/最新revision100%、generation+1、増加したupdate_timeを照合し、観測済みcomputed metadata以外の差を拒否する。native driftはHMACへ含めて独立Applyが再現し、更新ではなくState refreshだけを実行する。
 
 ### S04の実測後のDEV request URL保存抑止
 
