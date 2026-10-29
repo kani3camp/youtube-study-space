@@ -500,11 +500,16 @@ class FoundationTest(unittest.TestCase):
             'MYPAGE_EXPECTED_SHA': 'a' * 40,
             'MYPAGE_MODE': 'runtime-public-apply',
         }
-        c.context(env, 'plan')
-        c.context(env, 'apply')
+        # Application image build may use DEV WIF on an owner push; Terraform
+        # Plan/Apply and AWS State stay dispatch-only.
+        with self.assertRaises(ValueError):
+            c.context(env, 'plan')
+        with self.assertRaises(ValueError):
+            c.context(env, 'apply')
         c.context(env | {'MYPAGE_MODE': 'image-build'}, 'apply', image=True)
         for mode in ('foundation-apply', 'registry-apply', 'desired-apply',
-                     'runtime-private-apply', 'maintenance-operator-apply'):
+                     'runtime-private-apply', 'runtime-public-apply',
+                     'maintenance-operator-apply'):
             with self.subTest(mode=mode), self.assertRaises(ValueError):
                 c.context(env | {'MYPAGE_MODE': mode}, 'apply')
         with self.assertRaises(ValueError):
