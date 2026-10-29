@@ -10,7 +10,7 @@ The server derives the target channel from a verified custom-provider Firebase u
 
 受入条件: Default-off server returns 503 for intake. When explicitly enabled with a stable per-environment server secret, the two routes require App Check and a valid Firebase custom uid; neither runs the normal MyPage ServiceAccessControl/account/consent gate. Unknown fields, duplicate fields, wrong purpose and forged channel fields fail. Exact retries, including ACK loss and concurrent submit, return the same receipt/challenge; changing content with the same key yields 409. A separate key is a separate claim. Status and reply require both matching uid and completed support OAuth proof; guessed refs, other environments and preproof views fail. 429 includes Retry-After.
 
-Synthetic browser view: run `VITE_PUBLIC_PRIVACY_CONTACT_URL=https://contact.example.invalid/privacy pnpm dev --host 127.0.0.1 --port 18081` in `mypage/`, then `python scripts/privacy-intake-qa.py --output /tmp/mypage-privacy-intake-qa`. The dev-only runtime injects synthetic credentials and replies; external requests are blocked. This is not a real Firebase/Google/Hosting test.
+Frontend runtime checks: run `pnpm test -- src/privacy-intake.test.ts` in `mypage/`. The existing [privacy intake tests](../../mypage/src/privacy-intake.test.ts) mock the browser session and HTTP responses to cover request payloads, identity changes, invalid status payloads and the server-bound receipt after OAuth navigation.
 
 ## Storage and response boundary
 
