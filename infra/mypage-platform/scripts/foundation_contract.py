@@ -67,7 +67,9 @@ def subject(kind, event_name="workflow_dispatch"):
 
 def trust_policy(account, kind):
     need(re.fullmatch(r"[0-9]{12}", account))
-    events = ["workflow_dispatch"] if TARGET == "production" else ["workflow_dispatch", "push"]
+    # Terraform State credentials are dispatch-only. Push is accepted by
+    # the image-build-only GCP federation, not by AWS State roles.
+    events = ["workflow_dispatch"]
     return {"Version": "2012-10-17", "Statement": [{
         "Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity",
         "Principal": {"Federated": f"arn:aws:iam::{account}:oidc-provider/token.actions.githubusercontent.com"},
@@ -125,7 +127,7 @@ def context(env, kind, *, image=False):
     event_name = env.get("GITHUB_EVENT_NAME")
     if event_name == "push":
         need(TARGET == "development" and env.get("MYPAGE_MODE") in
-             {"image-build", "runtime-public-apply"}, "push-scope")
+             {"image-build"}, "push-scope")
     else:
         need(event_name == "workflow_dispatch", "event-name")
     expected.pop("GITHUB_EVENT_NAME")
