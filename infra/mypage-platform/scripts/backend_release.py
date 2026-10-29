@@ -16,68 +16,79 @@ import runtime_contract as runtime
 ROOT = Path(__file__).resolve().parents[3]
 REGISTRY = ('https://artifactregistry.googleapis.com/v1/projects/' + c.PROJECT +
             '/locations/asia-southeast2/repositories/mypage/packages/mypage-api')
-RELEASE = ROOT / 'infra/mypage-platform/environments/dev/runtime-release.json'
 
 
 def context(env):
-    # Hosting itself remains dispatch-only. Only image-release may accept a fixed DEV push.
     event = env.get('GITHUB_EVENT_NAME')
-    c.need(event in {'workflow_dispatch', 'push'}, 'backend-event')
+    c.need(event in ('workflow_dispatch', 'push'), 'backend-event')
     hosting.context(env | {'MYPAGE_HOSTING_EXPECTED_SHA': env.get('MYPAGE_BACKEND_EXPECTED_SHA', '')},
                     event_name=event)
     c.need(not any(env.get(key) for key in ('AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY',
                                           'AWS_SESSION_TOKEN')), 'backend-no-state-credentials')
+    digest = env.get('MYPAGE_BACKEND_IMAGE_DIGEST', '')
+    source = env.get('MYPAGE_BACKEND_IMAGE_SOURCE_SHA', '')
+    c.need(bool(digest) == bool(source), 'backend-image-pair')
+    c.need(event != 'push' or (digest and source == env['GITHUB_SHA']),
+           'backend-push-source')
+    if digest:
+        c.need(type(digest) is str and re.fullmatch(
+            re.escape(runtime.REPOSITORY) + r'@sha256:[a-f0-9]{64}', digest),
+            'backend-release-digest')
+        c.need(type(source) is str and re.fullmatch(r'[a-f0-9]{40}', source),
+               'backend-release-source')
 
-
-def declaration():
-    c.need(RELEASE.is_file() and not RELEASE.is_symlink() and RELEASE.stat().st_size <= 4096,
-           'backend-release-file')
-    value = json.loads(RELEASE.read_bytes())
-    c.need(type(value) is dict and set(value) == {'image_digest', 'image_source_sha',
-           'hosting_backend_host', 'previous_image_digest'}, 'backend-release-schema')
-    pattern = re.escape(runtime.REPOSITORY) + r'@sha256:[a-f0-9]{64}'
-    c.need(all(type(value[key]) is str and re.fullmatch(pattern, value[key])
-               for key in ('image_digest', 'previous_image_digest')), 'backend-release-digest')
-    c.need(value['image_digest'] != value['previous_image_digest'] and
-           re.fullmatch('[a-f0-9]{40}', value['image_source_sha']) and
-           value['hosting_backend_host'] == 'mypage-api-eu5mhkcewq-et.a.run.app',
-           'backend-release-values')
-    return value
-
+def declaration(env, token=None):
+    """Resolve a verified registry tag; never read or update a per-release JSON file."""
+    source = env.get('MYPAGE_BACKEND_IMAGE_SOURCE_SHA') or env['GITHUB_SHA']
+    digest = env.get('MYPAGE_BACKEND_IMAGE_DIGEST', '')
+    if not digest and token:
+        tag = registry_tag(token, source)
+        version = tag.get('version', '')
+        prefix = REGISTRY.removeprefix('https://artifactregistry.googleapis.com/v1/') + '/versions/'
+        c.need(version.startswith(prefix + 'sha256:') and
+               re.fullmatch(r'[a-f0-9]{64}', version.removeprefix(prefix + 'sha256:')),
+               'backend-tag-digest')
+        digest = runtime.REPOSITORY + '@' + version.removeprefix(prefix)
+    if digest:
+        c.need(re.fullmatch(re.escape(runtime.REPOSITORY) + r'@sha256:[a-f0-9]{64}', digest),
+               'backend-release-digest')
+    return {'image_digest': digest, 'image_source_sha': source,
+            'hosting_backend_host': 'mypage-api-eu5mhkcewq-et.a.run.app'}
 
 def verify_source(env, value):
     hosting.verify_head(env)
     source = value['image_source_sha']
-    hosting.command(['git', 'fetch', '--no-tags', '--depth=1', 'origin', source])
-    # Goの起動処理だけでなく、Dockerコンテキスト全体を比較する。
-    import subprocess
-    def tree(ref):
-        result = subprocess.run(['git', 'rev-parse', ref + ':system'], cwd=ROOT,
-                                capture_output=True, text=True, timeout=30)
-        c.need(result.returncode == 0 and re.fullmatch('[a-f0-9]{40}', result.stdout.strip()),
-               'backend-source-tree')
-        return result.stdout.strip()
-    c.need(tree(source) == tree(env['GITHUB_SHA']), 'backend-source-tree')
+    if source != env['GITHUB_SHA']:
+        # An operator-approved rollback must use an immutable tag from an
+        # ancestor commit, never an arbitrary image from another branch.
+        hosting.command(['git', 'fetch', '--no-tags', '--depth=1', 'origin', source])
+        hosting.command(['git', 'merge-base', '--is-ancestor', source, env['GITHUB_SHA']])
 
-
-def registry(token, value):
+def registry_tag(token, source):
     import urllib.request
-    request = urllib.request.Request(REGISTRY + '/tags/' + value['image_source_sha'],
+    request = urllib.request.Request(REGISTRY + '/tags/' + source,
                                      headers={'Authorization': 'Bearer ' + token})
     with urllib.request.build_opener(live.NoRedirect()).open(request, timeout=30) as response:
         data = response.read(65537)
     c.need(len(data) <= 65536, 'backend-registry-size')
-    tag = json.loads(data)
+    return json.loads(data)
+
+
+def registry(token, value):
+    tag = registry_tag(token, value['image_source_sha'])
     c.need(tag.get('version') == REGISTRY.removeprefix('https://artifactregistry.googleapis.com/v1/') +
            '/versions/' + value['image_digest'].split('@')[1], 'backend-source-digest')
-
 
 def baseline(service, value, *, target=False):
     revision = live.ready(service)
     c.need(service.get('uri') == 'https://' + value['hosting_backend_host'], 'backend-uri')
     container = runtime.one(service['template'].get('containers'), 'backend-container')
-    c.need(container.get('image') == value['image_digest' if target else 'previous_image_digest'],
-           'backend-previous-image')
+    image = container.get('image')
+    c.need(type(image) is str and re.fullmatch(
+        re.escape(runtime.REPOSITORY) + r'@sha256:[a-f0-9]{64}', image),
+        'backend-serving-image')
+    if target:
+        c.need(image == value['image_digest'], 'backend-target-image')
     entries = container.get('env', [])
     c.need(type(entries) is list and all(type(x) is dict and type(x.get('name')) is str for x in entries)
            and len({x['name'] for x in entries}) == len(entries), 'backend-env')
@@ -99,7 +110,6 @@ def baseline(service, value, *, target=False):
            'backend-traffic')
     return revision, values.get('MYPAGE_PROJECT_NUMBER')
 
-
 def payload(original, before, value):
     _, number = baseline(before, value)
     v1.identity(original, before | {'projectNumber': number})
@@ -108,10 +118,11 @@ def payload(original, before, value):
     template = result['spec']['template']
     c.need(not template.get('metadata', {}).get('name'), 'backend-fixed-revision')
     container = runtime.one(template['spec'].get('containers'), 'backend-v1-container')
-    c.need(container.get('image') == value['previous_image_digest'], 'backend-v1-image')
+    current = runtime.one(before['template'].get('containers'), 'backend-v2-container').get('image')
+    c.need(container.get('image') == current, 'backend-v1-image')
+    c.need(current != value['image_digest'], 'backend-already-serving')
     container['image'] = value['image_digest']
     return result
-
 
 def validate_result(after, before, value):
     c.need(baseline(after, value, target=True)[0] != baseline(before, value)[0], 'backend-new-revision')
@@ -156,31 +167,42 @@ def smoke():
 
 def deploy(env):
     context(env)
-    value = declaration()
-    verify_source(env, value)
     token = env['MYPAGE_BACKEND_ACCESS_TOKEN']
+    value = declaration(env, token)
+    verify_source(env, value)
     registry(token, value)
     before = live.request(token, live.SERVICE_URL)
-    previous, number = baseline(before, value)
-    original = v1.request(token)
-    wanted = payload(original, before, value)
+    current_image = runtime.one(before['template'].get('containers'), 'backend-container').get('image')
+    unchanged = current_image == value['image_digest']
+    previous, number = baseline(before, value, target=unchanged)
     hosting_before = hosting.current(token)
-    # 2回目のGETで、v1 resourceVersionと観測したv2設定の対応を確認する。
     c.need(live.request(token, live.SERVICE_URL) == before, 'backend-moved')
     hosting.verify_head(env)
     c.need(hosting.current(token) == hosting_before, 'backend-hosting-moved')
-    record = {'schemaVersion': 1, 'environment': 'development', 'sourceSHA': env['GITHUB_SHA'],
+    record = {'schemaVersion': 2, 'environment': 'development', 'sourceSHA': env['GITHUB_SHA'],
               'workflowRun': 'https://github.com/' + c.REPOSITORY + '/actions/runs/' + env['GITHUB_RUN_ID'],
               'imageSourceSHA': value['image_source_sha'], 'imageDigest': value['image_digest'],
-              'previousImageDigest': value['previous_image_digest'], 'previousRevision': previous,
+              'previousImageDigest': current_image, 'previousRevision': previous,
               'hostingRelease': hosting_before['name'], 'hostingVersion': hosting_before['version']['name'],
               'backendRevision': None, 'publishStatus': 'unknown', 'publicReadback': 'pending',
-              'stateReadback': 'pending', 'authenticatedE2E': 'unverified'}
+              'authenticatedE2E': 'unverified'}
     path = Path(env['RUNNER_TEMP']) / 'mypage-backend-release-record.json'
     def save():
         path.write_bytes(c.canonical(record))
-    save()  # Persist recovery references before the only live mutation.
-    result = v1.request(token, wanted)  # Original resourceVersion, no retry.
+    save()  # Persist a recovery record before any mutation.
+    if unchanged:
+        smoke()
+        c.need(live.request(token, live.SERVICE_URL) == before and
+               hosting.current(token) == hosting_before, 'backend-superseded')
+        hosting.verify_head(env)
+        record.update(backendRevision=previous, publishStatus='unchanged', publicReadback='passed')
+        save()
+        print('DEV Backend already serves the verified digest; anonymous smoke passed.')
+        return
+    original = v1.request(token)
+    wanted = payload(original, before, value)
+    c.need(live.request(token, live.SERVICE_URL) == before, 'backend-moved')
+    result = v1.request(token, wanted)  # Original resourceVersion; no retry.
     c.need(result.get('metadata', {}).get('uid') == before['uid'] and
            str(result['metadata'].get('generation')) == str(int(before['generation']) + 1),
            'backend-update-response')
@@ -205,8 +227,7 @@ def deploy(env):
     hosting.verify_head(env)
     record['publicReadback'] = 'passed'
     save()
-    print('DEV Backend image release and anonymous smoke passed; State synchronization follows.')
-
+    print('DEV Backend immutable image release and anonymous smoke passed; no Terraform operation.')
 
 def main():
     os.umask(0o077)
@@ -214,7 +235,7 @@ def main():
         c.need(sys.argv[1:] in (['context'], ['deploy']), 'backend-command')
         if sys.argv[1] == 'context':
             context(os.environ)
-            declaration()
+            declaration(os.environ)
         else:
             deploy(os.environ)
         return 0
