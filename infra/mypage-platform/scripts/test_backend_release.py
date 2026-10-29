@@ -33,7 +33,7 @@ def service(*, after=False):
     value = release()
     revision = 'mypage-api-00002-new' if after else 'mypage-api-00001-old'
     env = {'GOOGLE_CLOUD_PROJECT': b.c.PROJECT, 'MYPAGE_ENVIRONMENT': 'development',
-           'MYPAGE_PROJECT_NUMBER': '123456789', 'MYPAGE_PUBLIC_ORIGIN': b.hosting.ORIGIN,
+           'MYPAGE_PROJECT_NUMBER': b.c.PROJECT_NUMBER, 'MYPAGE_PUBLIC_ORIGIN': b.hosting.ORIGIN,
            'MYPAGE_HOSTING_BACKEND_HOST': value['hosting_backend_host']}
     return {'name': b.live.SERVICE_NAME, 'uid': 'synthetic-uid', 'etag': 'new' if after else 'old',
             'generation': '2' if after else '1', 'observedGeneration': '2' if after else '1',
