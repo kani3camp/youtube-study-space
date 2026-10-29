@@ -25,7 +25,7 @@
 
 Goの通信用の型・HTTP処理とフロントエンドの実装は、各パッケージのテストで独立して検証する。基盤構築や本番への配備は含まない。
 
-認証、ブラウザ内の個人データ、ServiceAccessControlの安全条件は [MyPage FSL仕様](../../formal-spec/fsl/specs/README.md) で検証する。検証の範囲は指定した深さまでの状態遷移に限る。3モデルとも実装との自動照合は未接続であり、通常のGo/Vitestテスト、Firestore Emulator、実環境での公開前検証を代替しない。
+認証・本人切替・ServiceAccessControlの安全条件はGo/Vitest/Firestore Emulatorテストで検証する。[検証の責任分担](lean-cleanup.md)を参照する。
 
 構成・公開段階・実環境の確認事項は[配備手順書](release/README.md)を参照する。
 
