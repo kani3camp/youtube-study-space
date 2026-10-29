@@ -93,7 +93,7 @@ def baseline(service, value, *, target=False):
     c.need(type(entries) is list and all(type(x) is dict and type(x.get('name')) is str for x in entries)
            and len({x['name'] for x in entries}) == len(entries), 'backend-env')
     values = {x['name']: x.get('value') for x in entries}
-    c.need(re.fullmatch('[0-9]{6,20}', values.get('MYPAGE_PROJECT_NUMBER', '')), 'backend-project-number')
+    c.need(values.get('MYPAGE_PROJECT_NUMBER') == c.PROJECT_NUMBER, 'backend-project-number')
     c.need(values.get('MYPAGE_ENVIRONMENT') == 'development' and
            values.get('GOOGLE_CLOUD_PROJECT') == c.PROJECT and
            values.get('MYPAGE_PUBLIC_ORIGIN') == hosting.ORIGIN and
