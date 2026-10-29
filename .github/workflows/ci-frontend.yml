@@ -194,9 +194,7 @@ jobs:
           python scripts/check-fonts.py
       - name: Check
         run: pnpm check
-      - name: Typecheck
-        run: pnpm typecheck
       - name: Test
         run: pnpm test
-      - name: Build
+      - name: Typecheck and build
         run: pnpm build
