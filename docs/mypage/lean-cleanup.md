@@ -26,8 +26,10 @@
 | [#1490](https://github.com/kani3camp/youtube-study-space/pull/1490) | 公式SDK試験fixtureのlint修正 |
 | [#1491](https://github.com/kani3camp/youtube-study-space/pull/1491) | Registry/Catalog/PreparedDeletion、合成Auth/BQ/vendorアダプターとsnapshot連動、実行用mock workflowを撤去し現在storeへ直接接続 |
 | [#1492](https://github.com/kani3camp/youtube-study-space/pull/1492) | 人的受付CLIを固定環境の所有者ADC/IAM・新規0600 handoffへ接続 |
+| [#1493](https://github.com/kani3camp/youtube-study-space/pull/1493) | 最終報告と旧コメントの整合 |
+| [#1494](https://github.com/kani3camp/youtube-study-space/pull/1494) | private checkpointのランダムowner保持と実行全体の排他ロックで二重起動を拒否 |
 
-開始commitは`50719cc18deb7c30b66cdb6bf0d63ab3c900aa02`。同じ`dev`基準の差分は開始時430ファイル・追加61,357行/削除1,547行から、集約後約395ファイル・追加49,700行/削除1,546行へ変化した。cleanup自体は約112ファイル・追加1,550行/削除13,200行、純減約11,650行（最終報告の文言変更を除く概算）。主眼は未使用のUI・認証方式・合成store・独自parser・provider schema二重管理を保守対象から外すことにある。
+開始commitは`50719cc18deb7c30b66cdb6bf0d63ab3c900aa02`。同じ`dev`基準の差分は開始時430ファイル・追加61,357行/削除1,547行から、集約後約395ファイル・追加49,800行/削除1,546行へ変化した。cleanup自体は約114ファイル・追加1,650行/削除13,200行、純減約11,550行（最終報告の文言変更を除く概算）。主眼は未使用のUI・認証方式・合成store・独自parser・provider schema二重管理を保守対象から外すことにある。
 
 ## 維持する境界と検証の責任
 
@@ -54,6 +56,7 @@ BFF cache破棄、全writer停止/drain、古いqueue/import/restore排除、leg
 あえて残した複雑性:
 
 - 固定29 checkpointと短い実行ループ: store別delete/inspect、停止/drain/resumeの再開位置を保持し、ACK消失で先頭から新規データを再削除しない。任意workflowの登録機構は持たない。
+- private checkpointのowner保持/排他ロック: 同じfileの二重起動を拒否し、別fileを別ownerとしてStore側で止める。実行中にコピー・置換せず、消失/破損時は全旧実行の停止確認を伴う所有者回復をGateにする。
 - owner/revision/generation/CAS・証跡結合: SAC変更や別実行からの横入りを検出し、保護解除をtransactionで確定する。
 - Auth creation timestampの一時記録: UID再作成を古い削除実行へ取り込まない。最終transactionで消去する。
 - 手動Gate: SDKで個別削除・不存在を証明できない実コピーや全runtimeを、合成adapterで完了済みと偽らない。
@@ -76,7 +79,7 @@ providerが返すcomputed属性全体の独自schema/unknown allowlistを撤去�
 | FSL | MyPage 3モデル撤去、残るSeat 2モデル + Go conformance成功 |
 | Terraform Python contract | 開始時87件 → 74件成功。撤去したcomputed metadata contract専用試験を削除 |
 | Terraform native | DEV/PROD各21 mock tests、fmt/validate、foundation/metrics plan成功 |
-| Go | 最終コードの全unit成功、CI指定golangci-lintで0 issues |
+| Go | 全unit成功、二重起動修正後もCLI/supportdelete unit成功、最終ソースのCI指定golangci-lintで0 issues |
 | Firestore Emulator/Client Rules | 全suite成功。追加current-store integrationで対象隔離・UID再作成拒否・完了後再実行・手動resumeを確認。resume時刻修正後も対象integration成功 |
 | i18n | `I18N_BASELINE=ja go generate ./...` 成功、意図しない生成diffなし |
 | CI routing/contract | path detector成功、既存CI contract 22件成功 |

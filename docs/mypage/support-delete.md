@@ -56,7 +56,7 @@ MYPAGE_ENVIRONMENT=development GOOGLE_CLOUD_PROJECT=test-youtube-study-space \
   --execute --checkpoint /private/path/checkpoint.json --gates /private/path/gates.json
 ```
 
-部分失敗はprivacyDeletionをactiveのまま残す。同じmanifest/executionで再実行し、Firestore上のcheckpointを正とする。local checkpoint fileは対象確認の写しであり、cursorを編集して実行位置を飛ばせない。現在のOAuth証跡・proof claimは最終transactionまで保持し、初回確保後はTTL消失で取得済み対象を別channelへ切り替えない。
+部分失敗はprivacyDeletionをactiveのまま残す。同じmanifest/executionとprivate checkpoint fileで再実行し、Firestore上の進捗を正とする。checkpoint fileはランダムownerを保持し、実行中は排他ロックする。別ファイルで同じ実行へ参加するとowner競合で止まる。cursorを編集して実行位置を飛ばせない。実行中のcheckpointのコピー・置換・別端末への持ち出しは禁止する。ファイルが消失・破損した場合はownerを推測せず、全旧CLI/依存先jobの停止を確認したうえで所有者回復を解決するまで保護を維持する。現在のOAuth証跡・proof claimは最終transactionまで保持し、初回確保後はTTL消失で取得済み対象を別channelへ切り替えない。
 
 ## 完了・復旧
 

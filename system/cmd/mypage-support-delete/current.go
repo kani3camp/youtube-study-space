@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,7 @@ type (
 	liveRun    func(context.Context, request, options) (supportdelete.Outcome, error)
 	checkpoint struct {
 		Selector   supportdelete.Selector `json:"selector"`
+		OwnerRef   string                 `json:"ownerRef"`
 		Generation int64                  `json:"generation"`
 		Cutoff     time.Time              `json:"cutoff"`
 		Cursor     int                    `json:"cursor"`
@@ -33,37 +35,55 @@ type (
 	}
 )
 
-func writeCheckpoint(path string, e supportdelete.Execution) error {
-	if path == "" {
-		return errInput
+// Lock the private checkpoint for the whole invocation. A new file gets a distinct owner.
+func openCheckpoint(path string, selector supportdelete.Selector) (*os.File, string, error) {
+	if path == "" || selector.Validate() != nil {
+		return nil, "", errInput
 	}
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0o600)
 	if err != nil {
-		return errInput
+		return nil, "", errInput
 	}
-	defer f.Close() //nolint:errcheck // Fixed diagnostic only; never disclose a private path.
+	fail := func() (*os.File, string, error) {
+		f.Close() //nolint:errcheck // Fixed private-input diagnostic only.
+		return nil, "", errInput
+	}
 	info, err := f.Stat()
-	if err != nil || !privateRegular(info) {
-		return errInput
+	if err != nil || !privateRegular(info) || syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) != nil {
+		return fail()
 	}
+	var stored checkpoint
 	if info.Size() > 0 {
-		var old checkpoint
-		d := json.NewDecoder(io.LimitReader(f, maxInputBytes))
+		d := json.NewDecoder(io.LimitReader(f, maxInputBytes+1))
 		d.DisallowUnknownFields()
-		if d.Decode(&old) != nil || old.Selector != e.Selector {
-			return errInput
+		if d.Decode(&stored) != nil || d.Decode(new(any)) != io.EOF || stored.Selector != selector || !supportdelete.ValidRef(stored.OwnerRef) {
+			return fail()
+		}
+	} else {
+		var owner [32]byte
+		if _, err := rand.Read(owner[:]); err != nil {
+			return fail()
+		}
+		stored.Selector, stored.OwnerRef = selector, fmt.Sprintf("%x", owner)
+		if saveCheckpoint(f, stored) != nil {
+			return fail()
 		}
 	}
-	if f.Truncate(0) != nil {
+	return f, stored.OwnerRef, nil
+}
+
+func saveCheckpoint(f *os.File, stored checkpoint) error {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return errInput
 	}
-	if _, err = f.Seek(0, io.SeekStart); err != nil {
-		return errInput
-	}
-	if json.NewEncoder(f).Encode(checkpoint{Selector: e.Selector, Generation: e.Generation, Cutoff: e.Cutoff, Cursor: e.Cursor, UpdatedAt: e.UpdatedAt}) != nil || f.Sync() != nil {
+	if f.Truncate(0) != nil || json.NewEncoder(f).Encode(stored) != nil || f.Sync() != nil {
 		return errInput
 	}
 	return nil
+}
+
+func writeCheckpoint(f *os.File, e supportdelete.Execution) error {
+	return saveCheckpoint(f, checkpoint{Selector: e.Selector, OwnerRef: e.OwnerRef, Generation: e.Generation, Cutoff: e.Cutoff, Cursor: e.Cursor, UpdatedAt: e.UpdatedAt})
 }
 
 func readGates(path string) (mypage.OwnerDeletionGates, error) {
@@ -90,6 +110,11 @@ func executeCurrent(ctx context.Context, r request, o options) (supportdelete.Ou
 	if ctx == nil || r.Validate() != nil || expected[r.Target.Environment] != r.Target.ProjectID || o.checkpoint == "" || (r.Target.Environment == "production" && !o.allowProduction) {
 		return out, errInput
 	}
+	checkpointFile, owner, err := openCheckpoint(o.checkpoint, r)
+	if err != nil {
+		return out, errInput
+	}
+	defer checkpointFile.Close() //nolint:errcheck // Closing releases the exclusive invocation lock.
 	credentials, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
 	if err != nil || (credentials.ProjectID != "" && credentials.ProjectID != r.Target.ProjectID) {
 		return out, errInput
@@ -114,7 +139,6 @@ func executeCurrent(ctx context.Context, r request, o options) (supportdelete.Ou
 	defer bq.Close() //nolint:errcheck // Never expose SDK diagnostics.
 	store := &mypage.FirestoreDeletionStore{Client: database}
 	manifest := supportdelete.Manifest{Ref: fmt.Sprintf("%x", sha256.Sum256([]byte("current-stores-v1:channel-uid:firestore:firestore_export:owner-gates"))), Mode: "live"}
-	owner := fmt.Sprintf("%x", sha256.Sum256([]byte("owner-cli:"+r.ExecutionRef)))
 	out.ActualExecution = true
 	e, err := store.Acquire(ctx, supportdelete.Start{Selector: r, Manifest: manifest, OwnerRef: owner, Now: time.Now()})
 	if errors.Is(err, supportdelete.ErrCompleted) {
@@ -124,7 +148,7 @@ func executeCurrent(ctx context.Context, r request, o options) (supportdelete.Ou
 	if err != nil {
 		return out, fmt.Errorf("current deletion run: %w", err)
 	}
-	if writeCheckpoint(o.checkpoint, e) != nil {
+	if writeCheckpoint(checkpointFile, e) != nil {
 		return out, errInput
 	}
 	gates, err := readGates(o.gates)
@@ -139,7 +163,7 @@ func executeCurrent(ctx context.Context, r request, o options) (supportdelete.Ou
 	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if next, loadErr := store.Acquire(reportCtx, supportdelete.Start{Selector: r, Manifest: manifest, OwnerRef: owner, Now: time.Now()}); loadErr == nil {
-		if writeCheckpoint(o.checkpoint, next) != nil {
+		if writeCheckpoint(checkpointFile, next) != nil {
 			return out, errInput
 		}
 	}
