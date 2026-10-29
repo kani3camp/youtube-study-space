@@ -227,6 +227,8 @@ jobs:
   mypage-image-build:
     name: MyPage Image Build
     needs: validate-selection
+    # The registry digest is read from this job's verified output, never reconstructed from a tag.
+
     if: ${{ inputs.operation == 'mypage-image-build' || (inputs.operation == 'mypage-auto-cd' && needs.validate-selection.outputs.build == 'true') }}
     permissions:
       contents: read
