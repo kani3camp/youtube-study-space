@@ -7,7 +7,6 @@ on:
       - integration/mypage-canon-20261006
     paths:
       - system/**
-      - infra/mypage-platform/environments/dev/runtime-release.json
   workflow_dispatch:
     inputs:
       operation:
@@ -128,9 +127,7 @@ jobs:
     needs: [repository, frontend, system, tools, infra, gcp-terraform-validate]
     if: ${{ always() && ((github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') || (github.event_name == 'push' && github.ref == 'refs/heads/integration/mypage-canon-20261006')) }}
     permissions:
-      contents: write
-      pull-requests: write
-      actions: write
+      contents: read
       id-token: write
     uses: ./.github/workflows/ci-operations.yml
     with:
