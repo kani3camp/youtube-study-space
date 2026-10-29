@@ -5,14 +5,15 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
-	"firebase.google.com/go/v4/appcheck"
-	jose "github.com/go-jose/go-jose/v4"
-	"github.com/go-jose/go-jose/v4/jwt"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"firebase.google.com/go/v4/appcheck"
+	jose "github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/stretchr/testify/require"
 )
 
 func syntheticAppCheck(t *testing.T, key *rsa.PrivateKey, kid string, claims map[string]any, typ string) string {
@@ -39,7 +40,9 @@ func publicJWKS(t *testing.T, key *rsa.PrivateKey, kid string) string {
 func signedAppCheckSDK(t *testing.T, key *rsa.PrivateKey) FirebaseAppCheckClient {
 	t.Helper()
 	body := publicJWKS(t, key, "synthetic-key")
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(body)) }))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewEncoder(w).Encode(json.RawMessage(body)))
+	}))
 	t.Cleanup(server.Close)
 	previous := appcheck.JWKSUrl
 	appcheck.JWKSUrl = server.URL
@@ -50,6 +53,7 @@ func signedAppCheckSDK(t *testing.T, key *rsa.PrivateKey) FirebaseAppCheckClient
 	require.NoError(t, err)
 	return sdk
 }
+
 func TestSDKAppCheckPreservesEnvironmentAppExpiryAndMalformedClaimBoundary(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
