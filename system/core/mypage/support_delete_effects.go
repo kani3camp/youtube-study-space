@@ -22,6 +22,8 @@ type FirestoreDeletionEffects struct {
 }
 type deletionLookup struct{ collection, field, value, except string }
 
+const historyBudgets = "mypage-history-budgets" // 廃止済み明細機能の残存データも削除対象。
+
 func sourceDeletionLookups(op supportdelete.Operation) ([]deletionLookup, bool) {
 	channel := op.Execution.Selector.Target.ChannelID
 	switch op.Step.Scope {

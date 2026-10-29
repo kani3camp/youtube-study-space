@@ -110,10 +110,6 @@ type ServerDependencies struct {
 	Now            func() time.Time
 	// DEV専用で本人情報を含まない、任意の原価観測フック。
 	ReadObserver func(SnapshotReadObservation)
-	// カーソル鍵は用途を分離し、既存のサーバーOAuthシークレットから導出する。
-	// ブラウザから受け取らず、ポリシー文書にも書かない。
-	HistorySecret  []byte
-	HistoryTierFor func(context.Context, string, WebAccount) (HistoryTier, error)
 }
 
 // NewMyPageServerはハンドラーを構築するだけで、初期化時の入出力、
@@ -147,13 +143,6 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 	}
 	if config.EnablePrivacyIntake {
 		handler.Intake = &FirestorePrivacyIntake{Client: deps.Firestore, Environment: config.Environment, IntakeSecret: append([]byte(nil), config.PrivacyIntakeSecret...)}
-	}
-	if config.Environment == "development" && len(deps.HistorySecret) > 0 {
-		cursor, err := newHistoryCipher(deps.HistorySecret, config.Environment)
-		if err != nil {
-			return nil, err
-		}
-		handler.History = &HistoryService{Client: deps.Firestore, MaintenanceEnabled: true, Access: access, Environment: config.Environment, Cipher: cursor, TierFor: deps.HistoryTierFor, Now: now}
 	}
 	return handler, nil
 }
