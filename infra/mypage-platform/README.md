@@ -109,9 +109,9 @@ CIの権限を広げず、承認済みの `mypage-api` / `roles/run.invoker` / `
 
 `MYPAGE_HOSTING_BACKEND_HOST` は実metadataから得たCloud Run hostnameを固定する。未設定時は従来どおり公開Hostのみを認める。設定時も一致するbackend Host、単一の公開 `X-Forwarded-Host`、単一の `X-Forwarded-Proto: https` を要求する。転送情報は認証根拠とせず、Auth/App Check/Origin/cookie検証とIP判定を維持する。
 
-`environments/dev/runtime-release.json`の4値は旧方式の履歴であり、現在のCI/CD・Terraform入力ではない。アプリ更新はコードPRのレビュー後、同じActions runでbuildしたdigestをCloud Runへ直接渡す。Secret参照番号・同意版・project等の設定はimage更新で変更できない。full system tree一致とimmutable digest検証を維持する。
+`environments/dev/runtime-release.json`の4値は旧方式の履歴であり、現在のCI/CD・Terraform入力ではない。アプリ更新はコードPRのレビュー後、同じActions runでbuildしたdigestをCloud Runへ直接渡す。Secret参照番号・同意版・project等の設定はimage更新で変更できない。更新対象イメージはimmutable tag・Registry digestで厳格に検証する。
 
-以前はownerが手動でimageを更新していたが、今後は専用CIのbackend deployerがv1 resourceVersion付きでimageだけを変更する。初回のHosting接続時だけ固定host env 1個を追加し、以後のimage更新では全envをそのまま保持する。その後のpublic applyはplanned no-opのみを認める。旧digestの明示、同一service境界、初回の固定host env追加1個または全env不変、Ready/最新revision100%、generation+1、増加したupdate_timeを照合し、観測済みcomputed metadata以外の差を拒否する。native driftはHMACへ含めて独立Applyが再現し、更新ではなくState refreshだけを実行する。
+以前はownerが手動でimageを更新していたが、今後は専用CIのbackend deployerがv1 resourceVersion付きでimageだけを変更する。初回のHosting接続時だけ固定host env 1個を追加し、以後のimage更新では全envをそのまま保持する。通常のアプリ配備ではTerraform applyをしない。Cloud Runの前後で同一service・env/Secret/scale/IAM不変・Ready/最新revision100%・generation+1・更新時刻前進を検証する。後日のTerraform Planはimage-only（複数世代も可）と許可されたcomputed metadataだけをState refreshとして受理し、その他のdriftを拒否する。
 
 ### S04の実測後のDEV request URL保存抑止
 
