@@ -109,6 +109,19 @@ class BackendReleaseTest(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 b.context(environment() | {key: value})
 
+    def test_push_backend_release_preserves_manual_hosting_boundary(self):
+        env = environment()
+        b.context(env | {'GITHUB_EVENT_NAME': 'push'})
+        for bad in ('pull_request', 'workflow_run', 'schedule'):
+            with self.subTest(event=bad), self.assertRaises(ValueError):
+                b.context(env | {'GITHUB_EVENT_NAME': bad})
+        import hosting_release as hosting
+        with self.assertRaises(ValueError):
+            hosting.context(env | {'GITHUB_EVENT_NAME': 'push'})
+        for event in ('workflow_dispatch', 'push'):
+            self.assertIn('assertion.event_name == "' + event + '"', identity.condition())
+        self.assertIn(' || ', identity.condition())
+
     def test_only_image_changes_and_original_resource_version_is_preserved(self):
         original = v1service()
         payload = b.payload(original, service(), release())
