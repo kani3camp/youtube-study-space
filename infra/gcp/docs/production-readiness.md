@@ -367,4 +367,4 @@ bash .github/scripts/test-detect-ci-paths.sh
 
 testはsource/lock/modulesをfresh temp treeへcopyし、mock providerのplanだけを実行します。
 local backend.hcl/state/tfvars/cacheをcopyせず、raw mock planをpublic出力しません。
-[専用CI](../../../.github/workflows/gcp-production-readiness.yml) も同じtestをPRで実行します。CI callerの`ci.yml`やdevelopment gate値は変更しません。
+Required `CI Gate` 配下の [`CI GCP Terraform`](../../../.github/workflows/ci-gcp-terraform.yml) も同じtestをPRで実行します。独立したProduction readiness workflowは廃止し、GCP/IaCのcredentialless検証を一つの必須経路へ集約します。

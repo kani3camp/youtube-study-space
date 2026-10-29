@@ -3,44 +3,11 @@ name: CI Operations
 on:
   workflow_call:
     inputs:
-      terraform_authenticated:
-        required: true
-        type: boolean
-      terraform_target:
+      operation:
         required: true
         type: string
-      terraform_mode:
+      environment:
         required: true
-        type: string
-      terraform_expected_sha:
-        required: false
-        type: string
-      gcp_user_activity_schema_audit:
-        required: true
-        type: boolean
-      mypage_foundation:
-        required: true
-        type: boolean
-      mypage_foundation_target:
-        required: true
-        type: string
-      mypage_foundation_mode:
-        required: true
-        type: string
-      mypage_foundation_expected_sha:
-        required: false
-        type: string
-      mypage_hosting:
-        required: true
-        type: boolean
-      mypage_hosting_expected_sha:
-        required: false
-        type: string
-      mypage_backend:
-        required: true
-        type: boolean
-      mypage_backend_expected_sha:
-        required: false
         type: string
       repository_result:
         required: true
@@ -49,6 +16,12 @@ on:
         required: true
         type: string
       system_result:
+        required: true
+        type: string
+      tools_result:
+        required: true
+        type: string
+      infra_result:
         required: true
         type: string
       gcp_terraform_validate_result:
@@ -101,65 +74,95 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      TERRAFORM_AUTHENTICATED: ${{ inputs.terraform_authenticated }}
-      SCHEMA_AUDIT: ${{ inputs.gcp_user_activity_schema_audit }}
-      MYPAGE_FOUNDATION: ${{ inputs.mypage_foundation }}
-      MYPAGE_HOSTING: ${{ inputs.mypage_hosting }}
-      MYPAGE_BACKEND: ${{ inputs.mypage_backend }}
+      OPERATION: ${{ inputs.operation }}
+      ENVIRONMENT: ${{ inputs.environment }}
       REPOSITORY_RESULT: ${{ inputs.repository_result }}
       FRONTEND_RESULT: ${{ inputs.frontend_result }}
       SYSTEM_RESULT: ${{ inputs.system_result }}
+      TOOLS_RESULT: ${{ inputs.tools_result }}
+      INFRA_RESULT: ${{ inputs.infra_result }}
       GCP_TERRAFORM_VALIDATE_RESULT: ${{ inputs.gcp_terraform_validate_result }}
     steps:
-      - name: Require exactly one operation and its validation prerequisites
+      - name: Require supported operation and validation prerequisites
         run: |
           set -euo pipefail
 
-          selected=0
-          for value in "$TERRAFORM_AUTHENTICATED" "$SCHEMA_AUDIT" "$MYPAGE_FOUNDATION" "$MYPAGE_HOSTING" "$MYPAGE_BACKEND"; do
-            if [[ "$value" == "true" ]]; then
-              selected=$((selected + 1))
-            elif [[ "$value" != "false" ]]; then
-              echo "::error::Operation toggles must be explicit booleans"
+          case "${OPERATION}" in
+            gcp-plan|gcp-apply|gcp-user-activity-schema-audit|mypage-image-build|mypage-hosting-release|mypage-backend-release) ;;
+            *)
+              echo "::error::Unsupported authenticated operation"
               exit 1
-            fi
-          done
+              ;;
+          esac
 
-          if [[ "$selected" -ne 1 ]]; then
-            echo "::error::Select exactly one authenticated operation"
-            exit 1
-          fi
+          case "${ENVIRONMENT}" in
+            development|production) ;;
+            *)
+              echo "::error::Unsupported environment"
+              exit 1
+              ;;
+          esac
 
-          if [[ "$REPOSITORY_RESULT" != "success" ]]; then
+          if [[ "${REPOSITORY_RESULT}" != "success" ]]; then
             echo "::error::Repository validation must succeed before an authenticated operation"
             exit 1
           fi
 
-          if [[ "$TERRAFORM_AUTHENTICATED" == "true" || "$SCHEMA_AUDIT" == "true" || "$MYPAGE_FOUNDATION" == "true" ]]; then
-            if [[ "$GCP_TERRAFORM_VALIDATE_RESULT" != "success" ]]; then
-              echo "::error::GCP Terraform validation must succeed before this operation"
+          for result in "${FRONTEND_RESULT}" "${SYSTEM_RESULT}" "${TOOLS_RESULT}" "${INFRA_RESULT}" "${GCP_TERRAFORM_VALIDATE_RESULT}"; do
+            case "${result}" in
+              success|skipped) ;;
+              *)
+                echo "::error::Credentialless validation failed before authenticated operation"
+                exit 1
+                ;;
+            esac
+          done
+
+          if [[ "${OPERATION}" != "gcp-user-activity-schema-audit" ]]; then
+            if [[ "${GCP_TERRAFORM_VALIDATE_RESULT}" != "success" || "${SYSTEM_RESULT}" != "success" ||
+                  "${FRONTEND_RESULT}" != "success" || "${TOOLS_RESULT}" != "success" || "${INFRA_RESULT}" != "success" ]]; then
+              echo "::error::Full credentialless CI must succeed before a write-capable operation"
               exit 1
             fi
           fi
 
-          if [[ "$MYPAGE_HOSTING" == "true" && "$FRONTEND_RESULT" != "success" ]]; then
-            echo "::error::Frontend validation must succeed before Hosting release"
-            exit 1
-          fi
+          case "${OPERATION}" in
+            gcp-plan|gcp-apply|mypage-image-build) ;;
+            gcp-user-activity-schema-audit)
+              [[ "${ENVIRONMENT}" == "development" ]] || {
+                echo "::error::Schema audit is development-only"
+                exit 1
+              }
+              [[ "${GCP_TERRAFORM_VALIDATE_RESULT}" == "success" ]] || {
+                echo "::error::GCP Terraform validation must succeed before schema audit"
+                exit 1
+              }
+              ;;
+            mypage-hosting-release)
+              [[ "${ENVIRONMENT}" == "development" ]] || {
+                echo "::error::MyPage Hosting release is development-only"
+                exit 1
+              }
+              ;;
+            mypage-backend-release)
+              [[ "${ENVIRONMENT}" == "development" ]] || {
+                echo "::error::MyPage Backend release is development-only"
+                exit 1
+              }
+              ;;
+          esac
 
-          if [[ "$MYPAGE_BACKEND" == "true" && "$SYSTEM_RESULT" != "success" ]]; then
-            echo "::error::System validation must succeed before Backend release"
-            exit 1
-          fi
-
-  gcp-terraform-authenticated:
-    name: GCP Terraform Authenticated
+  gcp-infrastructure:
+    name: GCP Infrastructure
     needs: validate-selection
-    if: ${{ inputs.terraform_authenticated }}
+    if: ${{ inputs.operation == 'gcp-plan' || inputs.operation == 'gcp-apply' }}
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/gcp-terraform-authenticated.yml
+    uses: ./.github/workflows/gcp-infrastructure-authenticated.yml
+    with:
+      environment: ${{ inputs.environment }}
+      action: ${{ inputs.operation == 'gcp-apply' && 'apply' || 'plan' }}
     secrets:
       GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
       GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
@@ -170,15 +173,19 @@ jobs:
       GCP_TERRAFORM_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
       GCP_TERRAFORM_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
       GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
-    with:
-      target: ${{ inputs.terraform_target }}
-      mode: ${{ inputs.terraform_mode }}
-      expected_sha: ${{ inputs.terraform_expected_sha }}
+      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
+      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
+      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
+      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
 
   gcp-user-activity-schema-audit:
     name: GCP User Activity Schema Audit
     needs: validate-selection
-    if: ${{ inputs.gcp_user_activity_schema_audit }}
+    if: ${{ inputs.operation == 'gcp-user-activity-schema-audit' }}
     permissions:
       contents: read
       id-token: write
@@ -189,14 +196,18 @@ jobs:
     with:
       target: dev
 
-  mypage-foundation-authenticated:
-    name: MyPage Foundation Authenticated
+  mypage-image-build:
+    name: MyPage Image Build
     needs: validate-selection
-    if: ${{ inputs.mypage_foundation }}
+    if: ${{ inputs.operation == 'mypage-image-build' }}
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/mypage-foundation-authenticated.yml
+    with:
+      target: ${{ inputs.environment }}
+      mode: image-build
+      expected_sha: ${{ github.sha }}
     secrets:
       MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
       MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
@@ -206,33 +217,29 @@ jobs:
       MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
       MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
       MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
-    with:
-      target: ${{ inputs.mypage_foundation_target }}
-      mode: ${{ inputs.mypage_foundation_mode }}
-      expected_sha: ${{ inputs.mypage_foundation_expected_sha }}
 
   mypage-hosting-authenticated:
     name: MyPage DEV Hosting Release
     needs: validate-selection
-    if: ${{ inputs.mypage_hosting }}
+    if: ${{ inputs.operation == 'mypage-hosting-release' }}
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/mypage-hosting-authenticated.yml
     with:
-      expected_sha: ${{ inputs.mypage_hosting_expected_sha }}
+      expected_sha: ${{ github.sha }}
       other_operation: false
 
   mypage-backend-authenticated:
     name: MyPage DEV Backend Release
     needs: validate-selection
-    if: ${{ inputs.mypage_backend }}
+    if: ${{ inputs.operation == 'mypage-backend-release' }}
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/mypage-backend-authenticated.yml
     with:
-      expected_sha: ${{ inputs.mypage_backend_expected_sha }}
+      expected_sha: ${{ github.sha }}
       other_operation: false
     secrets:
       MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}

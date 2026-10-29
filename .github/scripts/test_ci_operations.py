@@ -1,12 +1,11 @@
-"""Contracts for the call-only authenticated operations workflow."""
+"""Contracts for the simplified authenticated operations workflow."""
 import unittest
 from test_ci_workflows import (
     ROOT,
     load,
-    AUTH_SECRETS,
     AUDIT_SECRETS,
     FOUNDATION_SECRETS,
-    OPERATION_TOGGLES,
+    GCP_INFRA_SECRETS,
 )
 
 
@@ -14,74 +13,101 @@ class OperationsWorkflowTest(unittest.TestCase):
     def setUp(self):
         self.workflow = load(ROOT / '.github/workflows/ci-operations.yml')
 
-    def test_workflow_is_call_only_and_requires_explicit_selection(self):
+    def test_workflow_is_call_only_and_uses_one_operation_selector(self):
         self.assertEqual(set(self.workflow['on']), {'workflow_call'})
         self.assertEqual(self.workflow['permissions'], {'contents': 'read'})
         call = self.workflow['on']['workflow_call']
-        for toggle in OPERATION_TOGGLES:
-            self.assertEqual(call['inputs'][toggle], {'required': True, 'type': 'boolean'})
-        for result in ('repository_result', 'frontend_result', 'system_result',
-                       'gcp_terraform_validate_result'):
+        self.assertEqual(call['inputs']['operation'], {'required': True, 'type': 'string'})
+        self.assertEqual(call['inputs']['environment'], {'required': True, 'type': 'string'})
+        for result in ('repository_result', 'frontend_result', 'system_result', 'tools_result',
+                       'infra_result', 'gcp_terraform_validate_result'):
             self.assertEqual(call['inputs'][result], {'required': True, 'type': 'string'})
+        self.assertEqual(set(call['inputs']), {
+            'operation', 'environment', 'repository_result', 'frontend_result',
+            'system_result', 'tools_result', 'infra_result', 'gcp_terraform_validate_result',
+        })
 
         validator = self.workflow['jobs']['validate-selection']
-        self.assertEqual(validator['permissions'] if 'permissions' in validator else None, None)
         self.assertGreater(validator['timeout-minutes'], 0)
         command = validator['steps'][0]['run']
         for fragment in (
-            'selected=$((selected + 1))',
-            'if [[ "$selected" -ne 1 ]]',
+            'gcp-plan|gcp-apply',
+            'gcp-user-activity-schema-audit',
+            'mypage-image-build',
+            'mypage-hosting-release',
+            'mypage-backend-release',
             'REPOSITORY_RESULT',
             'GCP_TERRAFORM_VALIDATE_RESULT',
             'FRONTEND_RESULT',
             'SYSTEM_RESULT',
+            'TOOLS_RESULT',
+            'INFRA_RESULT',
         ):
             self.assertIn(fragment, command)
+        self.assertIn('Full credentialless CI must succeed before a write-capable operation', command)
+        self.assertIn('success|skipped', command)
+        for retired in ('selected=$((selected + 1))', 'mypage_foundation', 'terraform_authenticated'):
+            self.assertNotIn(retired, command)
 
-    def test_each_operation_is_a_single_nested_reusable_call(self):
-        expected = {
-            'gcp-terraform-authenticated': (
-                'terraform_authenticated',
-                './.github/workflows/gcp-terraform-authenticated.yml',
-                set(AUTH_SECRETS),
-            ),
-            'gcp-user-activity-schema-audit': (
-                'gcp_user_activity_schema_audit',
-                './.github/workflows/gcp-user-activity-schema-audit.yml',
-                set(AUDIT_SECRETS),
-            ),
-            'mypage-foundation-authenticated': (
-                'mypage_foundation',
-                './.github/workflows/mypage-foundation-authenticated.yml',
-                set(FOUNDATION_SECRETS),
-            ),
-            'mypage-hosting-authenticated': (
-                'mypage_hosting',
-                './.github/workflows/mypage-hosting-authenticated.yml',
-                set(),
-            ),
-            'mypage-backend-authenticated': (
-                'mypage_backend',
-                './.github/workflows/mypage-backend-authenticated.yml',
-                set(FOUNDATION_SECRETS),
-            ),
-        }
-        self.assertEqual(set(self.workflow['jobs']), {'validate-selection', *expected})
-        for name, (toggle, reusable, secrets) in expected.items():
-            job = self.workflow['jobs'][name]
-            with self.subTest(job=name):
-                self.assertEqual(job['needs'], 'validate-selection')
-                self.assertEqual(job['if'], '${{ inputs.' + toggle + ' }}')
-                self.assertEqual(job['permissions'], {'contents': 'read', 'id-token': 'write'})
-                self.assertEqual(job['uses'], reusable)
-                if secrets:
-                    self.assertEqual(set(job['secrets']), secrets)
-                    self.assertEqual(
-                        job['secrets'],
-                        {key: '${{ secrets.' + key + ' }}' for key in secrets},
-                    )
-                else:
-                    self.assertNotIn('secrets', job)
+    def test_gcp_infrastructure_replaces_direct_terraform_and_foundation_calls(self):
+        jobs = self.workflow['jobs']
+        self.assertEqual(set(jobs), {
+            'validate-selection',
+            'gcp-infrastructure',
+            'gcp-user-activity-schema-audit',
+            'mypage-image-build',
+            'mypage-hosting-authenticated',
+            'mypage-backend-authenticated',
+        })
+        self.assertNotIn('gcp-terraform-authenticated', jobs)
+        self.assertNotIn('mypage-foundation-authenticated', jobs)
+
+        job = jobs['gcp-infrastructure']
+        self.assertEqual(job['needs'], 'validate-selection')
+        self.assertEqual(
+            job['if'],
+            "${{ inputs.operation == 'gcp-plan' || inputs.operation == 'gcp-apply' }}",
+        )
+        self.assertEqual(job['permissions'], {'contents': 'read', 'id-token': 'write'})
+        self.assertEqual(job['uses'], './.github/workflows/gcp-infrastructure-authenticated.yml')
+        self.assertEqual(job['with'], {
+            'environment': '${{ inputs.environment }}',
+            'action': "${{ inputs.operation == 'gcp-apply' && 'apply' || 'plan' }}",
+        })
+        self.assertEqual(set(job['secrets']), GCP_INFRA_SECRETS)
+
+    def test_non_infrastructure_operations_remain_bounded(self):
+        jobs = self.workflow['jobs']
+        audit = jobs['gcp-user-activity-schema-audit']
+        self.assertEqual(audit['if'], "${{ inputs.operation == 'gcp-user-activity-schema-audit' }}")
+        self.assertEqual(set(audit['secrets']), set(AUDIT_SECRETS))
+        self.assertEqual(audit['with'], {'target': 'dev'})
+
+        image = jobs['mypage-image-build']
+        self.assertEqual(image['if'], "${{ inputs.operation == 'mypage-image-build' }}")
+        self.assertEqual(image['uses'], './.github/workflows/mypage-foundation-authenticated.yml')
+        self.assertEqual(set(image['secrets']), set(FOUNDATION_SECRETS))
+        self.assertEqual(image['with'], {
+            'target': '${{ inputs.environment }}',
+            'mode': 'image-build',
+            'expected_sha': '${{ github.sha }}',
+        })
+
+        hosting = jobs['mypage-hosting-authenticated']
+        self.assertEqual(hosting['if'], "${{ inputs.operation == 'mypage-hosting-release' }}")
+        self.assertNotIn('secrets', hosting)
+        self.assertEqual(hosting['with'], {
+            'expected_sha': '${{ github.sha }}',
+            'other_operation': False,
+        })
+
+        backend = jobs['mypage-backend-authenticated']
+        self.assertEqual(backend['if'], "${{ inputs.operation == 'mypage-backend-release' }}")
+        self.assertEqual(set(backend['secrets']), set(FOUNDATION_SECRETS))
+        self.assertEqual(backend['with'], {
+            'expected_sha': '${{ github.sha }}',
+            'other_operation': False,
+        })
 
     def test_no_operation_can_ignore_failure(self):
         for job in self.workflow['jobs'].values():

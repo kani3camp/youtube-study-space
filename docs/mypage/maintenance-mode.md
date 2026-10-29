@@ -14,7 +14,7 @@ Backend は通常の保護対象処理を開始するときに最新の制御を
 
 ## 初期化と切替
 
-1. 対象環境と承認済み image digest を確認し、Terraform の `maintenance_operator`（既存公開 runtime がある場合は `maintenance_upgrade`）で専用 Service Account、WIF と単一 Cloud Run Job を準備します。実際の plan / apply は別途承認が必要です。
+1. 対象環境と承認済み image digest を確認し、`CI` の `operation=gcp-plan` と対象 `environment` でCore GCPとMyPageのdesired stateをまとめてPlanします。DEVの現行desired stageにはmaintenance専用 Service Account、WIF、単一Cloud Run Jobが含まれます。差分をレビューした後だけ `operation=gcp-apply` を実行します。`maintenance_operator` / `maintenance_upgrade` の個別modeは通常操作では選びません。対象環境のdesired stageが`disabled`ならMyPage資源は変更しません。
 2. GitHub Actions **MyPage Maintenance Mode** の `workflow_dispatch` で対象 `environment` と `enabled=false` を指定して初期化します。欠損 document の作成も同じ Job が行います。
 3. 開始時は `enabled=true`、解除時は `enabled=false` を指定します。Job は入力を検証し、transaction で現在値を読んで更新し、commit 後に読み返して結果をログに出力します。同じ値は成功する no-op です。
 4. 実行の成功・失敗と Job ログを確認します。読取・更新・readback の失敗は成功扱いになりません。失敗時は対象環境と権限、Firestore の文書状態を調査し、復旧後に同じ workflow を再実行します。

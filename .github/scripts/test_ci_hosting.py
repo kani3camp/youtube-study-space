@@ -38,11 +38,11 @@ class HostingWorkflowTest(unittest.TestCase):
         operations = load(ROOT / '.github/workflows/ci-operations.yml')
         hosting = operations['jobs']['mypage-hosting-authenticated']
         self.assertEqual(hosting['needs'], 'validate-selection')
-        self.assertEqual(hosting['if'], '${{ inputs.mypage_hosting }}')
+        self.assertEqual(hosting['if'], "${{ inputs.operation == 'mypage-hosting-release' }}")
         self.assertEqual(hosting['permissions'], {'contents': 'read', 'id-token': 'write'})
         self.assertEqual(hosting['uses'], './.github/workflows/mypage-hosting-authenticated.yml')
         self.assertNotIn('secrets', hosting)
         self.assertEqual(hosting['with'], {
-            'expected_sha': '${{ inputs.mypage_hosting_expected_sha }}',
+            'expected_sha': '${{ github.sha }}',
             'other_operation': False,
         })
