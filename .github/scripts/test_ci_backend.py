@@ -8,14 +8,14 @@ class BackendWorkflowTest(unittest.TestCase):
         operations = load(ROOT / '.github/workflows/ci-operations.yml')
         call = operations['jobs']['mypage-backend-authenticated']
         self.assertEqual(call['needs'], 'validate-selection')
-        self.assertEqual(call['if'], '${{ inputs.mypage_backend }}')
+        self.assertEqual(call['if'], "${{ inputs.operation == 'mypage-backend-release' }}")
         self.assertEqual(call['permissions'], {'contents': 'read', 'id-token': 'write'})
         self.assertEqual(call['uses'], './.github/workflows/mypage-backend-authenticated.yml')
         self.assertEqual(call['secrets'], {
             key: '${{ secrets.' + key + ' }}' for key in FOUNDATION_SECRETS
         })
         self.assertEqual(call['with'], {
-            'expected_sha': '${{ inputs.mypage_backend_expected_sha }}',
+            'expected_sha': '${{ github.sha }}',
             'other_operation': False,
         })
 

@@ -175,10 +175,11 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
             self.assertFalse((root / "user-activity-schema-audit.json").exists())
             self.assertFalse((root / "gha-creds-synthetic.json").exists())
 
-    def test_caller_exposes_only_explicit_manual_toggle(self) -> None:
-        self.assertIn("gcp_user_activity_schema_audit:", self.caller)
-        self.assertIn("inputs.gcp_user_activity_schema_audit == true", self.caller)
+    def test_caller_exposes_only_explicit_manual_operation(self) -> None:
+        self.assertIn("- gcp-user-activity-schema-audit", self.caller)
+        self.assertIn("inputs.operation != 'validate'", self.caller)
         self.assertIn("uses: ./.github/workflows/ci-operations.yml", self.caller)
+        self.assertIn("inputs.operation == 'gcp-user-activity-schema-audit'", self.operations)
         self.assertIn("uses: ./.github/workflows/gcp-user-activity-schema-audit.yml", self.operations)
         # Stop at any next top-level job; the nested call receives only this
         # audit's dedicated secrets even though the router supports other operations.

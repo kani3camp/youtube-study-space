@@ -38,20 +38,24 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             result.outputs = output.read_text() if output.exists() else ''
             return result
 
-    def test_display_names_describe_existing_resource_boundary_without_mode_changes(self):
+    def test_legacy_migration_modes_stay_internal_while_public_ui_uses_gcp_operations(self):
         self.assertIn('name: "Terraform Existing Resources Plan (${{ inputs.target }})"', self.text)
         self.assertIn('name: "Terraform Existing Resources Apply (${{ inputs.target }})"', self.text)
         self.assertIn('name: Validate bounded existing-resource Terraform plan', self.text)
         self.assertIn('name: Validate bounded existing-resource Terraform apply', self.text)
         self.assertIn('description: Terraform operation', self.text)
-        self.assertIn('description: Authenticated Terraform', self.caller)
         self.assertNotIn('name: "Import-only migration plan', self.text)
         self.assertNotIn('name: "Import-only migration apply', self.text)
-        # Keep the public dispatch values and fail-closed controller selectors stable.
-        self.assertIn('default: migration-plan', self.caller)
+
+        # The reusable workflow retains migration compatibility for recovery,
+        # but normal operators can no longer select those modes from CI.
         self.assertIn('migration-plan|migration-apply) ;;', self.text)
         self.assertIn('  migration_plan:', self.text)
         self.assertIn('  migration_apply:', self.text)
+        self.assertIn('- gcp-plan', self.caller)
+        self.assertIn('- gcp-apply', self.caller)
+        self.assertNotIn('terraform_mode:', self.caller)
+        self.assertNotIn('default: migration-plan', self.caller)
 
     def test_current_modes_admit_same_branch_dev_and_main_only_prod(self):
         for mode in ('migration-plan', 'migration-apply'):
@@ -174,7 +178,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertRegex(action, r'@[0-9a-f]{40}$')
         self.assertNotIn('workflow_dispatch:', self.text)
         self.assertIn('cancel-in-progress: false', self.text)
-        self.assertIn("inputs.terraform_authenticated == true", self.caller)
+        self.assertIn("- gcp-plan", self.caller)
+        self.assertIn("- gcp-apply", self.caller)
+        self.assertNotIn("terraform_authenticated:", self.caller)
 
 
 if __name__ == '__main__':

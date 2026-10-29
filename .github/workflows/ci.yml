@@ -4,102 +4,34 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
-      mypage_backend:
-        description: Deploy and verify the reviewed MyPage DEV Backend image
+      operation:
+        description: Manual operation
         required: false
-        default: false
-        type: boolean
-      mypage_backend_expected_sha:
-        description: Exact reviewed MyPage integration SHA for Backend
-        required: false
-        type: string
-      mypage_hosting:
-        description: Build, apply and verify the MyPage DEV Hosting page
-        required: false
-        default: false
-        type: boolean
-      mypage_hosting_expected_sha:
-        description: Exact reviewed MyPage integration SHA for Hosting
-        required: false
-        type: string
-      mypage_foundation:
-        description: Run isolated staged MyPage Development or Production provisioning
-        required: false
-        default: false
-        type: boolean
-      mypage_foundation_target:
-        description: "MyPage target (Production bootstrap: registry plan/apply, image-build, then maintenance operator/upgrade plan/apply)"
+        default: validate
+        type: choice
+        options:
+          - validate
+          - gcp-plan
+          - gcp-apply
+          - gcp-user-activity-schema-audit
+          - mypage-image-build
+          - mypage-hosting-release
+          - mypage-backend-release
+      environment:
+        description: Target environment for manual operations
         required: false
         default: development
         type: choice
         options:
           - development
           - production
-      mypage_foundation_mode:
-        description: MyPage staged Development or Production provisioning operation
-        required: false
-        default: foundation-metadata-plan
-        type: choice
-        options:
-          - foundation-metadata-plan
-          - foundation-metadata-apply
-          - foundation-plan
-          - foundation-apply
-          - registry-plan
-          - registry-apply
-          - image-build
-          - maintenance-operator-plan
-          - maintenance-operator-apply
-          - maintenance-upgrade-plan
-          - maintenance-upgrade-apply
-          - runtime-private-plan
-          - runtime-private-apply
-          - runtime-public-plan
-          - runtime-public-apply
-      mypage_foundation_expected_sha:
-        description: Exact SHA on the selected target's required ref
-        required: false
-        type: string
-      terraform_authenticated:
-        description: Authenticated Terraform
-        required: false
-        default: false
-        type: boolean
-      terraform_target:
-        description: Terraform target environment
-        required: false
-        default: dev
-        type: choice
-        options:
-          - dev
-          - prod
-      terraform_mode:
-        description: Terraform operation
-        required: false
-        default: migration-plan
-        type: choice
-        options:
-          - migration-plan
-          - migration-apply
-          - normal-plan
-          - normal-apply
-          - normal-e2e
-      terraform_expected_sha:
-        description: Exact selected branch SHA for normal operations
-        required: false
-        type: string
-      gcp_user_activity_schema_audit:
-        description: Run the fail-closed development user-activity schema audit
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.gcp_user_activity_schema_audit == true || inputs.mypage_foundation == true || inputs.mypage_hosting == true || inputs.mypage_backend == true)) }}
+  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') }}
 
 jobs:
   changes:
@@ -135,7 +67,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CI_AUTHENTICATED_TERRAFORM_DISPATCH: ${{ github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.gcp_user_activity_schema_audit == true || inputs.mypage_foundation == true) }}
+          CI_AUTHENTICATED_TERRAFORM_DISPATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'gcp-user-activity-schema-audit' }}
         run: bash .github/scripts/detect-ci-paths.sh
 
   system:
@@ -187,29 +119,20 @@ jobs:
 
   operations:
     name: Authenticated Operations
-    needs: [repository, frontend, system, gcp-terraform-validate]
-    if: ${{ always() && github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.gcp_user_activity_schema_audit == true || inputs.mypage_foundation == true || inputs.mypage_hosting == true || inputs.mypage_backend == true) }}
+    needs: [repository, frontend, system, tools, infra, gcp-terraform-validate]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.operation != 'validate' }}
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/ci-operations.yml
     with:
-      terraform_authenticated: ${{ inputs.terraform_authenticated }}
-      terraform_target: ${{ inputs.terraform_target }}
-      terraform_mode: ${{ inputs.terraform_mode }}
-      terraform_expected_sha: ${{ inputs.terraform_expected_sha }}
-      gcp_user_activity_schema_audit: ${{ inputs.gcp_user_activity_schema_audit }}
-      mypage_foundation: ${{ inputs.mypage_foundation }}
-      mypage_foundation_target: ${{ inputs.mypage_foundation_target }}
-      mypage_foundation_mode: ${{ inputs.mypage_foundation_mode }}
-      mypage_foundation_expected_sha: ${{ inputs.mypage_foundation_expected_sha }}
-      mypage_hosting: ${{ inputs.mypage_hosting }}
-      mypage_hosting_expected_sha: ${{ inputs.mypage_hosting_expected_sha }}
-      mypage_backend: ${{ inputs.mypage_backend }}
-      mypage_backend_expected_sha: ${{ inputs.mypage_backend_expected_sha }}
+      operation: ${{ inputs.operation }}
+      environment: ${{ inputs.environment }}
       repository_result: ${{ needs.repository.result }}
       frontend_result: ${{ needs.frontend.result }}
       system_result: ${{ needs.system.result }}
+      tools_result: ${{ needs.tools.result }}
+      infra_result: ${{ needs.infra.result }}
       gcp_terraform_validate_result: ${{ needs.gcp-terraform-validate.result }}
     secrets:
       GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
@@ -251,5 +174,5 @@ jobs:
       - name: Require successful selected validations
         env:
           CI_NEEDS: ${{ toJSON(needs) }}
-          CI_OPERATION_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && (inputs.terraform_authenticated == true || inputs.gcp_user_activity_schema_audit == true || inputs.mypage_foundation == true || inputs.mypage_hosting == true || inputs.mypage_backend == true) }}
+          CI_OPERATION_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.operation != 'validate' }}
         run: python3 .github/scripts/check-ci-results.py

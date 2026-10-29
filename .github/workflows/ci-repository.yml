@@ -64,6 +64,8 @@ jobs:
           .github/workflows/ci.yml .github/workflows/ci-*.yml
           .github/workflows/gcp-terraform-authenticated.yml
           .github/workflows/gcp-user-activity-schema-audit.yml
+          .github/workflows/gcp-infrastructure-authenticated.yml
+          .github/workflows/mypage-infrastructure-authenticated.yml
           .github/workflows/mypage-hosting-authenticated.yml
           .github/workflows/mypage-backend-authenticated.yml
           .github/workflows/mypage-foundation-authenticated.yml

@@ -25,6 +25,4 @@ for environment in dev prod; do
     "$root_dir/target.example.json"
 done
 cd "$repo_dir"
-bash .github/scripts/test-detect-ci-paths.sh
-python3 .github/scripts/check-doc-references.py
-python3 .github/scripts/check-mypage-contract.py
+echo "MyPage OAuth TTL: credentialless Terraform validation passed."

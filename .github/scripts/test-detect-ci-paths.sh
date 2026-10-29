@@ -43,7 +43,6 @@ assert_exact_groups youtube_monitor youtube-monitor/src/app.ts
 assert_exact_groups mypage mypage/src/main.tsx
 assert_exact_groups mypage mypage/package.json
 assert_exact_groups mypage docs/mypage/openapi.yaml
-assert_exact_groups mypage infra/mypage-oauth-ttl/environments/dev/main.tf
 assert_exact_groups mypage .github/scripts/check-mypage-contract.py
 assert_exact_groups "youtube_monitor mypage" biome.json
 assert_exact_groups "system firestore_integration" system/core/mypage/store.go
@@ -63,6 +62,11 @@ assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/modules/runtime
 assert_exact_groups gcp_terraform infra/gcp/README.md
 assert_exact_groups gcp_terraform infra/gcp/environments/dev/main.tf
 assert_exact_groups gcp_terraform infra/gcp/environments/prod/main.tf
+assert_exact_groups "gcp_terraform mypage" infra/mypage-platform/environments/dev/main.tf
+assert_exact_groups "gcp_terraform mypage" infra/mypage-platform/environments/dev/desired-stage.txt
+assert_exact_groups "gcp_terraform mypage" infra/mypage-platform/scripts/foundation_contract.py
+assert_exact_groups "gcp_terraform mypage" infra/mypage-oauth-ttl/environments/dev/main.tf
+assert_exact_groups "gcp_terraform mypage" infra/mypage-oauth-ttl/scripts/check-local.sh
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_pool_import_fidelity.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_plan_summary.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_plan_summary.py
