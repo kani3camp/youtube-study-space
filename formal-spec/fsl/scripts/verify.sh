@@ -5,7 +5,7 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 fsl_root="$(cd -- "$script_dir/.." && pwd)"
 fslc="${FSLC:-$("$script_dir/install.sh")}"
-depth="${FSL_VERIFY_DEPTH:-8}"
+source "$script_dir/settings.sh"
 specs=("$fsl_root"/specs/*.fsl)
 
 if [[ ! -e "${specs[0]}" ]]; then
@@ -14,8 +14,12 @@ if [[ ! -e "${specs[0]}" ]]; then
 fi
 
 for spec in "${specs[@]}"; do
+	name="$(basename "$spec" .fsl)"
+	depth="${FSL_VERIFY_DEPTH:-$(fsl_default_depth "$name")}"
 	echo "Checking $spec" >&2
 	"$fslc" check "$spec"
 	echo "Verifying $spec (depth=$depth, vacuity=error)" >&2
 	"$fslc" verify "$spec" --depth "$depth" --vacuity error
 done
+
+python3 "$script_dir/test_mypage_models.py" --fslc "$fslc" --oauth-depth "$(fsl_default_depth mypage_oauth)"

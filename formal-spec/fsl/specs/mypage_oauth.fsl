@@ -12,7 +12,9 @@ spec MyPageOAuth {
     mint: MintStatus,
     unexpired: Bool,
     policy_current: Bool,
-    login_guard_current: Bool,
+    access_allowed: Bool,
+    checkpoint_current: Bool,
+    maintenance_active: Bool,
     claims: Int,
     consumes: Int,
     mint_attempts: Int,
@@ -27,7 +29,9 @@ spec MyPageOAuth {
     mint = NoMint
     unexpired = true
     policy_current = true
-    login_guard_current = true
+    access_allowed = true
+    checkpoint_current = true
+    maintenance_active = false
     claims = 0
     consumes = 0
     mint_attempts = 0
@@ -53,10 +57,16 @@ spec MyPageOAuth {
     policy_current = false
   }
 
-  // 古いログイン許可の失効は取り消さない。再ログインは別の認証処理として扱う。
-  action invalidate_login_guard() {
-    requires login_guard_current
-    login_guard_current = false
+  // 確定前は最新の許可を読み直せる。確定後の変更は保存済みcheckpointを失効させる。
+  action set_access(allowed: Bool) {
+    if allowed != access_allowed {
+      checkpoint_current = false
+    }
+    access_allowed = allowed
+  }
+
+  action set_maintenance(active: Bool) {
+    maintenance_active = active
   }
 
   @requirement("REQ-MYPAGE-AUTH-001", "コールバックは有効期限内でstateが一致する認証処理を一度だけ確保し、競合する処理から同時に確保されないようにする")
@@ -64,7 +74,7 @@ spec MyPageOAuth {
     requires status == Pending
     requires unexpired
     requires state_matches
-    requires purpose == Support or login_guard_current
+    requires purpose == Support or not maintenance_active
     status = Processing
     claims = claims + 1
     ensures old(unexpired) and state_matches
@@ -75,7 +85,7 @@ spec MyPageOAuth {
     requires status == Processing
     requires unexpired
     requires unique_channel
-    requires purpose == Support or login_guard_current
+    requires purpose == Support or not maintenance_active
     status = Verified
     ensures old(unexpired) and unique_channel
   }
@@ -91,13 +101,15 @@ spec MyPageOAuth {
     requires purpose == Login
     requires unexpired
     requires policy_current
-    requires login_guard_current
+    requires access_allowed
+    requires not maintenance_active
     requires confirmation_matches
     status = Consumed
     consumes = consumes + 1
     account_written = true
     mint = Ready
-    ensures old(unexpired) and old(policy_current) and old(login_guard_current) and confirmation_matches
+    checkpoint_current = true
+    ensures old(unexpired) and old(policy_current) and old(access_allowed) and confirmation_matches
   }
 
   @requirement("REQ-MYPAGE-AUTH-004", "サポート用の確定処理は依頼とチャンネルの対応を確認し、本人確認の証跡だけを作ってログイン権限は発行しない")
@@ -117,7 +129,9 @@ spec MyPageOAuth {
   @requirement("REQ-MYPAGE-AUTH-005", "トークン発行は認証処理の使用済み化後に一度だけ試み、失敗した場合や結果を確認できない場合も認証処理を再利用しない")
   action attempt_mint(succeeds: Bool) {
     requires mint == Ready
-    requires login_guard_current
+    requires checkpoint_current
+    requires access_allowed
+    requires not maintenance_active
     mint_attempts = mint_attempts + 1
     if succeeds {
       mint = InFlight
@@ -129,13 +143,13 @@ spec MyPageOAuth {
   @requirement("REQ-MYPAGE-AUTH-006", "外部サービスでのトークン発行中にログインの許可条件が失効した場合は、生成したトークンを返さない")
   action finish_mint() {
     requires mint == InFlight
-    if login_guard_current {
+    if access_allowed and checkpoint_current {
       mint = Delivered
     } else {
       mint = Rejected
       rejected_after_external_mint = true
     }
-    ensures mint == Delivered => old(login_guard_current)
+    ensures mint == Delivered => (old(access_allowed) and old(checkpoint_current))
   }
 
   @requirement("REQ-MYPAGE-AUTH-001", "コールバックは有効期限内でstateが一致する認証処理を一度だけ確保し、競合する処理から同時に確保されないようにする")
@@ -162,6 +176,15 @@ spec MyPageOAuth {
     0 <= mint_attempts and mint_attempts <= consumes
   }
 
+  @requirement("REQ-MYPAGE-AUTH-004", "サポート用の確定処理は依頼とチャンネルの対応を確認し、本人確認の証跡だけを作ってログイン権限は発行しない")
+  trans PurposeNeverChangesAfterCreation {
+    old(status) != Idle => purpose == old(purpose)
+  }
+
+  trans ConsumedCheckpointNeverRenews {
+    old(status) == Consumed and not old(checkpoint_current) => not checkpoint_current
+  }
+
   trans ConsumedNeverReopens {
     old(status) == Consumed => status == Consumed
   }
@@ -170,15 +193,16 @@ spec MyPageOAuth {
   terminal {
     status == Failed or (status == Consumed and
       (mint == NoMint or mint == Delivered or mint == Rejected or
-       (mint == Ready and not login_guard_current)))
+       (mint == Ready and not checkpoint_current)))
   }
 
   reachable LoginTokenCanBeDelivered { mint == Delivered }
   reachable FailedMintStaysConsumed { mint == Rejected and status == Consumed }
   reachable SupportProofSurvivesLoginRestriction {
-    receipt_written and not login_guard_current
+    receipt_written and not access_allowed
   }
+  reachable VerifiedLoginCanWaitForAccess { status == Verified and purpose == Login and not access_allowed }
   reachable InFlightMintCanBeRejected {
-    rejected_after_external_mint and mint == Rejected and not login_guard_current
+    rejected_after_external_mint and mint == Rejected and not access_allowed
   }
 }

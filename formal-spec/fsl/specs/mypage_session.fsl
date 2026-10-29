@@ -10,6 +10,8 @@ spec MyPageSession {
 
   state {
     phase: Phase,
+    maintenance_active: Bool,
+    maintenance_exits: Int,
     uid: Identity,
     epoch: Int,
     data_uid: Identity,
@@ -23,6 +25,8 @@ spec MyPageSession {
 
   init {
     phase = Anonymous
+    maintenance_active = false
+    maintenance_exits = 0
     uid = 0
     epoch = 0
     data_uid = 0
@@ -38,7 +42,6 @@ spec MyPageSession {
 
   @requirement("REQ-MYPAGE-SESSION-001", "本人の切替や明示的な再ログインでは、古い個人データをその場で破棄し、セッションの世代番号を更新する")
   action set_identity(next: User, fresh_login: Bool) {
-    requires phase != Maintenance
     requires next != uid or phase == Anonymous or phase == Suspended or (phase == Restricted and fresh_login)
     uid = next
     phase = Authenticated
@@ -52,7 +55,6 @@ spec MyPageSession {
 
   @requirement("REQ-MYPAGE-SESSION-002", "ログアウトやpagehideでは、応答の完了を待たずに個人データを破棄する")
   action logout() {
-    requires phase != Anonymous
     uid = 0
     phase = Anonymous
     epoch = epoch + 1
@@ -63,23 +65,23 @@ spec MyPageSession {
   }
 
   @requirement("REQ-MYPAGE-SESSION-002", "ログアウトやpagehideでは、応答の完了を待たずに個人データを破棄する")
-  action suspend() {
-    requires phase == Authenticated or phase == Restricted
+  action suspend(fresh_login: Bool) {
     epoch = epoch + 1
     data_uid = 0
     data_epoch = 0
     data_value = 0
     transient_failure = false
     // 同じuidでブラウザのページキャッシュ（bfcache）から復帰しても、利用制限を解除しない。
-    if phase == Authenticated {
+    if phase != Restricted or fresh_login {
       uid = 0
       phase = Suspended
     }
-    ensures old(phase) == Restricted => phase == Restricted
+    ensures old(phase) == Restricted and not fresh_login => phase == Restricted
   }
 
   action enter_maintenance() {
-    requires phase != Maintenance
+    requires not maintenance_active or phase != Maintenance
+    maintenance_active = true
     phase = Maintenance
     epoch = epoch + 1
     data_uid = 0
@@ -89,31 +91,36 @@ spec MyPageSession {
   }
 
   action resume_maintenance() {
-    requires phase == Maintenance
-    epoch = epoch + 1
-    if uid == 0 {
-      phase = Anonymous
-    } else {
-      phase = Authenticated
+    requires maintenance_active
+    maintenance_active = false
+    maintenance_exits = maintenance_exits + 1
+    if phase == Maintenance {
+      epoch = epoch + 1
+      if uid == 0 {
+        phase = Anonymous
+      } else {
+        phase = Authenticated
+      }
     }
   }
 
   @requirement("REQ-MYPAGE-SESSION-003", "利用制限中やメンテナンス中は、定期更新・手動更新・表示状態の変化による取得を開始しない")
   action begin_request(r: Request) {
     requires phase == Authenticated
+    requires not maintenance_active
     requires not pending[r]
     requires forall other: Request { not pending[other] or request_epoch[other] != epoch }
     pending[r] = true
     request_uid[r] = uid
     request_epoch[r] = epoch
-    ensures old(phase) == Authenticated
+    ensures old(phase) == Authenticated and not old(maintenance_active)
   }
 
   @requirement("REQ-MYPAGE-SESSION-004", "中断できず遅れて届いた成功・失敗の応答も、本人とセッションの世代番号が一致する場合だけ反映する")
   action finish_success(r: Request, value: Value) {
     requires pending[r]
     pending[r] = false
-    if phase == Authenticated and request_uid[r] == uid and request_epoch[r] == epoch {
+    if not maintenance_active and phase == Authenticated and request_uid[r] == uid and request_epoch[r] == epoch {
       data_uid = request_uid[r]
       data_epoch = request_epoch[r]
       data_value = value
@@ -125,7 +132,7 @@ spec MyPageSession {
   action finish_transient_failure(r: Request) {
     requires pending[r]
     pending[r] = false
-    if phase == Authenticated and request_uid[r] == uid and request_epoch[r] == epoch {
+    if not maintenance_active and phase == Authenticated and request_uid[r] == uid and request_epoch[r] == epoch {
       transient_failure = true
     }
     ensures data_uid == old(data_uid) and data_epoch == old(data_epoch) and data_value == old(data_value)
@@ -135,7 +142,7 @@ spec MyPageSession {
   action finish_restriction(r: Request) {
     requires pending[r]
     pending[r] = false
-    if phase == Authenticated and request_uid[r] == uid and request_epoch[r] == epoch {
+    if not maintenance_active and phase == Authenticated and request_uid[r] == uid and request_epoch[r] == epoch {
       phase = Restricted
       epoch = epoch + 1
       data_uid = 0
@@ -148,8 +155,8 @@ spec MyPageSession {
 
   // セッション確定など、別の認可処理からの利用制限も遅れたGET応答より先に届き得る。
   @requirement("REQ-MYPAGE-SESSION-006", "利用制限を示す403応答では個人データを破棄し、通常の再試行や同じuidでのpagehideからの復帰では取得を再開しない")
-  action restrict_identity() {
-    requires phase == Authenticated
+  action restrict_identity(target: Identity) {
+    uid = target
     phase = Restricted
     epoch = epoch + 1
     data_uid = 0
@@ -160,19 +167,28 @@ spec MyPageSession {
 
   @requirement("REQ-MYPAGE-SESSION-004", "中断できず遅れて届いた成功・失敗の応答も、本人とセッションの世代番号が一致する場合だけ反映する")
   invariant PrivateDataBelongsToCurrentIdentityAndEpoch {
-    data_uid != 0 => (phase == Authenticated and data_uid == uid and data_epoch == epoch)
+    data_uid != 0 => (not maintenance_active and phase == Authenticated and data_uid == uid and data_epoch == epoch)
   }
 
   @requirement("REQ-MYPAGE-SESSION-002", "ログアウトやpagehideでは、応答の完了を待たずに個人データを破棄する")
   @requirement("REQ-MYPAGE-SESSION-006", "利用制限を示す403応答では個人データを破棄し、通常の再試行や同じuidでのpagehideからの復帰では取得を再開しない")
   invariant InactivePhasesContainNoPrivateData {
-    phase != Authenticated => data_uid == 0
+    phase != Authenticated or maintenance_active => data_uid == 0
   }
 
   invariant AuthenticatedIdentityIsPresent {
-    phase == Authenticated or phase == Restricted => uid != 0
+    phase == Authenticated => uid != 0
   }
 
+  // MemoryState.phaseはlogout/pagehideで変わるが、外側のMaintenanceMonitorは継続する。
+  @requirement("REQ-MYPAGE-SESSION-003", "利用制限中やメンテナンス中は、定期更新・手動更新・表示状態の変化による取得を開始しない")
+  trans MaintenancePersistsUntilExplicitExit {
+    old(maintenance_active) and maintenance_exits == old(maintenance_exits) => maintenance_active
+  }
+
+  reachable MaintenanceCanCoexistWithLogout { maintenance_active and phase == Anonymous }
+  reachable MaintenanceCanCoexistWithPagehide { maintenance_active and phase == Suspended }
+  reachable SuspendedIdentityCanBeRestricted { phase == Restricted and uid == 1 }
   reachable PrivateDataCanBeLoaded { data_uid == 1 }
   reachable ConfirmedZeroCanBeLoaded { data_uid == 1 and data_value == 0 }
   reachable SameIdentityCanChangeEpochWhileRequestIsPending {

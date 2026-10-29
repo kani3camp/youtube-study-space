@@ -65,19 +65,19 @@
 
 ## MyPage の安全モデル
 
-[MyPage実装契約](../../../docs/mypage/README.md)と[ServiceAccessControl契約](../../../docs/mypage/service-access-control.md)のうち、認証・本人切替・利用制限の安全条件を3つの独立したモデルで表します。各仕様は既存の`specs/*.fsl`を対象とする検証・レポート生成処理に含まれます。構文・型の検査（`check`）、深さ8までの状態遷移の検証、HTMLレポートの生成を行います。`--vacuity error`を指定し、条件が成立しないために見かけ上成功する検証はエラーにします。既存の座席仕様と検証深度は変更しません。
+[MyPage実装契約](../../../docs/mypage/README.md)と[ServiceAccessControl契約](../../../docs/mypage/service-access-control.md)のうち、認証・本人切替・利用制限の安全条件を3つの独立したモデルで表します。各仕様は既存の`specs/*.fsl`を対象とする検証・レポート生成処理に含まれます。構文・型の検査（`check`）、MyPageOAuthは深さ12、その他は深さ8までの状態遷移の検証、HTMLレポートの生成を行います。`--vacuity error`を指定し、条件が成立しないために見かけ上成功する検証はエラーにします。既存の座席仕様と検証深度は変更しません。
 
 **MyPageの3仕様は実装との自動照合が未接続です**。下表は対応する実装とテストの参照先です。FSLが生成した検証データを実装へ渡すアダプターではありません。モデル同士を組み合わせた検証や、実際のOAuth・Firestore・ブラウザの動作を証明したとも扱いません。
 
 | モデル / 要件ID | 対応する実装 | 既存の実装テスト |
 | --- | --- | --- |
 | `MyPageOAuth` / `REQ-MYPAGE-AUTH-*` | [AuthService](../../../system/core/mypage/auth.go)、[AuthStore](../../../system/core/mypage/auth_store.go)、[support auth store](../../../system/core/mypage/support_auth_store.go) | [auth integration](../../../system/core/mypage/auth_integration_test.go)、[support auth integration](../../../system/core/mypage/support_auth_integration_test.go)、[access integration](../../../system/core/mypage/access_integration_test.go) |
-| `MyPageSession` / `REQ-MYPAGE-SESSION-*` | [MyPageMemory](../../../mypage/src/features/mypage/memory.ts) | [memory tests](../../../mypage/src/features/mypage/memory.test.ts)、[runtime tests](../../../mypage/src/runtime.test.ts) |
+| `MyPageSession` / `REQ-MYPAGE-SESSION-*` | [MyPageMemory](../../../mypage/src/features/mypage/memory.ts)、[Runtime](../../../mypage/src/runtime.ts) | [memory tests](../../../mypage/src/features/mypage/memory.test.ts)、[runtime tests](../../../mypage/src/runtime.test.ts) |
 | `MyPageAccess` / `REQ-MYPAGE-ACCESS-*` | [SAC Transition / Allowed](../../../system/core/serviceaccess/control.go)、[accessVerdict](../../../system/core/mypage/access.go) | [SAC tests](../../../system/core/serviceaccess/control_test.go)、[SAC integration](../../../system/core/serviceaccess/firestore_integration_test.go)、[access tests](../../../system/core/mypage/access_test.go) |
 
 ### `mypage_oauth.fsl`
 
-1つのOAuth認証処理を`Idle -> Pending -> Processing -> Verified -> Consumed`の状態遷移で表し、途中失敗・期限切れ・同意した文書のバージョンの変更・ログイン許可の失効を許します。認証の目的は`Login`と`Support`の2種類で、作成後には変わりません。
+1つのOAuth認証処理を`Idle -> Pending -> Processing -> Verified -> Consumed`の状態遷移で表し、途中失敗・期限切れ・同意した文書のバージョンの変更・ログイン許可の失効を許します。認証の目的は`Login`と`Support`の2種類で、作成後には変わりません。`PurposeNeverChangesAfterCreation`で、作成後のすべての遷移について目的が固定されることを検証します。
 
 - コールバックは有効期限内でstateが一致する場合に、処理権を一度だけ確保する。チャンネルが1つだけであることを確認した後に確定へ進む。
 - ログイン確定では確認用の参照値・同意した文書のバージョン・ログイン許可を確認し、認証処理の使用済み化とアカウント更新を、分割できない1つの操作として行う。
@@ -85,22 +85,22 @@
 - 使用済み化の後に外部サービスでのトークン発行を一度だけ試み、失敗した場合や結果を確認できない場合も使用済み状態を戻さない。発行中に許可が失効したらトークンを返さない。
 - `ensures`は操作時点の期限・入力・許可条件を検査する。使用済み化後の期限切れや、トークン返却後の利用制限を、過去の操作の違反とはしない。
 
-`unexpired`は10分の有効期限内であること、`policy_current`は同意した文書のバージョンが一致すること、`login_guard_current`はログインの各許可条件と保存した許可状態が有効であることを表します。一度失効した許可は元に戻さず、再ログインは別の認証処理として扱います。
+`unexpired`は10分の有効期限内であること、`policy_current`は同意した文書のバージョンが一致すること、`access_allowed`は現在のアクセス許可、`maintenance_active`は現在のメンテナンス状態、`checkpoint_current`は確定時に保存した許可状態が今も有効であることを表します。確定前は制限の解除後に最新の許可を読み直して成功できます。確定後にアクセス許可が変わった場合、解除されても古いcheckpointは再利用できません。メンテナンスは確定前・発行前に確認し、発行後は実装どおりアクセス許可とcheckpointを確認します。
 
 チャンネルの一意性（`unique_channel`）、依頼との対応（`binding_matches`）、確認用の参照値の一致などは真偽値で表します。SDK、暗号、実際のチャンネル選択、Firestoreのロールバックや再試行の詳細はモデル化せず、既存のEmulatorテストによる原子性の検証も置き換えません。
 
-`Failed`と使用済み化後の処理完了・許可失効による停止は、意図した終了状態です。`reachable`ではログイン成功、トークン発行失敗、外部発行後の許可失効による拒否、ログイン制限とサポート用の本人確認証跡の併存を確認します。外部発行後の拒否は検査専用のフラグで表し、外部処理前の失敗と区別します。再認証や処理がいずれ完了することまでは保証しません。
+`Failed`と使用済み化後の処理完了・保存したcheckpointの失効による停止は、意図した終了状態です。`reachable`ではログイン成功、トークン発行失敗、外部発行後の許可失効による拒否、ログイン制限とサポート用の本人確認証跡の併存を確認します。外部発行後の拒否は検査専用のフラグで表し、外部処理前の失敗と区別します。再認証や処理がいずれ完了することまでは保証しません。
 
 ### `mypage_session.fsl`
 
-2人の本人と2つのリクエスト枠で、中断要求を無視して遅れて完了する古いリクエストと、新しいセッションの成功応答が並行する状態を表します。同じ世代番号（epoch）での通常取得は1本に制限し、世代番号は循環させません。`data_uid`と`data_epoch`は表示値の本人と世代を調べる検査専用の状態です。値は0と1で表し、`data_uid=0`の未取得状態と、本人に紐付いた正常な0を区別します。
+ブラウザのRuntimeとMyPageMemoryの連携を対象とします。2人の本人と2つのリクエスト枠で、中断要求を無視して遅れて完了する古いリクエストと、新しいセッションの成功応答が並行する状態を表します。同じ世代番号（epoch）での通常取得は1本に制限し、世代番号は循環させません。`data_uid`と`data_epoch`は表示値の本人と世代を調べる検査専用の状態です。値は0と1で表し、`data_uid=0`の未取得状態と、本人に紐付いた正常な0を区別します。
 
 - 本人切替・ログアウト・pagehide・メンテナンス・利用制限の403応答では、個人データをその場で破棄し、世代番号を進める。
 - 応答は本人と世代番号が一致する場合だけ反映する。古い成功応答や古い利用制限の403応答で、新しいセッションの状態を変えない。
 - 利用制限中やメンテナンス中は取得を開始しない。同じ本人の利用制限はpagehideだけでは解除せず、明示的な再ログインを必要とする。
 - 通常の503エラーでは同じ本人の直前の成功値を保持する。値のない状態と値のある状態の両方を取り得るが、失敗時の操作で値を新しい0に上書きしない。
 
-ログアウト時の即時破棄、pagehideによる停止、メンテナンスによる停止と再開をモデル化します。メンテナンス終了時は現行実装どおり本人を再評価するため、メンテナンスを跨いで利用制限の状態を保持し続けることは、このモデルでは保証しません。
+ログアウト時の即時破棄、すべての表示状態からのpagehide、復元待ち（Suspended）からの利用制限、メンテナンスによる停止と再開をモデル化します。`maintenance_active`は外側のMaintenanceMonitorの状態であり、Memoryの`phase`とは独立しています。ログアウトやpagehideで表示状態が変わっても保持し、明示的な終了まで取得を止めます。検査専用の`maintenance_exits`は終了操作の回数を記録し、それ以外の操作がメンテナンスを解除しないことを遷移条件で確認します。メンテナンス終了時は現行実装どおり本人を再評価するため、メンテナンスを跨いで利用制限の状態を保持し続けることは、このモデルでは保証しません。
 
 非同期のsignOut完了・失敗、Authリスナーの抑止、5分間隔の定期取得、再試行の待機時間とRetry-After、トークンの強制更新とApp Checkの再試行はモデルの対象外です。表示項目ごとの古い値の保持、メタデータの期限切れ、履歴、描画も扱いません。リクエスト枠の数は本番の上限ではなく、旧応答と新応答の衝突を検査するための範囲です。
 
@@ -108,7 +108,7 @@
 
 ### `mypage_access.fsl`
 
-1チャンネルの`moderation`と`privacyDeletion`、許可時点を保存した1つのリクエストを扱います。レコードが存在しない場合と全制限が無効な場合の許可を、モデルの初期状態で表します。制限理由の有効・無効が変わるたびに許可状態の照合値（checkpoint）を増やし、同じ状態を再適用する場合は変えません。
+1チャンネルの`moderation`と`privacyDeletion`、許可時点を保存した1つのリクエストを扱います。レコードが存在しない場合と全制限が無効な場合の許可を、モデルの初期状態で表します。制限理由の有効・無効、理由コード、参照値のいずれかが変わるたびに許可状態の照合値（checkpoint）を増やします。すべてが同じ再適用では変えません。理由コードと参照値は0（無効時）と2種類の有効値に簡略化し、privacyDeletionの理由コードは固定として扱います。
 
 - 両方の制限理由は独立している。moderationを解除してもprivacyDeletionを消さず、privacyDeletionを解除してもmoderationを消さない。
 - 処理開始時に最新の許可状態を読み取って照合値を保存する。アクセス制御の対象となる読み取り・更新確定・結果返却の直前に再照合する。
@@ -117,6 +117,6 @@
 
 実際の照合値に含まれる世代番号（generation）とFirestoreの更新時刻（revision）は、単調に増加する整数で表します。取得・デコード・スキーマの障害は`readable=false`で表し、レコードの削除・再作成やカウンターの再利用は許しません。
 
-同じ有効状態での理由コード・参照値の変更、CAS、実際のキャッシュや処理共有のキーはモデルの対象外です。[削除B](../../../docs/mypage/support-delete.md)の全29手順、実行所有権の回復、SLA、実データの不存在、再生成の禁止も扱いません。モデルの検証成功を、実データの削除完了や配備承認とは扱いません。
+理由コード・参照値の実際の文字列、時刻の精度、CAS、実際のキャッシュや処理共有のキーはモデルの対象外です。比較を代入より前に書いていますが、FSLの右辺は記述順にかかわらず変更前の状態を読みます。[削除B](../../../docs/mypage/support-delete.md)の全29手順、実行所有権の回復、SLA、実データの不存在、再生成の禁止も扱いません。モデルの検証成功を、実データの削除完了や配備承認とは扱いません。
 
 `reachable`では通常成功、両方の制限理由の併存、処理中の利用制限、両方の制限がある場合の表示優先順位、制限開始後に解除されても古い照合値が拒否される状態を確認します。これは状態に到達できるという主張であり、特定の操作列の実行義務や処理完了の保証ではありません。

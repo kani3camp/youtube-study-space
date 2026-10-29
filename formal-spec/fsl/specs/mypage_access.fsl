@@ -2,11 +2,15 @@
 // checkpointは変更ごとに増える整数で表し、レコードの削除・再作成や数値の一巡は許さない。
 // これはServiceAccessControlの利用側のモデルであり、削除Bの全29手順の完了を証明するものではない。
 spec MyPageAccess {
+  type Detail = 0..2
   enum Verdict { NoResult, Allowed, Restricted, Deleting, Unavailable }
 
   state {
     moderation: Bool,
     deletion: Bool,
+    moderation_code: Detail,
+    moderation_ref: Detail,
+    deletion_ref: Detail,
     readable: Bool,
     checkpoint: Int,
     pending: Bool,
@@ -17,6 +21,9 @@ spec MyPageAccess {
   init {
     moderation = false
     deletion = false
+    moderation_code = 0
+    moderation_ref = 0
+    deletion_ref = 0
     readable = true
     checkpoint = 0
     pending = false
@@ -25,21 +32,27 @@ spec MyPageAccess {
   }
 
   @requirement("REQ-MYPAGE-ACCESS-001", "moderationとprivacyDeletionは独立して更新し、もう一方の制限を解除しない")
-  action set_moderation(active: Bool) {
-    moderation = active
-    if active != moderation {
+  action set_moderation(active: Bool, code: Detail, reference: Detail) {
+    requires (active and code != 0 and reference != 0) or (not active and code == 0 and reference == 0)
+    // action内の右辺はすべて変更前の状態を読む。比較を先に書き、通常の逐次代入と誤読しないようにする。
+    if active != moderation or code != moderation_code or reference != moderation_ref {
       checkpoint = checkpoint + 1
     }
-    ensures deletion == old(deletion)
+    moderation = active
+    moderation_code = code
+    moderation_ref = reference
+    ensures deletion == old(deletion) and deletion_ref == old(deletion_ref)
   }
 
   @requirement("REQ-MYPAGE-ACCESS-001", "moderationとprivacyDeletionは独立して更新し、もう一方の制限を解除しない")
-  action set_deletion(active: Bool) {
-    deletion = active
-    if active != deletion {
+  action set_deletion(active: Bool, reference: Detail) {
+    requires (active and reference != 0) or (not active and reference == 0)
+    if active != deletion or reference != deletion_ref {
       checkpoint = checkpoint + 1
     }
-    ensures moderation == old(moderation)
+    deletion = active
+    deletion_ref = reference
+    ensures moderation == old(moderation) and moderation_code == old(moderation_code) and moderation_ref == old(moderation_ref)
   }
 
   action set_readable(available: Bool) {
@@ -85,14 +98,19 @@ spec MyPageAccess {
     ensures not old(readable) => verdict == Unavailable
   }
 
-  @requirement("REQ-MYPAGE-ACCESS-005", "同じ制限状態を再適用してもcheckpointを変えず、状態が変わるときは増加させる")
-  trans CheckpointChangesOnlyWithReasons {
-    (moderation == old(moderation) and deletion == old(deletion)) => checkpoint == old(checkpoint)
+  @requirement("REQ-MYPAGE-ACCESS-005", "有効状態・理由コード・参照値が同じならcheckpointを変えず、いずれかが変わるときは増加させる")
+  trans CheckpointChangesOnlyWithReasonDetails {
+    (moderation == old(moderation) and deletion == old(deletion) and moderation_code == old(moderation_code) and moderation_ref == old(moderation_ref) and deletion_ref == old(deletion_ref)) => checkpoint == old(checkpoint)
   }
 
-  @requirement("REQ-MYPAGE-ACCESS-005", "同じ制限状態を再適用してもcheckpointを変えず、状態が変わるときは増加させる")
-  trans ChangedReasonAdvancesCheckpoint {
-    (moderation != old(moderation) or deletion != old(deletion)) => checkpoint == old(checkpoint) + 1
+  @requirement("REQ-MYPAGE-ACCESS-005", "有効状態・理由コード・参照値が同じならcheckpointを変えず、いずれかが変わるときは増加させる")
+  trans ChangedReasonDetailsAdvanceCheckpoint {
+    (moderation != old(moderation) or deletion != old(deletion) or moderation_code != old(moderation_code) or moderation_ref != old(moderation_ref) or deletion_ref != old(deletion_ref)) => checkpoint == old(checkpoint) + 1
+  }
+
+  invariant InactiveReasonHasNoDetails {
+    (not moderation => (moderation_code == 0 and moderation_ref == 0)) and
+    (not deletion => deletion_ref == 0)
   }
 
   invariant CapturedCheckpointNeverInFuture { captured <= checkpoint }
