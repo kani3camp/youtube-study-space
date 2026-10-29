@@ -1,12 +1,17 @@
 """Contracts for the unified GCP infrastructure manual operation."""
 import unittest
 
-from test_ci_workflows import (
-    ROOT,
-    load,
-    AUTH_SECRETS,
-    FOUNDATION_SECRETS,
-)
+from test_ci_workflows import ROOT, load
+
+AUTH_SECRETS = ('GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', 'GCP_TERRAFORM_NORMAL_WIF_PROVIDER',
+                'AWS_TERRAFORM_BACKEND_ROLE_ARN', 'AWS_TERRAFORM_BACKEND_ROLE_ID',
+                'AWS_TERRAFORM_STATE_BUCKET', 'AWS_TERRAFORM_STATE_ACCOUNT_ID',
+                'GCP_TERRAFORM_WIF_PROVIDER', 'GCP_TERRAFORM_SERVICE_ACCOUNT',
+                'GCP_TERRAFORM_MANAGED_INPUTS_JSON')
+FOUNDATION_SECRETS = ('MYPAGE_STATE_BUCKET', 'MYPAGE_STATE_ACCOUNT', 'MYPAGE_BACKEND_ROLE_ARN',
+                      'MYPAGE_BACKEND_ROLE_ID', 'MYPAGE_GCP_WIF_PROVIDER',
+                      'MYPAGE_GCP_SERVICE_ACCOUNT', 'MYPAGE_PLAN_HMAC_KEY',
+                      'MYPAGE_RUNTIME_SETTINGS_JSON')
 
 
 class GcpInfrastructureWorkflowTest(unittest.TestCase):

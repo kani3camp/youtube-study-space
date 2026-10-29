@@ -16,14 +16,14 @@ source-onlyの[Privacy request intake](privacy-intake.md)はdefault offで、受
 - seconds を合計し、表示時だけ分に切り捨てる。取得障害・不完全履歴・矛盾は正常な0に置き換えない。
 - account metadata と作業統計の部分障害を分離し、raw ID / credentials / DB path を response・log に載せない。
 
-契約検証:
+実装・wire型の検証（repository rootから実行）:
 
 ```sh
-python -m pip install -r docs/mypage/contract-requirements.txt
-python .github/scripts/check-mypage-contract.py
+(cd system && go test -shuffle=on ./core/mypage)
+(cd mypage && pnpm test)
 ```
 
-Frontend と backend は独立して検証する。provisioning / production deployment はこの契約検証に含まない。
+Goのwire型・HTTP境界とFrontendの実装は各packageのテストで独立して検証する。provisioning / production deployment は含まない。
 
 構成・公開段階・実環境の確認事項は [release runbook](release/README.md) を参照する。
 

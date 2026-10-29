@@ -77,7 +77,6 @@ publicPolicy入力は一般問い合わせとPrivacy請求を分ける。形式�
 
 ```sh
 # root
-python3 .github/scripts/check-mypage-contract.py
 python3 .github/scripts/check-doc-references.py
 node mypage/scripts/check-release-config.mjs --file docs/mypage/release/public-config.example.json
 ```
@@ -101,7 +100,7 @@ pnpm build
 
 Go変更の必須checksは[AGENTS.md](../../../AGENTS.md)。生成後の意図しない差分0を確認する。Firestore依存のacceptanceは[既存Emulator script](../../../.github/scripts/run-firestore-integration-tests.sh)をrootから実行する（demo project、real credentialを渡さない）。
 
-browserはlocal Viteをport18081で起動し、[runtime](../../../mypage/scripts/runtime-qa.py)・[privacy](../../../mypage/scripts/privacy-qa.py)・[visual](../../../mypage/scripts/visual-qa.py)・[font](../../../mypage/scripts/font-qa.py)を使う。各scriptは外部requestを遮断する。実bfcacheは[専用static build](../../../mypage/scripts/bfcache.vite.config.ts)と[既存QA](../../../mypage/scripts/bfcache-qa.py)を使い、dev HMRを証拠にしない。設定済みpublic文面は専用testとbrowserで匿名到達/安全なlinkを確認する。実ユーザー画面をpublic QA artifactへ保存しない。
+状態遷移は[runtime test](../../../mypage/src/runtime.test.ts)・[privacy test](../../../mypage/src/privacy.test.ts)で検証する。browserはlocal Viteをport18081で起動し、[visual entrypoint](../../../mypage/src/visual.tsx)・[font QA](../../../mypage/scripts/font-qa.py)を使う。設定済みpublic文面は専用testと実browserで匿名到達/安全なlinkを確認する。実ユーザー画面をpublic QA artifactへ保存しない。
 
 ### DEV HostingをCIで配備する
 

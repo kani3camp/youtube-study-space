@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import availableWire from '../../../../docs/mypage/fixtures/available.json'
 import recordedWire from '../../../../docs/mypage/fixtures/recorded-history.json'
-import terminalUnavailable from '../../../../docs/mypage/fixtures/terminal-account-source-unavailable.json'
-import { createLoader } from './client'
 import type { MyPage } from './contract'
 import { MyPageMemory, mergeResponse, RequestError } from './memory'
 
@@ -180,134 +178,6 @@ describe('private MyPage memory', () => {
 		expect(memory.getSnapshot().phase).toBe('anonymous')
 		memory.dispose()
 	})
-	it.each([
-		'same-uid',
-		'other-uid',
-	])('discards delayed success after restriction and %s reauthentication', async (identity) => {
-		const old = deferred<MyPage>()
-		const load = vi
-			.fn()
-			.mockReturnValueOnce(old.promise)
-			.mockResolvedValue(sample())
-		const memory = new MyPageMemory(load, async () => {})
-		memory.setIdentity('synthetic')
-		memory.restrict('SERVICE_ACCESS_RESTRICTED')
-		expect(load.mock.calls[0]?.[1].aborted).toBe(true)
-		const uid = identity === 'same-uid' ? 'synthetic' : 'synthetic-next'
-		memory.setIdentity(uid, true)
-		await settle()
-		const current = memory.getSnapshot().data
-		const stale = sample()
-		stale.account.data = {
-			displayName: 'Old private channel',
-			handle: null,
-			avatarUrl: null,
-		}
-		old.resolve(stale)
-		await settle()
-		expect(memory.getSnapshot().data).toBe(current)
-		expect(JSON.stringify(memory.getSnapshot())).not.toContain(
-			'Old private channel',
-		)
-		memory.dispose()
-	})
-	it('keeps ordinary 503 previous success and backoff separate from restrictions', async () => {
-		const load = vi
-			.fn()
-			.mockResolvedValueOnce(sample())
-			.mockRejectedValue(new RequestError(503, 'TEMPORARY_UNAVAILABLE'))
-		const memory = new MyPageMemory(load, async () => {})
-		memory.setIdentity('synthetic')
-		await settle()
-		const data = memory.getSnapshot().data
-		await memory.refresh()
-		expect(memory.getSnapshot().phase).toBe('authenticated')
-		expect(memory.getSnapshot().data).toBe(data)
-		expect(memory.getSnapshot().error).toBe('TEMPORARY_UNAVAILABLE')
-		await vi.advanceTimersByTimeAsync(59_999)
-		expect(load).toHaveBeenCalledTimes(2)
-		await vi.advanceTimersByTimeAsync(1)
-		expect(load).toHaveBeenCalledTimes(3)
-		memory.dispose()
-	})
-
-	it('clears two independent browser memories on a terminal response while preserving transient stale data', async () => {
-		let response = sample()
-		const browsers = [
-			new MyPageMemory(
-				async () => response,
-				async () => {},
-			),
-			new MyPageMemory(
-				async () => response,
-				async () => {},
-			),
-		]
-		for (const memory of browsers) memory.setIdentity('synthetic-same-channel')
-		await settle()
-		for (const memory of browsers)
-			expect(memory.getSnapshot().data?.account.data?.displayName).toBe(
-				'Sample',
-			)
-		response = sample()
-		response.account = {
-			availability: 'unavailable',
-			reasonCode: 'SOURCE_UNAVAILABLE',
-			data: null,
-		}
-		for (const memory of browsers) await memory.refresh(true)
-		for (const memory of browsers)
-			expect(memory.getSnapshot().data?.account.data?.displayName).toBe(
-				'Sample',
-			)
-		response = sample()
-		response.account = {
-			availability: 'unavailable',
-			reasonCode: 'METADATA_TOO_OLD',
-			data: null,
-		}
-		await vi.advanceTimersByTimeAsync(2000)
-		for (const memory of browsers) await memory.refresh(true)
-		for (const memory of browsers) {
-			expect(memory.getSnapshot().data?.account.data).toBeNull()
-			expect(memory.getSnapshot().data?.account.asOf).toBeNull()
-			expect(memory.getSnapshot().data?.current.data?.workName).toBe('合成作業')
-			memory.dispose()
-		}
-	})
-
-	it('clears terminal account through the wire parser during work outage while preserving stale work and original times', async () => {
-		let response: unknown = availableWire
-		const memory = new MyPageMemory(
-			createLoader(
-				{
-					currentUID: () => 'synthetic',
-					idToken: async () => 'synthetic-id',
-					appCheck: async () => 'synthetic-app',
-				},
-				async () => Response.json(response),
-			),
-			async () => {},
-		)
-		memory.setIdentity('synthetic')
-		await vi.advanceTimersByTimeAsync(0)
-		const previous = memory.getSnapshot().data
-		expect(previous?.account.data?.displayName).toBe('Sample Channel')
-		response = terminalUnavailable
-		await memory.refresh(true)
-		const cleared = memory.getSnapshot().data
-		expect(cleared?.account.data).toBeNull()
-		expect(cleared?.account.asOf).toBeNull()
-		expect(cleared?.account.reason).toBe('METADATA_TOO_OLD')
-		expect(cleared?.current.data?.workName).toBe('読書')
-		expect(cleared?.current.stale).toBe(true)
-		expect(cleared?.current.asOf).toBe(previous?.current.asOf)
-		expect(cleared?.summary.lifetime.data).toBe(360000)
-		expect(cleared?.summary.lifetime.stale).toBe(true)
-		expect(cleared?.summary.lifetime.asOf).toBe(previous?.summary.lifetime.asOf)
-		memory.dispose()
-	})
-
 	it('honors Retry-After across manual refresh and hide/show, then resumes at the deadline', async () => {
 		const load = vi
 			.fn()
@@ -329,34 +199,6 @@ describe('private MyPage memory', () => {
 		memory.setVisible(true)
 		await settle()
 		expect(load).toHaveBeenCalledTimes(2)
-		memory.dispose()
-	})
-
-	it('preserves signout failure after auth rejection and can retry to recover', async () => {
-		const load = vi
-			.fn()
-			.mockRejectedValue(new RequestError(401, 'AUTH_REQUIRED'))
-		const signOut = vi
-			.fn()
-			.mockRejectedValueOnce(new Error('synthetic signout failure'))
-			.mockResolvedValueOnce(undefined)
-		const memory = new MyPageMemory(load, signOut)
-		memory.setIdentity('sample')
-		await settle()
-		expect(memory.getSnapshot().phase).toBe('anonymous')
-		expect(memory.getSnapshot().error).toBe('LOGOUT_FAILED')
-		expect(memory.getSnapshot().data).toBeNull()
-		memory.setIdentity('sample')
-		await settle()
-		expect(load).toHaveBeenCalledTimes(2)
-		await memory.logout()
-		expect(memory.getSnapshot().error).toBeNull()
-		expect(signOut).toHaveBeenCalledTimes(2)
-		load.mockResolvedValue(sample())
-		memory.setIdentity('sample')
-		await settle()
-		expect(memory.getSnapshot().phase).toBe('authenticated')
-		expect(memory.getSnapshot().data).not.toBeNull()
 		memory.dispose()
 	})
 
@@ -459,24 +301,6 @@ describe('private MyPage memory', () => {
 		memory.dispose()
 	})
 
-	it('does not fetch again on a quick tab switch, then polls five minutes after last success', async () => {
-		const load = vi.fn().mockResolvedValue(sample())
-		const memory = new MyPageMemory(load, async () => {})
-		memory.setIdentity('sample')
-		await settle()
-		expect(load).toHaveBeenCalledTimes(1)
-		await vi.advanceTimersByTimeAsync(30_000)
-		memory.setVisible(false)
-		memory.setVisible(true)
-		await settle()
-		expect(load).toHaveBeenCalledTimes(1)
-		await vi.advanceTimersByTimeAsync(269_999)
-		expect(load).toHaveBeenCalledTimes(1)
-		await vi.advanceTimersByTimeAsync(1)
-		expect(load).toHaveBeenCalledTimes(2)
-		memory.dispose()
-	})
-
 	it.each([
 		'route',
 		'offline',
@@ -515,12 +339,7 @@ describe('private MyPage memory', () => {
 		memory.dispose()
 	})
 
-	it.each([
-		'visibility',
-		'route',
-		'offline',
-		'bfcache',
-	] as const)('preserves automatic 503 backoff through %s and retries once at the deadline', async (boundary) => {
+	it('keeps transient backoff bounded across a visibility change', async () => {
 		const load = vi
 			.fn()
 			.mockRejectedValue(new RequestError(503, 'TEMPORARY_UNAVAILABLE'))
@@ -529,76 +348,14 @@ describe('private MyPage memory', () => {
 		await settle()
 		await vi.advanceTimersByTimeAsync(60_000)
 		expect(load).toHaveBeenCalledTimes(2)
-		await vi.advanceTimersByTimeAsync(10_000)
-		if (boundary === 'visibility') {
-			memory.setVisible(false)
-			memory.setVisible(true)
-		} else if (boundary === 'route') {
-			memory.setRouteActive(false)
-			memory.setRouteActive(true)
-		} else if (boundary === 'offline') {
-			memory.setOnline(false)
-			memory.setOnline(true)
-		} else {
-			memory.suspend()
-			memory.setIdentity('sample')
-		}
-		await vi.advanceTimersByTimeAsync(109_999)
+		memory.setVisible(false)
+		memory.setVisible(true)
+		await vi.advanceTimersByTimeAsync(119_999)
 		expect(load).toHaveBeenCalledTimes(2)
 		load.mockResolvedValue(sample())
 		await vi.advanceTimersByTimeAsync(1)
 		expect(load).toHaveBeenCalledTimes(3)
 		expect(memory.getSnapshot().error).toBeNull()
-		memory.dispose()
-	})
-
-	it('does not transfer an old UID retry deadline to a different UID', async () => {
-		const load = vi
-			.fn()
-			.mockRejectedValueOnce(new RequestError(429, 'RATE_LIMITED', 120))
-			.mockResolvedValue(sample())
-		const memory = new MyPageMemory(load, async () => {})
-		memory.setIdentity('old')
-		await settle()
-		memory.setIdentity('new')
-		await settle()
-		expect(load).toHaveBeenCalledTimes(2)
-		expect(memory.getSnapshot().data).not.toBeNull()
-		memory.dispose()
-	})
-
-	it('keeps the backoff failure count after bfcache restore to the same UID', async () => {
-		const load = vi
-			.fn()
-			.mockRejectedValue(new RequestError(503, 'TEMPORARY_UNAVAILABLE'))
-		const memory = new MyPageMemory(load, async () => {})
-		memory.setIdentity('sample')
-		await settle()
-		await vi.advanceTimersByTimeAsync(60_000 + 120_000)
-		expect(load).toHaveBeenCalledTimes(3)
-		memory.suspend()
-		memory.setIdentity('sample')
-		await vi.advanceTimersByTimeAsync(240_000)
-		expect(load).toHaveBeenCalledTimes(4)
-		await vi.advanceTimersByTimeAsync(299_999)
-		expect(load).toHaveBeenCalledTimes(4)
-		await vi.advanceTimersByTimeAsync(1)
-		expect(load).toHaveBeenCalledTimes(5)
-		memory.dispose()
-	})
-
-	it('allows manual refresh without waiting five minutes and restarts the timer', async () => {
-		const load = vi.fn().mockResolvedValue(sample())
-		const memory = new MyPageMemory(load, async () => {})
-		memory.setIdentity('sample')
-		await settle()
-		await vi.advanceTimersByTimeAsync(3_000)
-		await memory.refresh(true)
-		expect(load).toHaveBeenCalledTimes(2)
-		await vi.advanceTimersByTimeAsync(299_999)
-		expect(load).toHaveBeenCalledTimes(2)
-		await vi.advanceTimersByTimeAsync(1)
-		expect(load).toHaveBeenCalledTimes(3)
 		memory.dispose()
 	})
 

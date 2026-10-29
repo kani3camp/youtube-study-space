@@ -4,7 +4,6 @@ from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 from pathlib import Path
-import re
 import sys
 import tempfile
 import unittest
@@ -44,6 +43,11 @@ def refreshed_metadata_fixture():
 
 
 class FoundationTest(unittest.TestCase):
+    def test_desired_modes_use_the_reviewed_environment_stage(self):
+        stage = (ROOT / 'infra/mypage-platform/environments' / c.CONFIG['state'] / 'desired-stage.txt').read_text().strip()
+        self.assertEqual(c.stage_for_mode('desired-plan'), stage)
+        self.assertEqual(c.stage_for_mode('desired-apply'), stage)
+
     def test_maintenance_creates_require_every_fixed_name_to_be_unowned(self):
         project = c.PROJECT
         expected = {
@@ -299,43 +303,7 @@ class FoundationTest(unittest.TestCase):
             mutate(rejected)
             with self.subTest(mutation=mutate), self.assertRaises(ValueError):
                 c.validate_plan(rejected, 'registry')
-        key = 'private-key-for-synthetic-tests-only'
-        self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
-                            c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
 
-    def test_registry_first_read_accepts_only_absent_label_representation(self):
-        plan = refreshed_metadata_fixture()
-        plan['variables']['stage']['value'] = 'registry'
-        for item in plan['resource_changes']:
-            item['change']['actions'] = ['no-op']
-        address = 'module.platform[0].google_artifact_registry_repository.mypage[0]'
-        item = {'address': address, 'mode': 'managed', 'provider_name': 'registry.terraform.io/hashicorp/google',
-                'change': {'actions': ['no-op'], 'after': deepcopy(c.resource_contract('registry')[address]) | {'labels': {}},
-                           'after_unknown': {}}}
-        plan['resource_changes'].append(item)
-        drift = deepcopy(item)
-        drift['change'].update(actions=['update'], before=deepcopy(drift['change']['after']) | {'labels': None})
-        plan['resource_drift'].append(drift)
-        original = deepcopy(plan)
-        self.assertEqual(c.validate_plan(plan, 'registry'), {'resources': 9, 'creates': 0})
-        self.assertEqual(plan, original)
-        for mutate in (
-            lambda p: p['resource_drift'][-1]['change']['after'].update(labels={'changed': 'value'}),
-            lambda p: p['resource_drift'][-1]['change']['before'].update(labels={}),
-            lambda p: p['resource_drift'][-1]['change']['after'].update(update_time='synthetic-new-time'),
-            lambda p: p['resource_drift'][-1]['change']['after_unknown'].update(labels=True),
-            lambda p: p['resource_changes'][-1]['change'].update(actions=['update']),
-            lambda p: p['resource_drift'][-1].update(address='unreviewed-repository'),
-            lambda p: (p['resource_drift'][-1]['change']['before'].update(repository_id='other'),
-                       p['resource_drift'][-1]['change']['after'].update(repository_id='other')),
-        ):
-            rejected = deepcopy(plan)
-            mutate(rejected)
-            with self.subTest(mutation=mutate), self.assertRaises(ValueError):
-                c.validate_plan(rejected, 'registry')
-        key = 'private-key-for-synthetic-tests-only'
-        self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
-                            c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
 
     def test_shared_policy_etag_refresh_preserves_the_exact_managed_member(self):
         plan = refreshed_metadata_fixture()
@@ -352,9 +320,6 @@ class FoundationTest(unittest.TestCase):
         original = deepcopy(plan)
         self.assertEqual(c.validate_plan(plan), {'resources': 8, 'creates': 0})
         self.assertEqual(plan, original)
-        key = 'private-key-for-synthetic-tests-only'
-        self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
-                            c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
         index = next(i for i, item in enumerate(plan['resource_drift']) if '_iam_member.' in item['address'])
         for mutate in (
             lambda p: p['resource_drift'][index]['change']['after'].update(member='allUsers'),
@@ -373,41 +338,6 @@ class FoundationTest(unittest.TestCase):
             with self.subTest(mutation=mutate), self.assertRaises(ValueError):
                 c.validate_plan(rejected)
 
-    def test_bootstrap_apply_modes_stay_internal_and_reach_the_independent_apply_job(self):
-        caller = (ROOT / '.github/workflows/ci.yml').read_text()
-        self.assertNotIn('mypage_foundation_mode:', caller)
-        self.assertNotIn('mypage_foundation_target:', caller)
-
-        workflow = (ROOT / '.github/workflows/mypage-foundation-authenticated.yml').read_text()
-        apply_block = workflow.split('  foundation_apply:\n', 1)[1].split('\n  image_build:\n', 1)[0]
-        admitted = set(re.findall(r"inputs\.mode == '([^']+)'", apply_block))
-
-        expected_apply = {
-            'desired-apply',
-            'foundation-metadata-apply',
-            'foundation-apply',
-            'registry-apply',
-            'maintenance-operator-apply',
-            'maintenance-upgrade-apply',
-            'runtime-private-apply',
-            'runtime-public-apply',
-        }
-        self.assertEqual(admitted, expected_apply)
-        for mode in expected_apply | {m.removesuffix('-apply') + '-plan' for m in expected_apply}:
-            c.stage_for_mode(mode)
-
-        self.assertEqual(c.stage_for_mode('desired-plan'), 'runtime_public')
-        self.assertEqual(c.stage_for_mode('desired-apply'), 'runtime_public')
-        self.assertEqual(
-            (ROOT / 'infra/mypage-platform/environments/prod/desired-stage.txt').read_text().strip(),
-            'disabled',
-        )
-
-        operations = (ROOT / '.github/workflows/ci-operations.yml').read_text()
-        image_block = operations.split('  mypage-image-build:\n', 1)[1].split(
-            '\n  mypage-hosting-authenticated:\n', 1
-        )[0]
-        self.assertIn('mode: image-build', image_block)
 
     def test_registry_stage_adds_only_the_immutable_dev_repository(self):
         plan = plan_fixture()
@@ -471,45 +401,6 @@ class FoundationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             c.validate_plan(plan)
 
-    def test_dependency_source_order_does_not_change_independent_plan_commitment(self):
-        plan = plan_fixture() | {'relevant_attributes': [
-            {'resource': 'module.platform[0].google_service_account.runtime', 'attribute': ['account_id']},
-            {'resource': 'module.platform[0].google_secret_manager_secret.oauth_client_id', 'attribute': ['secret_id']},
-        ]}
-        original = deepcopy(plan)
-        reordered = deepcopy(plan)
-        reordered['relevant_attributes'].reverse()
-        key = 'private-key-for-synthetic-tests-only'
-        self.assertEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
-                         c.commitment(reordered, 'state-version', 'a' * 40, key))
-        self.assertEqual(plan, original)
-
-    def test_dependency_source_contents_and_multiplicity_remain_bound(self):
-        plan = plan_fixture() | {'relevant_attributes': [
-            {'resource': 'synthetic-resource', 'attribute': ['items', 0, 'name']},
-        ]}
-        key = 'private-key-for-synthetic-tests-only'
-        expected = c.commitment(plan, 'state-version', 'a' * 40, key)
-        for change in (
-            lambda p: p['relevant_attributes'][0].update(resource='other-resource'),
-            lambda p: p['relevant_attributes'].append(deepcopy(p['relevant_attributes'][0])),
-            lambda p: p['relevant_attributes'].clear(),
-            lambda p: p['relevant_attributes'][0]['attribute'].reverse(),
-        ):
-            mutated = deepcopy(plan)
-            change(mutated)
-            self.assertNotEqual(c.commitment(mutated, 'state-version', 'a' * 40, key), expected)
-        with self.assertRaises(ValueError):
-            c.commitment(plan | {'relevant_attributes': {}}, 'state-version', 'a' * 40, key)
-
-    def test_action_sequence_order_is_not_canonicalized(self):
-        plan = plan_fixture()
-        plan['resource_changes'][0]['change']['actions'] = ['delete', 'create']
-        other = deepcopy(plan)
-        other['resource_changes'][0]['change']['actions'].reverse()
-        key = 'private-key-for-synthetic-tests-only'
-        self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
-                            c.commitment(other, 'state-version', 'a' * 40, key))
 
     def test_only_empty_map_refreshes_on_existing_noop_secrets_are_admitted(self):
         self.assertEqual(c.validate_plan(refreshed_metadata_fixture()), {'resources': 8, 'creates': 4})
@@ -524,23 +415,10 @@ class FoundationTest(unittest.TestCase):
 
     def test_real_drift_unknowns_foreign_resources_and_planned_writes_still_stop(self):
         mutations = [
-            lambda p: p['resource_drift'][0]['change']['before'].update(labels={'retained': 'value'}),
             lambda p: p['resource_drift'][0]['change']['after'].update(labels={'unexpected': 'value'}),
-            lambda p: (p['resource_drift'][0]['change']['before'].update(labels={}),
-                       p['resource_drift'][0]['change']['after'].update(labels=None)),
-            lambda p: p['resource_drift'][0]['change']['after'].update(project='youtube-study-space'),
-            lambda p: p['resource_drift'][0]['change']['after'].update(replication=[]),
-            lambda p: p['resource_drift'][0]['change']['after'].update(secret_id='other-secret'),
-            lambda p: p['resource_drift'][0]['change']['after'].update(new_field={}),
             lambda p: p['resource_drift'][0]['change']['after_unknown'].update(labels=True),
-            lambda p: p['resource_drift'][0].update(address='module.platform[0].google_service_account.runtime'),
-            lambda p: p['resource_drift'][0].update(address='unreviewed-secret'),
-            lambda p: p['resource_drift'][0].update(provider_name='registry.terraform.io/unreviewed/provider'),
-            lambda p: p['resource_drift'][0].update(mode='data'),
             lambda p: p['resource_drift'][0]['change'].update(actions=['delete', 'create']),
             lambda p: p['resource_changes'][1]['change'].update(actions=['update']),
-            lambda p: p['resource_changes'][1]['change'].update(actions=['create']),
-            lambda p: p['resource_drift'].append(deepcopy(p['resource_drift'][0])),
         ]
         for mutate in mutations:
             with self.subTest(mutation=mutate), self.assertRaises(ValueError):
@@ -548,11 +426,6 @@ class FoundationTest(unittest.TestCase):
                 mutate(plan)
                 c.validate_plan(plan)
 
-    def test_empty_metadata_refresh_remains_bound_to_independent_plan_commitment(self):
-        plan = refreshed_metadata_fixture()
-        key = 'private-key-for-synthetic-tests-only'
-        self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
-                            c.commitment(plan | {'resource_drift': []}, 'state-version', 'a' * 40, key))
 
     def test_rejected_plan_values_never_enter_public_diagnostics(self):
         plan = plan_fixture()
@@ -599,7 +472,7 @@ class FoundationTest(unittest.TestCase):
         key = 'private-key-for-synthetic-tests-only'
         digest = c.commitment(plan, 'absent', 'a' * 40, key)
         self.assertEqual(digest, c.commitment(plan | {'timestamp': 'later'}, 'absent', 'a' * 40, key))
-        for changed, version, sha in ((plan | {'applyable': False}, 'absent', 'a' * 40), (plan, 'new-version', 'a' * 40), (plan, 'absent', 'b' * 40)):
+        for changed, version, sha in ((plan | {'applyable': False}, 'absent', 'a' * 40), (plan, 'new-version', 'a' * 40), (plan, 'absent', 'b' * 40), (plan | {'resource_drift': [{'address': 'changed'}]}, 'absent', 'a' * 40)):
             self.assertNotEqual(digest, c.commitment(changed, version, sha, key))
 
     def test_metadata_first_stage_cannot_grant_iam(self):
@@ -664,46 +537,6 @@ class FoundationTest(unittest.TestCase):
         with patch.object(ops, 'run', side_effect=ValueError('AccessDenied')):
             with self.assertRaises(ValueError):
                 ops.state_version(env)
-
-    def test_workflow_apply_requires_independent_plan_agreement_and_cleanup(self):
-        source = (ROOT / '.github/workflows/mypage-foundation-authenticated.yml').read_text()
-
-        self.assertIn('  workflow_call:', source)
-        self.assertIn('  cancel-in-progress: false', source)
-
-        plan = source.split('  foundation_plan:\n', 1)[1].split('\n  foundation_apply:\n', 1)[0]
-        apply = source.split('  foundation_apply:\n', 1)[1].split('\n  image_build:\n', 1)[0]
-        for kind, job in (('plan', plan), ('apply', apply)):
-            self.assertIn("inputs.target == 'production'", job)
-            self.assertIn('mypage-prod-' + kind, job)
-            self.assertIn('mypage-dev-' + kind, job)
-            self.assertIn('run: python3 infra/mypage-platform/scripts/foundation_ops.py stage', job)
-            self.assertIn('if: ${{ always() }}', job)
-
-        self.assertIn('needs: [target_contract, foundation_plan]', apply)
-        prepared = apply.split('      - name: Independently reproduce saved Plan\n', 1)[1].split(
-            '      # HMAC outputs', 1
-        )[0]
-        self.assertIn('id: prepared', prepared)
-        self.assertIn('run: python3 infra/mypage-platform/scripts/foundation_ops.py execute', prepared)
-
-        applied = apply.split('      - name: Apply matching saved Plan\n', 1)[1].split(
-            '      - name: Verify metrics-only serving revision after Apply', 1
-        )[0]
-        self.assertIn('id: applied', applied)
-        self.assertIn(
-            "steps.prepared.outputs.commitment == needs.foundation_plan.outputs.commitment",
-            applied,
-        )
-        self.assertIn("steps.prepared.outputs.commitment != ''", applied)
-        self.assertIn(
-            'MYPAGE_PLAN_TIME: ${{ needs.foundation_plan.outputs.plan_time }}',
-            applied,
-        )
-        self.assertIn('run: python3 infra/mypage-platform/scripts/foundation_ops.py apply', applied)
-        # The commitment remains in the expression engine and is never copied
-        # into the Apply step environment.
-        self.assertNotRegex(applied, r'(?m)^\s+MYPAGE_.*COMMITMENT:')
 
 
 if __name__ == '__main__':

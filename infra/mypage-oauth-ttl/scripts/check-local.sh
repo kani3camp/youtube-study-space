@@ -2,7 +2,6 @@
 set -euo pipefail
 
 layer_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-repo_dir="$(cd -- "$layer_dir/../.." && pwd)"
 check_tmp="$(mktemp -d)"
 trap 'rm -rf -- "$check_tmp"' EXIT
 unset TF_LOG TF_LOG_PATH
@@ -24,5 +23,4 @@ for environment in dev prod; do
   python3 "$layer_dir/scripts/check_mock_plans.py" "$check_tmp/$environment-tests.jsonl" \
     "$root_dir/target.example.json"
 done
-cd "$repo_dir"
 echo "MyPage OAuth TTL: credentialless Terraform validation passed."

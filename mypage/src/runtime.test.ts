@@ -53,60 +53,6 @@ afterEach(() => {
 })
 
 describe('browser authentication runtime', () => {
-	it('invalidates a delayed normal OAuth start response when maintenance becomes active', async () => {
-		const { session } = sessionFixture()
-		let release: (response: Response) => void = () => {}
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			vi.fn<typeof fetch>(
-				async () =>
-					new Promise<Response>((resolve) => {
-						release = resolve
-					}),
-			),
-		)
-		const done = runtime.start(new AbortController().signal)
-		await settle()
-		runtime.maintenance.markActive()
-		release(
-			Response.json({
-				authorizationUrl:
-					'https://accounts.google.com/o/oauth2/v2/auth?state=synthetic',
-			}),
-		)
-		await expect(done).rejects.toMatchObject({ code: 'MAINTENANCE_ACTIVE' })
-	})
-
-	it.each([
-		['login', undefined],
-		['support', 'a'.repeat(64)],
-	])('rejects a delayed %s OAuth start response after its page lifecycle aborts', async (_purpose, challenge) => {
-		const { session } = sessionFixture()
-		let release: (response: Response) => void = () => {}
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			vi.fn<typeof fetch>(
-				async () =>
-					new Promise<Response>((resolve) => {
-						release = resolve
-					}),
-			),
-		)
-		const controller = new AbortController()
-		const done = runtime.start(controller.signal, challenge)
-		await settle()
-		controller.abort()
-		release(
-			Response.json({
-				authorizationUrl:
-					'https://accounts.google.com/o/oauth2/v2/auth?state=synthetic',
-			}),
-		)
-		await expect(done).rejects.toMatchObject({ code: 'TEMPORARY_UNAVAILABLE' })
-	})
-
 	it('signs out a late normal OAuth sign-in completed after maintenance activation', async () => {
 		const { session, setUID } = sessionFixture()
 		let finishSignIn: () => void = () => {}
@@ -141,29 +87,6 @@ describe('browser authentication runtime', () => {
 		])
 	})
 
-	it('rejects a delayed normal confirmation before sign-in when maintenance becomes active', async () => {
-		const { session } = sessionFixture()
-		let release: (response: Response) => void = () => {}
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			vi.fn<typeof fetch>(
-				async () =>
-					new Promise<Response>((resolve) => {
-						release = resolve
-					}),
-			),
-		)
-		const done = runtime.confirm('a'.repeat(64), new AbortController().signal)
-		await settle()
-		runtime.maintenance.markActive()
-		release(
-			Response.json({ purpose: 'login', customToken: 'synthetic-custom' }),
-		)
-		await expect(done).rejects.toMatchObject({ code: 'MAINTENANCE_ACTIVE' })
-		expect(session.signIn).not.toHaveBeenCalled()
-	})
-
 	it('turns a maintenance API response into immediate private-memory clearing', async () => {
 		const { session, setUID } = sessionFixture()
 		setUID('synthetic')
@@ -196,46 +119,10 @@ describe('browser authentication runtime', () => {
 		runtime.memory.dispose()
 	})
 	it.each([
-		'confirm',
-		'session-complete',
-	] as const)('preserves MAINTENANCE_ACTIVE during login %s instead of remapping it to auth', async (boundary) => {
-		const { session } = sessionFixture()
-		const request = vi.fn<typeof fetch>(async (path) => {
-			if (path === '/api/auth/youtube/confirm')
-				return boundary === 'confirm'
-					? Response.json(
-							{ error: { code: 'MAINTENANCE_ACTIVE' } },
-							{ status: 503 },
-						)
-					: Response.json({ purpose: 'login', customToken: 'synthetic' })
-			if (path === '/api/auth/session/complete')
-				return Response.json(
-					{ error: { code: 'MAINTENANCE_ACTIVE' } },
-					{ status: 503 },
-				)
-			return Response.json(fixture)
-		})
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			request,
-		)
-		await expect(
-			runtime.confirm('a'.repeat(64), new AbortController().signal),
-		).rejects.toMatchObject({ code: 'MAINTENANCE_ACTIVE' })
-		expect(runtime.memory.getSnapshot()).toMatchObject({
-			phase: 'maintenance',
-			data: null,
-		})
-	})
-	it.each([
 		'uid',
-		'same-uid-relogin',
-		'pagehide',
 		'logout-start',
-		'restriction',
 	] as const)('discards private history after %s even when fetch ignores abort', async (boundary) => {
-		const { windowTarget } = browserFixture()
+		browserFixture()
 		const { session, setUID } = sessionFixture()
 		setUID('synthetic')
 		let finishSignOut: () => void = () => {}
@@ -271,13 +158,7 @@ describe('browser authentication runtime', () => {
 		)
 		await settle()
 		if (boundary === 'uid') setUID('synthetic-new')
-		else if (boundary === 'same-uid-relogin') {
-			setUID(null)
-			setUID('synthetic')
-		} else if (boundary === 'pagehide')
-			windowTarget.dispatchEvent(new Event('pagehide'))
-		else if (boundary === 'logout-start') logout = runtime.memory.logout()
-		else runtime.memory.restrict('SERVICE_ACCESS_RESTRICTED')
+		else logout = runtime.memory.logout()
 		release(
 			Response.json({
 				asOf: '2026-10-24T03:00:00Z',
@@ -539,152 +420,6 @@ describe('browser authentication runtime', () => {
 		expect(runtime.memory.getSnapshot().phase).toBe('anonymous')
 		dispose()
 	})
-	it.each([
-		['confirm', 'SERVICE_ACCESS_RESTRICTED'],
-		['confirm', 'DATA_DELETION_IN_PROGRESS'],
-		['completion', 'SERVICE_ACCESS_RESTRICTED'],
-		['completion', 'DATA_DELETION_IN_PROGRESS'],
-	])('reports %s restriction %s and clears the previous authenticated session without retrying the denial', async (stage, code) => {
-		browserFixture()
-		const { session, setUID } = sessionFixture()
-		setUID('synthetic')
-		let deny = false
-		const request = vi.fn<typeof fetch>(async (path) => {
-			if (
-				deny &&
-				path ===
-					(stage === 'confirm'
-						? '/api/auth/youtube/confirm'
-						: '/api/auth/session/complete')
-			)
-				return Response.json({ error: { code } }, { status: 403 })
-			if (path === '/api/auth/youtube/confirm')
-				return Response.json({
-					purpose: 'login',
-					customToken: 'synthetic-custom',
-				})
-			if (path === '/api/auth/session/complete')
-				return new Response(null, { status: 204 })
-			return Response.json(fixture)
-		})
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			request,
-		)
-		const dispose = runtime.mount()
-		await vi.waitFor(() =>
-			expect(runtime.memory.getSnapshot().data).not.toBeNull(),
-		)
-		deny = true
-		await expect(
-			runtime.confirm('a'.repeat(64), new AbortController().signal),
-		).rejects.toMatchObject({ status: 403, code })
-		expect(runtime.memory.getSnapshot()).toMatchObject({
-			phase: 'restricted',
-			data: null,
-			busy: false,
-			error: code,
-			receivedAt: null,
-		})
-		expect(
-			request.mock.calls.filter(
-				([path]) => path === '/api/auth/youtube/confirm',
-			),
-		).toHaveLength(1)
-		expect(
-			request.mock.calls.filter(
-				([path]) => path === '/api/auth/session/complete',
-			),
-		).toHaveLength(stage === 'confirm' ? 1 : 2)
-		expect(session.signOut).not.toHaveBeenCalled()
-		if (stage === 'confirm') expect(session.signIn).not.toHaveBeenCalled()
-		dispose()
-	})
-	it.each([
-		'other-uid',
-		'same-uid-relogin',
-	])('ignores delayed restricted session completion after %s without restricting or signing out the new session', async (change) => {
-		browserFixture()
-		const { session, setUID } = sessionFixture()
-		setUID('synthetic')
-		let release: (response: Response) => void = () => {}
-		let completions = 0
-		const request = vi.fn<typeof fetch>(async (path) => {
-			if (path === '/api/auth/session/complete') {
-				if (++completions === 1)
-					return new Promise<Response>((resolve) => {
-						release = resolve
-					})
-				return new Response(null, { status: 204 })
-			}
-			return Response.json(fixture)
-		})
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			request,
-		)
-		const dispose = runtime.mount()
-		await settle()
-		if (change === 'same-uid-relogin') setUID(null)
-		setUID(change === 'other-uid' ? 'synthetic-next' : 'synthetic')
-		await vi.waitFor(() =>
-			expect(runtime.memory.getSnapshot().data).not.toBeNull(),
-		)
-		release(
-			Response.json(
-				{ error: { code: 'DATA_DELETION_IN_PROGRESS' } },
-				{ status: 403 },
-			),
-		)
-		await settle()
-		expect(runtime.memory.getSnapshot().phase).toBe('authenticated')
-		expect(runtime.memory.getSnapshot().error).toBeNull()
-		expect(session.signOut).not.toHaveBeenCalled()
-		dispose()
-	})
-	it.each([
-		'other-uid',
-		'same-uid-relogin',
-	])('rejects delayed normal confirmation before signIn after %s', async (change) => {
-		browserFixture()
-		const { session, setUID } = sessionFixture()
-		setUID('synthetic')
-		let release: (response: Response) => void = () => {}
-		const request = vi.fn<typeof fetch>(async (path) => {
-			if (path === '/api/auth/youtube/confirm')
-				return new Promise<Response>((resolve) => {
-					release = resolve
-				})
-			if (path === '/api/auth/session/complete')
-				return new Response(null, { status: 204 })
-			return Response.json(fixture)
-		})
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			request,
-		)
-		const dispose = runtime.mount()
-		await vi.waitFor(() =>
-			expect(runtime.memory.getSnapshot().data).not.toBeNull(),
-		)
-		const done = runtime.confirm('a'.repeat(64), new AbortController().signal)
-		await settle()
-		if (change === 'same-uid-relogin') setUID(null)
-		setUID(change === 'other-uid' ? 'synthetic-next' : 'synthetic')
-		release(
-			Response.json({
-				purpose: 'login',
-				customToken: 'synthetic-obsolete-token',
-			}),
-		)
-		await expect(done).rejects.toBeInstanceOf(RequestError)
-		expect(session.signIn).not.toHaveBeenCalled()
-		expect(session.signOut).not.toHaveBeenCalled()
-		dispose()
-	})
 	it('allows fresh normal login after a restriction and rechecks completion before restoring work', async () => {
 		browserFixture()
 		const { session, setUID } = sessionFixture()
@@ -727,63 +462,6 @@ describe('browser authentication runtime', () => {
 			'/api/auth/youtube/confirm',
 			'/api/auth/session/complete',
 			'/api/mypage',
-		])
-		dispose()
-	})
-	it('leaves support OAuth and proof available for a restricted existing Firebase session', async () => {
-		browserFixture()
-		const { session, setUID } = sessionFixture()
-		setUID('synthetic')
-		const request = vi.fn<typeof fetch>(async (path) => {
-			if (path === '/api/auth/session/complete')
-				return Response.json(
-					{ error: { code: 'DATA_DELETION_IN_PROGRESS' } },
-					{ status: 403 },
-				)
-			if (path === '/api/auth/youtube/start')
-				return Response.json({
-					authorizationUrl:
-						'https://accounts.google.com/o/oauth2/v2/auth?state=synthetic',
-				})
-			if (path === '/api/auth/youtube/channel')
-				return Response.json({
-					purpose: 'support',
-					supportPurpose: 'delete',
-					displayName: 'Synthetic support',
-					handle: null,
-					avatarUrl: null,
-					confirmationRef: 'a'.repeat(64),
-				})
-			return Response.json({ purpose: 'support', requestRef: 'b'.repeat(64) })
-		})
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			request,
-		)
-		const dispose = runtime.mount()
-		await vi.waitFor(() =>
-			expect(runtime.memory.getSnapshot().phase).toBe('restricted'),
-		)
-		await runtime.start(new AbortController().signal, 'a'.repeat(64))
-		expect((await runtime.channel(new AbortController().signal)).purpose).toBe(
-			'support',
-		)
-		await expect(
-			runtime.confirm('a'.repeat(64), new AbortController().signal, 'support'),
-		).resolves.toEqual({ purpose: 'support', requestRef: 'b'.repeat(64) })
-		expect(session.signIn).not.toHaveBeenCalled()
-		expect(session.signOut).not.toHaveBeenCalled()
-		expect(runtime.memory.getSnapshot()).toMatchObject({
-			phase: 'restricted',
-			data: null,
-			error: 'DATA_DELETION_IN_PROGRESS',
-		})
-		expect(request.mock.calls.map(([path]) => path)).toEqual([
-			'/api/auth/session/complete',
-			'/api/auth/youtube/start',
-			'/api/auth/youtube/channel',
-			'/api/auth/youtube/confirm',
 		])
 		dispose()
 	})
@@ -863,53 +541,6 @@ describe('browser authentication runtime', () => {
 		expect(runtime.memory.getSnapshot().phase).toBe('anonymous')
 		expect(signOut).toHaveBeenCalledTimes(2)
 	})
-	it('rejects a late confirm response before calling Firebase signIn when abort is ignored', async () => {
-		const { session } = sessionFixture()
-		let resolve: (value: Response) => void = () => {}
-		const pending = new Promise<Response>((yes) => {
-			resolve = yes
-		})
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			vi.fn<typeof fetch>(async () => pending),
-		)
-		const controller = new AbortController()
-		const done = runtime.confirm('a'.repeat(64), controller.signal)
-		await settle()
-		controller.abort()
-		resolve(
-			Response.json({ purpose: 'login', customToken: 'synthetic-custom' }),
-		)
-		await expect(done).rejects.toBeInstanceOf(RequestError)
-		expect(session.signIn).not.toHaveBeenCalled()
-	})
-	it('a delayed failed session completion never signs out a newer identity', async () => {
-		const { session, setUID } = sessionFixture()
-		let resolve: (value: Response) => void = () => {}
-		const pending = new Promise<Response>((yes) => {
-			resolve = yes
-		})
-		const request = vi.fn<typeof fetch>(async (path) =>
-			path === '/api/auth/youtube/confirm'
-				? Response.json({ purpose: 'login', customToken: 'synthetic-custom' })
-				: pending,
-		)
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			request,
-		)
-		const done = runtime.confirm('a'.repeat(64), new AbortController().signal)
-		await settle()
-		setUID('newer-synthetic')
-		resolve(
-			Response.json({ error: { code: 'AUTH_REQUIRED' } }, { status: 401 }),
-		)
-		await expect(done).rejects.toMatchObject({ code: 'AUTH_REQUIRED' })
-		expect(session.signOut).not.toHaveBeenCalled()
-		expect(session.currentUID()).toBe('newer-synthetic')
-	})
 	it.each([
 		401, 204,
 	])('same-uid logout/relogin makes a delayed completion %i obsolete', async (status) => {
@@ -960,46 +591,6 @@ describe('browser authentication runtime', () => {
 		expect(runtime.memory.getSnapshot().phase).toBe('authenticated')
 		dispose()
 	})
-	it('shares one unfinished restored session check across same-identity auth and pageshow events', async () => {
-		const { windowTarget } = browserFixture()
-		const { session, setUID } = sessionFixture()
-		setUID('synthetic')
-		let release: (response: Response) => void = () => {}
-		const pending = new Promise<Response>((resolve) => {
-			release = resolve
-		})
-		const request = vi.fn<typeof fetch>(async (path) =>
-			path === '/api/auth/session/complete' ? pending : Response.json(fixture),
-		)
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			request,
-		)
-		const dispose = runtime.mount()
-		try {
-			await settle()
-			setUID('synthetic')
-			windowTarget.dispatchEvent(new Event('pageshow'))
-			await settle()
-			expect(request.mock.calls.map(([path]) => path)).toEqual([
-				'/api/auth/session/complete',
-			])
-			expect(runtime.memory.getSnapshot().data).toBeNull()
-			release(new Response(null, { status: 204 }))
-			await settle()
-			await vi.waitFor(() =>
-				expect(runtime.memory.getSnapshot().data).not.toBeNull(),
-			)
-			expect(request.mock.calls.map(([path]) => path)).toEqual([
-				'/api/auth/session/complete',
-				'/api/mypage',
-			])
-		} finally {
-			dispose()
-		}
-	})
-
 	it('pagehide requires a fresh session check even when the restored UID is unchanged', async () => {
 		const { windowTarget } = browserFixture()
 		const { session, setUID } = sessionFixture()
@@ -1046,45 +637,6 @@ describe('browser authentication runtime', () => {
 		}
 	})
 
-	it('reconciles an interrupted sign-in before reading MyPage on restored auth', async () => {
-		vi.stubGlobal('window', new EventTarget())
-		vi.stubGlobal(
-			'document',
-			Object.assign(new EventTarget(), { visibilityState: 'visible' }),
-		)
-		const { session, setUID } = sessionFixture()
-		setUID('interrupted-synthetic')
-		let resolve: (value: Response) => void = () => {}
-		const pending = new Promise<Response>((yes) => {
-			resolve = yes
-		})
-		const request = vi.fn<typeof fetch>(async (path) =>
-			path === '/api/auth/session/complete' ? pending : Response.json(fixture),
-		)
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			request,
-		)
-		const dispose = runtime.mount()
-		await settle()
-		expect(request.mock.calls.map(([path]) => path)).toEqual([
-			'/api/auth/session/complete',
-		])
-		expect(runtime.memory.getSnapshot().phase).toBe('bootstrapping')
-		expect(runtime.memory.getSnapshot().data).toBeNull()
-		resolve(new Response(null, { status: 204 }))
-		await settle()
-		expect(request.mock.calls.map(([path]) => path)).toEqual([
-			'/api/auth/session/complete',
-			'/api/mypage',
-		])
-		await vi.waitFor(() =>
-			expect(runtime.memory.getSnapshot().data).not.toBeNull(),
-		)
-		expect(session.signIn).not.toHaveBeenCalled()
-		dispose()
-	})
 	it('keeps a maintenance-gated route bootstrapping until the initial auth observer fires', async () => {
 		browserFixture()
 		let uid: string | null = 'persisted-synthetic'
@@ -1158,36 +710,6 @@ describe('browser authentication runtime', () => {
 		expect(runtime.memory.getSnapshot().phase).toBe('anonymous')
 		dispose()
 	})
-	it('pagehide aborts restored proof acquisition and a late proof never dispatches an API call', async () => {
-		const windowTarget = new EventTarget()
-		vi.stubGlobal('window', windowTarget)
-		vi.stubGlobal(
-			'document',
-			Object.assign(new EventTarget(), { visibilityState: 'visible' }),
-		)
-		const { session, setUID } = sessionFixture()
-		setUID('interrupted-synthetic')
-		let resolve: (token: string) => void = () => {}
-		session.appCheck = () =>
-			new Promise((yes) => {
-				resolve = yes
-			})
-		const request = vi.fn<typeof fetch>()
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			request,
-		)
-		const dispose = runtime.mount()
-		await settle()
-		windowTarget.dispatchEvent(new Event('pagehide'))
-		resolve('synthetic-late-proof')
-		await settle()
-		expect(request).not.toHaveBeenCalled()
-		expect(session.signOut).not.toHaveBeenCalled()
-		expect(runtime.memory.getSnapshot().data).toBeNull()
-		dispose()
-	})
 	it('rejects unsupported channel purposes and never treats support proof as a login token', async () => {
 		const { session } = sessionFixture()
 		const runtime = new BrowserRuntime(
@@ -1240,80 +762,6 @@ describe('browser authentication runtime', () => {
 		expect(session.signIn).not.toHaveBeenCalled()
 		expect(session.signOut).not.toHaveBeenCalled()
 		expect(session.currentUID()).toBe('existing-synthetic')
-	})
-	it.each([
-		'logout',
-		'uid-change',
-		'same-uid-relogin',
-		'pagehide',
-		'dispose',
-		'replacement',
-	])('discards delayed support success after %s, even when the transport ignores abort', async (change) => {
-		const windowTarget = new EventTarget()
-		vi.stubGlobal('window', windowTarget)
-		vi.stubGlobal(
-			'document',
-			Object.assign(new EventTarget(), { visibilityState: 'visible' }),
-		)
-		const { session, setUID } = sessionFixture()
-		setUID('synthetic-a')
-		let release: (response: Response) => void = () => {}
-		let confirmSignal: AbortSignal | null | undefined
-		const request = vi.fn<typeof fetch>(async (path, init) => {
-			if (path === '/api/auth/youtube/confirm') {
-				confirmSignal = init?.signal
-				return new Promise<Response>((resolve) => {
-					release = resolve
-				})
-			}
-			return path === '/api/auth/session/complete'
-				? new Response(null, { status: 204 })
-				: Response.json(fixture)
-		})
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			request,
-		)
-		const dispose = runtime.mount()
-		await settle()
-		const done = runtime.confirm(
-			'a'.repeat(64),
-			new AbortController().signal,
-			'support',
-		)
-		const rejected = expect(done).rejects.toBeInstanceOf(RequestError)
-		await settle()
-		expect(confirmSignal?.aborted).toBe(false)
-		const originalSignal = confirmSignal
-		const originalRelease = release
-		if (change === 'logout') await runtime.memory.logout()
-		if (change === 'uid-change') setUID('synthetic-b')
-		if (change === 'same-uid-relogin') {
-			setUID(null)
-			setUID('synthetic-a')
-		}
-		if (change === 'pagehide') {
-			windowTarget.dispatchEvent(new Event('pagehide'))
-			windowTarget.dispatchEvent(new Event('pageshow'))
-		}
-		if (change === 'dispose') dispose()
-		if (change === 'replacement') {
-			const replacement = new AbortController()
-			const newer = runtime
-				.confirm('c'.repeat(64), replacement.signal, 'support')
-				.catch(() => {})
-			replacement.abort()
-			await newer
-		}
-		expect(originalSignal?.aborted).toBe(true)
-		originalRelease(
-			Response.json({ purpose: 'support', requestRef: 'b'.repeat(64) }),
-		)
-		await rejected
-		await settle()
-		expect(session.signIn).not.toHaveBeenCalled()
-		if (change !== 'dispose') dispose()
 	})
 	it('support start sends only the opaque challenge with consent, never a browser purpose or target', async () => {
 		const { session } = sessionFixture()

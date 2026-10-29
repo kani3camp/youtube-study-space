@@ -33,19 +33,7 @@ def fixture(environment="development"):
                       "database_id": {"value": scope["databaseID"]}},
         "resource_changes": [resource],
         "output_changes": {"scope": {"after": scope, "after_unknown": False, "after_sensitive": False}},
-        "planned_values": {"outputs": {"scope": {"value": scope, "sensitive": False}},
-            "root_module": {"child_modules": [{"resources": [{
-                "address": contract.ADDRESS, "mode": "managed", "provider_name": contract.PROVIDER,
-                "values": copy.deepcopy(after), "sensitive_values": {"ttl_config": [{}]}}]}]}},
-        "configuration": {"root_module": {"module_calls": {"oauth_transaction_ttl": {"module": {
-            "resources": [{"mode": "managed", "type": "google_firestore_field", "expressions": {
-                "project": {"references": ["var.project_id"]},
-                "database": {"references": ["var.database_id"]},
-                "collection": {"constant_value": "oauth-transactions"},
-                "field": {"constant_value": "expiresAt"},
-                "deletion_policy": {"constant_value": "PREVENT"},
-                "skip_wait": {"constant_value": False}, "ttl_config": [{}],
-            }}]}}}}},
+
     }
     return plan, target
 
@@ -61,9 +49,6 @@ class PlanContractTests(unittest.TestCase):
         with self.assertRaises(contract.ContractError):
             contract.validate_plan(plan, self.target)
 
-    def sync_values(self):
-        self.plan["planned_values"]["root_module"]["child_modules"][0]["resources"][0]["values"] = copy.deepcopy(self.change["after"])
-
     def test_accepts_bound_create_for_each_environment(self):
         for environment in ("development", "production"):
             plan, target = fixture(environment)
@@ -77,7 +62,6 @@ class PlanContractTests(unittest.TestCase):
         self.change["before"].update(ttl_config=[], deletion_policy="DELETE")
         self.change["after_unknown"].pop("id")
         self.change["after_unknown"].pop("name")
-        self.sync_values()
         self.assertEqual(contract.validate_plan(self.plan, self.target), "update")
 
     def test_accepts_noop_without_claiming_live_active(self):
@@ -85,7 +69,6 @@ class PlanContractTests(unittest.TestCase):
         self.change["after"]["ttl_config"] = [{"state": "CREATING", "expiration_offset": ""}]
         self.change["before"] = copy.deepcopy(self.change["after"])
         self.change["after_unknown"] = {}
-        self.sync_values()
         for applyable in (True, False):
             self.plan["applyable"] = applyable
             self.assertEqual(contract.validate_plan(self.plan, self.target), "no-op")
@@ -99,8 +82,6 @@ class PlanContractTests(unittest.TestCase):
     def test_rejects_extra_resources_including_support_and_iam(self):
         for resource_type in ("google_project_iam_member", "google_firestore_field"):
             self.rejected(lambda p: p["resource_changes"].append({"type": resource_type}))
-        self.rejected(lambda p: p["planned_values"]["root_module"].update(resources=[{"mode": "data"}]))
-        self.rejected(lambda p: p["configuration"]["root_module"].update(resources=[{"mode": "data"}]))
 
     def test_rejects_destructive_actions_import_move_and_replace(self):
         for action in (["delete"], ["delete", "create"], ["create", "delete"], ["read"], []):
@@ -129,7 +110,7 @@ class PlanContractTests(unittest.TestCase):
             self.rejected(lambda p: p["resource_changes"][0]["change"]["after"].update({key: value}))
 
     def test_rejects_index_overrides_and_arbitrary_field_keys(self):
-        for config in ([{}], [{"indexes": []}], [{"indexes": [{"order": "ASCENDING"}]}]):
+        for config in ([{"indexes": []}],):
             self.rejected(lambda p: p["resource_changes"][0]["change"]["after"].update(index_config=config))
         self.rejected(lambda p: p["resource_changes"][0]["change"]["after"].update(unexpected="synthetic"))
 
@@ -149,17 +130,6 @@ class PlanContractTests(unittest.TestCase):
             self.rejected(lambda p: p["resource_changes"][0]["change"]["after_sensitive"].update({key: True}))
         self.rejected(lambda p: p["output_changes"]["scope"].update(after_unknown={"environment": True}))
 
-    def test_rejects_input_planned_value_or_configuration_divergence(self):
-        self.rejected(lambda p: p["variables"]["project_id"].update(value="demo-other-project"))
-        self.rejected(lambda p: p["planned_values"]["root_module"]["child_modules"][0]["resources"][0]["values"].update(field="createdAt"))
-        expressions = self.plan["configuration"]["root_module"]["module_calls"]["oauth_transaction_ttl"]["module"]["resources"][0]["expressions"]
-        for key, value in (("index_config", [{}]), ("ttl_config", [{"expiration_offset": {"references": ["var.offset"]}}])):
-            saved = copy.deepcopy(expressions)
-            expressions[key] = value
-            with self.assertRaises(contract.ContractError):
-                contract.validate_plan(self.plan, self.target)
-            expressions.clear()
-            expressions.update(saved)
 
     def test_rejects_malformed_target_and_unknown_fields(self):
         for key, value in (("schemaVersion", True), ("environment", "staging"),

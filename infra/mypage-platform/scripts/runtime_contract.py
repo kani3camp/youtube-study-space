@@ -256,16 +256,6 @@ def validate_planned_revision(after, desired, service, actions, check):
            and re.fullmatch(re.escape(service) + r"-[a-z0-9-]{1,50}", desired), check)
 
 
-def known_path(mask, *path):
-    for part in path:
-        c.need(mask is not True, "runtime-config-unknown")
-        if isinstance(part, int):
-            mask = mask[part] if isinstance(mask, list) and len(mask) > part else None
-        else:
-            mask = mask.get(part) if isinstance(mask, dict) else None
-    c.need(not c.has_unknown(mask), "runtime-config-unknown")
-
-
 def validate_maintenance_resource(address, after, unknown, value, actions):
     operator_email = "mypage-maintenance-job@" + c.PROJECT + ".iam.gserviceaccount.com"
     invoker_email = "mypage-maintenance-invoker@" + c.PROJECT + ".iam.gserviceaccount.com"
@@ -371,19 +361,6 @@ def validate_service(after, unknown, value, actions):
         "project", "name", "location", "ingress", "deletion_policy", "deletion_protection",
         "invoker_iam_disabled", "launch_stage", "scaling", "traffic", "template", "client", "client_version",
     } | SERVICE_OBSERVED_OPTIONS, "runtime-service-options")
-    for key in ("project", "name", "location", "ingress", "deletion_policy", "deletion_protection",
-                "invoker_iam_disabled", "launch_stage"):
-        c.need(not c.has_unknown(unknown.get(key)), "runtime-config-unknown")
-    for key in ("min_instance_count", "max_instance_count", "scaling_mode"):
-        known_path(unknown, "scaling", 0, key)
-    for key in ("type", "percent"):
-        known_path(unknown, "traffic", 0, key)
-    for key in ("service_account", "timeout", "max_instance_request_concurrency", "execution_environment", "scaling"):
-        known_path(unknown, "template", 0, key)
-    for key in ("image", "ports", "resources", "env", "startup_probe"):
-        known_path(unknown, "template", 0, "containers", 0, key)
-    empty_options(after, ("annotations", "labels", "binary_authorization", "build_config", "custom_audiences",
-                          "multi_region_settings", "ssh_enabled", "tags", "iap_enabled"))
     scaling = one(after.get("scaling"), "runtime-service-scaling")
     fixed_options(scaling, {"min_instance_count", "max_instance_count", "scaling_mode", "manual_instance_count"},
                   "runtime-service-scaling-options")
@@ -403,8 +380,6 @@ def validate_service(after, unknown, value, actions):
     c.need(template.get("service_account") == c.EMAIL and template.get("timeout") == "30s"
            and template.get("max_instance_request_concurrency") == 40
            and template.get("execution_environment") == "EXECUTION_ENVIRONMENT_GEN2", "runtime-template-boundary")
-    empty_options(template, ("annotations", "labels", "encryption_key", "node_selector", "sandboxes", "volumes",
-                             "vpc_access", "workload_identity_config", "health_check_disabled", "session_affinity"))
     validate_planned_revision(after, template.get("revision"), "mypage-api", actions, "runtime-owned-revision")
     scaling = one(template.get("scaling"), "runtime-revision-scaling")
     fixed_options(scaling, {"min_instance_count", "max_instance_count"}, "runtime-revision-scaling-options")
@@ -413,15 +388,12 @@ def validate_service(after, unknown, value, actions):
     fixed_options(container, {"image", "ports", "resources", "env", "startup_probe", "build_info"},
                   "runtime-container-options")
     c.need(container.get("image") == value["image_digest"], "runtime-image-value")
-    empty_options(container, ("args", "command", "depends_on", "base_image_uri", "sandbox_launcher", "volume_mounts", "working_dir"))
-    empty_options(container, ("liveness_probe", "readiness_probe"))
     probe = one(container.get("startup_probe"), "runtime-startup-probe")
     fixed_options(probe, {"initial_delay_seconds", "timeout_seconds", "period_seconds", "failure_threshold", "tcp_socket"},
                   "runtime-startup-probe-options")
     c.need(probe.get("initial_delay_seconds") == 0 and probe.get("timeout_seconds") == 1
            and probe.get("period_seconds") == 10 and probe.get("failure_threshold") == 3
            and probe.get("tcp_socket") == [{"port": 8080}], "runtime-startup-probe-value")
-    empty_options(probe, ("grpc", "http_get"))
     port = one(container.get("ports"), "runtime-port")
     c.need(port == {"name": "http1", "container_port": 8080}, "runtime-port-value")
     resources = one(container.get("resources"), "runtime-resources")

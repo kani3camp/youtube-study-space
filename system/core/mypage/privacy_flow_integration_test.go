@@ -248,6 +248,9 @@ func TestPrivacyFlowIntakeProofReplyIndependentAcksAndCompletion(t *testing.T) {
 			require.NoError(t, f.op.Complete(ctx, completion))
 			ack.action, ack.delivery = false, false
 			require.NoError(t, f.op.Complete(ctx, completion), "lost completion ACK recovers from durable audit")
+			changed := completion
+			changed.DeliveryAcknowledgement = digest("other-delivery")
+			require.ErrorIs(t, f.op.Complete(ctx, changed), ErrOperatorConflict)
 			assertPrivacyFlowTerminal(t, f, purpose, false)
 			require.ErrorIs(t, f.op.Reply(ctx, reply), ErrOperatorConflict)
 		})

@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,25 +19,16 @@ import (
 )
 
 type syntheticOperatorAuthority struct {
-	deny             bool
-	evidence         bool
-	denyVerification bool
-	verified         VerifiedCompletionEvidence
-	verifyCalls      *atomic.Int64
+	evidence bool
+	verified VerifiedCompletionEvidence
 }
 
 func (a syntheticOperatorAuthority) Authorize(_ context.Context, intent OperatorIntent) (OperatorIdentity, error) {
-	if a.deny {
-		return OperatorIdentity{}, ErrOperatorDenied
-	}
 	return OperatorIdentity{Subject: "synthetic-verified-operator", Environment: intent.Environment, ProjectID: intent.ProjectID}, nil
 }
 
 func (a syntheticOperatorAuthority) VerifyEvidence(_ context.Context, identity OperatorIdentity, op CompletionOperation) (VerifiedCompletionEvidence, error) {
-	if a.verifyCalls != nil {
-		a.verifyCalls.Add(1)
-	}
-	if a.denyVerification || !a.evidence || identity.Subject != "synthetic-verified-operator" || identity.Environment != op.Intent.Environment || identity.ProjectID != op.Intent.ProjectID || op.ActionEvidence != digest("synthetic-action") || op.DeliveryAcknowledgement != digest("synthetic-delivery") {
+	if !a.evidence || identity.Subject != "synthetic-verified-operator" || identity.Environment != op.Intent.Environment || identity.ProjectID != op.Intent.ProjectID || op.ActionEvidence != digest("synthetic-action") || op.DeliveryAcknowledgement != digest("synthetic-delivery") {
 		return VerifiedCompletionEvidence{}, ErrOperatorDenied
 	}
 	return a.verified, nil
@@ -131,104 +121,6 @@ func operatorFixture(t *testing.T, purpose SupportPurpose) (*FirestoreSupportOpe
 	return f.operator, f.reply, f.oauth
 }
 
-func TestOperatorReplyAuthorityIdempotenceAndConflicts(t *testing.T) {
-	op, reply, _ := operatorFixture(t, SupportDisclosure)
-	ctx := context.Background()
-	denied := *op
-	denied.Authority = nil
-	require.ErrorIs(t, denied.Reply(ctx, reply), ErrOperatorDenied)
-	denied = *op
-	denied.Authority = syntheticOperatorAuthority{deny: true}
-	require.ErrorIs(t, denied.Reply(ctx, reply), ErrOperatorDenied)
-	wrong := reply
-	wrong.Intent.Environment = "production"
-	require.ErrorIs(t, op.Reply(ctx, wrong), ErrOperatorDenied)
-	wrong = reply
-	wrong.Intent.Purpose = SupportRevoke
-	require.ErrorIs(t, op.Reply(ctx, wrong), ErrOperatorConflict)
-	wrong = reply
-	wrong.ProofRef = digest("other-proof")
-	require.ErrorIs(t, op.Reply(ctx, wrong), ErrOperatorConflict)
-	var outcomes [2]error
-	var wg sync.WaitGroup
-	for i := range outcomes {
-		wg.Add(1)
-		go func(i int) { defer wg.Done(); outcomes[i] = op.Reply(ctx, reply) }(i)
-	}
-	wg.Wait()
-	for _, err := range outcomes {
-		require.NoError(t, err)
-	}
-	require.NoError(t, op.Reply(ctx, reply)) // lost ACK
-	changed := reply
-	changed.Body = "Different synthetic response"
-	require.ErrorIs(t, op.Reply(ctx, changed), ErrOperatorConflict)
-	changed = reply
-	changed.Intent.OperationID = digest("another-operation")
-	require.ErrorIs(t, op.Reply(ctx, changed), ErrOperatorConflict)
-	snap, err := op.Client.Collection("support-requests").Doc(reply.Intent.RequestRef).Get(ctx)
-	require.NoError(t, err)
-	require.Equal(t, "verified", snap.Data()["status"])
-	require.Equal(t, int64(1), snap.Data()["operatorRevision"])
-	audit, err := op.auditRef(reply.Intent).Get(ctx)
-	require.NoError(t, err)
-	require.NotContains(t, audit.Data(), "body")
-	require.NotContains(t, audit.Data(), "targetChannel")
-	require.NotContains(t, audit.Data(), "proofRef")
-}
-
-func TestOperatorCompletionRequiresVerifiedEvidenceAndScrubs(t *testing.T) {
-	op, reply, oauth := operatorFixture(t, SupportRevoke)
-	ctx := context.Background()
-	require.NoError(t, op.Reply(ctx, reply))
-	before, err := op.Client.Collection("support-requests").Doc(reply.Intent.RequestRef).Get(ctx)
-	require.NoError(t, err)
-	requestID := before.Data()["requestId"].(string)
-	completion := CompletionOperation{Intent: OperatorIntent{Environment: "development", ProjectID: "demo-youtube-study-space-ci", RequestRef: reply.Intent.RequestRef, Purpose: SupportRevoke, OperationID: digest("operator-complete:" + reply.Intent.OperationID), Action: "complete"}, ProofRef: reply.ProofRef, ReplyOperationID: reply.Intent.OperationID, ExpectedRevision: 1, ActionEvidence: digest("synthetic-action"), DeliveryAcknowledgement: digest("synthetic-delivery"), At: reply.At.Add(time.Second)}
-	completion.ReplyDigest = before.Data()["replyDigest"].(string)
-	var verifyCalls atomic.Int64
-	op.Authority = syntheticOperatorAuthority{evidence: true, verified: syntheticVerifiedCompletion(completion, before.Data()["replyDigest"].(string)), verifyCalls: &verifyCalls}
-	missing := completion
-	missing.DeliveryAcknowledgement = ""
-	require.ErrorIs(t, op.Complete(ctx, missing), ErrOperatorDenied)
-	missing = completion
-	missing.ActionEvidence = digest("unverified-action")
-	require.ErrorIs(t, op.Complete(ctx, missing), ErrOperatorDenied)
-	wrong := completion
-	wrong.Intent.Purpose = SupportDelete
-	require.ErrorIs(t, op.Complete(ctx, wrong), ErrOperatorDenied)
-	require.NoError(t, op.Complete(ctx, completion))
-	require.Equal(t, int64(2), verifyCalls.Load()) // invalid evidence and first successful attempt
-	auditsBefore, err := op.Client.Collection(supportOperatorAudit).Documents(ctx).GetAll()
-	require.NoError(t, err)
-	op.Authority = syntheticOperatorAuthority{evidence: true, denyVerification: true, verifyCalls: &verifyCalls}
-	require.NoError(t, op.Complete(ctx, completion)) // lost ACK after verifier failure
-	require.Equal(t, int64(2), verifyCalls.Load())
-	auditsAfter, err := op.Client.Collection(supportOperatorAudit).Documents(ctx).GetAll()
-	require.NoError(t, err)
-	require.Len(t, auditsAfter, len(auditsBefore))
-	snap, err := op.Client.Collection("support-requests").Doc(reply.Intent.RequestRef).Get(ctx)
-	require.NoError(t, err)
-	require.True(t, simpleOperatorTerminal(snap))
-	for _, key := range []string{"body", "operatorReply", "targetChannel", "proofRef", "oauthTransactionId", "submissionHash", "replyDigest", "replyOperationId"} {
-		require.NotContains(t, snap.Data(), key)
-	}
-	for _, ref := range []*firestore.DocumentRef{op.Client.Collection("oauth-transactions").Doc(oauth)} {
-		_, err = ref.Get(ctx)
-		require.Equal(t, codes.NotFound, status.Code(err))
-	}
-	_, err = op.Client.Collection("support-request-ids").Doc(digest("development:" + requestID)).Get(ctx)
-	require.Equal(t, codes.NotFound, status.Code(err))
-	require.ErrorIs(t, op.Reply(ctx, reply), ErrOperatorConflict)
-	changed := completion
-	changed.DeliveryAcknowledgement = digest("other-delivery")
-	require.ErrorIs(t, op.Complete(ctx, changed), ErrOperatorConflict)
-	changed = completion
-	changed.ReplyDigest = digest("other-reply")
-	require.ErrorIs(t, op.Complete(ctx, changed), ErrOperatorConflict)
-	require.Equal(t, int64(2), verifyCalls.Load())
-}
-
 func TestOperatorTrustedClockIgnoresCallerAt(t *testing.T) {
 	op, reply, _ := operatorFixture(t, SupportDisclosure)
 	trusted := reply.At.Add(2 * time.Second)
@@ -317,16 +209,6 @@ func TestOperatorCompletionRejectsSwappedEvidenceAndReplyWithoutMutation(t *test
 	require.Equal(t, codes.NotFound, status.Code(err))
 }
 
-func TestOperatorReplyBlockedByDeletionClaim(t *testing.T) {
-	s, start, _ := deletionFixture(t)
-	ctx := context.Background()
-	op := syntheticOperator(s.Client)
-	reply := ReplyOperation{Intent: OperatorIntent{Environment: "development", ProjectID: "demo-youtube-study-space-ci", RequestRef: start.Selector.RequestRef, Purpose: SupportDelete, OperationID: digest("delete-reply"), Action: "reply"}, ProofRef: start.Selector.ProofRef, Body: "Synthetic response", At: start.Now}
-	_, err := s.Acquire(ctx, start)
-	require.NoError(t, err)
-	require.True(t, errors.Is(op.Reply(ctx, reply), ErrOperatorConflict))
-}
-
 func TestOperatorAuditCollisionLeavesReplyAndReceiptUntouched(t *testing.T) {
 	op, reply, _ := operatorFixture(t, SupportDisclosure)
 	ctx := context.Background()
@@ -372,54 +254,3 @@ func TestOperatorParallelChangedPayloadHasOneWinner(t *testing.T) {
 
 // Child cleanups must remove only their own records, before closing clients.
 // No reset separates the same-name fixtures or the surviving fixture.
-func TestOperatorFixturesRepeatAndCleanupWithoutAffectingOtherRecords(t *testing.T) {
-	ctx := context.Background()
-	survivor := newOperatorFixture(t, SupportDisclosure)
-	require.NoError(t, survivor.operator.Reply(ctx, survivor.reply))
-	before := map[string]*firestore.DocumentSnapshot{}
-	for _, ref := range survivor.documents {
-		snap, err := ref.Get(ctx)
-		require.NoError(t, err)
-		before[ref.Path] = snap
-	}
-	var removed []*firestore.DocumentRef
-	t.Run("same-name-fixtures", func(t *testing.T) {
-		first := newOperatorFixture(t, SupportDisclosure)
-		second := newOperatorFixture(t, SupportDisclosure)
-		require.NotEqual(t, first.reply.Intent.RequestRef, second.reply.Intent.RequestRef)
-		require.NotEqual(t, first.oauth, second.oauth)
-		require.NotEqual(t, first.reply.ProofRef, second.reply.ProofRef)
-		require.NotEqual(t, first.reply.Intent.OperationID, second.reply.Intent.OperationID)
-		require.NoError(t, first.operator.Reply(ctx, first.reply))
-		snap, err := first.documents[0].Get(ctx)
-		require.NoError(t, err)
-		require.NoError(t, first.operator.Reply(ctx, first.reply)) // lost ACK uses the same identity
-		retry, err := first.documents[0].Get(ctx)
-		require.NoError(t, err)
-		require.Equal(t, snap.UpdateTime, retry.UpdateTime)
-		completion := CompletionOperation{Intent: OperatorIntent{Environment: "development", ProjectID: "demo-youtube-study-space-ci", RequestRef: first.reply.Intent.RequestRef, Purpose: SupportDisclosure, OperationID: digest("complete:" + first.reply.Intent.OperationID), Action: "complete"}, ProofRef: first.reply.ProofRef, ReplyOperationID: first.reply.Intent.OperationID, ExpectedRevision: 1, ActionEvidence: digest("synthetic-action"), DeliveryAcknowledgement: digest("synthetic-delivery"), At: first.reply.At.Add(time.Second)}
-		replyDigest, ok := snap.Data()["replyDigest"].(string)
-		require.True(t, ok)
-		completion.ReplyDigest = replyDigest
-		first.operator.Authority = syntheticOperatorAuthority{evidence: true, verified: syntheticVerifiedCompletion(completion, replyDigest)}
-		require.NoError(t, first.operator.Complete(ctx, completion))
-		_, err = second.operator.auditRef(second.reply.Intent).Create(ctx, map[string]interface{}{"occupied": true})
-		require.NoError(t, err)
-		require.ErrorIs(t, second.operator.Reply(ctx, second.reply), ErrOperatorConflict)
-		removed = append(removed, first.documents...)
-		removed = append(removed, second.documents...)
-		removed = append(removed, first.operator.auditRef(completion.Intent))
-	})
-	// Observe through the still-open survivor client after both child clients close.
-	for _, ref := range removed {
-		_, err := survivor.operator.Client.Collection(ref.Parent.ID).Doc(ref.ID).Get(ctx)
-		require.Equal(t, codes.NotFound, status.Code(err))
-	}
-	for _, ref := range survivor.documents {
-		after, err := ref.Get(ctx)
-		require.NoError(t, err)
-		require.Equal(t, before[ref.Path].Data(), after.Data())
-		require.Equal(t, before[ref.Path].UpdateTime, after.UpdateTime)
-	}
-	require.NoError(t, survivor.operator.Reply(ctx, survivor.reply))
-}

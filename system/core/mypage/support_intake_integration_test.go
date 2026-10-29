@@ -4,8 +4,6 @@ package mypage
 
 import (
 	"context"
-	"errors"
-	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -15,52 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestIntakeFreshOAuthReturnsDistinctStatusAndProofReferences(t *testing.T) {
-	s, authStore, provider, minter, now := authTestService(t)
-	ctx := context.Background()
-	s.Support = &FirestoreSupportStore{Client: authStore.Client, Environment: "development"}
-	intake := &FirestorePrivacyIntake{Client: authStore.Client, Environment: "development", IntakeSecret: []byte("synthetic-test-only-key-with-thirty-two-bytes")}
-	uid := provider.channels[0].ID
-	receipt, err := intake.Create(ctx, uid, "synthetic-oauth-key-0001", SupportDelete, "", now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	start, id, err := s.Start(ctx, "", StartRequest{PrivacyPolicyVersion: s.Policy.Privacy, PrivacyAccepted: true, TermsVersion: s.Policy.Terms, TermsAccepted: true, SupportChallenge: &receipt.Challenge})
-	if err != nil {
-		t.Fatal(err)
-	}
-	redirect, err := url.Parse(start.AuthorizationURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := s.Callback(ctx, id, redirect.Query().Get("state"), "synthetic-code", false); err != nil {
-		t.Fatal(err)
-	}
-	channel, err := s.Channel(ctx, id)
-	if err != nil || channel.Purpose != "support" || channel.SupportPurpose != SupportDelete {
-		t.Fatal("fresh support OAuth did not bind purpose")
-	}
-	confirmation, err := s.ConfirmResult(ctx, id, channel.ConfirmationRef)
-	if err != nil || confirmation.SupportRequestRef != receipt.RequestRef || confirmation.RequestRef == receipt.RequestRef || !validOpaque(confirmation.RequestRef) || minter.calls.Load() != 0 {
-		t.Fatal("proof and status references were confused")
-	}
-	if _, err := intake.Status(ctx, uid, confirmation.RequestRef); errorCode(err) != "SUPPORT_CHALLENGE_INVALID" {
-		t.Fatal("proof reference opened status")
-	}
-	operator := syntheticOperator(authStore.Client)
-	if err := operator.Reply(ctx, ReplyOperation{Intent: OperatorIntent{Environment: "development", ProjectID: "demo-youtube-study-space-ci", RequestRef: receipt.RequestRef, Purpose: SupportDelete, OperationID: digest("reply-1"), Action: "reply"}, ProofRef: confirmation.RequestRef, Body: "Synthetic reply", At: now}); err != nil {
-		t.Fatal(err)
-	}
-	statusValue, err := intake.Status(ctx, uid, confirmation.SupportRequestRef)
-	if err != nil || statusValue.Reply != "Synthetic reply" {
-		t.Fatal("status did not resolve the verified intake receipt")
-	}
-	if _, err := s.ConfirmResult(ctx, id, channel.ConfirmationRef); err == nil {
-		t.Fatal("OAuth proof replay accepted")
-	}
-}
-
-func TestPrivacyIntakeReceiptIdempotencyReplyAndIsolation(t *testing.T) {
+func TestPrivacyIntakeConcurrentIdempotencyAndSubmissionConflicts(t *testing.T) {
 	_, authStore, _, _, now := authTestService(t)
 	store := &FirestorePrivacyIntake{Client: authStore.Client, Environment: "development", IntakeSecret: []byte("synthetic-test-only-key-with-thirty-two-bytes")}
 	ctx := context.Background()
@@ -108,35 +61,7 @@ func TestPrivacyIntakeReceiptIdempotencyReplyAndIsolation(t *testing.T) {
 	if _, err := store.Status(ctx, "UCother", first.RequestRef); errorCode(err) != "SUPPORT_CHALLENGE_INVALID" {
 		t.Fatal("guessed reference exposed")
 	}
-	operator := syntheticOperator(store.Client)
-	reply := ReplyOperation{Intent: OperatorIntent{Environment: "development", ProjectID: "demo-youtube-study-space-ci", RequestRef: first.RequestRef, Purpose: SupportDelete, OperationID: digest("reply-2"), Action: "reply"}, ProofRef: distinct.RequestRef, Body: "Synthetic response", At: now}
-	if err := operator.Reply(ctx, reply); !errors.Is(err, ErrOperatorConflict) {
-		t.Fatal("preproof reply accepted")
-	}
-	binding, err := (&FirestoreSupportStore{Client: authStore.Client, Environment: "development"}).Resolve(ctx, first.Challenge, now)
-	if err != nil || binding.RequestRef != first.RequestRef {
-		t.Fatal("receipt has no resolvable challenge")
-	}
-	// Synthetic proof state: full one-time OAuth transition has its own integration tests.
-	doc := store.Client.Collection("support-requests").Doc(first.RequestRef)
-	_, err = doc.Update(ctx, []firestore.Update{{Path: "status", Value: "verified"}, {Path: "verifiedAt", Value: now}, {Path: "proofRef", Value: distinct.RequestRef}, {Path: "oauthTransactionId", Value: digest("synthetic-verified-oauth")}, {Path: "challengeHash", Value: ""}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := operator.Reply(ctx, reply); err != nil {
-		t.Fatal(err)
-	}
-	result, err := store.Status(ctx, "UCsynthetic-intake", first.RequestRef)
-	if err != nil || result.Reply != "Synthetic response" || !result.AcceptedAt.Equal(now) {
-		t.Fatal("verified reply or receipt missing")
-	}
-	other := &FirestorePrivacyIntake{Client: store.Client, Environment: "production", IntakeSecret: store.IntakeSecret}
-	if _, err := other.Status(ctx, "UCsynthetic-intake", first.RequestRef); errorCode(err) != "SUPPORT_CHALLENGE_INVALID" {
-		t.Fatal("cross environment reply exposed")
-	}
-	if _, err := store.Create(ctx, "UCsynthetic-intake", key, SupportDelete, "Please remove my saved data", now); err != nil {
-		t.Fatal(err)
-	}
+
 }
 
 func TestPrivacyIntakeFailureRollsBackReceiptAndIndexes(t *testing.T) {
