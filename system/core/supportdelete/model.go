@@ -44,8 +44,8 @@ func (s Selector) Validate() error {
 }
 func ValidRef(s string) bool { return opaque.MatchString(s) }
 
-// Manifestは信頼済みアダプター登録処理が渡し、ユーザーマニフェストは使わない。
-// ダイジェストは、対象の書き込み処理群・復元ポリシー・開始前状態を正確に識別する。
+// Manifestは実行コードが固定する処理契約の識別子であり、入力ファイルから任意に指定しない。
+// 現在のwriter/復元状態の確認は、所有者Runbookの実行別Gateで行う。
 type Manifest struct {
 	Ref  string `firestore:"ref"`
 	Mode string `firestore:"mode"`
