@@ -77,10 +77,9 @@ class WorkflowSafetyTest(unittest.TestCase):
         self.assertEqual(self.caller['on']['push']['branches'],
                          ['integration/mypage-canon-20261006'])
         self.assertEqual(set(self.caller['on']['push']['paths']),
-                         {'system/**', 'infra/mypage-platform/environments/dev/runtime-release.json'})
+                         {'system/**'})
         self.assertIn("mypage-auto-cd", operations['with']['operation'])
-        self.assertEqual(operations['permissions']['pull-requests'], 'write')
-        self.assertEqual(operations['permissions']['actions'], 'write')
+        self.assertEqual(operations['permissions'], {'contents': 'read', 'id-token': 'write'})
         for path in (ROOT / '.github/workflows').glob('ci*.yml'):
             workflow = load(path)
             self.assertNotEqual(workflow.get('permissions', {}).get('id-token'), 'write')
