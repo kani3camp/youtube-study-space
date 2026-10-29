@@ -1,5 +1,5 @@
-// Package serviceaccess owns channel restrictions independently of user data.
-// MyPage is the first consumer; legacy Bot moderation is not connected here.
+// Package serviceaccessは、ユーザーデータから独立してチャンネル制限を管理する。
+// MyPageが最初の利用先であり、旧Botのモデレーションは接続しない。
 package serviceaccess
 
 import (
@@ -44,8 +44,8 @@ type Control struct {
 	UpdatedAt       time.Time   `firestore:"updatedAt"`
 }
 
-// Revision fences a delete/recreate with a reused counter. Missing records have
-// no permission cache: consumers must read again on every protected request.
+// Revisionで、カウンターを再利用した削除・再作成を検出する。
+// レコード不存在の許可はキャッシュせず、保護対象リクエストのたびに読み直す。
 type Snapshot struct {
 	Control  Control
 	Exists   bool
@@ -110,7 +110,7 @@ func (s Snapshot) Allowed() error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
-	// The deletion UX takes precedence without clearing an independent block.
+	// 独立したブロックを解除せず、削除中の表示を優先する。
 	if s.Control.PrivacyDeletion.Active {
 		return ErrDeletion
 	}
@@ -127,9 +127,9 @@ func (s Snapshot) Checkpoint() string {
 	return fmt.Sprintf("%d:%s", s.Control.Generation, s.Revision.UTC().Format(time.RFC3339Nano))
 }
 
-// Transition is idempotent for the same requested state/reference. A never
-// creates a TTL or delete path for inactive checkpoints: lifecycle/drain policy
-// belongs to the separately reviewed deletion operator work.
+// Transitionは同じ要求状態・参照に対して冪等である。
+// Aでは無効状態のチェックポイントにTTLや削除処理を設けない。
+// ライフサイクルと処理完了待ちの方針は、別途レビューする削除運用の作業で扱う。
 func Transition(old Snapshot, change Change, now time.Time) (Control, bool, error) {
 	if old.Validate() != nil || now.IsZero() {
 		return Control{}, false, ErrUnavailable

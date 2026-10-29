@@ -7,14 +7,13 @@ import {
 	validatePublicPolicyConfig,
 } from './public-policy-config'
 
-// Public drafts v1 (2026-10-05), with 05 Privacy/09 decision clarifications:
+// 公開文面の草案v1（2026-10-05）。05 Privacyと09の判断を反映する。
 // https://app.notion.com/p/3ef357a8d0ce8175aeaed4c044111cfe
 // https://app.notion.com/p/3ef357a8d0ce8196a4b1f71482c1015a
 // https://app.notion.com/p/3ed357a8d0ce81e7b7d2cc85ec8ab4cf (05)
 // https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f (09)
-// Operator identity remains available on request under 05; an optional public
-// service/operator label does not require disclosure of a private real name.
-// Injecting D03 values does not approve policies or close D01/D02/operational gates.
+// 05に従い、請求時には運営者情報を提供する。任意の公開サービス名・運営者名のために、
+// 非公開の本名を開示する必要はない。D03の値を渡しても、文面の承認やD01・D02・運用確認の完了にはならない。
 type PublicPolicyProps = { publicPolicyInputs?: unknown }
 
 function policyConfig(inputs: unknown): PublicPolicyConfig {

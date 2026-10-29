@@ -17,11 +17,10 @@ import (
 	"app.modules/core/timeutil"
 )
 
-// One explicit user/month is the restart unit. This is an injected operator
-// operation, never invoked by an overview GET. WriterEpoch is an operator's
-// reviewed cutover identifier, not a declaration that old writers have drained.
-// The caller must retain the original control checkpoint across all months and
-// retries; taking a fresh checkpoint after privacy deletion would revive data.
+// 明示した1ユーザー・1か月を再開単位にする。外から渡す運用操作であり、概要GETからは呼ばない。
+// WriterEpochは運用担当者のレビュー済み切替IDであり、旧書き込み処理の完了宣言ではない。
+// 全月・全再試行で元の制御チェックポイントを維持する必要がある。
+// プライバシー削除後に新しく取得すると、データが復活してしまう。
 type WorkMonthBackfill struct {
 	UID, Month, WriterEpoch, ControlCheckpoint string
 	ExpectedVersion                            string
@@ -80,9 +79,8 @@ func (c *FirestoreControllerImplements) RebuildWorkMonth(ctx context.Context, in
 		} else if status.Code(err) != codes.NotFound {
 			return fmt.Errorf("read migration month: %w", err)
 		}
-		// Inspect the bounded UID source, including malformed rows that a date
-		// inequality/orderBy query would silently omit. Overflow never publishes
-		// partial totals. Large histories need a separately reviewed migration.
+		// 上限付きでUIDの原記録を調べ、日付不等式やorderByクエリで除外される不正行も対象にする。
+		// 上限超過時は部分合計を公開しない。大きな履歴には別途レビューした移行を必要とする。
 		query := c.workSegmentsCollection().Where(UserIDDocProperty, "==", input.UID).
 			OrderBy(firestore.DocumentID, firestore.Asc).Limit(input.MaxDocuments + 1)
 		iter := tx.Documents(query)
@@ -146,7 +144,7 @@ func (c *FirestoreControllerImplements) RebuildWorkMonth(ctx context.Context, in
 		if err := value.Validate(input.UID, input.Month); err != nil {
 			return err
 		}
-		// Report is numeric only. Raw names, identifiers and paths never escape.
+		// 報告には数値だけを含め、元の名前・識別子・パスは外に出さない。
 		encoded, err := json.Marshal(value)
 		if err != nil {
 			return fmt.Errorf("encode rebuilt month comparison: %w", err)

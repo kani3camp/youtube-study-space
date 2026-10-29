@@ -1,4 +1,4 @@
-"""Observable admission, native Plan and isolated backend permission boundaries."""
+"""受入・ネイティブPlan・独立バックエンド権限の観測可能な制御を検証する。"""
 from copy import deepcopy
 from contextlib import redirect_stderr, redirect_stdout
 import io
@@ -367,7 +367,7 @@ class FoundationTest(unittest.TestCase):
             rejected['resource_changes'][-1]['change']['actions'] = actions
             with self.subTest(actions=actions), self.assertRaises(ValueError):
                 c.validate_plan(rejected, 'registry')
-        # An opt-in stage cannot leak the repository into the old Foundation mode.
+        # 明示的に有効にする段階から、旧Foundationモードへリポジトリを混入させない。
         plan['variables']['stage']['value'] = 'foundation'
         with self.assertRaises(ValueError):
             c.validate_plan(plan)
@@ -395,7 +395,7 @@ class FoundationTest(unittest.TestCase):
             changed['resource_changes'][iam]['change']['after']['secret_id'] = rejected
             with self.subTest(rejected=rejected), self.assertRaises(ValueError):
                 c.validate_plan(changed)
-        # Do not broaden the Secret metadata resource's short-name contract.
+        # Secretメタデータ資源の短い名前の仕様を緩めない。
         metadata = next(item for item in plan['resource_changes'] if '.google_secret_manager_secret.' in item['address'])
         metadata['change']['after']['secret_id'] = 'projects/' + c.PROJECT + '/secrets/mypage-oauth-client-id'
         with self.assertRaises(ValueError):

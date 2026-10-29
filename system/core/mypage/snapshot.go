@@ -12,11 +12,10 @@ import (
 	"cloud.google.com/go/firestore"
 )
 
-// SnapshotReadObservation contains only bounded counters and a query-error flag;
-// never store channel identities, document paths, data, or error messages.
-// Returned documents are NOT the same as billable reads: missing-query minimums,
-// index entries and retries require Query Explain / Cloud Billing for a complete
-// cost measurement. Query failures must not be interpreted as empty successes.
+// SnapshotReadObservationには上限付き件数とクエリエラーフラグだけを含める。
+// チャンネル識別子・文書パス・データ・エラーメッセージは保存しない。
+// 返却文書数は課金読み取り数とは異なる。空クエリの最低課金・インデックス・再試行を含む
+// 全体費用はQuery Explain / Cloud Billingで確認する。クエリ失敗を正常な空結果として扱わない。
 type SnapshotReadObservation struct {
 	UserLookups         int
 	SeatQueries         int
@@ -37,12 +36,12 @@ type SnapshotReader interface {
 
 type FirestoreSnapshotReader struct {
 	Client *firestore.Client
-	// Only verified history coverage may be configured. No default epoch.
+	// 完全性を確認した履歴期間だけを設定できる。既定のepochは設けない。
 	Coverage []Interval
-	// Empty keeps the previous raw reader for explicit rollout/rollback. The
-	// epoch must match a verified bounded migration after old writers drain.
+	// 空なら従来の原記録読み取りを使い、明示的な導入・ロールバックに対応する。
+	// epochは旧書き込み処理の完了を待った後の、検証済み上限付き移行に一致する必要がある。
 	MonthlyEpoch string
-	// Optional and called only once after a successful snapshot read.
+	// 任意のフックで、スナップショット読み取り成功後に一度だけ呼ぶ。
 	Observe func(SnapshotReadObservation)
 }
 
@@ -54,13 +53,13 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 	var observation SnapshotReadObservation
 	started := time.Now()
 	err := r.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		// Each transaction attempt gets fresh counters. Report once after success;
-		// retries may generate extra billed reads, not included in these counts.
+		// トランザクションの試行ごとに新しい件数を使い、成功後に一度だけ報告する。
+		// 再試行で発生する追加の課金読み取りは、この件数に含めない。
 		attempt := SnapshotReadObservation{UserLookups: 1}
 		defer func() { observation = attempt }()
 		s := WorkSnapshot{UID: uid, Coverage: r.Coverage}
-		// GetAll exposes readTime even for a missing user. Use it to choose the
-		// JST window after the snapshot exists, avoiding request-time boundaries.
+		// GetAllは利用者がいなくてもreadTimeを返す。スナップショット確定後にこれを使って
+		// JSTの期間を決め、リクエスト時刻の境界を使わない。
 		docs, err := tx.GetAll([]*firestore.DocumentRef{r.Client.Collection("users").Doc(uid)})
 		if err != nil {
 			return fmt.Errorf("read snapshot user: %w", err)
@@ -177,8 +176,8 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 			for _, doc := range segments {
 				segment, err := repository.DecodeWorkSegment(doc, uid)
 				if err != nil {
-					// An unreadable interval may affect any day in the queried
-					// window; do not discard it and report an apparently exact sum.
+					// 読めない区間は、検索期間のどの日にも影響し得る。
+					// その区間を捨てて、正確に見える合計を報告しない。
 					s.HistoryUnavailable = true
 					break
 				}

@@ -1,4 +1,4 @@
-"""Exact DEV metrics toggle using Cloud Run's resourceVersion contract."""
+"""Cloud RunのresourceVersion仕様を使う、厳密なDEV計測設定切替。"""
 from copy import deepcopy
 import json
 import time
@@ -53,8 +53,8 @@ def configuration(service):
 def conditional_update(token, before, target):
     import read_metrics_live as live
     original = request(token)
-    # The namespace may be a project number. It is explicitly present in the
-    # server's already-admitted MYPAGE_PROJECT_NUMBER env, never client input.
+    # 名前空間はプロジェクト番号の場合がある。
+    # サーバーで受入済みのMYPAGE_PROJECT_NUMBER環境変数に明示されており、クライアント入力は使わない。
     config = before | {"projectNumber":next(x["value"] for x in before["template"]["containers"][0]["env"] if x["name"] == "MYPAGE_PROJECT_NUMBER")}
     identity(original, config)
     current = live.request(token, live.SERVICE_URL)

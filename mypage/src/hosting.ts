@@ -1,5 +1,5 @@
-// Pure candidate generation: this module performs no Firebase init/deploy and
-// does not mutate the repository's existing Firestore configuration.
+// 外部処理を伴わない候補生成だけを行う。Firebaseのinit/deployは実行せず、
+// リポジトリの既存Firestore設定も変更しない。
 export type HostingInputs = {
 	environment: 'development' | 'production'
 	projectID: string
@@ -81,7 +81,7 @@ export function hostingCandidate(
 	const connect = sources(input.inventory.connect)
 	const frame = sources(input.inventory.frame)
 	const image = sources(input.inventory.image)
-	// An explicit inventory is mandatory. No guessed SDK/reCAPTCHA allowlist.
+	// 接続先一覧の明示を必須とし、SDK/reCAPTCHAの許可リストを推測しない。
 	if (
 		script.length === 0 ||
 		connect.length === 0 ||
@@ -89,8 +89,8 @@ export function hostingCandidate(
 		image.length === 0
 	)
 		throw new Error('Hosting inventory unavailable')
-	// Reviewed public YouTube channel image origins. Require explicit inventory
-	// entries so a reCAPTCHA-only list cannot silently block AccountAvatar.
+	// レビュー済みの公開YouTubeチャンネル画像オリジン。
+	// reCAPTCHAだけの一覧でAccountAvatarを気付かず遮断しないよう、項目の明示を必須とする。
 	for (const origin of [
 		'https://yt3.ggpht.com',
 		'https://yt3.googleusercontent.com',
@@ -169,8 +169,8 @@ export function hostingCandidate(
 	}
 }
 
-// Hosting serves existing static files before rewrites. Reject conflicting build
-// outputs and source maps so APIs cannot be masked by a public static artifact.
+// Hostingは書き換え前に既存の静的ファイルを配信する。
+// 公開の静的成果物がAPIを隠さないよう、競合する出力とソースマップを拒否する。
 export function validateHostingAssets(paths: string[]) {
 	if (
 		!paths.includes('index.html') ||

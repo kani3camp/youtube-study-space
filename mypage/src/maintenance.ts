@@ -90,7 +90,7 @@ export class MaintenanceMonitor {
 
 	private recheck(closeSynchronously: boolean) {
 		if (!this.mounted || !this.routeActive) return
-		// Close private state while checking a newly entered protected route.
+		// 新しく入った保護ルートの検証中は、個人データを閉じる。
 		if (
 			closeSynchronously &&
 			(this.state.phase === 'normal' || this.state.phase === 'checking')

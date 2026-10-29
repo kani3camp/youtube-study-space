@@ -1,4 +1,4 @@
-"""Source-pinned DEV image release. No secret reads, IAM writes or State access."""
+"""ソースを固定したDEVイメージ配備。秘密取得・IAM書き込み・Stateアクセスは行わない。"""
 from copy import deepcopy
 import json
 import os
@@ -45,7 +45,7 @@ def verify_source(env, value):
     hosting.verify_head(env)
     source = value['image_source_sha']
     hosting.command(['git', 'fetch', '--no-tags', '--depth=1', 'origin', source])
-    # Compare the complete Docker context, not only the Go entrypoint.
+    # Goの起動処理だけでなく、Dockerコンテキスト全体を比較する。
     import subprocess
     def tree(ref):
         result = subprocess.run(['git', 'rev-parse', ref + ':system'], cwd=ROOT,
@@ -121,7 +121,7 @@ def validate_result(after, before, value):
 
 
 def public_get(url):
-    # Never follow redirects, retain application data or use real credentials.
+    # リダイレクトを追わず、アプリケーションデータを保持せず、実認証情報を使わない。
     import urllib.error
     import urllib.request
     c.need(url in (hosting.ORIGIN + '/api/mypage',
@@ -134,8 +134,8 @@ def public_get(url):
 
 
 def smoke():
-    # The direct URL rejects at the Host boundary before App Check. Preserve
-    # both application rejections; an arbitrary upstream 400/403 is not proof.
+    # 直接URLはApp Checkより前のHost検証で拒否される。両方のアプリケーション拒否を確認する。
+    # 上流から返る任意の400/403だけでは証拠にならない。
     for url, wanted_status, wanted_code in (
         (hosting.ORIGIN + '/api/mypage', 403, 'APP_CHECK_REQUIRED'),
         ('https://mypage-api-eu5mhkcewq-et.a.run.app/api/mypage', 400, 'INVALID_REQUEST'),
@@ -161,7 +161,7 @@ def deploy(env):
     original = v1.request(token)
     wanted = payload(original, before, value)
     hosting_before = hosting.current(token)
-    # A second GET binds the v1 resourceVersion to the observed v2 configuration.
+    # 2回目のGETで、v1 resourceVersionと観測したv2設定の対応を確認する。
     c.need(live.request(token, live.SERVICE_URL) == before, 'backend-moved')
     hosting.verify_head(env)
     c.need(hosting.current(token) == hosting_before, 'backend-hosting-moved')

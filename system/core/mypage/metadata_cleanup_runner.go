@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// One bounded, anonymous snapshot per project; no per-user or per-run archive.
+// プロジェクトごとに匿名・上限付きのスナップショットを1つ持ち、利用者別・実行別の履歴は保存しない。
 type MetadataCleanupMonitoringState struct {
 	Latest                    *MetadataCleanupObservation `firestore:"latest"`
 	LastSuccessfulCoverage    time.Time                   `firestore:"lastSuccessfulCoverage"`
@@ -31,10 +31,10 @@ type MetadataCleanupHealthRecorder interface {
 	RecordHealth(context.Context, MetadataCleanupHealthObservation) error
 }
 
-// Scheduler callbacks and an independently scheduled watchdog share this
-// assembly. Construction starts nothing and creates no credentials or scheduler.
-// An external scheduler must invoke Run on a <=12h cadence and CheckHealth
-// independently (e.g. hourly), so a missing cleanup trigger is observable.
+// スケジューラーのコールバックと独立監視は、この組み立て処理を共有する。
+// 構築時には何も開始せず、認証情報やスケジューラーも作らない。
+// 外部スケジューラーはRunを12時間以内の間隔で、CheckHealthを別途（例: 毎時）呼ぶ必要がある。
+// これにより、削除処理の起動漏れを観測できる。
 type MetadataCleanupRunner struct {
 	Store               MetadataCleanupStore
 	Monitor             MetadataCleanupMonitor
@@ -44,14 +44,14 @@ type MetadataCleanupRunner struct {
 }
 
 func (r *MetadataCleanupRunner) Run(ctx context.Context) (MetadataCleanupObservation, error) {
-	// Refuse to clear any data if either monitoring boundary is absent.
+	// どちらかの監視処理が欠けていれば、データの消去を拒否する。
 	if r.Store == nil || r.Monitor == nil || r.Signals == nil || r.Now == nil {
 		return MetadataCleanupObservation{Stage: "configuration"}, ErrMetadataCleanupIncomplete
 	}
 	job := MetadataCleanupJob{Store: r.Store, Recorder: r.Monitor, Now: r.Now, BatchSize: r.BatchSize, MaxPages: r.MaxPages}
 	observation, runErr := job.Run(ctx)
-	// Even a canceled/failed job must attempt its anonymous failure signal.
-	// A rejected monitoring write cannot be hidden by an older healthy snapshot.
+	// キャンセルや失敗したジョブでも、匿名の失敗シグナルを送るよう試みる。
+	// 監視書き込みの拒否を、古い正常スナップショットで隠さない。
 	_, healthErr := r.checkHealth(context.WithoutCancel(ctx), &observation)
 	if healthErr != nil {
 		observation.Succeeded = false
@@ -66,10 +66,9 @@ func (r *MetadataCleanupRunner) Run(ctx context.Context) (MetadataCleanupObserva
 	return observation, errors.Join(runErr, healthErr)
 }
 
-// CheckHealth never scans or clears accounts. It acknowledges a pending
-// retention signal only after the sink accepts it. The watchdog
-// must be triggered independently of cleanup; merely calling it after Run does
-// not monitor missed scheduler invocations or a stopped cleanup process.
+// CheckHealthはアカウントの走査や消去を行わない。
+// 出力先が受理した後だけ、保留中の保持期限違反にACKする。
+// 削除処理とは独立して起動する必要があり、Runの後に呼ぶだけでは起動漏れやプロセス停止を監視できない。
 func (r *MetadataCleanupRunner) CheckHealth(ctx context.Context) (MetadataCleanupHealthObservation, error) {
 	return r.checkHealth(ctx, nil)
 }
@@ -100,9 +99,8 @@ func (r *MetadataCleanupRunner) checkHealth(ctx context.Context, current *Metada
 			health.Reason = "monitoring_failed"
 		}
 	}
-	// A newer successful scan cannot hide a deadline violation that has never
-	// reached the signal sink. Also report this run's violation if persistence
-	// failed or a concurrent run already replaced its latest observation.
+	// 新しい正常走査で、出力先に一度も届いていない期限違反を隠さない。
+	// 保存失敗や並行実行による最新観測の置換があっても、この実行自身の違反も通知する。
 	if health.Reason != "invalid_clock" && ((loadErr == nil && !state.PendingRetentionStartedAt.IsZero()) || (current != nil && current.RetentionViolations > 0)) {
 		health = MetadataCleanupHealth{Alert: true, Reason: "retention_deadline"}
 	}
@@ -152,16 +150,15 @@ func validMetadataCleanupMonitoringState(state MetadataCleanupMonitoringState) b
 }
 
 func canonicalMetadataCleanupObservation(next MetadataCleanupObservation) MetadataCleanupObservation {
-	// Firestore rounds timestamp precision down to microseconds. Normalize before
-	// comparing replayed input with persisted state, including equal-start ties.
+	// Firestoreは時刻をマイクロ秒精度で切り捨てる。
+	// 再送入力と保存状態の比較前に正規化し、開始時刻が同じ場合も同様に扱う。
 	next.StartedAt = next.StartedAt.UTC().Truncate(time.Microsecond)
 	next.CompletedAt = next.CompletedAt.UTC().Truncate(time.Microsecond)
 	return next
 }
 
-// Update by scan start, so delayed completion/replayed observations never mask a
-// newer failure. At equal start times a failure wins. Coverage only moves forward
-// from a fully completed scan; completion time is never the heartbeat origin.
+// 走査開始時刻で更新し、完了の遅延や観測の再送で新しい失敗を隠さない。同じ開始時刻なら失敗を優先する。
+// 完全に終了した走査だけで対象時刻を進め、完了時刻をハートビートの基準にしない。
 func updateMetadataCleanupMonitoring(state MetadataCleanupMonitoringState, next MetadataCleanupObservation) MetadataCleanupMonitoringState {
 	next = canonicalMetadataCleanupObservation(next)
 	if next.RetentionViolations > 0 && next.StartedAt.After(state.PendingRetentionStartedAt) {

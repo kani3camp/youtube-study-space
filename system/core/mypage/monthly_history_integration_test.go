@@ -83,7 +83,7 @@ func TestMonthlySnapshotReadsAtMostTwoMonthsAndNeverRawHistory(t *testing.T) {
 			}
 			require.Equal(t, int64(count), total)
 			require.Equal(t, snapshot.AsOf, response.GeneratedAt)
-			// Missing month must not silently run the legacy 1001-doc query.
+			// 月が欠けても、旧方式の1001文書クエリを暗黙に実行しない。
 			for key := range months {
 				_, err := r.Client.Collection(repository.WorkMonths).Doc(repository.WorkMonthID(uid, key)).Delete(ctx)
 				require.NoError(t, err)

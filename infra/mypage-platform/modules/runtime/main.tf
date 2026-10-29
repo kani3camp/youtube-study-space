@@ -70,8 +70,8 @@ locals {
   backend_deployer_email         = "mypage-backend-deploy@${var.project_id}.iam.gserviceaccount.com"
 }
 
-# These resources are created only when the caller leaves the default disabled
-# stage. They own new MyPage metadata, never existing Bot/Firestore resources.
+# 呼び出し元が既定のdisabled段階から切り替えた場合だけ、これらの資源を作成する。
+# 管理対象は新しいMyPageメタデータであり、既存のBot/Firestore資源は含めない。
 resource "google_service_account" "runtime" {
   project      = var.project_id
   account_id   = "mypage-api"
@@ -82,8 +82,8 @@ resource "google_service_account" "runtime" {
   }
 }
 
-# Environment-bound image storage is provisioned before building a digest.
-# Existing Functions repositories and other Artifact Registry owners are untouched.
+# 環境専用のイメージ保存先を、ダイジェスト生成前に構築する。
+# 既存Functionsのリポジトリや、他のArtifact Registry所有者は変更しない。
 resource "google_artifact_registry_repository" "mypage" {
   count                  = contains(["registry", "maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) ? 1 : 0
   project                = var.project_id
@@ -137,7 +137,7 @@ resource "google_secret_manager_secret" "youtube_api_key" {
   }
 }
 
-# Additive IAM membership; never replace a project's IAM policy or bindings.
+# IAMメンバーは追加だけを行い、プロジェクトのIAMポリシーやバインディング全体を置き換えない。
 resource "google_secret_manager_secret_iam_member" "oauth_client_id_runtime" {
   count     = var.stage == "foundation_metadata" ? 0 : 1
   project   = var.project_id
@@ -162,8 +162,8 @@ resource "google_secret_manager_secret_iam_member" "youtube_api_key_runtime" {
   member    = local.runtime_principal
 }
 
-# Firebase Custom Token signing uses IAM signBlob; bind only the dedicated
-# runtime service account resource, never all service accounts in the project.
+# Firebase Custom Tokenの署名にはIAM signBlobを使う。
+# 専用ランタイムサービスアカウントだけに付与し、プロジェクト内の全サービスアカウントへ広げない。
 resource "google_service_account_iam_member" "runtime_signer" {
   count              = var.stage == "foundation_metadata" ? 0 : 1
   service_account_id = "projects/${var.project_id}/serviceAccounts/${local.runtime_email}"
@@ -171,9 +171,9 @@ resource "google_service_account_iam_member" "runtime_signer" {
   member             = local.runtime_principal
 }
 
-# The current BFF reads Study Space history and writes only its own account /
-# OAuth metadata. Firestore IAM cannot restrict access by collection; review
-# the project-wide datastore.user impact before runtime_private activation.
+# 現在のBFFはStudy Spaceの履歴を読み、自身のアカウントとOAuthメタデータだけを書き込む。
+# Firestore IAMはコレクション単位で制限できないため、runtime_private有効化前に
+# プロジェクト全体のdatastore.user権限の影響をレビューする。
 resource "google_project_iam_member" "firestore_user" {
   count   = local.deploy_api ? 1 : 0
   project = var.project_id
@@ -277,8 +277,8 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "MYPAGE_TERMS_VERSION"
         value = var.runtime_settings.terms_version
       }
-      # No historical completeness is assumed without an inventory-backed
-      # explicit interval list. The server validates the intervals at startup.
+      # データ一覧を根拠に明示した期間一覧がなければ、履歴が完全とは仮定しない。
+      # 期間はサーバー起動時に検証する。
       dynamic "env" {
         for_each = var.runtime_settings.history_coverage_json == "" ? [] : [var.runtime_settings.history_coverage_json]
         content {
@@ -286,8 +286,8 @@ resource "google_cloud_run_v2_service" "api" {
           value = env.value
         }
       }
-      # Opt-in only. Keep production OFF even when the module is called directly.
-      # This source capability does not authorize a serving-revision update.
+      # 明示的に有効化した場合だけ使う。モジュールを直接呼んでも本番では無効にする。
+      # この実装だけでは配信リビジョンの更新を承認しない。
       dynamic "env" {
         for_each = var.environment == "development" && var.runtime_settings.read_metrics_enabled ? [true] : []
         content {
@@ -349,8 +349,8 @@ resource "google_cloud_run_v2_service" "api" {
   }
 }
 
-# Only the explicit runtime_public stage grants an unauthenticated edge.
-# Every application endpoint still performs its own Auth/App Check/Origin gate.
+# 未認証の外部アクセスを許可するのは、明示したruntime_public段階だけとする。
+# 各アプリケーションエンドポイントは引き続きAuth/App Check/Originを検証する。
 resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
   count    = local.public_api ? 1 : 0
   project  = var.project_id
@@ -360,8 +360,8 @@ resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
   member   = "allUsers"
 }
 
-# Maintenance has a separate trust chain. GitHub can invoke exactly this Job,
-# but has no Firestore role and cannot reuse the Terraform deployment identity.
+# メンテナンスは独立した認証・権限の系統を使う。GitHubはこのJobだけを実行できる。
+# Firestore権限は持たず、Terraform配備用の本人情報も再利用できない。
 resource "google_service_account" "maintenance_operator" {
   count           = local.maintenance_operator ? 1 : 0
   project         = var.project_id
@@ -562,12 +562,12 @@ output "maintenance_job_name" {
   value = local.maintenance_operator ? google_cloud_run_v2_job.maintenance_operator[0].name : null
 }
 
-# Enforce the environment-specific capacity bounds from Security Current Canon.
+# Security Current Canonで定めた環境別の容量上限を適用する。
 output "max_instances" {
   value = local.max_instances
 }
 
-# Expose only a boolean-like count of the actual planned Cloud Run env entry.
+# 実際に計画されたCloud Run環境変数エントリーの有無を、真偽値相当の件数だけで公開する。
 output "history_coverage_env_count" {
   value = local.deploy_api ? length([
     for item in google_cloud_run_v2_service.api[0].template[0].containers[0].env : item
@@ -575,7 +575,7 @@ output "history_coverage_env_count" {
   ]) : 0
 }
 
-# Inspect only this fixed, non-identifying env value in credentialless mock tests.
+# 認証情報を使わないモックテストでは、この固定かつ個人を識別しない環境変数の値だけを調べる。
 output "read_metrics_env_values" {
   value = local.deploy_api ? [
     for item in google_cloud_run_v2_service.api[0].template[0].containers[0].env : item.value

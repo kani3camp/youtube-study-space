@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// FirestoreSupportStore is an operator/server library. There is no public
-// management endpoint; project/credential/production gates belong to its caller.
+// FirestoreSupportStoreは運用担当者・サーバー用ライブラリである。公開管理エンドポイントはない。
+// プロジェクト・認証情報・本番操作の確認は呼び出し元が担う。
 type FirestoreSupportStore struct {
 	Client      *firestore.Client
 	Environment string
@@ -44,8 +44,8 @@ func readSupportRecord(tx *firestore.Transaction, ref *firestore.DocumentRef) (S
 	return value, nil
 }
 
-// Create returns a one-time delivery challenge. Its caller must never log it or
-// expose it through CI artifacts, shell history or a public issue/PR.
+// Createは一度限りの配送チャレンジを返す。呼び出し元はログに出さず、
+// CI成果物・シェル履歴・公開IssueやPRにも載せない。
 func (s *FirestoreSupportStore) Create(ctx context.Context, requestID, channel string, purpose SupportPurpose, acceptedAt, now time.Time) (requestRef, challenge string, err error) {
 	ref, err := opaque()
 	if err != nil {
@@ -70,8 +70,8 @@ func (s *FirestoreSupportStore) Create(ctx context.Context, requestID, channel s
 		if err := tx.Create(s.Client.Collection("support-challenges").Doc(value.ChallengeHash), supportChallengeIndex{RequestRef: ref, Environment: s.Environment}); err != nil {
 			return fmt.Errorf("create support challenge: %w", err)
 		}
-		// One externally supplied request ID identifies exactly one receipt.
-		// A challenge reissue must not create another receipt or reset its SLA.
+		// 外部から渡す1つの申請IDは、正確に1つの受付を識別する。
+		// チャレンジ再発行で別受付を作らず、SLAもリセットしない。
 		if err := tx.Create(s.Client.Collection("support-request-ids").Doc(digest(s.Environment+":"+requestID)), supportChallengeIndex{RequestRef: ref, Environment: s.Environment}); err != nil {
 			return fmt.Errorf("create support receipt index: %w", err)
 		}

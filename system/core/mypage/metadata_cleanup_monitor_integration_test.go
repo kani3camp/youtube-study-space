@@ -54,7 +54,7 @@ func TestCleanupMonitorEmulatorTransactionsPreserveCoverageAcrossRestartReplayAn
 	for err := range errors {
 		require.NoError(t, err)
 	}
-	// A fresh adapter represents a watchdog process/restart with no memory state.
+	// 新しいアダプターで、メモリ状態を持たない監視プロセスや再起動を再現する。
 	restarted := &FirestoreMetadataCleanupMonitor{Client: client, ProjectID: "demo-youtube-study-space-ci"}
 	state, err = restarted.Load(ctx)
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestCleanupMonitorEmulatorTransactionsPreserveCoverageAcrossRestartReplayAn
 	require.NoError(t, err)
 	require.Equal(t, recovered.StartedAt, state.LastSuccessfulCoverage)
 	require.False(t, EvaluateMetadataCleanupHealth(state.Latest, state.LastSuccessfulCoverage, recovered.CompletedAt).Alert)
-	// This collection is a single overwritten snapshot, not an accumulating log.
+	// このコレクションは上書きする単一スナップショットであり、ログを蓄積しない。
 	docs, err := client.Collection("mypage-maintenance").Documents(ctx).GetAll()
 	require.NoError(t, err)
 	require.Len(t, docs, 1)
@@ -132,7 +132,7 @@ func TestCleanupRunnerEmulatorClearsOnlyMetadataAndWatchdogObservesRetentionAndS
 	require.Equal(t, true, doc.Data()["accessBlocked"])
 	_, err = runner.Run(ctx)
 	require.NoError(t, err)
-	// Separately composed watchdog has no account store and cannot delete data.
+	// 独立して組み立てた監視処理はアカウントストアを持たず、データを削除できない。
 	now = now.Add(MetadataCleanupHeartbeat)
 	watchdog := MetadataCleanupRunner{Monitor: &FirestoreMetadataCleanupMonitor{Client: client, ProjectID: "demo-youtube-study-space-ci"}, Signals: &JSONMetadataCleanupHealthRecorder{Writer: &signals}, Now: func() time.Time { return now }}
 	signal, err := watchdog.CheckHealth(ctx)
@@ -199,7 +199,7 @@ func TestCleanupMonitorEmulatorTimestampReplayAndRetentionAcknowledgement(t *tes
 	require.NoError(t, monitor.Record(ctx, newer))
 	healthy := cleanupCompleteObservation(now.Add(3 * time.Hour))
 	require.NoError(t, monitor.Record(ctx, healthy))
-	// A delayed acknowledgement must not erase the newer undelivered violation.
+	// 遅延したACKで、未配送の新しい違反を消さない。
 	require.NoError(t, monitor.AcknowledgeRetention(ctx, firstState.PendingRetentionStartedAt))
 	state, err = monitor.Load(ctx)
 	require.NoError(t, err)

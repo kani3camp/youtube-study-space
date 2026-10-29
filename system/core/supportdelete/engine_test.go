@@ -11,9 +11,9 @@ import (
 
 var errSyntheticFailure = errors.New("synthetic lost acknowledgement")
 
-// scriptedStore is an independent fenced adapter double. Tests below exercise
-// Engine orchestration against failures; production storage atomicity is covered
-// by its own emulator tests, not by this double's admission policy.
+// scriptedStoreは独立した実行保護付きアダプターのテスト用代替である。
+// 以下は障害時のEngine連携を検証する。本番ストアの原子性は、
+// この代替の受入方針ではなく、専用エミュレーターテストで確認する。
 type scriptedStore struct {
 	mu                                   sync.Mutex
 	selector                             Selector
@@ -324,8 +324,8 @@ func TestEngineFinalizationFailureRetainsNewUserWithoutRepeatingDeletionOrInspec
 				t.Fatalf("resumed legitimate fixture user was lost in %s", scope)
 			}
 		}
-		// Independent moderation can advance the fence after services resume.
-		// It must never turn finalization into another deletion/inspection pass.
+		// サービス再開後も、独立したモデレーションで保護世代が進む場合がある。
+		// それによって完了処理を再度の削除・調査に戻さない。
 		store.moderationChanged()
 	}
 	out, err := engine.Run(context.Background(), store.selector, syntheticRef("owner"))
@@ -433,7 +433,7 @@ func TestEngineAdmissionRejectsProofReplayChangedSelectorAndElapsedTimeTakeover(
 	}
 	original, _, _ := store.snapshot()
 	calls := len(effects.operations())
-	// Long passage of time is not an authorization source for taking ownership.
+	// 長い待ち時間は、所有権取得の権限根拠にならない。
 	engine.Clock = func() time.Time { return syntheticTime().Add(365 * 24 * time.Hour) }
 	changes := map[string]func(*Selector, *string){
 		"proof-replay-for-another-execution": func(s *Selector, _ *string) { s.ExecutionRef = syntheticRef("replay-execution") },
@@ -508,7 +508,7 @@ func TestEngineConcurrentOwnerCannotExecuteUntilExplicitStoppedRecovery(t *testi
 	if len(effects.operations()) != 0 {
 		t.Fatal("competing owner ran effects")
 	}
-	// Stop and wait for the old worker before admitting an explicit recovery.
+	// 明示的な復旧を受け入れる前に、旧workerを停止して完了を待つ。
 	cancel()
 	close(blocked.release)
 	select {

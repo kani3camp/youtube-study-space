@@ -94,7 +94,7 @@ func TestPrepareBindsFactoryTargetAndStartsOnlyOnRun(t *testing.T) {
 	require.Equal(t, 1, factories)
 	require.Zero(t, spy.acquires)
 	require.Empty(t, effects.operations())
-	// Changes to caller-owned descriptor storage cannot change this assembly.
+	// 呼び出し元が持つ記述子ストレージを変更しても、この組み立て内容は変わらない。
 	catalog.Manifest.Mode = "live"
 	catalog.Selector.ProofRef = syntheticRef("changed-input")
 	catalog.Registrations[0].Effects = (*nilEffects)(nil)
@@ -254,7 +254,7 @@ func TestPreparedRecoveryRequiresStoppedFenceAndRejectsConcurrentReuse(t *testin
 	require.Equal(t, 1, spy.recoveries, "unbound recovery reached the store")
 	require.NoError(t, prepared.Recover(context.Background(), recovery))
 	require.ErrorIs(t, prepared.Recover(context.Background(), recovery), ErrConflict, "replayed recovery must not transfer ownership twice")
-	// The same operation retries under the newly fenced owner.
+	// 新たな実行保護付き所有者の下で、同じ操作を再試行する。
 	_, err = prepared.Run(context.Background())
 	require.NoError(t, err)
 	operations := effects.operations()

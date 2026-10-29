@@ -77,8 +77,8 @@ updates:
           - minor
           - patch
 
-  # MyPage is developed on the integration branch until #1236 reaches dev.
-  # Default-branch updates do not cover this frontend or its Dockerfile yet.
+  # MyPageは#1236がdevに入るまで統合ブランチで開発する。
+  # 既定ブランチ向けの更新は、このフロントエンドとDockerfileをまだ対象にしない。
   - package-ecosystem: npm
     directory: /mypage
     target-branch: integration/mypage-canon-20261006

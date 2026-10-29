@@ -143,7 +143,7 @@ func TestCleanupConcurrentRefreshDeletionAndUnrelatedRevisionChange(t *testing.T
 	require.NoError(t, err)
 	require.Equal(t, "new synthetic consent", doc.Data()["privacyPolicyVersion"])
 	require.Equal(t, "Old synthetic", doc.Data()["displayName"])
-	// Next pass reads the current revision; only metadata is removed.
+	// 次の実行では現在のリビジョンを読み、メタデータだけを除去する。
 	job.Store = store
 	o, err = job.Run(ctx)
 	require.NoError(t, err)

@@ -195,7 +195,7 @@ func TestDerivedDeleteLostAckRecoveryAndSharedPreservation(t *testing.T) {
 	if fake.objects["synthetic-response"].exists || !reflect.DeepEqual(fake.objects["synthetic-message"].owners, []string{"UCsynthetic0000000000002"}) {
 		t.Fatal("target or other owner was not preserved correctly")
 	}
-	// The checkpoint advances independently of the effect acknowledgement.
+	// チェックポイントは、操作のACKとは独立して進む。
 	for i, step := range supportdelete.Steps() {
 		if step == (supportdelete.Step{Action: "inspect", Scope: "derived-vendor"}) {
 			store.snapshot.Execution.Cursor = i

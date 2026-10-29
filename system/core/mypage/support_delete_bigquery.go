@@ -20,8 +20,8 @@ var (
 	bqLocation                     = regexp.MustCompile(`^(US|EU|[a-z][a-z0-9-]{1,62})$`)
 )
 
-// BigQueryTable pins schema and incarnation, including an explicitly absent
-// retired table. Empty/unknown schema is not evidence of zero target rows.
+// BigQueryTableは、明示的に不存在の廃止済みテーブルを含め、スキーマと実体世代を固定する。
+// 空・不明のスキーマを対象行0件の証拠にしない。
 type BigQueryTable struct {
 	ProjectID      string `firestore:"projectID"`
 	Location       string `firestore:"location"`
@@ -45,9 +45,9 @@ type BigQueryJobIdentity struct {
 	ConfigurationRef string `firestore:"configurationRef"`
 }
 
-// BigQueryInventorySnapshot is temporary server-only state. Its immutable
-// inventory and deterministic plans survive owner recovery and generation
-// changes; its execution fence moves atomically with the workflow checkpoint.
+// BigQueryInventorySnapshotはサーバー専用の一時状態である。
+// 不変の一覧と確定的な計画は所有者復旧・世代変更後も維持し、
+// 実行保護情報はワークフローのチェックポイントとアトミックに進める。
 type BigQueryInventorySnapshot struct {
 	SchemaVersion      int64                   `firestore:"schemaVersion"`
 	Execution          supportdelete.Execution `firestore:"execution"`
@@ -74,7 +74,7 @@ func bigQueryDeleteCursor() int {
 }
 
 func bigQueryInventoryRef(s BigQueryInventorySnapshot) string {
-	// Owner/revision/generation/cursor are mutable fences, never job identity.
+	// owner/revision/generation/cursorは可変の実行保護情報であり、ジョブ識別には使わない。
 	b, err := json.Marshal(struct {
 		Selector                               supportdelete.Selector
 		Manifest                               supportdelete.Manifest
@@ -185,9 +185,9 @@ type BigQueryTargetRows struct {
 	ObservedAt time.Time
 }
 
-// SyntheticBigQueryExecutor has no SDK implementation or bootstrap. Catalog
-// completeness, terminal jobs and target counts must be definitive observations
-// from the injected synthetic system, not inferred from request cancellation.
+// SyntheticBigQueryExecutorはSDK実装や初期化を持たない。
+// 一覧の完全性・終了済みジョブ・対象件数は、注入した合成システムの確定的な観測を必要とし、
+// リクエストのキャンセルから推測しない。
 type SyntheticBigQueryExecutor interface {
 	InspectCatalog(context.Context, BigQueryInventorySnapshot) (BigQueryCatalogObservation, error)
 	LookupJob(context.Context, BigQueryJobIdentity) (BigQueryTargetJobObservation, error)
@@ -200,9 +200,9 @@ type SyntheticBigQueryScope struct {
 	Executor            SyntheticBigQueryExecutor
 }
 
-// This independently trusted guard excludes schema/incarnation changes, new
-// jobs/imports/restores and old-source replay throughout the callback. External
-// copies are dispositioned by their owning scopes before final BQ inspection.
+// 独立した信頼済み保護処理は、コールバック中のスキーマ・実体世代の変更、
+// 新ジョブ・import・restore、旧ソースの再実行を排除する。
+// 外部コピーは最終BQ調査前に、それぞれの担当スコープで処置する。
 type BigQueryDeletionPermit struct {
 	Evidence                                          supportdelete.Evidence
 	CatalogLocked, JobsFenced, ExternalCopiesDisposed bool
@@ -285,8 +285,7 @@ func (a *BigQueryDeletionEffects) checkCatalog(ctx context.Context, op supportde
 func (a *BigQueryDeletionEffects) reconcileJob(ctx context.Context, job BigQueryTargetJob, inspect bool) error {
 	v, err := a.Scope.Executor.LookupJob(ctx, job.Identity)
 	if errors.Is(err, ErrSyntheticBigQueryJobMissing) && !inspect {
-		// Submission acknowledgement is never evidence. Stable identity must be
-		// reconciled even when submission returns timeout/lost acknowledgement.
+		// 送信ACKは証拠にしない。送信がタイムアウトやACK消失で終わっても、安定した識別情報で結果を照合する。
 		submitErr := a.Scope.Executor.SubmitTargetJob(ctx, job)
 		v, err = a.Scope.Executor.LookupJob(ctx, job.Identity)
 		if err != nil && submitErr != nil {
@@ -363,8 +362,8 @@ func (a *BigQueryDeletionEffects) Apply(ctx context.Context, op supportdelete.Op
 			if err := a.checkCatalog(guardCtx, op, s); err != nil {
 				return err
 			}
-			// Revisit every definitive job/count after the last table effect; an
-			// earlier zero is not the final cross-table absence observation.
+			// 最後のテーブル操作後に、全ジョブと件数の確定状態を再確認する。
+			// 以前の0件を最終的なテーブル横断の不存在観測にしない。
 			for _, table := range s.Tables {
 				if table.Exists {
 					job, err := bigQueryTargetJob(s, table)

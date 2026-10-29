@@ -1,5 +1,5 @@
 type Consent = 'unset' | 'granted' | 'denied'
-// v1 choices were collected while GA4 was not connected; do not activate them later.
+// v1の選択はGA4未接続時に集めたため、後から有効にしない。
 export const consentKey = 'oss.analytics-consent.v2'
 export type PreferenceStorage = Pick<
 	Storage,
@@ -20,7 +20,7 @@ export class ConsentStore {
 			if (value === 'granted' || value === 'denied')
 				this.state = { value, saved: true }
 		} catch {
-			/* Storage unavailable: stay off. */
+			/* ストレージが使えなければ無効のままにする。 */
 		}
 	}
 	getSnapshot = () => this.state
@@ -39,7 +39,7 @@ export class ConsentStore {
 			try {
 				this.storage?.removeItem(consentKey)
 			} catch {
-				/* Current-page choice still applies. */
+				/* 現在のページでの選択は引き続き適用する。 */
 			}
 		}
 		this.state = { value, saved }
@@ -51,7 +51,7 @@ export class ConsentStore {
 			const stored = this.storage?.getItem(consentKey)
 			if (stored === 'granted' || stored === 'denied') value = stored
 		} catch {
-			/* Stay off. */
+			/* 無効のままにする。 */
 		}
 		if (this.state.value === value) return
 		this.state = { value, saved: true }
@@ -91,8 +91,8 @@ export type AnalyticsPort = {
 	send: (event: SafeEvent) => void
 }
 
-// No arbitrary title/referrer/parameter/user-ID enters this boundary. Query and
-// fragment are dropped except complete, fixed public campaign tuples.
+// 任意のタイトル・referrer・パラメーター・ユーザーIDは受け取らない。
+// クエリとフラグメントは、固定された公開キャンペーンの完全な組を除いて捨てる。
 export function safePage(href: string): SafePage | null {
 	try {
 		const url = new URL(href, 'https://route.invalid')
@@ -153,7 +153,7 @@ export class AnalyticsGate {
 			try {
 				this.port?.stop()
 			} catch {
-				/* No dependency details. */
+				/* 依存先の詳細は出さない。 */
 			}
 		}
 	}
@@ -162,7 +162,7 @@ export class AnalyticsGate {
 		try {
 			this.port?.send(event)
 		} catch {
-			/* Never couple analytics failure to login/data. */
+			/* アクセス解析の失敗をログインやデータ取得に波及させない。 */
 		}
 	}
 	page(href: string) {
@@ -191,7 +191,7 @@ export function createPrivacy(
 	try {
 		storage = window.localStorage
 	} catch {
-		/* Consent UI works in memory when unavailable. */
+		/* 利用不能時も同意UIはメモリ内で動く。 */
 	}
 	const consent = existingConsent ?? new ConsentStore(storage)
 	return { consent, analytics: new AnalyticsGate(consent, port) }

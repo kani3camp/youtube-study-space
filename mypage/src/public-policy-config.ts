@@ -1,5 +1,5 @@
-// D03 publication values only. These values are public build inputs, never
-// credentials, request proofs, user data, or evidence of policy approval.
+// D03の公開値だけを使う。公開ビルド入力であり、
+// 認証情報・申請の証拠・ユーザーデータ・文面承認の証拠ではない。
 export const PUBLIC_POLICY_FIELDS = [
 	'VITE_PUBLIC_OPERATOR_NAME',
 	'VITE_PUBLIC_CONTACT_URL',
@@ -11,7 +11,7 @@ export const PUBLIC_POLICY_FIELDS = [
 
 export type PublicPolicyField = (typeof PUBLIC_POLICY_FIELDS)[number]
 export type PublicPolicyConfig = {
-	// Optional public operator/service label, not a request for a private real name.
+	// 任意の公開運営者名・サービス名であり、非公開の本名を求めるものではない。
 	operatorName?: string
 	contactURL?: string
 	privacyContactURL?: string
@@ -79,9 +79,9 @@ function publicContact(value: string) {
 	}
 }
 
-// A strict public-only envelope prevents accidental config spread from exposing
-// server secrets or user/request fields. Errors contain field names, never values.
-// Valid partial values can be previewed; missing/invalid values remain unset.
+// 公開専用の厳格な形式で、設定の展開によるサーバーシークレットや利用者・申請項目の漏えいを防ぐ。
+// エラーにはフィールド名だけを含め、値は含めない。
+// 有効な値が一部だけでもプレビューでき、欠落値・不正値は未設定のままにする。
 export function validatePublicPolicyConfig(input: unknown): PublicPolicyResult {
 	if (typeof input !== 'object' || input === null || Array.isArray(input))
 		return { config: {}, issues: [{ field: 'input', code: 'invalid' }] }
@@ -123,7 +123,7 @@ export function validatePublicPolicyConfig(input: unknown): PublicPolicyResult {
 	return result
 }
 
-// Explicit reads only: Vite's entire environment is never copied into a page.
+// 明示した項目だけを読み、Viteの全環境変数をページへコピーしない。
 export function readPublicPolicyConfig(): PublicPolicyResult {
 	const env = import.meta.env
 	return validatePublicPolicyConfig({

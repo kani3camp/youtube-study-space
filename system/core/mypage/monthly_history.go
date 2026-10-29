@@ -17,9 +17,8 @@ func monthlyMetric(s WorkSnapshot, start, end time.Time) Metric {
 	var total int64
 	for day := start; day.Before(end); day = day.AddDate(0, 0, 1) {
 		month, exists := s.Months[day.Format("2006-01")]
-		// This is an explicit transactional source watermark, not inference
-		// from month creation time. No source interval can exist after the
-		// closed-through bound verified at cutover and advanced by writers.
+		// 明示したトランザクションの処理済み時刻を使い、月の作成時刻から推測しない。
+		// 切替時に検証し、書き込み処理で進めるclosed-throughより後には、原記録の区間は存在できない。
 		verifiedEmpty := !exists && s.User.WorkHistoryEpoch == repository.MonthlyWorkEpoch &&
 			!s.User.WorkHistoryActivatedAt.IsZero() && !day.Before(s.User.WorkHistoryActivatedAt) &&
 			s.User.WorkHistoryClosedThrough.Before(day)

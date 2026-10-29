@@ -1,213 +1,215 @@
 # MyPage implementation contract
 
-実装・DEV配備・実試験の最新状態は[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)を参照する。本文は実装契約であり、配備状態の判定には使わない。公開Gateの完了は、対象releaseの証跡で個別に確認する。
+実装・DEVへの配備・実環境での試験の最新状態は[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)を参照する。本文は実装仕様であり、配備状態の判定には使わない。公開条件を満たしたかどうかは、対象リリースの証跡で個別に確認する。
 
-公開準備は[release runbook](release/README.md)、[実E2E/rollback手順](release/e2e.md)を参照する。既存実装と外部/本人判断待ちを区別し、設定検査やlocal合成QAを公開承認・live E2Eの証拠へ読み替えない。
+公開準備は[配備手順書](release/README.md)、[実環境のE2E・ロールバック手順](release/e2e.md)を参照する。実装済みの内容と、外部の確認や本人の判断を待つ内容を区別する。設定検査やローカルの合成QAを、公開承認や実環境のE2Eの証拠として扱わない。
 
-source-onlyの[Privacy request intake](privacy-intake.md)はdefault offで、受付・本人確認・返信の境界と残る運用判断を記録する。Canon 05/09の初期公開経路は返信可能な人的Privacy窓口と既存fresh OAuth・private CLI / Runbookの実運用であり、アプリ内受付UIの有効化は必須条件ではない。CLIのlive adapterは未接続で、現状のsourceだけで公開可能とは扱わない。
+[プライバシー申請の受付](privacy-intake.md)は実装のみで、初期状態では無効になっている。受付・本人確認・返信で扱う範囲と、運用上の未決定事項を記録している。Canon 05/09で定める初期公開の手段は、返信できる有人のプライバシー窓口と、既存の新たなOAuth認証・非公開CLI・手順書を使った運用である。アプリ内の受付UIを有効にすることは必須ではない。CLIの実環境用アダプターは未接続であり、現在のソースだけで公開可能とは扱わない。
 
-横断削除Bのcheckpoint・offline CLI・adapter境界・未確認gateは[Support deletion runbook](support-delete.md)と[inventory](support-delete-inventory.md)を参照する。
+横断削除Bのチェックポイント、オフラインCLI、アダプターの分担、未確認事項は[削除手順書](support-delete.md)と[対象一覧](support-delete-inventory.md)を参照する。
 
-現行仕様から実装に必要な非機密 wire contract だけを抽出したもの。`openapi.yaml` は ten-endpoint API の契約（公開maintenance statusを含み、privacy受付2本はdefault off、明細1本はDEV限定/default off）、`fixtures/` は実ユーザーに依存しない合成例。メンテナンスモードの状態・例外・手動切替・復旧は[maintenance mode v1 runbook](maintenance-mode.md)を参照する。
+本文は現行仕様から実装に必要な機密情報を含まない通信仕様を抽出したものである。`openapi.yaml`は10本のAPIエンドポイントの仕様を定める。公開のメンテナンス状態APIを含み、プライバシー受付2本は初期状態では無効、明細1本はDEV限定で初期状態では無効とする。`fixtures/`には実ユーザーに依存しない合成例を置く。メンテナンスモードの状態・例外・手動切替・復旧は[メンテナンスモードv1の手順書](maintenance-mode.md)を参照する。
 
-- 本人識別は YouTube channel ID と同じ Firebase custom-provider uid。client から対象 ID を受け取らない。
-- OAuth callback の atomic claim と confirm の atomic consume の後に、外部 API / token mint を transaction callback の外で実行する。
-- 現在・今日・月曜開始の週・生涯累計・直近7暦日は同じ snapshot / `asOf` に揃える。
-- seconds を合計し、表示時だけ分に切り捨てる。取得障害・不完全履歴・矛盾は正常な0に置き換えない。
-- account metadata と作業統計の部分障害を分離し、raw ID / credentials / DB path を response・log に載せない。
+- 本人の識別にはYouTubeチャンネルIDと同じ値のFirebase custom-provider uidを使う。クライアントから対象IDを受け取らない。
+- OAuthコールバックの処理権確保と確認時の一度限りの消費を、それぞれアトミックに行う。その後、外部APIの呼び出しとトークン発行をトランザクションのコールバックの外で実行する。
+- 現在・今日・月曜開始の週・生涯累計・直近7暦日は、同じスナップショットと`asOf`に揃える。
+- 秒単位で合計し、表示時だけ分に切り捨てる。取得障害・不完全な履歴・矛盾を正常な0に置き換えない。
+- アカウントのメタデータと作業統計の部分障害を分けて扱う。元のID・認証情報・DBのパスをレスポンスやログに載せない。
 
-実装・wire型の検証（repository rootから実行）:
+実装と通信用の型は、リポジトリのルートから次のコマンドで検証する。
 
 ```sh
 (cd system && go test -shuffle=on ./core/mypage)
 (cd mypage && pnpm test)
 ```
 
-Goのwire型・HTTP境界とFrontendの実装は各packageのテストで独立して検証する。provisioning / production deployment は含まない。
+Goの通信用の型・HTTP処理とフロントエンドの実装は、各パッケージのテストで独立して検証する。基盤構築や本番への配備は含まない。
 
 認証、ブラウザ内の個人データ、ServiceAccessControlの安全条件は [MyPage FSL仕様](../../formal-spec/fsl/specs/README.md) で検証する。検証の範囲は指定した深さまでの状態遷移に限る。3モデルとも実装との自動照合は未接続であり、通常のGo/Vitestテスト、Firestore Emulator、実環境での公開前検証を代替しない。
 
-構成・公開段階・実環境の確認事項は [release runbook](release/README.md) を参照する。
+構成・公開段階・実環境の確認事項は[配備手順書](release/README.md)を参照する。
 
-## 認証とserver境界
+## 認証とサーバーの検証範囲
 
-### Web authentication storage
+### Web認証データの保存
 
-`oauth-transactions/{opaque id}` と `web-accounts/{verified channel id}` を server-only に追加する。既存 rules の default deny により browser access は許可しない。10分の期限は application が判定する。TTL定義とmock/限定plan検査は[MyPage専用Terraform](../../infra/mypage-oauth-ttl/README.md)で準備し、plan/apply・TTL ACTIVEと自然削除観測・権限・cleanupの実環境確認はprovisioning gate後の別途承認に残す。
+`oauth-transactions/{opaque id}`と`web-accounts/{verified channel id}`をサーバー専用として追加する。既存のセキュリティルールは既定で拒否するため、ブラウザからはアクセスできない。10分の期限はアプリケーションが判定する。TTLの定義とモック・限定的なplanの検査は[MyPage専用Terraform](../../infra/mypage-oauth-ttl/README.md)に用意する。plan/apply、TTLのACTIVE状態と自然削除の観測、権限、削除処理の実環境確認は、基盤構築の確認後に別途承認を受ける作業として残す。
 
-Callback は `pending -> processing -> channel_verified`、confirm は `channel_verified -> consumed`。WebAccount upsert と consume は同じ transaction。firstWebLoginAt は authenticated session completion で set-if-absent。users / 作業履歴は web login によって変更しない。transaction record には state hash・同意版・公開 channel metadata・時刻だけを保存し、code / OAuth token / Custom Token は保存しない。
+コールバックでは`pending -> processing -> channel_verified`、確認では`channel_verified -> consumed`へ遷移する。WebAccountの作成・更新と消費は同じトランザクションで行う。firstWebLoginAtは認証済みセッションの完了時に、未設定の場合だけ記録する。Webログインではusersや作業履歴を変更しない。トランザクションのレコードにはstateのハッシュ・同意バージョン・公開チャンネルメタデータ・時刻だけを保存し、認可コード・OAuthトークン・Custom Tokenは保存しない。
 
-Google provider と Firebase token mint は interface として分離し、demo emulator では合成 provider を使用する。配備状態は対象 release の証跡で確認する。
+GoogleプロバイダーとFirebaseトークン発行はインターフェースとして分離し、demoエミュレーターでは合成プロバイダーを使う。配備状態は対象リリースの証跡で確認する。
 
-### YouTube OAuth provider adapter
+### YouTube OAuthプロバイダー
 
-`GoogleYouTubeOAuth`はserver-onlyのclient ID/secretと固定HTTPS originを受け取り、既存のatomic callback serviceへ接続できるadapter。authorizationはyoutube.readonlyだけ・online・select_accountとし、Google Account選択をYouTube channel pickerとは扱わない。code exchangeは1回で、grant scopeを検証してから同じ短命access tokenでmine=trueのchannelを取得する。channelなし・複数・次pageありは拒否し、唯一の公開metadataだけを返す。legacy custom URLを@handleと推測しない。
+`GoogleYouTubeOAuth`は、サーバー専用のクライアントID・シークレットと固定のHTTPSオリジンを受け取り、既存のアトミックなコールバック処理に接続できるアダプターである。認可にはyoutube.readonlyだけを使い、onlineとselect_accountを指定する。Googleアカウントの選択を、YouTubeチャンネルの選択として扱わない。認可コードの交換は1回だけ行い、付与されたスコープを検証してから、同じ短命のアクセストークンでmine=trueのチャンネルを取得する。チャンネルがない場合、複数ある場合、次のページがある場合は拒否し、唯一のチャンネルの公開メタデータだけを返す。旧カスタムURLから@handleを推測しない。
 
-provider instance/store/responseにYouTube tokenを保存せず、refresh tokenを要求せず、token source/refresh/retryを使わない。callback originはrequestから作らず、外部redirectを追わず、処理全体を8秒に制限する。provider body/URL errorをallowlist errorへ変換しsecret/code/tokenを公開errorへ出さない。
+プロバイダーのインスタンス・ストア・レスポンスにYouTubeトークンを保存せず、リフレッシュトークンも要求しない。token sourceによる更新や再試行は使わない。コールバックのオリジンをリクエストから作らず、外部へのリダイレクトを追わず、処理全体を8秒に制限する。プロバイダーのレスポンス本文やURLエラーは、公開を許可したエラーに変換する。シークレット・認可コード・トークンを公開エラーに出さない。
 
 一次資料: [Google OAuth server flow](https://developers.google.com/youtube/v3/guides/auth/server-side-web-apps)、[channels.list](https://developers.google.com/youtube/v3/docs/channels/list)。
 
-### Firebase verification boundary
+### Firebaseの検証
 
-FirebaseBoundaryは公式Admin SDKのVerifyIDToken/CustomToken portを使い、署名検証済みtokenについて固定projectのissuer/audience、custom provider、tenantなし、channel形式のUID/subject一致、期限/発行/認証時刻を追加検証する。SDK/token errorを公開messageやlogへ転記しない。mintはserverが確認したchannel UIDだけを渡す。
+FirebaseBoundaryは、公式Admin SDKのVerifyIDToken/CustomTokenインターフェースを使う。署名検証済みのトークンについて、固定プロジェクトのissuer/audience、custom provider、テナントがないこと、チャンネル形式のUIDとsubjectの一致、期限・発行時刻・認証時刻を追加検証する。SDKやトークンのエラーを公開メッセージやログへ転記しない。発行処理には、サーバーが確認したチャンネルUIDだけを渡す。
 
-AppCheckVerifierは公式のJWT検証手順に沿ってRS256署名・JWT type・固定project numberのissuer/audience・当該Web App ID・期限/発行時刻を検証する。JWKSは固定v1 endpointから遅延取得し、最大6時間cache、処理2秒・size/key数制限、未知kid/取得失敗のrefresh間隔制限とsingleflightを持つ。constructorは通信/background loopを作らない。SDKのeager AppCheck clientを使わず、request contextと合成HTTP transportで検証できる境界を採用した。
+AppCheckVerifierは公式のJWT検証手順に沿って、RS256署名・JWT type・固定プロジェクト番号のissuer/audience・対象のWeb App ID・期限・発行時刻を検証する。JWKSは固定のv1エンドポイントから必要時に取得し、最大6時間キャッシュする。取得処理は2秒に制限し、サイズと鍵数にも上限を設ける。未知のkidや取得失敗時には再取得の間隔を制限し、singleflightで同時取得をまとめる。コンストラクターは通信やバックグラウンドループを開始しない。SDKの即時初期化型AppCheckクライアントは使わず、リクエストのcontextと合成HTTPトランスポートで検証できる構成を採用した。
 
 一次資料: [App Check custom backend verification](https://firebase.google.com/docs/app-check/custom-resource-backend)、[Firebase ID token verification](https://firebase.google.com/docs/auth/admin/verify-id-tokens)、[custom token signing](https://firebase.google.com/docs/auth/admin/create-custom-tokens)。
 
-### Server and keyless SDK assembly
+### サーバーと鍵を使わないSDKの組み立て
 
-`NewMyPageServer`で固定environment/project/app/origin、FirebaseBoundary、OAuth provider、Firestore Auth/Support store、read-only snapshot/BFFを6 endpointへ接続する。constructorはsecret/credential取得・外部通信・listen・通知を実行しない。coverageは検証済み範囲だけを注入し、未設定のhistoryを0へ変換しない。
+`NewMyPageServer`で、固定の環境・プロジェクト・アプリ・オリジン、FirebaseBoundary、OAuthプロバイダー、FirestoreのAuth/Supportストア、読み取り専用のスナップショット/BFFを6本のエンドポイントに接続する。コンストラクターはシークレットや認証情報の取得、外部通信、待ち受け、通知を行わない。履歴の完全性を確認した範囲だけをcoverageに渡し、未設定の履歴を0に変換しない。
 
-`NewKeylessFirebaseClient`は既存ADCのtoken sourceと明示した同一projectのsigner emailを受け取り、credential JSON/key file、Auth emulator、project不一致を拒否する。公式SDKへServiceAccountIDを指定し、IAM remote signingを選ぶ。合成IAM transportでsignBlob requestをRSA署名し、SDKのCustom Tokenを公開fixture keyで検証する。実IAM呼び出し/permission grantの証拠ではない。必要なiam.serviceAccounts.signBlobは承認済みsigner resourceに対する別のinfrastructure確認事項で、権限付与コードを含めない。
+`NewKeylessFirebaseClient`は既存ADCのtoken sourceと、明示した同一プロジェクトの署名者メールアドレスを受け取る。認証情報のJSON・鍵ファイル・Authエミュレーター・プロジェクトの不一致は拒否する。公式SDKにServiceAccountIDを指定し、IAMのリモート署名を選ぶ。合成IAMトランスポートでsignBlobリクエストをRSA署名し、SDKのCustom Tokenを公開テスト鍵で検証する。これは実IAMの呼び出しや権限付与の証拠ではない。必要なiam.serviceAccounts.signBlobは、承認済み署名者リソースに対して別途インフラで確認する事項であり、権限付与のコードは含めない。
 
-`cmd/mypage-server`はCloud Run用entrypoint。固定設定の検証と明示したinfrastructure readinessを満たすまでADCを取得せず、real-server bootstrapはemulator/credential-fileを拒否する。設定値・secret・SDK error detailをlogへ出さず、HTTP timeout/header制限とgraceful shutdownを持つ。readiness flagは基盤・securityレビューの代わりではなく、実起動/deployは別の承認済み作業。
+`cmd/mypage-server`はCloud Run用の起動処理である。固定設定の検証と、明示した基盤の準備条件を満たすまでADCを取得しない。実サーバーの初期化ではエミュレーターと認証情報ファイルを拒否する。設定値・シークレット・SDKエラーの詳細をログに出さず、HTTPのタイムアウト・ヘッダー制限とgraceful shutdownを備える。readinessフラグは基盤やセキュリティのレビューを代替せず、実起動・配備には別の承認済み作業が必要である。
 
-Cloud Runへ設定するserver-only項目はenvironment/region/project number/Web App ID/public origin/policy versions/signer email/OAuth client ID/secret。OAuth共通secretは承認済みSecret Manager/Cloud Runのsecret供給境界を使い、Viteへ渡さない。history coverageは実inventory未確認のため未指定とする。
+Cloud Runに設定するサーバー専用項目は、環境・リージョン・プロジェクト番号・Web App ID・公開オリジン・ポリシーバージョン・署名者メールアドレス・OAuthクライアントID・シークレットである。OAuth共通シークレットは、承認済みのSecret ManagerからCloud Runへの供給方法を使い、Viteに渡さない。履歴のcoverageは実データの一覧を未確認のため、未指定とする。
 
 ## 作業集計と履歴
 
-### Pure aggregation
+### 外部処理に依存しない集計
 
-`WorkSnapshot` は同じ Firestore snapshot から読む adapter との境界。snapshot read time がない入力は受理しない。`Coverage` は完全性を確認した期間だけを指定し、未設定なら登録済み利用者の履歴を `HISTORY_INCOMPLETE` とする。実環境の coverage 開始日・欠損範囲は未確認であり、推測設定しない。
+`WorkSnapshot`は、同じFirestoreスナップショットから読み取るアダプターとの受け渡しに使う。スナップショットの読み取り時刻がない入力は受理しない。`Coverage`には完全性を確認した期間だけを指定する。未設定なら、登録済み利用者の履歴を`HISTORY_INCOMPLETE`とする。実環境のcoverage開始日と欠損範囲は未確認であり、推測で設定しない。
 
-現行 writer は退室時に `users.TotalStudySec` へ入室セッション分を転記する。そのため入室中の lifetime は `TotalStudySec + SeatDoc.CumulativeWorkSec + work 状態の経過秒`。履歴の ongoing 区間は `CurrentSegmentStartedAt` を使い、作業名変更による closed segment と重ねない。break 中もすでに完了した session work は lifetime に残す。
+現在の書き込み処理は退室時に入室セッション分を`users.TotalStudySec`へ転記する。そのため入室中の累計は`TotalStudySec + SeatDoc.CumulativeWorkSec + work 状態の経過秒`となる。進行中の履歴区間には`CurrentSegmentStartedAt`を使い、作業名変更で終了した区間と重ねない。休憩中も、そのセッションで完了した作業時間は累計に残す。
 
-1001件・取得失敗・重複/未来/負の区間・coverage 欠損を正常な0へ変換しない。coverage欠損だけの場合、有効な区間から確認できた正の合計を任意の`recordedWorkSec`として返す。完全な合計`workSec`はnull/unavailableのままで、UIは記録済み分・集計未確定と区別する。0、取得障害、上限、整合性不良には記録済み値を付与しない。独立して正しい current / lifetime / account は保持する。
+1001件への到達、取得失敗、重複・未来・負の区間、coverageの欠損を正常な0へ変換しない。coverageの欠損だけの場合は、有効な区間で確認できた正の合計を任意項目`recordedWorkSec`として返す。完全な合計`workSec`はnull/unavailableのままにし、UIでは記録済み分と集計未確定を区別する。0、取得障害、上限到達、整合性不良の場合は記録済み値を付けない。独立して正しい現在の状態・累計・アカウント情報は保持する。
 
-### Snapshot adapter and writer ordering
+### スナップショットの読み取りと書き込み順序
 
-User lookup の `DocumentSnapshot.ReadTime` を取得してから JST query window を決め、User / seats / member-seats / work-segments を同じ read-only transaction で読む。不存在Userでも readTime を維持し、seat/history queryは省略する。seatは各区分2件まで、historyは1001件までで打ち切る。
+Userの検索で`DocumentSnapshot.ReadTime`を取得してから、JSTの検索期間を決める。User、seats、member-seats、work-segmentsは同じ読み取り専用トランザクションで読む。UserがなくてもreadTimeを保持し、座席と履歴のクエリは省略する。座席は各区分2件、履歴は1001件で打ち切る。
 
-work-segmentsは user-id equality、ended-at > window start、started-at < asOf を用いる。必要な composite index は [query 契約](query-index.json)と [Firebase 配備定義](../../firebase/firestore.indexes.json)の一致を契約 checker で検証する。実環境への適用・有効状態は release gate で別途確認する。
+work-segmentsの検索条件はuser-idの一致、ended-at > window start、started-at < asOfとする。必要な複合インデックスは[クエリ仕様](query-index.json)と[Firebase配備定義](../../firebase/firestore.indexes.json)が一致することを仕様チェッカーで検証する。実環境への適用と有効状態は、リリース時に別途確認する。
 
-既存 writer の identity/history query は `WorkspaceApp.RunTransaction` が渡すcontext内で同じtransactionへ参加する。外側のquery利用は従来どおり。これにより seat更新と並行する read→write が競合判定される。
+既存の書き込み処理で使う本人情報・履歴のクエリは、`WorkspaceApp.RunTransaction`が渡すcontext内では同じトランザクションに参加する。その外でのクエリ利用は従来どおりとする。これにより、座席更新と並行する読み取りから書き込みへの処理で競合を判定する。
 
-移動では old segment close と new seat entry に同じtransition instantを使う。休憩のoriginal startは新seatのentryより前でも正当だが、current segmentはnew seat entry以降でなければならない。過去に記録された重複区間は推測修復・許容せず、影響するhistory metricを `DATA_INCONSISTENT`、独立したcurrent/lifetimeは利用可能な限り維持する。
+座席の移動では旧区間の終了と新座席への入室に同じ遷移時刻を使う。休憩の元の開始時刻は新座席への入室前でも正当だが、現在の区間は新座席への入室以降でなければならない。過去の重複区間は推測で修復したり許容したりせず、影響する履歴指標を`DATA_INCONSISTENT`にする。独立した現在の状態と累計は、利用可能な限り維持する。
 
 ### 月次の読み取り用履歴
 
-日別の終了区間件数も保持し、明細queryのscan予算を検証できるようにする。寄与した原区間の最遠endでfuture区間の影響を過去日にも伝える。各scalarは欠損・null・別型を拒否し、0/falseへ暗黙変換しない。
+日別の終了区間件数も保持し、明細クエリの走査予算を検証できるようにする。集計元の区間で最も遠い終了時刻を使い、未来の区間が過去日に及ぼす影響も反映する。各スカラー値は欠損・null・型違いを拒否し、0やfalseへ暗黙に変換しない。
 
-月次 reader はユーザー×月の `work-months`（最大31日の確定 work 秒・日別整合性・版）を最大2文書読み、直近7日を集計する。close 時の月次 write は通常1で、月跨ぎでは増える。月次は同じユーザー内の更新競合と文書転送量が増えるため、実DEVのlatency・競合率・追加write費を確認して切り替える。既存`DailyUserWorkHistoryDoc`はwriterがなく、検証済みの基礎値へ復活させない。raw `work-segments`は原記録として保持する。
+月次の読み取り処理はユーザーと月ごとの`work-months`を最大2文書読み、直近7日を集計する。文書には最大31日の確定作業秒数・日別の整合性・バージョンを保持する。区間終了時の月次書き込みは通常1回で、月を跨ぐ場合は増える。月次方式では同じユーザー内の更新競合と文書転送量が増えるため、実DEVの遅延・競合率・追加の書き込み費用を確認して切り替える。既存の`DailyUserWorkHistoryDoc`には書き込み処理がなく、検証済みの基礎値として再利用しない。`work-segments`は原記録として保持する。
 
-切替はserver-onlyのUser field `work-history-epoch=monthly-v1`で明示する。未移行は従来の上限付きreaderを維持し、移行後の通常APIはraw query・同期backfill・明細全page巡回を行わない。`Coverage`は従来どおり独立した履歴完全性の根拠で、月次文書の存在や作成日時から0を推測しない。欠損月・未検証baseline・異なるepochは`HISTORY_INCOMPLETE`、不正区間・逆行watermarkは`DATA_INCONSISTENT`、取得失敗は`SOURCE_UNAVAILABLE`とする。
+切替はサーバー専用のUserフィールド`work-history-epoch=monthly-v1`で明示する。未移行の場合は従来の上限付き読み取りを維持する。移行後の通常APIでは原記録のクエリ・同期的な既存データ補完・明細の全ページ巡回を行わない。`Coverage`は従来どおり履歴の完全性を示す独立した根拠であり、月次文書の存在や作成日時から0を推測しない。欠損月・未検証の基準値・異なるepochは`HISTORY_INCOMPLETE`、不正区間・逆行する処理済み時刻は`DATA_INCONSISTENT`、取得失敗は`SOURCE_UNAVAILABLE`とする。
 
-`work-history-activated-at`と`work-history-closed-through`は明示切替時の同一snapshot時刻で初期化する。future rawがないことも上限1件のqueryで確認し、後続writerがclosed-throughを同じtransactionで単調に進める。切替以後、closed-throughより後の未作成月/日だけは「原記録が存在しない」と検証できる。`closed-through >= activated-at`・未来値なしを必須とし、記録があるはずの月の欠損はunknownのままにする。
+`work-history-activated-at`と`work-history-closed-through`は明示切替時の同じスナップショット時刻で初期化する。未来の原記録がないことも上限1件のクエリで確認し、後続の書き込み処理が同じトランザクションでclosed-throughを単調に進める。切替以後、closed-throughより後の未作成の月・日だけは「原記録が存在しない」と検証できる。`closed-through >= activated-at`かつ未来値がないことを必須とし、記録があるはずの月の欠損は不明のままにする。
 
-writerは`PrepareWorkSegmentWrites`でSAC・冪等event・User・現在Seat・対象月を先にreadし、同じattempt/区間に束縛したplanで原記録・月次・watermarkをwriteする。In＋注文＋席移動も注文write前に準備し、退室はSeat削除前に準備する。作業名変更、休憩/再開、Clear、Out、強制退室、batchは同じ中央writerを使う。現在SeatのUID/session/state/segment開始と一致しない旧区間、User不存在、準備なし/`tx=nil`の作成、genericなraw/月次削除は拒否する。既存の訂正APIはない。管理者の直接raw修正は通常writerを迂回するため、readerを明示rollbackしてから修正・bounded再集計・再切替する。
+書き込み処理は`PrepareWorkSegmentWrites`でSAC・冪等イベント・User・現在のSeat・対象月を先に読み取る。同じ試行と区間に結び付けた計画に従い、原記録・月次・処理済み時刻を書き込む。入室・注文・席移動を組み合わせる場合も注文の書き込み前に準備し、退室ではSeatの削除前に準備する。作業名変更、休憩・再開、Clear、Out、強制退室、バッチは同じ中央の書き込み処理を使う。現在のSeatのUID・セッション・状態・区間開始と一致しない旧区間、Userの不存在、準備なしや`tx=nil`での作成、汎用処理による原記録・月次の削除は拒否する。既存の訂正APIはない。管理者による原記録の直接修正は通常の書き込み処理を迂回するため、読み取り処理を明示的にロールバックしてから、修正・上限付き再集計・再切替を行う。
 
-イベントIDはUser/session/Seat/state/半開区間から決め、同一内容の再送は加算しない。同じIDで内容が違えば競合。SAC checkpointは業務operation全体のretryに保持し、削除解除後に取り直して旧処理を継続しない。late/overlapの派生値はexactにせず、明示再集計で修復する。JST分割後の秒を日別に保持し、日跨ぎの秒未満によるcarryを週集計へ補正して既存rawの丸めを維持する。進行中分は同一asOfのSeat、累計は既存User/Seatの時計を維持する。
+イベントIDはUser・セッション・Seat・状態・半開区間から決め、同じ内容の再送では加算しない。同じIDで内容が異なる場合は競合とする。SACのチェックポイントは業務操作全体の再試行中も保持し、削除制限の解除後に取り直して旧処理を継続しない。遅延・重複区間の派生値は正確な値として扱わず、明示的な再集計で修復する。JSTで分割した秒数を日別に保持し、日跨ぎの秒未満の繰り越しを週集計で補正して、既存の原記録の丸め方を維持する。進行中の分は同じasOfのSeatを使い、累計は既存のUser・Seatの時計を維持する。
 
-snapshot自身はUser 1 lookup、通常/メンバー席各`limit(2)`、月次最大2 lookup。通常はqueryの空結果最低課金を含めsnapshotで4〜5read、壊れた重複席を含む最大は7read相当となる。**APIが2readになるという意味ではない**。metadataがfreshなcache missのleaderでは、既存HTTP/BFFのSAC lookup計6とWebAccount lookup1も加わり、通常11〜12read相当、最大14がソース上の目安。cache hitも認可等4 lookupを維持する。transaction retry・metadata refresh・Auth/App Check・index entry等は別で、これらを実Billingの上限や実測値と呼ばない。
+スナップショット自体はUserを1回検索し、通常席・メンバー席をそれぞれ`limit(2)`で検索し、月次を最大2回検索する。クエリの空結果に対する最低課金を含め、通常はスナップショットで4〜5read、重複した不正な座席を含む場合は最大7read相当となる。**API全体が2readになるという意味ではない**。メタデータが最新でキャッシュミスした場合、実取得を担う呼び出し元には、既存HTTP/BFFのSAC検索計6回とWebAccount検索1回も加わる。ソース上の目安は通常11〜12read相当、最大14である。キャッシュヒット時も認可などの4回の検索を維持する。トランザクションの再試行、メタデータの再取得、Auth/App Check、インデックスエントリーなどは別であり、これらを実際の請求上限や実測値として扱わない。
 
-新writerの追加readは通常5（SAC/event/User/Seat/月）、追加writeは月次1と移行済みUserのwatermark最大1。既存Seat/User更新と別に見積もり、retryを加味する。準備対象区間は最大366日、1区間の月数も有限とし、異常に長い区間を黙って捨てない。月次の`days` mapはindex除外候補としてFirebase設定へ記録し、実適用は配備証跡と区別する。移行・復旧・混在writerの手順は[release runbook](release/README.md#月次履歴の明示移行と復旧)を参照する。
+新しい書き込み処理の追加読み取りは通常5回で、対象はSAC・イベント・User・Seat・月である。追加書き込みは月次1回と、移行済みUserの処理済み時刻の最大1回である。既存のSeat・User更新とは別に見積もり、再試行も加味する。準備する区間は最大366日、1区間の月数も有限とし、異常に長い区間を通知せずに破棄しない。月次の`days`マップはインデックス除外候補としてFirebase設定に記録し、実適用とは配備証跡で区別する。移行・復旧・複数方式の書き込み処理が混在する場合の手順は[配備手順書](release/README.md#月次履歴の明示移行と復旧)を参照する。
 
-### 明細cursorと重い処理の利用予算
+### 明細カーソルと処理量の利用予算
 
-`GET /api/mypage/history`はDEV専用・policy未設定ではOFF。public price/Premium発売を意味しない。`mypage-maintenance/history-policy`の[候補](history-policy.example.json)は正式商品枠ではなく、所有者が実費・UXを確認して使う設定例。Productionは拒否する。Frontendも`VITE_HISTORY_DETAILS_ENABLED`が明示trueかつDEV projectの時だけ表示し、既定OFF。
+`GET /api/mypage/history`はDEV専用であり、ポリシー未設定時は無効とする。公開価格やPremiumの発売を意味しない。`mypage-maintenance/history-policy`の[候補](history-policy.example.json)は正式な商品枠ではなく、所有者が実費とUXを確認して使う設定例である。本番では拒否する。フロントエンドも`VITE_HISTORY_DETAILS_ENABLED`が明示的にtrueで、かつDEVプロジェクトの場合だけ表示し、既定では無効とする。
 
-期間は「JSTの[from,to)に完了したwork区間」。日を跨いで開始した区間も完了日に表示する。グラフの期間へのoverlap集計とは別で、グラフのために明細全pageを読み切らない。1request最大31日、初期50/max100件、最大120KiBの明細payload、8秒の処理budget。過去に閲覧できる範囲と1requestの期間を分け、準備済み月次があるrecorded historyを対象にする。未観測の期間を実作業0と確定しない。
+対象期間は「JSTの[from,to)に完了した作業区間」とする。日を跨いで開始した区間も、完了日に表示する。これはグラフの期間に重なる部分を集計する処理とは別であり、グラフのために明細の全ページを読み切らない。1リクエストは最大31日、初期50件・最大100件、明細ペイロードは最大120KiB、処理時間は8秒に制限する。過去に閲覧できる範囲と1リクエストの期間は区別し、月次の準備が済んだ記録済み履歴を対象にする。未観測の期間を実作業0とは確定しない。
 
-sortはended-at＋一意document ID、offsetなし。15分のAES-GCM cursorにverified UID binding、SAC checkpoint、consent、server entitlement/policy revision、期間・page size・固定readTimeを束縛する。原記録のID/UIDをcursorのplaintextやresponseへ出さない。既存server OAuth secretから用途別にkey導出し、新secret/credentialは作らない。page追加の途中でも同じasOfを使うため、同時追加による重複・飛び込みを避ける。
+ended-atと一意な文書IDで並べ替え、オフセットは使わない。有効期間15分のAES-GCMカーソルに、検証済みUIDとの対応、SACチェックポイント、同意、サーバー側の利用権限・ポリシーのリビジョン、期間・ページサイズ・固定readTimeを結び付ける。原記録のID・UIDをカーソルの平文やレスポンスに出さない。既存のサーバー側OAuthシークレットから用途別の鍵を導出し、新しいシークレットや認証情報は作らない。ページ追加中も同じasOfを使い、同時追加による重複や記録の混入を避ける。
 
-raw query前に、そのsnapshotの月次終了件数と専用indexでscan範囲を限定する。`user-id/segment-type/ended-at` indexのDEV適用とQuery Explain照合は有効化Gateで、Emulatorや件数だけを実index課金の証明にしない。件数上限・欠損月・不正schemaでは通常APIからbackfillしない。明細では重複等のある個々の記録も`sourceConsistent=false`で区別し、グラフのexactな合計へ流用しない。
+原記録のクエリ前に同じスナップショットの月次終了件数と専用インデックスで走査範囲を限定する。有効化には`user-id/segment-type/ended-at`インデックスのDEV適用とQuery Explainとの照合が必要であり、エミュレーターや件数だけを実際のインデックス課金の証明にしない。件数上限・欠損月・不正スキーマの場合、通常APIから既存データを補完しない。明細では、重複などのある個々の記録も`sourceConsistent=false`で区別し、グラフの正確な合計に流用しない。
 
-quotaは`mypage-history-budgets`のUID別singletonに、JST日付・消費単位・opaqueな重複検知・最大4 leaseだけを保存する。新基盤を追加せず、SACとpolicyを同じFirestore transactionで照合して予約する。単位は`page size + sentinel + ceil(maxIndexEntries/1000) + 32`という保守的な技術予算で、quota管理等の費用も含む。原記録のreadより先に判定し、instance/restart/並行requestを跨ぐ。Premiumはtrusted server resolverだけが判定し、既存YouTube会員やclient指定planを自動的にPremiumへしない。既定はStandard、両枠とも有限。
+利用枠は`mypage-history-budgets`のUIDごとの単一文書で管理し、JST日付・消費単位・内容を推測できない重複検知情報・最大4リースだけを保存する。新しい基盤は追加せず、同じFirestoreトランザクションでSACとポリシーを照合して予約する。消費単位は`page size + sentinel + ceil(maxIndexEntries/1000) + 32`という余裕を持たせた技術上の予算であり、利用枠の管理費用なども含む。原記録を読む前に判定し、インスタンス・再起動・並行リクエストを跨いで管理する。Premiumは信頼済みのサーバー側リゾルバーだけが判定し、既存のYouTube会員やクライアント指定プランを自動的にPremiumへ分類しない。既定はStandardとし、どちらの枠にも上限を設ける。
 
-失敗・取消・ACK不明も予約分を消費し、自動refundしない。同じ`Idempotency-Key`は同条件でも409で再実行せず、別条件への転用も拒否する。manual retryは新しいoperationとして予約する。履歴cacheは持たない。重複検知は現在/前JST日の分だけを利用時pruneし、最大2048件。idle singletonは次の利用またはPrivacy削除まで残るため、これをTTL完了や新しい公開retention policyと呼ばない。
+失敗・取消・ACK不明の場合も予約分を消費し、自動返却しない。同じ`Idempotency-Key`は同条件でも409を返して再実行せず、別条件への転用も拒否する。手動再試行は新しい操作として予約する。履歴のキャッシュは持たない。重複検知情報は現在と前のJST日分だけを利用時に残し、最大2048件とする。使われていない単一文書は、次の利用かプライバシー削除まで残る。これをTTL対応の完了や新しい公開保持ポリシーとして扱わない。
 
-leaseはrequest期限より長い15秒で、正常/失敗時に独立1秒budgetで解放する。取消やprocess消失後も期限で回復し、日跨ぎでも旧leaseを維持して同時実行を増やさない。429はRetry-AfterとJST再開時刻を返し、UIは表示済みpageを保持する。Auth/停止/世代変更・pagehideではprivate明細をclearする。overview/logout/Privacyはこの日次枠を消費せず、通常の5分利用を止めない。quotaも既存Privacy primary scopeで消し、旧cursorは元SAC checkpoint不一致で拒否する。
+リースはリクエスト期限より長い15秒とし、正常終了・失敗時に独立した1秒の制限時間内で解放する。取消やプロセス消失後も期限切れで回復し、日跨ぎでも旧リースを維持して同時実行数を増やさない。429はRetry-AfterとJSTの再開時刻を返し、UIは表示済みページを保持する。認証の変化・停止・世代変更・pagehideでは非公開の明細を消去する。概要・ログアウト・Privacyはこの日次枠を消費せず、通常の5分間隔の利用を止めない。利用枠も既存のPrivacy primary scopeで削除し、旧カーソルは元のSACチェックポイントとの不一致で拒否する。
 
-## HTTP・cache
+## HTTPとキャッシュ
 
-`HTTPHandler` は6つの通常login endpointのlibrary boundary。App Check、Firebase custom provider、fresh ServiceAccessControl、WebAccount存在・同意版を統計アクセス前に検証する。cache hitでもこのgateを毎回通す。旧`accessBlocked`はdecode互換のみで認可に使用しない。opaque cookieはHttpOnly / Secure / Lax / Path=/、Domainなし。callbackは固定pathへredirectし、raw provider errorやdependency detailを公開しない。JSONは未知・重複・大小文字違いのfield、余分なquery/body、4096 byte超を拒否する。
+`HTTPHandler`は通常ログイン用の6本のエンドポイントを提供するライブラリである。統計へのアクセス前に、App Check、Firebase custom provider、最新のServiceAccessControl、WebAccountの存在と同意バージョンを検証する。キャッシュヒット時も毎回検証する。旧`accessBlocked`はデコード互換のためだけに残し、認可には使わない。内容を推測できないCookieにはHttpOnly / Secure / Lax / Path=/を指定し、Domainは指定しない。コールバックは固定パスへリダイレクトし、プロバイダーの元のエラーや依存先の詳細を公開しない。JSONは未知・重複・大小文字違いのフィールド、余分なクエリや本文、4096バイト超を拒否する。
 
-aggregate cacheは環境+uidをkeyにprocess memoryで最大30秒、JST日境界を越えて再利用しない。singleflight内の処理は最大8秒budgetを持ち、最初のcaller切断が他callerの処理を止めない。generatedAtは元snapshotの値を維持する。失敗はcacheしない。metadataは24時間でrefresh対象、失敗時30日未満だけpartial、30日以上はunavailable。
+集計キャッシュは環境とuidをキーにプロセス内メモリで最大30秒保持し、JSTの日付境界を越えて再利用しない。singleflight内の処理は最大8秒に制限し、最初の呼び出し元が切断しても他の呼び出し元の処理を止めない。generatedAtは元のスナップショットの値を維持し、失敗はキャッシュしない。メタデータは24時間で再取得の対象とする。再取得に失敗した場合は、取得から30日未満に限り一部取得として扱い、30日以上は取得不能とする。
 
-rate limitはprocess単位のbounded memory。deploymentの全体limitとtrusted proxy IP抽出は未実装で、既定は`RemoteAddr`を使う（実経路の確認はCanon S01）。[ServiceAccessControl A](service-access-control.md)はMyPageのread/token/write境界を保護する。横断削除と全runtime drain、support受付完了の実行はBの独立した完了条件。
+レート制限はプロセス単位の上限付きメモリで管理する。配備全体の制限と信頼済みプロキシからのIP抽出は未実装で、既定では`RemoteAddr`を使う。実経路での確認はCanon S01で扱う。[ServiceAccessControl A](service-access-control.md)はMyPageの読み取り・トークン発行・書き込みを保護する。横断削除、全ランタイムでの処理停止の完了、サポート受付の完了処理は、Bの独立した完了条件とする。
 
-HTTP handlerは環境ごとに固定したHTTPS `PublicOrigin` を必須とし、対象外Host、別origin/OriginなしのPOST、重複Originと重複`__session`をdependency検証・OAuth mutation前に拒否する。callback GETはOriginなしを許すが固定Hostの検証を省略しない。clientのX-Forwarded-Host / Proto / Forで許可先やdefault IPを変更しない。Hostingから届く実Hostの確認はdeployment gateに残す。
+HTTPハンドラーには環境ごとに固定したHTTPSの`PublicOrigin`を必須とする。対象外のHost、別オリジンまたはOriginなしのPOST、重複したOriginや`__session`は、依存先の検証やOAuthの状態変更より前に拒否する。コールバックのGETはOriginなしを許すが、固定Hostの検証は省略しない。クライアントのX-Forwarded-Host / Proto / Forで許可先や既定のIPを変更しない。Hostingから届く実際のHostは配備時の確認事項として残す。
 
-すべてのrouteにcoarse IP bucket（60/min、burst20）をverification前に置き、invalid App Check / ID tokenの連投も制限する。startの5/10min・20/hour制限もこの位置で行う。verified uid制限とatomic transaction consumeは別に維持する。
+すべてのルートで、検証前にIP単位の大まかな制限（60/min、burst20）を適用し、不正なApp Check・IDトークンの連投も制限する。startの5/10min・20/hourの制限も同じ段階で行う。検証済みuidの制限と、トランザクションのアトミックな消費は別に維持する。
 
-snapshotのdetached flightも元requestの残りdeadlineを引き継ぎ、最大8秒とresponse用の余裕で上限を切る。authorization前から進むHTTP budgetをリセットしない。短いdeadlineで合流するcallerにも、既知terminal accountをouter/client期限前にpartialで返す余裕を設ける。caller切断は他callerの共有readをcancelせず、flightのmetadata copyとcallerのfallbackを分離する。deadlineまで待つsnapshotと、より短いcallerのsingleflight合流を回帰testで確認する。
+リクエストから独立して進むスナップショットの共有処理も、元のリクエストの残り期限を引き継ぐ。最大8秒と、レスポンスを返すための余裕で上限を決め、認可前から消費しているHTTPの制限時間をリセットしない。期限の短い呼び出し元が合流しても、表示停止が必要と判明したアカウントを、外側の処理・クライアントの期限前に一部取得の応答で返せる余裕を設ける。呼び出し元の切断で他の呼び出し元の共有読み取りをキャンセルせず、共有処理内のメタデータコピーと呼び出し元の代替処理を分ける。期限まで待つスナップショットと、より短い期限でsingleflightに合流する呼び出し元を回帰テストで確認する。
 
-shared flight中に判明したchannel不在/metadata terminalと認証gate errorは同revisionのcallerへmutexで共有する。初期accountがpresentの短いcallerも、durable clear失敗時を含め既知terminalを期限前に受け取る。登録・完了・slot削除を同lockで行う最大1024件のsingleflight registryにより、callbackとjoinerの登録gapを作らず、完了結果とflight途中のsanitized verdictだけを共有する。
+共有処理中に判明したチャンネル不在・メタデータの表示停止状態・認証検証エラーは、同じリビジョンの呼び出し元にmutexで共有する。初期状態ではアカウントが存在し、期限が短い呼び出し元にも、永続データの消去に失敗した場合を含め、判明済みの表示停止状態を期限前に返す。最大1024件のsingleflight登録情報では、登録・完了・スロット削除を同じロックで行う。コールバックと合流する呼び出し元の登録に隙間を作らず、完了結果と、共有処理の途中で公開可能な形に整えた判定だけを共有する。
 
-## Frontendと画面遷移
+## フロントエンドと画面遷移
 
-### Frontend private memory
+### 個人データのメモリ管理
 
-`MyPageMemory` はuid変更/logout開始/pagehideで個人データを同期clearしてrequestをabortする。epoch照合によりabortを無視する遅延responseも破棄する。logout失敗でもデータは復活せず再試行可能。bootstrap中にlogin画面を出さない。
+`MyPageMemory`はuid変更・ログアウト開始・pagehide時に個人データを同期的に消去し、リクエストを中断する。世代を照合し、中断を無視して遅れて届いたレスポンスも破棄する。ログアウトに失敗してもデータは復活せず、再試行できる。初期化中はログイン画面を出さない。
 
-MyPageのoverview route（末尾slashも含む）がvisibleかつonlineの時だけ成功後5分でpollし、他route・hidden・offlineでは次の取得を停止する。短時間の復帰では残り時間だけ待機し、5分以上経過した復帰時は即refreshする。初回取得・手動更新・request overlap防止・manual debounceを維持する。通常503の自動backoffは絶対時刻で保持し、タブ・route・network・bfcache復帰で短縮しない。明示的な手動更新は通常backoff中も可能だが、429のRetry-Afterは手動更新も待機する。待機は同じuidの復帰に引き継ぎ、別uidへ転用しない。401はデータを消して同uidで一度だけtoken refresh、App Checkだけは一度再取得し、継続401/再同意/WebAccountなしはsignOutへ戻す。取得不能section/metricは同uidの直前成功だけをmemory保持し、元asOfとstaleを残す。未取得値を0にはしない。
+MyPageの概要ルート（末尾のスラッシュも含む）が表示中かつオンラインの場合だけ、取得成功から5分後に定期取得する。他のルート・非表示・オフラインでは次の取得を停止する。短時間で復帰した場合は残り時間だけ待ち、5分以上経過していれば即座に再取得する。初回取得・手動更新・リクエストの重複防止・手動操作の連打抑止は維持する。
+通常の503に対する自動再試行の待機期限は絶対時刻で保持し、タブ・ルート・ネットワーク・bfcacheからの復帰で短縮しない。明示的な手動更新は通常の待機中も可能だが、429のRetry-Afterでは手動更新も待つ。同じuidでの復帰には待機を引き継ぎ、別のuidには引き継がない。
+401ではデータを消去し、同じuidで一度だけトークンを更新する。App Checkだけが原因の場合は一度再取得する。401の継続・再同意・WebAccountの不存在ではsignOutに戻す。取得できないセクションや指標は、同じuidで直前に成功した値だけをメモリに保持し、元のasOfと古い値であることを残す。未取得の値を0にしない。
 
-制限403は個人データを同期clearし、専用表示へ移る。poll/manual/visibility retryを停止し、logout・public法的文面・support・fresh loginを利用できる。通常503のbackoff/stale表示は維持する。
+利用制限の403では個人データを同期的に消去し、専用表示へ移る。定期取得・手動更新・表示復帰時の再試行を停止する。ログアウト・公開の法的文面・サポート・新たなログインは利用できる。通常の503に対する待機と古い値の表示は維持する。
 
-controllerはsession/API adapterを注入し、Firebase listener、router、画面、bfcache eventへ結線する。MyPage responseやmetadataをstorageへ保存する経路は持たない。
+コントローラーにはセッションとAPIのアダプターを渡し、Firebaseリスナー・ルーター・画面・bfcacheイベントに接続する。MyPageのレスポンスやメタデータをストレージに保存する処理は持たない。
 
-### Browser runtime and synthetic integration
+### ブラウザでの実行と合成統合テスト
 
-通常loginのstart / channel / confirm / session-complete、Firebase custom sign-in、App CheckとID token付きsame-origin API、TanStack Routerを接続する。対象uidはFirebaseから読み、clientから対象channel IDを送らない。confirmは自動再送せず、Custom Tokenをmemory controllerやstorageへ保存しない。session-completeのtransient failureだけを最大3回試し、失敗時は当該uidをsignOutする。遅い旧session処理は新uidをsignOutしない。completion前は個人画面へのfetchを抑止する。
+通常ログインのstart / channel / confirm / session-complete、Firebase custom sign-in、App CheckとIDトークン付きの同一オリジンAPI、TanStack Routerを接続する。対象uidはFirebaseから読み、クライアントから対象チャンネルIDを送らない。confirmは自動再送せず、Custom Tokenをメモリのコントローラーやストレージに保存しない。session-completeの一時的な失敗だけを最大3回試し、失敗した場合はそのuidをsignOutする。旧セッションの遅い処理で、新しいuidをsignOutしない。完了前は個人画面のデータ取得を抑止する。
 
-public Firebase設定とpolicy versionが揃わない場合はlogin unavailableとしてpublic pageだけを表示する。ViteへOAuth secret / admin credential / App Check debug tokenを設定しない。Firebase SDKの認証session persistence以外の個人metadata / 作業dataはmemory-only。Routerのscroll restorationを無効化しURLをkeyにしない。現在のRouter dependencyはpagehideで空のscroll cache `{}`をsessionStorageへ書くが、URL・challenge・metadataは入らない。
+公開Firebase設定とポリシーバージョンが揃わない場合はログイン不能とし、公開ページだけを表示する。ViteにOAuthシークレット・管理者認証情報・App Checkデバッグトークンを設定しない。Firebase SDKによる認証セッションの永続化を除き、個人メタデータと作業データはメモリ内だけに置く。Routerのスクロール位置復元を無効化し、URLをキーにしない。現在のRouter依存ライブラリはpagehide時に空のスクロールキャッシュ`{}`をsessionStorageへ書くが、URL・チャレンジ・メタデータは含めない。
 
-認証・route の合成 QA は [design acceptance](design/README.md) を使う。product runtime の成功と実環境での認証・公開受入を区別する。
+認証とルートの合成QAは[表示の受入条件](design/README.md)を使う。製品のランタイムが動くことと、実環境での認証・公開の受入完了を区別する。
 
-support本人確認は準備中と明示し通常loginへ流さない。privacy / terms / contactとCookie設定は未完成のdraft UIであり公開承認版ではない。人間が決める運営者・窓口・公開URLを推測で入れない。実Google OAuth / Firebase App Check / Hosting経由のE2E、approved runtimeとのpixel parity、運用privacy/security、D01実装証跡・D02規約適合性確認・D03実値、infrastructure Ready Gateは一般公開前の条件。実環境での確認状況は[release手順](release/README.md)と[実経路E2E](release/e2e.md)を正とする。
+サポートの本人確認は準備中と明示し、通常ログインへ進めない。privacy / terms / contactとCookie設定は未完成の草案UIであり、公開承認版ではない。人間が決める運営者・窓口・公開URLを推測で埋めない。一般公開前には、実際のGoogle OAuth・Firebase App Check・Hosting経由のE2E、承認済みランタイムとのピクセル単位の一致、プライバシー・セキュリティの運用、D01実装証跡・D02規約適合性確認・D03実値、基盤の準備完了確認が必要である。実環境の確認状況は[配備手順](release/README.md)と[実経路E2E](release/e2e.md)を参照する。
 
-### Confirmation return after bfcache
+### bfcacheから確認画面への復帰
 
-channel確認画面でpagehide/identity変更が起きたらpending確認をabortし、旧channelをclearして中断理由と既存の再開始導線を表示する。bfcacheでmounted画面へ戻っても待機表示を続けず、旧成功応答のreceipt復活・遷移を抑止する。通常loginはloginからやり直し、supportは受付窓口へ戻る。
+チャンネル確認画面でpagehideや本人の変更が起きたら、処理待ちの確認を中断する。旧チャンネルを消去し、中断理由と既存の再開始手段を表示する。bfcacheでマウント済み画面へ戻っても待機表示を続けず、旧成功応答による受付情報の復活や遷移を抑止する。通常ログインはログインからやり直し、サポートは受付窓口へ戻る。
 
-実 bfcache の確認は HMR を含まない専用静的 build を使い、通常 / support の pending 有無、制限表示、pagehide 後の旧応答と本人データの非復活を確認する。実行方法は [design acceptance](design/README.md) を参照する。
+実際のbfcacheはHMRを含まない専用の静的ビルドで確認する。通常ログイン・サポートのそれぞれで処理待ちの有無と制限表示を確認し、pagehide後に旧応答や本人データが復活しないことを確認する。実行方法は[表示の受入条件](design/README.md)を参照する。
 
 ### 表示・合成検証
 
-表示原則・対象状態・browser QA は [design acceptance](design/README.md)、package の検証コマンドは [mypage README](../../mypage/README.md) を参照する。visual/runtime 専用入口は production build に含めない。合成検証では外部 request を遮断し、実ユーザーデータを artifact に保存しない。
+表示原則・対象状態・ブラウザQAは[表示の受入条件](design/README.md)、パッケージの検証コマンドは[mypage README](../../mypage/README.md)を参照する。表示確認・ランタイム確認専用エントリーポイントは本番ビルドに含めない。合成検証では外部リクエストを遮断し、実ユーザーデータを成果物に保存しない。
 
-`METADATA_TOO_OLD` は直前成功 account も clear して表示停止理由を示す。429 の共通 deadline は manual refresh / visibility 復帰で短縮しない。auth 拒否後の signOut 失敗は `LOGOUT_FAILED` と再試行導線を維持する。cookie-name の前後空白を正規化し、同名 cookie を重複拒否する。
+`METADATA_TOO_OLD`では直前に取得成功したアカウント情報も消去し、表示を停止した理由を示す。429の共通期限は手動更新や表示復帰で短縮しない。認証拒否後にsignOutが失敗した場合は、`LOGOUT_FAILED`と再試行手段を維持する。Cookie名の前後の空白を正規化し、同名Cookieの重複を拒否する。
 
-## Support本人確認
+## サポートの本人確認
 
-### Support record boundary
+### サポート記録の扱い
 
-`FirestoreSupportStore`はoperator/server用libraryで、public管理APIではない。environment / request ID / 対象channel / purpose(delete・revoke・disclosure)を記録し、challengeはhashと24時間期限だけを保存する。同じenvironment+request IDの重複作成はtransactionで拒否する。challenge再発行は元の受付時刻と削除期限(受付から7暦日)を維持し、旧challenge indexを消す。期限超過後の再発行でSLAを延長しない。
+`FirestoreSupportStore`は運用担当者・サーバー用のライブラリであり、公開管理APIではない。環境・リクエストID・対象チャンネル・目的（delete・revoke・disclosure）を記録する。チャレンジはハッシュと24時間の期限だけを保存する。同じ環境とリクエストIDの重複作成はトランザクションで拒否する。チャレンジの再発行では元の受付時刻と削除期限（受付から7暦日）を維持し、旧チャレンジのインデックスを削除する。期限超過後に再発行してもSLAを延長しない。
 
-SupportBindingはrecord reference / request ID / environment / purpose / challenge hashを保持するserver-only値。reissue前のbinding・目的違い・environment違い・対象channel違い・期限境界・proof replayは拒否する。proof成功はchallengeをconsumeするが、削除実行の承認ではない。完了recordへのpure transitionはchannel/challenge/proof/OAuth referenceを取り除き、最小の匿名監査用時刻を残す。
+SupportBindingはレコード参照・リクエストID・環境・目的・チャレンジハッシュを保持するサーバー専用の値である。再発行前の対応づけ、目的・環境・対象チャンネルの不一致、期限境界、証拠の再利用は拒否する。本人確認に成功するとチャレンジを消費するが、削除実行を承認するものではない。完了レコードへの純粋な状態遷移では、チャンネル・チャレンジ・証拠・OAuth参照を取り除き、匿名監査に必要な最小限の時刻を残す。
 
-D01削除guardを代替せず、既存users/seat/history/Auth userを変更しない。
+D01の削除保護処理は代替せず、既存のusers・座席・履歴・Authユーザーを変更しない。
 
-### Support OAuth atomic boundary
+### サポートOAuthのアトミックな処理
 
-startの任意supportChallengeをserver recordへ解決し、同じFirestore transactionで有効bindingを確認してOAuth recordを作る。request ID/environment/purpose/challenge hashをOAuthへ固定する。channelは固定purposeとfresh OAuthで得たpublic metadataだけを返す。clientからtarget channel/purposeを受け取らない。
+startの任意項目supportChallengeからサーバーのレコードを特定し、同じFirestoreトランザクションで有効な対応づけを確認してOAuthレコードを作る。リクエストID・環境・目的・チャレンジハッシュをOAuthに固定する。channelは固定された目的と、新たなOAuth認証で得た公開メタデータだけを返す。クライアントから対象チャンネルや目的を受け取らない。
 
-support confirmは同じtransactionでOAuth status/ref/同意版、record status/environment/request ID/purpose/旧challenge無効化/対象channel/期限を検証し、SupportRequestへproofを一度記録してOAuthとchallengeをconsumeする。独立した二つのfresh OAuth transactionからも同一依頼のproofは一回のみ。成功responseは`purpose=support`とopaque requestRefであり、Custom Token mint、WebAccount作成、Firebase session completion、ユーザーデータ削除は実行しない。normal consumeへの迂回もstoreで拒否する。OAuth内のchannel metadata/state/refはconsume時にclearする。
+サポートのconfirmでは同じトランザクションでOAuthの状態・参照・同意バージョンと、受付レコードの状態・環境・リクエストID・目的・旧チャレンジの無効化・対象チャンネル・期限を検証する。SupportRequestに証拠を一度記録し、OAuthとチャレンジを消費する。独立した2つの新しいOAuthトランザクションからでも、同じ依頼の証拠は一度だけ記録する。成功レスポンスは`purpose=support`と内容を推測できないrequestRefを返す。Custom Tokenの発行、WebAccountの作成、Firebaseセッションの完了、ユーザーデータの削除は実行しない。通常ログインの消費処理への迂回もストアで拒否する。OAuth内のチャンネルメタデータ・state・参照は消費時に消去する。
 
-通常responseもpurpose=loginを明示する。OpenAPIはchannel/confirmのdiscriminated unionを検証する。frontendの通常login adapterはsupport responseを受け付けず、support目的を通常login画面で確認してしまう経路を閉じる。D01実装証跡・D02規約適合性確認・D03実値・Ready Gateは継続して未完了。
+通常のレスポンスもpurpose=loginを明示する。OpenAPIはchannel/confirmの判別可能な共用体を検証する。フロントエンドの通常ログイン用アダプターはサポートのレスポンスを受け付けず、通常ログイン画面でサポート目的の確認ができないようにする。D01実装証跡・D02規約適合性確認・D03実値・公開準備の確認は引き続き未完了である。
 
-### Support browser flow
+### サポートのブラウザ操作
 
-support入口は既存Firebase sessionでも通常MyPageへredirectせず、fresh OAuthを開始する。不正なchallengeは専用の無効表示を維持し、通常loginへ切り替えない。serverから受け取ったpurposeと公開channel名を確認画面で示し、支援用buttonから確認する。successはopaque参照番号だけを受付画面のmemoryへ渡し、signIn/session-completeや削除実行を呼ばない。参照番号はroute離脱・pagehide・uid変更でclearし、URL/storageへ保存しない。client申告の目的・対象channelをAPIへ送らない。
+サポートフローの開始時は既存のFirebaseセッションがあっても通常MyPageへリダイレクトせず、新たなOAuth認証を開始する。不正なチャレンジでは専用の無効表示を維持し、通常ログインへ切り替えない。確認画面にはサーバーから受け取った目的と公開チャンネル名を示し、サポート用ボタンから確認する。成功時は内容を推測できない参照番号だけを受付画面のメモリに渡し、signIn・session-complete・削除実行を呼び出さない。参照番号はルート離脱・pagehide・uid変更で消去し、URLやストレージに保存しない。クライアント申告の目的・対象チャンネルをAPIに送らない。
 
-product HTMLにno-referrerを指定し、support challenge等のqueryを外部遷移のRefererへ載せない。platform access log/CDN/Hosting設定の実確認はsecurity release gateに残す。支援用CLIと受付窓口の実値は未完了で、公開deployはしていない。
+製品HTMLにno-referrerを指定し、サポートのチャレンジなどのクエリを外部遷移時のRefererに載せない。基盤のアクセスログ・CDN・Hosting設定の実確認は、公開前のセキュリティ確認事項として残す。サポート用CLIと受付窓口の実値は未完了で、公開配備はしていない。
 
-### Support confirmation lifecycle
+### サポート確認の有効期間
 
-support confirmのpending requestはidentity・page lifecycle・確認操作の世代に結び付ける。logout、別uid、logout後の同一uid再login、pagehide、unmount、新しい確認操作は旧requestをabortし、transportがabortを無視して成功を返しても参照番号を受け取らない。React側でもreceipt設定と遷移の直前に当該controllerの有効性を確認する。pageshowは取り消したsupport確認を復活させない。
+サポートのconfirmで処理待ちのリクエストは、本人・ページのライフサイクル・確認操作の世代に結び付ける。ログアウト、別uid、ログアウト後の同一uidでの再ログイン、pagehide、アンマウント、新しい確認操作では旧リクエストを中断する。通信処理が中断を無視して成功を返しても参照番号を受け取らない。React側でも受付情報の設定と遷移の直前に、そのコントローラーが有効か確認する。pageshowで取り消したサポート確認を復活させない。
 
-unit回帰は遅延successと各invalidating eventを確認し、synthetic Chromium QAはpending状態からuid変更・logout/relogin・pagehide/pageshow・route離脱後のreceipt非復活と遅いcontact遷移の抑止を確認する。証明済みのserver recordを取り消す操作ではなく、browserで失効した応答の表示を抑止する。
+単体の回帰テストでは遅延した成功応答と各無効化イベントを確認する。合成Chromium QAでは処理待ちの状態からuid変更・ログアウトと再ログイン・pagehide/pageshow・ルート離脱を行い、受付情報が復活せず、遅いcontactへの遷移も起きないことを確認する。これは証明済みのサーバーレコードを取り消す操作ではなく、ブラウザで無効になった応答の表示を抑止する処理である。
 
-### Operator read-only emulator diagnostic
+### 運用担当者向けの読み取り専用エミュレーター診断
 
-`cmd/mypage-operator-dryrun`は合成local emulatorだけに接続する診断CLI。development、明示demo project、IP loopback endpoint、目的(delete/revoke/disclosure)を必要とし、credential file・real project・production・実行用引数を拒否する。receipt referenceはbounded stdinだけから受け取り、引数/logへ出さない。ADC・Google API・Auth revoke・通知・書き込み/実行portを持たない。
+`cmd/mypage-operator-dryrun`は合成データを使うローカルエミュレーターだけに接続する診断CLIである。development、明示したdemoプロジェクト、IPループバックの接続先、目的（delete/revoke/disclosure）を必須とし、認証情報ファイル・実プロジェクト・本番・実行用引数を拒否する。受付参照はサイズ制限付きの標準入力だけから受け取り、引数やログに出さない。ADC・Google API・Auth失効・通知・書き込み・実行用インターフェースは持たない。
 
-同じread-only transactionでserver受付record、消費済みsupport OAuth binding、受付indexを照合する。受付から7日という削除期限を本人確認/reissueで延長しない。通常login、未確認record、environment/purpose/project/受付bindingの不一致、proof capture時の期限切れを拒否する。OAuth traceがTTLで除去された場合はproofTrace=unknownとする診断だけを返す。受付のproof field欠如や既存traceの不一致は拒否する。
+同じ読み取り専用トランザクションで、サーバーの受付レコード、消費済みサポートOAuthとの対応、受付インデックスを照合する。受付から7日という削除期限を、本人確認や再発行で延長しない。通常ログイン、未確認レコード、環境・目的・プロジェクト・受付との対応の不一致、証拠取得時の期限切れは拒否する。OAuthの追跡記録がTTLで除去されている場合は、proofTrace=unknownとする診断だけを返す。受付の証拠フィールドの欠如や、既存の追跡記録との不一致は拒否する。
 
-出力は時刻・状態・目的・件数(scope付き)のみ。channel/receipt ID、challenge/proof、氏名、作業内容、raw record/errorを出さない。channel単位と当該receipt単位のqueryを区別し、queryはdocument IDだけ・最大1001件。1000超はat_least=1001、失敗/未確認storeはunknownで0と扱わない。Auth/cache/backup/export/BigQuery/log/legacy/他receiptとのOAuth relationは未確認。readOnly=true、executionAuthorized=false、inventoryComplete=falseを常に明示する。
+出力は時刻・状態・目的・スコープ付き件数だけとする。チャンネルID・受付ID・チャレンジ・証拠・氏名・作業内容・元のレコードやエラーは出さない。チャンネル単位と当該受付単位のクエリを区別し、文書IDだけを最大1001件取得する。1000件超はat_least=1001とし、取得失敗や未確認のストアはunknownとする。0として扱わない。Auth・キャッシュ・バックアップ・エクスポート・BigQuery・ログ・旧方式・他の受付とのOAuthの関連は未確認である。readOnly=true、executionAuthorized=false、inventoryComplete=falseを常に明示する。
 
-合成fixtureを準備したlocal emulatorに対して、system directoryで使用する例:
+合成テストデータを用意したローカルエミュレーターに対し、systemディレクトリで使う例を示す。
 
 ```sh
 GOOGLE_CLOUD_PROJECT=demo-youtube-study-space-ci \
@@ -216,82 +218,84 @@ FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 \
 go run ./cmd/mypage-operator-dryrun < /path/to/private-synthetic-reference
 ```
 
-reference fileは手元の制限された場所に保持し、repo/PR/CI artifactへ追加しない。
+参照ファイルは手元のアクセスを制限した場所に保持し、リポジトリ・PR・CI成果物に追加しない。
 
-## 任意Analyticsと同意
+## 任意のアクセス解析と同意
 
-### Consent and security draft boundary
+### 同意とセキュリティ文面の草案
 
-任意Analyticsはunset / granted / denied。unsetでnonblockingな選択を出し、拒否・未選択でも主要操作を使える。選択したgranted/denied文字列だけをfirst-party storageへ保存し、uid/channel/profileを結び付けない。Cookie設定から変更でき、storage eventによる別tabの拒否でも将来送信を停止する。保存に失敗してもcurrent-pageの選択を適用し、保存失敗を表示する。
+任意のアクセス解析の状態はunset / granted / deniedとする。unsetでは操作を妨げない選択画面を出し、拒否・未選択でも主要操作を使える。選択したgranted/deniedの文字列だけをファーストパーティーストレージに保存し、uid・チャンネル・プロフィールと結び付けない。Cookie設定から変更でき、storageイベントで別タブの拒否を受け取った場合も、その後の送信を停止する。保存に失敗しても現在のページの選択を適用し、保存失敗を表示する。
 
-AnalyticsGateは同意前にstart/sendせず、過去eventをqueue/replayしない。固定route/titleと完全一致した公開UTM組合せだけを渡し、callback、code/state/error/supportChallenge、任意query/fragment、referrer/title入力や本人dataを渡すAPIを持たない。通常loginの4 eventだけをparameterなしで扱う。実loaderは`VITE_MYPAGE_ANALYTICS_READY=true`かつmeasurement IDと公開originが一致する場合だけ有効になり、それ以外ではscriptを読み込まない。公開済みGA4 Network/console設定を検証したとは扱わない。mandatory Firebase/App Check/reCAPTCHA通信とは別の同意である。
+AnalyticsGateは同意前に開始・送信せず、過去のイベントをキューに保存したり再送したりしない。固定ルート・タイトルと、完全一致した公開UTMの組み合わせだけを渡す。コールバック、code/state/error/supportChallenge、任意のクエリ・フラグメント、referrer/title入力、本人データを渡すAPIは持たない。通常ログインの4イベントだけを、パラメーターなしで扱う。実ローダーは`VITE_MYPAGE_ANALYTICS_READY=true`で、かつ測定IDと公開オリジンが一致する場合だけ有効にし、それ以外ではスクリプトを読み込まない。公開済みGA4の通信やコンソール設定を検証したとは扱わない。必須のFirebase/App Check/reCAPTCHA通信とは別の同意である。
 
-public policy/termsは確認用draft。運営主体/窓口/施行日/管轄を推測で埋めず、D01実装・D02規約適合性・D03実値と公開文面の運用照合を残す。production公開はしていない。API全responseにはno-store/nosniff/no-referrer、default-src none / frame-ancestors none、不要device permission拒否を付ける。Hosting HTMLのCSP allowlistとcallback platform access-log redactionは実inventory/Ready Gate後に確認する。
+公開ポリシーと利用規約は確認用の草案である。運営主体・窓口・施行日・管轄を推測で埋めず、D01実装・D02規約適合性・D03実値と公開文面の運用照合を残す。本番公開はしていない。全APIレスポンスにno-store/nosniff/no-referrer、default-src none / frame-ancestors none、不要なデバイス権限の拒否を設定する。Hosting HTMLのCSP許可リストとコールバックの基盤アクセスログの秘匿処理は、実環境の一覧確認と公開準備の確認後に検証する。
 
-### Mockable GA4 command adapter
+### モックで検証できるGA4コマンドアダプター
 
-`GA4Sender`はAnalyticsGateからのみstartする同期command/disable portのadapter。constructorは識別子やbrowser globalを作らず、startで自動config pageviewと広告signalsを無効化し、固定originのroot URL・空referrer・空titleを指定する。event時にもsafe route/固定title/許可UTMを再検証し、任意title/追加parameter/User-IDを転送しない。stopは送信を止め、contextをclearし、runtimeのmeasurement disable flagを設定する。deniedへの変更で送信を誘発し得るgtag commandは呼ばない。同意前eventを再送しない。
+`GA4Sender`は同期的なコマンド・無効化インターフェースのアダプターであり、AnalyticsGateからだけ開始する。コンストラクターは識別子やブラウザのグローバル変数を作らない。開始時にconfigによる自動ページビューと広告シグナルを無効化し、固定オリジンのルートURL・空のreferrer・空のタイトルを指定する。イベント送信時も安全なルート・固定タイトル・許可済みUTMを再検証し、任意のタイトル・追加パラメーター・User-IDを転送しない。停止時は送信を止め、コンテキストを消去し、ランタイムの測定無効化フラグを設定する。deniedへの変更時には送信を誘発し得るgtagコマンドを呼び出さず、同意前のイベントも再送しない。
 
-adapter自体はgtag.js loader/dataLayer/vendor通信を含まず、読み込みは[GA4 loader](../../mypage/src/ga4-loader.ts)が担う。mockはcommand引数とdisable順序を検証するだけで、実GA4の非送信を証明しない。実loaderでは同意の世代変更後に遅延load callbackを破棄し、queueを再送しないことが必要。ConsoleでEnhanced Measurementのhistory pageview等の自動collectionを無効化し、他tag/pluginを含めたinventoryを確認する必要がある。send_page_view=falseだけではhistory pageviewを防げない。14か月保持・保持reset OFFと、同意前/拒否後のNetwork検証はrelease gateに残る。
+アダプター自体はgtag.jsローダー・dataLayer・ベンダーへの通信を含まず、読み込みは[GA4ローダー](../../mypage/src/ga4-loader.ts)が担う。モックで検証するのはコマンド引数と無効化の順序だけであり、実GA4に送信されないことの証明にはならない。実ローダーでは、同意の世代が変わった後に遅れて届く読み込みコールバックを破棄し、キューを再送しないことが必要である。コンソールでEnhanced Measurementの履歴変更時のページビューなどの自動収集を無効化し、他のタグやプラグインを含む一覧を確認する必要がある。send_page_view=falseだけでは履歴変更時のページビューを防げない。14か月保持・保持期間のリセットOFFと、同意前・拒否後の通信検証は公開前の確認事項として残す。
 
-一次資料: [GA4 configuration](https://developers.google.com/analytics/devguides/collection/ga4/reference/config)、[manual pageviewsとhistory measurement](https://developers.google.com/analytics/devguides/collection/ga4/views)、[Consent mode](https://developers.google.com/tag-platform/security/guides/consent)。実GA4 Network/Console/自動event/再同意は未検証であり、公開deployはしていない。
+一次資料: [GA4 configuration](https://developers.google.com/analytics/devguides/collection/ga4/reference/config)、[manual pageviewsとhistory measurement](https://developers.google.com/analytics/devguides/collection/ga4/views)、[Consent mode](https://developers.google.com/tag-platform/security/guides/consent)。実GA4の通信・コンソール・自動イベント・再同意は未検証であり、公開配備はしていない。
 
-### Consent-bound GA4 loader
+### 同意に連動するGA4ローダー
 
-ConsentTagはgrantedのときだけbrowser loaderを開始し、ロード前/途中のeventを保存・再送しない。撤回/unmountでsenderを停止しpending commandを消し、古いloadの成功/失敗が新しい同意世代を変更しない。browserTagLoaderは専用の単一data layerを使い、safe consent/configをscript挿入前に用意し、固定gtag.js URLとno-referrer、5秒期限を使う。shared tag/globalの既存所有を拒否する。撤回後の再同意は既にロードしたscriptを再取得しない。
+ConsentTagはgrantedの場合だけブラウザローダーを開始し、読み込み前・読み込み中のイベントを保存・再送しない。同意撤回やアンマウントでは送信処理を停止して保留コマンドを消し、旧読み込みの成功・失敗が新しい同意世代を変更しないようにする。browserTagLoaderは専用の単一データレイヤーを使い、スクリプト挿入前に安全な同意・設定を用意する。固定のgtag.js URL、no-referrer、5秒の期限を使い、共有タグやグローバル変数に既存の所有者がいる場合は拒否する。撤回後に再同意しても、読み込み済みのスクリプトは再取得しない。
 
-productへの結線はVITE_MYPAGE_ANALYTICS_READY=true、公開measurement IDのVITE_MYPAGE_GA4_ID、現在originと一致するVITE_MYPAGE_PUBLIC_ORIGINが明示されたときだけ有効。これらはsecretではない。未設定ではtransportなしを維持し、同意の選択自体は使える。flagはConsole/通信inventory承認を代替しない。
+製品への接続はVITE_MYPAGE_ANALYTICS_READY=true、公開測定IDのVITE_MYPAGE_GA4_ID、現在のオリジンと一致するVITE_MYPAGE_PUBLIC_ORIGINを明示した場合だけ有効にする。これらはシークレットではない。未設定では通信処理を持たない状態を維持し、同意の選択自体は使える。フラグはコンソールや通信一覧の承認を代替しない。
 
-script 除去では既に実行した vendor code を取り消せない。Console の Enhanced Measurement・自動 event・全 tag inventory・保持設定と、実 Network の非送信を公開前に確認する。
+スクリプトを除去しても、実行済みのベンダーコードは取り消せない。公開前に、コンソールのEnhanced Measurement・自動イベント・全タグの一覧・保持設定と、実際の通信が送信されないことを確認する。
 
 一次資料: [Google tagの設置](https://developers.google.com/tag-platform/gtagjs)、[単一data layerと名称変更](https://developers.google.com/tag-platform/devguides/datalayer)、[pageview制御](https://developers.google.com/analytics/devguides/collection/ga4/views)。
 
-## Metadataの保持・失効
+## メタデータの保持と失効
 
-### Public channel metadata refresh
+### 公開チャンネルメタデータの更新
 
-公開metadataはserver-only API keyの固定YouTube endpointから取得し、OAuth tokenを使わない。lookupは1秒に制限し、redirectを追わず、request URL/raw errorを公開しない。Firestoreの実document revisionとpolicy/access状態をtransactionで確認し、既存accountの公開metadataだけを更新する。外部callはtransactionの外で行い、accountを新規作成しない。
+公開メタデータはサーバー専用APIキーを使い、固定のYouTubeエンドポイントから取得する。OAuthトークンは使わない。検索は1秒に制限し、リダイレクトを追わず、リクエストURLや元のエラーを公開しない。Firestoreの実際の文書リビジョンとポリシー・アクセス状態をトランザクションで確認し、既存アカウントの公開メタデータだけを更新する。外部呼び出しはトランザクションの外で行い、アカウントを新規作成しない。
 
-30日経過したmetadataはlookupの前に同じrevision guardで除去し、同意・account identityを維持し、metadataFetchedAtもclearする。認証/同意が失効した場合はsnapshot取得前に停止する。上流失敗はpartial/unavailableとし0へ変換しない。mock wireとemulatorで同時login、削除、block、policy変更、期限境界、古い応答の拒否を検証する。
+取得から30日経過したメタデータは、検索前に同じリビジョン保護処理で除去する。同意とアカウントの本人情報は維持し、metadataFetchedAtも消去する。認証や同意が失効した場合はスナップショット取得前に停止する。上流の失敗は一部取得・取得不能として扱い、0に変換しない。通信モックとエミュレーターで、同時ログイン・削除・ブロック・ポリシー変更・期限境界・古い応答の拒否を検証する。
 
-server entrypointは任意のserver-only MYPAGE_YOUTUBE_API_KEYが設定された場合だけadapterを接続する。実 key の設定・接続は対象 release の証跡で確認する。戻らないaccountのmetadata保持期限を守るbackground jobは別の運用準備が必要。
+サーバーの起動処理は、任意のサーバー専用設定MYPAGE_YOUTUBE_API_KEYがある場合だけアダプターを接続する。実際のキーの設定と接続は、対象リリースの証跡で確認する。再利用されないアカウントのメタデータ保持期限を守るバックグラウンドジョブは、別途運用の準備が必要である。
 
-metadataが既知のterminal状態なら、work snapshot取得/集計の失敗でも既存200 partial contractでaccountのMETADATA_TOO_OLDを伝える。current/summary/7日すべてをSOURCE_UNAVAILABLEとし、workを0や未登録へ変換しない。snapshotがない応答は生成時刻を使いcacheしない。通常のwork障害では従来の503を維持する。共通の合成wire fixtureをHTTP BFFとbrowser loader/memoryで検証し、旧accountだけの除去と旧work/asOfのstale保持を確認する。
+メタデータの表示停止が必要と判明している場合は、作業スナップショットの取得・集計に失敗しても、既存の200一部取得レスポンスでアカウントのMETADATA_TOO_OLDを伝える。現在・集計・7日すべてをSOURCE_UNAVAILABLEとし、作業を0や未登録に変換しない。スナップショットがない応答は生成時刻を使い、キャッシュしない。通常の作業取得障害では従来の503を維持する。共通の合成通信テストデータをHTTP BFFとブラウザのローダー・メモリで検証し、旧アカウント情報だけを除去し、旧作業データとasOfは古い値として保持することを確認する。
 
-### Terminal metadata state across processes
+### プロセス間でのメタデータ表示停止
 
-公開APIのHTTP200・明示items=[]だけをchannel不在として扱い、通信失敗/不正body/曖昧な結果と区別する。不在の場合は期限前でもrevision/policy/access guard付きで公開metadataと取得日時をclearする。消去失敗時にも既知の不在metadataをresponseで表示しない。通常の一時取得失敗は許可された期限内のpartial metadataを維持する。
+公開APIがHTTP200と明示的なitems=[]を返した場合だけ、チャンネル不在として扱う。通信失敗・不正な本文・曖昧な結果と区別する。不在の場合は期限前でも、リビジョン・ポリシー・アクセス状態を確認して公開メタデータと取得日時を消去する。消去に失敗しても、不在と判明したメタデータをレスポンスに表示しない。通常の一時的な取得失敗では、許可された期限内の部分的なメタデータを維持する。
 
-metadataが空のaccountは、timestampも消去済みの場合を含めMETADATA_TOO_OLDという既存terminal reasonで返す。browserは当該reasonで旧account表示を除去する。BFF cacheとsingleflightはWebAccount document revision/metadata有無に結び付け、他processによる消去後のGETが旧cacheや旧revisionのflightを再利用しない。snapshotの30秒/JST境界制約は維持する。
+メタデータが空のアカウントは、取得時刻も消去済みの場合を含め、既存の表示停止理由METADATA_TOO_OLDで返す。ブラウザはこの理由を受け取ると旧アカウント表示を除去する。BFFキャッシュとsingleflightはWebAccount文書のリビジョンとメタデータの有無に結び付ける。他のプロセスによる消去後のGETでは、旧キャッシュや旧リビジョンの共有処理を再利用しない。スナップショットの30秒・JST日付境界の制約は維持する。
 
-既存の全 browser へ瞬時に通知する仕組みや、account 削除の全 writer guard を意味しない。
+既存の全ブラウザへの即時通知や、アカウント削除に対するすべての書き込み保護を提供するものではない。
 
-### Inactive-account metadata cleanup and monitoring
+### 未利用アカウントのメタデータ削除と監視
 
-MetadataCleanupJobは利用時refreshと独立して、metadataFetchedAtが取得から29日以上のaccountをpage単位で処理する。公開metadataと取得日時の4fieldだけを削除しupdatedAtを更新する。未利用・accessBlocked・旧policyのaccountにも保持期限を適用し、identity/同意/firstWebLoginAt/access状態を変更しない。OAuth/API refreshをせず、accountを作成しない。Firestore adapterは明示projectを確認し、timestampとdocument IDで安定pagination、最大1001件の検出、projectionとexact revision transactionを使う。
+MetadataCleanupJobは利用時の再取得とは独立して動作し、metadataFetchedAtが取得から29日以上のアカウントをページ単位で処理する。公開メタデータと取得日時の4フィールドだけを削除し、updatedAtを更新する。未利用・accessBlocked・旧ポリシーのアカウントにも保持期限を適用する。本人情報・同意・firstWebLoginAt・アクセス状態は変更せず、OAuthやAPIによる再取得もアカウントの作成も行わない。Firestoreアダプターは明示したプロジェクトを確認し、時刻と文書IDによる安定したページ分割、最大1001件の検出、必要フィールドだけの取得、リビジョンの完全一致を条件とするトランザクションを使う。
 
-並行refresh/削除/revision変更は新しいaccount内容を上書きせずchanged/missingとして扱う。最後の再scanで期限対象が残れば失敗とし、page上限・10分budget・scan/clear/contextの失敗も成功扱いしない。失敗後の再実行は現在revisionからやり直せる。30日以上のdataを検出・除去した場合も保持期限違反を匿名件数で記録する。
+並行した再取得・削除・リビジョン変更では、新しいアカウントの内容を上書きせず、changed/missingとして扱う。最後の再走査で期限対象が残っていれば失敗とする。ページ上限・10分の制限時間・走査や消去やcontextの失敗も成功扱いしない。失敗後は現在のリビジョンから再実行できる。30日以上のデータを検出・除去した場合も、保持期限違反を匿名の件数で記録する。
 
-JSONMetadataCleanupRecorderは匿名の開始/完了時刻・結果・固定stage・件数だけを出力する。ID/metadata/raw errorを含めず、監視出力失敗そのものもjob失敗にする。cancel後も2秒の独立budgetで失敗観測を試みる。EvaluateMetadataCleanupHealthは未成功、run失敗、保持期限違反、成功coverage時刻から23時間以上のheartbeat欠如をalertとする。dependency errorは内部でunwrap可能なまま返すが、callerはraw errorを公開logへ出さない。
+JSONMetadataCleanupRecorderは、匿名の開始・完了時刻、結果、固定の段階名、件数だけを出力する。ID・メタデータ・元のエラーは含めず、監視出力の失敗自体もジョブの失敗とする。キャンセル後も独立した2秒の制限時間内で失敗の記録を試みる。EvaluateMetadataCleanupHealthは成功実績なし、実行失敗、保持期限違反、成功した走査の対象時刻から23時間以上のハートビート欠如を警告とする。依存先のエラーは内部でunwrapできる形で返すが、呼び出し元は元のエラーを公開ログに出さない。
 
-29日eligibilityと処理時間に余裕を持たせるため、接続時には成功scan開始間隔23時間以内・job10分以内を条件とする。少なくとも日次という仕様を満たす設定候補は1日2回だが、実scheduler/alert設定は作成していない。単に24時間間隔の実行を宣言して完了時間の余裕を無視しない。heartbeatは完了日時でなく、成功runのStartedAtを基準にする。日次以上の起動・失敗/heartbeat/期限違反の通知先・再試行・telemetry到達の運用検証はinfrastructure/公開gateに残る。
+29日での処理対象化と処理時間の余裕を考慮し、接続時には成功した走査の開始間隔を23時間以内、ジョブを10分以内にする。少なくとも日次という仕様を満たす設定候補は1日2回だが、実際のスケジューラーや警告設定は作成していない。24時間間隔の実行を宣言するだけで、完了までの余裕を無視しない。ハートビートは完了日時ではなく、成功した実行のStartedAtを基準にする。日次以上の起動、失敗・ハートビート欠如・期限違反の通知先、再試行、監視データの到達は、インフラ・公開前の運用検証として残す。
 
-定期呼出し側のsourceは[MetadataCleanupRunner](../../system/core/mypage/metadata_cleanup_runner.go)へ結線した。`Run`は既存jobとdurable monitorを接続し、終了後のhealth signalまで返す。`CheckHealth`はaccountへ触れない独立watchdog用callback。両者を別々に起動しなければcleanup trigger欠落を監視できない。constructorは同じ明示project/clientからcleanup storeとmonitorを作り、scheduler・credential・通信を開始しない。
+定期呼び出し側のソースは[MetadataCleanupRunner](../../system/core/mypage/metadata_cleanup_runner.go)に接続した。`Run`は既存ジョブと永続化する監視処理を接続し、終了後の健全性シグナルまで返す。`CheckHealth`はアカウントに触れない独立監視用コールバックである。削除処理の起動漏れを監視するには、両者を別々に起動する必要がある。コンストラクターは同じ明示プロジェクト・クライアントから削除用ストアと監視処理を作り、スケジューラー・認証情報の取得・通信を開始しない。
 
-[FirestoreMetadataCleanupMonitor](../../system/core/mypage/metadata_cleanup_monitor_store.go)はserver-only `mypage-maintenance/metadata-cleanup`の匿名singletonへ最新観測、成功scan開始時刻、sink未受理の期限違反scan開始時刻をtransaction保存する。実行履歴を増殖させず、client rulesの既存default denyを維持する。Firestoreのmicrosecond保存精度へ時刻を正規化してから比較し、古いscanの遅延到着・再送は新しい失敗を隠さず、同時刻では失敗を優先する。破損状態はresetせず拒否する。monitor read/write・signal delivery失敗は成功扱いしない。出力はdeadline対応sinkへ固定reason/alert/確認時刻だけで、healthyも回復signalとして出す。期限違反は後続の正常scanでも未受理のまま保持し、sink受理後だけexpected scan時刻を比較するtransactionでACKする。ACK後の新しい違反も保護し、ACK失敗は再通知可能なまま残す。sink障害後にmonitorが利用可能ならmonitoring失敗も保存し、次のwatchdogが古い正常観測だけを信頼しない。
+[FirestoreMetadataCleanupMonitor](../../system/core/mypage/metadata_cleanup_monitor_store.go)は、サーバー専用の`mypage-maintenance/metadata-cleanup`にある匿名の単一文書へ、最新の観測、成功した走査の開始時刻、監視出力先が未受理の期限違反走査の開始時刻をトランザクションで保存する。実行履歴を増やし続けず、クライアントルールの既存の既定拒否を維持する。
+時刻はFirestoreのマイクロ秒精度に正規化してから比較する。古い走査の遅延到着や再送で新しい失敗を隠さず、同時刻なら失敗を優先する。破損状態は初期化せず拒否し、監視の読み書きやシグナル配送の失敗を成功扱いしない。期限に対応した出力先へ、固定の理由・警告・確認時刻だけを出力し、正常状態も回復シグナルとして出す。
+期限違反は後続の正常走査でも未受理のまま保持する。出力先の受理後だけ、想定する走査時刻を比較するトランザクションでACKする。ACK後の新しい違反も保護し、ACK失敗時は再通知できる状態で残す。出力先の障害後に監視ストアが利用可能なら監視失敗も保存し、次の独立監視が古い正常観測だけを信頼しないようにする。
 
-callbackの接続例と残る運用依存は[metadata監視source手順](release/metadata-monitoring.md)を参照する。実scheduler・独立watchdog・監視宛先を作成/有効化した証跡ではない。mock/emulatorで29日境界、未利用/blocked/旧policy、pagination、同時refresh/削除/同意変更、残件と再実行、scan/clear/monitoring失敗、heartbeatと期限違反を検証する。新API、実scheduler、IAM、credentials、deploy、実データ消去は追加・実行していない。account削除/revoke/開示の実行承認や全writer guardを代替しない。
+コールバックの接続例と、残る運用上の依存事項は[メタデータ監視の実装・接続手順](release/metadata-monitoring.md)を参照する。これは実際のスケジューラー・独立監視・通知先を作成・有効化した証跡ではない。モックとエミュレーターでは、29日境界、未利用・ブロック済み・旧ポリシー、ページ分割、並行した再取得・削除・同意変更、残件と再実行、走査・消去・監視の失敗、ハートビート、期限違反を検証する。新API・実スケジューラー・IAM・認証情報・配備・実データ消去は追加・実行していない。アカウント削除・失効・開示の実行承認や、すべての書き込み保護を代替しない。
 
-JSON recorderはdeadlineを実際に適用できる専用sinkだけを受け入れ、通常のio.WriterをWrite前に拒否する。2秒のwrite deadlineとcancel時のdeadline短縮でblocked pipeを解除し、期限後のwrite成功も失敗扱いにする。deadline非対応の通常file/stdoutはfail closedとなるため、実監視sinkを選定・接続・検証する運用gateが必要。書き込みを無期限goroutineへ逃がさない。
+JSONレコーダーは期限を実際に適用できる専用の出力先だけを受け入れ、通常のio.WriterはWrite前に拒否する。2秒の書き込み期限とキャンセル時の期限短縮で、待機したままのパイプを解除し、期限後の書き込み成功も失敗扱いにする。期限に対応しない通常ファイルや標準出力は安全のため拒否する。このため、実際の監視出力先の選定・接続・検証を運用上の確認事項として残す。書き込みを無期限のgoroutineに任せない。
 
 ## Hosting
 
-`mypage/src/hosting.ts`のhostingCandidateは明示したenvironment/project/target/Cloud Run service/regionとreview済みSDK接続先から設定候補だけを生成するpure function。developmentはasia-southeast2、productionはasia-northeast2。既存firebase/firebase.jsonを変更せず、CLI init/deployを実行しない。projectIDは別の明示deployment selectorでありfirebase.json本体へ混入しない。候補のpublic=distはmypage directoryを基準とする。
+`mypage/src/hosting.ts`のhostingCandidateは、明示した環境・プロジェクト・対象・Cloud Runサービス・リージョンと、レビュー済みのSDK接続先から設定候補だけを生成する純粋関数である。developmentはasia-southeast2、productionはasia-northeast2を使う。既存のfirebase/firebase.jsonは変更せず、CLIのinit/deployも実行しない。projectIDは配備先を明示的に選ぶ別の値であり、firebase.json本体に混入させない。候補のpublic=distはmypageディレクトリを基準にする。
 
-/apiと/api/**をCloud Runへ先にrewriteし、最後にSPAへrewriteする。既定は全pathへno-store/no-referrer/CSPとsecurity headersを設定する。`hostingCandidate(input, assetPaths)`に検証済みの実build全file一覧を渡した場合だけ、既知のhash付きJS/CSS/woff2のexact pathをpublic immutableにする。HTML・API・未知hash pathのSPA fallbackはno-store。CSPは明示したHTTPS sourceだけを許し、wildcard/unsafe-inline/eval/credential/query/fragmentを拒否する。Firebase/App Check/reCAPTCHAの実sourceを推測しない。Analytics sourceは別approvalを必要とする。validateHostingAssetsはstatic API衝突・source map・秘密file向けpathを拒否する。Cloud Run APIは自身のresponse headersも保持する。
+/apiと/api/**を先にCloud Runへ書き換え、最後にSPAへ書き換える。既定では全パスにno-store/no-referrer/CSPとセキュリティヘッダーを設定する。`hostingCandidate(input, assetPaths)`に、検証済みの実ビルド全ファイル一覧を渡した場合だけ、既知のハッシュ付きJS/CSS/woff2の完全一致パスをpublic immutableにする。HTML・API・未知のハッシュパスのSPA代替表示はno-storeとする。CSPは明示したHTTPS接続先だけを許可し、wildcard/unsafe-inline/eval/credential/query/fragmentを拒否する。Firebase/App Check/reCAPTCHAの実接続先を推測しない。アクセス解析の接続先には別の承認を必要とする。validateHostingAssetsは静的ファイルとAPIの衝突・ソースマップ・秘密ファイル向けパスを拒否する。Cloud Run APIは自身のレスポンスヘッダーも保持する。
 
 原価の仮定と除外範囲は[増分原価モデル](cost-notes.md)を参照する。実測前の推定を請求削減の実績にしない。
 
-CSP は platform logging を制御しない。実 SDK / reCAPTCHA / GA4 の通信 inventory、Hosting の Host / headers / callback / access-log 除外、custom-domain HSTS は対象 release で別途検証する。
+CSPは基盤のログを制御しない。実SDK・reCAPTCHA・GA4の通信一覧、HostingのHost・ヘッダー・コールバック・アクセスログ除外、カスタムドメインのHSTSは、対象リリースで別途検証する。
 
 一次資料: [Hosting config/priority/headers](https://firebase.google.com/docs/hosting/full-config)、[Cloud Run rewrite/region](https://firebase.google.com/docs/hosting/cloud-run)。

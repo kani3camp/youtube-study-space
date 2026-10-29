@@ -60,8 +60,8 @@ func bigQueryBinding(s BigQueryInventorySnapshot) map[string]interface{} {
 	return map[string]interface{}{"inventoryRef": s.InventoryRef, "captureOperationID": s.CaptureOperationID, "executionBinding": completionBinding(s.Execution.Selector, s.Execution.Manifest) + ":" + s.Execution.Cutoff.String()}
 }
 
-// The original OAuth may expire via TTL, but its durable claim, request and
-// canonical index must still belong to this exact deletion until finalization.
+// 元のOAuthはTTLで消える場合があるが、永続的な確保情報・申請・正式インデックスは、
+// 完了までこの削除実行に完全一致で属する必要がある。
 func (s *FirestoreDeletionStore) checkBigQueryRequest(tx *firestore.Transaction, e supportdelete.Execution) error {
 	claim, err := tx.Get(s.Client.Collection(supportDeleteClaims).Doc(e.Selector.ProofRef))
 	if err != nil || len(claim.Data()) != 2 || claim.Data()["executionRef"] != e.Selector.ExecutionRef || claim.Data()["requestRef"] != e.Selector.RequestRef {
@@ -92,7 +92,7 @@ func (s *FirestoreDeletionStore) readBigQueryInventory(tx *firestore.Transaction
 	if !captured && status.Code(err) == codes.NotFound && status.Code(markerErr) == codes.NotFound {
 		return BigQueryInventorySnapshot{}, ErrBigQueryInventoryMissing
 	}
-	// A missing/different half never permits recapture after partial effects.
+	// 片方の欠落や不一致があっても、部分実行後の再取得は許可しない。
 	if err != nil || markerErr != nil {
 		return BigQueryInventorySnapshot{}, supportdelete.ErrConflict
 	}
@@ -247,8 +247,8 @@ func (s *FirestoreDeletionStore) prepareBigQueryInventory(tx *firestore.Transact
 	}, nil
 }
 
-// Read every temporary snapshot before scheduling any transaction writes.
-// Firestore forbids reads after writes, including another adapter's snapshot.
+// トランザクションの書き込みを予約する前に、全一時スナップショットを読む。
+// 他アダプターのスナップショットも含め、Firestoreは書き込み後の読み取りを禁止する。
 func (s *FirestoreDeletionStore) moveDeletionSnapshots(tx *firestore.Transaction, old, next supportdelete.Execution, terminal bool) error {
 	authMove, err := s.prepareAuthOwnership(tx, old, next, terminal)
 	if err != nil {

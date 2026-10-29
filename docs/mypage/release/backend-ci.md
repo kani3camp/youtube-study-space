@@ -1,22 +1,22 @@
 # DEV BackendをCIで配備する
 
-対象は `test-youtube-study-space` / `asia-southeast2` / `mypage-api` のイメージ更新。DEV専用WIFで既存owner操作をCIへ移す。Production、実OAuth/認証済みE2E、Privacy/GA4/公開Gateの完了を意味しない。
+対象は`test-youtube-study-space` / `asia-southeast2` / `mypage-api`のイメージ更新である。DEV専用WIFを使い、従来の所有者による操作をCIへ移す。本番、実OAuth・認証済みE2E、Privacy・GA4・公開条件の完了を意味しない。
 
 ## 配備手順
 
-1. アプリ変更をMyPage統合ブランチへレビュー・統合し、既存CIの `operation=mypage-image-build` / `environment=development` でoffline check済みイメージをpushする。実行SHAは選択refの `github.sha` を使い、手入力しない。
-2. 別のsource-only PRで [runtime-release.json](../../../infra/mypage-platform/environments/dev/runtime-release.json) のbuild元SHA/digestを実結果へ固定する。previous digestは現在配信中の値、hostは既存値を維持する。配備元とbuild元の `system/` tree全体の一致、immutable tag→digestをCIが検証する。
+1. アプリ変更をMyPage統合ブランチへレビュー・統合し、既存CIの`operation=mypage-image-build` / `environment=development`でオフライン検査済みイメージをpushする。実行SHAは選択refの`github.sha`を使い、手入力しない。
+2. 実装だけを変更する別PRで、[runtime-release.json](../../../infra/mypage-platform/environments/dev/runtime-release.json)のビルド元SHAとダイジェストを実結果に固定する。前ダイジェストは現在配信中の値とし、ホストは既存値を維持する。配備元とビルド元の`system/`ツリー全体の一致、不変タグからダイジェストへの対応をCIが検証する。
 3. 統合後、既存 **CI** を `integration/mypage-canon-20261006` から `operation=mypage-backend-release` / `environment=development` で手動実行する。PR/main/別branch/別actor/再実行/SHA不一致は拒否する。
-4. Repository/System成功後、専用Environmentの短命tokenで、Cloud Run v1の元resourceVersionを保持したPUTを1回だけ行う。v2のetagだけを競合防止と扱わない。直前revision/UID/generation/前digest、Hosting版、統合HEADを照合し、image以外の全設定を保持する。
-5. 新Ready revision、generation+1、最新100% traffic、v1/v2全設定不変を確認。Hostingの匿名APIが `APP_CHECK_REQUIRED` / 403、直接RunがHost境界の `INVALID_REQUEST` / 400をそれぞれno-storeで返し、Hostingの `/` と `/mypage` が配信されることを確認する。実利用者のtoken/dataを使わない。
-6. 成功時だけ既存Foundation workflowの `runtime-public-apply` を同じCI内で実行する。独立Plan/Apply Environment、HMAC、saved Plan、限定refresh/State readback/cleanupを維持する。Terraformの一般update権限やdrift許容を追加しない。
-7. `mypage-backend-verified-record` とCI Gate成功まで確認する。State照合失敗もCI失敗。配信が旧版へ戻ったとは扱わない。
+4. Repository/System検査の成功後、専用Environmentの短命トークンで、Cloud Run v1の元resourceVersionを保持したPUTを1回だけ行う。v2のetagだけを競合防止と扱わない。直前のリビジョン・UID・世代・前ダイジェスト、Hostingバージョン、統合HEADを照合し、イメージ以外の全設定を保持する。
+5. 新Readyリビジョン、generation+1、最新への100%トラフィック、v1/v2全設定の不変を確認する。Hostingの匿名APIが`APP_CHECK_REQUIRED` / 403、直接RunがHost検証の`INVALID_REQUEST` / 400をそれぞれno-storeで返し、Hostingの`/`と`/mypage`を配信することを確認する。実利用者のトークンやデータは使わない。
+6. 成功時だけ、既存Foundationワークフローの`runtime-public-apply`を同じCI内で実行する。独立したPlan/Apply Environment、HMAC、保存済みPlan、限定的な再取得・State再読み取り・後片付けを維持する。Terraformの一般更新権限やdrift許容は追加しない。
+7. `mypage-backend-verified-record`とCI Gateの成功まで確認する。State照合の失敗もCI失敗とし、配信が旧版に戻ったとは扱わない。
 
-digestをコードレビューで固定するPRは残す。1回のpushでFrontend/Backend/IaCを一括自動配備する仕組みではない。Backend先行→Frontend後行の[既存互換性ルール](README.md)を維持する。
+ダイジェストをコードレビューで固定するPRは残す。1回のpushでフロントエンド・バックエンド・IaCを一括自動配備する構成ではない。バックエンドを先、フロントエンドを後にする[既存の互換性規則](README.md)を維持する。
 
 ## 初回接続
 
-[bootstrap](../../../infra/mypage-platform/scripts/backend_identity.py) は引数なしならpreviewだけ、`--apply` で以下を追加する。既存名があれば停止。Sourceレビュー・CI検証後に接続し、実readbackと配備runを記録する。途中失敗後は現在状態を確認し、無条件再実行しない。
+[初期設定スクリプト](../../../infra/mypage-platform/scripts/backend_identity.py)は、引数なしならプレビューだけを行い、`--apply`で以下を追加する。既存名があれば停止する。ソースレビューとCI検証後に接続し、実再読み取りと配備実行を記録する。途中失敗後は現在状態を確認し、無条件に再実行しない。
 
 | 追加先 | 権限・設定 |
 | --- | --- |
@@ -32,8 +32,8 @@ digestをコードレビューで固定するPRは残す。1回のpushでFronten
 
 ## 失敗・復旧
 
-HostingとBackendはrelease concurrencyを共有する。実行中はowner/別経路の更新を避ける。Cloud Run resourceVersionはCloud Run競合を拒否するが、Hosting/branchを含むatomic切替は保証しない。直前・配備後比較が失敗すれば停止。
+Hostingとバックエンドはリリースの同時実行制御を共有する。実行中は所有者や別経路からの更新を避ける。Cloud RunのresourceVersionはCloud Run内の競合を拒否するが、Hostingやブランチを含むアトミック切替は保証しない。直前・配備後の比較に失敗したら停止する。
 
-mutation前に14日保存の `mypage-backend-release-record` を作り、前revision/digest、今回digest/build元SHA、Hosting版、runを記録する。応答喪失は `publishStatus=unknown`。Secret値/env全文/API応答全文/State/Planをartifactへ出さない。State成功時だけ別verified recordが `stateReadback=passed` となる。
+変更前に14日保存の`mypage-backend-release-record`を作り、前リビジョン・ダイジェスト、今回のダイジェスト・ビルド元SHA、Hostingバージョン、実行情報を記録する。応答消失は`publishStatus=unknown`とする。Secret値・全環境変数・API応答全文・State・Planは成果物に出さない。State確認成功時だけ、別の検証済み記録を`stateReadback=passed`にする。
 
-自動retry/rollbackは行わない。失敗後は現在revision/digest/Hosting版/Stateをread-only照合する。今回digestが配信中ならBackend配備を再実行しない。元runを再実行せず、smoke/競合原因を直し、必要な既存 `runtime-public-plan` / `runtime-public-apply` を新runで行う。State検査が許可しない差を無視しない。rollbackはFrontend互換性を確認し、旧imageを明示した別release宣言をレビューして同じCIで配備する。ユーザーデータ/Secretを巻き戻さない。
+自動再試行・ロールバックは行わない。失敗後は現在のリビジョン・ダイジェスト・Hostingバージョン・Stateを読み取り専用で照合する。今回のダイジェストが配信中なら、バックエンド配備は再実行しない。元の実行も再実行せず、疎通確認や競合の原因を直し、必要な既存`runtime-public-plan` / `runtime-public-apply`を新しい実行で行う。State検査が許可しない差は無視しない。ロールバック時はフロントエンドの互換性を確認し、旧イメージを明示した別リリース宣言をレビューして同じCIで配備する。ユーザーデータやSecretは巻き戻さない。

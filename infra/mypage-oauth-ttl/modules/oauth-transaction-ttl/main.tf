@@ -14,8 +14,8 @@ variable "database_id" {
   type = string
 }
 
-# expiresAt is already the absolute expiry (createdAt + 10 minutes).
-# Omitting index_config preserves inherited indexes; an empty block would disable them.
+# expiresAtは既に絶対期限（createdAt + 10分）を表す。
+# index_configを省略すると継承インデックスを維持し、空ブロックを指定すると無効になる。
 resource "google_firestore_field" "oauth_transaction_ttl" {
   project         = var.project_id
   database        = var.database_id

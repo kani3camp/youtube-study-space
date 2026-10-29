@@ -181,8 +181,8 @@ class UserActivitySchemaAuditWorkflowTest(unittest.TestCase):
         self.assertIn("uses: ./.github/workflows/ci-operations.yml", self.caller)
         self.assertIn("inputs.operation == 'gcp-user-activity-schema-audit'", self.operations)
         self.assertIn("uses: ./.github/workflows/gcp-user-activity-schema-audit.yml", self.operations)
-        # Stop at any next top-level job; the nested call receives only this
-        # audit's dedicated secrets even though the router supports other operations.
+        # 次の最上位ジョブがあれば、そこで探索を止める。
+        # ルーターが他の操作を扱っていても、入れ子の呼び出しにはこの監査専用のシークレットだけを渡す。
         call = re.split(
             r"\n  [a-z][a-z0-9-]*:\n",
             self.operations.split("  gcp-user-activity-schema-audit:\n", 1)[1],

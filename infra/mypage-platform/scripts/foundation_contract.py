@@ -1,4 +1,4 @@
-"""Environment-bound MyPage foundation boundary; no credentials or cloud I/O."""
+"""環境に固定したMyPage基盤の検査。認証情報やクラウド入出力は使わない。"""
 from __future__ import annotations
 
 import hashlib
@@ -46,7 +46,7 @@ CLAIM_KEYS = ("repository_id", "repository_owner_id", "environment", "ref", "wor
 
 
 class ContractError(ValueError):
-    """Only fixed source-defined check labels; never include rejected values."""
+    """ソースで定義した固定の検査ラベルだけを使い、拒否した値は含めない。"""
 
 
 def need(value, check="contract"):
@@ -71,8 +71,7 @@ def trust_policy(account, kind):
         "Principal": {"Federated": f"arn:aws:iam::{account}:oidc-provider/token.actions.githubusercontent.com"},
         "Condition": {"StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
                                         "token.actions.githubusercontent.com:sub": subject(kind),
-                                        # Enforce the immutable actor at STS too; a
-                                        # workflow-local check alone is mutable.
+                                        # 変更されないactorの照合はSTSでも行う。ワークフロー内の検査だけでは変更できてしまう。
                                         "token.actions.githubusercontent.com:actor_id": "54093651"}},
     }]}
 
@@ -198,13 +197,12 @@ def validate_iam_etag_refresh(item, planned, expected):
 
 
 def validate_computed_metadata_refresh(plan):
-    """Admit only bounded computed metadata refreshes on planned no-op resources.
+    """計画がno-opの資源について、範囲を限定した計算済みメタデータの再取得だけを許可する。
 
-    Google 8.5.0 refreshes these unset maps from null to {} after initial
-    creation. Keep the full native drift in the HMAC; do not erase it or admit
-    an actual metadata change, another resource, or a Terraform write. An
-    additive operator binding also changes the shared policy etag returned by
-    an IAM member read; that is not a change to the managed member itself.
+    Google 8.5.0は初回作成後、未設定マップをnullから{}へ更新する。
+    元のdrift全体をHMACに残し、消去しない。実際のメタデータ変更・別資源・Terraform書き込みは許可しない。
+    運用担当者のバインディング追加でも、IAMメンバー読み取りが返す共有ポリシーのetagが変わる。
+    これは管理対象メンバー自体の変更ではない。
     """
     secrets = {"module.platform[0].google_secret_manager_secret." + name for name in SECRET_IDS}
     registry = "module.platform[0].google_artifact_registry_repository.mypage[0]"
@@ -224,10 +222,9 @@ def validate_computed_metadata_refresh(plan):
         changed = {key for key in before if before[key] != after[key]}
         need(planned.get(address, {}).get("change", {}).get("actions") == ["no-op"], "metadata-refresh-planned-noop")
         if address == registry:
-            # The first persisted repository has unset labels=null. Its first
-            # provider Read represents that same absent label map as {}.
-            # An artifact push also advances the computed repository update
-            # time. No writable configuration or scanning change is admitted.
+            # 初回保存時のリポジトリはlabels=nullであり、最初のプロバイダーReadでは同じ空ラベルが{}になる。
+            # イメージのpushでも、計算値であるリポジトリ更新時刻が進む。
+            # 書き込み可能な設定やスキャン設定の変更は一切許可しない。
             need(bool(changed) and changed <= {"labels", "update_time"}, "registry-refresh-fields")
             if "labels" in changed:
                 need(before["labels"] is None and type(after["labels"]) is dict
@@ -266,7 +263,7 @@ def validate_plan(plan, stage="foundation"):
         need(type(after) is dict and not after.get("condition"), "resource-after-condition")
         for key, value in contract[address].items():
             if key == "replication":
-                # Auto replication only; provider versions may omit empty lists.
+                # 自動レプリケーションだけを許可する。プロバイダーバージョンによっては空リストを省略する。
                 replication = after.get(key)
                 need(type(replication) is list and len(replication) == 1, "secret-replication")
                 need(not replication[0].get("user_managed") and len(replication[0].get("auto", [])) == 1, "secret-auto-replication")
@@ -275,12 +272,11 @@ def validate_plan(plan, stage="foundation"):
                 "module.platform[0].google_secret_manager_secret_iam_member." + name + "_runtime[0]"
                 for name in SECRET_IDS
             }:
-                # Google 8.5.0 stores the IAM resource's Secret identifier as
-                # a full resource name after create/refresh. Accept only the
-                # exact same project and Secret, never an arbitrary suffix.
+                # Google 8.5.0では、作成・再取得後のIAM資源のSecret識別子を完全リソース名で保存する。
+                # 同じプロジェクトとSecretの完全一致だけを受け入れ、任意の接尾辞で照合しない。
                 need(after.get(key) in {value, "projects/" + PROJECT + "/secrets/" + value}, "resource-value-secret_id")
             else:
-                # key is from the fixed resource contract, never the Plan.
+                # keyは固定の資源仕様から取り、Planからは取らない。
                 need(after.get(key) == value, "resource-value-" + key)
             need(not has_unknown(change.get("after_unknown", {}).get(key)), "resource-unknown-" + key)
         if address.endswith("google_service_account.runtime"):
@@ -291,10 +287,8 @@ def validate_plan(plan, stage="foundation"):
 
 def commitment(plan, state_version, sha, key):
     need(type(key) is str and len(key) >= 32)
-    # Terraform lists dependency sources as an unordered relevant_attributes
-    # collection. Repeated native plans can emit it in a different order.
-    # Preserve every entry, its contents and multiplicity; other arrays retain
-    # their ordering (in particular action sequences and attribute paths).
+    # Terraformは依存元を順序なしのrelevant_attributesとして列挙し、ネイティブPlanごとに順序が変わり得る。
+    # 各エントリーの内容と重複数を保持する。他の配列、特にaction列と属性パスの順序は維持する。
     stable = {k: v for k, v in plan.items() if k != "timestamp"}
     if "relevant_attributes" in stable:
         need(type(stable["relevant_attributes"]) is list, "plan-relevant-attributes")

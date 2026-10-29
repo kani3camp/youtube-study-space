@@ -14,7 +14,7 @@ const (
 	MetadataCleanupAge     = 29 * 24 * time.Hour
 	MetadataRetentionLimit = 30 * 24 * time.Hour
 	MetadataCleanupBudget  = 10 * time.Minute
-	// Preserve a margin for completion after an account just misses a scan.
+	// アカウントが走査対象になった直後に走査を逃した場合も、完了までの余裕を残す。
 	MetadataCleanupHeartbeat = 23 * time.Hour
 )
 
@@ -37,7 +37,7 @@ type MetadataCleanupStore interface {
 	Clear(context.Context, MetadataCleanupCandidate, time.Time, time.Time) (string, error)
 }
 
-// Observations contain only anonymous counts and times, never IDs/raw errors.
+// 観測には匿名の件数と時刻だけを含め、IDや元のエラーは含めない。
 type MetadataCleanupObservation struct {
 	StartedAt           time.Time `json:"startedAt"`
 	CompletedAt         time.Time `json:"completedAt"`
@@ -64,9 +64,9 @@ func cursorAfter(next, previous MetadataCleanupCursor) bool {
 	return next.FetchedAt.After(previous.FetchedAt) || (next.FetchedAt.Equal(previous.FetchedAt) && next.UID > previous.UID)
 }
 
-// Run is an injectable job, not a scheduler/API or real-environment bootstrap.
-// A bounded final scan detects revision conflicts/backlog instead of claiming
-// a partially processed store is complete. It never refreshes inactive users.
+// Runは注入可能なジョブであり、スケジューラー・API・実環境の初期化ではない。
+// 上限付きの最終走査でリビジョン競合や残件を検出し、部分処理を完了として扱わない。
+// 未利用ユーザーのメタデータを再取得しない。
 func (j *MetadataCleanupJob) Run(ctx context.Context) (MetadataCleanupObservation, error) {
 	observation := MetadataCleanupObservation{Stage: "configuration"}
 	if j.Now == nil || j.Recorder == nil {
@@ -152,7 +152,7 @@ func (j *MetadataCleanupJob) Run(ctx context.Context) (MetadataCleanupObservatio
 		observation.Stage = "budget"
 		err = errors.Join(err, ErrMetadataCleanupIncomplete)
 	}
-	// Cancellation must still produce a failure observation when telemetry works.
+	// キャンセル時も、監視出力が動けば失敗観測を記録する。
 	recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 	defer cancel()
 	if recordErr := j.Recorder.Record(recordCtx, observation); recordErr != nil {
@@ -165,9 +165,9 @@ func (j *MetadataCleanupJob) Run(ctx context.Context) (MetadataCleanupObservatio
 
 type JSONMetadataCleanupRecorder struct{ Writer io.Writer }
 
-// The sink must exclusively support deadlines (for example a pipe/socket
-// *os.File). Reject an ordinary io.Writer before calling Write: a blocked write
-// cannot be canceled safely by putting it in an unbounded goroutine.
+// 出力先は期限に対応した専用のものを使う（例: パイプやソケットの*os.File）。
+// 通常のio.WriterはWrite前に拒否する。待機した書き込みを無期限goroutineへ移しても、
+// 安全にキャンセルできない。
 type cleanupDeadlineWriter interface {
 	io.Writer
 	SetWriteDeadline(time.Time) error
@@ -188,7 +188,7 @@ func (r *JSONMetadataCleanupRecorder) Record(ctx context.Context, value Metadata
 	return writeMetadataCleanupJSON(ctx, r.Writer, value)
 }
 
-// Both run and health records use the same bounded, deadline-capable sink.
+// 実行記録と健全性記録は、同じ上限付き・期限対応の出力先を使う。
 func writeMetadataCleanupJSON(ctx context.Context, writer io.Writer, value any) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("cleanup observation canceled: %w", err)
@@ -209,7 +209,7 @@ func writeMetadataCleanupJSON(ctx context.Context, writer io.Writer, value any) 
 		cancelDeadlineErr = sink.SetWriteDeadline(time.Now())
 		close(stopped)
 	})
-	// Only this allowlisted struct is serialized; dependency errors stay private.
+	// 許可済みのこの構造体だけをシリアライズし、依存先エラーは非公開にする。
 	err := json.NewEncoder(sink).Encode(value)
 	if !stop() {
 		<-stopped
@@ -232,9 +232,9 @@ type MetadataCleanupHealth struct {
 	Reason string
 }
 
-// lastSuccessfulCoverage is the successful run's StartedAt, not its finish
-// time. Deployment must schedule coverage within 23h, e.g. twice daily; stale
-// heartbeat/failed runs/deadline violations cannot silently become healthy.
+// lastSuccessfulCoverageは成功した実行のStartedAtであり、完了時刻ではない。
+// 配備時には1日2回など23時間以内に走査対象を更新する必要がある。
+// ハートビート欠如・実行失敗・期限違反を、暗黙に正常扱いしない。
 func EvaluateMetadataCleanupHealth(latest *MetadataCleanupObservation, lastSuccessfulCoverage, now time.Time) MetadataCleanupHealth {
 	alert := func(reason string) MetadataCleanupHealth { return MetadataCleanupHealth{Alert: true, Reason: reason} }
 	if now.IsZero() || lastSuccessfulCoverage.After(now) || (latest != nil && (latest.CompletedAt.After(now) || latest.CompletedAt.Before(latest.StartedAt))) {

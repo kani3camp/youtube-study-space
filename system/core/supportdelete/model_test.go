@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// These tests use synthetic selectors and no SDK/bootstrap. The fixed plan and
-// bound evidence are the observable contract, including retry after lost ack.
+// 合成の対象指定を使い、SDKや初期化処理は使わない。
+// 固定の計画と対応づけた証跡を観測可能な仕様とし、ACK消失後の再試行も含める。
 func syntheticRef(label string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte("support-delete-test:"+label)))
 }

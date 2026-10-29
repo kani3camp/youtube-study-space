@@ -1,40 +1,40 @@
 # MyPage release preparation
 
-メンテナンスモードの初期化、開始、解除、fail-closed時の復旧は[maintenance mode v1 runbook](../maintenance-mode.md)を参照する。これは通常release、Terraform apply、Hosting公開とは独立した手動操作であり、同runbookのworkflow以外からFirestore状態を直接変更しない。
+メンテナンスモードの初期化・開始・解除と、安全のため利用を拒否した場合の復旧は[メンテナンスモードv1の手順書](../maintenance-mode.md)を参照する。通常リリース・Terraform apply・Hosting公開とは独立した手動操作であり、その手順書にあるワークフロー以外からFirestore状態を直接変更しない。
 
-この runbook は設定検査・配備・公開条件の入口。実装契約は [MyPage](../README.md)、API は [OpenAPI](../openapi.yaml)、受入項目と復旧試験は [E2E 手順](e2e.md) を参照する。配備・検証結果は対象 release の Issue / PR / Actions に記録する。現在の統合状況は [PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)、未完の公開受入は [Issue #1133](https://github.com/kani3camp/youtube-study-space/issues/1133) で追跡する。設定検査・合成 QA・設計決定を実経路 PASS や公開承認へ読み替えない。
+この手順書は設定検査・配備・公開条件を案内する。実装仕様は[MyPage](../README.md)、APIは[OpenAPI](../openapi.yaml)、受入項目と復旧試験は[E2E手順](e2e.md)を参照する。配備・検証結果は対象リリースのIssue / PR / Actionsに記録する。現在の統合状況は[PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)、未完の公開受入は[Issue #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)で追跡する。設定検査・合成QA・設計決定を、実経路の合格や公開承認として扱わない。
 
 プロダクト方針は Current Canon の [04 認証](https://app.notion.com/p/3ec357a8d0ce812f8520f787fedcc6bd)、[05 Privacy](https://app.notion.com/p/3ed357a8d0ce81e7b7d2cc85ec8ab4cf)、[06 Security](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634)、[09 判断記録](https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f) を参照する。
 
 ## 構成と配備の入口
 
-Development / Production とも Firebase Hosting (React/Vite) + `/api/**` rewrite + Cloud Run Go BFF + Firebase Authentication + Firestore。Cloudflare は Registrar/DNS only。初期構成は Managed WAF / Cloud Armor / 専用外部 LB / Cloud Run Web を含めない。標準 `run.app` への直接到達を許容するため、Hosting と直接 Run の両方で認証・App Check・SAC・Origin・IP/UID limiter・S01/S04 を検証する。
+開発・本番とも、Firebase Hosting (React/Vite)、`/api/**`の書き換え、Cloud Run Go BFF、Firebase Authentication、Firestoreで構成する。Cloudflareはドメイン登録とDNSだけに使う。初期構成にManaged WAF・Cloud Armor・専用外部LB・Cloud Run Webは含めない。標準の`run.app`にも直接到達できるため、Hostingと直接Runの両方で認証・App Check・SAC・Origin・IP/UID制限・S01/S04を検証する。
 
-公開ドメインは `https://moku.work/`。登録の Active 状態、DNS/TLS、OAuth callback、Production 配備は対象環境の readback で確認する。
+公開ドメインは`https://moku.work/`とする。登録のActive状態、DNS/TLS、OAuthコールバック、本番配備は対象環境を再読み取りして確認する。
 
 | 対象 | 手順・契約 |
 | --- | --- |
-| 基盤・keyless identity・環境別 State | [MyPage platform](../../../infra/mypage-platform/README.md) |
-| OAuth transaction TTL | [専用 Terraform](../../../infra/mypage-oauth-ttl/README.md)。application の10分失効と非同期 TTL 削除を区別する |
-| Backend image 更新 | [Backend CI](backend-ci.md)。image-build → digest 固定 PR → CI 配備・限定 State readback |
-| Frontend | 下記の DEV Hosting CI と静的 cache 契約 |
-| metadata 保持・監視 | [cleanup / watchdog](metadata-monitoring.md)。source と実 scheduler / sink の結線を区別する |
-| 横断削除 | [削除手順](../support-delete.md)・[調査対象](../support-delete-inventory.md)。live adapter 未接続の `--execute` 拒否を運用完了と扱わない |
+| 基盤・鍵を使わない認証・環境別State | [MyPage基盤](../../../infra/mypage-platform/README.md) |
+| OAuthトランザクションのTTL | [専用Terraform](../../../infra/mypage-oauth-ttl/README.md)。アプリの10分失効と非同期TTL削除を区別する |
+| バックエンドイメージ更新 | [バックエンドCI](backend-ci.md)。image-build → ダイジェスト固定PR → CI配備・限定State再読み取りの順に行う |
+| フロントエンド | 下記のDEV Hosting CIと静的キャッシュ仕様 |
+| メタデータ保持・監視 | [削除処理と独立監視](metadata-monitoring.md)。ソースの実装と実スケジューラー・出力先への接続を区別する |
+| 横断削除 | [削除手順](../support-delete.md)・[調査対象](../support-delete-inventory.md)。実アダプター未接続の`--execute`拒否を運用完了と扱わない |
 
 ## 公開設定
 
 ### GA4の環境別セットアップ
 
-MyPageのGA4は、各Firebaseプロジェクトに既存でリンクされている **`mypage` 用GA4プロパティ**（各Webデータストリーム1つ）を使う。`youtube-monitor` 用プロパティはMyPageでは使用しない。Measurement IDは **DEV `G-E31NHW939V` / PROD `G-ZJ1VPVT2L2`** を採用する。ストリームURLは承認済みの環境別public originと整合させ、開発用アクセスを本番集計へ送らない。ID採用は確定済みだが、環境別build設定への反映・Console設定の受入・実Network/Realtime検証が終わるまではGA4実送信の有効化完了とは扱わない。
+MyPageのGA4は、各Firebaseプロジェクトに既に接続された`mypage`用GA4プロパティを使う。各プロパティのWebデータストリームは1つとし、`youtube-monitor`用プロパティは使わない。測定IDはDEV `G-E31NHW939V` / PROD `G-ZJ1VPVT2L2`を採用する。ストリームURLは承認済みの環境別公開オリジンに揃え、開発アクセスを本番集計へ送らない。IDの採用は確定済みだが、環境別ビルド設定への反映、コンソール設定の受入、実通信・Realtimeの検証が終わるまで、実送信の有効化完了とは扱わない。
 
-- 両プロパティで広告連携、Google Signals、広告パーソナライズを使用せず、保持14か月・新規アクティビティによる保持期間reset OFFを確認する。SPA側で手動page viewを送るため、GA4のEnhanced Measurementのhistory由来自動page view等による重複・余計な送信を無効にする。
-- `VITE_MYPAGE_ANALYTICS_READY=true`、`VITE_MYPAGE_GA4_ID=<その環境の測定ID>`、`VITE_MYPAGE_PUBLIC_ORIGIN=<その環境のHTTPS origin>` を環境別frontend build設定に与える。測定ID自体は公開値でありsecret扱いしない。公開manifestの整合性検査とHosting CSPの別承認が必要。
+- 両プロパティで広告連携・Google Signals・広告パーソナライズを使わず、保持14か月と、新規活動による保持期間リセットOFFを確認する。SPA側で手動ページビューを送るため、Enhanced Measurementの履歴変更時の自動ページビューなど、重複・余分な送信を無効にする。
+- `VITE_MYPAGE_ANALYTICS_READY=true`、`VITE_MYPAGE_GA4_ID=<その環境の測定ID>`、`VITE_MYPAGE_PUBLIC_ORIGIN=<その環境のHTTPS origin>`を環境別フロントエンドのビルド設定に渡す。測定IDは公開値であり、シークレット扱いしない。公開マニフェストの整合性検査と、Hosting CSPの別途承認が必要である。
 - 未接続時は初回の同意バナーを表示しない。既存のv1同意設定は、接続前に取得した選択なので再利用しない（v2へ更新）。GA4を有効化した最初のアクセスで、ユーザーへGoogle Analytics・Cookie等を使うサイト改善のためのアクセス解析を案内し、明示的に同意/拒否を選んでもらう。
-- DEVから先に、同意前・拒否中のGA4 network request 0、許可後の実イベント/URLのサニタイズ、拒否への変更後の非送信とCookie、Realtime表示、CSP・外部送信表示を実ブラウザで確認する。ローカル合成テストではConsole/実vendorの証明にならない。DEVの検証結果をProductionの検証に読み替えない。
+- DEVから先に実ブラウザで確認する。同意前・拒否中のGA4通信0件、許可後の実イベントとURLの秘匿処理、拒否変更後の非送信とCookie、Realtime表示、CSP、外部送信表示を対象にする。ローカル合成テストではコンソールや実ベンダーの動作を証明できず、DEVの結果を本番検証に読み替えない。
 
-## 外部接続なしの設定preflight
+## 外部接続なしの設定事前検査
 
-public設定は[Vite/Firebase/GA4](../../../mypage/src/firebase.ts)、server設定は[entrypoint](../../../system/cmd/mypage-server/main.go)が使う既存契約へ揃える。設定値の元は選択済みproject/appの管理画面・承認済みinventoryであり、例の値を実projectへ流用しない。
+公開設定は[Vite/Firebase/GA4](../../../mypage/src/firebase.ts)、サーバー設定は[起動処理](../../../system/cmd/mypage-server/main.go)の既存仕様に揃える。値は選択したプロジェクト・アプリの管理画面や承認済み一覧から取得し、例の値を実プロジェクトへ流用しない。
 
 ```sh
 # repository root: explicit public-only JSONだけを読む。SDK/ADC/通信なし。
@@ -47,17 +47,17 @@ cd system
 go run ./cmd/mypage-server --check-config
 ```
 
-backend検査だけはserver-only secretを既存の安全なprocess環境から読む。コマンド引数やmanifest/Viteへsecretを移さない。出力は固定status/field/codeのみ。public checkerは64KiB以内の明示JSONを読み、秘密・debug/未知field、project/app/origin/同意版の不一致を拒否する。optional backend companionは非秘密の識別・版だけ、optional Hostingは既存candidateのvalidatorを再利用する。
+バックエンド検査だけは、既存の安全なプロセス環境からサーバー専用シークレットを読む。コマンド引数・マニフェスト・Viteへ移さない。出力は固定のstatus/field/codeだけとする。公開設定チェッカーは64KiB以内の明示JSONを読み、秘密・デバッグ・未知フィールドと、プロジェクト・アプリ・オリジン・同意バージョンの不一致を拒否する。任意のバックエンド補助宣言は、非秘密の識別情報とバージョンだけを持つ。任意のHosting設定には、既存候補の検証処理を再利用する。
 
-manifestのtop levelは `schemaVersion: 1`, `deployment`, `frontend`、任意の `backend`, `hosting`, `publicPolicy`。`deployment`/`backend`は `environment`, `projectID`, `projectNumber`, `webAppID`, `publicOrigin`, `privacyVersion`, `termsVersion` の7項目。`frontend`の正確なkeyは[例](public-config.example.json)と[public schema](../../../mypage/src/release-config.ts)を使い、server環境をコピーしない。`publicPolicy`は `VITE_PUBLIC_CONTACT_URL`, `VITE_PUBLIC_PRIVACY_CONTACT_URL`, `VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE`, `VITE_PUBLIC_TERMS_EFFECTIVE_DATE`, `VITE_PUBLIC_JURISDICTION`、任意の `VITE_PUBLIC_OPERATOR_NAME`。`hosting`は[既存HostingInputs](../../../mypage/src/hosting.ts)の明示inventoryを使う。optional入力の省略は `not-supplied` として未検証のまま残す。
+マニフェストの最上位項目は`schemaVersion: 1`、`deployment`、`frontend`と、任意の`backend`、`hosting`、`publicPolicy`である。`deployment`/`backend`は`environment`、`projectID`、`projectNumber`、`webAppID`、`publicOrigin`、`privacyVersion`、`termsVersion`の7項目を持つ。`frontend`の正確なキーは[例](public-config.example.json)と[公開スキーマ](../../../mypage/src/release-config.ts)を参照し、サーバー環境をコピーしない。`publicPolicy`は`VITE_PUBLIC_CONTACT_URL`、`VITE_PUBLIC_PRIVACY_CONTACT_URL`、`VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE`、`VITE_PUBLIC_TERMS_EFFECTIVE_DATE`、`VITE_PUBLIC_JURISDICTION`と、任意の`VITE_PUBLIC_OPERATOR_NAME`を持つ。`hosting`には[既存HostingInputs](../../../mypage/src/hosting.ts)の明示的な接続先一覧を使う。任意入力の省略は`not-supplied`として未検証のまま残す。
 
-両検査とも外部登録・keyの真正性・permission/quota・公開本文承認を確認しない。`configurationValid=true`/`configuration=valid`でもinfrastructure/live E2Eはpending。`MYPAGE_INFRASTRUCTURE_READY=true`は起動に必要な宣言であり、Gateの証拠ではない。prepare時の検査のためにlive起動・Ready flag変更を行わない。
+両検査とも、外部登録・鍵の真正性・権限や利用枠・公開本文の承認は確認しない。`configurationValid=true`/`configuration=valid`でも、基盤と実環境のE2Eは未完了である。`MYPAGE_INFRASTRUCTURE_READY=true`は起動に必要な宣言であり、確認完了の証拠ではない。準備時の検査のために実起動やReadyフラグ変更を行わない。
 
 ### 設定の受け渡し
 
-Hosting image inventoryにはチャンネル画像用の `https://yt3.ggpht.com` と `https://yt3.googleusercontent.com` の両originを明示する。reCAPTCHA用画像だけのinventoryはpreflightで拒否する。許可元は[Hosting候補](../../../mypage/src/hosting.ts)と[設定検証](../../../mypage/src/release-config.ts)で検査する。これらはimg-src専用で、script/connect/frameを広げない。将来別の画像originが返る場合は実配信元を確認し、inventoryを再レビューする。
+Hostingの画像接続先一覧には、チャンネル画像用の`https://yt3.ggpht.com`と`https://yt3.googleusercontent.com`の両オリジンを明示する。reCAPTCHA画像だけの一覧は事前検査で拒否する。許可元は[Hosting候補](../../../mypage/src/hosting.ts)と[設定検証](../../../mypage/src/release-config.ts)で検査する。img-src専用であり、script/connect/frameは広げない。将来、別の画像オリジンが返った場合は実配信元を確認し、一覧を再レビューする。
 
-| boundary | 項目 | 受け渡し・検証 |
+| 設定の用途 | 項目 | 受け渡し・検証 |
 | --- | --- | --- |
 | public browser | `VITE_FIREBASE_API_KEY/AUTH_DOMAIN/PROJECT_ID/APP_ID`, `VITE_APP_CHECK_SITE_KEY` | 公開Web app設定。secret/admin key/debug tokenではない。project番号とapp、登録domainは別途照合 |
 | 同意版 | browser `VITE_PRIVACY_POLICY_VERSION/VITE_TERMS_VERSION`; server `MYPAGE_PRIVACY_VERSION/MYPAGE_TERMS_VERSION` | 同じrelease対で一致。実際に承認された本文の版を記録 |
@@ -69,11 +69,11 @@ Hosting image inventoryにはチャンネル画像用の `https://yt3.ggpht.com`
 | メンテナンス告知 | source内のDEV/PROD YouTube posts URL対応表、選択keyは`VITE_FIREBASE_PROJECT_ID` | 非secretの固定公開導線。Firestore・Backend・browser storageへ複製せず、未知projectはfallbackしない。変更はsource reviewと再buildを必須にする |
 | Bot設定案 | `MYPAGE_PUBLIC_ENTRY_URL`（runtimeへの接続は未実装） | 承認済みpublic入口だけ。user固有query/tokenを含めない。0A/0Bは未設定、Phase1承認後に設定。実装・設定の承認前に有効化しない |
 
-publicPolicy入力は一般問い合わせとPrivacy請求を分ける。形式が正しいURLでも返信機能・ログイン不要・SLA運用が確認済みとは限らない。
+publicPolicyでは、一般問い合わせとプライバシー請求の入力を分ける。URLの形式が正しくても、返信機能・ログイン不要・SLA運用が確認済みとは限らない。
 
 ## ローカル検証
 
-依存は各packageのlock/toolchain設定を使う。秘密や実ユーザーdataは不要。以下はrepository-nativeの確認で、real OAuth/Hostingを代替しない。
+依存関係は各パッケージのロックファイルとツールチェーン設定を使う。秘密や実ユーザーデータは不要である。以下はリポジトリ内の検査であり、実OAuth/Hostingを代替しない。
 
 ```sh
 # root
@@ -81,7 +81,7 @@ python3 .github/scripts/check-doc-references.py
 node mypage/scripts/check-release-config.mjs --file docs/mypage/release/public-config.example.json
 ```
 
-各packageの確認は、それぞれrepository rootから開始する。
+各パッケージの確認は、それぞれリポジトリのルートから開始する。
 
 ```sh
 cd system
@@ -98,40 +98,41 @@ pnpm test
 pnpm build
 ```
 
-Go変更の必須checksは[AGENTS.md](../../../AGENTS.md)。生成後の意図しない差分0を確認する。Firestore依存のacceptanceは[既存Emulator script](../../../.github/scripts/run-firestore-integration-tests.sh)をrootから実行する（demo project、real credentialを渡さない）。
+Go変更の必須検査は[AGENTS.md](../../../AGENTS.md)に従い、生成後に意図しない差分がないことを確認する。Firestoreに依存する受入検証は、ルートから[既存Emulatorスクリプト](../../../.github/scripts/run-firestore-integration-tests.sh)を実行する。demoプロジェクトを使い、実認証情報は渡さない。
 
-状態遷移は[runtime test](../../../mypage/src/runtime.test.ts)・[privacy test](../../../mypage/src/privacy.test.ts)で検証する。browserはlocal Viteをport18081で起動し、[visual entrypoint](../../../mypage/src/visual.tsx)・[font QA](../../../mypage/scripts/font-qa.py)を使う。設定済みpublic文面は専用testと実browserで匿名到達/安全なlinkを確認する。実ユーザー画面をpublic QA artifactへ保存しない。
+状態遷移は[ランタイムテスト](../../../mypage/src/runtime.test.ts)と[プライバシーテスト](../../../mypage/src/privacy.test.ts)で検証する。ブラウザ確認ではローカルViteをポート18081で起動し、[表示確認の入口](../../../mypage/src/visual.tsx)と[フォントQA](../../../mypage/scripts/font-qa.py)を使う。設定済み公開文面は専用テストと実ブラウザで、匿名到達と安全なリンクを確認する。実ユーザー画面を公開QA成果物に保存しない。
 
 ### DEV HostingをCIで配備する
 
-基盤のTerraform Applyとページの配備は別の操作だが、DEVページの更新も既存`CI`の手動実行から完結させる。`integration/mypage-canon-20261006`を選び、`operation=mypage-hosting-release` / `environment=development` を指定する。実行SHAは選択refの `github.sha` を使い、手入力しない。PR実行・main・他branch・別owner・再実行・SHA不一致は拒否する。失敗時にRunの再実行で継続せず、現在状態を確認して新しい実行を開始する。
+基盤のTerraform Applyとページ配備は別操作だが、DEVページの更新も既存`CI`の手動実行内で完結させる。`integration/mypage-canon-20261006`を選び、`operation=mypage-hosting-release` / `environment=development`を指定する。実行SHAは選択refの`github.sha`を使い、手入力しない。PR実行・main・他ブランチ・別所有者・再実行・SHA不一致は拒否する。失敗時に同じRunを再実行して継続せず、現在状態を確認して新しく実行する。
 
-1. 既存Repository/Frontend検査に成功後、cloud credentialのないBuild jobで固定依存の検査・test・DEV公開設定の検査・buildを行う。
-2. 同じrunのartifactを別Apply jobへ渡し、source SHA/run ID/30分期限/configと全fileのSHA256を再検証する。Applyは専用WIFと短命tokenを使用する。SA keyやFirebase login tokenは使わない。
-3. 対象は`test-youtube-study-space`の`test--study-space`だけ。現行HostingのCSP/rewrites等とAPIの同意版・固定origin・Ready revisionを照合し、configの意図しない変更、別site、途中のHosting/API/branch変更を拒否する。公開版を作成・upload・finalizeしてから、最後にreleaseを切り替える。writeの自動retryはしない。
-4. 配備後は全fileのbytes/Cache-Control/CSP等、`/`と`/mypage`、匿名APIの403、API metadata不変を確認する。別のcredentialなしBrowser jobで匿名画面・Cookie設定・GA4 request 0を確認する。失敗はCI Gateへ伝播する。実GA4送信・認証済みE2E・公開Gateの完了を意味しない。
+1. 既存Repository/Frontend検査の成功後、クラウド認証情報のないBuildジョブで、固定依存の検査・テスト・DEV公開設定検査・ビルドを行う。
+2. 同じ実行の成果物を別Applyジョブへ渡し、ソースSHA・run ID・30分の期限・設定・全ファイルのSHA256を再検証する。Applyは専用WIFと短命トークンを使い、SA鍵やFirebaseログイントークンは使わない。
+3. 対象は`test-youtube-study-space`の`test--study-space`だけとする。現在のHostingのCSP・書き換えなどと、APIの同意バージョン・固定オリジン・Readyリビジョンを照合する。意図しない設定変更、別サイト、途中のHosting・API・ブランチ変更は拒否する。公開版の作成・アップロード・確定後、最後にリリースを切り替える。書き込みを自動再試行しない。
+4. 配備後は全ファイルのバイト列・Cache-Control・CSPなど、`/`と`/mypage`、匿名APIの403、APIメタデータの不変を確認する。別の認証情報なしBrowserジョブで、匿名画面・Cookie設定・GA4通信0件を確認する。失敗はCI Gateに伝える。実GA4送信・認証済みE2E・公開条件の完了を意味しない。
 
-GitHub Environment `mypage-dev-hosting`には、**公開項目だけ**の`MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`と専用provider名`MYPAGE_HOSTING_WIF_PROVIDER`をVariablesとして設定する。前者は既存のpublic manifest schemaで、`VITE_MYPAGE_ANALYTICS_READY=false`、`VITE_PRIVACY_INTAKE_ENABLED=false`、`analyticsApproved=false`を必須とする。server envのexport・OAuth/credential/Secret値を渡さない。公開済みDEVと同じorigin/Firebase app/同意版/CSP inventoryを引き継ぐ。設定変更は既存preflightとレビューを通す。
+GitHub Environmentの`mypage-dev-hosting`には、公開項目だけの`MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`と専用プロバイダー名`MYPAGE_HOSTING_WIF_PROVIDER`をVariablesに設定する。前者は既存の公開マニフェストスキーマを使い、`VITE_MYPAGE_ANALYTICS_READY=false`、`VITE_PRIVACY_INTAKE_ENABLED=false`、`analyticsApproved=false`を必須とする。サーバー環境の書き出し、OAuth・認証情報・Secretの値は渡さない。公開済みDEVと同じオリジン・Firebaseアプリ・同意バージョン・CSP接続先一覧を引き継ぐ。設定変更は既存の事前検査とレビューを通す。
 
-権限bootstrapは専用`mypage-hosting` WIF pool/providerと`mypage-hosting-deploy` SAへ分離する。providerは固定repo/owner/actor ID、初回workflow_dispatch、integration ref、caller `ci.yml`、reusable `mypage-hosting-authenticated.yml`、同一workflow SHA、Environment `mypage-dev-hosting`を全て検査する。既存のTerraform WIF/SA/Stateは変更しない。
+権限の初期設定は、専用の`mypage-hosting` WIF pool/providerと`mypage-hosting-deploy` SAに分ける。プロバイダーは、固定リポジトリ・所有者・actor ID、初回workflow_dispatch、統合ref、呼び出し元`ci.yml`、再利用先`mypage-hosting-authenticated.yml`、同一workflow SHA、Environment `mypage-dev-hosting`をすべて検査する。既存TerraformのWIF・SA・Stateは変更しない。
 
-**IAMの限界**：[Firebase公式](https://firebase.google.com/docs/projects/iam/permissions)ではHostingのcustom roleは未対応。DEV projectだけの`roles/firebasehosting.admin`を専用SAへ付与するため、IAM上はDEV内の他Hosting siteの作成/削除等も可能な権限を含む。site1個への限定は固定API/配備契約と強いWIF admissionで行うもので、IAMによるsite単位制限とは呼ばない。API比較のため`mypage-api`1 serviceの`roles/run.viewer`と、quota用のDEV `roles/serviceusage.serviceUsageConsumer`だけを加える。Cloud Run update、Firestore、Auth、Secret、IAM setter、Productionへの権限は付与しない。
+[Firebase公式](https://firebase.google.com/docs/projects/iam/permissions)では、Hostingのカスタムロールは未対応である。専用SAに付与するのはDEVプロジェクトだけの`roles/firebasehosting.admin`だが、IAM上はDEV内の他Hostingサイトの作成・削除なども可能になる。サイト1個への限定は固定API・配備仕様と厳格なWIF受入検査で行い、IAMによるサイト単位制限とは呼ばない。API比較のための`mypage-api` 1サービスの`roles/run.viewer`と、利用枠用のDEV `roles/serviceusage.serviceUsageConsumer`だけを追加する。Cloud Run更新・Firestore・Auth・Secret・IAM変更・本番への権限は付与しない。
 
-失敗時はsanitized release recordのpreviousVersion/previousReleaseと現在配信を照合し、明示的に復旧判断する。自動rollback・古いartifactの再利用はしない。Firebaseのrelease切替APIにcompare-and-swapはなく、直前の一致確認とCI concurrencyは外部operatorの同時更新を完全に防ぐものではない。実行中は別経路のHosting更新を避ける。切替後に検証が失敗した場合は、live更新済み・CI失敗として扱う。recordは切替API呼出し**前**にunknownで保存し、応答を確認できた時だけconfirmedへ更新する。応答喪失時もpreviousVersionを残し、成功/失敗にかかわらず14日間のCI artifactへ保全する。publicファイルと公開設定だけのbuild artifactは1日で期限切れにする。
+失敗時は、秘匿処理済みリリース記録のpreviousVersion/previousReleaseと現在の配信を照合し、明示的に復旧判断する。自動ロールバックや古い成果物の再利用はしない。Firebaseのリリース切替APIにはcompare-and-swapがなく、直前の一致確認とCI同時実行制御だけでは外部運用者の同時更新を完全に防げない。実行中は別経路のHosting更新を避ける。切替後の検証失敗は、実環境は更新済みでCIは失敗した状態として扱う。
+記録は切替API呼び出し前にunknownで保存し、応答を確認できた場合だけconfirmedに更新する。応答消失時もpreviousVersionを残し、成否にかかわらずCI成果物で14日間保存する。公開ファイルと公開設定だけのビルド成果物は、1日で期限切れにする。
 
-この経路はDEV frontend専用。Production、Backend image更新、Terraform変更を同時に自動化したとは扱わない。後続のProduction経路は公開Gate・独立Environment/権限・配備対象をレビューしてから追加し、本番未公開を維持する。
+この経路はDEVフロントエンド専用である。本番・バックエンドイメージ更新・Terraform変更まで同時に自動化したとは扱わない。後続の本番経路は、公開条件・独立したEnvironmentと権限・配備対象をレビューしてから追加し、本番未公開を維持する。
 
-### 静的配信cacheの契約
+### 静的配信キャッシュの仕様
 
-同じpublic manifestでFrontendをbuildした後、実distを専用release directory内の`dist/`へ固定コピーし、exact asset pathを採取する。`node mypage/scripts/prepare-hosting.mjs --manifest /path/to/reviewed-public-config.json --dist /path/to/release/dist --output /path/to/release/firebase.json` は設定候補だけを書き、deployしない。出力先は未作成file、親directoryは作成済みとする。Firebase CLIはproject root外のpublicを拒否するため、symlink解決後もdistは出力configの親directoryの内側にある独立subdirectoryを要求する。manifestやprivate運用fileはdistへ置かない。既知hash付きJS/CSS/fontだけが1年immutableとなり、HTML・API・未知hash pathはno-store。buildを差し替えたら必ず再生成する。target/site対応は既存のreview済みDEV selectorを使い、repository共通firebase設定を上書きしない。
+同じ公開マニフェストでフロントエンドをビルドし、実distを専用リリースディレクトリ内の`dist/`へ固定コピーして、正確なアセットパスを採取する。`node mypage/scripts/prepare-hosting.mjs --manifest /path/to/reviewed-public-config.json --dist /path/to/release/dist --output /path/to/release/firebase.json`は設定候補だけを書き、配備しない。出力先は未作成ファイル、親ディレクトリは作成済みとする。Firebase CLIはプロジェクトルート外のpublicを拒否するため、シンボリックリンク解決後も、distは出力設定の親ディレクトリ内にある独立サブディレクトリでなければならない。マニフェストや非公開運用ファイルをdistに置かない。既知のハッシュ付きJS・CSS・フォントだけを1年間immutableとし、HTML・API・未知のハッシュパスはno-storeにする。ビルドを差し替えた場合は必ず再生成する。対象・サイトの対応は既存のレビュー済みDEV指定を使い、リポジトリ共通Firebase設定を上書きしない。
 
-build元は追跡済みのclean Git worktreeとし、同じpublic manifest以外のVITE設定を混入させない。ignoredなQA directory内のarchiveをbuild rootにするとTailwindの自動source走査が変わるため使用しない。JSだけの更新では、前のreview済みdistとCSS/全fontの名前・SHA256集合を機械比較し、不一致ならdeploy前に停止する。style変更が意図的ならその差分をレビューする。deploy後は全staged fileのbody SHAと実headersを再照合し、build rootの問題をhash名の変化だけで見過ごさない。
+ビルド元は追跡済みで変更のないGit worktreeとし、同じ公開マニフェスト以外のVITE設定を混入させない。Git除外されたQAディレクトリ内のアーカイブをビルドルートにすると、Tailwindの自動ソース走査が変わるため使わない。JSだけの更新では、直前のレビュー済みdistとCSS・全フォントの名前とSHA256の集合を機械比較し、不一致なら配備前に停止する。意図したスタイル変更なら差分をレビューする。配備後は全ステージングファイルの本文SHAと実ヘッダーを再照合し、ハッシュ名の変化だけでビルドルートの問題を見過ごさない。
 
-Hosting Emulatorで既知asset、`/`、`/mypage`、`/api/mypage`、未知`/assets/missing-12345678.js`のCache-ControlとCSP/nosniffを確認する。API rewriteの実Backend headers、実DEVでの各headerと初回/再訪download量は別のrelease証跡とする。asset cacheでAuth/SAC/cache TTLを変更しない。
+Hosting Emulatorで既知アセット、`/`、`/mypage`、`/api/mypage`、未知の`/assets/missing-12345678.js`のCache-ControlとCSP/nosniffを確認する。API書き換え先の実バックエンドヘッダー、実DEVの各ヘッダー、初回・再訪時のダウンロード量は別のリリース証跡とする。アセットキャッシュの変更でAuth・SAC・キャッシュTTLを変更しない。
 
 ### DEV専用：MyPageのFirestore読み取り原価計測
 
-[原価モデルの前提](../cost-notes.md)に従い、対象 release と予算を固定して計測する。収集フックの source だけでは実 DEV の配備・計測・index 適用を証明しない。
+[原価モデルの前提](../cost-notes.md)に従い、対象リリースと予算を固定して計測する。収集フックのソースだけでは、実DEVの配備・計測・インデックス適用を証明しない。
 
 - DEVの明示環境設定 `MYPAGE_READ_METRICS=true` の時だけ、BFFのCache Missから生じたFirestore snapshotの**成功したread-only transaction**ごとに `mypage_snapshot_read` を出力する。Productionではこの設定があっても無効。設定追加はDEV Cloud Run / Terraformの既存env allowlistとrelease承認を通して行う。
 - 記録内容は `user_lookups`（UserDoc lookup数）、`seat_queries` / `seats_returned` / `seat_query_errors`、`segment_queries` / `segments_returned` / `segment_query_error`、`elapsed_ms` の数値・真偽値のみ。uid/channel ID、氏名、path、作業名、segment本文、OAuth/Cookie、エラー本文などの秘匿値を記録しない。
@@ -144,16 +145,16 @@ Hosting Emulatorで既知asset、`/`、`/mypage`、`/api/mypage`、未知`/asset
 
 ### 月次履歴の明示移行と復旧
 
-`cmd/mypage-history-rebuild`はDEVまたはloopbackのdemo Emulatorだけを対象とするoperator CLI。通常APIから呼ばない。Production、暗黙project、credential file、未知引数、4KiB超のstdin、上限超過、未レビューexecuteを拒否する。target UIDをコマンド引数・logへ載せず、制限した手元のJSONをstdinへ渡す。出力は件数・秒・版hash・checkpoint等だけで、入力/reportを実ユーザーの公開artifactへ保存しない。
+`cmd/mypage-history-rebuild`は、DEVまたはループバックのdemo Emulatorだけを対象にする運用CLIである。通常APIからは呼ばない。本番、暗黙のプロジェクト、認証情報ファイル、未知引数、4KiB超の標準入力、上限超過、未レビューの実行を拒否する。対象UIDをコマンド引数やログに載せず、アクセスを制限した手元のJSONを標準入力に渡す。出力は件数・秒・バージョンハッシュ・チェックポイントなどだけとし、実ユーザーの入力や報告を公開成果物に保存しない。
 
-1. source/CI/全writerの配備・旧fleetとqueueのpause/drain・既存coverage・費用上限を確認する。**mixed writer中にbaseline completeや切替を宣言しない**。MyPage APIのimage更新だけでBot/Batchのwriter切替済みとは扱わない。初回の合成DEV検証は独立したsynthetic UIDだけとし、既存利用者を変更しない。
-2. `--operation=rebuild`（既定dry-run）で対象UIDの原記録を上限付きで調べ、指定JST月の値と旧値を比較する。stdinは`uid/month`、継続時は**最初の**`checkpoint`も指定する。既定上限1000、hard max10000、sentinelの追加1件、取得payload 4MiB、transaction 30秒・attempt 1。日付filterで不正rowを見落とさないようUIDの原記録を検査し、上限・不正・重複・失敗なら公開しない。大きいUIDは未切替のままとし、別途承認・レビューした移行が必要。
-3. 同じ`checkpoint`とdry-runの`sourceVersion`をstdinへ加え、`--execute`で指定月だけを原子的に公開する。原記録/既存月/停止状態が変われば拒否する。月が再開単位で、同じ原記録を何度再集計しても足し込みにならない。ACK喪失時は旧versionを自動再実行せず、original checkpointを維持した新dry-runで現状・epoch・差分を確認する。削除を跨いだcheckpointの再採取は禁止。
-4. 直近7日が触れる月を準備した後、`--operation=cutover`のdry-runで同じcheckpointと`userRevision`を確認し、それを渡した`--execute`でUserの読取markerを切り替える。SAC/User revision、月のbaseline/epoch/整合性、future原記録の不存在を再照合する。coverageの設定は別の確認事項であり、この操作で古い不完全履歴を完全としない。
-5. 新旧比較ではJSTの日/月/週境界、秒未満、作業名変更、break、ongoing、正常0、1001件以上、欠損/不正/取得失敗を確認する。旧raw readerの1001件到達は正確な比較値にならないので、既知の合成期待値と月次値を照合する。
-6. 退避には`--operation=rollback`を現在User revisionと**同じoriginal checkpoint**でdry-run→executeする。rawは保持し、読取markerだけを外す。旧writerへ戻す場合は先に全対象のmarkerを外し、再導入時はfleet/drain確認と新dry-run/再集計を行う。metadataだけ取り直して旧planを通さない。
+1. ソース・CI・全書き込み処理の配備、旧実行系とキューの停止・完了待ち、既存coverage、費用上限を確認する。複数方式の書き込み処理が混在する間は、基準値の完全性や切替完了を宣言しない。MyPage APIのイメージ更新だけで、Bot/Batchの書き込み処理も切替済みとは扱わない。初回の合成DEV検証は独立した合成UIDだけを使い、既存利用者を変更しない。
+2. `--operation=rebuild`（既定はdry-run）で対象UIDの原記録を上限付きで調べ、指定JST月の値と旧値を比較する。標準入力は`uid/month`とし、継続時は最初の`checkpoint`も指定する。既定上限1000、厳密な最大10000、超過検知用の追加1件、取得内容4MiB、トランザクション30秒・試行1回とする。日付フィルターで不正行を見落とさないようUIDの原記録を検査し、上限・不正・重複・失敗なら公開しない。大きな履歴のUIDは未切替に留め、別途承認・レビューした移行を必要とする。
+3. 同じ`checkpoint`とdry-runの`sourceVersion`を標準入力に加え、`--execute`で指定月だけをアトミックに公開する。原記録・既存月・停止状態が変われば拒否する。月を再開単位とし、同じ原記録を何度集計しても加算を繰り返さない。ACK消失時は旧バージョンを自動再実行せず、元のチェックポイントを保った新しいdry-runで現状・epoch・差分を確認する。削除を跨いだチェックポイントの再採取は禁止する。
+4. 直近7日が含まれる月を準備した後、`--operation=cutover`のdry-runで同じチェックポイントと`userRevision`を確認する。それを渡した`--execute`でUserの読み取りマーカーを切り替える。SAC/Userリビジョン、月の基準値・epoch・整合性、未来の原記録の不存在を再照合する。coverage設定は別の確認事項であり、この操作で過去の不完全な履歴を完全とは扱わない。
+5. 新旧比較では、JSTの日・月・週境界、秒未満、作業名変更、休憩、進行中、正常な0、1001件以上、欠損・不正・取得失敗を確認する。旧原記録の読み取りが1001件に達した場合は正確な比較値にならないため、既知の合成期待値と月次値を照合する。
+6. 退避時は`--operation=rollback`を、現在のUserリビジョンと同じ元のチェックポイントでdry-run→executeする。原記録は保持し、読み取りマーカーだけを外す。旧書き込み処理に戻す場合は先に全対象のマーカーを外し、再導入時は全実行系の完了待ち確認と新しいdry-run・再集計を行う。メタデータだけを取り直して旧計画を通さない。
 
-repository rootから対象を確認し、system directoryで使用する例（実行には対象ごとの承認済み入力・費用境界が必要）:
+リポジトリのルートから対象を確認し、systemディレクトリで使う例を示す。実行には、対象ごとの承認済み入力と費用範囲が必要である。
 
 ```sh
 go run ./cmd/mypage-history-rebuild --environment=development \
@@ -161,11 +162,11 @@ go run ./cmd/mypage-history-rebuild --environment=development \
   < /path/to/private-reviewed-selection.json
 ```
 
-新しいclose writerとrebuildはprivacyDeletionをtransactionで確認し、SAC解除後も旧admission/checkpointの再生成を拒否する。genericなBot moderation/入室/User更新まで共通停止にしたわけではないため、横断削除のlegacy pause/drainは引き続き必要。削除adapter/inventoryは原記録と`work-months`を同じprimary scopeで消し、UserのmarkerもUser削除に含む。inactive SAC checkpoint・独立moderationは保持する。cache/flight・backup/export/restoreまで含むBの完了条件は従来どおりで、このCLIをPrivacy削除の実行経路へ転用しない。
+新しい区間終了書き込みと再集計は、トランザクションでprivacyDeletionを確認する。SAC解除後も古い許可情報・チェックポイントによる再生成を拒否する。汎用のBotモデレーション・入室・User更新まで共通停止するものではなく、横断削除では旧実行系の停止・完了待ちが引き続き必要である。削除アダプターと対象一覧は、原記録と`work-months`を同じ主データ範囲で消去し、User削除にはそのマーカーも含める。無効状態のSACチェックポイントと独立したmoderationは保持する。キャッシュ・共有処理・バックアップ・エクスポート・復元を含むBの完了条件は従来どおりとし、このCLIをプライバシー削除の実行手段に転用しない。
 
-## Gateと承認の順序
+## 確認と承認の順序
 
-| checkpoint | 完了を示す証跡 | 未完時 |
+| 確認段階 | 完了を示す証跡 | 未完時 |
 | --- | --- | --- |
 | MyPage Ready Gate | [infra正本Phase6](https://app.notion.com/p/3d3357a8d0ce81f589a3d6b9c8e237bc)のdev/prod基盤・ownership・Firebase境界・keyless CI | resource本実装/provisioningへ進まない |
 | Phase 0A準備 | exact commit/CI、設定preflight、公開文面とAPI前同意、対象/rollback/実試験計画 | local prepareは継続。target値を推測しない |
@@ -173,26 +174,26 @@ go run ./cmd/mypage-history-rebuild --environment=development \
 | 0B受入 | 0A実経路とCanon S01/S04の検証PASS（必要なら局所修正後）、MONのDEV/PROD monitor認証・OBS永続化・失敗通知・max-seat回帰、COSTの実課金境界・Budget実着信・異常利用監視、D01実装証跡、D02両取消経路の規約適合性確認、D03実値、人的Privacy窓口、7暦日削除/cleanup、実metadata/log/backup inventory | 実ユーザー受入を停止 |
 | Phase 1一般公開 | OAuth verification完了、0B実account/端末QA、Bot/外部導線、rollback、monitoring | 日付やCI成功だけで告知しない |
 
-初期公開のPrivacy請求は[人的Privacy・削除の運用](#人的privacyと削除の運用)を前提とする。[アプリ内source package](../privacy-intake.md)の有効化は0Bの必須条件ではない。公開manifestの`VITE_PRIVACY_INTAKE_ENABLED`は現時点で`false`のみ受理し、server側も`EnablePrivacyIntake=false`を維持する。no-sessionも同じ人的窓口で扱い、新しいbearer credentialを導入しない。アプリ内受付・返信UIを後で使う場合は独立した公開判断が必要。
+初期公開のプライバシー請求は[有人窓口と削除の運用](#人的privacyと削除の運用)を前提にする。[アプリ内の実装パッケージ](../privacy-intake.md)の有効化は0Bの必須条件ではない。公開マニフェストの`VITE_PRIVACY_INTAKE_ENABLED`は現時点で`false`だけを受理し、サーバー側も`EnablePrivacyIntake=false`を維持する。セッションなしの場合も同じ有人窓口で扱い、新しいBearer認証情報は導入しない。アプリ内の受付・返信UIを後で使う場合は、独立した公開判断を必要とする。
 
 ### 人的Privacyと削除の運用
 
 - D03で返信できるログイン不要の窓口、担当、受付時刻・期限管理、実公開文面を確定する。匿名の一般意見窓口やOAuth user support emailを自動的に流用しない。
-- 依頼目的・environment・対象channel・受付時刻を記録し、fresh OAuthを同じ依頼へ束縛する。削除の7暦日は受付時刻から固定し、proof再発行・ACK喪失・再試行で延長しない。
-- 実operator identity/権限、private CLIのlive接続、返信のdelivery acknowledgement、監査の保持・閲覧者が未確定。現状の`--execute`拒否を運用完了へ読み替えない。
-- [削除inventory](../support-delete-inventory.md)で実runtime・legacy writer・Auth/BQ/cache/backup/export/vendor/logを確認し、D01 guard、全fleet pause/drain、session revoke、横断削除、復元・古い処理の再生成防止、store別の不存在確認、完了通知まで実証する。部分失敗はpendingのまま再開する。
-- D02は外部Google取消検知のrefresh保存・pollingを採用しない確定方針。アプリ内とGoogle設定画面の両取消経路について適合確認が終わるまで公開Gateを閉じる。新しい取消UI/APIも先行追加しない。
+- 依頼目的・環境・対象チャンネル・受付時刻を記録し、新たなOAuth認証を同じ依頼に結び付ける。削除の7暦日は受付時刻から固定し、証拠再発行・ACK消失・再試行で延長しない。
+- 実際の運用担当者の本人情報・権限、非公開CLIの実接続、返信の到達確認、監査の保持・閲覧者は未確定である。現在の`--execute`拒否を運用完了と扱わない。
+- [削除対象一覧](../support-delete-inventory.md)で実ランタイム・旧書き込み処理・Auth/BQ/キャッシュ/バックアップ/エクスポート/ベンダー/ログを確認する。D01保護、全実行系の停止・完了待ち、セッション失効、横断削除、復元や旧処理からの再生成防止、ストア別の不存在確認、完了通知まで実証する。部分失敗は保留のまま再開する。
+- D02では、外部Google取消検知のためのリフレッシュトークン保存・定期取得を採用しない方針が確定している。アプリ内とGoogle設定画面の両取消経路の適合確認が終わるまで公開を保留する。新しい取消UI/APIも先に追加しない。
 
-Canon S03のchannel譲渡は利用規約で扱い、申告時の[manual block / session revoke](../service-access-control.md)を維持する。自動ownership監視や周期再認証は追加しない。既存moderation CLIのsource機能を、対象environmentの権限・監査・実運用の確認済み証跡と混同しない。Firestore Client SDK の制限 Rules と monitor の同時適用は [E2E](e2e.md) の MON 受入で確認する。
+Canon S03のチャンネル譲渡は利用規約で扱い、申告時の[手動ブロック・セッション失効](../service-access-control.md)を維持する。自動の所有権監視や定期的な再認証は追加しない。既存moderation CLIのソース上の機能を、対象環境の権限・監査・実運用の確認済み証跡と混同しない。Firestore Client SDKの制限Rulesとモニターの同時適用は、[E2E](e2e.md)のMON受入で確認する。
 
-正常 session revoke の最大約1時間の残存許容を、削除時の全 writer/cache 静止の代替にしない。D01 は独立 ServiceAccessControl を使い、A の guard と B の横断削除・drain を区別する。
+通常のセッション失効で最大約1時間の残存を許容することを、削除時の全書き込み・キャッシュ停止の代替にしない。D01は独立したServiceAccessControlを使い、Aの保護処理と、Bの横断削除・実行中処理の完了待ちを区別する。
 
-OAuth 同意画面の user support email は指定済みの専用値を安全な operator 入力で渡す。Privacy 窓口・一般問い合わせ・developer contact へ自動転用しない。公開本文は運営者の本名・自宅住所の常時掲載を前提とせず、必要な請求へ回答できる運用を用意する。公開前に返信可能・ログイン不要の Privacy 窓口、担当・受付時刻/期限管理、本人 test account/channel、未指定の developer contact、施行日・管轄を実値で照合する。
+OAuth同意画面のuser support emailは、指定済みの専用値を安全な運用入力で渡す。プライバシー窓口・一般問い合わせ・developer contactに自動転用しない。公開本文は運営者の本名・自宅住所の常時掲載を前提にせず、必要な請求に回答できる運用を用意する。公開前に、返信可能でログイン不要のプライバシー窓口、担当・受付時刻と期限管理、本人テストアカウント・チャンネル、未指定のdeveloper contact、施行日・管轄を実値で照合する。
 
-OAuth scope は `youtube.readonly` のみ、callback は固定 `/api/auth/youtube/callback`。D02 は外部 Google 取消検知だけの refresh token 保存・定期 polling を採用しない。アプリ内と Google 設定画面の両取消経路、保持済み API data の扱いについて verification/compliance の確認が終わるまで公開 Gate を閉じる。設計確定や一般 OAuth 審査をこの適合確認の代用にしない。
+OAuthスコープは`youtube.readonly`だけ、コールバックは固定の`/api/auth/youtube/callback`とする。D02では、外部Google取消検知だけのためのリフレッシュトークン保存・定期取得を採用しない。アプリ内とGoogle設定画面の両取消経路、保持済みAPIデータの扱いについて検証・規約適合性確認が終わるまで、公開を保留する。設計確定や一般OAuth審査を、この確認の代替にしない。
 
 ## 証跡と停止条件
 
-[release record例](release-record.example.json)にfrontend commit/Hosting release、backend image digest/revision、rewrite/pinTag、schema/同意版、試験のscopeと参照、owner承認をひと組で記録する。例はD02設計選択のみ確定済みとし、残るGateはpendingのtemplateで、入力しただけではGateを閉じない。private target/個人data/credentialをpublic PRに載せない。
+[リリース記録例](release-record.example.json)に、フロントエンドコミット・Hostingリリース、バックエンドイメージのダイジェスト・リビジョン、rewrite/pinTag、スキーマ・同意バージョン、試験範囲と参照、所有者承認を一組で記録する。例はD02の設計選択だけを確定済みとし、残る確認事項は保留のテンプレートである。入力しただけでは完了としない。非公開の対象情報・個人データ・認証情報を公開PRに載せない。
 
-認証/IDOR・誤channel・code/state漏えい・同意前GA4・古いdata復活・保持/削除期限違反・rollback互換不成立はSTOP。部分失敗はunknown/pendingとして記録し、再実行で失敗を消さない。security scan の実行結果と CI Gate は区別し、解析未開始を PASS とは呼ばない。OIDC/IAM変更はこのrunbookのコマンドには含めない。
+認証・IDORの問題、誤チャンネル、code/state漏えい、同意前GA4送信、旧データ復活、保持・削除期限違反、ロールバックの互換性不足があれば停止する。部分失敗はunknown/pendingとして記録し、再実行で失敗を消さない。セキュリティスキャンの実行結果とCI Gateを区別し、解析未開始を合格とは呼ばない。OIDC/IAM変更は、この手順書のコマンドに含めない。

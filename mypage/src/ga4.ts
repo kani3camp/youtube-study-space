@@ -10,9 +10,9 @@ export type GtagCommand =
 	| ['config', string, Record<string, string | boolean>]
 	| ['event', string, Record<string, string | boolean>]
 
-// Synchronous injection only: no script loader, dataLayer queue, browser globals,
-// identifier generation or vendor request exists in this module. A future loader
-// must recheck consent before initialization and discard late loaded callbacks.
+// 同期的な受け渡しだけを行う。このモジュールにはスクリプトローダー・dataLayerキュー・
+// ブラウザのグローバル変数・識別子生成・ベンダーへの通信を含めない。
+// 将来のローダーは初期化前に同意を再確認し、遅い読み込みコールバックを破棄する必要がある。
 export type GtagRuntime = {
 	command: (...args: GtagCommand) => void
 	disable: (measurementID: string, disabled: boolean) => void
@@ -74,14 +74,14 @@ export class GA4Sender implements AnalyticsPort {
 	stop() {
 		this.active = false
 		this.page = null
-		// Do not issue consent-denied/config commands that could trigger a ping.
-		// A future runtime must disable its vendor before any pending processing.
+		// 通信を起こし得るconsent-denied/configコマンドを発行しない。
+		// 将来のランタイムでは、保留処理より前にベンダーを無効化する必要がある。
 		this.runtime.disable(this.measurementID, true)
 	}
 	send(event: SafeEvent) {
 		if (!this.active) return
 		if (event.name === 'page_view') {
-			// Revalidate at the transport boundary; ignore supplied title and extras.
+			// 通信の直前に再検証し、渡されたタイトルや追加項目は無視する。
 			const page = safePage(event.page.page_path)
 			if (!page) return
 			this.page = page

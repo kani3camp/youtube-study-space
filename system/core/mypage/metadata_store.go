@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// SaveMetadata only updates an existing exact document revision. No external
-// API call occurs inside the retryable transaction and no account is recreated.
+// SaveMetadataは、リビジョンが完全一致する既存文書だけを更新する。
+// 再試行可能なトランザクション内で外部APIを呼ばず、アカウントも再作成しない。
 func (s *FirestoreAuthStore) SaveMetadata(ctx context.Context, uid string, expected WebAccount, channel Channel, policy Policy, now time.Time) (WebAccount, error) {
 	if !youtubeChannelID.MatchString(uid) || channel.ID != uid || channel.DisplayName == "" || expected.Revision.IsZero() || expected.AccessCheckpoint == "" {
 		return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
@@ -64,16 +64,15 @@ func (s *FirestoreAuthStore) SaveMetadata(ctx context.Context, uid string, expec
 	return refreshed, nil
 }
 
-// ExpireMetadata clears expired public metadata and its fetched timestamp,
-// retaining consent and account identity. It is not account deletion or an
-// operator privacy-request execution method.
+// ExpireMetadataは期限切れ公開メタデータと取得時刻を消去し、同意と本人情報を維持する。
+// アカウント削除や、運用担当者によるプライバシー申請の実行には使わない。
 func (s *FirestoreAuthStore) ExpireMetadata(ctx context.Context, uid string, expected WebAccount, policy Policy, now time.Time) (WebAccount, error) {
 	cutoff := now.Add(-30 * 24 * time.Hour)
 	return s.clearAccountMetadata(ctx, uid, expected, policy, &cutoff, now)
 }
 
-// ClearMissingMetadata is called only for a validated successful API response
-// proving the channel absent, not transport/malformed/ambiguous failures.
+// ClearMissingMetadataは、正常なAPI応答を検証してチャンネル不在が確認できた場合だけ呼ぶ。
+// 通信失敗・不正な形式・曖昧な結果では呼ばない。
 func (s *FirestoreAuthStore) ClearMissingMetadata(ctx context.Context, uid string, expected WebAccount, policy Policy, now time.Time) (WebAccount, error) {
 	return s.clearAccountMetadata(ctx, uid, expected, policy, nil, now)
 }

@@ -18,9 +18,9 @@ type DryRunSelector struct {
 	Now             time.Time
 }
 
-// DryRunReader has no mutation, auth-revocation or Google API method. Its
-// snapshot binds the receipt, available proof and inventory to one read time.
-// A TTL-removed OAuth trace stays unknown and cannot authorize execution.
+// DryRunReaderは変更・認証失効・Google APIの操作を持たない。
+// 受付・利用可能な証拠・対象一覧を1つの読み取り時刻に結び付ける。
+// TTLで消えたOAuth追跡記録は不明のままにし、実行を許可しない。
 type DryRunReader interface {
 	Inspect(context.Context, DryRunSelector) (DryRunSnapshot, error)
 }
@@ -79,8 +79,8 @@ func validateDryRunProof(value SupportRequest, oauth OAuthTransaction, s DryRunS
 	return nil
 }
 
-// BuildDryRun is a sanitized diagnostic. A verified receipt and observed counts
-// never authorize execution or prove cross-store cleanup.
+// BuildDryRunは秘匿処理済みの診断である。
+// 検証済み受付や観測件数は、実行権限やストア横断の消去証明にはならない。
 func BuildDryRun(ctx context.Context, s DryRunSelector, reader DryRunReader) (DryRunReport, error) {
 	if err := validateDryRunSelector(s); err != nil || reader == nil {
 		return DryRunReport{}, ErrDryRunUnavailable

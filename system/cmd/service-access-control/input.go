@@ -80,8 +80,8 @@ func parseOptions(args []string) (options, error) {
 	return o, nil
 }
 
-// Manifests must be ordinary private files. Neither file paths nor filesystem
-// errors can become reports. Stdin remains useful for an approved secret pipe.
+// マニフェストは非公開の通常ファイルを必須とする。パスやファイルシステムエラーは報告しない。
+// 承認済みの非公開パイプには標準入力も使える。
 func inputFrom(o options, stdin io.Reader) (io.Reader, func(), error) {
 	if o.stdin {
 		return stdin, func() {}, nil
@@ -104,9 +104,9 @@ func inputFrom(o options, stdin io.Reader) (io.Reader, func(), error) {
 	}, nil
 }
 
-// strictObject rejects unknown, case-variant, duplicate and missing fields.
-// encoding/json's ordinary struct decoding accepts duplicate and case-variant
-// names, which is unsafe at the private operator boundary.
+// strictObjectは未知・大小文字違い・重複・欠落フィールドを拒否する。
+// encoding/jsonの通常の構造体デコードは重複名と大小文字違いを受け入れるため、
+// 非公開の運用操作には安全でない。
 func strictObject(data []byte, fields ...string) (map[string]json.RawMessage, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	first, err := decoder.Token()

@@ -249,7 +249,7 @@ export class BrowserRuntime {
 						error instanceof RequestError &&
 						error.code === 'MAINTENANCE_ACTIVE'
 					) {
-						// The central request boundary has already cleared private data.
+						// 共通のリクエスト処理で、個人データは既に消去済みである。
 					} else await this.memory.logout()
 				}
 			})
@@ -287,9 +287,9 @@ export class BrowserRuntime {
 			return () => this.memory.dispose()
 		}
 		const session = this.session
-		// Maintenance and auth initialization are independent async gates. Keep
-		// the page in bootstrapping until the auth observer reports its initial
-		// value so a slow persisted-session restore cannot be mistaken for logout.
+		// メンテナンスと認証初期化は独立した非同期処理である。
+		// 認証監視が初期値を返すまでページを初期化中に保ち、
+		// 保存済みセッションの遅い復元をログアウトと誤認しない。
 		this.memory.suspend()
 		let active = true
 		this.active = true
@@ -300,7 +300,7 @@ export class BrowserRuntime {
 		network()
 		visible()
 		const unsubscribe = session.subscribe((uid) => {
-			// Track identity transitions even while display/fetch is suspended.
+			// 表示・取得の停止中も、本人の切替を追跡する。
 			this.observeIdentity(uid)
 			if (active && !this.completingSession) this.restoreIdentity(uid)
 		})
@@ -795,7 +795,7 @@ export class BrowserRuntime {
 			const ownedAtFailure = ownsSession()
 			if (operation === this.confirmationGeneration)
 				this.completingSession = false
-			// UID equality alone cannot identify a logout/relogin to the same uid.
+			// 同じuidへのログアウト・再ログインは、UIDの一致だけでは判別できない。
 			if (ownedAtFailure) {
 				const restriction = restrictionFrom(error)
 				if (restriction) this.memory.restrict(restriction, uid)

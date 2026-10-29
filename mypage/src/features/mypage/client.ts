@@ -110,8 +110,8 @@ function section(value: unknown, dataCheck: (data: unknown) => boolean) {
 	)
 }
 
-// Fail malformed/unsafe numeric responses as unavailable; never repair them to
-// zero or persist any raw response. React escapes user-controlled text later.
+// 形式不正や安全でない数値のレスポンスは取得不能として扱う。
+// 0へ補正せず、元のレスポンスも永続化しない。利用者の入力テキストは後でReactがエスケープする。
 export function parseMyPage(value: unknown): MyPage {
 	const v = object(value)
 	const current = (data: unknown) => {
@@ -210,7 +210,7 @@ export async function checkedJSON(response: Response): Promise<unknown> {
 			)
 				code = error.code
 		} catch {
-			/* Never show dependency/parser details. */
+			/* 依存先やパーサーの詳細は表示しない。 */
 		}
 		const rawRetry = response.headers.get('Retry-After') ?? ''
 		const retryAfter = /^\d+$/.test(rawRetry)

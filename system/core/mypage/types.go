@@ -30,7 +30,7 @@ type Metric struct {
 	ReasonCode   *string      `json:"reasonCode"`
 	WorkSec      *int64       `json:"workSec"`
 
-	// Positive recorded work only; never an assertion of complete coverage.
+	// 記録済みの正の作業時間だけを表し、期間の完全性は主張しない。
 	RecordedWorkSec *int64 `json:"recordedWorkSec,omitempty"`
 }
 
@@ -54,7 +54,7 @@ type Day struct {
 	Metric
 }
 
-// RecentSection retains all seven dates even when every metric is unavailable.
+// RecentSectionは全指標が取得不能でも、7日分の日付をすべて保持する。
 type RecentSection struct {
 	Availability Availability `json:"availability"`
 	ReasonCode   *string      `json:"reasonCode"`

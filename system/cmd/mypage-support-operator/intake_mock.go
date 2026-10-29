@@ -24,16 +24,16 @@ func fixedMockIntake(p proposal, input humanRequest) bool {
 		if input.ExpectedRevision.IsZero() {
 			return false
 		}
-		// The original human receipt is fixed; the reviewed version comes from
-		// private inspection (including real Emulator UpdateTime in tests).
+		// 元の有人受付は固定する。レビュー済みバージョンは非公開の調査から取得する。
+		// テストでは実際のEmulator UpdateTimeも含める。
 		input.ExpectedRevision = mockReceiptVersion()
 	}
 	return humanAction(p.Action) && p.Mock && !p.Execute && p.Environment == "development" && p.Project == humanMockProject && intakePurpose(p.Purpose) && input == mockRequestForAction(p.Purpose, p.Action)
 }
 
-// This fixed fake verifies CLI plumbing only. Store semantics and fresh OAuth
-// are separately tested with the real libraries against Emulator. No SDK,
-// network, persistent state, identity verification or deletion is simulated.
+// この固定の偽物はCLIの接続だけを検証する。ストアの動作と新たなOAuth認証は、
+// 実ライブラリとエミュレーターで別途検証する。
+// SDK・通信・永続状態・本人確認・削除は模擬しない。
 type mockSupportCreator struct {
 	expected humanRequest
 	purpose  mypage.SupportPurpose

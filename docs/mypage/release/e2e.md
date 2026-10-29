@@ -1,6 +1,6 @@
 # MyPage real E2E preparation and rollback
 
-対象 release の実 Google/Firebase/Hosting 経路で受入を行う。[release gate](README.md)と本手順の matrix を使い、結果は release record と対応する Issue / PR / Actions に記録する。合成検証を実環境の成功へ読み替えない。
+対象リリースの実Google/Firebase/Hosting経路で受入試験を行う。[公開条件](README.md)と本手順の一覧表を使い、結果はリリース記録と対応するIssue / PR / Actionsに残す。合成検証を実環境の成功として扱わない。
 
 ## 0B公開前受入
 
@@ -19,9 +19,9 @@
 
 ## 実施前のrecord
 
-[template](release-record.example.json)へenvironment/project/domain、frontend SHA/Hosting release、backend digest/Cloud Run revision、rewrite先/pinTag=false、schema/同意版、承認参照、試験scopeを記録する。secret、token、OAuth code/state、supportChallenge/proofRef、channel UID、作業内容をpublic record/CI logへ保存しない。raw HARの共有やpublic artifact保存は行わず、必要なprivate証跡だけをredactして結果/時刻へ結び付ける。
+[テンプレート](release-record.example.json)に、環境・プロジェクト・ドメイン、フロントエンドSHA・Hostingリリース、バックエンドダイジェスト・Cloud Runリビジョン、書き換え先・pinTag=false、スキーマ・同意バージョン、承認参照、試験範囲を記録する。シークレット・トークン・OAuth code/state・supportChallenge/proofRef・channel UID・作業内容を公開記録やCIログに保存しない。元のHARの共有や公開成果物への保存は行わず、必要な非公開証跡だけを秘匿処理して結果・時刻に結び付ける。
 
-テストaccountは運営者が明示したものを使う。実dataの変更を伴うlogout/revoke/deleteは、その操作と対象を別に承認する。未登録や欠損を作るために実DBを直接壊さない。必要な状態が実accountで用意できなければ、当該実試験をpendingとしlocal代替のscopeを記録する。
+テストアカウントは運営者が明示したものを使う。実データを変更するログアウト・失効・削除は、操作と対象を別途承認する。未登録や欠損を作るために実DBを直接破損させない。必要な状態を実アカウントで用意できない場合、その実試験は保留とし、ローカル代替の検証範囲を記録する。
 
 ## 実経路の受入matrix
 
@@ -47,7 +47,7 @@
 | U01 | PC/mobile/320px/keyboard/200%/image/font失敗/bfcache | 読める/操作可、画面外overflowなし、前UID/late response/proofを復活させない | visual/font/privacy/runtime/実bfcache local |
 | B01 | 実装後、Phase1の !app/!mypage/!page/!my page | 全alias同じ固定public入口/UTM、secret/UIDなし、従来my option不変 | 正本のalias/UTM契約とparser/workspaceapp testsで確認 |
 
-false/未実施をPASSへ置換しない。実E2Eごとにscope、対象release対、開始/完了時刻、sanitized evidence参照、結果（pass/fail/pending）を残す。
+falseや未実施を合格に置き換えない。実E2Eごとに範囲、対象リリースの組、開始・完了時刻、秘匿処理済み証跡参照、結果（pass/fail/pending）を残す。
 
 ## Canon S01/S04 実経路セキュリティ検証
 
@@ -60,7 +60,7 @@ false/未実施をPASSへ置換しない。実E2Eごとにscope、対象release�
 
 ## Deploy / rollback rehearsal
 
-現行canonはpinTagなし、Backend先行→Frontend後行、必要時Frontend先rollback。schema/responseは前後1世代互換を保つ。以下の操作は承認された環境でのみ実施する。
+現行CanonではpinTagを使わず、バックエンドを先、フロントエンドを後に配備し、必要なら先にフロントエンドをロールバックする。スキーマとレスポンスは前後1世代の互換性を保つ。以下の操作は承認済み環境だけで行う。
 
 1. 直前正常なFE/BE対、schema/同意版、Serving revisionとHosting rewrite先を記録する。rollback先を記憶から選ばない。
 2. 新Backend + 旧Frontendで6 endpoints/partial/error/同意versionを確認する。壊れる場合は新Frontendを進めない。
@@ -68,7 +68,7 @@ false/未実施をPASSへ置換しない。実E2Eごとにscope、対象release�
 4. Frontendを直前正常releaseへ戻し、Hosting経由で新Backendと実通信することを確認する。必要ならBackendも対応する直前revisionへ戻す。
 5. 旧正常対に戻ったactual rewrite/revision、監視回復、callback/同意migration windowを確認する。pinTag採用への変更や拒否版の緩和は別review。
 
-rollbackは保存dataの削除やprivacy guard解除を自動的に取り消さない。新規data/schema/consent migrationが後方非互換なら停止して専用復旧手順をreviewする。実ユーザー公開範囲・Bot/外部告知を広げる操作は試験の成功後も別のowner判断。
+ロールバックで保存データの削除やプライバシー保護の解除を自動的に取り消さない。新データ・スキーマ・同意の移行に後方互換性がなければ停止し、専用復旧手順をレビューする。実ユーザーへの公開範囲やBot・外部告知を広げる操作は、試験成功後も別の所有者判断とする。
 
 ## 緊急遮断と復旧のrehearsal（未実施）
 

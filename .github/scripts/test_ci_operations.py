@@ -1,4 +1,4 @@
-"""Execute the real operation selector before any cloud credential is acquired."""
+"""クラウド認証情報の取得前に、実際の操作選択処理を実行する。"""
 import os
 import subprocess
 import unittest

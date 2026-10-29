@@ -69,8 +69,8 @@ func (f recoveryFixture) document(t *testing.T) *firestore.DocumentSnapshot {
 func TestSupportRecoveryReconcilesLostCreateACKWithoutDuplicateOrDeadlineReset(t *testing.T) {
 	f := newRecoveryFixture(t)
 	ctx := context.Background()
-	// The Create commit is known only to the test fixture; recovery receives the
-	// original selector, not a returned ref or the lost delivery challenge.
+	// Createのコミットを知るのはテストデータだけとする。復旧には元の対象指定を渡し、
+	// 返却参照や配送時に失ったチャレンジは渡さない。
 	before := f.document(t)
 	view, err := f.store.InspectRequestID(ctx, f.selector, f.now)
 	require.NoError(t, err)
@@ -90,8 +90,8 @@ func TestSupportRecoveryReconcilesLostCreateACKWithoutDuplicateOrDeadlineReset(t
 	require.NoError(t, after.DataTo(&record))
 	require.Equal(t, f.selector.AcceptedAt, record.AcceptedAt)
 	require.Equal(t, *view.DeleteBy, *record.DeleteBy)
-	// Model a lost reissue ACK: retry the same reviewed version, never blindly
-	// issue another challenge. Even an old expiry is not permission to retry.
+	// 再発行ACKの消失を再現し、同じレビュー済みバージョンで再試行する。
+	// 無条件に別チャレンジを発行せず、旧期限の超過も再試行の許可にはしない。
 	_, _, err = f.store.ReissueRequestID(ctx, f.selector, view.Revision, f.now.Add(26*time.Hour))
 	require.Error(t, err)
 	require.Equal(t, after.UpdateTime, f.document(t).UpdateTime)

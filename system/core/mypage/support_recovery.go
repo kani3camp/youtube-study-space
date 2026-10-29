@@ -10,16 +10,16 @@ import (
 	"cloud.google.com/go/firestore"
 )
 
-// SupportRecoverySelector is the original human receipt, never authority or
-// user proof. Recovery callers must independently authorize this exact binding.
+// SupportRecoverySelectorは元の有人受付を表し、権限や本人証明には使わない。
+// 復旧の呼び出し元は、この正確な対応を独立して承認する必要がある。
 type SupportRecoverySelector struct {
 	Environment, ProjectID, RequestID, Channel string
 	Purpose                                    SupportPurpose
 	AcceptedAt                                 time.Time
 }
 
-// SupportReceiptInspection excludes body, contact, proof and challenge/hash.
-// Revision is Firestore UpdateTime, not the reply-only OperatorRevision.
+// SupportReceiptInspectionは本文・連絡先・証拠・チャレンジとそのハッシュを含めない。
+// RevisionはFirestore UpdateTimeとし、返信専用のOperatorRevisionは使わない。
 type SupportReceiptInspection struct {
 	RequestRef string
 	Revision   time.Time
@@ -61,7 +61,7 @@ func (s *FirestoreSupportStore) readRecovery(tx *firestore.Transaction, selector
 	} else if value.DeleteBy != nil {
 		return deny()
 	}
-	// Old challenge ownership must agree in the same read set as the receipt.
+	// 旧チャレンジの所有者は、受付と同じ読み取り集合内で一致する必要がある。
 	old, err := tx.Get(s.Client.Collection("support-challenges").Doc(value.ChallengeHash))
 	if err != nil {
 		return nil, SupportRequest{}, fmt.Errorf("read recovery challenge index: %w", err)
@@ -76,8 +76,8 @@ func (s *FirestoreSupportStore) readRecovery(tx *firestore.Transaction, selector
 	return doc, value, nil
 }
 
-// InspectRequestID is read-only. A missing/mismatched index remains unknown;
-// callers must never interpret a failure as permission to call Create again.
+// InspectRequestIDは読み取り専用。インデックスの欠落・不一致は不明のまま残す。
+// 失敗を、Create再呼び出しの許可として扱わない。
 func (s *FirestoreSupportStore) InspectRequestID(ctx context.Context, selector SupportRecoverySelector, now time.Time) (SupportReceiptInspection, error) {
 	if !s.recoveryReady(ctx, selector, now) {
 		return SupportReceiptInspection{}, apiError("SUPPORT_CHALLENGE_INVALID")
@@ -97,9 +97,9 @@ func (s *FirestoreSupportStore) InspectRequestID(ctx context.Context, selector S
 	return result, nil
 }
 
-// ReissueRequestID requires the explicitly reviewed inspection version. Reusing
-// that version after a commit/ACK loss or a concurrent proof/reissue must fail.
-// No operation record, retry loop, delivery or Create fallback is added.
+// ReissueRequestIDは明示的にレビューした調査バージョンを必要とする。
+// コミットやACK消失後、または並行する本人確認・再発行後に同じバージョンを使うと失敗する必要がある。
+// 操作記録・再試行ループ・配送・Createへの切替は追加しない。
 func (s *FirestoreSupportStore) ReissueRequestID(ctx context.Context, selector SupportRecoverySelector, expected time.Time, now time.Time) (string, string, error) {
 	if !s.recoveryReady(ctx, selector, now) || expected.IsZero() {
 		return "", "", apiError("SUPPORT_CHALLENGE_INVALID")

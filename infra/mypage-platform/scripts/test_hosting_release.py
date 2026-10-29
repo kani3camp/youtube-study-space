@@ -1,4 +1,4 @@
-"""Observable publication boundaries using an isolated filesystem and fake APIs."""
+"""独立ファイルシステムと偽APIで、公開時の観測可能な制御を検証する。"""
 import copy
 import json
 from pathlib import Path

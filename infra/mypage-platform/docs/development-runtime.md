@@ -1,16 +1,16 @@
 # Development Runtimeの配備準備
 
-構築時の手順・診断履歴を保持する文書。最新のimage設定は[固定release設定](../environments/dev/runtime-release.json)、配備・実試験の状態は[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)を参照する。過去の未配備・再確認待ちを現在状態へ読み替えず、公開Gateは対象releaseごとの証跡で確認する。
+構築時の手順と診断履歴を保持する文書である。最新のイメージ設定は[固定リリース設定](../environments/dev/runtime-release.json)、配備・実試験の状態は[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)を参照する。過去の未配備・再確認待ちを現在状態に読み替えず、公開条件は対象リリースごとの証跡で確認する。
 
-対象は`test-youtube-study-space` / `asia-southeast2`だけ。Foundationの8資源とRuntime配備を区別し、実ユーザー公開のGateは[release手順](../../../docs/mypage/release/README.md)を維持する。
+対象は`test-youtube-study-space` / `asia-southeast2`だけとする。Foundationの8資源とランタイム配備を区別し、実ユーザー公開には[配備手順](../../../docs/mypage/release/README.md)の条件を維持する。
 
 ## コンテナ
 
 ### 2026-10-24：既存Stateの遅れを限定して整合する
 
-Goalは、実読したMyPage専用DEV State serial 8（generation 2/image `ef81de63`）と現在live generation 4/image `4020ade3`を、remote writeなしで整合すること。[run 40065942906](https://github.com/kani3camp/youtube-study-space/actions/runs/40065942906)は旧Stateとの差を`runtime-refresh-fields`で拒否し、Applyなし。開始時liveはgeneration 3だったが、Stateはgeneration 2のままだった。Stateの事前照合不足を修正し、観測OFF・合成未実行の状態で後続を停止した。
+目的は実際に読み取ったMyPage専用DEV State serial 8（generation 2/image `ef81de63`）と、現在の実環境generation 4/image `4020ade3`を、リモートへの書き込みなしで整合させることである。[run 40065942906](https://github.com/kani3camp/youtube-study-space/actions/runs/40065942906)は旧Stateとの差を`runtime-refresh-fields`で拒否し、Applyしていない。開始時の実環境はgeneration 3だったが、Stateはgeneration 2のままだった。Stateの事前照合不足を修正し、観測OFF・合成未実行の状態で後続を停止した。
 
-Invariantsは、固定DEV 12資源・全planned action no-op・全設定比較・unknown/import/replace拒否、native lock、freshな独立Plan/HMAC、保存Planのhash/期限、元S3版・現在liveのUID/etag/Ready/traffic。Non-goalsは再配備、IAM/Secret変更、State手書き/push、一般的な複数世代差の受理、metrics transitionの条件緩和。受入は同じ正規経路でState-only適用後、Stateとliveが一致し、以後のmetrics Planが通常経路を通ること。
+維持する条件は固定DEV 12資源、全計画操作のno-op、全設定比較、unknown/import/replace拒否、ネイティブロック、新しい独立Plan/HMAC、保存Planのハッシュと期限、元S3版、実環境のUID・etag・Ready・trafficである。再配備、IAM・Secret変更、State手書きやpush、一般的な複数世代差の受入、計測遷移の条件緩和は対象外とする。同じ正規経路でStateだけを適用して実環境と一致させ、以後の計測Planが通常経路を通ることを受入条件にする。
 
 一回限りのsource固定receipt（`owner-state-recovery.json`）とその検証経路は、下記のState-only復旧の完了後に削除した。内容はgit履歴を参照する。
 

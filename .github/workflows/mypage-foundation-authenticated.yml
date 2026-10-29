@@ -33,7 +33,7 @@ on:
 permissions:
   contents: read
 
-# A Foundation Apply cannot race a Plan or another Apply on the same State.
+# FoundationのApplyは、同じStateのPlanや別のApplyと競合させない。
 concurrency:
   group: mypage-${{ inputs.target }}-foundation
   cancel-in-progress: false
@@ -69,8 +69,8 @@ jobs:
               foundation_contract.context(os.environ, 'apply', image=True)
               stage = 'image-build'
           else:
-              # Reject the wrong ref/SHA/actor/repository before requesting any
-              # protected Environment or making its secrets available.
+              # 保護されたEnvironmentへの要求やシークレットの公開より前に、
+              # 不正なref・SHA・actor・リポジトリを拒否する。
               foundation_contract.context(os.environ, 'plan')
               stage = foundation_contract.stage_for_mode(mode)
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
@@ -214,7 +214,7 @@ jobs:
         env:
           MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
         run: python3 infra/mypage-platform/scripts/foundation_ops.py execute
-      # HMAC outputs stay in the expression engine, never runner env/with logs.
+      # HMAC出力は式の評価処理内に留め、runnerの環境変数やwithのログに出さない。
       - name: Apply matching saved Plan
         id: applied
         if: ${{ steps.prepared.outputs.commitment == needs.foundation_plan.outputs.commitment && steps.prepared.outputs.commitment != '' }}

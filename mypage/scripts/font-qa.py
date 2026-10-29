@@ -1,4 +1,4 @@
-"""Verify rendered Latin/Japanese faces and offline font failure in Chromium."""
+"""Chromiumで英字・日本語フォントの実描画と、オフラインのフォント取得失敗を検証する。"""
 import argparse
 import json
 from pathlib import Path

@@ -1,4 +1,4 @@
-"""Anonymous DEV-only UI smoke. No login, GA4 opt-in, HAR, or screenshots."""
+"""DEV専用の匿名UI疎通確認。ログイン・GA4同意・HAR・スクリーンショットは使わない。"""
 from urllib.parse import urlsplit
 from playwright.sync_api import sync_playwright
 

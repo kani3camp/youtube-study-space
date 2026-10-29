@@ -14,8 +14,8 @@ import {
 import { RequestError } from './features/mypage/memory'
 import { BrowserRuntime, type BrowserSession } from './runtime'
 
-// Public Firebase configuration only. No admin credential, OAuth client secret,
-// debug token, user metadata or MyPage response belongs in Vite configuration.
+// 公開Firebase設定だけを置く。管理者認証情報・OAuthクライアントシークレット・
+// デバッグトークン・ユーザーメタデータ・MyPageレスポンスをVite設定に含めない。
 export function initializeRuntime() {
 	const env = import.meta.env
 	const policy = {

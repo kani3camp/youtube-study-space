@@ -1,5 +1,5 @@
-// mypage-operator-dryrun is an emulator-only diagnostic. It contains no execute
-// mode, ADC discovery, Google API, auth revocation, notification or write port.
+// mypage-operator-dryrunはエミュレーター専用の診断である。
+// 実行モード・ADC探索・Google API・認証失効・通知・書き込み用インターフェースは含めない。
 package main
 
 import (
@@ -88,8 +88,8 @@ func run(ctx context.Context, get func(string) string, args []string, input io.R
 	if err != nil {
 		return err
 	}
-	// The endpoint is explicitly fixed to an IP loopback emulator. Do not discover
-	// credentials or allow SDK fallback to a live endpoint.
+	// 接続先はIPループバックのエミュレーターに明示的に固定する。
+	// 認証情報の探索や、SDKによる実接続先への切替を許可しない。
 	client, err := firestore.NewClient(ctx, config.project, option.WithEndpoint(config.emulator), option.WithoutAuthentication(), option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())))
 	if err != nil {
 		return errors.New("dryrun unavailable")

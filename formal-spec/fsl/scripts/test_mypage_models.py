@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression traces and safety mutations for the FSL models, not real adapters."""
+"""FSLモデルの回帰操作列と安全性変異を検証し、実アダプターは検証しない。"""
 
 import argparse
 import json
@@ -68,7 +68,7 @@ def main():
         deletion_refresh = step('set_deletion', active=True, reference=2)
         replay('deletion reference advances checkpoint and preserves moderation', access, [block, deletion, deletion_refresh, deletion_refresh], {'checkpoint': 3, 'moderation': True, 'deletion': True})
 
-        # Each mutant must fail a named safety property, not merely fail to parse.
+        # 各変異モデルでは、構文エラーではなく、名前の付いた安全性条件の違反を検出する。
         mutants = [
             ('logout erases maintenance', session, '  action logout() {', '  action logout() {\n    maintenance_active = false', 'MaintenancePersistsUntilExplicitExit'),
             ('pagehide erases maintenance', session, '  action suspend(fresh_login: Bool) {', '  action suspend(fresh_login: Bool) {\n    maintenance_active = false', 'MaintenancePersistsUntilExplicitExit'),

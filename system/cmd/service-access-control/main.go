@@ -1,6 +1,6 @@
-// service-access-control is a trusted operator CLI for moderation only. It
-// provides no public admin API, privacy execution, migration, deletion or TTL.
-// The default plan and --check-config paths never discover ADC or call an SDK.
+// service-access-controlは、信頼済み運用担当者向けのモデレーション専用CLIである。
+// 公開管理API・プライバシー処理の実行・移行・削除・TTLは提供しない。
+// 既定のplanと--check-configではADC探索やSDK呼び出しを行わない。
 package main
 
 import (
@@ -37,8 +37,8 @@ func keylessBootstrap(ctx context.Context, selected target) (ports, error) {
 		Store: &serviceaccess.FirestoreStore{Client: client},
 		Close: client.Close,
 		Revoke: func(ctx context.Context, channel string) error {
-			// Firebase initialization is deliberately lazy: its failure must leave
-			// the already committed moderation guard active and report partial failure.
+			// Firebaseは意図的に遅延初期化する。失敗時もコミット済みのモデレーション保護を有効に保ち、
+			// 部分失敗として報告する。
 			app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: selected.ProjectID}, option.WithCredentials(credentials))
 			if err != nil {
 				return errors.New("revocation unavailable")

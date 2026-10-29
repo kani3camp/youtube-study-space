@@ -16,9 +16,8 @@ const (
 
 type mockRun func(context.Context, supportdelete.Selector, bool) (supportdelete.Outcome, error)
 
-// Reports contain only a fixed vocabulary. Selectors, references, paths,
-// timestamps, input data and dependency errors are never report fields. A
-// completed mock exercises synthetic fixtures and cannot claim real deletion.
+// 報告には固定の語彙だけを使う。対象指定・参照・パス・時刻・入力データ・依存先エラーは含めない。
+// モック完了は合成テストデータの検証であり、実削除を示さない。
 type report struct {
 	SchemaVersion   int    `json:"schemaVersion"`
 	Mode            string `json:"mode"`
@@ -73,14 +72,14 @@ func command(ctx context.Context, args []string, get func(string) string, stdin 
 		return finish(0)
 	}
 	if o.mode == "plan" {
-		// A plan validates private binding only, without reading support records,
-		// discovering credentials or constructing an execution adapter.
+		// 計画では非公開の対応情報だけを検証し、サポート記録の読み取り・
+		// 認証情報の探索・実行アダプターの構築は行わない。
 		out.Status, out.Code, out.Stage = "planned", "PLAN_ONLY", "offline"
 		return finish(0)
 	}
 	if o.mode == "execute" {
-		// The command has no live adapter or live bootstrap. An execution flag
-		// must never fall back to ADC, synthetic ports or an injected mock runner.
+		// このコマンドに実環境用アダプターや初期化はない。
+		// 実行フラグでADC・合成インターフェース・注入されたモック処理へ切り替えない。
 		out.Status, out.Code, out.Stage = "unavailable", "LIVE_ADAPTERS_UNAVAILABLE", "blocked"
 		return finish(1)
 	}
@@ -92,9 +91,8 @@ func command(ctx context.Context, args []string, get func(string) string, stdin 
 	if run == nil || ctx == nil || ctx.Err() != nil {
 		return finish(1)
 	}
-	// Neither proof provenance, evidence, scope results nor checkpoint state
-	// come from the manifest. Recovery remains a request to the trusted mock
-	// runner, which must resolve its own independently seeded checkpoint.
+	// 証拠の由来・証跡・スコープ別結果・チェックポイント状態はマニフェストから取得しない。
+	// 復旧は信頼済みモック処理への要求に留め、独立して用意したチェックポイントをその処理で解決する。
 	result, err := run(ctx, r, o.recover)
 	if err != nil {
 		return finish(1)
@@ -103,7 +101,7 @@ func command(ctx context.Context, args []string, get func(string) string, stdin 
 		out.Code = "MOCK_RESULT_INVALID"
 		return finish(1)
 	}
-	// Reconstruct the fixed report instead of forwarding even trusted output.
+	// 信頼済みの出力でも転送せず、固定の報告を再構築する。
 	out.Status, out.Code, out.Stage = "mock-only", "MOCK_COMPLETED", "completed"
 	return finish(0)
 }

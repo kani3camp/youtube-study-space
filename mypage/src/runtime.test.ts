@@ -238,8 +238,8 @@ describe('browser authentication runtime', () => {
 					release = resolve
 				}),
 		)
-		// React child effects request channel metadata before the root effect
-		// subscribes to the initial auth state on a full callback navigation.
+		// コールバックから全画面遷移した場合、Reactの子effectは、ルートeffectが
+		// 初期認証状態を購読する前にチャンネルメタデータを要求する。
 		const done = runtime.channel(new AbortController().signal)
 		await settle()
 		const dispose = runtime.mount()

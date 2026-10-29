@@ -7,7 +7,7 @@
 		"types": ["vite/client", "node"],
 		"skipLibCheck": true,
 
-		/* Bundler mode */
+		/* バンドラーモード */
 		"moduleResolution": "bundler",
 		"resolveJsonModule": true,
 		"allowImportingTsExtensions": true,
@@ -16,7 +16,7 @@
 		"noEmit": true,
 		"jsx": "react-jsx",
 
-		/* Linting */
+		/* 静的検査 */
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"erasableSyntaxOnly": true,

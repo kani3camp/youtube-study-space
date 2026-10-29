@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the shared contract against Terraform's actual verbose mock JSON."""
+"""Terraformが実際に生成した詳細モックJSONで、共通仕様を検証する。"""
 
 import json
 import pathlib

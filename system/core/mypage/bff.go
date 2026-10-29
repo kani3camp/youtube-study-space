@@ -27,8 +27,8 @@ type (
 	}
 )
 
-// BFF is process-memory only. Fresh access reads fence every cache lookup,
-// detached flight, publication and response; inactive results are never cached.
+// BFFはプロセス内メモリだけを使う。最新のアクセス状態を読み、キャッシュ参照・
+// 独立した共有処理・結果の公開・レスポンス返却の各段階を保護する。inactiveの許可結果はキャッシュしない。
 type BFF struct {
 	Access      serviceaccess.Reader
 	Reader      SnapshotReader
@@ -57,7 +57,7 @@ func (b *BFF) cacheHit(key cacheKey, now time.Time, account WebAccount) (Respons
 
 func accountSection(account WebAccount, now time.Time) Section[Account] {
 	if account.DisplayName == "" {
-		// Empty metadata is terminal even after another process cleared fetchedAt.
+		// 他のプロセスがfetchedAtを消去した後も、空のメタデータは表示停止状態として扱う。
 		return missingSection[Account](MetadataTooOld)
 	}
 	age := now.Sub(account.MetadataFetchedAt)
@@ -91,9 +91,9 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 	if value, ok := b.cacheHit(key, now, account); ok {
 		return value, nil
 	}
-	// The HTTP budget starts before authorization and the browser also has a
-	// deadline. Reserve time for both flight delivery and response serialization;
-	// detaching cancellation must not reset an already partly spent budget.
+	// HTTPの制限時間は認可前から進み、ブラウザにも期限がある。
+	// 共有処理の結果返却とレスポンスのシリアライズに余裕を残し、
+	// キャンセルを切り離しても消費済みの制限時間をリセットしない。
 	workDeadline := time.Now().Add(8 * time.Second)
 	waitCtx := ctx
 	if outerDeadline, ok := ctx.Deadline(); ok {
@@ -108,8 +108,8 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 		waitCtx, stop = context.WithDeadline(ctx, waitDeadline)
 		defer stop()
 	}
-	// The first caller disconnecting must not cancel a request shared with a
-	// second caller; the shared operation still has its own bounded budget.
+	// 最初の呼び出し元の切断で、別の呼び出し元と共有するリクエストを中断しない。
+	// 共有操作自体にも独立した制限時間を設ける。
 	flightKey := b.Environment + "\x00" + uid + "\x00" + metadataAccountVersion(account)
 	flight, leader := b.acquireFlight(flightKey)
 	if flight == nil {
@@ -127,8 +127,8 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 				b.mu.Unlock()
 			}()
 			response, flightErr = func() (result Response, resultErr error) {
-				// Refresh only the flight's copy; a caller's early fallback must not race
-				// with metadata updates in the detached operation.
+				// 共有処理側のコピーだけを更新し、呼び出し元の早期の代替応答と、
+				// 独立した共有処理のメタデータ更新が競合しないようにする。
 				account := account
 				workCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), workDeadline)
 				defer cancel()
@@ -157,7 +157,7 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 						b.mu.Unlock()
 						return Response{}, gateErr
 					} else if errors.Is(err, ErrPublicChannelMissing) {
-						// A failed durable clear must still stop displaying proven absent data.
+						// 永続データの消去に失敗しても、不在が証明されたデータの表示は停止する。
 						account.DisplayName = ""
 						account.Handle, account.AvatarURL = nil, nil
 						account.MetadataFetchedAt = time.Time{}
@@ -184,7 +184,7 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 				if b.cache == nil {
 					b.cache = make(map[cacheKey]cachedAggregate)
 				}
-				// Cap attacker-controlled uid cardinality; evict one value at capacity.
+				// 攻撃者が指定できるuidの種類数を制限し、上限時は1件を追い出す。
 				if len(b.cache) >= 1024 {
 					for victim := range b.cache {
 						delete(b.cache, victim)
@@ -199,9 +199,9 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 	}
 	select {
 	case <-waitCtx.Done():
-		// A later caller can have less budget than the shared flight's first
-		// caller. Deliver its already known terminal account before its deadline,
-		// while the bounded shared operation continues for other callers.
+		// 後から合流する呼び出し元の制限時間は、最初の呼び出し元より短い場合がある。
+		// 既知の表示停止アカウント情報をその期限前に返し、
+		// 上限付き共有処理は他の呼び出し元のために継続する。
 		if errors.Is(waitCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
 			b.mu.Lock()
 			gateErr, terminal := flight.err, flight.terminal
@@ -226,9 +226,8 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 	}
 }
 
-// Registration and completion share one lock so every joiner sees the same
-// authenticated metadata verdict. This is a bounded singleflight registry;
-// callback completion publishes the result and removes the slot atomically.
+// 登録と完了は同じロックで行い、合流する全呼び出し元に同じ認証済みメタデータ判定を渡す。
+// 登録件数に上限を設け、コールバック完了時の結果公開とスロット削除はアトミックに行う。
 func (b *BFF) acquireFlight(key string) (*metadataFlight, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -253,10 +252,9 @@ func minDeadline(a, b time.Time) time.Time {
 	return a
 }
 
-// Preserve a known terminal metadata state even when work cannot be read. No
-// work snapshot is fabricated: every work field is unavailable, never zero or
-// unregistered, and this failure response is not cached. The existing wire
-// contract lets browsers drop the account while retaining prior work as stale.
+// 作業を読めなくても、既知のメタデータ表示停止状態を維持する。
+// 作業スナップショットは作り出さず、全作業項目を取得不能にする。0や未登録にはせず、失敗応答はキャッシュしない。
+// 既存の通信仕様により、ブラウザはアカウント情報を捨て、以前の作業を古い値として保持できる。
 func (b *BFF) failedSnapshot(account WebAccount) (Response, error) {
 	now := b.Now().UTC()
 	section := accountSection(account, now)
@@ -275,8 +273,8 @@ func (b *BFF) failedSnapshot(account WebAccount) (Response, error) {
 	}, nil
 }
 
-// Invalidate is available to the server-side account deletion/consent workflow;
-// it never substitutes for checking those gates on each request.
+// Invalidateはサーバー側のアカウント削除・同意処理で利用できる。
+// 各リクエストで必要な検証を代替するものではない。
 func (b *BFF) Invalidate(uid string) {
 	b.mu.Lock()
 	delete(b.cache, cacheKey{b.Environment, uid})

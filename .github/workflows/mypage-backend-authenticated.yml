@@ -30,7 +30,7 @@ on:
 permissions:
   contents: read
 
-# Share the release lock with Hosting, including the State readback stage.
+# Stateの再読み取りまで含め、Hostingとリリースロックを共有する。
 concurrency:
   group: mypage-dev-hosting-release
   cancel-in-progress: false

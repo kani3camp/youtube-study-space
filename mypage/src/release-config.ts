@@ -4,8 +4,8 @@ import {
 	validatePublicPolicyConfig,
 } from './public-policy-config.ts'
 
-// Offline public configuration only. This module does not import Firebase,
-// initialize a browser runtime, read the environment or claim release readiness.
+// オフラインの公開設定だけを扱う。Firebaseのimport、ブラウザ初期化、
+// 環境変数の読み取りは行わず、リリース準備完了も宣言しない。
 export const releaseConfigMaxBytes = 65_536
 
 const deploymentFields = [
@@ -40,7 +40,7 @@ export type ReleaseConfig = {
 	schemaVersion: 1
 	deployment: ReleaseDeployment
 	frontend: Partial<Record<(typeof frontendFields)[number], string>>
-	// Optional public companion declaration, never a server environment export.
+	// 任意の公開用補助宣言であり、サーバー環境変数の書き出しではない。
 	backend?: ReleaseDeployment
 	hosting?: HostingInputs
 	publicPolicy?: Partial<Record<PublicPolicyField, string>>
@@ -81,7 +81,7 @@ function report(diagnostics: ReleaseDiagnostic[]): ReleaseConfigReport {
 			publicPolicy: 'not-supplied',
 		},
 		diagnostics,
-		// Supplied readiness/review flags are declarations, never evidence.
+		// 入力された準備完了・レビュー済みフラグは宣言であり、証拠ではない。
 		pendingGates: [
 			'project-app-auth-domain-registration',
 			'infrastructure-ready-gate-and-runtime-iam',
@@ -332,8 +332,8 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 				origin(selected.publicOrigin)
 					? new URL(selected.publicOrigin).hostname
 					: ''
-			// A linked Firebase Hosting site ID may differ from its project ID.
-			// This checks manifest consistency; registration remains a live gate.
+			// 接続したFirebase HostingサイトIDは、プロジェクトIDと異なる場合がある。
+			// ここではマニフェストの整合性を検査し、実登録は実環境の確認事項として残す。
 			const hostingAuthDomain = /^[a-z0-9-]+\.web\.app$/.test(hostingHostname)
 				? hostingHostname.replace(/\.web\.app$/, '.firebaseapp.com')
 				: ''
@@ -536,7 +536,7 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 					'Include the fixed browserTagLoader gtag.js origin or exact path in the reviewed script inventory when analytics is enabled; real vendor connections remain pending.',
 				)
 			try {
-				// Existing pure validator owns CSP, routing, inventory and region rules.
+				// CSP・ルーティング・接続先一覧・リージョンの規則は、既存の純粋な検証処理が扱う。
 				hostingCandidate(hosting as HostingInputs)
 			} catch {
 				add(
@@ -553,8 +553,8 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 	return result
 }
 
-// JSON.parse silently overwrites duplicate fields. Walk the already validated
-// syntax to reject them and excessive nesting before accepting a manifest.
+// JSON.parseは重複フィールドを通知せず上書きする。
+// 検証済みの構文を走査し、受入前に重複と過剰な入れ子を拒否する。
 function hasUniqueKeys(source: string): boolean {
 	let index = 0
 	const whitespace = () => {

@@ -58,7 +58,7 @@ func syntheticBootstrap(t *testing.T, fail string, events *[]string) bootstrapDe
 			if err := stage(ctx, "database"); err != nil {
 				return nil, nil, err
 			}
-			// Handler assembly is lazy; the zero client must never be used for IO.
+			// ハンドラーの組み立ては遅延初期化とし、ゼロ値のクライアントで入出力しない。
 			return &firestore.Client{}, func() { *events = append(*events, "database closed") }, nil
 		},
 	}
@@ -282,7 +282,7 @@ func TestHTTPRuntimeRejectsOversizedAndStalledHeaders(t *testing.T) {
 			started := time.Now()
 			response, err := http.ReadResponse(bufio.NewReader(connection), &http.Request{Method: http.MethodGet})
 			if tc.status == 0 {
-				// net/http closes a header-timeout connection without a response.
+				// net/httpはヘッダーのタイムアウト時に、応答せず接続を閉じる。
 				require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 				require.GreaterOrEqual(t, time.Since(started), 4*time.Second)
 				return

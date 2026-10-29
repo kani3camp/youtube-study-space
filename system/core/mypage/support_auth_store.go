@@ -94,8 +94,8 @@ func (s *FirestoreAuthStore) ConsumeSupport(ctx context.Context, id, confirmatio
 		}
 		value.Status = "consumed"
 		value.ConsumedAt = now
-		// The support record keeps the verified target until the operator closes
-		// the request. OAuth channel metadata is no longer needed after proof.
+		// 運用担当者が申請を閉じるまで、サポート記録は確認済み対象を保持する。
+		// 本人確認後のOAuthチャンネルメタデータは不要になる。
 		value.Channel = Channel{}
 		value.ConfirmationRef = ""
 		value.StateHash = ""

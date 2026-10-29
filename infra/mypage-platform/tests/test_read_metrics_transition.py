@@ -1,4 +1,4 @@
-"""Metrics-only update and readback contracts; synthetic values, no cloud I/O."""
+"""計測設定だけの更新・再読み取り仕様。合成値を使い、クラウド入出力は行わない。"""
 from copy import deepcopy
 from pathlib import Path
 import sys
@@ -57,7 +57,7 @@ def fixture(enabled=True, stage="runtime_private"):
     new_env[:] = [x for x in new_env if x["name"] != m.METRICS_ENV]
     if enabled:
         new_env.insert(1, {"name": m.METRICS_ENV, "value": "true"})
-    # Match Terraform's incomplete planned values for computed attributes.
+    # 計算属性について、Terraformの不完全なplanned値に合わせる。
     for key in m.COMPUTED:
         change["after"].pop(key, None)
         change["after_unknown"][key] = True

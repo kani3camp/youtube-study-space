@@ -1,4 +1,4 @@
-// Pure validation/translation. This script never authenticates or deploys.
+// 外部処理を伴わない検証・変換だけを行い、認証や配備は実行しない。
 import { readFile, writeFile } from 'node:fs/promises'
 import { hostingCandidate } from '../src/hosting.ts'
 import { checkReleaseConfigJSON } from '../src/release-config.ts'

@@ -1,10 +1,10 @@
 # Metadata cleanup monitoring source
 
-29日cleanupを定期呼出しへ接続するsourceと、再起動をまたぐ匿名の監視stateを用意した。実scheduler、Cloud runtime、IAM/credential、通知宛先は作成・設定していない。公開承認・実inventory・自然実行・delivery確認は[release gate](README.md)に残る。
+29日での削除処理を定期呼び出しに接続する実装と、再起動を跨ぐ匿名の監視状態を用意した。実スケジューラー・クラウドランタイム・IAMや認証情報・通知先は作成・設定していない。公開承認、実対象一覧、定期実行、配送の確認は[公開条件](README.md)に残す。
 
-## 接続するcallback
+## 接続するコールバック
 
-承認後のruntime側では、既に用意されたFirestore client、明示project、deadline対応の専用signal writerから組み立てる。以下はsource構成例であり、live実行コマンドではない。
+承認後のランタイムでは、用意済みFirestoreクライアント、明示したプロジェクト、期限に対応した専用シグナル出力先から組み立てる。以下は実装構成の例であり、実環境の実行コマンドではない。
 
 ```go
 signals := &mypage.JSONMetadataCleanupHealthRecorder{Writer: deadlineWriter}
@@ -16,22 +16,22 @@ runner, err := mypage.NewFirestoreMetadataCleanupRunner(
 // 独立watchdogのschedule callback: runner.CheckHealth(ctx)
 ```
 
-`Run`は既存の10分budget・29日eligibility・revision guard・backlog検査を使う。監視stateの保存にはjob終了後の独立2秒budgetを使い、health read・signal write・期限違反ACKも各2秒に制限する。scheduler側はjob10分に後処理の余裕を加えたdeadlineを持ち、返るerrorを失敗扱いにする。キャンセルされたrunも失敗signalを試みる。`CheckHealth`はaccountをscan/clearせず、単独で呼べる。sinkが受理した期限違反についてだけ監視stateのpendingをACKする。
+`Run`は既存の10分制限・29日での対象化・リビジョン保護・残件検査を使う。監視状態の保存にはジョブ終了後の独立した2秒を使い、健全性読み取り・シグナル書き込み・期限違反ACKも各2秒に制限する。スケジューラー側はジョブの10分に後処理の余裕を加えた期限を持ち、返るエラーを失敗扱いにする。キャンセルした実行も失敗シグナルを試みる。`CheckHealth`はアカウントを走査・消去せず、単独で呼べる。出力先が受理した期限違反だけを、監視状態の保留からACKする。
 
-cleanupは1日2回等、成功scan開始間隔が23時間未満になる配置が必要。独立watchdogは例として毎時に起動し、cleanupのtrigger欠落・停止も監視する。cleanupの終了時にhealthを確認するだけでは、次のcleanupが起動しない障害を検出できない。watchdog自身の未起動やsignal sink障害はscheduler/runtime側の失敗監視が必要で、このsourceだけで到達性を証明しない。
+削除処理は1日2回など、成功した走査の開始間隔が23時間未満になるように配置する必要がある。独立監視は例として毎時起動し、削除処理の起動漏れや停止も監視する。削除処理の終了時だけ健全性を確認しても、次の処理が起動しない障害は検出できない。独立監視自身の未起動や出力先障害は、スケジューラー・ランタイム側の失敗監視が必要であり、この実装だけでは到達性を証明しない。
 
-`JSONMetadataCleanupHealthRecorder`は、書込み中のdeadline/cancellationに対応する専用pipe/socket等のwriterを要求する。通常fileや無期限`io.Writer`は拒否する。`SetWriteDeadline`だけを形だけ実装したwriterを本番に使わない。writerを他の処理と共有しない。sink・routing・alert宛先は承認済みruntime inventoryから選び、例の値を実環境へ流用しない。
+`JSONMetadataCleanupHealthRecorder`は、書き込み中の期限・キャンセルに対応する専用パイプやソケットなどを必要とする。通常ファイルや無期限の`io.Writer`は拒否する。`SetWriteDeadline`を形だけ実装した出力先を本番で使わず、他処理とも共有しない。出力先・配送経路・警告先は承認済みの実行環境一覧から選び、例の値を実環境へ流用しない。
 
-## 監視stateとsignal
+## 監視状態とシグナル
 
-既存client rulesでdefault denyとなるserver-only `mypage-maintenance/metadata-cleanup`へ、最新の匿名observation、`lastSuccessfulCoverage`、sink未受理の匿名期限違反の`pendingRetentionStartedAt`をtransaction保存する。project単位のsingletonであり、user ID、metadata、credential、raw error、実行別履歴を保存しない。constructorがcleanupとmonitorの同じprojectを確認する。新しいquery indexは不要。
+既存クライアントルールで既定拒否となるサーバー専用`mypage-maintenance/metadata-cleanup`に、最新の匿名観測、`lastSuccessfulCoverage`、出力先未受理の匿名期限違反`pendingRetentionStartedAt`をトランザクションで保存する。プロジェクト単位の単一文書とし、ユーザーID・メタデータ・認証情報・元エラー・実行別履歴は保存しない。コンストラクターは削除処理と監視が同じプロジェクトか確認する。新しいクエリインデックスは不要である。
 
-成功coverageは完了時刻ではなくscan開始時刻。入力時刻はFirestoreのmicrosecond保存精度へ正規化してから比較する。古い実行の遅延到着・再送は新しい失敗を上書きせず、同じ開始時刻では失敗を優先する。monitoring stateが不正・破損している場合は成功値へresetせず拒否し、運用側の調査を必要とする。signal書込み失敗はrunのerrorへ返し、monitorへ保存できる場合はmonitoring失敗も残す。
+成功した走査の対象時刻には、完了時刻ではなく走査開始時刻を使う。入力時刻はFirestoreのマイクロ秒精度に正規化してから比較する。旧実行の遅延到着や再送で新しい失敗を上書きせず、開始時刻が同じなら失敗を優先する。監視状態が不正・破損の場合は正常値に初期化せず拒否し、運用調査を必要とする。シグナル書き込み失敗は実行エラーに返し、監視ストアに保存できるなら監視失敗も残す。
 
-health出力は`checkedAt`, `alert`, allowlist内の`reason`のみ。`healthy`は回復signal、`never_succeeded`/`run_failed`/`stale_heartbeat`/`retention_deadline`/`invalid_clock`/`incomplete_observation`/`monitoring_failed`はalert。後続の正常runが最新観測を置換しても、sink未受理のretention違反はpendingに保持する。各run自身の検出した違反も通知する。sink受理後にexpected scan開始時刻が一致する場合だけtransactionでACKし、同時に記録された新しい違反を消さない。sink/ACK失敗時は再通知可能なまま残す。ACKはwriterへの受理を意味し、実通知deliveryやoperatorの確認を証明しない。受理されたincidentの保持はsink側で行い、後続のhealthyで記録を削除しない。raw errorは内部でunwrap可能なまま返すが、公開logへ出さない。
+健全性出力は`checkedAt`、`alert`、許可リスト内の`reason`だけとする。`healthy`は回復シグナル、`never_succeeded`/`run_failed`/`stale_heartbeat`/`retention_deadline`/`invalid_clock`/`incomplete_observation`/`monitoring_failed`は警告とする。後続の正常実行で最新観測が置き換わっても、未受理の保持期限違反は保留に残す。各実行自身が検出した違反も通知する。出力先の受理後、想定走査開始時刻が一致する場合だけトランザクションでACKし、並行記録された新しい違反は消さない。出力先・ACKの失敗時は再通知可能なまま残す。ACKは出力先での受理を意味し、実通知の配送や運用担当者の確認は証明しない。受理済みの問題記録は出力先で保持し、後続の正常状態で削除しない。元のエラーは内部でunwrapできるまま返すが、公開ログには出さない。
 
-## 合成検証と残るGate
+## 合成検証と未確認事項
 
-mock/local pipeで未成功・23時間境界・再実行・取消・monitor/signal障害・不正観測の拒否を確認する。Firestore Emulatorでは実cleanupとmonitorを組み合わせ、公開metadataのみ除去、policy/access保持、同時transaction、adapter再生成後のcoverage、端数付き時刻での古い観測の再送、未受理期限違反と競合ACKの保持、不正projectと破損stateの拒否を確認する。通常Go suiteと[既存Emulator script](../../../.github/scripts/run-firestore-integration-tests.sh)が検証入口。
+モックとローカルパイプで、未成功・23時間境界・再実行・取消・監視や出力先の障害・不正観測の拒否を確認する。Firestore Emulatorでは実削除処理と監視を組み合わせ、公開メタデータだけの除去、ポリシー・アクセス状態の保持、並行トランザクション、アダプター再生成後の対象時刻、端数付き時刻での古い観測再送、未受理違反と競合ACKの保持、不正プロジェクト・破損状態の拒否を確認する。通常Goテストと[既存Emulatorスクリプト](../../../.github/scripts/run-firestore-integration-tests.sh)から検証する。
 
-実project・runtime・所有者、watchdog/cleanup schedule、監視sinkと通知delivery、失敗再試行、store/log/backup inventoryと保持は未確認。既存のlive gate・アプリ内Privacy受付flagを変更せず、実OAuth・実削除・deployment・scheduler activationを行わない。
+実プロジェクト・ランタイム・所有者、独立監視と削除スケジュール、監視出力先と実通知配送、失敗時の再試行、ストア・ログ・バックアップの対象一覧と保持は未確認である。既存の実環境確認事項やアプリ内プライバシー受付フラグは変更せず、実OAuth・実削除・配備・スケジューラー有効化は行わない。

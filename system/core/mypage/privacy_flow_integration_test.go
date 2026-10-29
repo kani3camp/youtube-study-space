@@ -21,9 +21,8 @@ import (
 	"app.modules/core/supportdelete"
 )
 
-// This fixture deliberately passes the same receipt through intake, the real
-// one-use support OAuth transaction, status and the trusted operator boundary.
-// Every identifier and credential here is synthetic and emulator-only.
+// 同じ受付を、受付処理・実際の一度限りのサポートOAuthトランザクション・状態照会・運用権限検証に通す。
+// ここで使う全識別子と認証情報は、エミュレーター専用の合成値である。
 type privacyFlow struct {
 	client  *firestore.Client
 	intake  *FirestorePrivacyIntake
@@ -47,7 +46,7 @@ func newPrivacyFlow(t *testing.T, purpose SupportPurpose) privacyFlow {
 	key := "synthetic-flow-" + string(purpose) + "-0001"
 	receipt, err := intake.Create(ctx, uid, key, purpose, "Synthetic private request", now)
 	require.NoError(t, err)
-	// A lost intake ACK must reuse the same receipt and deadline.
+	// 受付ACKが失われても、同じ受付と期限を再利用する。
 	retry, err := intake.Create(ctx, uid, key, purpose, "Synthetic private request", now.Add(time.Minute))
 	require.NoError(t, err)
 	require.Equal(t, receipt, retry)
@@ -56,7 +55,7 @@ func newPrivacyFlow(t *testing.T, purpose SupportPurpose) privacyFlow {
 
 	challenge := receipt.Challenge
 	if purpose == SupportDelete {
-		// Reissuing proof cannot move acceptedAt or the seven-day deadline.
+		// 証拠の再発行でacceptedAtや7日の期限を変更しない。
 		challenge, err = auth.Support.Reissue(ctx, receipt.RequestRef, now.Add(time.Minute))
 		require.NoError(t, err)
 		_, err = auth.Support.Resolve(ctx, receipt.Challenge, now.Add(time.Minute))
@@ -110,8 +109,8 @@ func assertPrivacyFlowStatusIsolation(t *testing.T, f privacyFlow, reply ReplyOp
 	require.Equal(t, "SUPPORT_CHALLENGE_INVALID", errorCode(err), "another environment cannot read a verified reply")
 }
 
-// Route both synthetic Auth users by UID so target deletion cannot silently
-// erase an unrelated Auth account while still satisfying the target evidence.
+// 合成Authユーザー2人をUIDで振り分ける。対象の削除証跡を満たしながら、
+// 無関係なAuthアカウントまで消す不具合を見逃さない。
 type flowAuthSDK struct {
 	targetUID, otherUID string
 	target, other       *fakeDeletionSDK
@@ -152,8 +151,8 @@ func (s *flowAuthSDK) DeleteUser(ctx context.Context, uid string) error {
 	return client.DeleteUser(ctx, uid)
 }
 
-// Action and delivery are separately acknowledged by the fake. Caller-supplied
-// references cannot make either acknowledgement true.
+// 操作と配送のACKは偽物が別々に確認する。
+// 呼び出し元の参照指定だけで、どちらのACKもtrueにはできない。
 type independentFlowAuthority struct {
 	action   bool
 	delivery bool
@@ -293,8 +292,8 @@ func TestPrivacyFlowDeleteClaimConflictRecoveryAndFinalize(t *testing.T) {
 	_, err = store.Acquire(ctx, wrong)
 	require.ErrorIs(t, err, supportdelete.ErrConflict)
 
-	// Compose the existing fake Auth, BigQuery and derived/vendor adapters on
-	// this one execution. Other scopes use the repository's emulator fake guard.
+	// 同じ実行に、既存の偽Auth・BigQuery・派生データ/ベンダー用アダプターを組み合わせる。
+	// 他のスコープには、リポジトリのエミュレーター用偽保護処理を使う。
 	now := start.Now.Add(time.Second)
 	authAdapter, _, sdk, _ := authEmulatorFixture(t, store, e, f.oauthID, now)
 	otherAuthUID := "synthetic-other-" + digest(f.receipt.RequestRef)[:24]

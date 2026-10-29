@@ -153,7 +153,7 @@ func TestBigQueryEmulatorAuthAndBigQuerySnapshotsMoveAndFinalizeAtomically(t *te
 	require.ErrorIs(t, err, supportdelete.ErrConflict)
 	e, err = s.Refresh(ctx, e, start.Now)
 	require.NoError(t, err)
-	// At this cursor Refresh still requires all prior inspection to be repeated.
+	// このカーソルでも、Refresh後は以前の全調査をやり直す必要がある。
 	e = advanceDeletion(t, s, e, bigQueryInspectionCursor(), start.Now)
 	bqSnapshot, err = s.LoadBigQueryInventory(ctx, e)
 	require.NoError(t, err)

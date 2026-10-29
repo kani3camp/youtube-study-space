@@ -1,8 +1,8 @@
-"""ETag-conditional DEV metrics mutation and authoritative Cloud Run readback.
+"""ETag条件付きのDEV計測設定変更と、Cloud Runからの確定的な再読み取りを行う。
 
-The provider's ordinary update Plan is reviewed but NEVER applied in this mode:
-Google provider 8.5.0 does not send an etag. Only a bounded refresh-only Plan may
-be applied after the conditional API mutation. No retry/rebase or auto rollback.
+このモードでは通常のプロバイダー更新Planをレビューするが、適用はしない。
+Googleプロバイダー8.5.0がetagを送らないため、条件付きAPI変更後に
+範囲を限定したrefresh-only Planだけを適用する。再試行・再基準化・自動ロールバックは行わない。
 """
 from copy import deepcopy
 import hashlib
@@ -20,8 +20,7 @@ SERVICE_NAME = "projects/" + c.PROJECT + "/locations/asia-southeast2/services/my
 SERVICE_URL = "https://run.googleapis.com/v2/" + SERVICE_NAME
 PATCH_URL = SERVICE_URL + "?updateMask=template.containers,template.revision&allowMissing=false"
 OPERATION = re.compile(r"projects/" + re.escape(c.PROJECT) + r"/locations/asia-southeast2/operations/[A-Za-z0-9_-]+")
-# Only output metadata is removed. Unknown API configuration stays in the
-# before/after comparison rather than being silently ignored.
+# 出力専用メタデータだけを除去する。未知のAPI設定は無視せず、前後比較の対象に残す。
 API_OUTPUTS = frozenset({
     "@type", "uid", "generation", "observedGeneration", "createTime", "updateTime",
     "deleteTime", "expireTime", "creator", "lastModifier", "terminalCondition",
@@ -46,7 +45,7 @@ def camel(name):
 
 
 def compact(value):
-    """Proto JSON omits defaults; keep list order and non-default map values."""
+    """Proto JSONの既定値省略に対応し、リスト順序と既定値以外のマップ値を保持する。"""
     if type(value) is dict:
         result = {key: compact(item) for key, item in value.items()}
         return {key: item for key, item in result.items() if item not in (None, "", False, 0, [], {})}
@@ -56,7 +55,7 @@ def compact(value):
 
 
 def wire(value, field=""):
-    """Translate the pinned provider's singleton blocks, never arbitrary keys."""
+    """固定プロバイダーの単一ブロックを変換する。任意のキーは変換しない。"""
     if field in {"limits", "labels", "annotations", "effective_labels", "effective_annotations"}:
         return value or {}
     if field in SINGLETONS:
@@ -72,8 +71,8 @@ def wire(value, field=""):
 
 def api_configuration(service):
     result = deepcopy({key: item for key, item in service.items() if key not in API_OUTPUTS})
-    # Empty desired revision means auto-generated. A returned name must be the
-    # current revision, not a user-chosen foreign or old revision.
+    # 希望リビジョンが空なら自動生成を意味する。返された名前は現在のリビジョンでなければならず、
+    # 利用者が選んだ別のリビジョンや旧リビジョンは受け入れない。
     template = result.get("template", {})
     if template.get("revision"):
         c.need(m.revision_name(template["revision"]) == m.revision_name(service.get("latestCreatedRevision")),
@@ -105,7 +104,7 @@ def ready(service):
 
 
 def match_state(live, state):
-    """Compare a live GET with a Plan source or final State, including ETag."""
+    """実GETをPlanの元状態または最終Stateと比較し、ETagも照合する。"""
     c.need(ready(live) == m.ready_revision(state), "metrics-live-revision-mismatch")
     for api_key, tf_key in (("generation", "generation"), ("observedGeneration", "observed_generation"),
                            ("etag", "etag"), ("uid", "uid")):
@@ -117,9 +116,9 @@ def match_state(live, state):
     expected["annotations"] = state.get("effective_annotations", state.get("annotations")) or {}
     expected["template"].pop("revision", None)
     observed = api_configuration(live)
-    # The provider canonicalizes named env blocks; REST preserves insertion
-    # order. Compare this one named collection after rejecting duplicate names.
-    # Do not reorder command/args/containers or change the saved Plan itself.
+    # プロバイダーは名前付きenvブロックを正規化し、RESTは挿入順を保持する。
+    # 重複名を拒否したうえで、この名前付き集合だけを比較する。
+    # command・args・containersを並べ替えず、保存済みPlan自体も変更しない。
     def named_environment(config):
         containers = config.get("template", {}).get("containers")
         c.need(type(containers) is list, "metrics-live-env-shape")
@@ -156,7 +155,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def request(token, url, body=None):
-    """Fixed Google endpoint, bounded response, no redirects or write retries."""
+    """固定Google接続先とサイズ制限付き応答を使い、リダイレクトや書き込み再試行は行わない。"""
     operation = url.removeprefix("https://run.googleapis.com/v2/")
     allowed = (url == PATCH_URL) if body is not None else (url == SERVICE_URL or OPERATION.fullmatch(operation))
     c.need(bool(allowed), "metrics-live-url")
@@ -168,7 +167,7 @@ def request(token, url, body=None):
         with urllib.request.build_opener(NoRedirect()).open(req, timeout=30) as response:
             raw = response.read(1024 * 1024 + 1)
     except urllib.error.HTTPError as error:
-        # No response text/headers, rejected environment, token or URL in logs.
+        # 応答本文・ヘッダー、拒否した環境設定、トークン、URLをログに出さない。
         label = "metrics-live-conflict" if error.code in (409, 412) else "metrics-live-api-failed"
         raise c.ContractError(label) from None
     c.need(len(raw) <= 1024 * 1024, "metrics-live-response-size")
@@ -178,7 +177,7 @@ def request(token, url, body=None):
 
 
 def environment_payload(entries):
-    """Encode EnvVar's oneof; provider defaults are not both API members."""
+    """EnvVarのoneofをエンコードする。プロバイダーの既定値を両方のAPI項目に渡さない。"""
     c.need(type(entries) is list, "metrics-live-env-shape")
     result, names = [], set()
     for item in entries:
@@ -216,14 +215,14 @@ def validate_result(live, before, target):
 
 
 def conditional_update(token, before, target):
-    # v2 accepts stale-etag no-op requests. Use the explicitly versioned v1
-    # Service contract while retaining the v2 Plan and final live comparisons.
+    # v2は古いetagのno-opリクエストを受理する。明示したバージョン付きv1 Service仕様を使い、
+    # v2 Planと最終的な実環境比較は維持する。
     import read_metrics_v1
     return read_metrics_v1.conditional_update(token, before, target)
 
 
 def validate_refresh(refresh, plan, stage):
-    """Only observed metrics transition + output metadata may enter State."""
+    """観測済み計測遷移と出力メタデータだけをStateに取り込める。"""
     c.need(refresh.get("format_version") == plan["format_version"] and refresh.get("complete") is True and
            refresh.get("errored") is False, "metrics-refresh-envelope")
     c.need(not refresh.get("deferred_changes") and not refresh.get("action_invocations") and
@@ -244,8 +243,8 @@ def validate_refresh(refresh, plan, stage):
            change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths") and
            not c.has_unknown(change.get("after_unknown")) and change.get("before") == planned_service(plan)["before"],
            "metrics-refresh-source")
-    # Native refresh-only JSON has an empty planned root. The refreshed
-    # resources live in prior_state, not planned_values (Terraform core).
+    # ネイティブrefresh-only JSONのplannedルートは空である。
+    # 再取得した資源はplanned_valuesではなくprior_stateにある（Terraform core）。
     def no_planned_resources(module):
         return type(module) is dict and not module.get("resources") and all(
             no_planned_resources(x) for x in module.get("child_modules", []))
@@ -260,13 +259,13 @@ def validate_refresh(refresh, plan, stage):
 
 
 def verify_state_live(env, state, plan, stage):
-    """State is necessary but not a substitute for the authoritative API GET."""
+    """Stateは必要だが、管理元APIのGETを代替しない。"""
     m.validate_readback(state, plan, stage)
     match_state(request(env.get("MYPAGE_GCP_ACCESS_TOKEN"), SERVICE_URL), state_service(state))
 
 
 def apply_saved(env, root, plan, stage):
-    """Called only after foundation_ops validates the saved Plan receipt/age."""
+    """foundation_opsが保存Planの受領情報と経過時間を検証した後だけ呼ぶ。"""
     import foundation_ops as ops
 
     c.context(env, "apply")
@@ -280,12 +279,12 @@ def apply_saved(env, root, plan, stage):
     match_state(before, planned_service(plan)["after" if recovered is not None else "before"])
     c.need(ops.state_version(env) == baseline, "metrics-live-state-version")
     c.need(0 <= time.time() - float(env["MYPAGE_PLAN_TIME"]) <= 1800, "metrics-live-plan-expired")
-    # An acknowledged live toggle whose State refresh failed gets a NEW pair
-    # of independent Plans. Recovery only refreshes State; never PATCH twice.
+    # 実環境の切替は確認済みでState再取得に失敗した場合、新しい独立Planの組を作る。
+    # 復旧ではStateだけを再取得し、PATCHを2回実行しない。
     live = before if recovered is not None else conditional_update(env.get("MYPAGE_GCP_ACCESS_TOKEN"), before, planned_service(plan)["after"])
     transition = recovered or plan
-    # The only cloud write is the ETag PATCH above. Terraform now refreshes
-    # State, never applies the original provider update or an arbitrary drift.
+    # クラウドへの書き込みは上のETag PATCHだけとする。その後TerraformはStateを再取得する。
+    # 元のプロバイダー更新や、任意のdriftは適用しない。
     c.need(ops.state_version(env) == baseline, "metrics-live-state-version")
     work = root / "source/environments/dev"
     refresh_file = root / "metrics-refresh.tfplan"
@@ -298,7 +297,7 @@ def apply_saved(env, root, plan, stage):
     match_state(live, state_service(state))
     verify_state_live(env, state, transition, stage)
     c.need(ops.state_version(env) == baseline, "metrics-live-state-version")
-    # Keep a byte hash of the independently validated refresh-only file.
+    # 独立して検証したrefresh-onlyファイルのバイト列ハッシュを保持する。
     c.need(hashlib.sha256(refresh_file.read_bytes()).hexdigest() == digest, "metrics-refresh-receipt")
     ops.run(["terraform", "apply", "-input=false", "-no-color", str(refresh_file)], cwd=work, check="metrics-refresh-apply")
     state = json.loads(ops.run(["terraform", "show", "-json"], cwd=work, check="metrics-final-state-show"))

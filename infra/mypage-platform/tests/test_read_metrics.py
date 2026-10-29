@@ -1,4 +1,4 @@
-"""Strict DEV metrics opt-in; never authorize a serving update or cloud I/O."""
+"""DEV計測の明示的な有効化だけを検査し、配信更新やクラウド入出力は承認しない。"""
 from copy import deepcopy
 import json
 from pathlib import Path

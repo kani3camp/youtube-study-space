@@ -12,10 +12,9 @@ import (
 	"app.modules/core/supportdelete"
 )
 
-// FirestoreDeletionEffects implements the source-known Firestore allowlist.
-// RestoreGuard must independently attest the paused/drained fleet, catalog
-// completeness and exclusion of old queues/imports/restores for this exact
-// project/generation/cutoff. Nil/unknown evidence performs no mutation.
+// FirestoreDeletionEffectsはソースで確認できるFirestore許可リストを実装する。
+// RestoreGuardは同じプロジェクト・世代・cutoffについて、全実行系の停止と完了待ち、一覧の完全性、
+// 旧キュー・import・restoreの排除を独立して証明する必要がある。nilや不明な証拠では変更しない。
 type FirestoreDeletionEffects struct {
 	Store        *FirestoreDeletionStore
 	RestoreGuard supportdelete.Effects
@@ -39,8 +38,8 @@ func sourceDeletionLookups(op supportdelete.Operation) ([]deletionLookup, bool) 
 	case "firestore-oauth":
 		return []deletionLookup{{"oauth-transactions", "channel.channelId", channel, ""}}, true
 	case "firestore-support-relations":
-		// The current receipt/proof/claim remains until atomic finalization. An
-		// unfinished other receipt cannot be silently completed by this case.
+		// 現在の受付・証拠・確保情報はアトミックな完了処理まで保持する。
+		// この依頼で、別の未完了受付を暗黙に完了させない。
 		return []deletionLookup{{"support-requests", "targetChannel", channel, op.Execution.Selector.RequestRef}, {"support-challenges", "requestRef", op.Execution.Selector.RequestRef, ""}, {supportDeleteExecutions, "selector.target.channelID", channel, op.Execution.Selector.ExecutionRef}, {supportDeleteClaims, "requestRef", op.Execution.Selector.RequestRef, op.Execution.Selector.ProofRef}}, true
 	default:
 		return nil, false
@@ -81,8 +80,8 @@ func (a *FirestoreDeletionEffects) Apply(ctx context.Context, op supportdelete.O
 		}
 	}
 	for _, lookup := range lookups {
-		// Bounded first-page deletion avoids skipping documents after partial
-		// commit/ack loss. Each page re-reads the same transactional owner fence.
+		// 上限付き先頭ページを削除し、部分コミットやACK消失後の文書の読み飛ばしを避ける。
+		// 各ページで、同じ所有者の実行保護状態をトランザクション内で読み直す。
 		for page := 0; page < 10000; page++ {
 			found := 0
 			err = a.Store.Client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {

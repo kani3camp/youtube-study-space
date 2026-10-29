@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and push a reviewed environment-bound image; no AWS/State credentials."""
+"""レビュー済みの環境専用イメージをビルド・pushする。AWS/State認証情報は使わない。"""
 import json
 import os
 import re

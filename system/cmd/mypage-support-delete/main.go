@@ -1,7 +1,7 @@
-// mypage-support-delete is an offline trusted-operator boundary. The default
-// plan and --check-config modes do not read state. --mock exercises a fixed,
-// independently seeded synthetic workflow. --execute always refuses because
-// no live adapter, SDK bootstrap or credential discovery is linked here.
+// mypage-support-deleteは、信頼済み運用担当者向けのオフライン処理である。
+// 既定のplanと--check-configは状態を読まない。
+// --mockは独立して用意した固定の合成ワークフローを検証する。
+// 実環境用アダプター・SDK初期化・認証情報探索を接続していないため、--executeは常に拒否する。
 package main
 
 import (

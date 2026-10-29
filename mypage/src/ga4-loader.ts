@@ -13,8 +13,8 @@ export type PreparedTag = {
 }
 export type TagLoader = (prepare: (runtime: GtagRuntime) => void) => PreparedTag
 
-// Loading never queues product events. Startup commands are prepared before the
-// vendor can execute. A superseded load cannot stop a newer consent generation.
+// 読み込みでは製品イベントをキューに入れない。ベンダーコードの実行前に起動コマンドを用意する。
+// 置き換え済みの読み込みで、新しい同意世代を停止しない。
 export class ConsentTag implements AnalyticsPort {
 	private generation = 0
 	private current: {
@@ -103,8 +103,8 @@ type Layer = {
 }
 export type TagWindow = { ossAnalyticsLayer?: Layer } & Record<string, unknown>
 
-// The caller must complete Console and network-inventory review before wiring
-// this browser boundary. Removing a script does not undo vendor code already run.
+// このブラウザ処理を接続する前に、呼び出し元でコンソールと通信一覧のレビューを完了する。
+// スクリプトを除去しても、実行済みのベンダーコードは取り消せない。
 export function browserTagLoader(
 	id: string,
 	target: TagWindow,
@@ -186,7 +186,7 @@ export function browserTagLoader(
 	}
 }
 
-// Public build inputs only. Absent explicit approval leaves the transport null.
+// 公開ビルド入力だけを使う。明示的な承認がなければ通信処理はnullのままにする。
 export function configuredPrivacy(
 	env: Record<string, unknown>,
 	target: TagWindow,
@@ -203,7 +203,7 @@ export function configuredPrivacy(
 	)
 		return services
 	try {
-		// Validate before creating a loader or browser global.
+		// ローダーやブラウザのグローバル変数を作る前に検証する。
 		new GA4Sender(id, origin, { command: () => {}, disable: () => {} })
 		const tag = new ConsentTag(
 			services.consent,

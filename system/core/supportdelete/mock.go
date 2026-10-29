@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// MockSelector identifies built-in synthetic fixtures; input refs never create
-// proof or inventory evidence. The operator manifest selects an existing case.
+// MockSelectorは組み込みの合成テストデータを識別する。入力参照から証拠や一覧の証跡は作らない。
+// 運用マニフェストは既存ケースを選ぶだけとする。
 func MockSelector() Selector {
 	base := strings.Repeat("0123456789abcdef", 4)
 	return Selector{Target: Target{Environment: "development", ProjectID: "demo-youtube-study-space-ci", ChannelID: "UCsynthetic0000000000001"}, RequestRef: base, ExecutionRef: "1" + base[1:], ProofRef: "2" + base[1:]}
@@ -91,7 +91,7 @@ func (mockEffects) Apply(_ context.Context, op Operation) (Evidence, error) {
 	return Evidence{Selector: e.Selector, ManifestRef: e.Manifest.Ref, OperationID: op.ID, Action: op.Step.Action, Scope: op.Step.Scope, Mode: "mock", TraceRef: strings.Repeat("e", 64), Generation: e.Generation, Cutoff: e.Cutoff, ObservedAt: op.ObservedAfter, Known: true, Complete: true, AllInstances: true, OldQueueRejected: true, RestoreExcluded: true}, nil
 }
 
-// mockCatalog is independently seeded source, never populated from CLI fields.
+// mockCatalogは独立して用意したデータ元であり、CLIフィールドから作らない。
 func mockCatalog() SyntheticCatalog {
 	selector := MockSelector()
 	catalog := SyntheticCatalog{Selector: selector, Manifest: Manifest{Ref: strings.Repeat("b", 64), Mode: "mock"}}
@@ -132,8 +132,8 @@ func RunMock(ctx context.Context, selector Selector, recoverExecution bool) (Out
 		if err != nil {
 			return Outcome{}, fmt.Errorf("seed synthetic stopped checkpoint: %w", err)
 		}
-		// The built-in stopped-worker fixture supplies evidence; no CLI field is
-		// interpreted as an assertion about a real previous process.
+		// 停止済みworkerの組み込みテストデータが証跡を供給する。
+		// CLIのフィールドを、実際の旧プロセスについての宣言として解釈しない。
 		if err = prepared.Recover(ctx, Recovery{Selector: selector, PreviousOwnerRef: initialOwner, NewOwnerRef: owner, ManifestRef: catalog.Manifest.Ref, TraceRef: strings.Repeat("e", 64), Revision: e.Revision, Generation: e.Generation, Stopped: true, ObservedAt: now}); err != nil {
 			return Outcome{}, fmt.Errorf("recover synthetic checkpoint: %w", err)
 		}

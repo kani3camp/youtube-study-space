@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// AdapterRegistration is supplied by trusted fixture assembly, never CLI JSON.
-// Capabilities describe wiring, not evidence that a fleet/store is stopped or
-// absent. Each adapter still owes the independently validated effect evidence.
+// AdapterRegistrationは信頼済みテストデータの組み立てから渡し、CLI JSONからは取らない。
+// 能力一覧は接続を表し、全実行系の停止やストア不存在の証拠にはしない。
+// 各アダプターは、独立して検証した操作証跡を引き続き提供する必要がある。
 type AdapterRegistration struct {
 	Scope   string
 	Target  Target
@@ -18,8 +18,8 @@ type AdapterRegistration struct {
 	Effects Effects
 }
 
-// Registry freezes the selected adapters and their selector/manifest binding.
-// Adapter internals are not cloned; their own guards and fences remain required.
+// Registryは、選択したアダプターと対象指定・マニフェストの対応を固定する。
+// アダプター内部は複製せず、それぞれの保護処理と実行世代検証を引き続き必要とする。
 type Registry struct {
 	selector Selector
 	manifest Manifest
@@ -39,9 +39,9 @@ func nilDependency(value any) bool {
 	}
 }
 
-// NewRegistry performs no effects, store reads, SDK construction or discovery.
-// It intentionally supports only development demo fixtures. A live registry
-// and issuance of a trusted live manifest require separate engineering work.
+// NewRegistryは操作・ストア読み取り・SDK構築・探索を行わない。
+// 意図的に開発用demoテストデータだけを扱う。
+// 実環境用の登録処理と信頼済み実マニフェストの発行には、別途実装が必要である。
 func NewRegistry(selector Selector, manifest Manifest, registrations []AdapterRegistration) (*Registry, error) {
 	if selector.Validate() != nil || manifest.Validate() != nil ||
 		(manifest.Mode != "mock" && manifest.Mode != "emulator") ||

@@ -248,7 +248,7 @@ export function createApp(
 			pathname.startsWith('/mypage') || (pathname === '/login' && !supportLogin)
 		const maintenanceRoute = pathname === '/maintenance'
 		const channelConfirmRoute = pathname === '/login/channel-confirm'
-		// Set the initial route before mount can restore an authenticated UID.
+		// マウントで認証済みUIDを復元する前に、初期ルートを設定する。
 		useEffect(() => {
 			runtime.memory.setRouteActive(myPageActive)
 		}, [myPageActive])

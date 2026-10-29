@@ -21,9 +21,9 @@ const (
 
 var youtubeChannelID = regexp.MustCompile(`^UC[A-Za-z0-9_-]{22}$`)
 
-// GoogleYouTubeOAuth uses a short-lived token only within Resolve. Its client
-// has no token source, automatic refresh, retry, credential logging or storage.
-// Supply server-only secrets after the infrastructure/credential Ready Gate.
+// GoogleYouTubeOAuthはResolve内だけで短命トークンを使う。
+// クライアントはtoken source・自動更新・再試行・認証情報の記録や保存を持たない。
+// 基盤・認証情報の準備確認後に、サーバー専用シークレットを渡す。
 type GoogleYouTubeOAuth struct {
 	config oauth2.Config
 	client *http.Client
@@ -41,7 +41,7 @@ func NewGoogleYouTubeOAuth(clientID, clientSecret, publicOrigin string, client *
 	if bounded.Timeout <= 0 || bounded.Timeout > 8*time.Second {
 		bounded.Timeout = 8 * time.Second
 	}
-	// Never forward the code, client secret or bearer token to a redirect target.
+	// コード・クライアントシークレット・Bearerトークンをリダイレクト先へ転送しない。
 	bounded.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
 	return &GoogleYouTubeOAuth{client: &bounded, config: oauth2.Config{
 		ClientID: clientID, ClientSecret: clientSecret,
@@ -64,7 +64,7 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, p.client)
 	token, err := p.config.Exchange(ctx, code)
 	if err != nil {
-		// oauth2.RetrieveError and URL errors can contain credentials/provider text.
+		// oauth2.RetrieveErrorとURLエラーには、認証情報やプロバイダー本文が含まれ得る。
 		return nil, apiError("OAUTH_FAILED")
 	}
 	scope, ok := token.Extra("scope").(string)
@@ -74,8 +74,8 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 	if token.AccessToken == "" || !strings.EqualFold(token.TokenType, "Bearer") || token.Expiry.IsZero() || !token.Valid() {
 		return nil, apiError("OAUTH_FAILED")
 	}
-	// Discard even an unsolicited refresh token; never build an OAuth client or
-	// retain the exchange result in the provider/store/session.
+	// 要求していないリフレッシュトークンも破棄する。
+	// OAuthクライアントを作らず、交換結果をプロバイダー・ストア・セッションに保持しない。
 	token.RefreshToken = ""
 	query := url.Values{"mine": {"true"}, "part": {"snippet"}, "maxResults": {"2"}, "fields": {"nextPageToken,items(id,snippet(title,customUrl,thumbnails(default(url))))"}}.Encode()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, youtubeChannelsURL+"?"+query, nil)
@@ -85,7 +85,7 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 	request.Header.Set("Authorization", "Bearer "+token.AccessToken)
 	request.Header.Set("Accept", "application/json")
 	response, err := p.client.Do(request)
-	// Clear our local credential reference before processing the public metadata.
+	// 公開メタデータを処理する前に、ローカルの認証情報参照を消去する。
 	token.AccessToken = ""
 	if err != nil {
 		return nil, apiError("TEMPORARY_UNAVAILABLE")
@@ -145,7 +145,7 @@ func decodeChannelResponse(body io.Reader, terminalAbsence bool) (Channel, error
 		return Channel{}, apiError("CHANNEL_UNAVAILABLE")
 	}
 	channel := Channel{ID: item.ID, DisplayName: item.Snippet.Title}
-	// customUrl may be a legacy custom URL instead of a current @handle.
+	// customUrlは現在の@handleではなく、旧カスタムURLの場合がある。
 	if strings.HasPrefix(item.Snippet.CustomURL, "@") {
 		channel.Handle = &item.Snippet.CustomURL
 	}

@@ -19,9 +19,9 @@ const appCheckJWKSURL = "https://firebaseappcheck.googleapis.com/v1/jwks"
 
 var projectNumberPattern = regexp.MustCompile(`^[1-9][0-9]{0,19}$`)
 
-// AppCheckVerifier follows Firebase's documented JWT verification steps with
-// exact environment issuer/audience/AppID, bounded lazy JWKS refresh, and no
-// credentials. Its constructor does not fetch keys or start a background loop.
+// AppCheckVerifierはFirebase公式のJWT検証手順に従う。
+// 環境のissuer/audience/AppIDを完全一致で確認し、JWKSを上限付きで必要時に更新する。
+// 認証情報は使わず、コンストラクターは鍵の取得やバックグラウンドループを開始しない。
 type AppCheckVerifier struct {
 	projectNumber, appID   string
 	client                 *http.Client
@@ -71,7 +71,7 @@ func (v *AppCheckVerifier) publicKey(ctx context.Context, kid string) (*rsa.Publ
 		}
 		v.mu.Lock()
 		now := v.now()
-		// Unknown kid / failed fetch cannot turn every rejected token into a fetch.
+		// 未知のkidや取得失敗により、拒否したトークンごとに取得が発生しないようにする。
 		if !v.attemptedAt.IsZero() && !now.Before(v.attemptedAt) && now.Sub(v.attemptedAt) < time.Minute {
 			v.mu.Unlock()
 			return nil, apiError("APP_CHECK_REQUIRED")
@@ -121,7 +121,7 @@ func (v *AppCheckVerifier) publicKey(ctx context.Context, kid string) (*rsa.Publ
 	case <-ctx.Done():
 		return nil, apiError("APP_CHECK_REQUIRED")
 	case <-result:
-		// A concurrent caller can be waiting for another kid: inspect its own key.
+		// 並行する呼び出し元は別のkidを待つ場合があるため、自分の鍵を確認する。
 		if key, ok := v.cachedKey(kid); ok {
 			return key, nil
 		}

@@ -31,7 +31,7 @@ func TestSnapshotExplicitCoveragePreservesUnknownAndGaps(t *testing.T) {
 	ctx := context.Background()
 	_, err := r.Client.Collection("users").Doc(uid).Set(ctx, repository.UserDoc{TotalStudySec: 600})
 	require.NoError(t, err)
-	// Only public dummy data in the guarded Emulator; each fixture owns its UID.
+	// 保護されたEmulatorで公開ダミーデータだけを使い、各テストデータが自分のUIDを持つ。
 	t.Cleanup(func() {
 		_, err := r.Client.Collection("users").Doc(uid).Delete(context.Background())
 		require.NoError(t, err)
@@ -131,9 +131,8 @@ func TestSnapshotQueriesOnlyIdentityAndIntersectingWindow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A snapshot taken near JST midnight may correctly count this minute as
-	// yesterday. The query contract preserves its total across recent days;
-	// fixed-clock cases cover the exact day allocation separately.
+	// JSTの午前0時付近のスナップショットでは、この1分を昨日に数える場合がある。
+	// クエリ仕様では直近日の合計を維持し、正確な日別配分は固定時計のテストで別途確認する。
 	expectRecentSeconds(t, response.Recent7Days, 60)
 	expectSeconds(t, response.Summary.Data.Lifetime, 600)
 	if !response.GeneratedAt.Equal(s.AsOf) {

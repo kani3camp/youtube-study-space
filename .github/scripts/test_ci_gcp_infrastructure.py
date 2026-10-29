@@ -1,4 +1,4 @@
-"""Contracts for the unified GCP infrastructure manual operation."""
+"""統合GCPインフラの手動操作に関する仕様テスト。"""
 import unittest
 
 from test_ci_workflows import ROOT, load
@@ -106,8 +106,8 @@ class GcpInfrastructureWorkflowTest(unittest.TestCase):
             job['with']['mode'],
             "${{ inputs.action == 'apply' && 'desired-apply' || 'desired-plan' }}",
         )
-        # Bootstrap stages remain internal to the legacy bootstrap workflow; the
-        # normal boundary resolves a reviewed per-environment desired stage.
+        # 初期構築の段階は従来の構築用ワークフロー内に残す。
+        # 通常の操作では、レビュー済みの環境別desired stageを解決する。
         public = str(call['inputs'])
         for retired in (
             'foundation-metadata', 'foundation-plan', 'registry-plan',

@@ -11,8 +11,8 @@ import (
 	"app.modules/core/serviceaccess"
 )
 
-// PublicYouTubeMetadata uses an application API key, never a user's OAuth
-// token. Key/uid request URLs and raw dependency errors must not be logged.
+// PublicYouTubeMetadataはアプリケーションAPIキーを使い、利用者のOAuthトークンは使わない。
+// キーやuidを含むURL、元の依存先エラーをログに出さない。
 var ErrPublicChannelMissing = errors.New("public channel unavailable")
 
 type PublicYouTubeMetadata struct {

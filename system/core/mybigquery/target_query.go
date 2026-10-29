@@ -8,9 +8,9 @@ import (
 
 var targetIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]{0,127}$`)
 
-// TargetDeletionSQL is a pure planner for synthetic deletion adapters. Values
-// remain bound parameters; identifiers must come from a verified inventory.
-// It neither constructs an SDK query nor authenticates or executes anything.
+// TargetDeletionSQLは、合成削除アダプター用の純粋な計画処理である。
+// 値はバインドパラメーターのまま維持し、識別子は検証済み一覧から取得する。
+// SDKクエリの構築・認証・実行は行わない。
 func TargetDeletionSQL(project, dataset, table, field string) (string, error) {
 	if !targetIdentifier.MatchString(project) || !targetIdentifier.MatchString(dataset) || !targetIdentifier.MatchString(table) || (field != "user_id" && field != "author_channel_id") {
 		return "", errors.New("invalid target deletion query")

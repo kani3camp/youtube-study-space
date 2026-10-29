@@ -141,7 +141,7 @@ func TestDerivedStoreRequiresInventoryAtDeleteAndAllowsPreCaptureRecovery(t *tes
 	ctx := context.Background()
 	e, err := s.Acquire(ctx, start)
 	require.NoError(t, err)
-	// Earlier steps have no derived snapshot and may advance normally.
+	// 前段階には派生データのスナップショットがなく、通常どおり進められる。
 	e = advanceDeletion(t, s, e, derivedDeleteCursor(), start.Now)
 	_, err = s.LoadDerivedInventory(ctx, e)
 	require.ErrorIs(t, err, ErrDerivedInventoryMissing)
@@ -158,7 +158,7 @@ func TestDerivedStoreRequiresInventoryAtDeleteAndAllowsPreCaptureRecovery(t *tes
 	current, err := s.Acquire(ctx, start)
 	require.NoError(t, err)
 	require.Equal(t, e, current)
-	// Actual synthetic capture/readback permits the same transition.
+	// 実際に合成状態を取得・再読み取りすれば、同じ遷移を許可できる。
 	v, err := emptyDerivedAdapter(s, start.Now).Apply(ctx, op)
 	require.NoError(t, err)
 	next, err := s.Commit(ctx, e, v, start.Now)

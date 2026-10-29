@@ -1,37 +1,37 @@
 # Support deletion B: workflow と運用 gate
 
-この変更は、確認済みの削除受付を一つの durable execution へ束ねる workflow、Firestore checkpoint / source allowlist adapter、private operator CLI と故障再開試験を提供する。CLI の既定は offline plan。実接続の bootstrap はなく、`--execute` は `LIVE_ADAPTERS_UNAVAILABLE` で拒否する。mock 完了は実データの削除完了を意味しない。実 runtime・Auth・BQ・backup・vendor・log adapter の保証は未確認で、live 完了 gate は開かない。
+この変更は、確認済みの削除受付を1つの永続的な実行に結び付けるワークフローを提供する。Firestoreのチェックポイント、ソースの許可リストに従うアダプター、非公開の運用CLI、障害後の再開試験を含む。CLIの既定はオフラインの計画確認である。実接続の初期化処理はなく、`--execute`は`LIVE_ADAPTERS_UNAVAILABLE`で拒否する。モックの完了は実データの削除完了を意味しない。実ランタイム・Auth・BQ・バックアップ・ベンダー・ログのアダプターが提供する保証は未確認であり、実削除の完了条件を満たしたとは扱わない。
 
-[raw archive retirement](../privacy/raw-live-chat-archive-retirement-runbook.md) / [mixed snapshot cleanup](../privacy/gcs-raw-chat-cleanup.md) の対象・整合性条件を変更しない。
+[元チャット保存の廃止](../privacy/raw-live-chat-archive-retirement-runbook.md)と[混合スナップショットの処置](../privacy/gcs-raw-chat-cleanup.md)の対象・整合性条件は変更しない。
 
-## 実行契約
+## 実行仕様
 
-入力は削除の操作意図であり、proof、停止、drain、store 不存在を証明しない。初回は `support-requests` の verified delete receipt、consumed support OAuth の purpose/environment/request binding、request index、target/channel/proof を同じ transaction で照合する。元の acceptedAt と acceptedAt + 7 calendar days の deleteBy を保持し、reissue や再開で SLA をリセットしない。7日超過後の修復は期限内成功と扱わず、終端 timestamp から超過を監査する。
+入力は削除の操作意図であり、本人確認の証拠、停止、実行中処理の完了、ストアの不存在を証明しない。初回は同じトランザクションで、`support-requests`の本人確認済み削除受付、消費済みサポートOAuthの目的・環境・申請との対応、申請インデックス、対象・チャンネル・証拠を照合する。元のacceptedAtと、acceptedAtから7暦日後のdeleteByを保持する。再発行や再開でSLAをリセットしない。7日超過後の修復は期限内成功とせず、完了時刻から超過を監査する。
 
-fresh verification は既存の challenge 24h / OAuth 10m 契約による request-bound な対話認証。execution 開始に新しい任意の最大経過時間を追加しない。初回に OAuth trace が TTL で失われている場合は unknown として拒否する。検証を通った proof claim、privacy ON、execution 作成は原子的。同じ execution は既に binding された proof を使って再開でき、途中で OAuth trace が消えても再認証を強要しない。別 execution / target / proof / manifest へ流用できない。
+新たな本人確認は、既存のチャレンジ24時間・OAuth 10分の仕様に従う、申請に結び付いた対話認証である。実行開始に任意の最大経過時間を追加しない。初回にOAuth追跡記録がTTLで失われていれば、不明として拒否する。検証済み証拠の確保、privacyの有効化、実行の作成はアトミックに行う。同じ実行は結び付け済みの証拠で再開でき、途中でOAuth追跡記録が消えても再認証を強制しない。別の実行・対象・証拠・マニフェストへの流用は認めない。
 
-`support-delete-executions/{executionRef}` と `support-delete-proof-claims/{proofRef}` は server-only。checkpoint は selector、owner、revision、control generation、guardSince/cutoff、SLA、固定 inventory manifest digest、cursor、evidence chain digest を持つ。TTL・lease timeout・自動 takeover はない。worker crash 後の owner 変更には、同じ execution/revision/generation の前 worker 停止を独立した runtime adapter が確認した新しい opaque trace が必要。待ち時間や handler count 0 は停止・SDK commit・mint/配達 drain の証拠にならない。
+`support-delete-executions/{executionRef}`と`support-delete-proof-claims/{proofRef}`はサーバー専用とする。チェックポイントは対象指定・所有者・リビジョン・制御世代・guardSince/cutoff・SLA・固定対象一覧のダイジェスト・カーソル・証跡列のダイジェストを持つ。TTL・リース期限・自動引き継ぎは設けない。worker停止後の所有者変更には、独立したランタイムアダプターが、同じ実行・リビジョン・世代の旧worker停止を確認した新しい推測不能な追跡情報が必要である。待ち時間やハンドラー件数0だけでは、停止・SDKコミット・トークン発行や配送の完了を証明できない。
 
-全 29 effect step の順序は固定で、入力から scope を省略できない。
+全29段階の操作順序は固定し、入力から対象範囲を省略できない。
 
-1. 全 mapped Auth identity の revoke。
-2. MyPage と legacy fleet の pause、両 fleet の drain。
-3. 専用 seat removal、primary、web、OAuth、support relations、legacy mapping、BQ、backup/export、derived/vendor、platform log の消去。Canon 05に従い、Auth userはこれらの消去後に削除する。
-4. 全 11 scope の不存在と旧データ再生成禁止を、pause 中に再確認。
-5. manifest に記録された開始前の有効状態へ両 fleet を戻す。古い queue、callback、mint result、snapshot、import、restore の再生を許さない。
-6. current requestRef と最新 control generation の CAS で privacy だけを解除し、receipt / execution を最小の終端 audit にする。
+1. 対応する全Auth本人情報のセッションを失効する。
+2. MyPageと旧システムの全実行系を停止し、両方の実行中処理の完了を待つ。
+3. 専用の座席除去、主データ、Web、OAuth、サポート関連、旧マッピング、BQ、バックアップ・エクスポート、派生データ・ベンダー、基盤ログを消去する。Canon 05に従い、Authユーザーはこれらの消去後に削除する。
+4. 停止中に、全11対象範囲の不存在と旧データが再生成されないことを再確認する。
+5. マニフェストに記録した開始前の有効状態へ、両方の実行系を戻す。古いキュー・コールバック・発行結果・スナップショット・import・restoreの再実行は認めない。
+6. 現在のrequestRefと最新の制御世代をCASで照合してprivacyだけを解除し、受付と実行を最小限の完了監査記録にする。
 
-各 effect は selector、manifest、generation、cutoff、step、stable operation ID、fresh observation、opaque trace を照合する。unknown、欠落、別 scope、pending/remaining > 0、fleet 全体の停止未確認、restore 除外未確認は失敗となり cursor を進めない。adapter は同じ operation ID の timeout / acknowledgement loss を postcondition で reconciliation する。checkpoint revision/owner はすべての commit を fence する。
+各操作は対象指定・マニフェスト・世代・cutoff・段階・安定した操作ID・最新観測・推測不能な追跡情報を照合する。不明・欠落・別範囲・pending/remaining > 0・全実行系の停止未確認・復元排除未確認は失敗とし、カーソルを進めない。タイムアウトやACK消失時は、同じ操作IDの事後条件をアダプターで照合する。すべてのコミットを、チェックポイントのリビジョンと所有者で保護する。
 
-独立 moderation の generation が変われば同じ privacy request/guardSince を確認して最新 generation を採用する。途中の absence verification はやり直す。一度 durable resume intent に進んだら削除・inspection 段階へ戻らない。resume 後に Bot が作成した正当な新規データを、finalize 障害時の再試行で消してはいけない。privacy clear は独立 active moderation を維持する。全 inactive SAC checkpoint も generation とともに保持し、TTL、削除、reset を行わない。
+独立したmoderationの世代が変わった場合は、同じprivacy request/guardSinceを確認して最新世代を採用し、途中の不存在確認をやり直す。再開意図を永続化した後は、削除・調査段階へ戻らない。再開後にBotが作った正当な新規データを、完了処理の失敗後の再試行で消してはいけない。privacyの解除では独立して有効なmoderationを維持する。すべて無効なSACチェックポイントも世代とともに保持し、TTL・削除・リセットを行わない。
 
-終端 receipt は schemaVersion、acceptedAt、deleteBy、completedAt のみ保持する。execution terminal には同じ selector + manifest の完了照合専用 digest を追加し、別 target/request/proof へ completion を転写できないようにする。raw link は保持しないが、この opaque digest を匿名化の完全な証明とは扱わない。channel、proof、owner、request ID、OAuth/index link、manifest、evidence chain を除去し、current OAuth、request index、proof claim を transaction 内で消す。opaque completion ID の再照会は effect を実行せず完了を返す。新しい保持期間は導入しない。外部に保管した operator manifest・ログ・export 自体の消去は inventory scope の責務であり、これだけで匿名化済みとは主張しない。
+完了受付にはschemaVersion・acceptedAt・deleteBy・completedAtだけを保持する。実行の完了レコードには、同じ対象指定とマニフェストの完了照合専用ダイジェストを追加し、別の対象・申請・証拠に完了結果を転用できないようにする。元の関連参照は残さないが、この推測不能なダイジェストを匿名化の完全な証明とは扱わない。チャンネル・証拠・所有者・申請ID・OAuthやインデックスへの関連・マニフェスト・証跡列を除去し、現在のOAuth・申請インデックス・証拠確保情報を同じトランザクションで消す。推測不能な完了IDの再照会では操作を実行せず、完了を返す。新しい保持期間は導入しない。外部保管した運用マニフェスト・ログ・エクスポート自体の消去は、各対象範囲の責務であり、この処理だけで匿名化済みとは主張しない。
 
-## adapter の実装境界
+## アダプターの実装範囲
 
-[削除対象と起動経路](support-delete-inventory.md)で、ソースから確認できる範囲と実環境で確認すべき範囲を区別する。Manifest.Ref は trusted registry が target environment/project/database、全 writer/launch 経路、開始前状態、旧 queue/import/restore の除外方針、schema 帰属、workflow plan revisionを確認して発行する digest。operator JSON の文字列だけで発行してはいけない。稼働中のcheckpoint cursorを別planへ読み替えない。plan変更時は新manifestの照合で停止し、既存executionの明示的migrationを別途検証する。
+[削除対象と起動経路](support-delete-inventory.md)で、ソースから確認できる範囲と実環境で確認すべき範囲を区別する。Manifest.Refは、信頼済みの登録処理が対象環境・プロジェクト・DB、全書き込み・起動経路、開始前状態、旧キュー・import・restoreの排除方針、スキーマの帰属、ワークフロー計画のリビジョンを確認して発行するダイジェストである。運用JSONの文字列だけから発行してはいけない。稼働中チェックポイントのカーソルを別の計画に読み替えない。計画変更時は新マニフェストとの照合で停止し、既存実行の明示的移行を別途検証する。
 
-`FirestoreDeletionStore` は injected client の project/default database path を検証する。`FirestoreDeletionEffects` は以下の source allowlist を実装し、trusted RestoreGuard が同じ operation に pause/drain・catalog completeness・restore 除外を証明するまで書き込まない。
+`FirestoreDeletionStore`は、渡されたクライアントのプロジェクトと既定DBのパスを検証する。`FirestoreDeletionEffects`は以下のソース許可リストを実装する。信頼済みRestoreGuardが、同じ操作について全実行系の停止・完了待ち、一覧の完全性、復元の排除を証明するまで書き込まない。
 
 | scope | implemented source allowlist / limitations |
 | --- | --- |
@@ -41,13 +41,13 @@ fresh verification は既存の challenge 24h / OAuth 10m 契約による reques
 | firestore-oauth | channel OAuth と current receipt の support OAuth query。current verification trace は finalize まで保持。channel 未確定 callback は runtime drain 必須 |
 | firestore-support-relations | current challenge / duplicate request index の消去。canonical index / current claim は finalize まで保持。他の target receipt / owned execution / proof claim があれば unknown で停止し、勝手に completed にしない |
 
-削除は先頭の bounded page を transaction ごとに取り直し、同じ owner/revision/generation を読んでから delete する。partial commit をまたいだ offset による取りこぼしを避け、空 page を再確認する。101件 × 10,000 page が上限で、上限到達は incomplete。最終 inspection で非空なら失敗。別 channel・SAC・current execution/proof を消去しない。
+削除では上限付きの先頭ページをトランザクションごとに取り直し、同じ所有者・リビジョン・世代を読んでから削除する。部分コミットを跨ぐオフセットによる取りこぼしを避け、空ページも再確認する。上限は101件 × 10,000ページとし、到達時は未完了とする。最終調査で空でなければ失敗とする。別チャンネル・SAC・現在の実行や証拠は消去しない。
 
-Registry の未注入 scope は常に unavailable。legacy mapping の逆/重複 UID と古い proof/receipt 関係、Auth tenant の全 identity と in-flight mint、BQ の main/tmp/job、mixed/soft-deleted backup・PITR、channel index のない trend/vendor/log は、API の保証と帰属が確定するまで live adapter を作らない。ソースの `GetAll` や query 0件を全store不存在へ拡張しない。既存 runbook の対象外である混合 backup の一括削除をこの CLI で代行しない。
+登録されていない対象範囲は常に取得不能とする。旧マッピングの逆引き・重複UIDと古い証拠・受付の関連、Authテナントの全本人情報と発行中トークン、BQのmain/tmp/job、混合・soft-deletedバックアップとPITR、チャンネル索引のないトレンド・ベンダー・ログは、APIの保証と帰属が確定するまで実環境用アダプターを作らない。ソースの`GetAll`やクエリ0件を、全ストアの不存在と解釈しない。既存手順書の対象外である混合バックアップの一括削除を、このCLIで代行しない。
 
-## 合成 adapter の契約
+## 合成アダプターの仕様
 
-全 adapter は合成検証用。実環境への接続・権限・完全な対象 inventory・削除結果の readback が揃うまで live は拒否する。
+全アダプターは合成検証用である。実接続・権限・完全な対象一覧・削除結果の再読み取りが揃うまで、実環境での使用を拒否する。
 
 ### Auth と関連レコード
 
@@ -69,51 +69,52 @@ fake SDK tests は wrong UID / tenant / incarnation、shared owner、missing inv
 
 ### BigQuery
 
-`BigQueryDeletionEffects` implements the existing `bigquery` scope using only an injected `SyntheticBigQueryExecutor`. No SDK executor, credential discovery, real query, IAM change, runtime integration or CLI bootstrap is added. `live` is refused, and `--execute` still returns `LIVE_ADAPTERS_UNAVAILABLE`. Synthetic completion is not live deletion evidence.
+`BigQueryDeletionEffects`は、注入した`SyntheticBigQueryExecutor`だけを使い、既存の`bigquery`範囲を実装する。SDK実行器・認証情報探索・実クエリ・IAM変更・ランタイム統合・CLI初期化は追加しない。`live`は拒否し、`--execute`も引き続き`LIVE_ADAPTERS_UNAVAILABLE`を返す。合成処理の完了は、実削除の証拠にならない。
 
-An independent complete inventory pins the execution/manifest/cutoff, explicit project/location, required activity/order/historical-raw main tables, shared `tmp`, inventoried result tables, old load/query/copy/export job identities and opaque external-copy references. Existing tables require a verified schema and incarnation fingerprint; an empty or missing schema is unknown, not zero. Explicitly absent retired tables are reobserved through the catalog and target-count port. Identifiers use a restricted allowlist; channel values are bound as `@channel`, never interpolated into SQL. The pure planner constructs SQL only and cannot run it. Dataset/table-wide deletion and the raw-retirement purge are not reused.
+独立した完全な一覧で、実行・マニフェスト・cutoff、明示したプロジェクトとロケーション、必須の活動・注文・過去の生チャットの本テーブル、共有`tmp`、対象結果テーブル、旧load/query/copy/exportジョブのID、推測不能な外部コピー参照を固定する。既存テーブルには検証済みスキーマと実体世代のフィンガープリントを必要とする。空・欠落スキーマは不明として扱い、0件にはしない。明示的に不存在の廃止テーブルも、一覧と対象件数のインターフェースで再観測する。識別子は限定した許可リストを使い、チャンネル値は`@channel`でバインドしてSQLに埋め込まない。純粋な計画処理はSQL生成だけを行い、実行できない。データセット・テーブル全体の削除や、生チャット廃止時の一括消去は再利用しない。
 
-The catalog port must enumerate the full frozen source/job/copy set, accounting separately for this inventory's deterministically planned deletion jobs. Extra, missing, changed or incomplete metadata blocks execution. Old source jobs must have definitive terminal status and replay exclusion before mutation; caller/task cancellation and cancel acknowledgements are insufficient. The independently trusted guard holds catalog/incarnation exclusion during each callback and attests the paused fleet, job fencing and exclusion of old imports/restores through the destructive window. A fixture's `true` flags do not prove a real fleet is stopped.
+一覧取得インターフェースは、固定した取得元・ジョブ・コピーの全体を列挙する必要がある。この一覧から確定的に計画する削除ジョブは別に数える。メタデータの過剰・欠落・変更・不完全性があれば実行を止める。変更前に、旧取得元ジョブの確定した終了状態と再実行の排除を必要とする。呼び出し元やタスクのキャンセル、取消ACKだけでは足りない。独立した信頼済み保護処理は、各コールバック中に一覧・実体世代の変更を排除し、削除中の全実行系停止、ジョブの実行保護、旧import/restore排除を証明する。テストデータの`true`フラグは、実環境の停止を証明しない。
 
-Server-only `support-delete-bigquery-inventory/{executionRef}` stores the immutable inventory, deterministic job-plan inputs and deletion/inspection confirmations. `support-delete-bigquery-bindings/{executionRef}` and an optional immutable `bigQueryInventoryRef` capture marker in the active execution document are created atomically with it. Loss or replacement of either temporary document, including loss of both, cannot trigger recapture after partial effects while the execution marker survives. Older executions without this marker remain readable; ordinary checkpoint updates preserve it and terminal replacement removes it. Restore of the whole pre-capture execution remains forbidden by the independent restore guard. A job ID/configuration digest is stable across retry, owner recovery and independent moderation changes. Submission success or timeout must be reconciled by a definitive lookup of that exact project/location/job/configuration. A pending, failed, missing-at-inspection, mismatched or unknown job stops the workflow. All table target counts must be definitive zero and freshly observed; the catalog is rechecked after processing.
+サーバー専用の`support-delete-bigquery-inventory/{executionRef}`は、不変の一覧、確定的なジョブ計画の入力、削除・調査の確認結果を保存する。`support-delete-bigquery-bindings/{executionRef}`と、実行中文書の任意の不変取得マーカー`bigQueryInventoryRef`も同時にアトミック作成する。実行マーカーが残る間は、一時文書の片方または両方が失われたり置き換わったりしても、部分実行後に再取得しない。マーカーのない旧実行は読み取り可能なままにし、通常のチェックポイント更新はマーカーを保持し、完了時の置換で除去する。取得前の実行全体の復元も、独立した復元保護で引き続き禁止する。
+ジョブID・設定ダイジェストは再試行・所有者復旧・独立したモデレーション変更を跨いで固定する。送信成功やタイムアウトは、同じプロジェクト・ロケーション・ジョブ・設定の確定的な検索で照合する。保留・失敗・調査時の不存在・不一致・不明なジョブはワークフローを止める。全テーブルの対象件数は最新観測で確定した0である必要があり、処理後に一覧も再検査する。
 
-The snapshot execution fence moves in the same Firestore transaction as Auth ownership and workflow checkpoints. Every table operation rechecks it together with the same durable proof claim, receipt and canonical request index; OAuth TTL disappearance does not require renewed proof. A late effect cannot publish valid evidence after owner/generation drift. This transaction cannot make an external operation atomic, so the independent guard and durable remote-job identity remain required. Generation changes before durable resume intent invalidate inspection confirmation. Finalization atomically removes both BQ documents with Auth snapshot/receipt link cleanup and privacy clear; inactive SAC generation and independent moderation remain. No new permanent retention/TTL is introduced.
+スナップショットの実行保護情報は、Auth所有権とワークフローのチェックポイントと同じFirestoreトランザクションで進める。各テーブル操作で、同じ永続的な証拠確保情報・受付・正式申請インデックスと再照合する。OAuthがTTLで消えても再証明を求めない。所有者や世代がずれた後、遅れた操作は有効な証跡を公開できない。トランザクションで外部操作までアトミックにはできないため、独立した保護処理と永続的なリモートジョブ識別は引き続き必要である。再開意図の永続化前に世代が変われば、調査確認を無効にする。完了時は、BQの両文書、Authスナップショット・受付の関連をアトミックに除去してprivacyを解除する。無効状態のSAC世代と独立したmoderationは残す。新たな恒久保持やTTLは導入しない。
 
-External GCS/vendor/log copies are not deleted by this adapter. They are sealed against replay before BQ deletion, processed by their owning scopes, and their request-bound disposition must be attested before BQ inspection. Unknown copies block completion; main-table zero never proves whole-store absence. Live time-travel/backup/export/log residuals, actual API guarantees, full job/table inventories and permissions remain engineering/operational gates. This synthetic executor does not establish those facts or justify a new retention policy.
+外部のGCS・ベンダー・ログのコピーは、このアダプターでは削除しない。BQ削除前に再投入を封じ、それぞれの担当範囲で処置し、BQ調査前に申請に結び付いた処置結果を証明する必要がある。不明なコピーは完了を妨げ、本テーブル0件だけでは全ストアの不存在を証明しない。実環境のtime travel・バックアップ・エクスポート・ログの残存、実APIの保証、完全なジョブ・テーブル一覧、権限は技術・運用上の確認事項として残る。この合成実行器は、それらを証明したり新しい保持ポリシーの根拠にしたりしない。
 
-Stateful synthetic tests cover target/nontarget rows in main/tmp/result tables, schema/incarnation/catalog drift, wrong project/location, old pending/unknown jobs, lost submission/checkpoint acknowledgements, stable recovery identity, stale/failed counts, external-copy uncertainty and missing durable state. Firestore Emulator tests cover atomic snapshot movement with Auth, generation/recovery fences, half-state loss, rollback/terminal cleanup, client denial, engine refusal before Auth/resume/finalize, and finalize retry preserving legitimate post-resume data. Other required engine scopes remain explicit fixtures or unavailable, never implicitly successful.
+状態を持つ合成テストで、main/tmp/結果テーブルの対象・対象外行、スキーマ・実体世代・一覧の変化、誤プロジェクト・ロケーション、旧保留・不明ジョブ、送信・チェックポイントのACK消失、復旧IDの安定性、古い件数・取得失敗、外部コピーの不明性、永続状態の欠落を検証する。Firestore Emulatorでは、Authとスナップショットのアトミックな移動、世代・復旧の実行保護、片側状態の消失、ロールバック・完了時消去、クライアント拒否、Auth・再開・完了前のエンジン拒否、再開後の正当なデータを保つ完了再試行を検証する。他の必須範囲は明示したテストデータか取得不能とし、暗黙に成功させない。
 
-Use the existing repository checks: Go tests, targeted race, lint, root Firestore Emulator script, MyPage contract and documentation-reference checks. They do not validate real BigQuery SQL execution or live absence.
+既存のリポジトリ検査を使う。Goテスト、対象を絞ったrace、lint、ルートのFirestore Emulatorスクリプト、MyPage仕様、文書参照検査を実行する。実BigQuery SQLの実行や実環境の不存在を検証するものではない。
 
 ### 派生データとvendor
 
-`DerivedDeletionEffects` implements the existing `derived-vendor` step with injected inventory, guarded persistence, and a stateful synthetic executor. It makes no vendor call. `live` remains unavailable and the CLI `--execute` remains `LIVE_ADAPTERS_UNAVAILABLE`; a fake's deletion/readback cannot prove real OpenAI, Discord, YouTube, or cache disposal.
+`DerivedDeletionEffects`は、注入した一覧・保護付き永続化・状態を持つ合成実行器で既存の`derived-vendor`段階を実装する。ベンダーは呼び出さない。`live`は利用不能、CLIの`--execute`は`LIVE_ADAPTERS_UNAVAILABLE`のままにする。偽物の削除・再読み取りは、実際のOpenAI・Discord・YouTube・キャッシュの廃棄を証明しない。
 
-The inventory explicitly enumerates BFF cache, global work-name trend, OpenAI stored Responses, Discord messages, and service-created YouTube copies. Independent moderation/YouTube Ban state is not a privacy deletion target. Every source must attest completeness and disposal support, even if it reports zero objects. An item has an exact object ID, incarnation fingerprint, complete owner-channel set and supported disposition. Exclusive items may be deleted as objects; shared items require target-scoped removal and a readback that preserves every other owner. Missing attribution, unknown catalog, unsupported disposition, changed incarnation, unexpected target copy, and uncertain readback stop the step. A global ranking without source ownership cannot be inferred to be target-free merely because its stored schema has no channel field.
+対象一覧にはBFFキャッシュ、全体の作業名トレンド、OpenAIの保存済みResponses、Discordメッセージ、サービスが作成したYouTubeコピーを明示する。独立したmoderationやYouTube Ban状態はプライバシー削除の対象外とする。0件を報告する取得元も、完全性と廃棄対応を証明する必要がある。各項目は正確なオブジェクトID、実体世代のフィンガープリント、全所有チャンネル、対応する処置を持つ。単独所有はオブジェクトごと削除できる。共有物は対象部分だけを除去し、他の全所有者を保持する再読み取りが必要である。帰属欠落・一覧不明・非対応処置・実体世代変更・予期しない対象コピー・不確かな再読み取りは、その段階を止める。取得元の所有情報がない全体ランキングでは、保存スキーマにチャンネル項目がないことだけで対象データなしと推測しない。
 
-The source inspection found `Store: true` on OpenAI Responses but no persisted response ID, and `ChannelMessageSend` discards the returned Discord message ID. The legacy trend output contains shared examples without channel attribution. Therefore the live inventory and deletion capability remain unknown. This package does not add a guessed ID field or a retention period. The synthetic fixture's object IDs exist only in the test fake. YouTube copy ownership remains unknown; platform logs have their own separate scope.
+ソース調査では、OpenAI Responsesの`Store: true`を確認したが、レスポンスIDは保存していない。`ChannelMessageSend`も返されたDiscordメッセージIDを破棄する。旧トレンド出力はチャンネル帰属のない共有例を含む。このため、実一覧と削除能力は不明のままである。推測したIDフィールドや保持期間は追加しない。合成テストデータのオブジェクトIDは偽物の内部だけに存在する。YouTubeコピーの所有権も不明であり、基盤ログは別の対象範囲で扱う。
 
-The server-only snapshot and binding are captured atomically with an immutable marker on the active execution. Owner, revision, generation and cursor move with the checkpoint; losing either snapshot half after capture cannot cause recapture. Mutation IDs derive from the captured operation, inventory, source, object and incarnation and survive recovery. A timeout/lost acknowledgement is followed by a definitive read. Partial completion retries the same IDs and observes already disposed items. `inspect` rechecks every item and the full catalog before advancing. Generation changes before durable resume intent invalidate the inspection confirmation. Finalization removes the temporary snapshot and marker while independently active moderation remains.
+サーバー専用スナップショットと対応情報は、実行中の不変マーカーとアトミックに取得する。所有者・リビジョン・世代・カーソルはチェックポイントとともに進め、取得後に片側を失っても再取得しない。変更IDは取得済みの操作・一覧・取得元・オブジェクト・実体世代から導出し、復旧後も維持する。タイムアウト・ACK消失後は確定的に読み取る。部分完了では同じIDを再試行し、処置済み項目も観測する。`inspect`は前進前に全項目と一覧全体を再確認する。再開意図の永続化前に世代が変わると調査確認を無効にする。完了時は一時スナップショットとマーカーを除去し、独立して有効なmoderationは残す。
 
-The Firestore Store also refuses a checkpoint that advances the derived delete step without this snapshot, even if a caller injects otherwise valid generic Evidence. Once that step has advanced, absence blocks inspection, recovery and finalization. Steps before derived capture and explicit recovery at the uncaptured delete cursor remain possible. A missing or mismatched snapshot/binding/marker half always blocks recapture after capture.
+Firestore Storeは、他が有効な汎用Evidenceを呼び出し元が渡しても、このスナップショットなしで派生データ削除段階を進めるチェックポイントを拒否する。一度進んだ後は、スナップショットの不存在により調査・復旧・完了を拒否する。取得前の段階と、未取得の削除カーソルでの明示復旧は可能なままとする。取得後のスナップショット・対応情報・マーカーの片側欠落や不一致では、常に再取得を拒否する。
 
-Before any live wiring, an operator must prove source-time channel ownership, actual IDs and provider-supported target disposal, old writer/queue exclusion, exact readback semantics, other-owner preservation and restore exclusion. A mixed shared copy with no safe target-scoped operation stays blocked; it must not be destroyed wholesale. D02's design choice is: do not store refresh tokens or add periodic polling solely to detect external Google grant cancellation. Its policy compliance and handling of retained API data after cancellation still need verification/compliance review. D03 public operator/contact/URL values remain undecided. This synthetic adapter does not authorize live deletion.
+実接続前に運用担当者は、取得元時点のチャンネル所有権、実IDとプロバイダー対応の対象処置、旧書き込み・キューの排除、正確な再読み取りの意味、他所有者の保持、復元排除を証明する必要がある。対象部分だけを安全に操作できない共有コピーは停止したままにし、一括破壊してはならない。D02の設計方針は、外部Google権限取消の検出だけのためにリフレッシュトークン保存や定期取得を追加しないことである。規約適合性と取消後の保持済みAPIデータの扱いは、引き続き検証・規約レビューが必要である。D03の公開運営者・連絡先・URLの実値は未決定であり、この合成アダプターは実削除を承認しない。
 
-## Synthetic Registry と開始前 assembly
+## 合成Registryと開始前の組み立て
 
-[Registry](../../system/core/supportdelete/registry.go)はtrusted fixtureから渡された接続を開始前に検査する。runtime 2件とdeletion 11件、既存29 stepの必要actionがすべてあり、scope重複・未知action・欠落・nil/typed-nil adapter・target/mode不一致がない場合だけ、privateな接続mapへコピーする。呼出し元の登録slice/actionを書き換えても選択済みadapterは変わらない。adapter内部のmutable stateを複製・静止する機能ではなく、各adapter自身のguard/fenceを必要とする。
+[Registry](../../system/core/supportdelete/registry.go)は、信頼済みテストデータから渡された接続を開始前に検査する。ランタイム2件・削除11件と、既存29段階の必須操作がすべて揃うことを確認する。対象範囲の重複・未知操作・欠落・nil/typed-nilアダプター・対象やモードの不一致がない場合だけ、非公開の接続マップにコピーする。呼び出し元が登録スライスや操作を書き換えても、選択済みアダプターは変わらない。アダプター内部の可変状態を複製・停止する機能ではなく、各アダプター自身の保護・実行世代検証が必要である。
 
-[PrepareDeletion](../../system/core/supportdelete/prepare.go)は独立した合成catalogとselector/manifestを照合し、Registry検査後だけ明示注入されたStore factoryを呼ぶ。不足時はfactory/Acquire/recovery/effectを実行しない。prepare成功自体もproof claimや削除ではない。manifestのRefはtrusted fixtureが供給し、文書やoperator入力からlive証跡を発行しない。`development`の`demo-` projectと`mock`/`emulator`に限り、`live`は完全なfake接続でも拒否する。SDK constructor、ADC discovery、実endpoint選択は追加しない。注入factoryのclient lifetimeはcallerが管理する。
+[PrepareDeletion](../../system/core/supportdelete/prepare.go)は独立した合成一覧と対象指定・マニフェストを照合し、Registry検査後だけ、明示的に渡されたStore factoryを呼ぶ。不足時はfactory・Acquire・復旧・操作を実行しない。準備の成功自体は、証拠確保や削除ではない。マニフェストのRefは信頼済みテストデータが供給し、文書や運用入力から実証跡を発行しない。`development`の`demo-`プロジェクトと`mock`/`emulator`に限り、完全な偽接続でも`live`は拒否する。SDK構築・ADC探索・実接続先選択は追加しない。注入factoryのクライアントの有効期間は呼び出し元が管理する。
 
-戻るPreparedDeletionはselector/manifest/接続を公開変更可能にせず、Runと明示Recoverを同じbound executionへ限定する。同一assemblyの同時呼出しはbusyで拒否する。このprocess内lockはfleet停止・drainの証拠ではない。Recoverのproposalだけではownerを移さず、Storeがstopped traceとdurable revision/generationを検査した後だけownerを更新する。Recoverのtimeout/ACK喪失は未確認として返し、ownerが移ったと推測しない。明示した新ownerの同一bindingで別assemblyを作り、authoritativeなAcquireの結果で再開可否を確認する。
+返すPreparedDeletionは、対象指定・マニフェスト・接続を変更可能な形で公開しない。Runと明示Recoverを同じ結び付け済み実行に限定する。同じ組み立て結果への同時呼び出しはbusyで拒否する。このプロセス内ロックは、全実行系の停止・完了待ちの証拠ではない。Recover案だけで所有者を移さず、Storeが停止の追跡情報と永続リビジョン・世代を検査した後だけ更新する。Recoverのタイムアウト・ACK消失は未確認として返し、所有者移転済みと推測しない。明示した新所有者の同じ対応情報で別の組み立て結果を作り、正当なAcquire結果で再開可否を確認する。
 
-RunMockの通常fixtureとstopped-worker fixtureは両方この経路で組み立てる。既存29 step、stable operation ID、acceptedAtからの7日、proof/generation/checkpoint、再開後の正当な新規data保護はEngine/Storeの既存契約を維持する。CLI schema/flags/reportは変更せず、`--execute`はSDK/bootstrapやmock runnerへ到達せず従来の`LIVE_ADAPTERS_UNAVAILABLE`で拒否する。live catalog発行、operator削除権限、全fleetと各実storeのadapterは未接続のまま。
+RunMockの通常テストデータと停止済みworkerのテストデータは、両方ともこの処理で組み立てる。既存29段階、安定した操作ID、acceptedAtからの7日、証拠・世代・チェックポイント、再開後の正当な新規データ保護は、Engine/Storeの既存仕様を維持する。CLIのスキーマ・フラグ・報告は変更しない。`--execute`はSDK初期化やモック処理に到達せず、従来の`LIVE_ADAPTERS_UNAVAILABLE`で拒否する。実一覧の発行、運用担当者の削除権限、全実行系・実ストアのアダプターは未接続のままとする。
 
-## offline CLI
+## オフラインCLI
 
-`MYPAGE_ENVIRONMENT` と `GOOGLE_CLOUD_PROJECT` を明示する。alias project env に不一致がある場合や live credential/endpoint env がある場合は拒否する。対象を stdin または exact 0600 regular file の `--manifest` で渡す。最終 symlink/FIFO、16 KiB 超過、duplicate / case-variant / unknown / missing JSON field、確認の不一致を拒否する。report に target、ref、path、raw error は出力しない。
+`MYPAGE_ENVIRONMENT`と`GOOGLE_CLOUD_PROJECT`を明示する。プロジェクト別名の環境変数が不一致の場合や、実認証情報・実接続先の環境変数がある場合は拒否する。対象は標準入力か、権限が正確に0600の通常ファイルを読む`--manifest`で渡す。末尾のシンボリックリンク・FIFO、16KiB超、重複・大小文字違い・未知・欠落のJSONフィールド、確認内容の不一致を拒否する。報告に対象・参照・パス・元のエラーは出さない。
 
-合成 fixture 専用 manifest の形:
+合成テストデータ専用のマニフェスト形式を示す。
 
 ```json
 {
@@ -142,19 +143,19 @@ MYPAGE_ENVIRONMENT=development GOOGLE_CLOUD_PROJECT=demo-youtube-study-space-ci 
 # --execute: always LIVE_ADAPTERS_UNAVAILABLE, no live SDK bootstrap
 ```
 
-`MOCK_COMPLETED` / `mock-only` / `offline:true` / `actualExecution:false` を実 deletion の証跡へ転用しない。mock の refs を変えても fresh proof は生成されない。
+`MOCK_COMPLETED` / `mock-only` / `offline:true` / `actualExecution:false`を実削除の証跡に転用しない。モックの参照を変えても、新たな本人確認の証拠は生成されない。
 
-## live 前の engineering gate と判断
+## 実接続前の技術的確認と判断
 
-live は別途明示された運用として、development → production の順で開始する。まず source inventory を実 deployment/old revision/direct launch/export/restore と照合し、全 runtime adapter の pause/drain/resume と ownership、全 store adapter の全件消去・readback・旧 source 再投入禁止を個別に検証する。無保証の scope を成功扱いにする option は追加しない。実 SDK credential の取得、pause、revoke、削除は合成検証に含まない。
+実環境では、別途明示した運用として開発→本番の順に開始する。まずソースの対象一覧を、実配備・旧リビジョン・直接起動・エクスポート・復元と照合する。全ランタイムアダプターの停止・完了待ち・再開と管理者、全ストアアダプターの全件消去・再読み取り・旧ソース再投入禁止を個別に検証する。保証のない範囲を成功扱いにするオプションは追加しない。実SDK認証情報の取得・停止・失効・削除は合成検証に含めない。
 
-live adapter の未実装、API の停止保証、コピー帰属、missing proof trace は engineering / external verification gate。これらを「ユーザー承認で成功とする」判断待ちに変えない。inactive checkpoint 保持、fail closed、cutoff、同一 execution 再開、requestRef + generation CAS は承認済みの技術判断。
+実環境用アダプターの未実装、APIの停止保証、コピーの帰属、本人確認追跡情報の欠落は、技術・外部検証上の確認事項である。「ユーザー承認で成功扱いにする」判断待ちに変えてはならない。無効状態のチェックポイント保持、検証不能時の拒否、cutoff、同一実行の再開、requestRef + generation CASは承認済みの技術判断である。
 
-追加の人間判断が必要になるのは、実 inventory で既存 Canon の7日以内 accessible copy 消去を満たせず例外・期限変更が必要な場合、対象者の帰属を証明できない共有 backup/vendor copy の破壊が他者データの扱いを変える場合、または新しい保持期間/利用制限を提案する場合。現在はそうした変更を実装しておらず、live は fail closed のまま。
+追加の人間判断が必要なのは、実一覧で既存Canonの7日以内のアクセス可能コピー消去を満たせず例外・期限変更が必要な場合、帰属を証明できない共有バックアップ・ベンダーコピーの破壊が他者データの扱いを変える場合、新しい保持期間や利用制限を提案する場合である。現在はそのような変更を実装しておらず、実環境では引き続き検証不能時に拒否する。
 
 ## 検証
 
-pure workflow は全29 step の before/after effect failure、checkpoint acknowledgement loss、同じ ID での retry、全必須 scope と binding、owner recovery、generation と新規利用の境界を deterministic fixture で試験する。Firestore Emulator は実 source adapter の proof/guard/claim atomicity、concurrent first claim、missing trace rollback、SLA維持、owner recovery、generation/request CAS、moderation 保持、link scrub、1002件 pagination/他channel isolation、client rules deny を確認する。これは live Auth/BQ/backups/vendor 不存在を証明しない。
+外部処理を持たないワークフローは、全29段階の操作前後の失敗、チェックポイントACK消失、同一IDの再試行、全必須範囲との対応、所有者復旧、世代と新規利用の区切りを確定的なテストデータで検証する。Firestore Emulatorでは、実ソースアダプターの証拠・保護・確保の原子性、並行する初回確保、追跡情報欠落時のロールバック、SLA維持、所有者復旧、世代・申請CAS、moderation保持、関連参照の消去、1002件のページ分割と他チャンネルの分離、クライアントルールの拒否を確認する。実Auth・BQ・バックアップ・ベンダーの不存在を証明するものではない。
 
 ```sh
 cd system

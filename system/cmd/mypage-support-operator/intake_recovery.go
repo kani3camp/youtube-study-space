@@ -16,8 +16,8 @@ func humanAction(action string) bool {
 	return action == "create" || action == "inspect" || action == "recover"
 }
 
-// Recovery has no Create fallback and no automatic handoff retry. The explicit
-// inspected version is part of the independent authority's exact intent.
+// 復旧はCreateへの切替も、受け渡しの自動再試行も行わない。
+// 明示して調査したバージョンを、独立した権限検証の正確な操作意図に含める。
 func runHumanRecovery(ctx context.Context, p proposal, input humanRequest, runtime *intakeRuntime, intent intakeIntent, now time.Time) string {
 	selector := mypage.SupportRecoverySelector{Environment: p.Environment, ProjectID: p.Project, RequestID: input.RequestID, Channel: input.Channel, Purpose: p.Purpose, AcceptedAt: input.AcceptedAt}
 	var receipt intakeReceipt

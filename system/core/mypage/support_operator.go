@@ -22,9 +22,9 @@ var (
 	ErrOperatorConflict = errors.New("support operation conflict")
 )
 
-// OperatorAuthority must obtain identity and permissions from a trusted
-// operator environment. A CLI-supplied name, request ref or support challenge
-// is never an authority. There is deliberately no production implementation.
+// OperatorAuthorityは、信頼済み運用環境から本人情報と権限を取得する必要がある。
+// CLI指定の名前・申請参照・サポートチャレンジは権限にならない。
+// 本番用の実装は意図的に含めない。
 type OperatorAuthority interface {
 	Authorize(context.Context, OperatorIntent) (OperatorIdentity, error)
 	VerifyEvidence(context.Context, OperatorIdentity, CompletionOperation) (VerifiedCompletionEvidence, error)
@@ -37,9 +37,8 @@ type OperatorIntent struct {
 	Purpose     SupportPurpose
 	OperationID string
 	Action      string
-	// These fields are derived by FirestoreSupportOperator from the full
-	// operation before authorization. A caller-supplied intent cannot replace
-	// the proof, revision, reply binding or operation payload.
+	// これらのフィールドは、権限確認前にFirestoreSupportOperatorが操作全体から導出する。
+	// 呼び出し元の操作意図で、証拠・リビジョン・返信との対応・操作内容を置き換えられない。
 	ProofRef         string
 	ExpectedRevision int64
 	ReplyDigest      string
@@ -67,15 +66,14 @@ type CompletionOperation struct {
 	ExpectedRevision        int64
 	ActionEvidence          string
 	DeliveryAcknowledgement string
-	// Required by a future human OIDC authority; existing synthetic evidence
-	// adapters still verify the digest independently against the stored reply.
+	// 将来の有人OIDC権限検証に必要である。既存の合成証跡アダプターも、
+	// 保存済み返信に対してダイジェストを独立して検証する。
 	ReplyDigest string
 	At          time.Time
 }
 
-// VerifiedCompletionEvidence is returned only after the trusted authority has
-// verified both evidence references and their binding to the reviewed reply.
-// The operator proposal cannot attest to these fields on its own.
+// VerifiedCompletionEvidenceは、信頼済み権限検証で両証跡参照と確認済み返信との対応を確認した後だけ返す。
+// 運用担当者の申告だけでは、これらのフィールドを証明できない。
 type VerifiedCompletionEvidence struct {
 	Actor                   string
 	Environment             string
@@ -98,17 +96,17 @@ func (e VerifiedCompletionEvidence) matches(identity OperatorIdentity, op Comple
 		validOpaque(e.ReplyDigest) && (op.ReplyDigest == "" || e.ReplyDigest == op.ReplyDigest) && e.ActionEvidence == op.ActionEvidence && e.DeliveryAcknowledgement == op.DeliveryAcknowledgement
 }
 
-// FirestoreSupportOperator is never constructed by a public HTTP handler.
-// Without an injected trusted authority and a server-only audit key it denies
-// every mutation. The project is checked against the Firestore client path.
+// FirestoreSupportOperatorは公開HTTPハンドラーから構築しない。
+// 信頼済み権限検証とサーバー専用監査鍵が注入されなければ、すべての変更を拒否する。
+// プロジェクトはFirestoreクライアントのパスと照合する。
 type FirestoreSupportOperator struct {
 	Client      *firestore.Client
 	Environment string
 	ProjectID   string
 	AuditKey    []byte
 	Authority   OperatorAuthority
-	// A future human authority must use this trusted server clock; caller At is
-	// retained only for the existing synthetic/offline fixtures.
+	// 将来の有人権限検証は、この信頼済みサーバー時計を使う必要がある。
+	// 呼び出し元のAtは既存の合成・オフラインテストデータ用だけに残す。
 	Clock func() time.Time
 }
 
@@ -149,8 +147,8 @@ func (s *FirestoreSupportOperator) mac(parts ...string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// ReplyAuthorizationIntent binds the reviewed body without exposing it in a
-// challenge or audit. The same derived intent is passed to Authorize by Reply.
+// ReplyAuthorizationIntentは、確認済み本文をチャレンジや監査へ公開せず結び付ける。
+// Replyは同じ導出済み意図をAuthorizeへ渡す。
 func (s *FirestoreSupportOperator) ReplyAuthorizationIntent(op ReplyOperation) (OperatorIntent, error) {
 	if s == nil || len(s.AuditKey) < 32 || !validOpaque(op.ProofRef) || op.ExpectedRevision < 0 || op.At.IsZero() || op.Body == "" || !validPrivacyBody(op.Body) {
 		return OperatorIntent{}, ErrOperatorDenied
@@ -163,9 +161,8 @@ func (s *FirestoreSupportOperator) ReplyAuthorizationIntent(op ReplyOperation) (
 	return intent, nil
 }
 
-// CompletionAuthorizationIntent binds the proposed action/delivery references
-// and reviewed reply digest. An actual completion still requires independent
-// evidence and the receipt transaction; this intent grants no write access.
+// CompletionAuthorizationIntentは、申告された操作・配送参照と確認済み返信のダイジェストを結び付ける。
+// 実際の完了には独立した証跡と受付トランザクションが必要であり、この意図は書き込み権限を付与しない。
 func (s *FirestoreSupportOperator) CompletionAuthorizationIntent(op CompletionOperation) (OperatorIntent, error) {
 	if s == nil || len(s.AuditKey) < 32 || op.Intent.Purpose == SupportDelete || !validOpaque(op.ProofRef) || !validOpaque(op.ReplyOperationID) || !validOpaque(op.ActionEvidence) || !validOpaque(op.DeliveryAcknowledgement) || op.ExpectedRevision < 1 || op.At.IsZero() || (op.ReplyDigest != "" && !validOpaque(op.ReplyDigest)) {
 		return OperatorIntent{}, ErrOperatorDenied
@@ -175,8 +172,8 @@ func (s *FirestoreSupportOperator) CompletionAuthorizationIntent(op CompletionOp
 	intent.ExpectedRevision = op.ExpectedRevision
 	intent.ReplyDigest = op.ReplyDigest
 	parts := []string{"complete", intent.Environment, intent.ProjectID, intent.RequestRef, string(intent.Purpose), op.ProofRef, intent.OperationID, op.ReplyOperationID, fmt.Sprint(op.ExpectedRevision), op.ActionEvidence, op.DeliveryAcknowledgement}
-	// The legacy fingerprint is unchanged for existing operations. A supplied
-	// reply digest becomes part of every new human-authorized retry binding.
+	// 既存操作の旧フィンガープリントは変更しない。
+	// 指定された返信ダイジェストは、新しい有人承認の全再試行の対応情報に含める。
 	if op.ReplyDigest != "" {
 		parts = append(parts, op.ReplyDigest)
 	}
@@ -224,8 +221,8 @@ func (s *FirestoreSupportOperator) deletionClaimed(tx *firestore.Transaction, pr
 	return false, fmt.Errorf("read deletion claim: %w", err)
 }
 
-// Reply writes one reviewed response and a bounded body-free audit event in
-// the same transaction. It never marks the requested action completed.
+// Replyは確認済み返信1件と、本文を含まない上限付き監査イベントを同じトランザクションで書き込む。
+// 依頼された操作を完了状態にはしない。
 func (s *FirestoreSupportOperator) Reply(ctx context.Context, op ReplyOperation) error {
 	trustedAt, err := s.operationTime(op.At)
 	if err != nil {
@@ -289,9 +286,8 @@ func (s *FirestoreSupportOperator) Reply(ctx context.Context, op ReplyOperation)
 	return nil
 }
 
-// Complete applies only to disclosure or Firebase-session revoke. Evidence
-// verification is delegated to the trusted adapter; strings are references,
-// not self-attested proof. Deletion has its own fenced Finalize workflow.
+// Completeは開示とFirebaseセッション失効だけを対象にする。証跡検証は信頼済みアダプターに委ねる。
+// 文字列は参照であり、自己申告の証拠ではない。削除には独立した保護付きFinalize手順を使う。
 func (s *FirestoreSupportOperator) Complete(ctx context.Context, op CompletionOperation) error {
 	trustedAt, err := s.operationTime(op.At)
 	if err != nil {
@@ -308,8 +304,8 @@ func (s *FirestoreSupportOperator) Complete(ctx context.Context, op CompletionOp
 	}
 	fingerprint := intent.OperationDigest
 	auditRef := s.auditRef(op.Intent)
-	// A committed audit and terminal receipt are enough to recover a lost ACK.
-	// Evidence may have been scrubbed or its verifier may now be unavailable.
+	// ACK消失からの復旧には、コミット済み監査と完了受付で足りる。
+	// 証跡は消去済み、または検証器が利用不能の場合がある。
 	auditSnap, err := auditRef.Get(ctx)
 	if err == nil {
 		var event operatorAuditEvent
@@ -366,7 +362,7 @@ func (s *FirestoreSupportOperator) Complete(ctx context.Context, op CompletionOp
 		if claimed {
 			return ErrOperatorConflict
 		}
-		// Replacement removes body, reply, channel, proof and all receipt fields.
+		// 置換で、本文・返信・チャンネル・証拠・全受付フィールドを除去する。
 		terminal := map[string]interface{}{"schemaVersion": int64(1), "completedAt": op.At.UTC().Truncate(time.Microsecond), "purpose": v.Purpose, "acceptedAt": v.AcceptedAt}
 		if err := tx.Delete(s.Client.Collection("support-request-ids").Doc(digest(v.Environment + ":" + v.RequestID))); err != nil {
 			return fmt.Errorf("delete request index: %w", err)

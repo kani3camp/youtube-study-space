@@ -1,4 +1,4 @@
-"""P1 regressions: stale State, competing writes, conditional mutation, no cloud I/O."""
+"""P1回帰: 古いState・競合書き込み・条件付き変更を検証し、クラウド入出力は行わない。"""
 from copy import deepcopy
 import hashlib
 import io
@@ -35,7 +35,7 @@ def fixture(enabled=True, stage="runtime_private"):
 
 
 def api_service(state):
-    """Independent REST-shaped fixture, including protobuf-omitted false/zero."""
+    """独立したREST形式のテストデータ。protobufで省略するfalse/0も含める。"""
     container = state["template"][0]["containers"][0]
     env = []
     for item in container["env"]:
@@ -266,7 +266,7 @@ class MetricsLiveTest(unittest.TestCase):
                 live.match_state(altered, service(plan)["before"])
 
     def setUp(self):
-        # Unit tests can never contact a real Google endpoint.
+        # 単体テストから実際のGoogleエンドポイントへ接続しない。
         blocked = patch.object(live.urllib.request, "build_opener", side_effect=AssertionError("unexpected live network"))
         blocked.start(); self.addCleanup(blocked.stop)
 

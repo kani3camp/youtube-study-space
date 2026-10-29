@@ -1,4 +1,4 @@
-"""Environment-bound runtime admission; no credentials, cloud I/O or secret payloads."""
+"""環境に固定したランタイム受入検査。認証情報・クラウド入出力・秘密値は扱わない。"""
 from __future__ import annotations
 
 from copy import deepcopy
@@ -56,11 +56,10 @@ def settings(value, stage=None):
     required = operator_fields if operator_only else FIELDS - optional
     c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= required, "runtime-settings-fields")
     defaults = {field: "" for field in FIELDS} | {"read_metrics_enabled": False, "maintenance_operator_enabled": False}
-    # Existing environment secrets may still contain the full runtime payload,
-    # but the bootstrap-only stage binds only the separately reviewed operator
-    # image. Unrelated runtime values cannot influence its Plan commitment.
+    # 既存の環境シークレットにはランタイム設定全体が残る場合があるが、初期構築専用段階では
+    # 別途レビューした運用担当者用イメージだけを結び付ける。無関係な値をPlanの確定内容に影響させない。
     value = defaults | ({field: value[field] for field in operator_fields} if operator_only else value)
-    # JSON admission is deliberately stricter than Terraform's type conversion.
+    # JSONの受入検査は、意図的にTerraformの型変換より厳しくする。
     c.need(type(value["read_metrics_enabled"]) is bool, "runtime-read-metrics-type")
     c.need(type(value["maintenance_operator_enabled"]) is bool, "runtime-maintenance-operator-type")
     c.need(c.TARGET == "development" or (not value["read_metrics_enabled"] and value["read_metrics_from_revision"] == ""), "runtime-production-read-metrics")
@@ -171,7 +170,7 @@ def resource_contract(stage, value=None):
 
 
 def public_invoker_import_config():
-    # Only this already approved member can be adopted. No input interpolation.
+    # 取り込めるのは承認済みのこのメンバーだけとし、入力値は埋め込まない。
     return 'import {\n  to = ' + INVOKER + '\n  id = "' + PUBLIC_INVOKER_IMPORT_ID + '"\n}\n'
 
 
@@ -202,7 +201,7 @@ def empty_options(value, names):
 
 
 def fixed_options(value, allowed, check):
-    """Reject every non-empty provider field outside a fixed config allowlist."""
+    """固定の設定許可リスト外にある、空でない全プロバイダーフィールドを拒否する。"""
     c.need(type(value) is dict, check)
     for name, option in value.items():
         if name not in allowed:
@@ -224,7 +223,7 @@ SERVICE_OBSERVED_OPTIONS = {
 
 
 def validate_unknown_paths(mask, allowed, check):
-    """Admit only exact provider-computed unknown leaves; mutable fields stay known."""
+    """完全一致するプロバイダー計算値のunknown末端だけを許可し、可変フィールドは既知に保つ。"""
     c.need(type(mask) is dict, check)
 
     def visit(value, path):
@@ -244,7 +243,7 @@ def validate_unknown_paths(mask, allowed, check):
 
 
 def validate_planned_revision(after, desired, service, actions, check):
-    """Create cannot pin a revision; no-op may expose only the exact ready revision."""
+    """作成時はリビジョン固定を認めず、no-opでは完全一致するReadyリビジョンだけを公開できる。"""
     if not desired:
         return
     c.need(actions == ["no-op"] and type(desired) is str, check)
@@ -268,8 +267,8 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
                "maintenance-service-account-disabled")
         return
     if address in {MAINTENANCE_ROLE}:
-        # deleted is provider-computed and therefore unknown only on create;
-        # on every existing-role no-op it must be the known false value.
+        # deletedはプロバイダーの計算値なので、作成時だけunknownになる。
+        # 既存ロールのno-opでは、毎回既知のfalseでなければならない。
         role_unknowns = {("id",), ("name",)} | ({("deleted",)} if actions == ["create"] else set())
         validate_unknown_paths(unknown, role_unknowns, "maintenance-role-unknown")
         fixed_options(after, set(maintenance_resource_contract()[address]) | {"deleted", "id", "name"},
@@ -419,7 +418,7 @@ def validate_service(after, unknown, value, actions):
 
 
 def validate_service_empty_refresh(item, planned, value):
-    """Observed defaults and same-generation output metadata; no serving write."""
+    """観測済み既定値と同じ世代の出力メタデータだけを扱い、配信状態は書き込まない。"""
     c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "runtime-refresh-provider")
     change = item.get("change", {})
     c.need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths"), "runtime-refresh-action")
@@ -455,8 +454,8 @@ def validate_service_empty_refresh(item, planned, value):
             old_parent[key] = deepcopy(new)
     metadata = {"etag", "update_time", "last_modifier"}
     if any(before.get(key) != after.get(key) for key in metadata):
-        # A no-op API request changes these outputs without changing desired
-        # state. This is a NEW no-op Plan, never a stale metrics update retry.
+        # no-opのAPIリクエストでも、desired stateを変えずにこれらの出力が変わる。
+        # これは新しいno-op Planであり、古い計測更新の再試行ではない。
         import read_metrics_transition as metrics
         c.need(type(before.get("uid")) is str and before["uid"] == after.get("uid") and before["uid"], "runtime-refresh-identity")
         c.need(before.get("generation") == after.get("generation") and
@@ -476,10 +475,10 @@ def validate_service_empty_refresh(item, planned, value):
 
 
 def validate_owner_hosting_image_refresh(item, planned, value):
-    """Read back image/fixed-host releases; Terraform never updates Run here.
+    """イメージ・固定ホストの配備結果を読み直し、TerraformからRunは更新しない。
 
-    Image-only releases may use the isolated Backend CI deployer. Keep the same
-    exact declaration/generation/config boundary for State adoption.
+    イメージだけの配備には独立したバックエンドCI配備権限を使える。
+    Stateへの取り込みでは、同じ厳密な宣言・世代・設定の条件を維持する。
     """
     change = item.get("change", {})
     before, after = change.get("before"), change.get("after")
@@ -517,8 +516,8 @@ def validate_owner_hosting_image_refresh(item, planned, value):
         c.need(len(new_env) == len(old_env) + 1
                and [x for x in new_env if x.get("name") != "MYPAGE_HOSTING_BACKEND_HOST"] == old_env, "runtime-owner-refresh-env")
     old_container["env"] = deepcopy(new_env)
-    # Auto-generated revision names are observed on latest_ready_revision;
-    # Run leaves the optional desired template.revision empty before and after.
+    # 自動生成リビジョン名はlatest_ready_revisionで観測する。
+    # Runは変更前後とも、任意の希望値template.revisionを空にする。
     ready = after.get("latest_ready_revision")
     ready_match = re.fullmatch(r"(?:projects/" + re.escape(c.PROJECT) + r"/locations/" + re.escape(c.REGION) + r"/services/mypage-api/revisions/)?(mypage-api-[a-z0-9-]{1,50})", ready) if type(ready) is str else None
     c.need(ready_match is not None and after.get("latest_created_revision") == ready, "runtime-owner-refresh-ready")
@@ -543,7 +542,7 @@ def validate_owner_hosting_image_refresh(item, planned, value):
 
 
 def validate_job_execution_refresh(item, planned, expected):
-    """Admit only provider-computed counters changed by a Cloud Run Job run."""
+    """Cloud Run Job実行で変わったプロバイダー計算済み件数だけを許可する。"""
     address = item.get("address")
     c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "maintenance-job-refresh-provider")
     change = item.get("change", {})
@@ -618,8 +617,8 @@ def validate_initial_plan(plan, stage):
         elif address in {MAINTENANCE_JOB}:
             validate_job_execution_refresh(item, planned, expected[address])
         else:
-            # Removing temporary bootstrap access changes the same shared
-            # policy etag, while these fixed managed members stay unchanged.
+            # 一時的な初期構築権限を取り消すと、同じ共有ポリシーのetagが変わる。
+            # 固定した管理対象メンバー自体は変わらない。
             c.need(address in {FIRESTORE, INVOKER, MAINTENANCE_FIRESTORE,
                                MAINTENANCE_WIF, MAINTENANCE_JOB_INVOKER}                   and address in expected, "runtime-drift-address")
             member_values = expected[address]
@@ -636,8 +635,8 @@ def validate_initial_plan(plan, stage):
             continue
         c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "runtime-resource-provider")
         change = item.get("change", {})
-        # Initial deployment and no-op only. Updating a serving revision is a
-        # separate reviewed transition, not an implicit expansion of this gate.
+        # 初回配備とno-opだけを許可する。配信リビジョンの更新には別途レビューした遷移を使い、
+        # この検査の許可範囲を暗黙に広げない。
         c.need(change.get("actions") in [["create"], ["no-op"]] and not change.get("replace_paths"), "runtime-resource-action")
         if stage in {"runtime_private", "runtime_public"} and address in maintenance_resource_contract():
             c.need(change.get("actions") == ["no-op"], "runtime-maintenance-bootstrap-complete")

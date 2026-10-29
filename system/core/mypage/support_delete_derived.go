@@ -14,9 +14,9 @@ import (
 
 var ErrDerivedInventoryMissing = errors.New("derived deletion inventory missing")
 
-// Every source must be inventoried, including sources with no objects. The
-// production writers currently do not persist OpenAI response or Discord
-// message IDs; a synthetic empty list is not evidence about those services.
+// オブジェクト0件の取得元も含め、すべてを一覧に含める必要がある。
+// 現在の本番書き込み処理はOpenAIレスポンスIDやDiscordメッセージIDを保存しない。
+// 合成の空リストは、実サービスについての証拠にならない。
 var derivedSources = []string{"bff-cache", "work-name-trend", "openai-response", "discord-message", "youtube-copy"}
 
 type DerivedItem struct {
@@ -27,9 +27,8 @@ type DerivedItem struct {
 	OwnerChannels  []string `firestore:"ownerChannels"`
 }
 
-// Disposition is either delete-exclusive or remove-target. A shared object
-// may only use remove-target when the inventoried provider can actually edit
-// the target's portion without deleting another owner's portion.
+// Dispositionはdelete-exclusiveかremove-targetとする。共有オブジェクトでは、
+// 一覧で特定したプロバイダーが他所有者の部分を消さず対象分だけ編集できる場合に限り、remove-targetを使う。
 type DerivedSource struct {
 	Name      string        `firestore:"name"`
 	Complete  bool          `firestore:"complete"`
@@ -124,9 +123,9 @@ type DerivedDeletionPersistence interface {
 	ConfirmDerivedInventory(context.Context, DerivedInventorySnapshot, bool) error
 }
 
-// Observation is a definitive read of the same object incarnation. A missing
-// object is valid only if Known is true. Owners of a shared object are checked
-// both before and after a target-scoped mutation.
+// Observationは、同じオブジェクト実体世代の確定的な読み取りを表す。
+// 不存在が有効なのはKnownがtrueの場合だけとする。
+// 共有オブジェクトの所有者は、対象分だけの変更前後に確認する。
 type DerivedObservation struct {
 	Known, Exists                    bool
 	Source, ObjectID, IncarnationRef string
@@ -273,7 +272,7 @@ func (a *DerivedDeletionEffects) Apply(ctx context.Context, op supportdelete.Ope
 					}
 					mutation := DerivedMutation{OperationID: digest(s.CaptureOperationID + ":" + s.InventoryRef + ":" + item.Source + ":" + item.ObjectID + ":" + item.IncarnationRef), InventoryRef: s.InventoryRef, TargetChannel: op.Execution.Selector.Target.ChannelID, Item: item}
 					mutationErr := a.Executor.ApplyTarget(guardCtx, mutation)
-					// A lost acknowledgement is reconciled by the definitive read below.
+					// ACK消失時は、以下の確定的な読み取りで結果を照合する。
 					if err := a.verify(guardCtx, item, op.Execution.Selector.Target.ChannelID, false); err != nil {
 						if mutationErr != nil {
 							return fmt.Errorf("mutation outcome unknown: %w", supportdelete.ErrUnavailable)

@@ -7,14 +7,14 @@
 		"types": ["node"],
 		"skipLibCheck": true,
 
-		/* Bundler mode */
+		/* バンドラーモード */
 		"moduleResolution": "bundler",
 		"allowImportingTsExtensions": true,
 		"verbatimModuleSyntax": true,
 		"moduleDetection": "force",
 		"noEmit": true,
 
-		/* Linting */
+		/* 静的検査 */
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"erasableSyntaxOnly": true,

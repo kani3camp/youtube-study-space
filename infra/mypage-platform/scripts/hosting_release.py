@@ -1,7 +1,7 @@
-"""DEV-only Hosting release: unprivileged build, bounded REST publish, readback.
+"""DEV専用Hosting配備。非特権ビルド、制限付きREST公開、再読み取りを行う。
 
-No Firebase CLI discovery, service-account keys, Terraform/IAM writes, backend
-updates, runtime secrets, automatic retry of mutations, or automatic rollback.
+Firebase CLI探索・SA鍵・Terraform/IAM書き込み・バックエンド更新・
+ランタイムの秘密値・変更の自動再試行・自動ロールバックは扱わない。
 """
 from __future__ import annotations
 
@@ -113,11 +113,11 @@ def build(env):
     raw = env['MYPAGE_HOSTING_PUBLIC_CONFIG_JSON'].encode()
     need(len(raw) <= 65536, 'public-config-size')
     config = json.loads(raw)
-    # Run the canonical validator before using values as build environment.
+    # 値をビルド環境変数に使う前に、標準の検証処理を実行する。
     (package / 'public-config.json').write_bytes(canonical(config))
     (package / 'dist').mkdir()
     (package / 'dist/index.html').write_text('<!doctype html>')
-    # Candidate translation also validates DEV identity and disabled analytics.
+    # 候補への変換時に、DEVの識別情報とアクセス解析の無効化も検証する。
     (package / 'paths.json').write_bytes(canonical(['index.html']))
     command(['node', 'mypage/scripts/hosting-release-config.mjs',
              str(package / 'public-config.json'), str(package / 'paths.json'),
@@ -196,7 +196,7 @@ def http(url, *, token=None, method='GET', body=None, binary=False, github=False
             need(len(data) <= MAX_FILE, 'http-size')
             return response.status, dict(response.headers), data
     except urllib.error.HTTPError as error:
-        # Never print provider responses, auth headers, URLs, or user data.
+        # プロバイダーの応答・認証ヘッダー・URL・ユーザーデータは出力しない。
         if not token and method == 'GET':
             data = error.read(MAX_FILE + 1)
             need(len(data) <= MAX_FILE, 'http-size')
@@ -223,7 +223,7 @@ def current(token):
 
 def backend(token):
     value = cloud(RUN, token)
-    # Retain the full bounded response for before/after comparison, never publish it.
+    # 前後比較のため、サイズ制限付きの応答全体を保持する。公開はしない。
     ready = value.get('latestReadyRevision', '')
     need(isinstance(ready, str) and ready and ready == value.get('latestCreatedRevision') and
          value.get('reconciling', False) is False and
@@ -242,7 +242,7 @@ def verify_head(env):
 
 
 def stable_config(config):
-    # Only immutable file cache rules change between ordinary page releases.
+    # 通常のページ配備で変更するのは、不変ファイルのキャッシュ規則だけである。
     need(set(config) == {'headers', 'rewrites'}, 'hosting-config-scope')
     headers = config['headers']
     need(isinstance(headers, list) and sum(x.get('glob') == '**' for x in headers) == 1, 'hosting-headers')
@@ -268,7 +268,7 @@ def deploy(env, *, request=cloud, transport=http):
     need(version.get('status') == 'FINALIZED' and
          stable_config(version['config']) == stable_config(hosting), 'hosting-settings-changed')
     api_before = backend(token)
-    # Do not silently change the API/frontend consent-version pair.
+    # APIとフロントエンドの同意バージョンの組み合わせを、暗黙に変更しない。
     public_env = {x['name']: x.get('value') for x in api_before['template']['containers'][0]['env']
                   if x.get('name') in {'MYPAGE_PRIVACY_VERSION', 'MYPAGE_TERMS_VERSION', 'MYPAGE_PUBLIC_ORIGIN'}}
     need(public_env == {'MYPAGE_PRIVACY_VERSION': config['deployment']['privacyVersion'],
@@ -309,8 +309,8 @@ def deploy(env, *, request=cloud, transport=http):
               'analyticsEnabled': False, 'realGA4Verified': False,
               'publishStatus': 'unknown', 'publicReadback': 'pending'}
     record_path = Path(env['RUNNER_TEMP']) / 'mypage-hosting-release-record.json'
-    # Persist rollback references BEFORE the live switch: a lost response may
-    # mean the publish succeeded. Preserve unknown and never retry that write.
+    # 実際の切替前に復旧用参照を永続化する。応答消失時も公開が成功した可能性がある。
+    # unknownを維持し、この書き込みは再試行しない。
     record_path.write_bytes(canonical(record))
     published = request(API + 'sites/' + SITE + '/releases?versionName=' + name, token,
                         method='POST', body={'message': 'CI DEV MyPage ' + env['GITHUB_SHA']})

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Feed provider-generated metrics-only update Plans into real admission."""
+"""プロバイダーが生成した計測設定だけの更新Planを、実際の受入検査に渡す。"""
 import json
 from pathlib import Path
 import subprocess
@@ -18,8 +18,8 @@ for rendered, enabled in zip(plans, (True, False)):
     settings = r.settings(json.loads((root / "tests/runtime-settings.fixture.json").read_text()) | {
         "read_metrics_enabled": enabled, "read_metrics_from_revision": "mypage-api-before",
     })
-    # As in the existing native checker, test renderer metadata is adapted.
-    # Provider-generated actions, before/after and unknowns are NOT rewritten.
+    # 既存のネイティブチェッカーと同様に、テスト描画用メタデータを変換する。
+    # プロバイダーが生成したaction・before/after・unknownは書き換えない。
     envelope = {"format_version": rendered["plan_format_version"], "complete": True, "errored": False,
                 "variables": {"stage": {"value": "runtime_private"}, "runtime_settings": {"value": settings}},
                 "resource_changes": rendered.get("resource_changes", []),

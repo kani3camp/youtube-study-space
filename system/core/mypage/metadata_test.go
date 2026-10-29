@@ -144,7 +144,7 @@ func TestBFFConfirmedMissingNeverRetainsAccountEvenWhenDurableClearFails(t *test
 		require.Nil(t, response.Account.Data)
 		require.Equal(t, MetadataTooOld, *response.Account.ReasonCode)
 	}
-	// A transient lookup error retains permitted metadata, not a terminal state.
+	// 一時的な検索エラーでは許可されたメタデータを保持し、表示停止状態にはしない。
 	b := BFF{Access: allowedAccess(), Environment: "demo", Now: func() time.Time { return now }, Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) {
 		return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
 	}), Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) { s := workFixture(); s.AsOf = now; return s, nil })}
@@ -184,7 +184,7 @@ func TestBFFNewRevisionDoesNotJoinOldFlightOrReuseLateOldCache(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, next.Account.Data)
 	require.NoError(t, <-done)
-	// The old caller may finish last; its cached revision is still rejected.
+	// 旧呼び出し元が最後に完了しても、キャッシュした旧リビジョンは拒否する。
 	next, err = b.Get(context.Background(), "synthetic", cleared)
 	require.NoError(t, err)
 	require.Nil(t, next.Account.Data)

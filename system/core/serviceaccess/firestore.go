@@ -19,8 +19,8 @@ func (s *FirestoreStore) ref(channel string) (*firestore.DocumentRef, error) {
 	return s.Client.Collection(Collection).Doc(channel), nil
 }
 
-// DecodeSnapshot applies the same strict schema to consumers using an existing
-// transaction client, including history writers that cannot discover credentials.
+// DecodeSnapshotは、既存トランザクションクライアントを使う呼び出し元にも同じ厳格なスキーマを適用する。
+// 認証情報を探索できない履歴書き込み処理も含む。
 func DecodeSnapshot(doc *firestore.DocumentSnapshot, err error) (Snapshot, error) {
 	if status.Code(err) == codes.NotFound {
 		return Snapshot{}, nil
@@ -87,8 +87,8 @@ func (s *FirestoreStore) Read(ctx context.Context, channel string) (Snapshot, er
 	return DecodeSnapshot(doc, err)
 }
 
-// ReadTransaction must precede every write in a retryable transaction. A
-// concurrent control change participates in Firestore conflict detection.
+// ReadTransactionは、再試行可能なトランザクションの全書き込みより前に実行する必要がある。
+// 並行した制御変更もFirestoreの競合検出に含まれる。
 func (s *FirestoreStore) ReadTransaction(tx *firestore.Transaction, channel string) (Snapshot, error) {
 	ref, err := s.ref(channel)
 	if err != nil || tx == nil {

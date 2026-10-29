@@ -175,7 +175,7 @@ func TestTwoBFFProcessesDropPurgedMetadataBeforeCacheTTL(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, response.Account.Data)
 	}
-	// Public API absence is authoritative even for 25-day metadata.
+	// 25日前のメタデータでも、公開APIで確認した不存在を判断の根拠にする。
 	provider, err := NewPublicYouTubeMetadata("synthetic-key", &http.Client{Transport: providerTransport(func(*http.Request) (*http.Response, error) { return providerResponse(200, `{"items":[]}`), nil })})
 	require.NoError(t, err)
 	refresh := AccountMetadataRefresh{Access: &serviceaccess.FirestoreStore{Client: client}, Provider: provider, Store: store, Policy: policy, Now: func() time.Time { return now }}
