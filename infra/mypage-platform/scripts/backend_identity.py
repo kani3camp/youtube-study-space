@@ -19,19 +19,24 @@ PERMISSIONS = ['run.services.get', 'run.services.update']
 REUSABLE = c.REPOSITORY + '/.github/workflows/mypage-backend-authenticated.yml@' + c.REF
 
 
-def condition():
+def event_condition(event_name):
+    c.need(event_name in ('workflow_dispatch', 'push'), 'backend-bootstrap-event')
     values = {'repository_id': '340900071', 'repository_owner_id': '54093651',
               'actor_id': '54093651', 'actor': 'kani3camp', 'repository': c.REPOSITORY,
               'ref': c.REF, 'workflow_ref': c.CALLER, 'job_workflow_ref': REUSABLE,
-              'event_name': 'workflow_dispatch', 'run_attempt': '1', 'environment': ENVIRONMENT}
+              'event_name': event_name, 'run_attempt': '1', 'environment': ENVIRONMENT}
     subject = ':'.join(key + ':' + value.replace(':', '%3A') for key, value in (
         ('repository_id', '340900071'), ('repository_owner_id', '54093651'),
         ('environment', ENVIRONMENT), ('ref', c.REF), ('workflow_ref', c.CALLER),
-        ('job_workflow_ref', REUSABLE), ('event_name', 'workflow_dispatch')))
+        ('job_workflow_ref', REUSABLE), ('event_name', event_name)))
     values['sub'] = subject
-    return ' && '.join('assertion.' + key + ' == ' + json.dumps(value) for key, value in values.items()) + \
-        ' && assertion.workflow_sha == assertion.job_workflow_sha'
+    return '(' + ' && '.join('assertion.' + key + ' == ' + json.dumps(value) for key, value in values.items()) + \
+        ' && assertion.workflow_sha == assertion.job_workflow_sha)'
 
+
+def condition():
+    # Permit two exact signed events. PRs, other refs, identities, retries and prod remain denied.
+    return event_condition('workflow_dispatch') + ' || ' + event_condition('push')
 
 def command(tool, arguments, *, body=None, absent=False):
     executable = (shutil.which(tool + '.cmd') or shutil.which(tool)) if os.name == 'nt' else shutil.which(tool)
