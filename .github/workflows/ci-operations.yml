@@ -133,7 +133,14 @@ jobs:
             esac
           done
 
-          if [[ "${OPERATION}" != "gcp-user-activity-schema-audit" ]]; then
+          if [[ "${OPERATION}" == "mypage-auto-cd" ]]; then
+            # A system-only push runs System and Repository. Unaffected domains
+            # are expected to skip; failures in any selected domain still STOP.
+            [[ "${SYSTEM_RESULT}" == "success" ]] || {
+              echo "::error::System CI must succeed before MyPage automatic CD"
+              exit 1
+            }
+          elif [[ "${OPERATION}" != "gcp-user-activity-schema-audit" ]]; then
             if [[ "${GCP_TERRAFORM_VALIDATE_RESULT}" != "success" || "${SYSTEM_RESULT}" != "success" ||
                   "${FRONTEND_RESULT}" != "success" || "${TOOLS_RESULT}" != "success" || "${INFRA_RESULT}" != "success" ]]; then
               echo "::error::Full credentialless CI must succeed before a write-capable operation"
