@@ -37,7 +37,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') }}
+  cancel-in-progress: ${{ !((github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') || (github.event_name == 'push' && github.ref == 'refs/heads/integration/mypage-canon-20261006')) }}
 
 jobs:
   changes:
@@ -130,6 +130,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      actions: write
       id-token: write
     uses: ./.github/workflows/ci-operations.yml
     with:
