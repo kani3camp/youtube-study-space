@@ -18,7 +18,6 @@ jobs:
   report:
     name: FSL HTML Reports
     runs-on: ubuntu-24.04
-    # 拡張したMyPage状態遷移モデルは、検証より描画に時間がかかる。
     timeout-minutes: 20
     steps:
       - name: Checkout
