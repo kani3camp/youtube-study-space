@@ -24,6 +24,19 @@ const (
 // 証拠確保と保護状態を一緒にコミットし、完了時は最新の実行保護世代にある同じ申請だけを解除する。
 type FirestoreDeletionStore struct{ Client *firestore.Client }
 
+const supportOperatorAudit = "support-operator-audit"
+
+type operatorAuditEvent struct {
+	SchemaVersion int64          `firestore:"schemaVersion"`
+	Environment   string         `firestore:"environment"`
+	Purpose       SupportPurpose `firestore:"purpose"`
+	Action        string         `firestore:"action"`
+	Actor         string         `firestore:"actor"`
+	Binding       string         `firestore:"binding"`
+	Fingerprint   string         `firestore:"fingerprint"`
+	At            time.Time      `firestore:"at"`
+}
+
 func (s *FirestoreDeletionStore) check(selector supportdelete.Selector) error {
 	if s == nil || s.Client == nil || selector.Validate() != nil || !strings.HasPrefix(s.Client.Collection(supportDeleteExecutions).Doc(selector.ExecutionRef).Path, "projects/"+selector.Target.ProjectID+"/databases/(default)/documents/") {
 		return supportdelete.ErrUnavailable

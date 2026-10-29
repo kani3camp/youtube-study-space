@@ -49,10 +49,6 @@ type ServerConfig struct {
 	Environment, ProjectID, ProjectNumber, WebAppID, PublicOrigin string
 	Policy                                                        Policy
 	HostingBackendHost                                            string
-	// 既定では無効。返信担当者とセッションなしの例外窓口が運用可能になり、
-	// D02/D03を解決した後だけ有効にする。
-	EnablePrivacyIntake bool
-	PrivacyIntakeSecret []byte
 	// 完全性を検証した過去期間だけを渡す。nilは履歴が取得不能であることを表す。
 	Coverage []Interval
 }
@@ -88,9 +84,6 @@ func (config ServerConfig) validate() error {
 		return apiError("TEMPORARY_UNAVAILABLE")
 	}
 	if config.HostingBackendHost != "" && !validHostingBackendHost(config.HostingBackendHost) {
-		return apiError("TEMPORARY_UNAVAILABLE")
-	}
-	if config.EnablePrivacyIntake && len(config.PrivacyIntakeSecret) < 32 {
 		return apiError("TEMPORARY_UNAVAILABLE")
 	}
 	if _, err := NewGoogleYouTubeOAuth("validation-only", "validation-only", config.PublicOrigin, nil); err != nil {
@@ -140,9 +133,6 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 		Maintenance: maintenance,
 		Auth:        &AuthService{Access: access, Store: store, Maintenance: maintenance, Provider: deps.OAuth, Minter: boundary, Policy: config.Policy, Now: now, Support: &FirestoreSupportStore{Client: deps.Firestore, Environment: config.Environment}},
 		BFF:         &BFF{Access: access, Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Coverage: append([]Interval(nil), config.Coverage...), Observe: deps.ReadObserver}, Environment: config.Environment, Now: now, Metadata: metadata},
-	}
-	if config.EnablePrivacyIntake {
-		handler.Intake = &FirestorePrivacyIntake{Client: deps.Firestore, Environment: config.Environment, IntakeSecret: append([]byte(nil), config.PrivacyIntakeSecret...)}
 	}
 	return handler, nil
 }

@@ -40,15 +40,6 @@ type SupportRequest struct {
 	ProofRef           string         `firestore:"proofRef"`
 	OAuthTransactionID string         `firestore:"oauthTransactionId"`
 	CompletedAt        *time.Time     `firestore:"completedAt"`
-	// 受付本文はサーバー専用とし、完了時に除去する。
-	// SubmissionHashで再試行を元の正確な申請に結び付け、別申請をまとめない。
-	SubmissionHash   string     `firestore:"submissionHash,omitempty"`
-	Body             string     `firestore:"body,omitempty"`
-	OperatorReply    string     `firestore:"operatorReply,omitempty"`
-	OperatorReplyAt  *time.Time `firestore:"operatorReplyAt,omitempty"`
-	OperatorRevision int64      `firestore:"operatorRevision,omitempty"`
-	ReplyOperationID string     `firestore:"replyOperationId,omitempty"`
-	ReplyDigest      string     `firestore:"replyDigest,omitempty"`
 }
 
 func validSupportEnvironment(environment string) bool {

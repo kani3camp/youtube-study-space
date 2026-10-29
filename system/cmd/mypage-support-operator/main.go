@@ -9,12 +9,8 @@ import (
 	"io"
 	"os"
 	"regexp"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"app.modules/core/mypage"
 )
@@ -25,21 +21,14 @@ var (
 )
 
 type proposal struct {
-	Action           string
-	Environment      string
-	Project          string
-	Purpose          mypage.SupportPurpose
-	RequestRef       string
-	ProofRef         string
-	OperationID      string
-	ExpectedRevision int64
-	ReplyFile        string
-	ReplyOperationID string
-	ActionEvidence   string
-	DeliveryAck      string
-	Execute          bool
-	Mock             bool
-	RequestFile      string
+	Action      string
+	Environment string
+	Project     string
+	Purpose     mypage.SupportPurpose
+	RequestRef  string
+	Execute     bool
+	Mock        bool
+	RequestFile string
 }
 
 type report struct {
@@ -77,7 +66,7 @@ func parse(args []string, get func(string) string) (proposal, error) {
 		values[args[i]] = args[i+1]
 		i++
 	}
-	allowed := map[string]bool{"--action": true, "--environment": true, "--project": true, "--purpose": true, "--request-ref": true, "--proof-ref": true, "--operation-id": true, "--expected-revision": true, "--reply-file": true, "--reply-operation-id": true, "--action-evidence": true, "--delivery-ack": true, "--request-file": true}
+	allowed := map[string]bool{"--action": true, "--environment": true, "--project": true, "--purpose": true, "--request-file": true}
 	for key := range values {
 		if !allowed[key] {
 			return proposal{}, fmt.Errorf("unknown")
@@ -85,8 +74,6 @@ func parse(args []string, get func(string) string) (proposal, error) {
 	}
 	p.Action, p.Environment, p.Project = values["--action"], values["--environment"], values["--project"]
 	p.Purpose = mypage.SupportPurpose(values["--purpose"])
-	p.RequestRef, p.ProofRef, p.OperationID = values["--request-ref"], values["--proof-ref"], values["--operation-id"]
-	p.ReplyFile, p.ReplyOperationID, p.ActionEvidence, p.DeliveryAck = values["--reply-file"], values["--reply-operation-id"], values["--action-evidence"], values["--delivery-ack"]
 	p.RequestFile = values["--request-file"]
 	if (p.Environment != "development" && p.Environment != "production") || !project.MatchString(p.Project) || p.Environment != get("MYPAGE_ENVIRONMENT") || p.Project != get("GOOGLE_CLOUD_PROJECT") || (p.Mock && p.Execute) {
 		return proposal{}, fmt.Errorf("binding")
@@ -112,33 +99,7 @@ func parse(args []string, get func(string) string) (proposal, error) {
 		}
 		return p, nil
 	}
-	if p.Mock || p.RequestFile != "" {
-		return proposal{}, fmt.Errorf("action")
-	}
-	revision, err := strconv.ParseInt(values["--expected-revision"], 10, 64)
-	if err != nil || revision < 0 || !opaque.MatchString(p.RequestRef) || !opaque.MatchString(p.ProofRef) || !opaque.MatchString(p.OperationID) {
-		return proposal{}, fmt.Errorf("binding")
-	}
-	p.ExpectedRevision = revision
-	switch p.Action {
-	case "reply":
-		if p.Purpose != mypage.SupportDelete && p.Purpose != mypage.SupportRevoke && p.Purpose != mypage.SupportDisclosure {
-			return proposal{}, fmt.Errorf("purpose")
-		}
-		if p.ReplyFile == "" || p.ReplyOperationID != "" || p.ActionEvidence != "" || p.DeliveryAck != "" {
-			return proposal{}, fmt.Errorf("reply")
-		}
-	case "complete":
-		if p.Purpose != mypage.SupportRevoke && p.Purpose != mypage.SupportDisclosure {
-			return proposal{}, fmt.Errorf("completion purpose")
-		}
-		if p.ReplyFile != "" || !opaque.MatchString(p.ReplyOperationID) || !opaque.MatchString(p.ActionEvidence) || !opaque.MatchString(p.DeliveryAck) || p.ExpectedRevision < 1 {
-			return proposal{}, fmt.Errorf("completion")
-		}
-	default:
-		return proposal{}, fmt.Errorf("action")
-	}
-	return p, nil
+	return proposal{}, fmt.Errorf("action")
 }
 
 func privateFile(path string, limit int64) ([]byte, error) {
@@ -162,24 +123,6 @@ func privateFile(path string, limit int64) ([]byte, error) {
 	return data, nil
 }
 
-func privateReply(path string) error {
-	data, err := privateFile(path, 2000)
-	if err != nil {
-		return err
-	}
-	// 検証はローカルで行い、本文や元のエラーを出力しない。
-	body := string(data)
-	if body != strings.TrimSpace(body) || !utf8.Valid(data) {
-		return fmt.Errorf("reply content")
-	}
-	for _, b := range body {
-		if unicode.IsControl(b) && b != '\n' {
-			return fmt.Errorf("reply content")
-		}
-	}
-	return nil
-}
-
 func command(args []string, get func(string) string, out io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -196,9 +139,6 @@ func commandWithIntake(ctx context.Context, args []string, get func(string) stri
 	}
 	p, err := parse(args, get)
 	if err != nil {
-		return finish(2)
-	}
-	if p.Action == "reply" && privateReply(p.ReplyFile) != nil {
 		return finish(2)
 	}
 	var input humanRequest

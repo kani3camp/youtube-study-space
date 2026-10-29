@@ -119,7 +119,6 @@ func TestStartupAssemblesBoundedHTTPServerAndClosesDatabaseAfterServing(t *testi
 				require.Equal(t, io.Discard, server.ErrorLog.Writer())
 				handler, ok := server.Handler.(*mypage.HTTPHandler)
 				require.True(t, ok)
-				require.Nil(t, handler.Intake, "Oct9 automated Privacy intake remains off")
 				require.Equal(t, "https://example.invalid", handler.PublicOrigin)
 				require.Same(t, handler.Verifier, handler.Auth.Minter)
 				if metadataKey == "" {

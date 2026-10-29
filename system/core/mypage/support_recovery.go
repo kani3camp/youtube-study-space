@@ -19,7 +19,7 @@ type SupportRecoverySelector struct {
 }
 
 // SupportReceiptInspectionは本文・連絡先・証拠・チャレンジとそのハッシュを含めない。
-// RevisionはFirestore UpdateTimeとし、返信専用のOperatorRevisionは使わない。
+// RevisionはFirestore UpdateTimeとする。
 type SupportReceiptInspection struct {
 	RequestRef string
 	Revision   time.Time

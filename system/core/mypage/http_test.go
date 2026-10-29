@@ -213,3 +213,14 @@ func TestHTTPSecurityHeadersApplyToErrorsAndOAuthRedirects(t *testing.T) {
 		}
 	}
 }
+
+// 廃止surfaceは認証依存にもデータにも到達しない。
+func TestRemovedPhaseTwoRoutesAreNotExposed(t *testing.T) {
+	for _, path := range []string{"/api/mypage/history", "/api/privacy/requests", "/api/privacy/requests/status"} {
+		h, _, _, _ := boundaryFixture()
+		w := boundaryRequest(h, "GET", path, "")
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("removed route %s: status=%d", path, w.Code)
+		}
+	}
+}
