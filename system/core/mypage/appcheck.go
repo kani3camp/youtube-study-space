@@ -2,151 +2,77 @@ package mypage
 
 import (
 	"context"
-	"crypto/rsa"
-	"encoding/json"
-	"io"
-	"net/http"
 	"regexp"
-	"sync"
+	"slices"
+	"strings"
 	"time"
 
-	jose "github.com/go-jose/go-jose/v4"
-	"github.com/go-jose/go-jose/v4/jwt"
-	"golang.org/x/sync/singleflight"
+	firebase "firebase.google.com/go/v4"
+	"firebase.google.com/go/v4/appcheck"
+	"google.golang.org/api/option"
 )
-
-const appCheckJWKSURL = "https://firebaseappcheck.googleapis.com/v1/jwks"
 
 var projectNumberPattern = regexp.MustCompile(`^[1-9][0-9]{0,19}$`)
 
-// AppCheckVerifierはFirebase公式のJWT検証手順に従う。
-// 環境のissuer/audience/AppIDを完全一致で確認し、JWKSを上限付きで必要時に更新する。
-// 認証情報は使わず、コンストラクターは鍵の取得やバックグラウンドループを開始しない。
-type AppCheckVerifier struct {
-	projectNumber, appID   string
-	client                 *http.Client
-	now                    func() time.Time
-	mu                     sync.Mutex
-	keys                   jose.JSONWebKeySet
-	fetchedAt, attemptedAt time.Time
-	group                  singleflight.Group
+// FirebaseAppCheckClientは公式SDKが署名・標準claim・JWKSを検証する境界。
+type FirebaseAppCheckClient interface {
+	VerifyToken(string) (*appcheck.DecodedAppCheckToken, error)
 }
 
-func NewAppCheckVerifier(projectNumber, appID string, client *http.Client, now func() time.Time) (*AppCheckVerifier, error) {
-	if !projectNumberPattern.MatchString(projectNumber) || len(appID) > 256 || len(appID) <= len("1:"+projectNumber+":web:") || appID[:len("1:"+projectNumber+":web:")] != "1:"+projectNumber+":web:" || now == nil {
+// NewFirebaseAppCheckClientは起動時にだけ呼ぶ。ctxは初回公開JWKS取得の期限を制限する。
+// 定期更新は公式SDKがプロセス内で管理する。
+// App Checkのaudienceはproject numberを使うため、Authとは別のAppに固定する。
+// 署名鍵は公開JWKSから得る。ADCやサービスアカウント鍵は不要。
+func NewFirebaseAppCheckClient(ctx context.Context, projectNumber string) (FirebaseAppCheckClient, error) {
+	if !projectNumberPattern.MatchString(projectNumber) || ctx.Err() != nil {
 		return nil, apiError("TEMPORARY_UNAVAILABLE")
 	}
-	bounded := http.Client{Timeout: 2 * time.Second}
-	if client != nil {
-		bounded = *client
-	}
-	if bounded.Timeout <= 0 || bounded.Timeout > 2*time.Second {
-		bounded.Timeout = 2 * time.Second
-	}
-	bounded.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	return &AppCheckVerifier{projectNumber: projectNumber, appID: appID, client: &bounded, now: now}, nil
-}
-
-func (v *AppCheckVerifier) cachedKey(kid string) (*rsa.PublicKey, bool) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if v.fetchedAt.IsZero() || v.now().Before(v.fetchedAt) || v.now().Sub(v.fetchedAt) >= 6*time.Hour {
-		return nil, false
-	}
-	keys := v.keys.Key(kid)
-	if len(keys) != 1 {
-		return nil, false
-	}
-	key, ok := keys[0].Key.(*rsa.PublicKey)
-	return key, ok
-}
-
-func (v *AppCheckVerifier) publicKey(ctx context.Context, kid string) (*rsa.PublicKey, error) {
-	if key, ok := v.cachedKey(kid); ok {
-		return key, nil
-	}
-	result := v.group.DoChan("jwks", func() (any, error) {
-		if key, ok := v.cachedKey(kid); ok {
-			return key, nil
-		}
-		v.mu.Lock()
-		now := v.now()
-		// 未知のkidや取得失敗により、拒否したトークンごとに取得が発生しないようにする。
-		if !v.attemptedAt.IsZero() && !now.Before(v.attemptedAt) && now.Sub(v.attemptedAt) < time.Minute {
-			v.mu.Unlock()
-			return nil, apiError("APP_CHECK_REQUIRED")
-		}
-		v.attemptedAt = now
-		v.mu.Unlock()
-		fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
-		defer cancel()
-		request, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, appCheckJWKSURL, nil)
-		if err != nil {
-			return nil, apiError("APP_CHECK_REQUIRED")
-		}
-		response, err := v.client.Do(request)
-		if err != nil {
-			return nil, apiError("APP_CHECK_REQUIRED")
-		}
-		defer response.Body.Close() //nolint:errcheck // Read-only JWKS close errors cannot alter validation and must not be logged.
-		if response.StatusCode != 200 {
-			return nil, apiError("APP_CHECK_REQUIRED")
-		}
-		data, err := io.ReadAll(io.LimitReader(response.Body, 65537))
-		if err != nil || len(data) > 65536 {
-			return nil, apiError("APP_CHECK_REQUIRED")
-		}
-		var keys jose.JSONWebKeySet
-		if json.Unmarshal(data, &keys) != nil || len(keys.Keys) == 0 || len(keys.Keys) > 32 {
-			return nil, apiError("APP_CHECK_REQUIRED")
-		}
-		seen := map[string]bool{}
-		for _, key := range keys.Keys {
-			rsaKey, ok := key.Key.(*rsa.PublicKey)
-			if !ok || rsaKey.N.BitLen() < 2048 || key.KeyID == "" || seen[key.KeyID] || !key.Valid() || !key.IsPublic() || (key.Algorithm != "" && key.Algorithm != "RS256") || (key.Use != "" && key.Use != "sig") {
-				return nil, apiError("APP_CHECK_REQUIRED")
-			}
-			seen[key.KeyID] = true
-		}
-		v.mu.Lock()
-		v.keys = keys
-		v.fetchedAt = v.now()
-		v.mu.Unlock()
-		if key, ok := v.cachedKey(kid); ok {
-			return key, nil
-		}
-		return nil, apiError("APP_CHECK_REQUIRED")
-	})
-	select {
-	case <-ctx.Done():
-		return nil, apiError("APP_CHECK_REQUIRED")
-	case <-result:
-		// 並行する呼び出し元は別のkidを待つ場合があるため、自分の鍵を確認する。
-		if key, ok := v.cachedKey(kid); ok {
-			return key, nil
-		}
-		return nil, apiError("APP_CHECK_REQUIRED")
-	}
-}
-
-func (v *AppCheckVerifier) Verify(ctx context.Context, raw string) error {
-	if ctx.Err() != nil || raw == "" || len(raw) > 16384 {
-		return apiError("APP_CHECK_REQUIRED")
-	}
-	token, err := jwt.ParseSigned(raw, []jose.SignatureAlgorithm{jose.RS256})
-	if err != nil || len(token.Headers) != 1 {
-		return apiError("APP_CHECK_REQUIRED")
-	}
-	header := token.Headers[0]
-	if header.KeyID == "" || len(header.KeyID) > 256 || header.ExtraHeaders[jose.HeaderType] != "JWT" || header.JSONWebKey != nil {
-		return apiError("APP_CHECK_REQUIRED")
-	}
-	key, err := v.publicKey(ctx, header.KeyID)
+	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectNumber}, option.WithoutAuthentication())
 	if err != nil {
+		return nil, apiError("TEMPORARY_UNAVAILABLE")
+	}
+	client, err := app.AppCheck(ctx)
+	if err != nil {
+		return nil, apiError("TEMPORARY_UNAVAILABLE")
+	}
+	return client, nil
+}
+
+type AppCheckVerifier struct {
+	projectNumber, appID string
+	client               FirebaseAppCheckClient
+	now                  func() time.Time
+}
+
+func validAppCheckConfig(projectNumber, appID string) bool {
+	return projectNumberPattern.MatchString(projectNumber) && len(appID) <= 256 && strings.HasPrefix(appID, "1:"+projectNumber+":web:") && len(appID) > len("1:"+projectNumber+":web:")
+}
+
+func NewAppCheckVerifier(projectNumber, appID string, client FirebaseAppCheckClient, now func() time.Time) (*AppCheckVerifier, error) {
+	if !validAppCheckConfig(projectNumber, appID) || client == nil || now == nil {
+		return nil, apiError("TEMPORARY_UNAVAILABLE")
+	}
+	return &AppCheckVerifier{projectNumber: projectNumber, appID: appID, client: client, now: now}, nil
+}
+
+func (v *AppCheckVerifier) Verify(ctx context.Context, raw string) (resultErr error) {
+	// SDK v4.22の署名済みclaimの型assertion panicも認証拒否へ変換する。
+	// トークン・依存先エラー・panic値はログや公開応答へ出さない。
+	defer func() {
+		if recover() != nil {
+			resultErr = apiError("APP_CHECK_REQUIRED")
+		}
+	}()
+	if v == nil || ctx.Err() != nil || raw == "" || len(raw) > 16384 {
 		return apiError("APP_CHECK_REQUIRED")
 	}
-	var claims jwt.Claims
-	if token.Claims(key, &claims) != nil || claims.Expiry == nil || claims.IssuedAt == nil || !v.now().Before(claims.Expiry.Time()) || ctx.Err() != nil || claims.ValidateWithLeeway(jwt.Expected{Issuer: "https://firebaseappcheck.googleapis.com/" + v.projectNumber, AnyAudience: jwt.Audience{"projects/" + v.projectNumber}, Subject: v.appID, Time: v.now()}, 0) != nil {
+	token, err := v.client.VerifyToken(raw)
+	if err != nil || token == nil || ctx.Err() != nil {
+		return apiError("APP_CHECK_REQUIRED")
+	}
+	now := v.now()
+	// SDKはissuer prefixと非空subjectだけを検査する。ここでMyPageの環境・Web Appを固定する。
+	if token.Issuer != "https://firebaseappcheck.googleapis.com/"+v.projectNumber || !slices.Contains(token.Audience, "projects/"+v.projectNumber) || token.AppID != v.appID || token.Subject != v.appID || token.IssuedAt.Unix() <= 0 || token.IssuedAt.After(now) || !now.Before(token.ExpiresAt) {
 		return apiError("APP_CHECK_REQUIRED")
 	}
 	return nil

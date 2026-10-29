@@ -89,8 +89,10 @@ func (config ServerConfig) validate() error {
 	if _, err := NewGoogleYouTubeOAuth("validation-only", "validation-only", config.PublicOrigin, nil); err != nil {
 		return err
 	}
-	_, err := NewAppCheckVerifier(config.ProjectNumber, config.WebAppID, nil, time.Now)
-	return err
+	if !validAppCheckConfig(config.ProjectNumber, config.WebAppID) {
+		return apiError("TEMPORARY_UNAVAILABLE")
+	}
+	return nil
 }
 
 type ServerDependencies struct {
@@ -99,7 +101,7 @@ type ServerDependencies struct {
 	OAuth          YouTubeOAuth
 	Metadata       MetadataRefresher
 	PublicMetadata PublicMetadataReader
-	AppCheckHTTP   *http.Client
+	AppCheck       FirebaseAppCheckClient
 	Now            func() time.Time
 	// DEV専用で本人情報を含まない、任意の原価観測フック。
 	ReadObserver func(SnapshotReadObservation)
@@ -108,14 +110,14 @@ type ServerDependencies struct {
 // NewMyPageServerはハンドラーを構築するだけで、初期化時の入出力、
 // サービスアカウント作成、シークレット取得、待ち受け・配備、通知は行わない。
 func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler, error) {
-	if config.validate() != nil || deps.Firestore == nil || deps.Firebase == nil || deps.OAuth == nil {
+	if config.validate() != nil || deps.Firestore == nil || deps.Firebase == nil || deps.OAuth == nil || deps.AppCheck == nil {
 		return nil, apiError("TEMPORARY_UNAVAILABLE")
 	}
 	now := deps.Now
 	if now == nil {
 		now = time.Now
 	}
-	appCheck, err := NewAppCheckVerifier(config.ProjectNumber, config.WebAppID, deps.AppCheckHTTP, now)
+	appCheck, err := NewAppCheckVerifier(config.ProjectNumber, config.WebAppID, deps.AppCheck, now)
 	if err != nil {
 		return nil, err
 	}

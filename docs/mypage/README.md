@@ -51,7 +51,9 @@ GoogleプロバイダーとFirebaseトークン発行はインターフェース
 
 FirebaseBoundaryは、公式Admin SDKのVerifyIDToken/CustomTokenインターフェースを使う。署名検証済みのトークンについて、固定プロジェクトのissuer/audience、custom provider、テナントがないこと、チャンネル形式のUIDとsubjectの一致、期限・発行時刻・認証時刻を追加検証する。SDKやトークンのエラーを公開メッセージやログへ転記しない。発行処理には、サーバーが確認したチャンネルUIDだけを渡す。
 
-AppCheckVerifierは公式のJWT検証手順に沿って、RS256署名・JWT type・固定プロジェクト番号のissuer/audience・対象のWeb App ID・期限・発行時刻を検証する。JWKSは固定のv1エンドポイントから必要時に取得し、最大6時間キャッシュする。取得処理は2秒に制限し、サイズと鍵数にも上限を設ける。未知のkidや取得失敗時には再取得の間隔を制限し、singleflightで同時取得をまとめる。コンストラクターは通信やバックグラウンドループを開始しない。SDKの即時初期化型AppCheckクライアントは使わず、リクエストのcontextと合成HTTPトランスポートで検証できる構成を採用した。
+AppCheckVerifierは公式Firebase Admin Go SDKの`VerifyToken`へRS256署名・JWT type・標準claim・JWKSキャッシュ/更新を委譲する。MyPage固有のproject number issuer/audience・Web App ID・必須iat/exp・厳密な時刻境界だけを薄いwrapperで確認する。SDKの不正claim型によるpanicも固定の認証拒否へ変換し、token/依存先エラーは出力しない。初回JWKS取得は起動予算10秒内で行い、handler構築はI/Oを行わない。SDKはproject ID文字列をaudienceへ連結するため、App Check専用Appへproject numberを渡す（Auth用Appはproject IDのまま）。
+
+独自のJWT parser・JWKS取得/鍵サイズ制限・singleflight・未知kid再取得・6時間後の独自失効は撤去し、鍵の信頼と更新は標準SDKの責任とする。採用中SDKは公開JWKSを起動時取得し、6時間ごとに更新、未知kidは拒否する。独自HTTP clientの注入や公開の終了APIはない。これらは保守対象を標準SDKに集約するための運用差分であり、署名/期限/環境/app不一致の拒否を緩和しない。DEVでの起動・鍵更新時の可用性は次回配備受入で確認する。
 
 一次資料: [App Check custom backend verification](https://firebase.google.com/docs/app-check/custom-resource-backend)、[Firebase ID token verification](https://firebase.google.com/docs/auth/admin/verify-id-tokens)、[custom token signing](https://firebase.google.com/docs/auth/admin/create-custom-tokens)。
 
