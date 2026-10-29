@@ -53,11 +53,12 @@ type intakeReceipt struct {
 }
 
 type intakeRuntime struct {
+	close                func()
 	environment, project string
 	creator              supportCreator
 	recovery             supportRecovery
 	// 申請ID・対象チャンネル・サポートチャレンジ・Firebase本人情報・ADCだけでは運用権限にならない。
-	// 実環境用の実装は含めない。
+	// 実環境はliveIntakeFactoryがowner-controlled GCP IAMで組み立てる。
 	authorize func(context.Context, intakeIntent) (intakeGrant, error)
 	// 非公開の受け渡しは標準出力や監査とは分離し、依頼された操作の完了証拠やACKとして扱わない。
 	// 実際の配送機能は含めない。
@@ -140,6 +141,9 @@ func runHumanIntake(ctx context.Context, p proposal, input humanRequest, factory
 	runtime, err := factory(ctx, p)
 	if err != nil || ctx.Err() != nil || runtime == nil || (p.Action == "create" && runtime.creator == nil) || (p.Action != "create" && runtime.recovery == nil) || runtime.authorize == nil || runtime.deliver == nil || runtime.clock == nil || runtime.environment != p.Environment || runtime.project != p.Project {
 		return "TRUSTED_INTAKE_UNAVAILABLE"
+	}
+	if runtime.close != nil {
+		defer runtime.close()
 	}
 	now := runtime.clock().UTC()
 	if now.IsZero() || input.AcceptedAt.IsZero() || input.AcceptedAt.After(now) {

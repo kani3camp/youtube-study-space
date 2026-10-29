@@ -8,6 +8,25 @@
 
 ## private受付CLI
 
-`cmd/mypage-support-operator`の受付・inspect・recoverを維持する。入力は0600のprivate JSON、申告channelは本人確認前の対象候補であり権限ではない。SupportStoreの作成/recoveryはトランザクションで冪等性と期限を維持する。現時点のCLIはoffline preview/mockのみ。実接続は削除運用と併せてowner-controlled ADC/IAM・非公開handoff・環境分離で行う。未接続の経路を実稼働と扱わない。
+`cmd/mypage-support-operator`のcreate・inspect・recoverは、`--execute`時だけ所有者のADC/GCP IAMへ接続する。DEV/Productionのprojectは削除CLIと同じ固定mapping。Productionでは`--allow-production`を必要とする。Google Operator OIDCやCLI指定operator名では権限を作らず、server-side Firestore権限は既存IAMが検証する。
+
+入力は0600のprivate JSON。`requestId`（64桁hexの安定ID）、`targetChannel`、`acceptedAt`（UTC/microsecond精度）を指定する。申告channelは本人確認前の対象候補であり権限ではない。受付作成とrecoverはtransactionで同じ元受付時刻・7日期限を維持する。本文・連絡先をコピーしない。
+
+```sh
+# system/から。初回は--executeなしでoffline input確認。
+MYPAGE_ENVIRONMENT=development GOOGLE_CLOUD_PROJECT=test-youtube-study-space \
+  go run ./cmd/mypage-support-operator --action create --environment development \
+  --project test-youtube-study-space --purpose delete --request-file /private/path/intake.json
+
+# 明示実行。handoffは新規0600ファイルへだけ保存し、stdoutには出さない。
+MYPAGE_ENVIRONMENT=development GOOGLE_CLOUD_PROJECT=test-youtube-study-space \
+  go run ./cmd/mypage-support-operator --action create --environment development \
+  --project test-youtube-study-space --purpose delete --request-file /private/path/intake.json \
+  --execute --handoff-file /private/path/new-handoff.json
+```
+
+handoffのChallengeを対象環境の`/login?supportChallenge=...`へprivateに案内し、同じ目的・channelのfresh OAuthを完了する。証跡参照はサーバー側SupportRequestと照合し、削除CLIのprivate manifestへ転記する。通常loginを依頼本人確認の代用にしない。
+
+受付ACK/handoff消失時は新しい受付を作らず、同じrequestIdで`--action inspect`し、新規handoffファイルからReceipt/Revisionを確認する。未検証なら`expectedReceiptVersion`を入力へ加えて`--action recover`し、元の期限を変えずchallengeを再発行する。verified/claimed/完了済み受付を再発行で巻き戻さない。revoke/開示の実処置は人的private Runbookで証跡を残し、受付作成だけで完了としない。
 
 アプリ内受付/状態照会/返信、Google operator challenge/PKCE/JWKS/ID token authority、reply/complete用独自権限frameworkは撤去した。管理画面や複数operatorが必要になった段階で再設計する。既存GitHub/GCP identityを、ユーザーのfresh OAuth本人確認と混同しない。
