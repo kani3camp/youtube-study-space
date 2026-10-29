@@ -18,7 +18,8 @@ jobs:
   report:
     name: FSL HTML Reports
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # Expanded MyPage transition models take longer to render than to verify.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v7
