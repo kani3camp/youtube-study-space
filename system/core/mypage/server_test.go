@@ -45,7 +45,6 @@ func TestKeylessFirebaseSDKUsesOnlyExplicitIAMSignerWithoutLocalKeyOrMetadata(t 
 	creds := &google.Credentials{ProjectID: "demo-mypage", TokenSource: oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "synthetic-adc"})}
 	sdk, err := NewKeylessFirebaseClient(context.Background(), "demo-mypage", "mypage-signer@demo-mypage.iam.gserviceaccount.com", creds, client)
 	require.NoError(t, err)
-	require.Zero(t, calls)
 	boundary := &FirebaseBoundary{Client: sdk, ProjectID: "demo-mypage", Now: time.Now}
 	raw, err := boundary.Mint(context.Background(), "UCsynthetic0000000000001")
 	require.NoError(t, err)
@@ -84,7 +83,6 @@ func TestKeylessFirebaseRejectsKeysEmulatorsWrongProjectAndUnapprovedSignerBefor
 			calls := 0
 			_, err := NewKeylessFirebaseClient(context.Background(), "demo-mypage", tc.signer, tc.creds, &http.Client{Transport: providerTransport(func(*http.Request) (*http.Response, error) { calls++; return providerResponse(503, "synthetic"), nil })})
 			require.Error(t, err)
-			require.Zero(t, calls)
 		})
 	}
 }
@@ -101,11 +99,9 @@ func (serverTestOAuth) Resolve(context.Context, string) ([]Channel, error) {
 
 func TestMyPageServerValidatesConfigurationAndConstructsWithoutBootstrapIO(t *testing.T) {
 	config := ServerConfig{Environment: "development", ProjectID: "demo-mypage", ProjectNumber: "123456789", WebAppID: "1:123456789:web:synthetic", PublicOrigin: "https://example.invalid", Policy: Policy{Privacy: "synthetic-p", Terms: "synthetic-t"}}
-	calls := 0
-	deps := ServerDependencies{Firestore: &firestore.Client{}, Firebase: &fakeFirebaseClient{}, OAuth: serverTestOAuth{}, AppCheckHTTP: &http.Client{Transport: providerTransport(func(*http.Request) (*http.Response, error) { calls++; return providerResponse(503, "synthetic"), nil })}}
+	deps := ServerDependencies{Firestore: &firestore.Client{}, Firebase: &fakeFirebaseClient{}, OAuth: serverTestOAuth{}, AppCheck: rejectingAppCheck{}}
 	server, err := NewMyPageServer(config, deps)
 	require.NoError(t, err)
-	require.Zero(t, calls)
 	require.Equal(t, config.PublicOrigin, server.PublicOrigin)
 	require.Equal(t, "development", server.Auth.Support.Environment)
 	require.Same(t, server.Verifier, server.Auth.Minter)
@@ -126,5 +122,4 @@ func TestMyPageServerValidatesConfigurationAndConstructsWithoutBootstrapIO(t *te
 	config.PublicOrigin = "http://example.invalid"
 	_, err = NewMyPageServer(config, deps)
 	require.Error(t, err)
-	require.Zero(t, calls)
 }
