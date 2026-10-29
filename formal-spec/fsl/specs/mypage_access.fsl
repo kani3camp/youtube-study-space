@@ -1,0 +1,126 @@
+// 1チャンネルの独立した2つの制限理由と、許可時点を保存した1つのリクエストを追う。
+// checkpointは変更ごとに増える整数で表し、レコードの削除・再作成や数値の一巡は許さない。
+// これはServiceAccessControlの利用側のモデルであり、削除Bの全29手順の完了を証明するものではない。
+spec MyPageAccess {
+  type Detail = 0..2
+  enum Verdict { NoResult, Allowed, Restricted, Deleting, Unavailable }
+
+  state {
+    moderation: Bool,
+    deletion: Bool,
+    moderation_code: Detail,
+    moderation_ref: Detail,
+    deletion_ref: Detail,
+    readable: Bool,
+    checkpoint: Int,
+    pending: Bool,
+    captured: Int,
+    verdict: Verdict
+  }
+
+  init {
+    moderation = false
+    deletion = false
+    moderation_code = 0
+    moderation_ref = 0
+    deletion_ref = 0
+    readable = true
+    checkpoint = 0
+    pending = false
+    captured = 0
+    verdict = NoResult
+  }
+
+  @requirement("REQ-MYPAGE-ACCESS-001", "moderationとprivacyDeletionは独立して更新し、もう一方の制限を解除しない")
+  action set_moderation(active: Bool, code: Detail, reference: Detail) {
+    requires (active and code != 0 and reference != 0) or (not active and code == 0 and reference == 0)
+    // action内の右辺はすべて変更前の状態を読む。比較を先に書き、通常の逐次代入と誤読しないようにする。
+    if active != moderation or code != moderation_code or reference != moderation_ref {
+      checkpoint = checkpoint + 1
+    }
+    moderation = active
+    moderation_code = code
+    moderation_ref = reference
+    ensures deletion == old(deletion) and deletion_ref == old(deletion_ref)
+  }
+
+  @requirement("REQ-MYPAGE-ACCESS-001", "moderationとprivacyDeletionは独立して更新し、もう一方の制限を解除しない")
+  action set_deletion(active: Bool, reference: Detail) {
+    requires (active and reference != 0) or (not active and reference == 0)
+    if active != deletion or reference != deletion_ref {
+      checkpoint = checkpoint + 1
+    }
+    deletion = active
+    deletion_ref = reference
+    ensures moderation == old(moderation) and moderation_code == old(moderation_code) and moderation_ref == old(moderation_ref)
+  }
+
+  action set_readable(available: Bool) {
+    readable = available
+  }
+
+  @requirement("REQ-MYPAGE-ACCESS-002", "アクセス制御の対象となる処理の前に最新の制限状態を読み、許可された時点のcheckpointを保存する")
+  action begin_protected_request() {
+    requires not pending
+    requires readable
+    requires not moderation
+    requires not deletion
+    pending = true
+    captured = checkpoint
+    verdict = NoResult
+  }
+
+  @requirement("REQ-MYPAGE-ACCESS-003", "制限情報の取得障害やcheckpointの不一致を、古いデータや一部のデータを返す成功応答に置き換えない")
+  @requirement("REQ-MYPAGE-ACCESS-004", "両方の制限理由が有効なら、削除中の表示を優先する")
+  action finish_protected_request() {
+    requires pending
+    pending = false
+    if not readable {
+      verdict = Unavailable
+    } else {
+      if deletion {
+        verdict = Deleting
+      } else {
+        if moderation {
+          verdict = Restricted
+        } else {
+          if captured != checkpoint {
+            verdict = Unavailable
+          } else {
+            verdict = Allowed
+          }
+        }
+      }
+    }
+    // verdictは読み取り・更新確定・結果返却の時点の判定を表す。後の利用制限を過去の判定に適用しない。
+    ensures verdict == Allowed => (old(readable) and not old(moderation) and not old(deletion) and old(captured) == old(checkpoint))
+    ensures old(readable) and old(deletion) => verdict == Deleting
+    ensures not old(readable) => verdict == Unavailable
+  }
+
+  @requirement("REQ-MYPAGE-ACCESS-005", "有効状態・理由コード・参照値が同じならcheckpointを変えず、いずれかが変わるときは増加させる")
+  trans CheckpointChangesOnlyWithReasonDetails {
+    (moderation == old(moderation) and deletion == old(deletion) and moderation_code == old(moderation_code) and moderation_ref == old(moderation_ref) and deletion_ref == old(deletion_ref)) => checkpoint == old(checkpoint)
+  }
+
+  @requirement("REQ-MYPAGE-ACCESS-005", "有効状態・理由コード・参照値が同じならcheckpointを変えず、いずれかが変わるときは増加させる")
+  trans ChangedReasonDetailsAdvanceCheckpoint {
+    (moderation != old(moderation) or deletion != old(deletion) or moderation_code != old(moderation_code) or moderation_ref != old(moderation_ref) or deletion_ref != old(deletion_ref)) => checkpoint == old(checkpoint) + 1
+  }
+
+  invariant InactiveReasonHasNoDetails {
+    (not moderation => (moderation_code == 0 and moderation_ref == 0)) and
+    (not deletion => deletion_ref == 0)
+  }
+
+  invariant CapturedCheckpointNeverInFuture { captured <= checkpoint }
+
+  reachable ProtectedRequestCanSucceed { verdict == Allowed }
+  reachable IndependentReasonsCanCoexist { moderation and deletion }
+  reachable UnblockPreservesDeletion { not moderation and deletion and checkpoint >= 3 }
+  reachable RestrictionCanRejectPendingRequest { verdict == Restricted }
+  reachable DeletionTakesPrecedence { verdict == Deleting and moderation and deletion }
+  reachable ChangedCheckpointRejectsEvenAfterUnblock {
+    verdict == Unavailable and readable and not moderation and not deletion and captured < checkpoint
+  }
+}

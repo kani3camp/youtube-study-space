@@ -27,9 +27,12 @@ CI を緑にすること自体を目的に仕様を弱めてはいけません�
 - `fsl/`: FSL による形式仕様、検証、language-neutral conformance vector / HTML review report の生成
 - `SeatSession`: 座席の Work / Break 状態遷移
 - `SeatAllocation`: 入室・空席衝突・メンバー席アクセス・席移動・退室の安全条件
+- `MyPageOAuth`: ログイン用とサポート用の認証の分離、コールバック処理の確保・認証の確定・外部サービスでのトークン発行を一度だけ行う条件
+- `MyPageSession`: 本人やセッションの世代を跨ぐ遅延応答の拒否、ブラウザ内の個人データの即時破棄と一時障害時の保持
+- `MyPageAccess`: 独立した制限理由、保存したアクセス許可と現在の許可の照合、取得障害時の拒否
 - `system/core/repository/seat_formalspec_test.go`: `SeatSession` 用の `formalspec` build tag Go conformance adapter
 
-全 FSL spec は CI で bounded verification されます。`SeatSession` はさらに FSL が生成した conformance vector を oracle として実 `SeatDoc` と照合します。`SeatAllocation` は高位の安全モデルとして導入し、実装 conformance が未接続であることを明示します。
+全 FSL spec は CI で bounded verification されます。`SeatSession` はさらに FSL が生成した conformance vector を oracle として実 `SeatDoc` と照合します。`SeatAllocation`とMyPageの3仕様は安全条件を表すモデルであり、実装との自動照合は未接続です。MyPageで何を簡略化したか、どの実装・既存テストに対応するかは[仕様一覧](fsl/specs/README.md)に記載します。モデルの検証が成功しても、実際のGo/TypeScript/Firestore実装との一致や実環境の安全性が証明されたことにはなりません。
 
 vector / HTML は一時生成物でコミットせず、通常の `go test ./...` と本番ランタイムは FSL 非依存のまま維持します。
 

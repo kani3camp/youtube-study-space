@@ -25,6 +25,8 @@ source-onlyの[Privacy request intake](privacy-intake.md)はdefault offで、受
 
 Goのwire型・HTTP境界とFrontendの実装は各packageのテストで独立して検証する。provisioning / production deployment は含まない。
 
+認証、ブラウザ内の個人データ、ServiceAccessControlの安全条件は [MyPage FSL仕様](../../formal-spec/fsl/specs/README.md) で検証する。検証の範囲は指定した深さまでの状態遷移に限る。3モデルとも実装との自動照合は未接続であり、通常のGo/Vitestテスト、Firestore Emulator、実環境での公開前検証を代替しない。
+
 構成・公開段階・実環境の確認事項は [release runbook](release/README.md) を参照する。
 
 ## 認証とserver境界

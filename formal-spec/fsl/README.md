@@ -27,6 +27,9 @@ bash .github/scripts/run-formal-spec-tests.sh
 ```bash
 bash formal-spec/fsl/scripts/report.sh seat_session
 bash formal-spec/fsl/scripts/report.sh seat_allocation
+bash formal-spec/fsl/scripts/report.sh mypage_oauth
+bash formal-spec/fsl/scripts/report.sh mypage_session
+bash formal-spec/fsl/scripts/report.sh mypage_access
 ```
 
 対応している FSL 開発環境は Linux x86_64 / arm64 と macOS Apple Silicon です。`fslc` は `formal-spec/fsl/.tools/` にキャッシュされ、生成した conformance JSON / HTML は `formal-spec/fsl/generated/` に置かれ、どちらもコミットされません。
@@ -35,14 +38,16 @@ bash formal-spec/fsl/scripts/report.sh seat_allocation
 
 - `FSLC`: 既存の `fslc` 実行ファイルを明示する
 - `FSL_TOOL_DIR`: ダウンロード先を変更する
-- `FSL_VERIFY_DEPTH`: BMC の depth を変更する（既定 8）
+- `FSL_VERIFY_DEPTH`: BMCの検証深度を変更する（既定はMyPageOAuthが12、その他が8）
 - `FSL_CONFORMANCE_DEPTH`: SeatSession conformance vector の探索 depth を変更する（既定 4）
-- `FSL_REPORT_DEPTH`: HTML レポートの検証 depth を変更する（既定 8）
+- `FSL_REPORT_DEPTH`: HTMLレポートの検証深度を変更する（既定はMyPageOAuthが12、その他が8）
 - `FSL_GENERATED_DIR`: conformance JSON の生成先を変更する
+
+MyPageの回帰検査は`verify.sh`から実行します。メンテナンス中のログアウト・pagehide、復元中の制限、認証確定前後の制限解除、理由コード・参照値の変更を操作列で確認します。7件の意図的な変異が構文エラーではなく安全条件の違反として検出されることも確認します。これはモデルの回帰検査であり、実装との自動照合ではありません。OAuthの到達条件には既定深度で4手以上の余裕を要求します。
 
 ## Requirement traceability
 
-`SeatSession` の `REQ-SEAT-*`、`SeatAllocation` の `REQ-ALLOC-*` は FSL の正準な `@requirement(id, text)` metadata として対象 action / invariant に付与します。これにより verifier の診断や HTML レポートから、どの宣言がどの契約を担うか追跡できます。
+`SeatSession` の `REQ-SEAT-*`、`SeatAllocation` の `REQ-ALLOC-*`、MyPage の `REQ-MYPAGE-AUTH-*` / `REQ-MYPAGE-SESSION-*` / `REQ-MYPAGE-ACCESS-*` は、FSLの標準形式である`@requirement(id, text)`で操作・不変条件・遷移条件に付けます。検証ツールの診断やHTMLレポートから、それぞれの宣言がどの要件に対応するかを追跡できます。
 
 requirement metadata は検証そのものの代替ではありません。契約の意味は action / invariant の式で検証し、ID と説明はレビュー時のトレーサビリティとして使います。
 
@@ -52,18 +57,20 @@ PR の `Formal Spec (FSL)` job では `specs/*.fsl` 全体に対して `check` �
 
 ```text
 all specs: fslc check
-all specs: fslc verify --depth 8 --vacuity error
+MyPageOAuth: fslc verify --depth 12 --vacuity error
+other specs: fslc verify --depth 8 --vacuity error
+MyPage models: regression traces / safety mutations
 SeatSession: fslc conformance --depth 4
 SeatSession: Go conformance adapter (build tag: formalspec)
 ```
 
-`SeatSession` は実 Go adapter まで接続済みです。`SeatAllocation` はまず高位の割当安全条件を独立した有限モデルとして検証し、実装 conformance は Firestore transaction / WorkspaceApp 境界を壊さず接続できる方法を別途設計します。未接続なのに実装との一致を証明したとは扱いません。
+`SeatSession` は実 Go adapter まで接続済みです。`SeatAllocation` はまず高位の割当安全条件を独立した有限モデルとして検証し、実装 conformance は Firestore transaction / WorkspaceApp 境界を壊さず接続できる方法を別途設計します。`MyPageOAuth`・`MyPageSession`・`MyPageAccess`も独立した安全モデルであり、実装との自動照合は未接続です。[各モデルの範囲・対応実装・既存テスト](specs/README.md)を確認してください。未接続のモデルの検証結果を、実装との一致の証明とは扱いません。
 
 Go adapter は FSL の `conformance.v1` JSON を読み、各 reachable state / action instance について `SeatDoc` の実装結果を照合します。`requires_failed` の vector では Go 側も error を返し、`SeatDoc` が変更されないことまで確認します。仕様で新しい outcome が現れた場合は自動で skip せず、分類を要求して失敗します。
 
 ## Review report
 
-`Formal Spec Report` workflow は形式仕様が変わった PR で全 `specs/*.fsl` に対して `fslc html --depth 8` を実行し、自己完結 HTML 群を GitHub Actions artifact `fsl-spec-reports` として 14 日間保持します。main formal gate と分離することで、検証・conformance の gate にレポート生成コストを重複させません。
+`Formal Spec Report` workflow は形式仕様が変わったPRで全`specs/*.fsl`に対して、検証と同じ既定深度で`fslc html`を実行し、自己完結HTML群をGitHub Actions artifact `fsl-spec-reports`として14日間保持します。main formal gateと分離することで、検証・conformanceのgateにレポート生成コストを重複させません。
 
 レポートは state / action / property、requirement metadata、検証結果、witness などを CLI なしでレビューするための補助資料です。どれか1つでも HTML 生成に失敗した場合は `Formal Spec Report` workflow 自体が失敗します。
 
