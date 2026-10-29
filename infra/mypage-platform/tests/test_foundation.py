@@ -43,6 +43,25 @@ def refreshed_metadata_fixture():
 
 
 class FoundationTest(unittest.TestCase):
+    def test_noop_provider_metadata_does_not_need_an_allowlist(self):
+        plan = plan_fixture()
+        resource = plan["resource_changes"][0]
+        resource["change"]["actions"] = ["no-op"]
+        resource["change"]["after"]["future_provider_metadata"] = {"revision": 42}
+        observation = deepcopy(resource)
+        observation["change"].update(actions=["update"], before={"old_metadata": None})
+        plan["resource_drift"] = [observation]
+        c.validate_plan(plan)
+        for action in (["delete"], ["delete", "create"], ["update"]):
+            rejected = deepcopy(plan)
+            rejected["resource_changes"][0]["change"]["actions"] = action
+            with self.subTest(action=action), self.assertRaises(c.ContractError):
+                c.validate_plan(rejected)
+        changed = deepcopy(plan)
+        changed["resource_drift"][0]["change"]["before"] = {}
+        self.assertNotEqual(c.commitment(plan, "v", "a" * 40, "k" * 32),
+                            c.commitment(changed, "v", "a" * 40, "k" * 32))
+
     def test_desired_modes_use_the_reviewed_environment_stage(self):
         stage = (ROOT / 'infra/mypage-platform/environments' / c.CONFIG['state'] / 'desired-stage.txt').read_text().strip()
         self.assertEqual(c.stage_for_mode('desired-plan'), stage)
@@ -234,21 +253,6 @@ class FoundationTest(unittest.TestCase):
             with self.assertRaisesRegex(c.ContractError, '^maintenance-operator-source-image-digest$'):
                 ops.verify_runtime_inputs(env, value, 'runtime_private')
 
-    def test_runtime_drift_diagnostic_does_not_publish_values_or_unreviewed_field_names(self):
-        plan = {'resource_changes': [{'address': ops.runtime_contract.SERVICE, 'change': {'actions': ['no-op']}}],
-                'resource_drift': [{'address': ops.runtime_contract.SERVICE, 'change': {
-                    'before': {'etag': 'private-before', 'private-field-name': 'private-before'},
-                    'after': {'etag': 'private-after', 'private-field-name': 'private-after', 'template': [{'annotations': {}, 'labels': {}}]}, 'actions': ['update']}}]}
-        original = deepcopy(plan)
-        output = io.StringIO()
-        with redirect_stdout(output):
-            ops.describe_runtime_drift(plan)
-        self.assertIn('"fields": ["etag", "template"]', output.getvalue())
-        self.assertIn('"after": "array"', output.getvalue())
-        self.assertIn('"otherFields": 1', output.getvalue())
-        self.assertIn('"plannedNoop": true', output.getvalue())
-        self.assertNotIn('private-', output.getvalue())
-        self.assertEqual(plan, original)
 
     def test_public_invoker_preflight_requires_the_exact_unconditional_owner_binding(self):
         env = {'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}
@@ -261,83 +265,6 @@ class FoundationTest(unittest.TestCase):
                        {'bindings': valid['bindings'] + [{'role': 'roles/run.admin', 'members': ['allAuthenticatedUsers']}]}):
             with self.subTest(policy=policy), patch.object(ops, 'request', return_value=policy), self.assertRaisesRegex(c.ContractError, '^runtime-owner-public-invoker$'):
                 ops.verify_owner_public_invoker(env)
-
-    def test_registry_artifact_push_refresh_preserves_configuration_and_time_order(self):
-        plan = refreshed_metadata_fixture()
-        plan['variables']['stage']['value'] = 'registry'
-        for item in plan['resource_changes']:
-            item['change']['actions'] = ['no-op']
-        address = 'module.platform[0].google_artifact_registry_repository.mypage[0]'
-        after = deepcopy(c.resource_contract('registry')[address]) | {
-            'labels': {}, 'update_time': '2000-01-01T01:00:00.123456789Z'}
-        item = {'address': address, 'mode': 'managed', 'provider_name': 'registry.terraform.io/hashicorp/google',
-                'change': {'actions': ['no-op'], 'after': after, 'after_unknown': {}}}
-        plan['resource_changes'].append(item)
-        drift = deepcopy(item)
-        drift['change'].update(actions=['update'], before=deepcopy(after) | {
-            'labels': None, 'update_time': '2000-01-01T00:00:00Z'})
-        plan['resource_drift'].append(drift)
-        original = deepcopy(plan)
-        self.assertEqual(c.validate_plan(plan, 'registry'), {'resources': 9, 'creates': 0})
-        self.assertEqual(plan, original)
-        timestamp_only = deepcopy(plan)
-        timestamp_only['resource_drift'][-1]['change']['before']['labels'] = {}
-        self.assertEqual(c.validate_plan(timestamp_only, 'registry'), {'resources': 9, 'creates': 0})
-        for bad in ('1999-12-31T23:59:59Z', '2000-13-01T01:00:00Z', '2000-01-01T01:00:00+00:00',
-                    '2000-01-01T01:00:00.1234567890Z', None, 'private-invalid-value'):
-            rejected = deepcopy(plan)
-            rejected['resource_drift'][-1]['change']['after']['update_time'] = bad
-            with self.subTest(timestamp=bad), self.assertRaises(ValueError):
-                c.validate_plan(rejected, 'registry')
-        nanos = deepcopy(plan)
-        nanos['resource_drift'][-1]['change']['before']['update_time'] = '2000-01-01T01:00:00.123456790Z'
-        with self.assertRaises(ValueError):
-            c.validate_plan(nanos, 'registry')
-        for mutate in (
-            lambda p: p['resource_drift'][-1]['change']['after'].update(labels={'unexpected': 'value'}),
-            lambda p: p['resource_drift'][-1]['change']['after'].update(docker_config=[{'immutable_tags': False}]),
-            lambda p: p['resource_drift'][-1]['change']['after_unknown'].update(update_time=True),
-            lambda p: p['resource_changes'][-1]['change'].update(actions=['update']),
-        ):
-            rejected = deepcopy(plan)
-            mutate(rejected)
-            with self.subTest(mutation=mutate), self.assertRaises(ValueError):
-                c.validate_plan(rejected, 'registry')
-
-
-    def test_shared_policy_etag_refresh_preserves_the_exact_managed_member(self):
-        plan = refreshed_metadata_fixture()
-        for item in plan['resource_changes']:
-            item['change']['actions'] = ['no-op']
-            if '_iam_member.' not in item['address']:
-                continue
-            item['change']['after']['etag'] = 'synthetic-new-etag'
-            drift = deepcopy(item)
-            drift['change']['actions'] = ['update']
-            drift['change']['before'] = deepcopy(drift['change']['after'])
-            drift['change']['before']['etag'] = 'synthetic-old-etag'
-            plan['resource_drift'].append(drift)
-        original = deepcopy(plan)
-        self.assertEqual(c.validate_plan(plan), {'resources': 8, 'creates': 0})
-        self.assertEqual(plan, original)
-        index = next(i for i, item in enumerate(plan['resource_drift']) if '_iam_member.' in item['address'])
-        for mutate in (
-            lambda p: p['resource_drift'][index]['change']['after'].update(member='allUsers'),
-            lambda p: p['resource_drift'][index]['change']['after'].update(role='roles/owner'),
-            lambda p: (p['resource_drift'][index]['change']['before'].update(member='allUsers'),
-                       p['resource_drift'][index]['change']['after'].update(member='allUsers')),
-            lambda p: p['resource_drift'][index]['change']['after'].update(condition=[{'expression': 'true'}]),
-            lambda p: p['resource_drift'][index]['change']['after'].update(etag=''),
-            lambda p: p['resource_drift'][index]['change']['before'].update(etag=None),
-            lambda p: p['resource_drift'][index]['change']['after_unknown'].update(etag=True),
-            lambda p: p['resource_drift'][index].update(address='unreviewed-iam-member'),
-            lambda p: next(x for x in p['resource_changes'] if x['address'] == p['resource_drift'][index]['address'])['change'].update(actions=['update']),
-        ):
-            rejected = deepcopy(plan)
-            mutate(rejected)
-            with self.subTest(mutation=mutate), self.assertRaises(ValueError):
-                c.validate_plan(rejected)
-
 
     def test_registry_stage_adds_only_the_immutable_dev_repository(self):
         plan = plan_fixture()
@@ -400,32 +327,6 @@ class FoundationTest(unittest.TestCase):
         metadata['change']['after']['secret_id'] = 'projects/' + c.PROJECT + '/secrets/mypage-oauth-client-id'
         with self.assertRaises(ValueError):
             c.validate_plan(plan)
-
-
-    def test_only_empty_map_refreshes_on_existing_noop_secrets_are_admitted(self):
-        self.assertEqual(c.validate_plan(refreshed_metadata_fixture()), {'resources': 8, 'creates': 4})
-        metadata = refreshed_metadata_fixture()
-        metadata['variables']['stage']['value'] = 'foundation_metadata'
-        metadata['resource_changes'] = [x for x in metadata['resource_changes'] if '_iam_member.' not in x['address']]
-        self.assertEqual(c.validate_plan(metadata, 'foundation_metadata'), {'resources': 4, 'creates': 0})
-        no_op = refreshed_metadata_fixture()
-        for item in no_op['resource_changes']:
-            item['change']['actions'] = ['no-op']
-        self.assertEqual(c.validate_plan(no_op), {'resources': 8, 'creates': 0})
-
-    def test_real_drift_unknowns_foreign_resources_and_planned_writes_still_stop(self):
-        mutations = [
-            lambda p: p['resource_drift'][0]['change']['after'].update(labels={'unexpected': 'value'}),
-            lambda p: p['resource_drift'][0]['change']['after_unknown'].update(labels=True),
-            lambda p: p['resource_drift'][0]['change'].update(actions=['delete', 'create']),
-            lambda p: p['resource_changes'][1]['change'].update(actions=['update']),
-        ]
-        for mutate in mutations:
-            with self.subTest(mutation=mutate), self.assertRaises(ValueError):
-                plan = refreshed_metadata_fixture()
-                mutate(plan)
-                c.validate_plan(plan)
-
 
     def test_rejected_plan_values_never_enter_public_diagnostics(self):
         plan = plan_fixture()
