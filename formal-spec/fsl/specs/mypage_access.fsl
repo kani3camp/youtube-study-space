@@ -1,6 +1,6 @@
-// 1channelの独立した2つの制限理由と、1つのcaptured requestを追う。
-// checkpointは変更ごとに増える整数へ射影し、削除/再作成・wraparoundは許さない。
-// これはSAC consumerのモデルであり、削除B全29stepの完了証明ではない。
+// 1チャンネルの独立した2つの制限理由と、許可時点を保存した1つのリクエストを追う。
+// checkpointは変更ごとに増える整数で表し、レコードの削除・再作成や数値の一巡は許さない。
+// これはServiceAccessControlの利用側のモデルであり、削除Bの全29手順の完了を証明するものではない。
 spec MyPageAccess {
   enum Verdict { NoResult, Allowed, Restricted, Deleting, Unavailable }
 
@@ -24,7 +24,7 @@ spec MyPageAccess {
     verdict = NoResult
   }
 
-  @requirement("REQ-MYPAGE-ACCESS-001", "moderationとprivacyDeletionは独立して更新し他方の制限を解除しない")
+  @requirement("REQ-MYPAGE-ACCESS-001", "moderationとprivacyDeletionは独立して更新し、もう一方の制限を解除しない")
   action set_moderation(active: Bool) {
     moderation = active
     if active != moderation {
@@ -33,7 +33,7 @@ spec MyPageAccess {
     ensures deletion == old(deletion)
   }
 
-  @requirement("REQ-MYPAGE-ACCESS-001", "moderationとprivacyDeletionは独立して更新し他方の制限を解除しない")
+  @requirement("REQ-MYPAGE-ACCESS-001", "moderationとprivacyDeletionは独立して更新し、もう一方の制限を解除しない")
   action set_deletion(active: Bool) {
     deletion = active
     if active != deletion {
@@ -46,7 +46,7 @@ spec MyPageAccess {
     readable = available
   }
 
-  @requirement("REQ-MYPAGE-ACCESS-002", "保護処理の前にfreshに制限状態を読み許可checkpointをcaptureする")
+  @requirement("REQ-MYPAGE-ACCESS-002", "アクセス制御の対象となる処理の前に最新の制限状態を読み、許可された時点のcheckpointを保存する")
   action begin_protected_request() {
     requires not pending
     requires readable
@@ -57,8 +57,8 @@ spec MyPageAccess {
     verdict = NoResult
   }
 
-  @requirement("REQ-MYPAGE-ACCESS-003", "制限store障害やcheckpoint不一致をstale/partial成功へ変換しない")
-  @requirement("REQ-MYPAGE-ACCESS-004", "両理由がactiveなら削除中の表示を優先する")
+  @requirement("REQ-MYPAGE-ACCESS-003", "制限情報の取得障害やcheckpointの不一致を、古いデータや一部のデータを返す成功応答に置き換えない")
+  @requirement("REQ-MYPAGE-ACCESS-004", "両方の制限理由が有効なら、削除中の表示を優先する")
   action finish_protected_request() {
     requires pending
     pending = false
@@ -79,18 +79,18 @@ spec MyPageAccess {
         }
       }
     }
-    // verdictはこのread/commit/publish時点の観測。後のblockを遡及適用しない。
+    // verdictは読み取り・更新確定・結果返却の時点の判定を表す。後の利用制限を過去の判定に適用しない。
     ensures verdict == Allowed => (old(readable) and not old(moderation) and not old(deletion) and old(captured) == old(checkpoint))
     ensures old(readable) and old(deletion) => verdict == Deleting
     ensures not old(readable) => verdict == Unavailable
   }
 
-  @requirement("REQ-MYPAGE-ACCESS-005", "同じ制限状態の再適用はcheckpointを変えず実変更は増加させる")
+  @requirement("REQ-MYPAGE-ACCESS-005", "同じ制限状態を再適用してもcheckpointを変えず、状態が変わるときは増加させる")
   trans CheckpointChangesOnlyWithReasons {
     (moderation == old(moderation) and deletion == old(deletion)) => checkpoint == old(checkpoint)
   }
 
-  @requirement("REQ-MYPAGE-ACCESS-005", "同じ制限状態の再適用はcheckpointを変えず実変更は増加させる")
+  @requirement("REQ-MYPAGE-ACCESS-005", "同じ制限状態を再適用してもcheckpointを変えず、状態が変わるときは増加させる")
   trans ChangedReasonAdvancesCheckpoint {
     (moderation != old(moderation) or deletion != old(deletion)) => checkpoint == old(checkpoint) + 1
   }

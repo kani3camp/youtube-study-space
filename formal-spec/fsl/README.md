@@ -45,7 +45,7 @@ bash formal-spec/fsl/scripts/report.sh mypage_access
 
 ## Requirement traceability
 
-`SeatSession` の `REQ-SEAT-*`、`SeatAllocation` の `REQ-ALLOC-*`、MyPage の `REQ-MYPAGE-AUTH-*` / `REQ-MYPAGE-SESSION-*` / `REQ-MYPAGE-ACCESS-*` は FSL の正準な `@requirement(id, text)` metadata として対象 action / invariant / trans に付与します。これにより verifier の診断や HTML レポートから、どの宣言がどの契約を担うか追跡できます。
+`SeatSession` の `REQ-SEAT-*`、`SeatAllocation` の `REQ-ALLOC-*`、MyPage の `REQ-MYPAGE-AUTH-*` / `REQ-MYPAGE-SESSION-*` / `REQ-MYPAGE-ACCESS-*` は、FSLの標準形式である`@requirement(id, text)`で操作・不変条件・遷移条件に付けます。検証ツールの診断やHTMLレポートから、それぞれの宣言がどの要件に対応するかを追跡できます。
 
 requirement metadata は検証そのものの代替ではありません。契約の意味は action / invariant の式で検証し、ID と説明はレビュー時のトレーサビリティとして使います。
 
@@ -60,7 +60,7 @@ SeatSession: fslc conformance --depth 4
 SeatSession: Go conformance adapter (build tag: formalspec)
 ```
 
-`SeatSession` は実 Go adapter まで接続済みです。`SeatAllocation` はまず高位の割当安全条件を独立した有限モデルとして検証し、実装 conformance は Firestore transaction / WorkspaceApp 境界を壊さず接続できる方法を別途設計します。`MyPageOAuth` / `MyPageSession` / `MyPageAccess` も独立した安全モデルで、実装 conformance は未接続です。[各モデルの範囲・対応実装・既存テスト](specs/README.md) を確認し、未接続のモデルを実装との一致の証明とは扱いません。
+`SeatSession` は実 Go adapter まで接続済みです。`SeatAllocation` はまず高位の割当安全条件を独立した有限モデルとして検証し、実装 conformance は Firestore transaction / WorkspaceApp 境界を壊さず接続できる方法を別途設計します。`MyPageOAuth`・`MyPageSession`・`MyPageAccess`も独立した安全モデルであり、実装との自動照合は未接続です。[各モデルの範囲・対応実装・既存テスト](specs/README.md)を確認してください。未接続のモデルの検証結果を、実装との一致の証明とは扱いません。
 
 Go adapter は FSL の `conformance.v1` JSON を読み、各 reachable state / action instance について `SeatDoc` の実装結果を照合します。`requires_failed` の vector では Go 側も error を返し、`SeatDoc` が変更されないことまで確認します。仕様で新しい outcome が現れた場合は自動で skip せず、分類を要求して失敗します。
 

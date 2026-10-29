@@ -1,6 +1,6 @@
-// 1つのOAuth transactionを追う。LoginとSupportの目的は作成後に変わらない。
-// 有効期限・同意版・captured access checkpointは真偽値へ射影する。
-// provider/mintはatomic store actionと分け、外部処理中の失敗・失効を許す。
+// 1つのOAuth認証処理を追う。LoginとSupportの目的は作成後に変わらない。
+// 有効期限内か、同意した文書のバージョンが一致するか、保存したアクセス許可が有効かを真偽値で表す。
+// 外部サービスによる認証・トークン発行は、分割できない保存処理と分け、外部処理中の失敗・失効を許す。
 spec MyPageOAuth {
   enum Purpose { Login, Support }
   enum Status { Idle, Pending, Processing, Verified, Consumed, Failed }
@@ -53,13 +53,13 @@ spec MyPageOAuth {
     policy_current = false
   }
 
-  // 古いlogin checkpointの失効は取り消さない。再ログインは別transaction。
+  // 古いログイン許可の失効は取り消さない。再ログインは別の認証処理として扱う。
   action invalidate_login_guard() {
     requires login_guard_current
     login_guard_current = false
   }
 
-  @requirement("REQ-MYPAGE-AUTH-001", "callbackは期限内のstate一致transactionを一度だけatomic claimする")
+  @requirement("REQ-MYPAGE-AUTH-001", "コールバックは有効期限内でstateが一致する認証処理を一度だけ確保し、競合する処理から同時に確保されないようにする")
   action claim(state_matches: Bool) {
     requires status == Pending
     requires unexpired
@@ -70,7 +70,7 @@ spec MyPageOAuth {
     ensures old(unexpired) and state_matches
   }
 
-  @requirement("REQ-MYPAGE-AUTH-002", "callbackのclaim後に唯一のchannelを確認してからconfirmへ進む")
+  @requirement("REQ-MYPAGE-AUTH-002", "コールバックの処理権を確保し、チャンネルが1つだけであることを確認してから確定へ進む")
   action verify_channel(unique_channel: Bool) {
     requires status == Processing
     requires unexpired
@@ -85,7 +85,7 @@ spec MyPageOAuth {
     status = Failed
   }
 
-  @requirement("REQ-MYPAGE-AUTH-003", "login confirmのconsumeとaccount更新は同じatomic transitionで一度だけ行う")
+  @requirement("REQ-MYPAGE-AUTH-003", "ログイン確定時の認証処理の使用済み化とアカウント更新は、分割できない1つの状態遷移で一度だけ行う")
   action confirm_login(confirmation_matches: Bool) {
     requires status == Verified
     requires purpose == Login
@@ -100,7 +100,7 @@ spec MyPageOAuth {
     ensures old(unexpired) and old(policy_current) and old(login_guard_current) and confirmation_matches
   }
 
-  @requirement("REQ-MYPAGE-AUTH-004", "support confirmはrequest/channel bindingを確認してproofだけを作りlogin権限を発行しない")
+  @requirement("REQ-MYPAGE-AUTH-004", "サポート用の確定処理は依頼とチャンネルの対応を確認し、本人確認の証跡だけを作ってログイン権限は発行しない")
   action confirm_support(confirmation_matches: Bool, binding_matches: Bool) {
     requires status == Verified
     requires purpose == Support
@@ -114,7 +114,7 @@ spec MyPageOAuth {
     ensures old(unexpired) and old(policy_current) and confirmation_matches and binding_matches
   }
 
-  @requirement("REQ-MYPAGE-AUTH-005", "mintはconsume後に一度だけ試行し失敗・ACK不明でもtransactionを再利用しない")
+  @requirement("REQ-MYPAGE-AUTH-005", "トークン発行は認証処理の使用済み化後に一度だけ試み、失敗した場合や結果を確認できない場合も認証処理を再利用しない")
   action attempt_mint(succeeds: Bool) {
     requires mint == Ready
     requires login_guard_current
@@ -126,7 +126,7 @@ spec MyPageOAuth {
     }
   }
 
-  @requirement("REQ-MYPAGE-AUTH-006", "外部mint中にlogin guardが失効した場合は生成tokenを返さない")
+  @requirement("REQ-MYPAGE-AUTH-006", "外部サービスでのトークン発行中にログインの許可条件が失効した場合は、生成したトークンを返さない")
   action finish_mint() {
     requires mint == InFlight
     if login_guard_current {
@@ -138,17 +138,17 @@ spec MyPageOAuth {
     ensures mint == Delivered => old(login_guard_current)
   }
 
-  @requirement("REQ-MYPAGE-AUTH-001", "callbackは期限内のstate一致transactionを一度だけatomic claimする")
+  @requirement("REQ-MYPAGE-AUTH-001", "コールバックは有効期限内でstateが一致する認証処理を一度だけ確保し、競合する処理から同時に確保されないようにする")
   invariant SingleClaimAndConsume {
     0 <= consumes and consumes <= claims and claims <= 1
   }
 
-  @requirement("REQ-MYPAGE-AUTH-003", "login confirmのconsumeとaccount更新は同じatomic transitionで一度だけ行う")
+  @requirement("REQ-MYPAGE-AUTH-003", "ログイン確定時の認証処理の使用済み化とアカウント更新は、分割できない1つの状態遷移で一度だけ行う")
   invariant AccountRequiresConsumedLogin {
     account_written == (status == Consumed and purpose == Login)
   }
 
-  @requirement("REQ-MYPAGE-AUTH-004", "support confirmはrequest/channel bindingを確認してproofだけを作りlogin権限を発行しない")
+  @requirement("REQ-MYPAGE-AUTH-004", "サポート用の確定処理は依頼とチャンネルの対応を確認し、本人確認の証跡だけを作ってログイン権限は発行しない")
   invariant SupportCannotMintOrWriteAccount {
     purpose == Support => (mint == NoMint and mint_attempts == 0 and not account_written)
   }
@@ -157,7 +157,7 @@ spec MyPageOAuth {
     receipt_written == (status == Consumed and purpose == Support)
   }
 
-  @requirement("REQ-MYPAGE-AUTH-005", "mintはconsume後に一度だけ試行し失敗・ACK不明でもtransactionを再利用しない")
+  @requirement("REQ-MYPAGE-AUTH-005", "トークン発行は認証処理の使用済み化後に一度だけ試み、失敗した場合や結果を確認できない場合も認証処理を再利用しない")
   invariant MintRequiresConsume {
     0 <= mint_attempts and mint_attempts <= consumes
   }
@@ -166,7 +166,7 @@ spec MyPageOAuth {
     old(status) == Consumed => status == Consumed
   }
 
-  // 失敗・consume済みの停止は意図した終端。再試行には別transactionが必要。
+  // 失敗や使用済み化後の停止は、意図した終了状態として扱う。再試行には別の認証処理が必要。
   terminal {
     status == Failed or (status == Consumed and
       (mint == NoMint or mint == Delivered or mint == Rejected or
