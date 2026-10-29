@@ -20,7 +20,11 @@ RELEASE = ROOT / 'infra/mypage-platform/environments/dev/runtime-release.json'
 
 
 def context(env):
-    hosting.context(env | {'MYPAGE_HOSTING_EXPECTED_SHA': env.get('MYPAGE_BACKEND_EXPECTED_SHA', '')})
+    # Hosting itself remains dispatch-only. Only image-release may accept a fixed DEV push.
+    event = env.get('GITHUB_EVENT_NAME')
+    c.need(event in {'workflow_dispatch', 'push'}, 'backend-event')
+    hosting.context(env | {'MYPAGE_HOSTING_EXPECTED_SHA': env.get('MYPAGE_BACKEND_EXPECTED_SHA', '')},
+                    event_name=event)
     c.need(not any(env.get(key) for key in ('AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY',
                                           'AWS_SESSION_TOKEN')), 'backend-no-state-credentials')
 
