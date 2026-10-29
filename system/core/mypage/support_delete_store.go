@@ -46,28 +46,10 @@ func (s *FirestoreDeletionStore) check(selector supportdelete.Selector) error {
 
 func readDeletionExecution(doc *firestore.DocumentSnapshot) (supportdelete.Execution, error) {
 	var e supportdelete.Execution
-	if doc == nil || (len(doc.Data()) < 12 || len(doc.Data()) > 14) || doc.DataTo(&e) != nil || e.Validate() != nil {
+	if doc == nil || len(doc.Data()) != 12 || doc.DataTo(&e) != nil || e.Validate() != nil {
 		return e, supportdelete.ErrUnavailable
 	}
 	data := doc.Data()
-	extras := 0
-	if ref, ok := data["bigQueryInventoryRef"]; ok {
-		extras++
-		value, typeOK := ref.(string)
-		if !typeOK || !supportdelete.ValidRef(value) {
-			return e, supportdelete.ErrUnavailable
-		}
-	}
-	if ref, ok := data["derivedInventoryRef"]; ok {
-		extras++
-		value, typeOK := ref.(string)
-		if !typeOK || !supportdelete.ValidRef(value) {
-			return e, supportdelete.ErrUnavailable
-		}
-	}
-	if len(data) != 12+extras {
-		return e, supportdelete.ErrUnavailable
-	}
 	for _, key := range []string{"selector", "manifest", "ownerRef", "revision", "generation", "guardSince", "cutoff", "acceptedAt", "deleteBy", "updatedAt", "cursor", "evidenceDigest"} {
 		if _, ok := data[key]; !ok {
 			return e, supportdelete.ErrUnavailable
@@ -260,9 +242,6 @@ func (s *FirestoreDeletionStore) Refresh(ctx context.Context, expected supportde
 		if result.Cursor > supportdelete.InspectionStart() && result.Cursor < supportdelete.ResumeStart() {
 			result.Cursor = supportdelete.InspectionStart()
 		}
-		if err := s.moveDeletionSnapshots(tx, e, result, false); err != nil {
-			return err
-		}
 		if tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), result, mergeDeletionExecution()) != nil {
 			return supportdelete.ErrUnavailable
 		}
@@ -289,9 +268,6 @@ func (s *FirestoreDeletionStore) Commit(ctx context.Context, expected supportdel
 		result.Revision++
 		result.EvidenceDigest = supportdelete.EvidenceDigest(e.EvidenceDigest, evidence)
 		result.UpdatedAt = now.UTC().Truncate(time.Microsecond)
-		if err := s.moveDeletionSnapshots(tx, e, result, false); err != nil {
-			return err
-		}
 		if tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), result, mergeDeletionExecution()) != nil {
 			return supportdelete.ErrUnavailable
 		}
@@ -321,13 +297,9 @@ func (s *FirestoreDeletionStore) Recover(ctx context.Context, proof supportdelet
 		if _, _, err = s.readFence(tx, e, true); err != nil {
 			return err
 		}
-		previous := e
 		e.OwnerRef = proof.NewOwnerRef
 		e.Revision++
 		e.UpdatedAt = now.UTC().Truncate(time.Microsecond)
-		if err := s.moveDeletionSnapshots(tx, previous, e, false); err != nil {
-			return err
-		}
 		if tx.Set(s.Client.Collection(supportDeleteExecutions).Doc(e.Selector.ExecutionRef), e, mergeDeletionExecution()) != nil {
 			return supportdelete.ErrUnavailable
 		}
@@ -366,7 +338,11 @@ func (s *FirestoreDeletionStore) Finalize(ctx context.Context, expected supportd
 		// 最小限の推測不能な完了受付には、チャンネル・証拠・申請への関連を残さない。
 		// 無効状態の制御チェックポイントは、TTL・リセット・削除を行わず保持する。
 		terminal := map[string]interface{}{"schemaVersion": int64(1), "acceptedAt": e.AcceptedAt, "deleteBy": e.DeleteBy, "completedAt": now.UTC().Truncate(time.Microsecond)}
-		if err := s.moveDeletionSnapshots(tx, e, e, true); err != nil {
+		currentAuthCleanup, err := s.prepareCurrentAuthTarget(tx, e)
+		if err != nil {
+			return err
+		}
+		if err := currentAuthCleanup(); err != nil {
 			return err
 		}
 		for _, ref := range []*firestore.DocumentRef{s.Client.Collection("oauth-transactions").Doc(receipt.OAuthTransactionID), s.Client.Collection("support-request-ids").Doc(digest(receipt.Environment + ":" + receipt.RequestID)), s.Client.Collection(supportDeleteClaims).Doc(e.Selector.ProofRef)} {
@@ -395,8 +371,7 @@ func completionBinding(selector supportdelete.Selector, manifest supportdelete.M
 	return digest(selector.Target.Environment + ":" + selector.Target.ProjectID + ":" + selector.Target.ChannelID + ":" + selector.RequestRef + ":" + selector.ExecutionRef + ":" + selector.ProofRef + ":" + manifest.Ref + ":" + manifest.Mode)
 }
 
-// 通常のチェックポイント更新では、任意の不変BQ取得マーカーを維持する。
-// 完了時の置換では、他の元参照とともに意図的に除去する。
+// 通常の更新では固定チェックポイントのフィールドだけを更新する。
 func mergeDeletionExecution() firestore.SetOption {
 	var paths []firestore.FieldPath
 	for _, key := range []string{"selector", "manifest", "ownerRef", "revision", "generation", "guardSince", "cutoff", "acceptedAt", "deleteBy", "updatedAt", "cursor", "evidenceDigest"} {

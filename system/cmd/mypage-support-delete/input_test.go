@@ -172,7 +172,7 @@ func TestOptionsRejectUnboundOrUnsupportedExecutionModes(t *testing.T) {
 		_, err := parseOptions(args)
 		require.ErrorIs(t, err, errInput)
 	}
-	for _, args := range [][]string{{"--stdin"}, {"--manifest", privateError}, {"--stdin", "--check-config"}, {"--stdin", "--mock"}, {"--stdin", "--execute"}, {"--stdin", "--mock", "--recover"}} {
+	for _, args := range [][]string{{"--stdin"}, {"--manifest", privateError}, {"--stdin", "--check-config"}, {"--stdin", "--execute"}} {
 		_, err := parseOptions(args)
 		require.NoError(t, err)
 	}

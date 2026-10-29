@@ -2,7 +2,6 @@ package supportdelete
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -82,61 +81,4 @@ func (s *mockStore) Recover(_ context.Context, v Recovery, now time.Time) error 
 	s.execution.OwnerRef = v.NewOwnerRef
 	s.execution.Revision++
 	return nil
-}
-
-type mockEffects struct{}
-
-func (mockEffects) Apply(_ context.Context, op Operation) (Evidence, error) {
-	e := op.Execution
-	return Evidence{Selector: e.Selector, ManifestRef: e.Manifest.Ref, OperationID: op.ID, Action: op.Step.Action, Scope: op.Step.Scope, Mode: "mock", TraceRef: strings.Repeat("e", 64), Generation: e.Generation, Cutoff: e.Cutoff, ObservedAt: op.ObservedAfter, Known: true, Complete: true, AllInstances: true, OldQueueRejected: true, RestoreExcluded: true}, nil
-}
-
-// mockCatalogは独立して用意したデータ元であり、CLIフィールドから作らない。
-func mockCatalog() SyntheticCatalog {
-	selector := MockSelector()
-	catalog := SyntheticCatalog{Selector: selector, Manifest: Manifest{Ref: strings.Repeat("b", 64), Mode: "mock"}}
-	for _, scope := range RuntimeScopes() {
-		catalog.Registrations = append(catalog.Registrations, AdapterRegistration{Scope: scope, Target: selector.Target, Mode: "mock", Actions: []string{"pause", "drain", "resume"}, Effects: mockEffects{}})
-	}
-	for _, scope := range DeletionScopes() {
-		actions := []string{"delete", "inspect"}
-		if scope == "firebase-auth" {
-			actions = []string{"revoke", "delete", "inspect"}
-		}
-		catalog.Registrations = append(catalog.Registrations, AdapterRegistration{Scope: scope, Target: selector.Target, Mode: "mock", Actions: actions, Effects: mockEffects{}})
-	}
-	return catalog
-}
-
-func RunMock(ctx context.Context, selector Selector, recoverExecution bool) (Outcome, error) {
-	if selector != MockSelector() {
-		return Outcome{}, ErrInvalid
-	}
-	now := time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC)
-	catalog := mockCatalog()
-	owner := strings.Repeat("c", 64)
-	initialOwner := owner
-	if recoverExecution {
-		initialOwner = strings.Repeat("d", 64)
-	}
-	var store *mockStore
-	prepared, err := PrepareDeletion(ctx, selector, initialOwner, catalog, func(context.Context, Target) (Store, error) {
-		store = &mockStore{}
-		return store, nil
-	}, func() time.Time { return now })
-	if err != nil {
-		return Outcome{}, fmt.Errorf("prepare synthetic deletion: %w", err)
-	}
-	if recoverExecution {
-		e, err := store.Acquire(ctx, Start{Selector: selector, Manifest: catalog.Manifest, OwnerRef: initialOwner, Now: now})
-		if err != nil {
-			return Outcome{}, fmt.Errorf("seed synthetic stopped checkpoint: %w", err)
-		}
-		// 停止済みworkerの組み込みテストデータが証跡を供給する。
-		// CLIのフィールドを、実際の旧プロセスについての宣言として解釈しない。
-		if err = prepared.Recover(ctx, Recovery{Selector: selector, PreviousOwnerRef: initialOwner, NewOwnerRef: owner, ManifestRef: catalog.Manifest.Ref, TraceRef: strings.Repeat("e", 64), Revision: e.Revision, Generation: e.Generation, Stopped: true, ObservedAt: now}); err != nil {
-			return Outcome{}, fmt.Errorf("recover synthetic checkpoint: %w", err)
-		}
-	}
-	return prepared.Run(ctx)
 }

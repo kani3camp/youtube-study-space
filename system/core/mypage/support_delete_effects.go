@@ -76,6 +76,10 @@ func (a *FirestoreDeletionEffects) Apply(ctx context.Context, op supportdelete.O
 			return supportdelete.Evidence{}, deletionStoreError(err)
 		}
 		if op.Step.Scope == "firestore-oauth" {
+			// Keep the current fresh proof until the atomic terminal scrub.
+			for i := range lookups {
+				lookups[i].except = receipt.OAuthTransactionID
+			}
 			lookups = append(lookups, deletionLookup{"oauth-transactions", "support.requestRef", op.Execution.Selector.RequestRef, receipt.OAuthTransactionID})
 		} else {
 			lookups = append(lookups, deletionLookup{"support-request-ids", "requestRef", op.Execution.Selector.RequestRef, digest(receipt.Environment + ":" + receipt.RequestID)})

@@ -171,17 +171,3 @@ func TestMockCompletionIsIdempotentButCannotBeRecovered(t *testing.T) {
 		t.Fatalf("completed execution admitted recovery: %v", err)
 	}
 }
-
-func TestRunMockClearlyLabelsFixedSyntheticExecutionAndRecovery(t *testing.T) {
-	for _, recoverExecution := range []bool{false, true} {
-		out, err := RunMock(context.Background(), MockSelector(), recoverExecution)
-		if err != nil || out.Code != "MOCK_COMPLETED" || out.Stage != "completed" || out.Mode != "mock" || !out.Offline || out.ActualExecution {
-			t.Fatalf("synthetic workflow reported actual/live execution: %#v %v", out, err)
-		}
-	}
-	selector := MockSelector()
-	selector.ProofRef = syntheticRef("input-cannot-create-proof")
-	if _, err := RunMock(context.Background(), selector, false); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("operator input minted mock proof: %v", err)
-	}
-}
