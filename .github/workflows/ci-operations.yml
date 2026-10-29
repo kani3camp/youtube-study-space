@@ -75,7 +75,6 @@ jobs:
     timeout-minutes: 5
     outputs:
       build: ${{ steps.auto.outputs.build }}
-      deploy: ${{ steps.auto.outputs.deploy }}
     permissions:
       contents: read
       pull-requests: read
@@ -182,11 +181,6 @@ jobs:
         env:
           MYPAGE_CD_BEFORE: ${{ github.event.before }}
         run: python3 infra/mypage-platform/scripts/backend_cd.py classify
-      - name: Require a merged and human-approved digest PR before deploy
-        if: ${{ inputs.operation == 'mypage-auto-cd' && steps.auto.outputs.deploy == 'true' }}
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python3 infra/mypage-platform/scripts/backend_cd.py review
 
   gcp-infrastructure:
     name: GCP Infrastructure
@@ -256,31 +250,10 @@ jobs:
       MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
       MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
 
-  mypage-release-pr:
-    name: MyPage DEV Reviewed Release PR
+  mypage-auto-deploy:
+    name: MyPage DEV Immutable Image Deploy
     needs: [validate-selection, mypage-image-build]
     if: ${{ inputs.operation == 'mypage-auto-cd' && needs.validate-selection.outputs.build == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-      pull-requests: write
-      actions: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Open human-reviewed immutable digest PR
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          MYPAGE_CD_IMAGE_DIGEST: ${{ needs.mypage-image-build.outputs.image_digest }}
-        run: python3 infra/mypage-platform/scripts/backend_cd.py release-pr
-
-  mypage-auto-deploy:
-    name: MyPage DEV Approved Image Deploy and State Readback
-    needs: validate-selection
-    if: ${{ inputs.operation == 'mypage-auto-cd' && needs.validate-selection.outputs.deploy == 'true' }}
     permissions:
       contents: read
       id-token: write
@@ -288,6 +261,8 @@ jobs:
     with:
       expected_sha: ${{ github.sha }}
       other_operation: false
+      image_digest: ${{ needs.mypage-image-build.outputs.image_digest }}
+      image_source_sha: ${{ github.sha }}
     secrets:
       MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
       MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
