@@ -133,11 +133,12 @@ def oidc(env, *, image=False):
     encoded = token.split(".")[1]
     claims = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
     exact = {"aud": "sts.amazonaws.com", "iss": "https://token.actions.githubusercontent.com",
-             "sub": contract.subject(kind), "repository_id": "340900071", "repository_owner_id": "54093651",
+             "sub": contract.subject(kind, env["GITHUB_EVENT_NAME"]), "repository_id": "340900071", "repository_owner_id": "54093651",
              "ref": contract.REF, "workflow_ref": contract.CALLER, "job_workflow_ref": contract.REUSABLE,
              "workflow_sha": env["GITHUB_SHA"], "job_workflow_sha": env["GITHUB_SHA"],
              "actor_id": "54093651", "actor": "kani3camp", "run_attempt": "1",
-             "environment": contract.GITHUB_ENVIRONMENT + "-" + kind, "event_name": "workflow_dispatch"}
+             "environment": contract.GITHUB_ENVIRONMENT + "-" + kind,
+             "event_name": env["GITHUB_EVENT_NAME"]}
     need(all(claims.get(k) == v for k, v in exact.items()))
     print("Exact environment-bound OIDC claims verified; AWS/GCP still validate the signed token.")
 
