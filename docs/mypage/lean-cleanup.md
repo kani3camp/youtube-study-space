@@ -22,3 +22,30 @@
 | ブラウザからserver専用データへのアクセス | Firestore Rules allow/deny |
 
 MyPage専用FSLは実装conformance未接続のため撤去した。上記の実装試験を維持し、SeatSession conformanceとSeatAllocationの独立モデルは維持する。
+
+## 集約済みの変更
+
+| PR | 保守対象の削減 |
+| --- | --- |
+| #1482 | MyPage FSL 3モデル・model regression/mutation。Seat 2モデルとconformanceは維持 |
+| #1483 | DEV明細API/UI・encrypted cursor・tier・quota/lease/policy。月次/原記録writer/rebuildは維持 |
+| #1484 | app内Privacy受付/状態/返信・未接続Google Operator OIDC/PKCE/JWKS/authority。人的窓口/fresh OAuthは維持 |
+| #1485 | 独自App Check JWT/JWKS/cache/singleflight。公式Admin SDK + 固定project/app/時刻/fail closed wrapperへ集約 |
+| #1486 | provider computed schema全体のallowlistとmetadata drift個別判定。実操作/重要設定/State/Plan commitmentを維持 |
+| #1487 | build内tscと重複した独立Typecheck step |
+
+通常MyPage変更では元々FSL jobを選択しておらず、routingを広げない。FSL reportは残るSeatモデルだけを列挙する。Go unit/Emulator/Rulesは各々別のfailure modeを担い、認証付きGCP operationは通常PR validationの成功から実環境Readyと判定しない。
+
+## 検証記録
+
+- 開始commit `50719cc18deb7c30b66cdb6bf0d63ab3c900aa02` のMyPage Vitest: 207成功。cleanup後: 195成功、check/build成功。減った12件は明細/受付専用で、auth/memory/runtime/基本表示の試験を維持する。
+- Seat FSL 2モデル + Go conformance成功。
+- MyPage Terraform: 74 Python contract tests、release tests、DEV/PROD各21 native Terraform mock tests、fmt/validate、native foundation/metrics plan成功。危険なresource操作・metrics/security drift・public IAM・State分離・Secret参照のみの境界を維持する。
+- 既存Firestore Emulator/Client Rules suite、Go全unit tests、CI routing、既存CI contract 22件成功。削除系の追加変更は別途その最終ソースで再検証する。
+- `I18N_BASELINE=ja go generate ./...` に意図しない生成diffなし。
+
+## 公開前に残す実環境Gate
+
+ローカル/合成試験は一般公開Readyの証明ではない。DEVのfresh OAuth/App Check/Hosting実経路、鍵更新の可用性、S01/S04、履歴coverage実データ照合、monitor/OBS認証、費用/監視通知、D02/D03・人的窓口、backup/vendor/log inventory、7暦日削除とrollbackの実受入は対象リリースで確認する。今回の作業は配備・実データ削除を含めない。
+
+Phase 2で仕様が確定した場合のみ、詳細履歴/Premium analytics、app内Privacy受付/返信、複数operator用OIDC/UIを再設計する。
