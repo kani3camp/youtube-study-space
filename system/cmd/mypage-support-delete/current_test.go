@@ -56,22 +56,38 @@ func TestLiveCLICannotTreatManualGateOrUnknownOutcomeAsCompletion(t *testing.T) 
 	}
 }
 
-func TestPrivateCheckpointCannotOverwriteOtherTargetOrFollowSymlink(t *testing.T) {
+func TestPrivateCheckpointSerializesInvocationAndKeepsDistinctStableOwner(t *testing.T) {
 	r, err := readRequest(strings.NewReader(requestJSON(t, nil)))
 	require.NoError(t, err)
-	e := supportdelete.Execution{Selector: r, Generation: 1, Cutoff: time.Now().UTC()}
 	path := filepath.Join(t.TempDir(), "checkpoint.json")
-	require.NoError(t, writeCheckpoint(path, e))
-	info, err := os.Stat(path)
+	f, owner, err := openCheckpoint(path, r)
+	require.NoError(t, err)
+	t.Cleanup(func() { err := f.Close(); require.True(t, err == nil || errors.Is(err, os.ErrClosed)) })
+	require.True(t, supportdelete.ValidRef(owner))
+	info, err := f.Stat()
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
-	e.Cursor++
-	require.NoError(t, writeCheckpoint(path, e))
-	e.Selector.Target.ChannelID = "UCother000000000000000001"
-	require.Error(t, writeCheckpoint(path, e))
+	_, _, err = openCheckpoint(path, r)
+	require.Error(t, err, "same checkpoint cannot execute concurrently")
+	e := supportdelete.Execution{Selector: r, OwnerRef: owner, Generation: 1, Cutoff: time.Now().UTC()}
+	require.NoError(t, writeCheckpoint(f, e))
+	require.NoError(t, f.Close())
+	reopened, resumedOwner, err := openCheckpoint(path, r)
+	require.NoError(t, err)
+	t.Cleanup(func() { err := reopened.Close(); require.True(t, err == nil || errors.Is(err, os.ErrClosed)) })
+	require.Equal(t, owner, resumedOwner, "retry must keep the persisted owner")
+	other, otherOwner, err := openCheckpoint(filepath.Join(t.TempDir(), "other.json"), r)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, other.Close()) })
+	require.NotEqual(t, owner, otherOwner, "another checkpoint must encounter the store owner fence")
+	require.NoError(t, reopened.Close())
+	r.Target.ChannelID = "UCother000000000000000001"
+	_, _, err = openCheckpoint(path, r)
+	require.Error(t, err)
 	link := filepath.Join(t.TempDir(), "link")
 	require.NoError(t, os.Symlink(path, link))
-	require.Error(t, writeCheckpoint(link, e))
+	_, _, err = openCheckpoint(link, e.Selector)
+	require.Error(t, err)
 }
 
 func TestLiveBootstrapRejectsUnboundEnvironmentWithoutCredentials(t *testing.T) {
