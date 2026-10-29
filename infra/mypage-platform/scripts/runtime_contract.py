@@ -470,15 +470,21 @@ def validate_service_empty_refresh(item, planned, value):
     for candidate in (before, after):
         for key, expected in resource_contract("runtime_private")[SERVICE].items():
             c.need(candidate.get(key) == expected, "runtime-refresh-boundary")
-        validate_service(candidate, {}, value, ["no-op"])
+        container = one(one(candidate.get("template"), "runtime-refresh-template").get("containers"),
+                        "runtime-refresh-container")
+        image = container.get("image")
+        c.need(type(image) is str and re.fullmatch(
+            re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", image),
+            "runtime-serving-image")
+        validate_service(candidate, {}, value | {"image_digest": image}, ["no-op"])
 
 
 
 def validate_owner_hosting_image_refresh(item, planned, value):
-    """イメージ・固定ホストの配備結果を読み直し、TerraformからRunは更新しない。
+    """CI/CD image-only drift may span multiple revisions between infrastructure Plans.
 
-    イメージだけの配備には独立したバックエンドCI配備権限を使える。
-    Stateへの取り込みでは、同じ厳密な宣言・世代・設定の条件を維持する。
+    Terraform owns all other settings. Native refresh must show only an immutable
+    image change plus known computed revision metadata. Never redeploy from State.
     """
     change = item.get("change", {})
     before, after = change.get("before"), change.get("after")
@@ -488,14 +494,20 @@ def validate_owner_hosting_image_refresh(item, planned, value):
     c.need(type(before) is dict and type(after) is dict and set(before) == set(after), "runtime-owner-refresh-shape")
     plan = planned.get(SERVICE, {}).get("change", {})
     c.need(plan.get("actions") == ["no-op"] and plan.get("after") == after and not c.has_unknown(plan.get("after_unknown")), "runtime-owner-refresh-noop")
-    previous = value["previous_image_digest"]
-    c.need(previous and previous != value["image_digest"] and value["hosting_backend_host"], "runtime-owner-refresh-declaration")
     before_container = one(one(before.get("template"), "runtime-owner-refresh-template").get("containers"), "runtime-owner-refresh-container")
-    c.need(type(before_container) is dict, "runtime-owner-refresh-container")
+    after_container = one(one(after.get("template"), "runtime-owner-refresh-template").get("containers"), "runtime-owner-refresh-container")
+    previous, current = before_container.get("image"), after_container.get("image")
+    pattern = re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}"
+    c.need(all(type(image) is str and re.fullmatch(pattern, image) for image in (previous, current))
+           and previous != current and value["hosting_backend_host"], "runtime-owner-refresh-declaration")
+    # The Terraform bootstrap digest is intentionally stale. Read the actual
+    # image delta from the protected native State refresh, not from Git JSON.
+    value = value | {"previous_image_digest": previous, "image_digest": current}
     before_env = before_container.get("env")
     c.need(type(before_env) is list and all(type(x) is dict for x in before_env), "runtime-owner-refresh-env")
     old_host = [x for x in before_env if x.get("name") == "MYPAGE_HOSTING_BACKEND_HOST"]
-    old_value = value | {"image_digest": previous, "hosting_backend_host": value["hosting_backend_host"] if old_host else ""}
+    c.need(len(old_host) == 1, "runtime-owner-refresh-host")
+    old_value = value | {"image_digest": previous}
     for candidate, config in ((before, old_value), (after, value)):
         for key, expected in resource_contract("runtime_private")[SERVICE].items():
             c.need(candidate.get(key) == expected, "runtime-owner-refresh-boundary")
@@ -530,8 +542,9 @@ def validate_owner_hosting_image_refresh(item, planned, value):
     traffic = one(after.get("traffic_statuses"), "runtime-owner-refresh-traffic")
     c.need(traffic.get("percent") == 100 and traffic.get("type") == "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
            and traffic.get("revision", "").split("/")[-1] == revision and not traffic.get("tag"), "runtime-owner-refresh-traffic")
+    # Multiple CI/CD deployments may happen between infrastructure Plans.
     c.need(re.fullmatch(r"[1-9][0-9]*", str(before.get("generation")))
-           and int(after.get("generation", 0)) == int(before["generation"]) + 1
+           and int(after.get("generation", 0)) > int(before["generation"])
            and str(after.get("observed_generation")) == str(after.get("generation")), "runtime-owner-refresh-generation")
     c.need(c.registry_timestamp(after.get("update_time")) > c.registry_timestamp(before.get("update_time")), "runtime-owner-refresh-time")
     computed = {"etag", "generation", "observed_generation", "update_time", "last_modifier", "latest_created_revision", "latest_ready_revision", "terminal_condition", "conditions", "traffic_statuses", "reconciling"}
@@ -610,7 +623,10 @@ def validate_initial_plan(plan, stage):
             before = item.get("change", {}).get("before", {})
             template = one(before.get("template"), "runtime-refresh-template") if type(before) is dict else {}
             container = one(template.get("containers"), "runtime-refresh-container")
-            if value["previous_image_digest"] and container.get("image") == value["previous_image_digest"]:
+            after = item.get("change", {}).get("after", {})
+            after_template = one(after.get("template"), "runtime-refresh-template") if type(after) is dict else {}
+            after_container = one(after_template.get("containers"), "runtime-refresh-container")
+            if container.get("image") != after_container.get("image"):
                 validate_owner_hosting_image_refresh(item, planned, value)
             else:
                 validate_service_empty_refresh(item, planned, value)
@@ -666,6 +682,16 @@ def validate_initial_plan(plan, stage):
         if address in maintenance_resource_contract():
             validate_maintenance_resource(address, after, unknown, value, change.get("actions"))
         elif address == SERVICE:
-            validate_service(after, unknown, value, change.get("actions"))
+            # On an existing resource, Terraform ignores the image field and
+            # must retain the current Cloud Run revision without rolling back.
+            image = one(one(after.get("template"), "runtime-service-template").get("containers"),
+                        "runtime-service-container").get("image")
+            if change.get("actions") == ["no-op"]:
+                c.need(type(image) is str and re.fullmatch(
+                    re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", image),
+                    "runtime-serving-image")
+                validate_service(after, unknown, value | {"image_digest": image}, change.get("actions"))
+            else:
+                validate_service(after, unknown, value, change.get("actions"))
     c.need(seen == set(expected), "runtime-resource-set")
     return {"resources": len(seen), "creates": sum(item["change"]["actions"] == ["create"] for item in changes)}
