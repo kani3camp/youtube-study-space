@@ -54,25 +54,25 @@ class OperationSelectionTest(unittest.TestCase):
             with self.subTest(extra=extra):
                 self.assertNotEqual(self.run_selector(**(normal | extra)), 0)
 
-    def test_auto_release_requires_existing_approved_deploy_workflow(self):
+    def test_direct_build_digest_is_passed_to_isolated_backend_deploy(self):
         automatic = self.workflow['jobs']['mypage-auto-deploy']
-        self.assertEqual(automatic['needs'], 'validate-selection')
+        self.assertEqual(automatic['needs'], ['validate-selection', 'mypage-image-build'])
         self.assertEqual(automatic['uses'], './.github/workflows/mypage-backend-authenticated.yml')
-        self.assertIn("outputs.deploy == 'true'", automatic['if'])
+        self.assertIn("outputs.build == 'true'", automatic['if'])
+        self.assertIn('mypage-image-build.outputs.image_digest',
+                      automatic['with']['image_digest'])
+        self.assertNotIn('secrets', automatic)
+        self.assertNotIn('mypage-release-pr', self.workflow['jobs'])
         build = self.workflow['jobs']['mypage-image-build']
         self.assertIn("outputs.build == 'true'", build['if'])
-        reviewed = self.workflow['jobs']['mypage-release-pr']
-        self.assertEqual(reviewed['needs'], ['validate-selection', 'mypage-image-build'])
-        self.assertIn('image_digest', reviewed['steps'][-1]['env']['MYPAGE_CD_IMAGE_DIGEST'])
-        self.assertNotIn('id-token', reviewed['permissions'])
-        self.assertEqual(reviewed['permissions']['actions'], 'write')
+        self.assertNotIn('contents: write', str(self.workflow))
 
     def test_credentialed_calls_cannot_bypass_the_selector(self):
         self.assertEqual(set(self.workflow['on']), {'workflow_call'})
         for name, job in self.workflow['jobs'].items():
             if job.get('permissions', {}).get('id-token') == 'write':
                 with self.subTest(job=name):
-                    self.assertEqual(job['needs'], 'validate-selection')
+                    self.assertIn('validate-selection', [job['needs']] if isinstance(job['needs'], str) else job['needs'])
                     self.assertNotIn('continue-on-error', job)
 
     def test_apply_requires_the_independently_reproduced_plan_commitment(self):
