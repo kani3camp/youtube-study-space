@@ -1,5 +1,5 @@
 // mypage-support-operatorは非公開の操作案をオフラインで検証する。
-// --mockは固定の有人受付を検査する。実本人情報や認証情報は持たず、executeは拒否する。
+// --executeはowner-controlled GCP IAMを使い、fresh OAuth用の受付をprivate fileへ渡す。
 package main
 
 import (
@@ -21,14 +21,16 @@ var (
 )
 
 type proposal struct {
-	Action      string
-	Environment string
-	Project     string
-	Purpose     mypage.SupportPurpose
-	RequestRef  string
-	Execute     bool
-	Mock        bool
-	RequestFile string
+	Action          string
+	Environment     string
+	Project         string
+	Purpose         mypage.SupportPurpose
+	RequestRef      string
+	Execute         bool
+	Mock            bool
+	RequestFile     string
+	Handoff         string
+	AllowProduction bool
 }
 
 type report struct {
@@ -46,6 +48,13 @@ func parse(args []string, get func(string) string) (proposal, error) {
 	}
 	values := map[string]string{}
 	for i := 0; i < len(args); i++ {
+		if args[i] == "--allow-production" {
+			if p.AllowProduction {
+				return proposal{}, fmt.Errorf("duplicate")
+			}
+			p.AllowProduction = true
+			continue
+		}
 		if args[i] == "--mock" {
 			if p.Mock {
 				return proposal{}, fmt.Errorf("duplicate")
@@ -66,7 +75,7 @@ func parse(args []string, get func(string) string) (proposal, error) {
 		values[args[i]] = args[i+1]
 		i++
 	}
-	allowed := map[string]bool{"--action": true, "--environment": true, "--project": true, "--purpose": true, "--request-file": true}
+	allowed := map[string]bool{"--action": true, "--environment": true, "--project": true, "--purpose": true, "--request-file": true, "--handoff-file": true}
 	for key := range values {
 		if !allowed[key] {
 			return proposal{}, fmt.Errorf("unknown")
@@ -75,6 +84,10 @@ func parse(args []string, get func(string) string) (proposal, error) {
 	p.Action, p.Environment, p.Project = values["--action"], values["--environment"], values["--project"]
 	p.Purpose = mypage.SupportPurpose(values["--purpose"])
 	p.RequestFile = values["--request-file"]
+	p.Handoff = values["--handoff-file"]
+	if !p.Execute && (p.Handoff != "" || p.AllowProduction) {
+		return proposal{}, fmt.Errorf("mode")
+	}
 	if (p.Environment != "development" && p.Environment != "production") || !project.MatchString(p.Project) || p.Environment != get("MYPAGE_ENVIRONMENT") || p.Project != get("GOOGLE_CLOUD_PROJECT") || (p.Mock && p.Execute) {
 		return proposal{}, fmt.Errorf("binding")
 	}
@@ -93,7 +106,7 @@ func parse(args []string, get func(string) string) (proposal, error) {
 			return proposal{}, fmt.Errorf("intake")
 		}
 		for key := range values {
-			if key != "--action" && key != "--environment" && key != "--project" && key != "--purpose" && key != "--request-file" {
+			if key != "--action" && key != "--environment" && key != "--project" && key != "--purpose" && key != "--request-file" && key != "--handoff-file" {
 				return proposal{}, fmt.Errorf("intake")
 			}
 		}
@@ -126,10 +139,10 @@ func privateFile(path string, limit int64) ([]byte, error) {
 func command(args []string, get func(string) string, out io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	return commandWithIntake(ctx, args, get, out, mockIntakeFactory)
+	return commandWithIntake(ctx, args, get, out, mockIntakeFactory, liveIntakeFactory)
 }
 
-func commandWithIntake(ctx context.Context, args []string, get func(string) string, out io.Writer, factory intakeFactory) int {
+func commandWithIntake(ctx context.Context, args []string, get func(string) string, out io.Writer, factory intakeFactory, live ...intakeFactory) int {
 	r := report{Mode: "preview", Status: "refused", Code: "INVALID_INPUT", ReadOnly: true, ActualExecution: false}
 	finish := func(code int) int {
 		if json.NewEncoder(out).Encode(r) != nil {
@@ -147,6 +160,19 @@ func commandWithIntake(ctx context.Context, args []string, get func(string) stri
 		if err != nil {
 			return finish(2)
 		}
+	}
+	if p.Execute && len(live) == 1 && live[0] != nil && p.Handoff != "" && (p.Environment != "production" || p.AllowProduction) {
+		r.Mode, r.Status, r.Code, r.ReadOnly, r.ActualExecution = "execute", "blocked", "INTAKE_INCOMPLETE", false, true
+		code := runHumanIntake(ctx, p, input, live[0])
+		if code == "MOCK_AWAITING_PROOF" {
+			r.Status, r.Code = "awaiting-proof", "AWAITING_FRESH_OAUTH"
+			return finish(0)
+		}
+		if code == "MOCK_RECEIPT_MATCHED" {
+			r.Status, r.Code, r.ReadOnly = "receipt-matched", "RECEIPT_MATCHED", true
+			return finish(0)
+		}
+		return finish(1)
 	}
 	if p.Execute {
 		r.Mode, r.Code, r.Status = "execute", "TRUSTED_OPERATOR_ADAPTER_UNAVAILABLE", "blocked"
