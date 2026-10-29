@@ -27,6 +27,14 @@ on:
       gcp_terraform_validate_result:
         required: true
         type: string
+      image_digest:
+        required: false
+        type: string
+        default: ""
+      image_source_sha:
+        required: false
+        type: string
+        default: ""
     secrets:
       GCP_TERRAFORM_NORMAL_WIF_PROVIDER:
         required: false
@@ -263,16 +271,6 @@ jobs:
       other_operation: false
       image_digest: ${{ needs.mypage-image-build.outputs.image_digest }}
       image_source_sha: ${{ github.sha }}
-    secrets:
-      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
-      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
-      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
-      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
-      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
-      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
-      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
-      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
-
   mypage-hosting-authenticated:
     name: MyPage DEV Hosting Release
     needs: validate-selection
@@ -296,12 +294,5 @@ jobs:
     with:
       expected_sha: ${{ github.sha }}
       other_operation: false
-    secrets:
-      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
-      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
-      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
-      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
-      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
-      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
-      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
-      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
+      image_digest: ${{ inputs.image_digest }}
+      image_source_sha: ${{ inputs.image_source_sha }}
