@@ -76,6 +76,9 @@ jobs:
     outputs:
       build: ${{ steps.auto.outputs.build }}
       deploy: ${{ steps.auto.outputs.deploy }}
+    permissions:
+      contents: read
+      pull-requests: read
     env:
       OPERATION: ${{ inputs.operation }}
       ENVIRONMENT: ${{ inputs.environment }}
@@ -179,6 +182,11 @@ jobs:
         env:
           MYPAGE_CD_BEFORE: ${{ github.event.before }}
         run: python3 infra/mypage-platform/scripts/backend_cd.py classify
+      - name: Require a merged and human-approved digest PR before deploy
+        if: ${{ inputs.operation == 'mypage-auto-cd' && steps.auto.outputs.deploy == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 infra/mypage-platform/scripts/backend_cd.py review
 
   gcp-infrastructure:
     name: GCP Infrastructure
