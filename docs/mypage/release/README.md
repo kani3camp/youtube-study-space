@@ -77,7 +77,6 @@ publicPolicy入力は一般問い合わせとPrivacy請求を分ける。形式�
 
 ```sh
 # root
-python3 .github/scripts/check-mypage-contract.py
 python3 .github/scripts/check-doc-references.py
 node mypage/scripts/check-release-config.mjs --file docs/mypage/release/public-config.example.json
 ```
