@@ -133,6 +133,42 @@ class CDTest(unittest.TestCase):
         self.assertFalse(any("terraform" in path or "run.googleapis" in path
                              for _, path, _ in calls))
 
+    def test_deploy_requires_github_merged_bot_digest_pr(self):
+        payload = {
+            "number": 123,
+            "merged_at": "2026-10-29T15:00:00Z",
+            "merge_commit_sha": env()["GITHUB_SHA"],
+            "base": {"ref": cd.BRANCH},
+            "head": {"ref": "automation/mypage-dev-image-" + "a" * 12},
+            "user": {"login": "github-actions[bot]"},
+        }
+        calls = []
+        def api(context, method, path, body=None):
+            calls.append(path)
+            if path.endswith("/pulls"):
+                return [payload]
+            return [{"filename": cd.RELEASE_PATH, "status": "modified"}]
+        cd.reviewed_merge(env(), api)
+        self.assertEqual(len(calls), 2)
+        for key, bad in (
+            ("merged_at", None),
+            ("merge_commit_sha", "f" * 40),
+            ("base", {"ref": "dev"}),
+            ("head", {"ref": "arbitrary-branch"}),
+            ("user", {"login": "random-user"}),
+        ):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                def forged(context, method, path, body=None):
+                    return [payload | {key: bad}]
+                cd.reviewed_merge(env(), forged)
+        with self.assertRaises(ValueError):
+            def extra(context, method, path, body=None):
+                return [payload] if path.endswith("/pulls") else [
+                    {"filename": cd.RELEASE_PATH, "status": "modified"},
+                    {"filename": "system/backdoor.go", "status": "added"},
+                ]
+            cd.reviewed_merge(env(), extra)
+
     def test_stale_head_stops_before_writes(self):
         url, calls = self.release_pr(stale=True)
         self.assertIsNone(url)
