@@ -43,16 +43,22 @@ class OperationSelectionTest(unittest.TestCase):
         self.assertNotEqual(self.run_selector(**audit, ENVIRONMENT='production'), 0)
         self.assertNotEqual(self.run_selector(**audit, GCP_TERRAFORM_VALIDATE_RESULT='skipped'), 0)
 
-    def test_push_requires_owner_integration_branch_and_full_quality_checks(self):
+    def test_push_requires_owner_integration_branch_and_selected_quality_checks(self):
         normal = {'OPERATION': 'mypage-auto-cd', 'ENVIRONMENT': 'development',
                   'CD_EVENT': 'push', 'CD_REF': 'refs/heads/integration/mypage-canon-20261006',
                   'CD_ACTOR_ID': '54093651'}
         self.assertEqual(self.run_selector(**normal), 0)
+        # Unaffected CI domains skip on system-only commits, and this must not
+        # prevent delivery of a fully verified system image.
+        unaffected = {key: 'skipped' for key in RESULTS if key != 'SYSTEM_RESULT'}
+        self.assertEqual(self.run_selector(**(normal | unaffected)), 0)
         for extra in ({'CD_EVENT': 'workflow_dispatch'}, {'CD_EVENT': 'pull_request'},
                       {'CD_REF': 'refs/heads/main'}, {'CD_ACTOR_ID': '123'},
-                      {'ENVIRONMENT': 'production'}, {'FRONTEND_RESULT': 'skipped'}):
+                      {'ENVIRONMENT': 'production'}, {'SYSTEM_RESULT': 'skipped'},
+                      {'FRONTEND_RESULT': 'failure'}, {'GCP_TERRAFORM_VALIDATE_RESULT': 'cancelled'},
+                      {'REPOSITORY_RESULT': 'skipped'}):
             with self.subTest(extra=extra):
-                self.assertNotEqual(self.run_selector(**(normal | extra)), 0)
+                self.assertNotEqual(self.run_selector(**(normal | unaffected | extra)), 0)
 
     def test_direct_build_digest_is_passed_to_isolated_backend_deploy(self):
         automatic = self.workflow['jobs']['mypage-auto-deploy']
