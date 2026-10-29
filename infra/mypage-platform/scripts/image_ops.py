@@ -64,6 +64,10 @@ def build_push(env):
     local_digests = json.loads(run(["docker", "image", "inspect", "--format", "{{json .RepoDigests}}", tag]))
     expected_digest = runtime.REPOSITORY + "@" + metadata["version"].rsplit("/", 1)[-1]
     c.need(type(local_digests) is list and expected_digest in local_digests, "image-local-remote-digest")
+    output = env.get("GITHUB_OUTPUT")
+    if output:
+        with open(output, "a", encoding="utf-8") as stream:
+            stream.write("image_digest=" + expected_digest + "\n")
     print("Environment-bound image built, checked offline and pushed; immutable exact-source tag verified. No Terraform or deployment.")
 
 
