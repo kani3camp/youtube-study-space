@@ -109,6 +109,28 @@ def github(env, method, path, body=None):
     return json.loads(payload) if payload else {}
 
 
+def reviewed_merge(env, api=github):
+    """Only a completed, bot-created one-file review PR may authorize a DEV release."""
+    push_context(env)
+    sha = env["GITHUB_SHA"]
+    pulls = api(env, "GET", "/commits/" + sha + "/pulls")
+    check(type(pulls) is list and len(pulls) <= 100, "approval-pull-count")
+    matching = [pr for pr in pulls if type(pr) is dict
+                and pr.get("merged_at") and pr.get("merge_commit_sha") == sha
+                and pr.get("base", {}).get("ref") == BRANCH
+                and re.fullmatch(r"automation/mypage-dev-image-[a-f0-9]{12}",
+                                 pr.get("head", {}).get("ref", ""))
+                and pr.get("user", {}).get("login") == "github-actions[bot]"]
+    check(len(matching) == 1, "approved-merge-required")
+    number = matching[0].get("number")
+    check(type(number) is int and number > 0, "approved-pr-number")
+    files = api(env, "GET", "/pulls/" + str(number) + "/files?per_page=100")
+    check(type(files) is list and len(files) == 1 and
+          files[0].get("filename") == RELEASE_PATH and
+          files[0].get("status") == "modified", "approved-pr-files")
+    print("DEV release declared by a merged, single-file bot PR; no cloud credentials used.")
+
+
 def release_pr(env, api=github):
     push_context(env)
     digest = env.get("MYPAGE_CD_IMAGE_DIGEST", "")
@@ -180,9 +202,11 @@ def release_pr(env, api=github):
 def main():
     os.umask(0o077)
     try:
-        check(len(sys.argv) == 2 and sys.argv[1] in {"classify", "release-pr"}, "command")
+        check(len(sys.argv) == 2 and sys.argv[1] in {"classify", "review", "release-pr"}, "command")
         if sys.argv[1] == "classify":
             classify(os.environ)
+        elif sys.argv[1] == "review":
+            reviewed_merge(os.environ)
         else:
             release_pr(os.environ)
         return 0
