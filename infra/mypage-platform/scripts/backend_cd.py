@@ -106,7 +106,7 @@ def github(env, method, path, body=None):
     with urllib.request.urlopen(request, timeout=30) as response:
         payload = response.read(65537)
     check(len(payload) <= 65536, "api-size")
-    return json.loads(payload)
+    return json.loads(payload) if payload else {}
 
 
 def release_pr(env, api=github):
@@ -152,10 +152,10 @@ def release_pr(env, api=github):
         "head": branch,
         "body": (
             "## DEV MyPage backend release declaration\n\n"
-            "CI built and checked the image from \`" + source + "\`. "
+            "CI built and checked the image from `" + source + "`. "
             "Reviewing and merging this PR authorizes the separate DEV release workflow.\n\n"
-            "- New image: \`" + digest + "\`\n"
-            "- Expected live previous image: \`" + current["image_digest"] + "\`\n"
+            "- New image: `" + digest + "`\n"
+            "- Expected live previous image: `" + current["image_digest"] + "`\n"
             "- Scope: DEV Cloud Run image only. No automatic rollback or production deployment.\n"
             "- After merge: CI checks the exact source/registry/previous revision, performs "
             "the bounded image-only update and Terraform State readback.\n\n"
@@ -165,7 +165,12 @@ def release_pr(env, api=github):
     })
     url = result.get("html_url", "")
     check(url.startswith("https://github.com/" + c.REPOSITORY + "/pull/"), "pr-result")
-    print("MyPage DEV release PR created: " + url)
+    # GITHUB_TOKEN-created PRs do not emit pull_request CI events. Explicitly
+    # dispatch the normal credentialless validation on the exact PR head.
+    api(env, "POST", "/actions/workflows/ci.yml/dispatches", {
+        "ref": branch, "inputs": {"operation": "validate", "environment": "development"}
+    })
+    print("MyPage DEV release PR created and CI validation dispatched: " + url)
     if env.get("GITHUB_STEP_SUMMARY"):
         with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as out:
             out.write("### MyPage DEV release PR\n\n" + url + "\n")
