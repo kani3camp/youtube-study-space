@@ -347,13 +347,16 @@ class MetricsLiveTest(unittest.TestCase):
         service_change = service(plan)
         for candidate in (service_change["before"], service_change["after"]):
             m.container(candidate)["image"] = current_image
-        service_state_before = deepcopy(service_change["before"])
+        service_state_after = deepcopy(service_change["before"])
+        service_state_after["uid"] = "synthetic-service-uid"
+        service_state_before = deepcopy(service_state_after)
+        service_state_before.update(generation="6", observed_generation="6")
         m.container(service_state_before)["image"] = old_image
         service_image_drift = {
             "address": r.SERVICE, "mode": "managed",
             "provider_name": "registry.terraform.io/hashicorp/google",
             "change": {"actions": ["update"], "before": service_state_before,
-                       "after": deepcopy(service_change["before"]), "after_unknown": {}},
+                       "after": service_state_after, "after_unknown": {}},
         }
 
         job_change = next(item["change"] for item in plan["resource_changes"]
@@ -370,6 +373,7 @@ class MetricsLiveTest(unittest.TestCase):
         }
         plan["resource_drift"] = [service_image_drift, job_image_drift]
         state = applied_state(plan)
+        actual(state)["uid"] = "synthetic-service-uid"
         refresh = refresh_plan(plan, state)
         refresh["resource_drift"][0]["change"]["before"] = deepcopy(service_state_before)
         state_job = next(item["values"] for item in state["values"]["root_module"]["child_modules"][0]["resources"]

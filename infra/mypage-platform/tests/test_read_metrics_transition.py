@@ -105,13 +105,16 @@ class MetricsTransitionTest(unittest.TestCase):
         service_change = service(plan)
         for candidate in (service_change["before"], service_change["after"]):
             m.container(candidate)["image"] = target_image
-        service_before_state = deepcopy(service_change["before"])
+        service_after_state = deepcopy(service_change["before"])
+        service_after_state["uid"] = "fixed-service-uid"
+        service_before_state = deepcopy(service_after_state)
+        service_before_state.update(generation="6", observed_generation="6")
         m.container(service_before_state)["image"] = old_image
         service_drift = {
             "address": r.SERVICE, "mode": "managed",
             "provider_name": "registry.terraform.io/hashicorp/google",
             "change": {"actions": ["update"], "before": service_before_state,
-                       "after": deepcopy(service_change["before"]), "after_unknown": {}},
+                       "after": service_after_state, "after_unknown": {}},
         }
 
         job_change = next(item["change"] for item in plan["resource_changes"]
