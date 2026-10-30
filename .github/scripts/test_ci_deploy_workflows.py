@@ -25,6 +25,15 @@ class DeployWorkflowTest(unittest.TestCase):
                 with self.subTest(workflow=path.name, job=name):
                     self.assertIn((path.name, name), DIRECT_AUTH_EXCEPTIONS)
 
+    def test_credentialed_calls_never_start_after_the_run_was_cancelled(self):
+        # always() stays true after a cancel; a job that calls a reusable workflow
+        # (and so may obtain credentials) must use !cancelled() to tolerate skips.
+        for path in sorted(WORKFLOWS.glob('*.yml')):
+            for name, job in load(path)['jobs'].items():
+                if 'uses' in job:
+                    with self.subTest(workflow=path.name, job=name):
+                        self.assertNotIn('always()', str(job.get('if', '')))
+
     def test_image_deploys_are_manual_dev_only_and_build_only_their_own_image(self):
         for name, component, reusable in (
             ('deploy-mypage-api.yml', 'api', 'mypage-backend-authenticated.yml'),
