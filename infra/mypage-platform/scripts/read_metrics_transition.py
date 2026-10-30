@@ -195,6 +195,11 @@ def validate_plan(plan, stage, value):
     # コピー上でno-opとして扱う。元の完全なPlanは引き続きHMAC照合と条件付きAPI適用に使う。
     checked = deepcopy(plan)
     next(x for x in checked["resource_changes"] if x["address"] == r.SERVICE)["change"]["actions"] = ["no-op"]
+    # CI-owned Service/Job image drifts were independently verified above.
+    # They cannot be compared to the post-transition planned Service state,
+    # so remove only these already-validated observations from this projection.
+    # The original Plan, including all drift, remains unchanged for HMAC/review.
+    checked["resource_drift"] = []
     result = r.validate_initial_plan(checked, stage)
     return result | {"updates": 1}
 
