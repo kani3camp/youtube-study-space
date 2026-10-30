@@ -41,7 +41,7 @@ flowchart TD
 ## Terraformとの責任境界
 
 - Cloud Run Serviceの既存bootstrap imageはTerraform入力として残るが、通常releaseでは更新しない。maintenance JobをDEVで初めて作るときだけ、固定Jobの不存在をread-only確認したうえで、実ビルド済み・operator binary含有をsourceで確認した固定SHA tagをArtifact Registryからdigestへ解決し、**そのPlan/Applyだけのprivate入力**として使う。GitHub Environmentの設定JSONへmaintenance専用digest/source SHAを保存しない。
-- maintenance導入前からPlan/Apply identityには、固定Jobの存在確認と将来のTerraform refreshに必要なread-only権限 `run.jobs.get` / `run.jobs.getIamPolicy` を恒常bootstrap権限として用意する。これはJobのcreate/update/run/setIamPolicyを含めない。write権限はPlan差分レビュー後の初回Apply bootstrapで別途扱う。
+- maintenance導入前からPlan/Apply identityには、固定Jobの存在確認と将来のTerraform refreshに必要なproject custom role `mypageMaintenanceRead`（`run.jobs.get` / `run.jobs.getIamPolicy` の2権限だけ）を恒常read-only bootstrap権限としてPlan/Apply identityへ用意する。これはJobのcreate/update/run/setIamPolicyを含めない。write権限はPlan差分レビュー後の初回Apply bootstrapで別途扱う。
 - 作成後はService/Jobともcontainer **imageだけ** を`lifecycle.ignore_changes`でCI/CDへ委譲する。Jobのcommand/env/resources/IAM/runtime SA等はTerraform管理のまま。
 - 旧Environment secretに `maintenance_operator_enabled` / `maintenance_operator_image_digest` / `maintenance_operator_image_source_sha` が残っていても、移行互換としてその3キーだけを読み捨てる。private tfvarsやPlanには伝播せず、他の未知キーは引き続き拒否する。運用上は確認後に旧3キーを削除する。
 - CPU・メモリ・concurrency・環境変数・Secret version・サービスアカウント・ingress・traffic・IAM等は

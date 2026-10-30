@@ -87,7 +87,7 @@ DevelopmentのFoundation metadataは実作成・State readback済み。Secret ve
 
 runtime設定の任意 `image_source_sha`（既定は空文字）は、既存の不変tagを作成した40桁commit SHAを示す。空文字なら従来どおり実行元SHAのtagを要求する。別SHAの場合はそのcommitが現行HEADの祖先であることと、同SHAの不変tagがbootstrap digestを指すことを確認する。配信imageはCI/CDで別途更新されるため、実行元の`system` treeとの完全一致を要求しない。Docker contextは `system/` 全体であり、Dockerfile、依存lock、ignore設定とGoソースを含む。tagの作り替え、出所不明digest、Terraformから配信imageを巻き戻す変更を拒否する。これはinfra診断だけの変更で既存revisionを更新する必要をなくすためで、Cloud Runのupdate/delete/replaceは引き続き拒否する。
 
-maintenance operatorはAPIと同じArtifact Registry成果物を使う。専用のdigest/source SHAはruntime settingsへ持たない。Plan/Apply identityには固定Jobの存在確認・将来refresh用として `run.jobs.get` / `run.jobs.getIamPolicy` だけの恒常read-only bootstrap権限を用意する。DEV初回Job作成時だけ、実ビルド済みでoperator binaryを含むreview済みsource SHAのimmutable tagをPlan時にread-only解決し、そのdigestをprivateな一時Plan入力として使用する。Job作成後のimageはAPI Serviceと同様にBackend CI/CDが所有し、Terraformはimage属性だけ`ignore_changes`する。旧Environment secretに残る`maintenance_operator_*` 3キーは移行互換のため読み捨て、private tfvarsやPlanへは渡さない。
+maintenance operatorはAPIと同じArtifact Registry成果物を使う。専用のdigest/source SHAはruntime settingsへ持たない。Plan/Apply identityには固定Jobの存在確認・将来refresh用としてproject custom role `mypageMaintenanceRead`（`run.jobs.get` / `run.jobs.getIamPolicy` の2権限だけ）を恒常read-only bootstrap権限としてPlan/Apply identityへ用意する。DEV初回Job作成時だけ、実ビルド済みでoperator binaryを含むreview済みsource SHAのimmutable tagをPlan時にread-only解決し、そのdigestをprivateな一時Plan入力として使用する。Job作成後のimageはAPI Serviceと同様にBackend CI/CDが所有し、Terraformはimage属性だけ`ignore_changes`する。旧Environment secretに残る`maintenance_operator_*` 3キーは移行互換のため読み捨て、private tfvarsやPlanへは渡さない。
 
 ## Plan guardの責任分担
 

@@ -63,7 +63,7 @@ Runtime publicの実Plan [39546080459](https://github.com/kani3camp/youtube-stud
 
 ### Bootstrap metadataの追従
 
-Runtime準備では、project上のmetadata-only custom role（Registry tag、Cloud Run/operation、project IAM、Secret version metadataのget）をPlan/Applyへ、download/uploadだけのcustom roleを専用RegistryのApplyへ、actAsを専用runtime SAのApplyへ限定した。Secret payload、Cloud Run create、project IAM editorは付与していない。maintenance Job導入時は、固定Jobの不存在確認と導入後のTerraform refreshに必要な `run.jobs.get` / `run.jobs.getIamPolicy` だけを別の恒常read-only bootstrap roleとしてPlan/Applyへ追加する。Job create/update/run/setIamPolicyはこのroleへ含めない。専用SAへのactAs追加で共有IAM policyのetagが変わることをGCP readbackで確認した。Registry IAM変更によるrepository updateTime変更はなかった。
+Runtime準備では、project上のmetadata-only custom role（Registry tag、Cloud Run/operation、project IAM、Secret version metadataのget）をPlan/Applyへ、download/uploadだけのcustom roleを専用RegistryのApplyへ、actAsを専用runtime SAのApplyへ限定した。Secret payload、Cloud Run create、project IAM editorは付与していない。maintenance Job導入時は、固定Jobの不存在確認と導入後のTerraform refreshに必要な project custom role `mypageMaintenanceRead`（`run.jobs.get` / `run.jobs.getIamPolicy` の2権限だけ）を恒常read-only bootstrap roleとしてPlan/Applyへ追加する。Job create/update/run/setIamPolicyはこのroleへ含めない。専用SAへのactAs追加で共有IAM policyのetagが変わることをGCP readbackで確認した。Registry IAM変更によるrepository updateTime変更はなかった。
 
 IAM memberのreadは共有policyのetagを返すため、当該4 memberの予定操作がno-opで、before/afterが非空etag以外は完全一致するrefreshだけを許可する。member/role/condition/id/Secret/projectの変更、unknown、予定write、別resourceは拒否する。生driftは全Plan HMACへ保持し、operator管理のbinding全体をTerraform-ownedに読み替えない。旧guardの[実Plan run 39527611450](https://github.com/kani3camp/youtube-study-space/actions/runs/39527611450)はmetadata-refresh-addressで停止した（Applyなし）。修正後の実Planは別runで再検証する。
 
