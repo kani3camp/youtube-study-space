@@ -103,6 +103,7 @@ class BackendReleaseTest(unittest.TestCase):
             self.assertIn(text, condition)
         self.assertEqual(set(identity.PERMISSIONS), {'run.services.get', 'run.services.update'})
         self.assertNotIn('mypage-foundation', condition)
+        self.assertLessEqual(len(condition), b.c.CONDITION_LIMIT)
         for absent in ('push', ' || ', '/ci.yml@'):
             self.assertNotIn(absent, condition)
 

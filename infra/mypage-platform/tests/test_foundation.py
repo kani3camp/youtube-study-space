@@ -454,19 +454,20 @@ class FoundationTest(unittest.TestCase):
 
     def test_provider_condition_pairs_each_environment_caller_and_exact_subject(self):
         condition = c.provider_condition()
-        clauses = condition.split(' || ')
+        self.assertLessEqual(len(condition), c.CONDITION_LIMIT)
+        prefix, listed = condition.split(' && assertion.sub in ')
         expected = [('plan', c.CALLER), ('apply', c.CALLER)] + [
             ('apply', item['caller']) for _, item in sorted(c.IMAGE_COMPONENTS.items())]
-        self.assertEqual(len(clauses), len(expected))
-        for clause, (kind, workflow) in zip(clauses, expected):
-            with self.subTest(kind=kind, workflow=workflow):
-                self.assertIn('assertion.workflow_ref == ' + json.dumps(workflow), clause)
-                self.assertIn('assertion.sub == ' + json.dumps(c.subject(kind, 'workflow_dispatch', workflow)), clause)
-                self.assertIn('assertion.environment == ' + json.dumps(c.GITHUB_ENVIRONMENT + '-' + kind), clause)
-                self.assertIn('assertion.job_workflow_ref == ' + json.dumps(c.REUSABLE), clause)
-                self.assertIn('assertion.event_name == "workflow_dispatch"', clause)
-                self.assertIn('assertion.run_attempt == "1"', clause)
         # The clause list is exact, so image callers never reach the Plan Environment.
+        self.assertEqual(json.loads(listed), [c.subject(kind, 'workflow_dispatch', workflow)
+                                              for kind, workflow in expected])
+        for clause in ('assertion.repository_id == "340900071"', 'assertion.actor_id == "54093651"',
+                       'assertion.ref == ' + json.dumps(c.REF),
+                       'assertion.job_workflow_ref == ' + json.dumps(c.REUSABLE),
+                       'assertion.event_name == "workflow_dispatch"', 'assertion.run_attempt == "1"',
+                       'assertion.workflow_sha == assertion.job_workflow_sha'):
+            self.assertIn(clause, prefix)
+        self.assertNotIn('||', condition)
         self.assertNotIn('push', condition)
 
     def test_exact_actor_ref_and_sha_before_credentials(self):
