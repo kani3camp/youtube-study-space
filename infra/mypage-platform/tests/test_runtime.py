@@ -156,6 +156,8 @@ class RuntimeTest(unittest.TestCase):
         maintenance = set(r.maintenance_resource_contract())
         for item in plan["resource_changes"]:
             item["change"]["actions"] = ["create"] if item["address"] in maintenance else ["no-op"]
+            if item["address"] in {r.MAINTENANCE_ROLE, r.MAINTENANCE_IMAGE_ROLE} and item["change"]["actions"] == ["create"]:
+                item["change"]["after"].pop("deleted", None)
         self.assertEqual(r.validate_plan(plan, "runtime_private"),
                          {"resources": len(plan["resource_changes"]), "creates": len(maintenance)})
 

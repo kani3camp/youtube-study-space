@@ -17,9 +17,6 @@ def fixture(enabled=True, stage="runtime_private"):
         "project_number": c.PROJECT_NUMBER, "web_app_id": "1:" + c.PROJECT_NUMBER + ":web:synthetic",
         "public_origin": r.ORIGIN, "privacy_version": "synthetic-p", "terms_version": "synthetic-t",
         "oauth_client_id_version": "1", "oauth_client_secret_version": "2", "youtube_api_key_version": "3",
-        "maintenance_operator_enabled": True,
-        "maintenance_operator_image_digest": r.REPOSITORY + "@sha256:" + "b" * 64,
-        "maintenance_operator_image_source_sha": "c" * 40,
         "read_metrics_enabled": enabled, "read_metrics_from_revision": "mypage-api-before",
     })
     before_value = value | {"read_metrics_enabled": not enabled}
@@ -29,7 +26,7 @@ def fixture(enabled=True, stage="runtime_private"):
                                 ("MYPAGE_YOUTUBE_API_KEY", "mypage-youtube-api-key", "youtube_api_key_version")):
         env.append({"name": name, "value_source": [{"secret_key_ref": [{"secret": secret, "version": value[field]}]}]})
     resources = r.resource_contract(stage, value)
-    for address in (r.MAINTENANCE_ROLE,):
+    for address in (r.MAINTENANCE_ROLE, r.MAINTENANCE_IMAGE_ROLE):
         resources[address]["deleted"] = False
     resources[r.SERVICE].update(
         scaling=[{"min_instance_count": 0, "max_instance_count": 1, "scaling_mode": "AUTOMATIC"}],
