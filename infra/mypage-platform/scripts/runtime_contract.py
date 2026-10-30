@@ -450,8 +450,9 @@ def validate_initial_plan(plan, stage):
         # 初回配備とno-opだけを許可する。配信リビジョンの更新には別途レビューした遷移を使い、
         # この検査の許可範囲を暗黙に広げない。
         c.need(change.get("actions") in [["create"], ["no-op"]] and not change.get("replace_paths"), "runtime-resource-action")
-        if stage in {"runtime_private", "runtime_public"} and address in maintenance_resource_contract():
-            c.need(change.get("actions") == ["no-op"], "runtime-maintenance-bootstrap-complete")
+        # desired-state runtime stages may create an exact missing maintenance
+        # boundary. Foreign same-name resources are rejected before Apply and
+        # all maintenance fields remain constrained by the contract below.
         if stage == "maintenance_upgrade" and address not in maintenance_resource_contract():
             c.need(change.get("actions") == ["no-op"], "maintenance-upgrade-runtime-noop")
         importing = change.get("importing")

@@ -151,12 +151,20 @@ class RuntimeTest(unittest.TestCase):
                 item["change"]["actions"] = ["no-op"]
             self.assertEqual(r.validate_plan(plan, stage), {"resources": size, "creates": 0})
 
-    def test_runtime_cannot_create_the_operator_or_bootstrap_boundary(self):
-        for address in r.maintenance_resource_contract():
-            plan = fixture()
-            next(item for item in plan["resource_changes"] if item["address"] == address)["change"]["actions"] = ["create"]
-            with self.subTest(address=address), self.assertRaisesRegex(c.ContractError, "^runtime-maintenance-bootstrap-complete$"):
-                r.validate_plan(plan, "runtime_private")
+    def test_runtime_desired_state_can_reconcile_exact_missing_maintenance_boundary(self):
+        plan = fixture("runtime_private")
+        maintenance = set(r.maintenance_resource_contract())
+        for item in plan["resource_changes"]:
+            item["change"]["actions"] = ["create"] if item["address"] in maintenance else ["no-op"]
+        self.assertEqual(r.validate_plan(plan, "runtime_private"),
+                         {"resources": len(plan["resource_changes"]), "creates": len(maintenance)})
+
+        rejected = deepcopy(plan)
+        binding = next(item for item in rejected["resource_changes"]
+                       if item["address"] == r.MAINTENANCE_IMAGE_BINDING)
+        binding["change"]["after"]["role"] = "roles/run.admin"
+        with self.assertRaises(ValueError):
+            r.validate_plan(rejected, "runtime_private")
 
     def test_only_exact_owner_public_member_can_be_imported_without_cloud_writes(self):
         plan = fixture('runtime_public')

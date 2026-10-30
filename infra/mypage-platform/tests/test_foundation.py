@@ -96,6 +96,15 @@ class FoundationTest(unittest.TestCase):
                         {'resource_changes': [{'address': address, 'change': {'actions': ['create']}}]},
                     )
 
+    def test_new_maintenance_image_role_is_collision_checked_before_apply(self):
+        address = ops.runtime_contract.MAINTENANCE_IMAGE_ROLE
+        plan = {"resource_changes": [{"address": address, "change": {"actions": ["create"]}}]}
+        env = {"MYPAGE_GCP_ACCESS_TOKEN": "private-token"}
+        with patch.object(ops, "request", return_value={}) as request:
+            with self.assertRaises(ValueError):
+                ops.reject_unowned_resources(env, plan)
+        self.assertTrue(request.call_args.args[0].endswith("/roles/mypageMaintenanceImageRelease"))
+
     def test_runtime_settings_do_not_consume_per_build_release_manifest(self):
         fixture = ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json'
         value = json.loads(fixture.read_text())
