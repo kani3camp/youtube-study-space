@@ -58,22 +58,26 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
 
-def subject(kind):
-    need(kind in {"plan", "apply"})
-    values = ("340900071", "54093651", GITHUB_ENVIRONMENT + "-" + kind, REF, CALLER, REUSABLE, "workflow_dispatch")
+def subject(kind, event_name="workflow_dispatch"):
+    need(kind in {"plan", "apply"} and event_name in {"workflow_dispatch", "push"})
+    need(event_name != "push" or TARGET == "development", "push-production")
+    values = ("340900071", "54093651", GITHUB_ENVIRONMENT + "-" + kind, REF, CALLER, REUSABLE, event_name)
     return ":".join(key + ":" + value.replace(":", "%3A") for key, value in zip(CLAIM_KEYS, values))
 
 
 def trust_policy(account, kind):
     need(re.fullmatch(r"[0-9]{12}", account))
+    # Terraform State credentials are dispatch-only. Push is accepted by
+    # the image-build-only GCP federation, not by AWS State roles.
+    events = ["workflow_dispatch"]
     return {"Version": "2012-10-17", "Statement": [{
         "Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity",
         "Principal": {"Federated": f"arn:aws:iam::{account}:oidc-provider/token.actions.githubusercontent.com"},
         "Condition": {"StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                                        "token.actions.githubusercontent.com:sub": subject(kind),
+                                        "token.actions.githubusercontent.com:sub": subject(kind, event),
                                         # 変更されないactorの照合はSTSでも行う。ワークフロー内の検査だけでは変更できてしまう。
                                         "token.actions.githubusercontent.com:actor_id": "54093651"}},
-    }]}
+    } for event in events]}
 
 
 def backend_policy(bucket, kind):
@@ -120,6 +124,13 @@ def context(env, kind, *, image=False):
                 "GITHUB_ACTOR": "kani3camp", "GITHUB_ACTOR_ID": "54093651",
                 "GITHUB_TRIGGERING_ACTOR": "kani3camp", "GITHUB_RUN_ATTEMPT": "1",
                 "GITHUB_REF": REF, "GITHUB_WORKFLOW_REF": CALLER, "TF_WORKSPACE": "default"}
+    event_name = env.get("GITHUB_EVENT_NAME")
+    if event_name == "push":
+        need(TARGET == "development" and env.get("MYPAGE_MODE") in
+             {"image-build"}, "push-scope")
+    else:
+        need(event_name == "workflow_dispatch", "event-name")
+    expected.pop("GITHUB_EVENT_NAME")
     need(all(env.get(k) == v for k, v in expected.items()))
     sha = env.get("GITHUB_SHA", "")
     need(re.fullmatch(r"[a-f0-9]{40}", sha) and env.get("MYPAGE_EXPECTED_SHA") == sha)

@@ -1,6 +1,6 @@
 # Development Runtimeの配備準備
 
-構築時の手順と診断履歴を保持する文書である。最新のイメージ設定は[固定リリース設定](../environments/dev/runtime-release.json)、配備・実試験の状態は[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)を参照する。過去の未配備・再確認待ちを現在状態に読み替えず、公開条件は対象リリースごとの証跡で確認する。
+構築時の手順と診断履歴を保持する文書である。旧方式の[固定リリース設定](../environments/dev/runtime-release.json)は当時の配備証跡であり、今後のimage更新では参照・編集しない。現行ソースの手順は[Backend CI](../../../docs/mypage/release/backend-ci.md)、実際の配備・実試験は対象のActions・配備記録と[統合PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236)を参照する。過去の未配備・再確認待ちを現在状態に読み替えず、公開条件は対象リリースごとの証跡で確認する。
 
 対象は`test-youtube-study-space` / `asia-southeast2`だけとする。Foundationの8資源とランタイム配備を区別し、実ユーザー公開には[配備手順](../../../docs/mypage/release/README.md)の条件を維持する。
 

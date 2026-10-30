@@ -133,11 +133,12 @@ def oidc(env, *, image=False):
     encoded = token.split(".")[1]
     claims = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
     exact = {"aud": "sts.amazonaws.com", "iss": "https://token.actions.githubusercontent.com",
-             "sub": contract.subject(kind), "repository_id": "340900071", "repository_owner_id": "54093651",
+             "sub": contract.subject(kind, env["GITHUB_EVENT_NAME"]), "repository_id": "340900071", "repository_owner_id": "54093651",
              "ref": contract.REF, "workflow_ref": contract.CALLER, "job_workflow_ref": contract.REUSABLE,
              "workflow_sha": env["GITHUB_SHA"], "job_workflow_sha": env["GITHUB_SHA"],
              "actor_id": "54093651", "actor": "kani3camp", "run_attempt": "1",
-             "environment": contract.GITHUB_ENVIRONMENT + "-" + kind, "event_name": "workflow_dispatch"}
+             "environment": contract.GITHUB_ENVIRONMENT + "-" + kind,
+             "event_name": env["GITHUB_EVENT_NAME"]}
     need(all(claims.get(k) == v for k, v in exact.items()))
     print("Exact environment-bound OIDC claims verified; AWS/GCP still validate the signed token.")
 
@@ -202,13 +203,12 @@ def runtime_settings(env, stage=None):
             result[key] = value
         return result
     value = runtime_contract.settings(json.loads(raw, object_pairs_hook=pairs), stage)
-    release_file = REPO / "infra/mypage-platform/environments/dev/runtime-release.json"
-    if stage != "maintenance_operator" and contract.TARGET == "development" and release_file.exists():
-        contract.need(release_file.is_file() and not release_file.is_symlink(), "runtime-release-file")
-        release = json.loads(release_file.read_text(), object_pairs_hook=pairs)
-        contract.need(type(release) is dict and set(release) == {"image_digest", "image_source_sha", "hosting_backend_host", "previous_image_digest"}, "runtime-release-fields")
-        value = runtime_contract.settings(value | release, stage)
-        contract.need(all(release.values()) and release["previous_image_digest"] != release["image_digest"], "runtime-release-values")
+    # After the first Terraform creation, CI/CD owns the Cloud Run image.
+    # This fixed host remains Terraform-owned; no release JSON overlays the image.
+    if stage != "maintenance_operator" and contract.TARGET == "development":
+        value = runtime_contract.settings(
+            value | {"hosting_backend_host": "mypage-api-eu5mhkcewq-et.a.run.app",
+                     "previous_image_digest": ""}, stage)
     provider = re.fullmatch(r"projects/([0-9]+)/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions",
                             env.get("MYPAGE_GCP_WIF_PROVIDER", ""))
     need(provider and provider[1] == contract.PROJECT_NUMBER)
@@ -218,19 +218,17 @@ def runtime_settings(env, stage=None):
 
 
 def verify_runtime_inputs(env, value, stage):
-    # インフラだけの変更では、レビュー済みイメージを維持できる。
-    # 固定されたビルドコミットのDockerコンテキスト全体が一致することを必須とし、
-    # Dockerfile・依存関係・除外ルール・ソースも比較する。イメージのタグは付け替えない。
+    # Terraform's initial image is an immutable bootstrap input, not the live
+    # application release. Validate its provenance without requiring the current
+    # HEAD's source tree to equal an older, already released image.
     prefix = "projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/repositories/mypage/packages/mypage-api"
     if stage != "maintenance_operator":
         source = value.get("image_source_sha") or env["GITHUB_SHA"]
         if source != env["GITHUB_SHA"]:
             contract.need(re.fullmatch(r"[a-f0-9]{40}", source), "runtime-image-source-sha")
             run(["git", "fetch", "--no-tags", "--depth=1", "origin", source], cwd=REPO, check="runtime-image-source-fetch")
-            current_tree = run(["git", "rev-parse", env["GITHUB_SHA"] + ":system"], cwd=REPO).strip()
-            image_tree = run(["git", "rev-parse", source + ":system"], cwd=REPO).strip()
-            contract.need(re.fullmatch(r"[a-f0-9]{40}", current_tree) and current_tree == image_tree,
-                          "runtime-image-source-tree")
+            run(["git", "merge-base", "--is-ancestor", source, env["GITHUB_SHA"]],
+                cwd=REPO, check="runtime-image-source-ancestor")
         tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source, env["MYPAGE_GCP_ACCESS_TOKEN"])
         expected = prefix + "/versions/sha256:" + value["image_digest"].split("@sha256:")[1]
         contract.need(tag.get("version") == expected, "runtime-source-image-digest")

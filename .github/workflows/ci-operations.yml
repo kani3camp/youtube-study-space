@@ -27,6 +27,14 @@ on:
       gcp_terraform_validate_result:
         required: true
         type: string
+      image_digest:
+        required: false
+        type: string
+        default: ""
+      image_source_sha:
+        required: false
+        type: string
+        default: ""
     secrets:
       GCP_TERRAFORM_NORMAL_WIF_PROVIDER:
         required: false
@@ -73,6 +81,10 @@ jobs:
     name: Validate Operation Selection
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      build: ${{ steps.auto.outputs.build }}
+    permissions:
+      contents: read
     env:
       OPERATION: ${{ inputs.operation }}
       ENVIRONMENT: ${{ inputs.environment }}
@@ -82,13 +94,16 @@ jobs:
       TOOLS_RESULT: ${{ inputs.tools_result }}
       INFRA_RESULT: ${{ inputs.infra_result }}
       GCP_TERRAFORM_VALIDATE_RESULT: ${{ inputs.gcp_terraform_validate_result }}
+      CD_EVENT: ${{ github.event_name }}
+      CD_REF: ${{ github.ref }}
+      CD_ACTOR_ID: ${{ github.actor_id }}
     steps:
       - name: Require supported operation and validation prerequisites
         run: |
           set -euo pipefail
 
           case "${OPERATION}" in
-            gcp-plan|gcp-apply|gcp-user-activity-schema-audit|mypage-image-build|mypage-hosting-release|mypage-backend-release) ;;
+            gcp-plan|gcp-apply|gcp-user-activity-schema-audit|mypage-image-build|mypage-hosting-release|mypage-backend-release|mypage-auto-cd) ;;
             *)
               echo "::error::Unsupported authenticated operation"
               exit 1
@@ -118,7 +133,14 @@ jobs:
             esac
           done
 
-          if [[ "${OPERATION}" != "gcp-user-activity-schema-audit" ]]; then
+          if [[ "${OPERATION}" == "mypage-auto-cd" ]]; then
+            # A system-only push runs System and Repository. Unaffected domains
+            # are expected to skip; failures in any selected domain still STOP.
+            [[ "${SYSTEM_RESULT}" == "success" ]] || {
+              echo "::error::System CI must succeed before MyPage automatic CD"
+              exit 1
+            }
+          elif [[ "${OPERATION}" != "gcp-user-activity-schema-audit" ]]; then
             if [[ "${GCP_TERRAFORM_VALIDATE_RESULT}" != "success" || "${SYSTEM_RESULT}" != "success" ||
                   "${FRONTEND_RESULT}" != "success" || "${TOOLS_RESULT}" != "success" || "${INFRA_RESULT}" != "success" ]]; then
               echo "::error::Full credentialless CI must succeed before a write-capable operation"
@@ -128,6 +150,14 @@ jobs:
 
           case "${OPERATION}" in
             gcp-plan|gcp-apply|mypage-image-build) ;;
+            mypage-auto-cd)
+              [[ "${ENVIRONMENT}" == "development" && "${CD_EVENT}" == "push" &&
+                 "${CD_REF}" == "refs/heads/integration/mypage-canon-20261006" &&
+                 "${CD_ACTOR_ID}" == "54093651" ]] || {
+                echo "::error::MyPage auto CD requires an owner push to the integration branch"
+                exit 1
+              }
+              ;;
             gcp-user-activity-schema-audit)
               [[ "${ENVIRONMENT}" == "development" ]] || {
                 echo "::error::Schema audit is development-only"
@@ -151,6 +181,20 @@ jobs:
               }
               ;;
           esac
+
+      - name: Checkout source for push classification
+        if: ${{ inputs.operation == 'mypage-auto-cd' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Classify trusted MyPage push
+        id: auto
+        if: ${{ inputs.operation == 'mypage-auto-cd' }}
+        env:
+          MYPAGE_CD_BEFORE: ${{ github.event.before }}
+        run: python3 infra/mypage-platform/scripts/backend_cd.py classify
 
   gcp-infrastructure:
     name: GCP Infrastructure
@@ -199,7 +243,9 @@ jobs:
   mypage-image-build:
     name: MyPage Image Build
     needs: validate-selection
-    if: ${{ inputs.operation == 'mypage-image-build' }}
+    # The registry digest is read from this job's verified output, never reconstructed from a tag.
+
+    if: ${{ inputs.operation == 'mypage-image-build' || (inputs.operation == 'mypage-auto-cd' && needs.validate-selection.outputs.build == 'true') }}
     permissions:
       contents: read
       id-token: write
@@ -218,6 +264,19 @@ jobs:
       MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
       MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
 
+  mypage-auto-deploy:
+    name: MyPage DEV Immutable Image Deploy
+    needs: [validate-selection, mypage-image-build]
+    if: ${{ inputs.operation == 'mypage-auto-cd' && needs.validate-selection.outputs.build == 'true' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-backend-authenticated.yml
+    with:
+      expected_sha: ${{ github.sha }}
+      other_operation: false
+      image_digest: ${{ needs.mypage-image-build.outputs.image_digest }}
+      image_source_sha: ${{ github.sha }}
   mypage-hosting-authenticated:
     name: MyPage DEV Hosting Release
     needs: validate-selection
@@ -241,12 +300,5 @@ jobs:
     with:
       expected_sha: ${{ github.sha }}
       other_operation: false
-    secrets:
-      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
-      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
-      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
-      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
-      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
-      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
-      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
-      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
+      image_digest: ${{ inputs.image_digest }}
+      image_source_sha: ${{ inputs.image_source_sha }}

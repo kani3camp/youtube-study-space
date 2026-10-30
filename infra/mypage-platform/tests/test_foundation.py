@@ -96,33 +96,21 @@ class FoundationTest(unittest.TestCase):
                         {'resource_changes': [{'address': address, 'change': {'actions': ['create']}}]},
                     )
 
-    def test_public_release_manifest_overrides_only_reviewed_release_fields(self):
+    def test_runtime_settings_do_not_consume_per_build_release_manifest(self):
         fixture = ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json'
         value = json.loads(fixture.read_text())
         env = {'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(value), 'MYPAGE_GCP_WIF_PROVIDER':
                'projects/' + value['project_number'] + '/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions'}
-        release = {'image_digest': ops.runtime_contract.REPOSITORY + '@sha256:' + 'b' * 64,
-                   'image_source_sha': 'c' * 40, 'hosting_backend_host': 'mypage-api-observed-et.a.run.app',
-                   'previous_image_digest': value['image_digest']}
         with tempfile.TemporaryDirectory() as directory, patch.object(ops, 'REPO', Path(directory)):
             file = Path(directory) / 'infra/mypage-platform/environments/dev/runtime-release.json'
             file.parent.mkdir(parents=True)
-            self.assertEqual(ops.runtime_settings(env)['image_digest'], value['image_digest'])
-            file.write_text(json.dumps(release))
-            actual = ops.runtime_settings(env)
-            self.assertEqual({k: actual[k] for k in release}, release)
-            self.assertEqual(actual['privacy_version'], value['privacy_version'])
-            self.assertEqual(actual['maintenance_operator_image_digest'], value['maintenance_operator_image_digest'])
-            self.assertEqual(actual['maintenance_operator_image_source_sha'], value['maintenance_operator_image_source_sha'])
-            for invalid in (release | {'privacy_version': 'other'}, release | {'image_source_sha': ''},
-                            release | {'hosting_backend_host': 'other.example.test'},
-                            release | {'image_digest': release['previous_image_digest']}):
-                file.write_text(json.dumps(invalid))
-                with self.assertRaises(ValueError):
-                    ops.runtime_settings(env)
-            file.write_text(json.dumps(release)[:-1] + ',"image_digest":"duplicate"}')
-            with self.assertRaises(ValueError):
-                ops.runtime_settings(env)
+            before = ops.runtime_settings(env)
+            self.assertEqual(before['image_digest'], value['image_digest'])
+            self.assertEqual(before['hosting_backend_host'], 'mypage-api-eu5mhkcewq-et.a.run.app')
+            self.assertEqual(before['previous_image_digest'], '')
+            file.write_text('{"image_digest":"bogus","image_source_sha":"bogus"}')
+            self.assertEqual(ops.runtime_settings(env), before)
+            self.assertEqual(before['maintenance_operator_image_digest'], value['maintenance_operator_image_digest'])
 
     def test_maintenance_operator_stage_writes_admitted_runtime_settings(self):
         value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
@@ -213,7 +201,7 @@ class FoundationTest(unittest.TestCase):
             self.assertIn('check=' + expected + '.', output.getvalue())
             self.assertNotIn('private-', output.getvalue())
 
-    def test_retained_image_requires_identical_entire_build_context(self):
+    def test_terraform_bootstrap_image_source_may_be_an_ancestor(self):
         value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
         value['image_source_sha'] = 'b' * 40
         env = {'GITHUB_SHA': 'a' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}
@@ -221,13 +209,16 @@ class FoundationTest(unittest.TestCase):
         prefix = 'projects/' + c.PROJECT + '/locations/asia-southeast2/repositories/mypage/packages/mypage-api'
         tag = {'version': prefix + '/versions/sha256:' + value['image_digest'].split('@sha256:')[1]}
         operator_tag = {'version': prefix + '/versions/sha256:' + value['maintenance_operator_image_digest'].split('@sha256:')[1]}
-        with patch.object(ops, 'run', side_effect=['', 'c' * 40, 'c' * 40]) as run, \
+        with patch.object(ops, 'run', side_effect=['', '']) as run, \
                 patch.object(ops, 'request', side_effect=[tag, operator_tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
             ops.verify_runtime_inputs(env, value, 'runtime_private')
         self.assertEqual(run.call_args_list[0].args[0], ['git', 'fetch', '--no-tags', '--depth=1', 'origin', 'b' * 40])
         self.assertTrue(request.call_args_list[0].args[0].endswith('/tags/' + 'b' * 40))
-        with patch.object(ops, 'run', side_effect=['', 'c' * 40, 'd' * 40]), patch.object(ops, 'request') as request:
-            with self.assertRaisesRegex(c.ContractError, '^runtime-image-source-tree$'):
+        self.assertEqual(run.call_args_list[1].args[0],
+                         ['git', 'merge-base', '--is-ancestor', 'b' * 40, env['GITHUB_SHA']])
+        with patch.object(ops, 'run', side_effect=['', ValueError('unreviewed-ancestor')]), \
+             patch.object(ops, 'request') as request:
+            with self.assertRaises(ValueError):
                 ops.verify_runtime_inputs(env, value, 'runtime_private')
             request.assert_not_called()
         for source in ['--upload-pack=private', 'b' * 39, 'B' * 40]:
@@ -398,6 +389,36 @@ class FoundationTest(unittest.TestCase):
         secret['change']['after_unknown']['replication'][0]['auto'][0]['customer_managed_encryption'] = True
         with self.assertRaises(ValueError):
             c.validate_plan(plan)
+
+    def test_dev_push_auth_is_explicitly_bounded_and_prod_remains_manual(self):
+        env = {
+            'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
+            'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_EVENT_NAME': 'push',
+            'GITHUB_ACTOR': 'kani3camp', 'GITHUB_ACTOR_ID': '54093651',
+            'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1',
+            'GITHUB_REF': c.REF, 'GITHUB_WORKFLOW_REF': c.CALLER,
+            'TF_WORKSPACE': 'default', 'GITHUB_SHA': 'a' * 40,
+            'MYPAGE_EXPECTED_SHA': 'a' * 40,
+            'MYPAGE_MODE': 'runtime-public-apply',
+        }
+        # Application image build may use DEV WIF on an owner push; Terraform
+        # Plan/Apply and AWS State stay dispatch-only.
+        with self.assertRaises(ValueError):
+            c.context(env, 'plan')
+        with self.assertRaises(ValueError):
+            c.context(env, 'apply')
+        c.context(env | {'MYPAGE_MODE': 'image-build'}, 'apply', image=True)
+        for mode in ('foundation-apply', 'registry-apply', 'desired-apply',
+                     'runtime-private-apply', 'runtime-public-apply',
+                     'maintenance-operator-apply'):
+            with self.subTest(mode=mode), self.assertRaises(ValueError):
+                c.context(env | {'MYPAGE_MODE': mode}, 'apply')
+        with self.assertRaises(ValueError):
+            c.context(env | {'GITHUB_EVENT_NAME': 'workflow_run'}, 'apply')
+        self.assertNotEqual(c.subject('apply', 'push'), c.subject('apply'))
+        self.assertEqual(len(c.trust_policy('123456789012', 'apply')['Statement']), 1)
+        self.assertEqual(c.trust_policy('123456789012', 'apply')['Statement'][0]['Condition']['StringEquals']['token.actions.githubusercontent.com:sub'],
+                         c.subject('apply'))
 
     def test_exact_actor_ref_and_sha_before_credentials(self):
         env = {'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',

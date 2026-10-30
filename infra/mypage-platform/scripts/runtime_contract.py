@@ -329,6 +329,68 @@ def validate_service(after, unknown, value, actions):
         c.need(one(source.get("secret_key_ref"), "runtime-secret-ref") == {"secret": secret_id, "version": value[field]}, "runtime-secret-pinned")
 
 
+def service_image(service):
+    container = one(one(service.get("template"), "runtime-image-template").get("containers"),
+                    "runtime-image-container")
+    image = container.get("image")
+    # Terraform owns only the initial image. Every subsequent revision must be
+    # an immutable digest in the fixed, environment-specific Artifact Registry.
+    c.need(type(image) is str and re.fullmatch(
+        re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", image),
+        "runtime-serving-image")
+    return image
+
+
+def validate_cicd_image_refresh(before, after, value):
+    """Allow CI-owned image revisions, never Terraform-owned config changes.
+
+    Provider-computed revision metadata belongs to Terraform's native schema.
+    Validate actual security configuration and relevant image provenance instead
+    of restoring the retired full-field allowlist.
+    """
+    c.need(type(before) is dict and type(after) is dict, "runtime-refresh-shape")
+    old_image, new_image = service_image(before), service_image(after)
+    old_config = value | {"image_digest": old_image}
+    old_env = one(one(before.get("template"), "runtime-refresh-template").get("containers"),
+                  "runtime-refresh-container").get("env", [])
+    c.need(type(old_env) is list, "runtime-refresh-env")
+    if not any(entry.get("name") == "MYPAGE_HOSTING_BACKEND_HOST" for entry in old_env):
+        # Historical initial Hosting binding is the sole permitted env addition.
+        old_config["hosting_backend_host"] = ""
+    validate_service(before, {}, old_config, ["no-op"])
+    validate_service(after, {}, value | {"image_digest": new_image}, ["no-op"])
+    # Keep only the configured security boundary stable. Revision/etag and
+    # provider-normalized computed fields may legitimately differ.
+    for key in ("project", "name", "location", "ingress", "deletion_policy",
+                "deletion_protection", "invoker_iam_disabled", "launch_stage"):
+        c.need(before.get(key) == after.get(key), "runtime-refresh-config")
+    old_template = one(before.get("template"), "runtime-refresh-template")
+    new_template = one(after.get("template"), "runtime-refresh-template")
+    for key in ("service_account", "timeout", "max_instance_request_concurrency",
+                "execution_environment", "scaling"):
+        c.need(old_template.get(key) == new_template.get(key), "runtime-refresh-template-config")
+    old_container = one(old_template.get("containers"), "runtime-refresh-container")
+    new_container = one(new_template.get("containers"), "runtime-refresh-container")
+    for key in ("ports", "resources", "startup_probe"):
+        c.need(old_container.get(key) == new_container.get(key), "runtime-refresh-container-config")
+    old_env, new_env = old_container.get("env"), new_container.get("env")
+    c.need(type(new_env) is list, "runtime-refresh-env")
+    if old_config["hosting_backend_host"] == "":
+        # Permit only the original fixed Hosting host, not arbitrary env drift.
+        c.need(old_env == [item for item in new_env
+                           if item.get("name") != "MYPAGE_HOSTING_BACKEND_HOST"],
+               "runtime-refresh-env")
+    else:
+        c.need(old_env == new_env, "runtime-refresh-env")
+    if old_image != new_image:
+        c.need(type(before.get("uid")) is str and before["uid"] == after.get("uid") and before["uid"],
+               "runtime-image-identity")
+        c.need(str(before.get("generation", "")).isdigit() and
+               str(after.get("generation", "")).isdigit() and
+               int(after["generation"]) > int(before["generation"]), "runtime-image-generation")
+    return new_image
+
+
 def validate_plan(plan, stage):
     value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
     if value["read_metrics_from_revision"]:
@@ -350,17 +412,14 @@ def validate_initial_plan(plan, stage):
     foundation["resource_changes"] = [item for item in changes if item.get("address") in base]
     foundation["resource_drift"] = []
     c.validate_refresh(plan, expected)
-    # 実際のsecurity設定driftは従来どおり拒否。計算済みmetadataは検査しない。
-    # owner image更新は既存の明示的previous digestと固定host追加だけを許す。
+    # Native refresh must remain a no-op. Only the CI/CD-owned image and
+    # provider-computed revision metadata may drift; never mask config changes.
     for observation in plan.get("resource_drift", []) or []:
         if observation.get("address") == SERVICE:
-            before = observation.get("change", {}).get("before")
-            c.need(type(before) is dict, "runtime-refresh-shape")
-            previous = value | {"image_digest": value["previous_image_digest"] or value["image_digest"]}
-            old_env = one(one(before.get("template"), "runtime-refresh-template").get("containers"), "runtime-refresh-container").get("env", [])
-            if not any(item.get("name") == "MYPAGE_HOSTING_BACKEND_HOST" for item in old_env):
-                previous["hosting_backend_host"] = ""
-            validate_service(before, {}, previous, ["no-op"])
+            change = observation.get("change", {})
+            c.need(change.get("actions") == ["update"] and
+                   not c.has_unknown(change.get("after_unknown")), "runtime-refresh-action")
+            validate_cicd_image_refresh(change.get("before"), change.get("after"), value)
     c.validate_plan(foundation, base_stage)
     seen = set()
     for item in changes:
@@ -402,6 +461,13 @@ def validate_initial_plan(plan, stage):
         if address in maintenance_resource_contract():
             validate_maintenance_resource(address, after, unknown, value, change.get("actions"))
         elif address == SERVICE:
-            validate_service(after, unknown, value, change.get("actions"))
+            if change.get("actions") == ["no-op"]:
+                # ignore_changes makes the actual serving digest authoritative.
+                # Never compare it to the stale initial bootstrap digest or
+                # trigger an infrastructure rollback.
+                validate_service(after, unknown, value | {"image_digest": service_image(after)},
+                                 change.get("actions"))
+            else:
+                validate_service(after, unknown, value, change.get("actions"))
     c.need(seen == set(expected), "runtime-resource-set")
     return {"resources": len(seen), "creates": sum(item["change"]["actions"] == ["create"] for item in changes)}

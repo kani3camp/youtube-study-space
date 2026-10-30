@@ -49,7 +49,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: gcp-infrastructure-${{ inputs.environment }}
+  group: ${{ inputs.environment == 'development' && 'mypage-dev-runtime-change' || 'gcp-infrastructure-production' }}
   cancel-in-progress: false
 
 jobs:

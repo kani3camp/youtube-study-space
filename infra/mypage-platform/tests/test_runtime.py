@@ -159,6 +159,49 @@ class RuntimeTest(unittest.TestCase):
         self.assertNotEqual(c.commitment(plan, 'state-version', 'a' * 40, key),
                             c.commitment(other, 'state-version', 'a' * 40, key))
 
+    def test_ci_owned_image_drift_allows_multiple_revisions_without_terraform_update(self):
+        plan = fixture("runtime_public")
+        for item in plan["resource_changes"]:
+            item["change"]["actions"] = ["no-op"]
+            item["change"].pop("importing", None)
+        settings = plan["variables"]["runtime_settings"]["value"]
+        settings["hosting_backend_host"] = "mypage-api-observed-et.a.run.app"
+        after = service(plan)["after"]
+        after["template"][0]["containers"][0]["env"].append({
+            "name": "MYPAGE_HOSTING_BACKEND_HOST", "value": settings["hosting_backend_host"]
+        })
+        before = deepcopy(after)
+        before.update(uid="fixed-service-uid", generation="1")
+        after.update(uid="fixed-service-uid", generation="6")
+        after["template"][0]["containers"][0]["image"] = r.REPOSITORY + "@sha256:" + "c" * 64
+        drift = deepcopy(next(item for item in plan["resource_changes"] if item["address"] == r.SERVICE))
+        drift["change"].update(actions=["update"], before=before)
+        plan["resource_drift"] = [drift]
+        saved = deepcopy(plan)
+        self.assertEqual(r.validate_plan(plan, "runtime_public"),
+                         {"resources": len(plan["resource_changes"]), "creates": 0})
+        self.assertEqual(plan, saved)
+        # Once Terraform has refreshed the state, it must not restore the old
+        # bootstrap digest on a subsequent infrastructure Plan either.
+        stable = deepcopy(plan)
+        stable.pop("resource_drift")
+        self.assertEqual(r.validate_plan(stable, "runtime_public"),
+                         {"resources": len(plan["resource_changes"]), "creates": 0})
+        def bad(mutator):
+            candidate = deepcopy(plan)
+            mutator(candidate)
+            with self.assertRaises(ValueError):
+                r.validate_plan(candidate, "runtime_public")
+        bad(lambda p: p["resource_drift"][0]["change"]["before"]["template"][0]["containers"][0]["env"][0].update(value="injected"))
+        bad(lambda p: p["resource_drift"][0]["change"]["before"].update(uid="other-service"))
+        bad(lambda p: p["resource_drift"][0]["change"]["after"].update(generation="1"))
+        bad(lambda p: p["resource_drift"][0]["change"]["after"]["template"][0]["containers"][0].update(image="other/registry@sha256:" + "f" * 64))
+        bad(lambda p: service(p).update(actions=["update"]))
+        bad(lambda p: p["resource_drift"][0]["change"]["after"]["template"][0]["containers"][0]["env"][0].update(value="unreviewed"))
+        # Unknown/mismatched planned after cannot be used to bypass refresh.
+        bad(lambda p: p["resource_drift"][0]["change"].update(after_unknown={"template": True}))
+
+
     def test_security_capacity_image_and_environment_changes_are_rejected(self):
         changes = [
             lambda a: a.update(invoker_iam_disabled=True),

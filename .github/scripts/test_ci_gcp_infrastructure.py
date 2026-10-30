@@ -29,7 +29,7 @@ class GcpInfrastructureWorkflowTest(unittest.TestCase):
         self.assertFalse(self.gcp['concurrency']['cancel-in-progress'])
         self.assertEqual(
             self.gcp['concurrency']['group'],
-            'gcp-infrastructure-${{ inputs.environment }}',
+            "${{ inputs.environment == 'development' && 'mypage-dev-runtime-change' || 'gcp-infrastructure-production' }}",
         )
 
     def test_plan_covers_core_and_mypage_before_any_apply(self):

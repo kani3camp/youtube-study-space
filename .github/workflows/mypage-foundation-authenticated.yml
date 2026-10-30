@@ -2,6 +2,10 @@ name: MyPage Foundation Authenticated
 
 on:
   workflow_call:
+    outputs:
+      image_digest:
+        description: Registry-verified immutable image published by this run.
+        value: ${{ jobs.image_build.outputs.image_digest }}
     inputs:
       target:
         required: true
@@ -238,6 +242,8 @@ jobs:
     needs: target_contract
     if: ${{ inputs.mode == 'image-build' }}
     runs-on: ubuntu-latest
+    outputs:
+      image_digest: ${{ steps.image.outputs.image_digest }}
     timeout-minutes: 25
     environment: ${{ inputs.target == 'production' && 'mypage-prod-apply' || 'mypage-dev-apply' }}
     permissions:
@@ -272,6 +278,7 @@ jobs:
           token_format: access_token
           access_token_lifetime: 1800s
       - name: Build, offline-check and push the immutable environment image
+        id: image
         env:
           MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
         run: python3 infra/mypage-platform/scripts/image_ops.py build-push

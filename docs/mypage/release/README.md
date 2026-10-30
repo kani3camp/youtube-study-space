@@ -16,7 +16,7 @@
 | --- | --- |
 | 基盤・鍵を使わない認証・環境別State | [MyPage基盤](../../../infra/mypage-platform/README.md) |
 | OAuthトランザクションのTTL | [専用Terraform](../../../infra/mypage-oauth-ttl/README.md)。アプリの10分失効と非同期TTL削除を区別する |
-| バックエンドイメージ更新 | [バックエンドCI](backend-ci.md)。image-build → ダイジェスト固定PR → CI配備・限定State再読み取りの順に行う |
+| バックエンドイメージ更新 | [バックエンドCI](backend-ci.md)。コードPR統合後の検査 → image-build → Registry digest検証 → CIから直接Cloud Run image配備。Terraformは通常リリースで起動しない |
 | フロントエンド | 下記のDEV Hosting CIと静的キャッシュ仕様 |
 | メタデータ保持・監視 | [削除処理と独立監視](metadata-monitoring.md)。ソースの実装と実スケジューラー・出力先への接続を区別する |
 | 横断削除 | [削除手順](../support-delete.md)・[調査対象](../support-delete-inventory.md)。実CLI実装やlocal/mock検証だけを実削除運用の受入完了と扱わない |

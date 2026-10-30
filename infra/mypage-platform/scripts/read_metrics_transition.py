@@ -122,8 +122,13 @@ def validate_plan(plan, stage, value):
     for candidate in (before, after):
         for key, fixed in expected[r.SERVICE].items():
             c.need(candidate.get(key) == fixed, "metrics-transition-boundary")
-    r.validate_service(before, {}, value | {"read_metrics_enabled": not value["read_metrics_enabled"]}, ["no-op"])
-    r.validate_service(after, unknown, value, ["no-op"])
+    # CI/CD owns the image, but this independent metrics-only transition
+    # must preserve the *currently serving* image exactly.
+    live_image = container(before).get("image")
+    c.need(live_image == container(after).get("image"), "metrics-transition-image-stable")
+    image_value = value | {"image_digest": live_image}
+    r.validate_service(before, {}, image_value | {"read_metrics_enabled": not value["read_metrics_enabled"]}, ["no-op"])
+    r.validate_service(after, unknown, image_value, ["no-op"])
     normalized = deepcopy(configuration(before))
     old_container, new_container = container(normalized), container(after)
     # 唯一の動的envエントリーを追加・除去すると順序が変わり得る。
@@ -170,7 +175,7 @@ def validate_readback(state, plan, stage):
             c.need(actual == expected, "metrics-readback-other-resource")
             continue
         c.need(configuration(actual) == configuration(expected), "metrics-readback-config")
-        r.validate_service(actual, {}, value, ["no-op"])
+        r.validate_service(actual, {}, value | {"image_digest": container(actual)["image"]}, ["no-op"])
         before = planned["change"]["before"]
         c.need(ready_revision(actual) != value["read_metrics_from_revision"], "metrics-readback-old-revision")
         c.need(int(actual["generation"]) == int(before["generation"]) + 1, "metrics-readback-generation")
