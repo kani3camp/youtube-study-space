@@ -16,6 +16,16 @@ Core GCPとMyPageは別々のTerraform Stateのまま、同じ `Terraform` 実�
 
 MyPageの通常経路は最終desired state（現在は `runtime_public` 相当）を常に対象とし、`foundation_metadata` / `foundation` / `registry` / `maintenance_*` / `runtime_private` を利用者が選択しません。これらのstageは初回bootstrapと既存の安全契約を維持する内部実装であり、通常workflowの操作面には露出させません。image build / releaseとmaintenance ON/OFFはTerraform Applyとは別操作です。
 
+### PR Plan（助言用、Applyしない）
+
+ownerが作成した同一repositoryのPRで `infra/gcp/**` などが変わると、`Terraform` の `pull_request` 経路がDEV / PRODのCore（MyPageはDEVのみ）を **PR Plan** します。
+
+- 専用の [`terraform-pr-plan.yml`](../../.github/workflows/terraform-pr-plan.yml) と、手動Plan・Applyとは別のPR Plan identity（`terraform-<env>-normal-pr-plan` SA、`terraform-pr-plan` WIF pool、State読み取りだけのAWS role、Environment `terraform-<env>-pr-plan`）を使う。
+- `-lock=false` で実行し、HMAC・saved plan・job outputを残さない。結果はJob Summaryの値なし要約だけで、PRコメントは投稿しない。Applyは必ず手動 `Terraform` で再Planする。
+- fork由来PR、owner以外のactor、再実行は資格情報を取得する前に**失敗として**停止する（green skipにしない）。その場合はownerが手動 `Terraform` の `operation=plan` を実行する。
+- PR作成者がworkflowを書き換えられるため、trustは実行コードを固定できない。PR Plan identityの権限（GCP read、State read）が漏えい時の影響上限になる。PR Plan Environmentのmanaged入力には、手動Plan / Applyと別の `plan_integrity_key` を設定する。
+- identityは [`bootstrap_pr_plan.py`](scripts/bootstrap_pr_plan.py) `--target dev|prod --apply` で作る（既定はプレビュー）。AWS roleは `--aws-policies <account> <bucket>` が出力するtrust / permission policyでownerが作る。
+
 認証付きDEV操作の**ブランチ許可はGitHub EnvironmentのSelected branchesだけ**で管理します。controller / AWS OIDC / GCP WIFはブランチ名を個別allowlistせず、同一refの正規workflow・本人初回dispatch・非`main`のbranch refだけを検証します。PR/fork、tag、`main`でのDEV通常操作、再実行は認証前またはEnvironmentで拒否します。Productionの通常操作は保護された`main`だけです。
 
 1. 通常のHCL追加・修正は任意の作業/統合ブランチ向けPRで進める。認証付きPlan/Applyが必要なブランチだけをGitHubの`terraform-dev-plan` / `terraform-dev-apply` Environmentへ明示追加する。`dev`は運用可能な統合結果だけを最終PRで受け入れる。
