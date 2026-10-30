@@ -92,7 +92,8 @@ jobs:
     name: Deploy API Service Image
     needs: [select, validate, build]
     # Run after a successful build, or without a build for an explicit rollback.
-    if: ${{ always() && needs.select.result == 'success' && needs.validate.result == 'success' && (needs.build.result == 'success' || (inputs.mode == 'deploy-existing' && needs.build.result == 'skipped')) }}
+    # !cancelled() (not always()) so that cancelling the run never starts a deploy.
+    if: ${{ !cancelled() && needs.select.result == 'success' && needs.validate.result == 'success' && (needs.build.result == 'success' || (inputs.mode == 'deploy-existing' && needs.build.result == 'skipped')) }}
     permissions:
       contents: read
       id-token: write
