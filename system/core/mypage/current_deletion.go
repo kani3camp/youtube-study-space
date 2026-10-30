@@ -42,6 +42,11 @@ func (g OwnerDeletionGates) check(e supportdelete.Execution, now time.Time) erro
 	if g.Selector != e.Selector || g.Generation != e.Generation || !g.Cutoff.Equal(e.Cutoff) || !now.Before(g.ExpiresAt) || g.ExpiresAt.After(now.Add(time.Hour)) {
 		return ErrDeletionGate
 	}
+	// Reject early writer resumption before any effect can advance delete/inspect.
+	// A later timestamp must not turn inspections made while writers ran into completion evidence.
+	if e.Cursor < supportdelete.ResumeStart() && !g.WritersResumedAt.IsZero() {
+		return ErrDeletionGate
+	}
 	for _, at := range []time.Time{g.WritersStoppedAt, g.CachePurgedAt, g.RestoreExcludedAt} {
 		if at.Before(e.Cutoff) || at.After(now) {
 			return ErrDeletionGate
