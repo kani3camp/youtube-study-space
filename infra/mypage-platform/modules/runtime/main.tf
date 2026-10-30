@@ -31,6 +31,11 @@ variable "stage" {
   }
 }
 
+variable "maintenance_bootstrap_image_digest" {
+  type    = string
+  default = ""
+}
+
 variable "runtime_settings" {
   type = object({
     image_digest                = string
@@ -57,6 +62,7 @@ locals {
   runtime_principal              = "serviceAccount:${local.runtime_email}"
   max_instances                  = var.environment == "development" ? 1 : 3
   maintenance_operator           = contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage)
+  maintenance_image_release      = local.maintenance_operator && var.environment == "development"
   maintenance_ref                = var.environment == "production" ? "refs/heads/main" : "refs/heads/integration/mypage-canon-20261006"
   maintenance_project_number     = var.environment == "production" ? "906336399194" : "48101442817"
   maintenance_github_environment = "mypage-maintenance-${var.environment}"
@@ -490,9 +496,11 @@ resource "google_cloud_run_v2_job" "maintenance_operator" {
       timeout               = "60s"
       execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
       containers {
-        # Bootstrap from the same reviewed application image. After creation,
-        # application CI/CD owns this image exactly like the API Service image.
-        image   = var.runtime_settings.image_digest
+        # DEV first creation receives an ephemeral digest resolved from a
+        # reviewed immutable Artifact Registry tag. Existing runtime stages can
+        # otherwise inherit the refreshed Service image; no digest is persisted
+        # in GitHub runtime-settings JSON for this Job.
+        image = var.maintenance_bootstrap_image_digest != "" ? var.maintenance_bootstrap_image_digest : (local.deploy_api ? google_cloud_run_v2_service.api[0].template[0].containers[0].image : var.runtime_settings.image_digest)
         command = ["/app/mypage-maintenance-operator"]
         resources {
           limits = {
@@ -522,7 +530,7 @@ resource "google_cloud_run_v2_job" "maintenance_operator" {
 }
 
 resource "google_project_iam_custom_role" "maintenance_image_release" {
-  count           = local.maintenance_operator ? 1 : 0
+  count           = local.maintenance_image_release ? 1 : 0
   project         = var.project_id
   role_id         = "mypageMaintenanceImageRelease"
   title           = "MyPage maintenance image release"
@@ -537,7 +545,7 @@ resource "google_project_iam_custom_role" "maintenance_image_release" {
 }
 
 resource "google_service_account_iam_member" "maintenance_image_release_act_as" {
-  count              = local.maintenance_operator ? 1 : 0
+  count              = local.maintenance_image_release ? 1 : 0
   service_account_id = "projects/${var.project_id}/serviceAccounts/${local.maintenance_operator_email}"
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${local.backend_deployer_email}"
@@ -546,7 +554,7 @@ resource "google_service_account_iam_member" "maintenance_image_release_act_as" 
 }
 
 resource "google_cloud_run_v2_job_iam_member" "maintenance_image_release" {
-  count    = local.maintenance_operator ? 1 : 0
+  count    = local.maintenance_image_release ? 1 : 0
   project  = var.project_id
   location = var.region
   name     = google_cloud_run_v2_job.maintenance_operator[0].name

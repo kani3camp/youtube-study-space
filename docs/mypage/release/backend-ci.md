@@ -40,8 +40,9 @@ flowchart TD
 
 ## Terraformとの責任境界
 
-- `infra/mypage-platform/modules/runtime/main.tf` はCloud Run Serviceとmaintenance Jobの初回作成時に同じreview済みbootstrap imageを指定する。
-  作成後は両資源ともcontainer **imageだけ** を`lifecycle.ignore_changes`でCI/CDへ委譲する。maintenance専用のdigest/source SHAを設定JSONへ持たない。
+- Cloud Run Serviceの既存bootstrap imageはTerraform入力として残るが、通常releaseでは更新しない。maintenance JobをDEVで初めて作るときだけ、Job不存在をread-only確認したうえで、実ビルド済み・operator binary含有をsourceで確認した固定SHA tagをArtifact Registryからdigestへ解決し、**そのPlan/Applyだけのprivate入力**として使う。GitHub Environmentの設定JSONへmaintenance専用digest/source SHAを保存しない。
+- 作成後はService/Jobともcontainer **imageだけ** を`lifecycle.ignore_changes`でCI/CDへ委譲する。Jobのcommand/env/resources/IAM/runtime SA等はTerraform管理のまま。
+- 旧Environment secretに `maintenance_operator_enabled` / `maintenance_operator_image_digest` / `maintenance_operator_image_source_sha` が残っていても、移行互換としてその3キーだけを読み捨てる。private tfvarsやPlanには伝播せず、他の未知キーは引き続き拒否する。運用上は確認後に旧3キーを削除する。
 - CPU・メモリ・concurrency・環境変数・Secret version・サービスアカウント・ingress・traffic・IAM等は
   Terraform/既存専用運用が管理する。`ignore_changes`をtemplate全体に広げない。
 - Terraformの`gcp-plan`/`gcp-apply`はインフラ構成を変更するときだけ使う。
@@ -86,16 +87,16 @@ source SHAが現在の統合HEADの祖先であることを確認する。
 
 ロールバックは既知の良好なdigest/source SHAを指定する**新しい配備**で行う。
 対象のrevision、旧digest、Hosting互換性、Auth/同意版・秘密参照・設定を確認してから操作する。
-Cloud Run imageの更新は1回のresourceVersion付きPUTのみで、自動再試行・自動rollbackはしない。
-応答消失は`publishStatus=unknown`、配備後の疎通失敗も実Cloud Runのrevisionを確認して復旧する。
+Serviceは1回のresourceVersion付きPUT、maintenance Jobは1回のetag付きPATCHで更新し、自動再試行・自動rollbackはしない。Job PATCHはCloud Run v2のLong-running Operation完了とgeneration前進を確認してから成功扱いにする。Jobのlabels/annotations等のユーザー設定をGETから保持し、executionCount/latestCreatedExecution等の出力専用状態は競合判定に使わない。
+応答消失は`publishStatus=unknown`またはJobの未確定状態として残し、配備後の疎通失敗も実Cloud RunのService/Jobをreadbackして復旧する。
 旧digestと旧revisionの実配備記録は14日保存する。ユーザーデータやSecretを巻き戻さない。
 
 ## 専用Backend identityの境界
 
 [初回設定スクリプト](../../../infra/mypage-platform/scripts/backend_identity.py)の既存DEV専用
 `mypage-backend-deploy` SA/WIFを使用する。
-対象は`mypage-api` serviceの`run.services.get`/`run.services.update`に加え、Terraform管理の専用custom roleで固定`mypage-maintenance-operator` Jobの`run.jobs.get`/`run.jobs.update`だけを許可する。
-API runtime SAとmaintenance Job runtime SAのそれぞれにresource-level `roles/iam.serviceAccountUser`（actAs）を付与し、他SAへは広げない。
+対象は`mypage-api` serviceの`run.services.get`/`run.services.update`に加え、Terraform管理のDEV専用custom roleで固定`mypage-maintenance-operator` Jobの`run.jobs.get`/`run.jobs.update`だけを許可する。
+API runtime SAとmaintenance Job runtime SAのそれぞれにresource-level `roles/iam.serviceAccountUser`（actAs）を付与し、他SAへは広げない。**このJob更新role/binding/actAsはdevelopmentだけに作り、Productionへ同名backend deployer principalを作成・予約しない。**
 DEV Artifact Registryのreader、Hosting viewerとquotaの必要最小権限。
 GitHub Environment `mypage-dev-backend` とcallerの完全一致を維持する。
 

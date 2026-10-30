@@ -97,6 +97,41 @@ class MetricsTransitionTest(unittest.TestCase):
                     m.validate_readback(state, plan, stage)
                     self.assertEqual(plan, original)
 
+    def test_metrics_transition_accepts_verified_service_and_job_image_refresh_drift(self):
+        plan = fixture(True, "runtime_private")
+        target_image = r.REPOSITORY + "@sha256:" + "d" * 64
+        old_image = r.REPOSITORY + "@sha256:" + "c" * 64
+
+        service_change = service(plan)
+        for candidate in (service_change["before"], service_change["after"]):
+            m.container(candidate)["image"] = target_image
+        service_before_state = deepcopy(service_change["before"])
+        m.container(service_before_state)["image"] = old_image
+        service_drift = {
+            "address": r.SERVICE, "mode": "managed",
+            "provider_name": "registry.terraform.io/hashicorp/google",
+            "change": {"actions": ["update"], "before": service_before_state,
+                       "after": deepcopy(service_change["before"]), "after_unknown": {}},
+        }
+
+        job_change = next(item["change"] for item in plan["resource_changes"]
+                          if item["address"] == r.MAINTENANCE_JOB)
+        job_before_state = deepcopy(job_change["before"])
+        job_before_state["template"][0]["template"][0]["containers"][0]["image"] = old_image
+        for candidate in (job_change["before"], job_change["after"]):
+            candidate["template"][0]["template"][0]["containers"][0]["image"] = target_image
+        job_drift = {
+            "address": r.MAINTENANCE_JOB, "mode": "managed",
+            "provider_name": "registry.terraform.io/hashicorp/google",
+            "change": {"actions": ["update"], "before": job_before_state,
+                       "after": deepcopy(job_change["before"]), "after_unknown": {}},
+        }
+        plan["resource_drift"] = [service_drift, job_drift]
+        original = deepcopy(plan)
+        self.assertEqual(r.validate_plan(plan, "runtime_private"),
+                         {"resources": len(plan["resource_changes"]), "creates": 0, "updates": 1})
+        self.assertEqual(plan, original)
+
     def test_undeclared_update_and_noop_transition_are_rejected(self):
         plan = fixture()
         value(plan)["read_metrics_from_revision"] = ""

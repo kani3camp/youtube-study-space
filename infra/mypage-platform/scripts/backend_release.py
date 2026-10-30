@@ -18,6 +18,13 @@ REGISTRY = ('https://artifactregistry.googleapis.com/v1/projects/' + c.PROJECT +
             '/locations/asia-southeast2/repositories/mypage/packages/mypage-api')
 JOB_NAME = 'projects/' + c.PROJECT + '/locations/asia-southeast2/jobs/mypage-maintenance-operator'
 JOB_URL = 'https://run.googleapis.com/v2/' + JOB_NAME
+JOB_OPERATION = re.compile(r'projects/' + re.escape(c.PROJECT) + r'/locations/asia-southeast2/operations/[A-Za-z0-9_-]+')
+JOB_OUTPUTS = frozenset({
+    '@type', 'uid', 'generation', 'observedGeneration', 'createTime', 'updateTime',
+    'deleteTime', 'expireTime', 'creator', 'lastModifier', 'terminalCondition',
+    'conditions', 'executionCount', 'latestCreatedExecution', 'reconciling',
+    'satisfiesPzs',
+})
 
 
 def context(env):
@@ -137,24 +144,63 @@ def validate_result(after, before, value):
     c.need(live.api_configuration(after) == live.api_configuration(expected), 'backend-result-config')
 
 
-def job_request(token, body=None):
+def job_mutable_configuration(job):
+    """Return the complete writable Job resource while excluding only documented output metadata."""
+    c.need(type(job) is dict and job.get('name') == JOB_NAME, 'backend-job-boundary')
+    result = deepcopy({key: item for key, item in job.items()
+                       if key not in JOB_OUTPUTS and key != 'etag'})
+    c.need(result.get('name') == JOB_NAME and type(result.get('template')) is dict,
+           'backend-job-boundary')
+    return result
+
+
+def job_configuration(job):
+    """Stable comparison that ignores executions, reconciliation status and etag."""
+    return live.compact(job_mutable_configuration(job))
+
+
+def job_request(token, body=None, *, url=JOB_URL, missing_ok=False):
+    import urllib.error
     import urllib.request
+    operation = url.removeprefix('https://run.googleapis.com/v2/')
+    allowed = url == JOB_URL or JOB_OPERATION.fullmatch(operation)
+    c.need(bool(allowed), 'backend-job-url')
+    c.need(type(token) is str and bool(token), 'backend-job-credential')
+    c.need(body is None or url == JOB_URL, 'backend-job-url')
     request = urllib.request.Request(
-        JOB_URL,
+        url,
         data=None if body is None else c.canonical(body),
         method='GET' if body is None else 'PATCH',
         headers={'Authorization': 'Bearer ' + token,
                  'Content-Type': 'application/json; charset=utf-8'})
-    with urllib.request.build_opener(live.NoRedirect()).open(request, timeout=30) as response:
-        data = response.read(65537)
-    c.need(len(data) <= 65536, 'backend-job-response-size')
-    return json.loads(data)
+    try:
+        with urllib.request.build_opener(live.NoRedirect()).open(request, timeout=30) as response:
+            data = response.read(1024 * 1024 + 1)
+    except urllib.error.HTTPError as error:
+        if missing_ok and body is None and url == JOB_URL and error.code == 404:
+            return None
+        label = 'backend-job-conflict' if error.code in (409, 412) else 'backend-job-api-failed'
+        raise c.ContractError(label) from None
+    c.need(len(data) <= 1024 * 1024, 'backend-job-response-size')
+    value = json.loads(data)
+    c.need(type(value) is dict, 'backend-job-response')
+    return value
 
 
 def job_baseline(job, value, *, target=False):
-    c.need(job.get('name') == JOB_NAME and type(job.get('uid')) is str and job['uid'] and
-           job.get('deletionProtection') is True and job.get('launchStage') == 'GA',
-           'backend-job-boundary')
+    c.need(type(job) is dict and job.get('name') == JOB_NAME and
+           type(job.get('uid')) is str and job['uid'] and
+           not job.get('deleteTime') and not job.get('expireTime') and
+           job.get('launchStage') == 'GA', 'backend-job-boundary')
+    generation = job.get('generation')
+    c.need(type(generation) is str and generation.isdigit() and int(generation) >= 1 and
+           job.get('observedGeneration') == generation and
+           job.get('reconciling', False) is False and
+           job.get('terminalCondition', {}).get('state') == 'CONDITION_SUCCEEDED',
+           'backend-job-ready')
+    etag = job.get('etag')
+    c.need(type(etag) is str and 0 < len(etag) <= 1024 and '\n' not in etag and '\r' not in etag,
+           'backend-job-etag')
     template = job.get('template')
     c.need(type(template) is dict and template.get('taskCount') == 1 and template.get('parallelism') == 1,
            'backend-job-template')
@@ -188,33 +234,52 @@ def job_baseline(job, value, *, target=False):
 def job_payload(before, value):
     current = job_baseline(before, value)
     c.need(current != value['image_digest'], 'backend-job-already-serving')
-    result = {'name': JOB_NAME, 'etag': before.get('etag'), 'template': deepcopy(before['template'])}
-    c.need(type(result['etag']) is str and result['etag'], 'backend-job-etag')
-    runtime.one(result['template']['template'].get('containers'), 'backend-job-container')['image'] = value['image_digest']
+    result = job_mutable_configuration(before)
+    result['etag'] = before['etag']
+    runtime.one(result['template']['template'].get('containers'),
+                'backend-job-container')['image'] = value['image_digest']
     return result
 
 
 def validate_job_result(after, before, value):
     job_baseline(after, value, target=True)
-    c.need(after['uid'] == before['uid'] and int(after['generation']) == int(before['generation']) + 1 and
-           str(after.get('observedGeneration')) == str(after['generation']) and
-           after.get('reconciling') is False and
-           after.get('terminalCondition', {}).get('state') == 'CONDITION_SUCCEEDED' and
-           after.get('etag') != before.get('etag') and
+    c.need(after['uid'] == before['uid'] and
+           int(after['generation']) == int(before['generation']) + 1 and
+           after['etag'] != before['etag'] and
            c.registry_timestamp(after['updateTime']) > c.registry_timestamp(before['updateTime']),
            'backend-job-result')
-    expected = deepcopy(before['template'])
-    runtime.one(expected['template'].get('containers'), 'backend-job-container')['image'] = value['image_digest']
-    c.need(after.get('template') == expected, 'backend-job-result-config')
+    expected = job_mutable_configuration(before)
+    runtime.one(expected['template']['template'].get('containers'),
+                'backend-job-container')['image'] = value['image_digest']
+    c.need(job_configuration(after) == live.compact(expected), 'backend-job-result-config')
 
 
-def update_job(token, before, value):
-    wanted = job_payload(before, value)
-    job_request(token, wanted)  # etag-bound PATCH; no retry.
+def same_job_configuration(current, expected):
+    return (type(current) is dict and current.get('uid') == expected.get('uid') and
+            job_configuration(current) == job_configuration(expected))
+
+
+def start_job_update(token, before, value):
+    operation = job_request(token, job_payload(before, value))
+    name = operation.get('name')
+    c.need(type(name) is str and JOB_OPERATION.fullmatch(name), 'backend-job-operation')
+    c.need(not operation.get('error'), 'backend-job-operation')
+    return operation
+
+
+def wait_job_update(token, operation, before, value):
     deadline = time.monotonic() + 300
+    current = operation
+    while not current.get('done', False):
+        c.need(time.monotonic() < deadline, 'backend-job-ready-timeout')
+        time.sleep(2)
+        current = job_request(token, url='https://run.googleapis.com/v2/' + operation['name'])
+    c.need(not current.get('error'), 'backend-job-operation')
     while True:
         after = job_request(token)
-        if not after.get('reconciling', False):
+        generation_advanced = (type(after.get('generation')) is str and after['generation'].isdigit() and
+                               int(after['generation']) > int(before['generation']))
+        if generation_advanced and not after.get('reconciling', False):
             validate_job_result(after, before, value)
             return after
         c.need(time.monotonic() < deadline, 'backend-job-ready-timeout')
@@ -266,7 +331,7 @@ def deploy(env):
     previous, number = baseline(before, value, target=unchanged)
     hosting_before = hosting.current(token)
     c.need(live.request(token, live.SERVICE_URL) == before, 'backend-moved')
-    c.need(job_request(token) == before_job, 'backend-maintenance-job-moved')
+    c.need(same_job_configuration(job_request(token), before_job), 'backend-maintenance-job-moved')
     hosting.verify_head(env)
     c.need(hosting.current(token) == hosting_before, 'backend-hosting-moved')
     record = {'schemaVersion': 3, 'environment': 'development', 'sourceSHA': env['GITHUB_SHA'],
@@ -315,16 +380,18 @@ def deploy(env):
 
     after_job = before_job
     if not job_unchanged:
-        c.need(job_request(token) == before_job, 'backend-maintenance-job-moved')
+        c.need(same_job_configuration(job_request(token), before_job), 'backend-maintenance-job-moved')
+        operation = start_job_update(token, before_job, value)
         record['maintenanceJobStatus'] = 'accepted'
         save()
-        after_job = update_job(token, before_job, value)
+        after_job = wait_job_update(token, operation, before_job, value)
         record.update(maintenanceJobImageDigest=value['image_digest'], maintenanceJobStatus='confirmed')
         save()
 
     smoke()
     c.need(live.request(token, live.SERVICE_URL) == after, 'backend-superseded')
-    c.need(job_request(token) == after_job, 'backend-maintenance-job-superseded')
+    c.need(same_job_configuration(job_request(token), after_job),
+           'backend-maintenance-job-superseded')
     c.need(hosting.current(token) == hosting_before, 'backend-hosting-moved')
     hosting.verify_head(env)
     record['publicReadback'] = 'passed'

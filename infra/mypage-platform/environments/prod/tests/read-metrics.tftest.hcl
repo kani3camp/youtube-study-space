@@ -13,9 +13,6 @@ variables {
     oauth_client_id_version               = "1"
     oauth_client_secret_version           = "2"
     youtube_api_key_version               = "3"
-    maintenance_operator_enabled          = true
-    maintenance_operator_image_digest     = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-    maintenance_operator_image_source_sha = "cccccccccccccccccccccccccccccccccccccccc"
   }
 }
 
@@ -40,9 +37,6 @@ run "production_metrics_explicit_false_is_off" {
       oauth_client_id_version               = "1"
       oauth_client_secret_version           = "2"
       youtube_api_key_version               = "3"
-      maintenance_operator_enabled          = true
-      maintenance_operator_image_digest     = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-      maintenance_operator_image_source_sha = "cccccccccccccccccccccccccccccccccccccccc"
     }, { read_metrics_enabled = false })
   }
   assert {

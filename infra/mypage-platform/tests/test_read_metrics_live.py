@@ -339,6 +339,49 @@ class MetricsLiveTest(unittest.TestCase):
             live.conditional_update(TOKEN,before,service(plan)["after"])
         self.assertEqual(request.call_count,2)
 
+    def test_refresh_accepts_combined_service_transition_and_job_image_drift(self):
+        plan, _ = fixture()
+        current_image = r.REPOSITORY + "@sha256:" + "d" * 64
+        old_image = r.REPOSITORY + "@sha256:" + "c" * 64
+
+        service_change = service(plan)
+        for candidate in (service_change["before"], service_change["after"]):
+            m.container(candidate)["image"] = current_image
+        service_state_before = deepcopy(service_change["before"])
+        m.container(service_state_before)["image"] = old_image
+        service_image_drift = {
+            "address": r.SERVICE, "mode": "managed",
+            "provider_name": "registry.terraform.io/hashicorp/google",
+            "change": {"actions": ["update"], "before": service_state_before,
+                       "after": deepcopy(service_change["before"]), "after_unknown": {}},
+        }
+
+        job_change = next(item["change"] for item in plan["resource_changes"]
+                          if item["address"] == r.MAINTENANCE_JOB)
+        job_state_before = deepcopy(job_change["before"])
+        job_state_before["template"][0]["template"][0]["containers"][0]["image"] = old_image
+        for candidate in (job_change["before"], job_change["after"]):
+            candidate["template"][0]["template"][0]["containers"][0]["image"] = current_image
+        job_image_drift = {
+            "address": r.MAINTENANCE_JOB, "mode": "managed",
+            "provider_name": "registry.terraform.io/hashicorp/google",
+            "change": {"actions": ["update"], "before": job_state_before,
+                       "after": deepcopy(job_change["before"]), "after_unknown": {}},
+        }
+        plan["resource_drift"] = [service_image_drift, job_image_drift]
+        state = applied_state(plan)
+        refresh = refresh_plan(plan, state)
+        refresh["resource_drift"][0]["change"]["before"] = deepcopy(service_state_before)
+        state_job = next(item["values"] for item in state["values"]["root_module"]["child_modules"][0]["resources"]
+                         if item["address"] == r.MAINTENANCE_JOB)
+        refresh["resource_drift"].append({
+            "address": r.MAINTENANCE_JOB, "mode": "managed",
+            "provider_name": "registry.terraform.io/hashicorp/google",
+            "change": {"actions": ["update"], "before": job_state_before,
+                       "after": deepcopy(state_job), "after_unknown": {}},
+        })
+        self.assertEqual(live.validate_refresh(refresh, plan, "runtime_private"), state)
+
     def test_refresh_only_rejects_any_unrelated_drift_or_remote_write(self):
         plan, state = fixture()
         refresh = refresh_plan(plan, state)
