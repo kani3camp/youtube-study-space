@@ -191,73 +191,27 @@ def registry_timestamp(value):
     return seconds, int((match[2] or "").ljust(9, "0"))
 
 
-def validate_iam_etag_refresh(item, planned, expected):
-    need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "iam-refresh-provider")
-    change = item.get("change", {})
-    need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths"), "iam-refresh-action")
-    need(not has_unknown(change.get("after_unknown")), "iam-refresh-unknown")
-    before, after = change.get("before"), change.get("after")
-    need(type(before) is dict and type(after) is dict and set(before) == set(after), "iam-refresh-shape")
-    need(planned.get(item.get("address"), {}).get("change", {}).get("actions") == ["no-op"], "iam-refresh-planned-noop")
-    need({key for key in before if before[key] != after[key]} == {"etag"}, "iam-refresh-etag-only")
-    need(all(type(value.get("etag")) is str and 0 < len(value["etag"]) <= 512 for value in (before, after)), "iam-refresh-etag-value")
-    need(not after.get("condition"), "iam-refresh-condition")
-    for key, value in expected.items():
-        allowed = {value, "projects/" + PROJECT + "/secrets/" + value} if key == "secret_id" else {value}
-        need(after.get(key) in allowed, "iam-refresh-member-boundary")
-
-
-def validate_computed_metadata_refresh(plan):
-    """計画がno-opの資源について、範囲を限定した計算済みメタデータの再取得だけを許可する。
-
-    Google 8.5.0は初回作成後、未設定マップをnullから{}へ更新する。
-    元のdrift全体をHMACに残し、消去しない。実際のメタデータ変更・別資源・Terraform書き込みは許可しない。
-    運用担当者のバインディング追加でも、IAMメンバー読み取りが返す共有ポリシーのetagが変わる。
-    これは管理対象メンバー自体の変更ではない。
-    """
-    secrets = {"module.platform[0].google_secret_manager_secret." + name for name in SECRET_IDS}
-    registry = "module.platform[0].google_artifact_registry_repository.mypage[0]"
-    members = {address: values for address, values in resource_contract("foundation").items() if "_iam_member." in address}
+def validate_refresh(plan, resources):
+    """RefreshはStateの観測。provider出力の形は再定義せず、適用する操作と最終設定を検証する。"""
     planned = {item.get("address"): item for item in plan.get("resource_changes", [])}
     seen = set()
     for item in plan.get("resource_drift", []) or []:
         address = item.get("address")
-        need(address in secrets | set(members) | {registry} and address not in seen, "metadata-refresh-address")
+        need(address in resources and address not in seen, "refresh-resource")
         seen.add(address)
-        need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "metadata-refresh-provider")
-        change = item["change"]
-        need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths"), "metadata-refresh-action")
-        need(not has_unknown(change.get("after_unknown")), "metadata-refresh-unknown")
-        before, after = change.get("before"), change.get("after")
-        need(type(before) is dict and type(after) is dict and set(before) == set(after), "metadata-refresh-shape")
-        changed = {key for key in before if before[key] != after[key]}
-        need(planned.get(address, {}).get("change", {}).get("actions") == ["no-op"], "metadata-refresh-planned-noop")
-        if address == registry:
-            # 初回保存時のリポジトリはlabels=nullであり、最初のプロバイダーReadでは同じ空ラベルが{}になる。
-            # イメージのpushでも、計算値であるリポジトリ更新時刻が進む。
-            # 書き込み可能な設定やスキャン設定の変更は一切許可しない。
-            need(bool(changed) and changed <= {"labels", "update_time"}, "registry-refresh-fields")
-            if "labels" in changed:
-                need(before["labels"] is None and type(after["labels"]) is dict
-                     and not after["labels"], "registry-refresh-empty-labels-only")
-            if "update_time" in changed:
-                need(registry_timestamp(after["update_time"]) >= registry_timestamp(before["update_time"]),
-                     "registry-refresh-time-backwards")
-            need(all(after.get(key) == value for key, value in resource_contract("registry")[registry].items()),
-                 "registry-refresh-boundary")
-            continue
-        if address in members:
-            validate_iam_etag_refresh(item, planned, members[address])
-            continue
-        need(bool(changed) and changed <= {"annotations", "labels", "version_aliases"}, "metadata-refresh-fields")
-        need(all(before[key] is None and type(after[key]) is dict and not after[key] for key in changed), "metadata-refresh-empty-only")
+        need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "refresh-provider")
+        change = item.get("change", {})
+        need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths"), "refresh-action")
+        # 変更を取り込むだけでありremote writeは行わない。最終desired値はvalidate_planで検査する。
+        need(planned.get(address, {}).get("change", {}).get("actions") == ["no-op"], "refresh-planned-noop")
+        need(planned[address]["change"].get("after") == change.get("after"), "refresh-planned-state")
 
 
 def validate_plan(plan, stage="foundation"):
     need(plan.get("format_version") == "1.2", "plan-format")
     need(plan.get("complete") is True, "plan-complete")
     need(plan.get("errored") is False, "plan-errored")
-    validate_computed_metadata_refresh(plan)
+    validate_refresh(plan, resource_contract(stage))
     need(not plan.get("deferred_changes"), "deferred-changes")
     need(not plan.get("action_invocations") and not plan.get("deferred_action_invocations"), "provider-actions")
     need(all(item.get("status") == "pass" for item in plan.get("checks", []) or []), "plan-checks")

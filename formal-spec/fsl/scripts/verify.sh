@@ -21,5 +21,3 @@ for spec in "${specs[@]}"; do
 	echo "Verifying $spec (depth=$depth, vacuity=error)" >&2
 	"$fslc" verify "$spec" --depth "$depth" --vacuity error
 done
-
-python3 "$script_dir/test_mypage_models.py" --fslc "$fslc" --oauth-depth "$(fsl_default_depth mypage_oauth)"

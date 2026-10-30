@@ -19,7 +19,6 @@ try {
 		config.deployment.projectID !== 'test-youtube-study-space' ||
 		config.deployment.publicOrigin !== 'https://test--study-space.web.app' ||
 		config.frontend.VITE_MYPAGE_ANALYTICS_READY !== 'false' ||
-		config.frontend.VITE_PRIVACY_INTAKE_ENABLED !== 'false' ||
 		config.hosting.inventory.analyticsApproved !== false
 	)
 		throw new Error()

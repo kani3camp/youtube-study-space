@@ -89,11 +89,13 @@ runtime設定の任意 `image_source_sha`（既定は空文字）は、既存の
 
 maintenance operatorは通常API releaseと独立した`maintenance_operator_image_digest`と`maintenance_operator_image_source_sha`を必須にする。source SHAは現行review済みcommitのancestorに限定し、Artifact Registryの同SHA tagが指定digestを指すことを検証する。APIコンテナのCI/CDとは独立しており、maintenance operatorのdigestやsource SHAを自動で変更しない。
 
-Cloud Runのdrift診断は、固定allowlistに含まれる変更field名、その他fieldの件数、planned no-opの真偽だけを公開する。値、未知のfield名、State/Plan本文は公開せず、診断を理由にadmissionを緩めない。private runtimeの初回適用はrun 39566961739で成功した。続くpublic Planは `runtime-drift-address` で変更前に停止し、付与済みの一時権限3件は全て解除した。公開接続とHosting releaseは未実施。
+## Plan guardの責任分担
 
-### 初回Cloud Run readの空値補完
+Terraformのresource schema・computed metadata・etag・空map/list補完・Job実行件数/リビジョン観測値は、Terraform/providerに任せる。Pythonにprovider field全体のallowlistを持たない。refreshは既知の管理資源・Google provider・planned no-op・planned after一致に限定し、destroy/replace/update/importの許可は従来の目的別境界を維持する。
 
-実Plan run 39571661136 で、planned no-opのCloud Runに対し、root `annotations` / `labels`、revision templateの同2 fieldがnull→{}、root `custom_audiences`、唯一のcontainerの `args` / `command` / `depends_on` がnull→[]となる8 pathだけを観測した。この8 pathだけを、known・同じschema・同じ固定service boundary・planned afterがrefresh afterと同一の場合に受理する。8 pathを補完したbeforeがafterと完全一致することを要求し、追加field、非空値、逆方向変化、アプリ/認証/secret/scale/traffic変更、unknown、update/delete/replace/importは受理しない。native driftを消さず、HMACには従来どおり含める。
+アプリの計測設定を含むCloud Run security設定のdrift拒否、固定project/region/principal・IAM broadening拒否、Secretの参照のみ、image digest・環境変数・capacityなどの重要設定検査は残す。アプリimageのリリースはCI/CDが担当し、ビルドごとのprevious digest宣言PRやTerraform Applyは不要。後日のPlanでは正規のimage-only refreshを検査し、構成値の変更や不正なイメージ参照を拒否する。実配備のReady/traffic/設定不変はbackend release側が検証する。
+
+native Plan全体とdriftは引き続きHMACへ含め、source・State versionと保存PlanをApplyへ結び付ける。二重管理検出・state owner・DEV/PROD State分離・Production approval・saved plan apply・重要設定readbackを維持する。診断はdrift資源数とplanned write数のみで、Plan値や未知field名を公開しない。provider upgrade時はTerraformのlock/ネイティブテストを更新し、Pythonへcomputed field名を追記しない。
 
 ### 公開Invokerをownerが追加し、CIは固定memberだけを取り込む
 

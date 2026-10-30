@@ -12,10 +12,10 @@
 | `firestore-oauth` | login/support OAuth、channel 未確定 callback | channel query、receipt relation、明示 transaction、未確定 callback の admission を合わせた閉路 |
 | `firestore-support-relations` | 全 target receipt、challenge/request index、support OAuth | 他 receipt を含む ownership 照合、現在の完了依存を保持した関連 cleanup |
 | `legacy-mappings` | 旧 channel owner / legacy uid account / linked Auth | 旧 UID の確認と逆・重複・移行関係、旧 writer/restore の確認 |
-| `firebase-auth` | 現在・旧 mapped UID、mint/token/session | 明示 project/tenant/UID、mint と配達 drain、revoke/delete の結果と readback |
+| `firebase-auth` | 現在のchannel UID、mint/token/session（旧UID/tenantはlegacy Gate） | 明示 project/tenant/UID、mint と配達 drain、revoke/delete の結果と readback |
 | `bigquery` | 3 本表、`tmp`、load/query/copy/export job と結果コピー | main/tmp 不存在、実行・再開可能な古い job/source が再投入しないこと |
 | `backups-exports` | mixed GCS snapshot、generation/soft delete、managed backup/PITR、local JSON/export copies | snapshot integrity を維持した帰属・残存処置、recoverable copy と restore の確認 |
-| `derived-vendor` | global trend/examples、OpenAI stored Responses、Discord/YouTube copies | channel index のない派生物の provenance、vendor ownership/削除・残存証跡。合成adapterは[削除手順](support-delete.md#派生データとvendor)参照 |
+| `derived-vendor` | global trend/examples、OpenAI stored Responses、Discord/YouTube copies | channel index のない派生物の provenance、vendor ownership/削除・残存証跡。個別処置は[所有者Gate](support-delete.md#所有者gate)参照 |
 | `platform-logs` | local/CloudWatch/SFN/API/Hosting/Cloud Run/vendor logs、forwarded payload | 各 sink の実帰属と処置、遅延 forwarding drain、実設定の redaction |
 
 Canon 05では、停止前に取得・受理した古いメッセージ、座席スナップショット、コールバック、トークン発行結果、import・restore・再試行が、削除済みデータを復活させないことを条件にする。再開後の正当な新規利用によるデータ作成は許容する。初期SACの対象はMyPageだけで、既存Botの通常書き込み、`!block`、YouTube Banの意味は変更しない。

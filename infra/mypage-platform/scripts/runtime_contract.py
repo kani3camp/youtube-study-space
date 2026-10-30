@@ -200,48 +200,6 @@ def empty_options(value, names):
         c.need(value.get(name) in (None, "", False, 0, [], {}), "runtime-unsupported-option")
 
 
-def fixed_options(value, allowed, check):
-    """固定の設定許可リスト外にある、空でない全プロバイダーフィールドを拒否する。"""
-    c.need(type(value) is dict, check)
-    for name, option in value.items():
-        if name not in allowed:
-            c.need(option in (None, "", False, 0, [], {}), check)
-
-
-JOB_OBSERVED_OPTIONS = {
-    "conditions", "create_time", "creator", "delete_time", "effective_annotations", "effective_labels",
-    "etag", "execution_count", "expire_time", "generation", "id", "last_modifier", "latest_created_execution",
-    "observed_generation", "reconciling", "terminal_condition", "terraform_labels", "uid", "update_time",
-}
-
-SERVICE_OBSERVED_OPTIONS = {
-    "conditions", "create_time", "creator", "delete_time", "effective_annotations", "effective_labels", "etag",
-    "expire_time", "generation", "id", "last_modifier", "latest_created_revision", "latest_ready_revision",
-    "observed_generation", "reconciling", "terminal_condition", "terraform_labels", "traffic_statuses", "uid",
-    "update_time", "uri", "urls",
-}
-
-
-def validate_unknown_paths(mask, allowed, check):
-    """完全一致するプロバイダー計算値のunknown末端だけを許可し、可変フィールドは既知に保つ。"""
-    c.need(type(mask) is dict, check)
-
-    def visit(value, path):
-        if isinstance(value, dict):
-            for key, child in value.items():
-                visit(child, path + (key,))
-            return
-        if isinstance(value, list):
-            for index, child in enumerate(value):
-                visit(child, path + (index,))
-            return
-        c.need(value is None or type(value) is bool, check)
-        if value is True:
-            c.need(path in allowed, check)
-
-    visit(mask, ())
-
-
 def validate_planned_revision(after, desired, service, actions, check):
     """作成時はリビジョン固定を認めず、no-opでは完全一致するReadyリビジョンだけを公開できる。"""
     if not desired:
@@ -259,36 +217,21 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
     operator_email = "mypage-maintenance-job@" + c.PROJECT + ".iam.gserviceaccount.com"
     invoker_email = "mypage-maintenance-invoker@" + c.PROJECT + ".iam.gserviceaccount.com"
     if address in {MAINTENANCE_OPERATOR_SA, MAINTENANCE_INVOKER_SA}:
-        outputs = {"email", "id", "member", "name", "unique_id"}
-        validate_unknown_paths(unknown, {(name,) for name in outputs}, "maintenance-service-account-unknown")
-        fixed_options(after, set(maintenance_resource_contract()[address]) | outputs,
-                      "maintenance-service-account-options")
         c.need(after.get("disabled") is False and after.get("deletion_policy") == "PREVENT",
                "maintenance-service-account-disabled")
         return
     if address in {MAINTENANCE_ROLE}:
         # deletedはプロバイダーの計算値なので、作成時だけunknownになる。
         # 既存ロールのno-opでは、毎回既知のfalseでなければならない。
-        role_unknowns = {("id",), ("name",)} | ({("deleted",)} if actions == ["create"] else set())
-        validate_unknown_paths(unknown, role_unknowns, "maintenance-role-unknown")
-        fixed_options(after, set(maintenance_resource_contract()[address]) | {"deleted", "id", "name"},
-                      "maintenance-role-options")
         c.need(after.get("deletion_policy") == "PREVENT" and
                (after.get("deleted") is None if actions == ["create"] else after.get("deleted") in {None, False}),
                "maintenance-role-deleted")
         return
     if address == MAINTENANCE_POOL:
-        outputs = {"id", "name", "state"}
-        validate_unknown_paths(unknown, {(name,) for name in outputs}, "maintenance-pool-unknown")
-        fixed_options(after, set(maintenance_resource_contract()[address]) | outputs,
-                      "maintenance-pool-options")
         c.need(after.get("display_name") == "MyPage maintenance GitHub", "maintenance-pool-display")
         return
     if address == MAINTENANCE_PROVIDER:
-        outputs = {"id", "name", "state"}
-        validate_unknown_paths(unknown, {(name,) for name in outputs}, "maintenance-provider-unknown")
-        fixed_options(after, set(maintenance_resource_contract(value)[address]) | outputs,
-                      "maintenance-provider-options")
+        c.need(not c.has_unknown({k: unknown.get(k) for k in ("attribute_condition", "attribute_mapping", "oidc")}), "maintenance-provider-unknown")
         c.need(after.get("attribute_condition") == maintenance_provider_condition(), "maintenance-provider-condition")
         c.need(after.get("attribute_mapping") == {
             "attribute.actor": "assertion.actor",
@@ -305,14 +248,11 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
             "google.subject": "assertion.sub",
         }, "maintenance-provider-mapping")
         oidc = one(after.get("oidc"), "maintenance-provider-oidc")
-        fixed_options(oidc, {"issuer_uri", "allowed_audiences"}, "maintenance-provider-oidc-options")
+        empty_options(oidc, ("jwks_json",))
         c.need(oidc.get("issuer_uri") == "https://token.actions.githubusercontent.com"
                and oidc.get("allowed_audiences") in (None, []), "maintenance-provider-issuer")
         return
     if address == MAINTENANCE_WIF:
-        validate_unknown_paths(unknown, {("etag",), ("id",)}, "maintenance-wif-unknown")
-        fixed_options(after, set(maintenance_resource_contract(value)[address]) | {"etag", "id"},
-                      "maintenance-wif-options")
         c.need(after.get("service_account_id") in {
             "projects/" + c.PROJECT + "/serviceAccounts/" + invoker_email,
             "projects/-/serviceAccounts/" + invoker_email,
@@ -321,88 +261,60 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
         c.need(after.get("member") == expected_member, "maintenance-wif-member")
         return
     if address in MAINTENANCE_FIXED_IAM_MEMBERS:
-        validate_unknown_paths(unknown, {("etag",), ("id",)}, "maintenance-iam-unknown")
-        fixed_options(after, set(maintenance_resource_contract(value)[address]) | {"etag", "id"},
-                      "maintenance-iam-options")
+        c.need(not c.has_unknown(unknown.get("condition")), "maintenance-iam-unknown")
         return
     if address in {MAINTENANCE_JOB}:
-        validate_unknown_paths(unknown, {(name,) for name in JOB_OBSERVED_OPTIONS}, "maintenance-job-unknown")
-        fixed_options(after, {"project", "name", "location", "deletion_policy", "deletion_protection", "launch_stage", "template"} | JOB_OBSERVED_OPTIONS, "maintenance-job-options")
         template = one(after.get("template"), "maintenance-job-template")
-        fixed_options(template, {"task_count", "parallelism", "template"}, "maintenance-job-template-options")
         c.need(template.get("task_count") == 1 and template.get("parallelism") == 1, "maintenance-job-single-task")
         task = one(template.get("template"), "maintenance-job-task")
-        fixed_options(task, {"service_account", "max_retries", "timeout", "execution_environment", "containers"}, "maintenance-job-task-options")
         c.need(task.get("service_account") == operator_email and task.get("max_retries") == 0 and task.get("timeout") == "60s"
                and task.get("execution_environment") == "EXECUTION_ENVIRONMENT_GEN2", "maintenance-job-runtime")
         container = one(task.get("containers"), "maintenance-job-container")
-        fixed_options(container, {"image", "command", "args", "resources", "env"}, "maintenance-job-container-options")
         expected_command = "/app/mypage-maintenance-operator"
         c.need(container.get("image") == value["maintenance_operator_image_digest"] and container.get("command") == [expected_command] and not container.get("args"), "maintenance-job-image-command")
         environment = container.get("env")
         c.need(type(environment) is list and all(type(item) is dict for item in environment), "maintenance-job-environment")
-        for item in environment:
-            fixed_options(item, {"name", "value"}, "maintenance-job-environment-options")
         env = {item.get("name"): item.get("value") for item in environment}
         c.need(len(env) == len(environment), "maintenance-job-environment")
         c.need(env == {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": c.ENVIRONMENT}, "maintenance-job-environment")
         resources = one(container.get("resources"), "maintenance-job-resources")
-        fixed_options(resources, {"limits"}, "maintenance-job-resource-options")
         c.need(resources.get("limits") == {"cpu": "1", "memory": "512Mi"}, "maintenance-job-limits")
         return
 def validate_service(after, unknown, value, actions):
-    computed_unknowns = {(name,) for name in SERVICE_OBSERVED_OPTIONS} | {
-        ("scaling", 0, "manual_instance_count"),
-        ("template", 0, "containers", 0, "build_info"),
-    }
-    validate_unknown_paths(unknown, computed_unknowns, "runtime-config-unknown")
-    fixed_options(after, {
-        "project", "name", "location", "ingress", "deletion_policy", "deletion_protection",
-        "invoker_iam_disabled", "launch_stage", "scaling", "traffic", "template", "client", "client_version",
-    } | SERVICE_OBSERVED_OPTIONS, "runtime-service-options")
+    # security入力だけknownを要求。revision等のprovider出力はTerraformに任せる。
+    for template_mask in unknown.get("template", []) or []:
+        c.need(not c.has_unknown({key: template_mask.get(key) for key in ("service_account", "timeout", "max_instance_request_concurrency", "execution_environment", "scaling")}), "runtime-config-unknown")
+        for container_mask in template_mask.get("containers", []) or []:
+            c.need(not c.has_unknown({key: container_mask.get(key) for key in ("image", "env", "command", "args", "resources")}), "runtime-config-unknown")
     scaling = one(after.get("scaling"), "runtime-service-scaling")
-    fixed_options(scaling, {"min_instance_count", "max_instance_count", "scaling_mode", "manual_instance_count"},
-                  "runtime-service-scaling-options")
     c.need(scaling.get("min_instance_count") == 0 and scaling.get("max_instance_count") == (1 if c.TARGET == "development" else 3)
            and scaling.get("scaling_mode") == "AUTOMATIC", "runtime-service-capacity")
     empty_options(scaling, ("manual_instance_count",))
     traffic = one(after.get("traffic"), "runtime-traffic")
-    fixed_options(traffic, {"type", "percent", "revision", "tag"}, "runtime-traffic-options")
     c.need(traffic.get("type") == "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST" and traffic.get("percent") == 100, "runtime-latest-traffic")
     empty_options(traffic, ("tag",))
     validate_planned_revision(after, traffic.get("revision"), "mypage-api", actions, "runtime-traffic-revision")
     template = one(after.get("template"), "runtime-template")
-    fixed_options(template, {
-        "service_account", "timeout", "max_instance_request_concurrency", "execution_environment", "scaling",
-        "containers", "revision",
-    }, "runtime-template-options")
     c.need(template.get("service_account") == c.EMAIL and template.get("timeout") == "30s"
            and template.get("max_instance_request_concurrency") == 40
            and template.get("execution_environment") == "EXECUTION_ENVIRONMENT_GEN2", "runtime-template-boundary")
     validate_planned_revision(after, template.get("revision"), "mypage-api", actions, "runtime-owned-revision")
     scaling = one(template.get("scaling"), "runtime-revision-scaling")
-    fixed_options(scaling, {"min_instance_count", "max_instance_count"}, "runtime-revision-scaling-options")
     c.need(scaling.get("min_instance_count") == 0 and scaling.get("max_instance_count") == (1 if c.TARGET == "development" else 3), "runtime-revision-capacity")
     container = one(template.get("containers"), "runtime-container")
-    fixed_options(container, {"image", "ports", "resources", "env", "startup_probe", "build_info"},
-                  "runtime-container-options")
     c.need(container.get("image") == value["image_digest"], "runtime-image-value")
+    empty_options(container, ("command", "args"))
     probe = one(container.get("startup_probe"), "runtime-startup-probe")
-    fixed_options(probe, {"initial_delay_seconds", "timeout_seconds", "period_seconds", "failure_threshold", "tcp_socket"},
-                  "runtime-startup-probe-options")
     c.need(probe.get("initial_delay_seconds") == 0 and probe.get("timeout_seconds") == 1
            and probe.get("period_seconds") == 10 and probe.get("failure_threshold") == 3
            and probe.get("tcp_socket") == [{"port": 8080}], "runtime-startup-probe-value")
     port = one(container.get("ports"), "runtime-port")
     c.need(port == {"name": "http1", "container_port": 8080}, "runtime-port-value")
     resources = one(container.get("resources"), "runtime-resources")
-    fixed_options(resources, {"limits", "cpu_idle", "startup_cpu_boost"}, "runtime-resource-options")
     c.need(resources.get("limits") == {"cpu": "1", "memory": "512Mi"}
            and resources.get("cpu_idle") is True and resources.get("startup_cpu_boost") is False, "runtime-billing-resources")
     env = container.get("env")
     c.need(type(env) is list and all(type(e) is dict for e in env), "runtime-environment-shape")
-    for item in env:
-        fixed_options(item, {"name", "value", "value_source"}, "runtime-environment-options")
     by_name = {e.get("name"): e for e in env}
     plain = plain_environment(value)
     secret = {"MYPAGE_OAUTH_CLIENT_ID": ("mypage-oauth-client-id", "oauth_client_id_version"),
@@ -417,178 +329,66 @@ def validate_service(after, unknown, value, actions):
         c.need(one(source.get("secret_key_ref"), "runtime-secret-ref") == {"secret": secret_id, "version": value[field]}, "runtime-secret-pinned")
 
 
-def validate_service_empty_refresh(item, planned, value):
-    """観測済み既定値と同じ世代の出力メタデータだけを扱い、配信状態は書き込まない。"""
-    c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "runtime-refresh-provider")
-    change = item.get("change", {})
-    c.need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths"), "runtime-refresh-action")
-    c.need(not c.has_unknown(change.get("after_unknown")), "runtime-refresh-unknown")
-    before, after = change.get("before"), change.get("after")
-    c.need(type(before) is dict and type(after) is dict, "runtime-refresh-shape")
-    plan = planned.get(SERVICE, {}).get("change", {})
-    c.need(plan.get("actions") == ["no-op"] and plan.get("after") == after
-           and not c.has_unknown(plan.get("after_unknown")), "runtime-refresh-planned-noop")
-    normalized = deepcopy(before)
-    paths = [("annotations",), ("labels",), ("custom_audiences",),
-             ("template", 0, "annotations"), ("template", 0, "labels"),
-             ("template", 0, "containers", 0, "args"),
-             ("template", 0, "containers", 0, "command"),
-             ("template", 0, "containers", 0, "depends_on")]
-    for path in paths:
-        old_parent, new_parent = normalized, after
-        for key in path[:-1]:
-            if isinstance(key, int):
-                c.need(type(old_parent) is list and type(new_parent) is list
-                       and len(old_parent) == len(new_parent) == 1, "runtime-refresh-shape")
-            else:
-                c.need(type(old_parent) is dict and type(new_parent) is dict
-                       and key in old_parent and key in new_parent, "runtime-refresh-shape")
-            old_parent, new_parent = old_parent[key], new_parent[key]
-        key = path[-1]
-        c.need(type(old_parent) is dict and type(new_parent) is dict
-               and key in old_parent and key in new_parent, "runtime-refresh-shape")
-        old, new = old_parent[key], new_parent[key]
-        if old != new:
-            empty_type = dict if key in {"annotations", "labels"} else list
-            c.need(old is None and type(new) is empty_type and not new, "runtime-refresh-empty-only")
-            old_parent[key] = deepcopy(new)
-    metadata = {"etag", "update_time", "last_modifier"}
-    if any(before.get(key) != after.get(key) for key in metadata):
-        # no-opのAPIリクエストでも、desired stateを変えずにこれらの出力が変わる。
-        # これは新しいno-op Planであり、古い計測更新の再試行ではない。
-        import read_metrics_transition as metrics
-        c.need(type(before.get("uid")) is str and before["uid"] == after.get("uid") and before["uid"], "runtime-refresh-identity")
-        c.need(before.get("generation") == after.get("generation") and
-               metrics.ready_revision(before) == metrics.ready_revision(after), "runtime-refresh-generation")
-        c.need(all(type(candidate.get("etag")) is str and candidate["etag"] for candidate in (before, after)) and
-               before["etag"] != after["etag"] and
-               c.registry_timestamp(after.get("update_time")) > c.registry_timestamp(before.get("update_time")), "runtime-refresh-metadata")
-        for key in metadata:
-            c.need(key in before and key in after, "runtime-refresh-shape")
-            normalized[key] = deepcopy(after[key])
-    c.need(normalized != before and normalized == after, "runtime-refresh-fields")
-    for candidate in (before, after):
-        for key, expected in resource_contract("runtime_private")[SERVICE].items():
-            c.need(candidate.get(key) == expected, "runtime-refresh-boundary")
-        container = one(one(candidate.get("template"), "runtime-refresh-template").get("containers"),
-                        "runtime-refresh-container")
-        image = container.get("image")
-        c.need(type(image) is str and re.fullmatch(
-            re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", image),
-            "runtime-serving-image")
-        validate_service(candidate, {}, value | {"image_digest": image}, ["no-op"])
+def service_image(service):
+    container = one(one(service.get("template"), "runtime-image-template").get("containers"),
+                    "runtime-image-container")
+    image = container.get("image")
+    # Terraform owns only the initial image. Every subsequent revision must be
+    # an immutable digest in the fixed, environment-specific Artifact Registry.
+    c.need(type(image) is str and re.fullmatch(
+        re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", image),
+        "runtime-serving-image")
+    return image
 
 
+def validate_cicd_image_refresh(before, after, value):
+    """Allow CI-owned image revisions, never Terraform-owned config changes.
 
-def validate_owner_hosting_image_refresh(item, planned, value):
-    """CI/CD image-only drift may span multiple revisions between infrastructure Plans.
-
-    Terraform owns all other settings. Native refresh must show only an immutable
-    image change plus known computed revision metadata. Never redeploy from State.
+    Provider-computed revision metadata belongs to Terraform's native schema.
+    Validate actual security configuration and relevant image provenance instead
+    of restoring the retired full-field allowlist.
     """
-    change = item.get("change", {})
-    before, after = change.get("before"), change.get("after")
-    c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "runtime-owner-refresh-provider")
-    c.need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths")
-           and not c.has_unknown(change.get("after_unknown")), "runtime-owner-refresh-action")
-    c.need(type(before) is dict and type(after) is dict and set(before) == set(after), "runtime-owner-refresh-shape")
-    plan = planned.get(SERVICE, {}).get("change", {})
-    c.need(plan.get("actions") == ["no-op"] and plan.get("after") == after and not c.has_unknown(plan.get("after_unknown")), "runtime-owner-refresh-noop")
-    before_container = one(one(before.get("template"), "runtime-owner-refresh-template").get("containers"), "runtime-owner-refresh-container")
-    after_container = one(one(after.get("template"), "runtime-owner-refresh-template").get("containers"), "runtime-owner-refresh-container")
-    previous, current = before_container.get("image"), after_container.get("image")
-    pattern = re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}"
-    c.need(all(type(image) is str and re.fullmatch(pattern, image) for image in (previous, current))
-           and previous != current and value["hosting_backend_host"], "runtime-owner-refresh-declaration")
-    # The Terraform bootstrap digest is intentionally stale. Read the actual
-    # image delta from the protected native State refresh, not from Git JSON.
-    value = value | {"previous_image_digest": previous, "image_digest": current}
-    before_env = before_container.get("env")
-    c.need(type(before_env) is list and all(type(x) is dict for x in before_env), "runtime-owner-refresh-env")
-    old_host = [x for x in before_env if x.get("name") == "MYPAGE_HOSTING_BACKEND_HOST"]
-    c.need(len(old_host) == 1, "runtime-owner-refresh-host")
-    old_value = value | {"image_digest": previous}
-    for candidate, config in ((before, old_value), (after, value)):
-        for key, expected in resource_contract("runtime_private")[SERVICE].items():
-            c.need(candidate.get(key) == expected, "runtime-owner-refresh-boundary")
-        validate_service(candidate, {}, config, ["no-op"])
-    normalized = deepcopy(before)
-    old_template, new_template = one(normalized.get("template"), "runtime-owner-refresh-template"), one(after.get("template"), "runtime-owner-refresh-template")
-    old_container, new_container = one(old_template.get("containers"), "runtime-owner-refresh-container"), one(new_template.get("containers"), "runtime-owner-refresh-container")
-    c.need(old_container.get("image") == previous and new_container.get("image") == value["image_digest"], "runtime-owner-refresh-image")
-    old_container["image"] = value["image_digest"]
+    c.need(type(before) is dict and type(after) is dict, "runtime-refresh-shape")
+    old_image, new_image = service_image(before), service_image(after)
+    old_config = value | {"image_digest": old_image}
+    old_env = one(one(before.get("template"), "runtime-refresh-template").get("containers"),
+                  "runtime-refresh-container").get("env", [])
+    c.need(type(old_env) is list, "runtime-refresh-env")
+    if not any(entry.get("name") == "MYPAGE_HOSTING_BACKEND_HOST" for entry in old_env):
+        # Historical initial Hosting binding is the sole permitted env addition.
+        old_config["hosting_backend_host"] = ""
+    validate_service(before, {}, old_config, ["no-op"])
+    validate_service(after, {}, value | {"image_digest": new_image}, ["no-op"])
+    # Keep only the configured security boundary stable. Revision/etag and
+    # provider-normalized computed fields may legitimately differ.
+    for key in ("project", "name", "location", "ingress", "deletion_policy",
+                "deletion_protection", "invoker_iam_disabled", "launch_stage"):
+        c.need(before.get(key) == after.get(key), "runtime-refresh-config")
+    old_template = one(before.get("template"), "runtime-refresh-template")
+    new_template = one(after.get("template"), "runtime-refresh-template")
+    for key in ("service_account", "timeout", "max_instance_request_concurrency",
+                "execution_environment", "scaling"):
+        c.need(old_template.get(key) == new_template.get(key), "runtime-refresh-template-config")
+    old_container = one(old_template.get("containers"), "runtime-refresh-container")
+    new_container = one(new_template.get("containers"), "runtime-refresh-container")
+    for key in ("ports", "resources", "startup_probe"):
+        c.need(old_container.get(key) == new_container.get(key), "runtime-refresh-container-config")
     old_env, new_env = old_container.get("env"), new_container.get("env")
-    c.need(type(old_env) is list and type(new_env) is list, "runtime-owner-refresh-env")
-    added = [x for x in new_env if x.get("name") == "MYPAGE_HOSTING_BACKEND_HOST"]
-    c.need(len(added) == 1 and set(added[0]) <= {"name", "value", "value_source"}
-           and added[0].get("value") == value["hosting_backend_host"] and not added[0].get("value_source"), "runtime-owner-refresh-host")
-    if old_host:
-        c.need(old_env == new_env, "runtime-owner-refresh-env")
+    c.need(type(new_env) is list, "runtime-refresh-env")
+    if old_config["hosting_backend_host"] == "":
+        # Permit only the original fixed Hosting host, not arbitrary env drift.
+        c.need(old_env == [item for item in new_env
+                           if item.get("name") != "MYPAGE_HOSTING_BACKEND_HOST"],
+               "runtime-refresh-env")
     else:
-        c.need(len(new_env) == len(old_env) + 1
-               and [x for x in new_env if x.get("name") != "MYPAGE_HOSTING_BACKEND_HOST"] == old_env, "runtime-owner-refresh-env")
-    old_container["env"] = deepcopy(new_env)
-    # 自動生成リビジョン名はlatest_ready_revisionで観測する。
-    # Runは変更前後とも、任意の希望値template.revisionを空にする。
-    ready = after.get("latest_ready_revision")
-    ready_match = re.fullmatch(r"(?:projects/" + re.escape(c.PROJECT) + r"/locations/" + re.escape(c.REGION) + r"/services/mypage-api/revisions/)?(mypage-api-[a-z0-9-]{1,50})", ready) if type(ready) is str else None
-    c.need(ready_match is not None and after.get("latest_created_revision") == ready, "runtime-owner-refresh-ready")
-    revision = ready_match[1]
-    desired_revision = new_template.get("revision")
-    c.need(desired_revision == revision or (desired_revision == "" and old_template.get("revision") == ""), "runtime-owner-refresh-ready")
-    old_template["revision"] = desired_revision
-    terminal = one(after.get("terminal_condition"), "runtime-owner-refresh-ready")
-    c.need(terminal.get("state") == "CONDITION_SUCCEEDED" and not after.get("reconciling"), "runtime-owner-refresh-ready")
-    traffic = one(after.get("traffic_statuses"), "runtime-owner-refresh-traffic")
-    c.need(traffic.get("percent") == 100 and traffic.get("type") == "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
-           and traffic.get("revision", "").split("/")[-1] == revision and not traffic.get("tag"), "runtime-owner-refresh-traffic")
-    # Multiple CI/CD deployments may happen between infrastructure Plans.
-    c.need(re.fullmatch(r"[1-9][0-9]*", str(before.get("generation")))
-           and int(after.get("generation", 0)) > int(before["generation"])
-           and str(after.get("observed_generation")) == str(after.get("generation")), "runtime-owner-refresh-generation")
-    c.need(c.registry_timestamp(after.get("update_time")) > c.registry_timestamp(before.get("update_time")), "runtime-owner-refresh-time")
-    computed = {"etag", "generation", "observed_generation", "update_time", "last_modifier", "latest_created_revision", "latest_ready_revision", "terminal_condition", "conditions", "traffic_statuses", "reconciling"}
-    for key in computed:
-        if key in after:
-            normalized[key] = deepcopy(after[key])
-    c.need(normalized == after, "runtime-owner-refresh-fields")
-
-
-def validate_job_execution_refresh(item, planned, expected):
-    """Cloud Run Job実行で変わったプロバイダー計算済み件数だけを許可する。"""
-    address = item.get("address")
-    c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "maintenance-job-refresh-provider")
-    change = item.get("change", {})
-    c.need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths"), "maintenance-job-refresh-action")
-    c.need(not c.has_unknown(change.get("after_unknown")), "maintenance-job-refresh-unknown")
-    before, after = change.get("before"), change.get("after")
-    c.need(type(before) is dict and type(after) is dict and set(before) == set(after), "maintenance-job-refresh-shape")
-    c.need(planned.get(address, {}).get("change", {}).get("actions") == ["no-op"], "maintenance-job-refresh-planned-noop")
-    changed = {key for key in before if before[key] != after[key]}
-    c.need(bool(changed) and changed <= {"execution_count", "latest_created_execution"}, "maintenance-job-refresh-fields")
-    c.need(type(before.get("execution_count")) is int and type(after.get("execution_count")) is int
-           and 0 <= before["execution_count"] <= after["execution_count"], "maintenance-job-refresh-count")
-    if "execution_count" in changed:
-        c.need(after["execution_count"] > before["execution_count"], "maintenance-job-refresh-count")
-
-    prefix = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/jobs/" + expected["name"] + "/executions/"
-
-    def execution(value, *, optional):
-        c.need(type(value) is list and (len(value) <= 1 if optional else len(value) == 1), "maintenance-job-refresh-execution")
-        if not value:
-            return None
-        c.need(type(value[0]) is dict and set(value[0]) == {"completion_time", "create_time", "name"}, "maintenance-job-refresh-execution")
-        result = value[0]
-        c.need(re.fullmatch(re.escape(prefix) + r"[a-z0-9-]{1,63}", result["name"]), "maintenance-job-refresh-execution-name")
-        created = c.registry_timestamp(result["create_time"])
-        completed = c.registry_timestamp(result["completion_time"])
-        c.need(completed >= created, "maintenance-job-refresh-execution-time")
-        return result
-
-    previous = execution(before.get("latest_created_execution"), optional=True)
-    current = execution(after.get("latest_created_execution"), optional=False)
-    if "latest_created_execution" in changed:
-        c.need(previous is None or previous["name"] != current["name"], "maintenance-job-refresh-execution-name")
+        c.need(old_env == new_env, "runtime-refresh-env")
+    if old_image != new_image:
+        c.need(type(before.get("uid")) is str and before["uid"] == after.get("uid") and before["uid"],
+               "runtime-image-identity")
+        c.need(str(before.get("generation", "")).isdigit() and
+               str(after.get("generation", "")).isdigit() and
+               int(after["generation"]) > int(before["generation"]), "runtime-image-generation")
+    return new_image
 
 
 def validate_plan(plan, stage):
@@ -611,36 +411,15 @@ def validate_initial_plan(plan, stage):
     foundation["variables"]["stage"]["value"] = base_stage
     foundation["resource_changes"] = [item for item in changes if item.get("address") in base]
     foundation["resource_drift"] = []
-    drift_seen = set()
-    planned = {item.get("address"): item for item in changes}
-    for item in plan.get("resource_drift", []) or []:
-        address = item.get("address")
-        c.need(address not in drift_seen, "runtime-duplicate-drift")
-        drift_seen.add(address)
-        if address in base:
-            foundation["resource_drift"].append(item)
-        elif address == SERVICE:
-            before = item.get("change", {}).get("before", {})
-            template = one(before.get("template"), "runtime-refresh-template") if type(before) is dict else {}
-            container = one(template.get("containers"), "runtime-refresh-container")
-            after = item.get("change", {}).get("after", {})
-            after_template = one(after.get("template"), "runtime-refresh-template") if type(after) is dict else {}
-            after_container = one(after_template.get("containers"), "runtime-refresh-container")
-            if container.get("image") != after_container.get("image"):
-                validate_owner_hosting_image_refresh(item, planned, value)
-            else:
-                validate_service_empty_refresh(item, planned, value)
-        elif address in {MAINTENANCE_JOB}:
-            validate_job_execution_refresh(item, planned, expected[address])
-        else:
-            # 一時的な初期構築権限を取り消すと、同じ共有ポリシーのetagが変わる。
-            # 固定した管理対象メンバー自体は変わらない。
-            c.need(address in {FIRESTORE, INVOKER, MAINTENANCE_FIRESTORE,
-                               MAINTENANCE_WIF, MAINTENANCE_JOB_INVOKER}                   and address in expected, "runtime-drift-address")
-            member_values = expected[address]
-            if address == INVOKER and item.get("change", {}).get("after", {}).get("name") == PUBLIC_INVOKER_NAME:
-                member_values = member_values | {"name": PUBLIC_INVOKER_NAME}
-            c.validate_iam_etag_refresh(item, planned, member_values)
+    c.validate_refresh(plan, expected)
+    # Native refresh must remain a no-op. Only the CI/CD-owned image and
+    # provider-computed revision metadata may drift; never mask config changes.
+    for observation in plan.get("resource_drift", []) or []:
+        if observation.get("address") == SERVICE:
+            change = observation.get("change", {})
+            c.need(change.get("actions") == ["update"] and
+                   not c.has_unknown(change.get("after_unknown")), "runtime-refresh-action")
+            validate_cicd_image_refresh(change.get("before"), change.get("after"), value)
     c.validate_plan(foundation, base_stage)
     seen = set()
     for item in changes:
@@ -682,15 +461,12 @@ def validate_initial_plan(plan, stage):
         if address in maintenance_resource_contract():
             validate_maintenance_resource(address, after, unknown, value, change.get("actions"))
         elif address == SERVICE:
-            # On an existing resource, Terraform ignores the image field and
-            # must retain the current Cloud Run revision without rolling back.
-            image = one(one(after.get("template"), "runtime-service-template").get("containers"),
-                        "runtime-service-container").get("image")
             if change.get("actions") == ["no-op"]:
-                c.need(type(image) is str and re.fullmatch(
-                    re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", image),
-                    "runtime-serving-image")
-                validate_service(after, unknown, value | {"image_digest": image}, change.get("actions"))
+                # ignore_changes makes the actual serving digest authoritative.
+                # Never compare it to the stale initial bootstrap digest or
+                # trigger an infrastructure rollback.
+                validate_service(after, unknown, value | {"image_digest": service_image(after)},
+                                 change.get("actions"))
             else:
                 validate_service(after, unknown, value, change.get("actions"))
     c.need(seen == set(expected), "runtime-resource-set")

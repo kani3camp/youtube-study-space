@@ -258,37 +258,11 @@ def verify_owner_public_invoker(env):
 
 
 def describe_runtime_drift(plan):
-    """固定スキーマラベルだけを公開し、State/Planの値やパスは出さない。"""
-    # Googleプロバイダー8.5.0の固定スキーマラベルだけを使い、拒否された名前は含めない。
-    fields = set(["name","location","project","template","annotations","containers","image","args","base_image_uri","command","depends_on","env","liveness_probe","failure_threshold","grpc","port","service","http_get","http_headers","value","path","initial_delay_seconds","period_seconds","tcp_socket","timeout_seconds","ports","container_port","readiness_probe","success_threshold","resources","cpu_idle","limits","startup_cpu_boost","sandbox_launcher","startup_probe","volume_mounts","mount_path","sub_path","working_dir","build_info","function_target","source_location","encryption_key","execution_environment","gpu_zonal_redundancy_disabled","health_check_disabled","labels","max_instance_request_concurrency","node_selector","accelerator","revision","sandboxes","templates","scaling","concurrency_utilization","cpu_utilization","max_instance_count","min_instance_count","service_account","session_affinity","timeout","volumes","cloud_sql_instance","instances","empty_dir","medium","size_limit","gcs","bucket","mount_options","read_only","nfs","server","secret","default_mode","items","mode","version","vpc_access","connector","egress","network_interfaces","network","subnetwork","tags","workload_identity_config","identity","identity_certificate_enabled","identity_type","binary_authorization","breakglass_justification","policy","use_default","build_config","base_image","enable_automatic_updates","environment_variables","image_uri","worker_pool","client","client_version","custom_audiences","default_uri_disabled","description","iap_enabled","ingress","invoker_iam_disabled","launch_stage","multi_region_settings","regions","multi_region_id","manual_instance_count","scaling_mode","ssh_enabled","traffic","percent","tag","type","conditions","execution_reason","last_transition_time","message","reason","revision_reason","severity","state","create_time","creator","delete_time","effective_annotations","effective_labels","etag","expire_time","generation","last_modifier","latest_created_revision","latest_ready_revision","observed_generation","reconciling","terminal_condition","terraform_labels","traffic_statuses","uri","uid","update_time","urls","deletion_protection","deletion_policy","value_source","secret_key_ref"])
-    planned = {x.get("address"): x for x in plan.get("resource_changes", [])}
-    for item in plan.get("resource_drift", []) or []:
-        if item.get("address") != runtime_contract.SERVICE:
-            continue
-        change = item.get("change", {})
-        before, after = change.get("before"), change.get("after")
-        if type(before) is not dict or type(after) is not dict:
-            print("Runtime service drift diagnostic: unavailable.")
-            continue
-        changed = {k for k in set(before) | set(after) if before.get(k) != after.get(k) or (k in before) != (k in after)}
-        labels = sorted(changed & fields)
-        def shape(v):
-            if v is None: return "null"
-            if type(v) is dict: return "empty-object" if not v else "object"
-            if type(v) is list: return "empty-array" if not v else "array"
-            return {str: "string", bool: "boolean", int: "number", float: "number"}.get(type(v), "other")
-        shapes = []
-        def walk(a, b, path):
-            if a == b or len(shapes) >= 64: return
-            if type(a) is dict and type(b) is dict and not path.endswith(("annotations", "labels", "limits")):
-                for k in sorted((set(a) | set(b)) & fields):
-                    walk(a.get(k), b.get(k), (path + "." if path else "") + k)
-            elif type(a) is list and type(b) is list and len(a) == len(b) and len(a) <= 32:
-                for av, bv in zip(a, b): walk(av, bv, path + "[]")
-            else: shapes.append({"field": path, "before": shape(a), "after": shape(b)})
-        walk(before, after, "")
-        noop = planned.get(runtime_contract.SERVICE, {}).get("change", {}).get("actions") == ["no-op"]
-        print("Runtime service drift diagnostic: " + json.dumps({"fields": labels, "otherFields": len(changed - fields), "plannedNoop": noop, "shapes": shapes}, sort_keys=True) + ".")
+    # 出力値・schema・未知のfield名を公開しない。詳細Planはprivateに保持する。
+    drift = plan.get("resource_drift", []) or []
+    changes = plan.get("resource_changes", []) or []
+    print("Terraform drift summary: " + json.dumps({"observedResources": len(drift),
+          "plannedWrites": sum(item.get("change", {}).get("actions") != ["no-op"] for item in changes)}, sort_keys=True) + ".")
 
 
 def prepare(env):

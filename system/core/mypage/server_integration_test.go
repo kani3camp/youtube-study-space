@@ -40,10 +40,9 @@ func TestConstructedServerOAuthConfirmAndSessionCompleteWithSignedAppCheckAndEmu
 	require.NoError(t, err)
 	claims := syntheticAppClaims(now)
 	appToken := syntheticAppCheck(t, key, "synthetic-key", claims, "JWT")
-	jwks := publicJWKS(t, key, "synthetic-key")
 	sdk := &fakeFirebaseClient{token: &auth.Token{UID: uid, Subject: uid, Issuer: "https://securetoken.google.com/" + project, Audience: project, Expires: now.Add(time.Hour).Unix(), IssuedAt: now.Unix(), AuthTime: now.Unix(), Firebase: auth.FirebaseInfo{SignInProvider: "custom"}}}
 	oauth := &fakeOAuth{channels: []Channel{{ID: uid, DisplayName: "Synthetic server channel"}}}
-	handler, err := NewMyPageServer(ServerConfig{Environment: "development", ProjectID: project, ProjectNumber: "123456789", WebAppID: "1:123456789:web:synthetic", PublicOrigin: "https://example.invalid", Policy: Policy{Privacy: "synthetic-p", Terms: "synthetic-t"}}, ServerDependencies{Firestore: client, Firebase: sdk, OAuth: oauth, Now: func() time.Time { return now }, AppCheckHTTP: &http.Client{Transport: providerTransport(func(*http.Request) (*http.Response, error) { return providerResponse(200, jwks), nil })}})
+	handler, err := NewMyPageServer(ServerConfig{Environment: "development", ProjectID: project, ProjectNumber: "123456789", WebAppID: "1:123456789:web:synthetic", PublicOrigin: "https://example.invalid", Policy: Policy{Privacy: "synthetic-p", Terms: "synthetic-t"}}, ServerDependencies{Firestore: client, Firebase: sdk, OAuth: oauth, Now: func() time.Time { return now }, AppCheck: signedAppCheckSDK(t, key)})
 	require.NoError(t, err)
 	call := func(method, path, body string, cookie *http.Cookie, authenticated bool) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, "https://example.invalid"+path, strings.NewReader(body))

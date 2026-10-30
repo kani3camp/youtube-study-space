@@ -18,7 +18,6 @@ import {
 	useSyncExternalStore,
 } from 'react'
 import { SiteHeader } from './components/site-header'
-import { HistoryPanel } from './features/mypage/history-view'
 import {
 	RequestError,
 	type RestrictionCode,
@@ -35,14 +34,7 @@ import { maintenanceDestination } from './maintenance'
 import { maintenanceAnnouncementURLForProject } from './maintenance-announcement'
 import { PrivacyPolicy, PublicPolicyContact, TermsOfUse } from './policies'
 import { consentKey, createPrivacy } from './privacy'
-import { readPublicPolicyConfig } from './public-policy-config'
-import type {
-	BrowserRuntime,
-	ChannelConfirmation,
-	PrivacyIntakeReceipt,
-	PrivacyRequestStatus,
-	SupportPurpose,
-} from './runtime'
+import type { BrowserRuntime, ChannelConfirmation } from './runtime'
 
 type LoginSearch = {
 	error?: string
@@ -65,32 +57,10 @@ const SupportReceipt = createContext<{
 	supportRequestRef: string | null
 	set: (proofRef: string | null, supportRequestRef?: string | null) => void
 }>({ proofRef: null, supportRequestRef: null, set: () => {} })
-type IntakeDraft = {
-	purpose: SupportPurpose
-	body: string
-	submissionKey: string | null
-	created: PrivacyIntakeReceipt | null
-}
-const emptyIntakeDraft: IntakeDraft = {
-	purpose: 'delete',
-	body: '',
-	submissionKey: null,
-	created: null,
-}
-const IntakeMemory = createContext<{
-	value: IntakeDraft
-	set: (next: IntakeDraft) => void
-}>({ value: emptyIntakeDraft, set: () => {} })
 const supportPurposeLabel = {
 	delete: '保存データの削除依頼',
 	revoke: 'すべてのログインの解除依頼',
 	disclosure: '保存データの開示依頼',
-}
-function receiptTime(value: string) {
-	const time = Date.parse(value)
-	return Number.isFinite(time)
-		? `${new Intl.DateTimeFormat('ja-JP', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tokyo' }).format(time)}（日本時間）`
-		: value
 }
 const CookieSettings = createContext<() => void>(() => {})
 
@@ -210,8 +180,6 @@ export function createApp(
 			proofRef: string
 			supportRequestRef: string | null
 		} | null>(null)
-		const [intakeDraft, setIntakeDraft] =
-			useState<IntakeDraft>(emptyIntakeDraft)
 		const cookieDialog = useRef<HTMLDialogElement>(null)
 		const cookieOpener = useRef<HTMLElement | null>(null)
 		const runtimeDisposer = useRef<(() => void) | null>(null)
@@ -309,7 +277,6 @@ export function createApp(
 		useEffect(() => {
 			const clear = () => {
 				setReceipt(null)
-				setIntakeDraft(emptyIntakeDraft)
 			}
 			const clearRestoredPage = (event: PageTransitionEvent) => {
 				if (event.persisted) clear()
@@ -345,150 +312,142 @@ export function createApp(
 						setReceipt(proofRef ? { proofRef, supportRequestRef } : null),
 				}}
 			>
-				<IntakeMemory.Provider
-					value={{ value: intakeDraft, set: setIntakeDraft }}
-				>
-					<CookieSettings.Provider value={openCookie}>
-						<div
-							className={publicChrome ? 'app-shell public-shell' : undefined}
-						>
-							{publicChrome && <SiteHeader />}
-							<Outlet />
-							{privacyServices.analytics.available &&
-								consent.value === 'unset' && (
-									<aside
-										className="consent-banner"
-										aria-labelledby="analytics-consent-heading"
-									>
-										<h2 id="analytics-consent-heading">
-											サイトをもっと使いやすくするために
-										</h2>
-										<p>
-											よろしければ、ページの閲覧やログインなどの操作をGoogle
-											アナリティクス（GA4）で分析し、サイトの改善に役立ててもよろしいですか？
-										</p>
-										<p>
-											Cookie等を使用しますが、YouTubeチャンネルID・表示名・作業内容は送信しません。許可しなくてもログインやマイページを利用でき、設定は後から変更できます。
-										</p>
-										<div className="hero-links">
-											<button
-												className="button"
-												type="button"
-												onClick={() => privacyServices.consent.set('granted')}
-											>
-												アクセス解析を許可
-											</button>
-											<button
-												className="button"
-												type="button"
-												onClick={() => privacyServices.consent.set('denied')}
-											>
-												許可しない
-											</button>
-										</div>
-									</aside>
-								)}
-							{publicChrome && (
-								<footer className="site-footer public-footer">
-									<Link to="/privacy">プライバシー</Link>
-									<Link to="/terms">利用規約</Link>
-									<button type="button" onClick={openCookie}>
-										Cookie設定
-									</button>
-									<Link to="/contact">お問い合わせ</Link>
-								</footer>
-							)}
-							{cookieOpen && (
-								<dialog
-									className="account-dialog"
-									ref={cookieDialog}
-									onClose={() => {
-										setCookieOpen(false)
-										queueMicrotask(() => {
-											if (cookieOpener.current?.isConnected)
-												cookieOpener.current.focus()
-											else
-												document
-													.querySelector<HTMLButtonElement>(
-														'.site-footer button',
-													)
-													?.focus()
-										})
-									}}
-									onKeyDown={(event) => {
-										if (event.key !== 'Tab') return
-										const targets = [
-											...event.currentTarget.querySelectorAll<HTMLElement>(
-												'button:not([disabled]), input:not([disabled]), a[href]',
-											),
-										].filter((item) => item.getClientRects().length > 0)
-										const first = targets[0]
-										const last = targets.at(-1)
-										if (event.shiftKey && document.activeElement === first) {
-											event.preventDefault()
-											last?.focus()
-										} else if (
-											!event.shiftKey &&
-											document.activeElement === last
-										) {
-											event.preventDefault()
-											first?.focus()
-										}
-									}}
-									aria-labelledby="cookie-heading"
+				<CookieSettings.Provider value={openCookie}>
+					<div className={publicChrome ? 'app-shell public-shell' : undefined}>
+						{publicChrome && <SiteHeader />}
+						<Outlet />
+						{privacyServices.analytics.available &&
+							consent.value === 'unset' && (
+								<aside
+									className="consent-banner"
+									aria-labelledby="analytics-consent-heading"
 								>
-									<h2 id="cookie-heading">Cookie設定</h2>
-									{privacyServices.analytics.available ? (
-										<>
-											<p>
-												Google
-												アナリティクス（GA4）でページの閲覧や一部の操作を分析し、サイト改善に役立てます。Cookie等を使用しますが、チャンネルID・表示名・作業内容は送信しません。
-											</p>
-											<label className="consent-label">
-												<input
-													type="checkbox"
-													role="switch"
-													aria-checked={consent.value === 'granted'}
-													checked={consent.value === 'granted'}
-													onChange={(event) =>
-														privacyServices.consent.set(
-															event.target.checked ? 'granted' : 'denied',
-														)
-													}
-												/>
-												<span>アクセス解析を許可</span>
-											</label>
-											<p role="status">
-												{consent.value === 'granted'
-													? 'アクセス解析：許可'
-													: 'アクセス解析：オフ'}
-											</p>
-											{!consent.saved && (
-												<p role="alert">
-													設定を保存できませんでした。この画面では選択を適用しています。次回はもう一度ご確認ください。
-												</p>
-											)}
-										</>
-									) : (
-										<p role="status">
-											任意のアクセス解析は現在利用していません。利用開始時にあらためてご案内します。
-										</p>
-									)}
+									<h2 id="analytics-consent-heading">
+										サイトをもっと使いやすくするために
+									</h2>
 									<p>
-										認証・セキュリティなどに必要な保存と通信は常に有効です。アクセス解析への同意は任意です。
+										よろしければ、ページの閲覧やログインなどの操作をGoogle
+										アナリティクス（GA4）で分析し、サイトの改善に役立ててもよろしいですか？
 									</p>
-									<button
-										type="button"
-										className="button"
-										onClick={() => cookieDialog.current?.close()}
-									>
-										閉じる
-									</button>
-								</dialog>
+									<p>
+										Cookie等を使用しますが、YouTubeチャンネルID・表示名・作業内容は送信しません。許可しなくてもログインやマイページを利用でき、設定は後から変更できます。
+									</p>
+									<div className="hero-links">
+										<button
+											className="button"
+											type="button"
+											onClick={() => privacyServices.consent.set('granted')}
+										>
+											アクセス解析を許可
+										</button>
+										<button
+											className="button"
+											type="button"
+											onClick={() => privacyServices.consent.set('denied')}
+										>
+											許可しない
+										</button>
+									</div>
+								</aside>
 							)}
-						</div>
-					</CookieSettings.Provider>
-				</IntakeMemory.Provider>
+						{publicChrome && (
+							<footer className="site-footer public-footer">
+								<Link to="/privacy">プライバシー</Link>
+								<Link to="/terms">利用規約</Link>
+								<button type="button" onClick={openCookie}>
+									Cookie設定
+								</button>
+								<Link to="/contact">お問い合わせ</Link>
+							</footer>
+						)}
+						{cookieOpen && (
+							<dialog
+								className="account-dialog"
+								ref={cookieDialog}
+								onClose={() => {
+									setCookieOpen(false)
+									queueMicrotask(() => {
+										if (cookieOpener.current?.isConnected)
+											cookieOpener.current.focus()
+										else
+											document
+												.querySelector<HTMLButtonElement>('.site-footer button')
+												?.focus()
+									})
+								}}
+								onKeyDown={(event) => {
+									if (event.key !== 'Tab') return
+									const targets = [
+										...event.currentTarget.querySelectorAll<HTMLElement>(
+											'button:not([disabled]), input:not([disabled]), a[href]',
+										),
+									].filter((item) => item.getClientRects().length > 0)
+									const first = targets[0]
+									const last = targets.at(-1)
+									if (event.shiftKey && document.activeElement === first) {
+										event.preventDefault()
+										last?.focus()
+									} else if (
+										!event.shiftKey &&
+										document.activeElement === last
+									) {
+										event.preventDefault()
+										first?.focus()
+									}
+								}}
+								aria-labelledby="cookie-heading"
+							>
+								<h2 id="cookie-heading">Cookie設定</h2>
+								{privacyServices.analytics.available ? (
+									<>
+										<p>
+											Google
+											アナリティクス（GA4）でページの閲覧や一部の操作を分析し、サイト改善に役立てます。Cookie等を使用しますが、チャンネルID・表示名・作業内容は送信しません。
+										</p>
+										<label className="consent-label">
+											<input
+												type="checkbox"
+												role="switch"
+												aria-checked={consent.value === 'granted'}
+												checked={consent.value === 'granted'}
+												onChange={(event) =>
+													privacyServices.consent.set(
+														event.target.checked ? 'granted' : 'denied',
+													)
+												}
+											/>
+											<span>アクセス解析を許可</span>
+										</label>
+										<p role="status">
+											{consent.value === 'granted'
+												? 'アクセス解析：許可'
+												: 'アクセス解析：オフ'}
+										</p>
+										{!consent.saved && (
+											<p role="alert">
+												設定を保存できませんでした。この画面では選択を適用しています。次回はもう一度ご確認ください。
+											</p>
+										)}
+									</>
+								) : (
+									<p role="status">
+										任意のアクセス解析は現在利用していません。利用開始時にあらためてご案内します。
+									</p>
+								)}
+								<p>
+									認証・セキュリティなどに必要な保存と通信は常に有効です。アクセス解析への同意は任意です。
+								</p>
+								<button
+									type="button"
+									className="button"
+									onClick={() => cookieDialog.current?.close()}
+								>
+									閉じる
+								</button>
+							</dialog>
+						)}
+					</div>
+				</CookieSettings.Provider>
 			</SupportReceipt.Provider>
 		)
 	}
@@ -967,11 +926,6 @@ export function createApp(
 				refresh={() => void runtime.memory.refresh(true)}
 				logout={() => void runtime.memory.logout()}
 				cookieSettings={openCookieSettings}
-				history={
-					runtime.historyEnabled && state.phase === 'authenticated' ? (
-						<HistoryPanel key={runtime.memory.generation} runtime={runtime} />
-					) : undefined
-				}
 			/>
 		)
 	}
@@ -1041,188 +995,6 @@ export function createApp(
 			},
 		})
 		const receipt = useContext(SupportReceipt)
-		const draft = useContext(IntakeMemory)
-		const { purpose, body, created } = draft.value
-		const [ref, setRef] = useState('')
-		const [status, setStatus] = useState<PrivacyRequestStatus | null>(null)
-		const [busy, setBusy] = useState(false)
-		const [error, setError] = useState('')
-		const [cooldown, setCooldown] = useState(0)
-		const [sessionUID, setSessionUID] = useState(
-			runtime.session?.currentUID() ?? null,
-		)
-		const inFlight = useRef(false)
-		const controller = useRef<AbortController | null>(null)
-		const operation = useRef(0)
-		const available =
-			runtime.intakeEnabled &&
-			!!readPublicPolicyConfig().config.privacyContactURL
-		const signedIn = !!sessionUID
-		const statusRef =
-			receipt.supportRequestRef ?? (ref || created?.requestRef || '')
-		const currentStatusRef = useRef(statusRef)
-		currentStatusRef.current = statusRef
-		const bodyBytes = new TextEncoder().encode(body.trim()).length
-		const cooling = cooldown > Date.now()
-		useEffect(() => {
-			if (!cooling) return
-			const timer = window.setTimeout(
-				() => setCooldown(0),
-				cooldown - Date.now(),
-			)
-			return () => window.clearTimeout(timer)
-		}, [cooldown, cooling])
-		const showError = (cause: unknown) => {
-			setError(message(cause))
-			if (cause instanceof RequestError && cause.code === 'RATE_LIMITED')
-				setCooldown(Date.now() + Math.max(1, cause.retryAfter) * 1000)
-		}
-		useEffect(() => {
-			let previousUID = runtime.session?.currentUID()
-			let identityObserved = false
-			const clear = () => {
-				operation.current += 1
-				controller.current?.abort()
-				controller.current = null
-				inFlight.current = false
-				currentStatusRef.current = ''
-				setBusy(false)
-				setStatus(null)
-				setRef('')
-				setError('')
-				setCooldown(0)
-			}
-			const clearRestoredPage = (event: PageTransitionEvent) => {
-				if (event.persisted) clear()
-			}
-			const unsubscribe = runtime.session?.subscribe((uid) => {
-				if (!identityObserved) {
-					identityObserved = true
-					previousUID = uid
-					setSessionUID(uid)
-					return
-				}
-				if (uid !== previousUID) clear()
-				previousUID = uid
-				setSessionUID(uid)
-			})
-			window.addEventListener('pagehide', clear)
-			window.addEventListener('pageshow', clearRestoredPage)
-			return () => {
-				operation.current += 1
-				controller.current?.abort()
-				unsubscribe?.()
-				window.removeEventListener('pagehide', clear)
-				window.removeEventListener('pageshow', clearRestoredPage)
-			}
-		}, [])
-		const change = (nextPurpose: SupportPurpose, nextBody: string) => {
-			if (inFlight.current) return
-			receipt.set(null)
-			draft.set({
-				purpose: nextPurpose,
-				body: nextBody,
-				submissionKey: null,
-				created: null,
-			})
-			setStatus(null)
-		}
-		const submit = async () => {
-			if (
-				inFlight.current ||
-				!available ||
-				!signedIn ||
-				cooling ||
-				bodyBytes > 2000
-			)
-				return
-			inFlight.current = true
-			const sequence = ++operation.current
-			const uid = runtime.session?.currentUID()
-			setBusy(true)
-			setError('')
-			receipt.set(null)
-			const submissionKey =
-				draft.value.submissionKey ?? crypto.randomUUID().replaceAll('-', '')
-			draft.set({ ...draft.value, submissionKey })
-			const pending = new AbortController()
-			controller.current = pending
-			try {
-				const result = await runtime.submitPrivacyRequest(
-					purpose,
-					body.trim(),
-					submissionKey,
-					pending.signal,
-				)
-				if (
-					operation.current === sequence &&
-					!pending.signal.aborted &&
-					runtime.session?.currentUID() === uid
-				) {
-					draft.set({ purpose, body: '', submissionKey, created: result })
-					setRef(result.requestRef)
-				}
-			} catch (cause) {
-				if (
-					operation.current === sequence &&
-					!pending.signal.aborted &&
-					runtime.session?.currentUID() === uid
-				)
-					showError(cause)
-			} finally {
-				if (operation.current === sequence) {
-					controller.current = null
-					inFlight.current = false
-					setBusy(false)
-				}
-			}
-		}
-		const loadStatus = async () => {
-			if (inFlight.current || !available || !signedIn || cooling) return
-			inFlight.current = true
-			const sequence = ++operation.current
-			const uid = runtime.session?.currentUID()
-			const requestedRef = statusRef.trim()
-			setBusy(true)
-			setError('')
-			const pending = new AbortController()
-			controller.current = pending
-			try {
-				const result = await runtime.privacyRequestStatus(
-					requestedRef,
-					pending.signal,
-				)
-				if (
-					operation.current === sequence &&
-					!pending.signal.aborted &&
-					runtime.session?.currentUID() === uid &&
-					currentStatusRef.current.trim() === requestedRef
-				)
-					setStatus(result)
-			} catch (cause) {
-				if (
-					operation.current === sequence &&
-					!pending.signal.aborted &&
-					runtime.session?.currentUID() === uid &&
-					currentStatusRef.current.trim() === requestedRef
-				) {
-					if (
-						cause instanceof RequestError &&
-						cause.code === 'SUPPORT_CHALLENGE_INVALID'
-					)
-						setError(
-							'本人確認済みの依頼を確認できません。参照番号とログイン中のチャンネルをご確認ください。',
-						)
-					else showError(cause)
-				}
-			} finally {
-				if (operation.current === sequence) {
-					controller.current = null
-					inFlight.current = false
-					setBusy(false)
-				}
-			}
-		}
 		return (
 			<main className="main-content public-page">
 				<section className="card policy-page">
@@ -1249,121 +1021,9 @@ export function createApp(
 						保存データの削除、開示、全ログインの解除は、返信可能な窓口と本人確認を通じて受け付けます。
 					</p>
 					<PublicPolicyContact />
-					{available && signedIn ? (
-						<section aria-labelledby="privacy-intake-heading">
-							<h2 id="privacy-intake-heading">アプリ内で依頼する</h2>
-							<p>
-								受付後に同じYouTubeチャンネルで本人確認します。本人確認だけで削除や開示は実行しません。
-							</p>
-							{!created && (
-								<form
-									className="privacy-intake-form"
-									onSubmit={(event) => {
-										event.preventDefault()
-										void submit()
-									}}
-								>
-									<label htmlFor="privacy-purpose">依頼内容</label>
-									<select
-										id="privacy-purpose"
-										value={purpose}
-										disabled={busy}
-										onChange={(event) =>
-											change(event.target.value as SupportPurpose, body)
-										}
-									>
-										<option value="delete">保存データの削除</option>
-										<option value="disclosure">開示</option>
-										<option value="revoke">全ログインの解除</option>
-									</select>
-									<label htmlFor="privacy-body">
-										補足（2000バイト以内。認証情報は記入しないでください）
-									</label>
-									<textarea
-										id="privacy-body"
-										value={body}
-										disabled={busy}
-										maxLength={2000}
-										onChange={(event) => change(purpose, event.target.value)}
-									/>
-									<button
-										className="button primary"
-										disabled={busy || cooling || bodyBytes > 2000}
-										type="submit"
-									>
-										{busy ? '送信中…' : '依頼を受け付ける'}
-									</button>
-								</form>
-							)}
-							{created && (
-								<div role="status">
-									<p className="proof-reference">
-										受付しました。参照番号：{created.requestRef}
-									</p>
-									<p>受付時刻：{receiptTime(created.acceptedAt)}</p>
-									{created.supportChallenge && (
-										<Link
-											to="/login"
-											search={{ supportChallenge: created.supportChallenge }}
-										>
-											YouTubeで本人確認を続ける
-										</Link>
-									)}
-									{!created.supportChallenge &&
-										created.status === 'awaiting_proof' && (
-											<p role="alert">
-												本人確認リンクの期限が切れています。上記のプライバシー窓口へ再案内をご依頼ください。受付時刻は変わりません。
-											</p>
-										)}
-								</div>
-							)}
-							<h3>依頼の状態・返信</h3>
-							<p>
-								本人確認後、同じチャンネルの有効なログインがある場合に表示できます。利用制限中でも確認できます。
-							</p>
-							<label htmlFor="privacy-ref">参照番号</label>
-							<input
-								id="privacy-ref"
-								value={statusRef}
-								disabled={busy}
-								onChange={(event) => {
-									if (inFlight.current) return
-									receipt.set(null)
-									currentStatusRef.current = event.target.value
-									setRef(event.target.value)
-									setStatus(null)
-								}}
-							/>
-							<button
-								className="button"
-								type="button"
-								disabled={busy || cooling}
-								onClick={() => void loadStatus()}
-							>
-								状態を確認
-							</button>
-							{status && (
-								<div role="status">
-									<p>状態：本人確認済み</p>
-									{status.reply && <p>運営からの返信：{status.reply}</p>}
-								</div>
-							)}
-							{error && <p role="alert">{error}</p>}
-						</section>
-					) : available ? (
-						<p role="status">
-							この端末に利用可能なログインがありません。上記の返信可能なプライバシー窓口へご連絡ください。利用制限中の方も請求できます。
-						</p>
-					) : (
-						<p role="status">
-							本人確認付きの請求窓口は準備中です。公開前に受付方法をご案内します。
-						</p>
-					)}
-					{!available && (
-						<p>
-							依頼受付後、同じチャンネルを新しいYouTubeの許可で確認し、確認結果を依頼目的に結び付ける案です。通常のログインだけで依頼を実行しません。ログインや本人確認を利用できない場合も、窓口へお問い合わせいただけるよう準備します。
-						</p>
-					)}
+					<p>
+						依頼受付後、同じチャンネルを新しいYouTubeの許可で確認します。通常のログインだけで依頼を実行しません。ログインや本人確認を利用できない場合も、窓口へお問い合わせください。
+					</p>
 					<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
 				</section>
 			</main>

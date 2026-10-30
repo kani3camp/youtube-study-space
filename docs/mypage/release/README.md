@@ -19,7 +19,7 @@
 | バックエンドイメージ更新 | [バックエンドCI](backend-ci.md)。コードPR統合後の検査 → image-build → Registry digest検証 → CIから直接Cloud Run image配備。Terraformは通常リリースで起動しない |
 | フロントエンド | 下記のDEV Hosting CIと静的キャッシュ仕様 |
 | メタデータ保持・監視 | [削除処理と独立監視](metadata-monitoring.md)。ソースの実装と実スケジューラー・出力先への接続を区別する |
-| 横断削除 | [削除手順](../support-delete.md)・[調査対象](../support-delete-inventory.md)。実アダプター未接続の`--execute`拒否を運用完了と扱わない |
+| 横断削除 | [削除手順](../support-delete.md)・[調査対象](../support-delete-inventory.md)。実CLI実装やlocal/mock検証だけを実削除運用の受入完了と扱わない |
 
 ## 公開設定
 
@@ -111,7 +111,7 @@ Go変更の必須検査は[AGENTS.md](../../../AGENTS.md)に従い、生成後�
 3. 対象は`test-youtube-study-space`の`test--study-space`だけとする。現在のHostingのCSP・書き換えなどと、APIの同意バージョン・固定オリジン・Readyリビジョンを照合する。意図しない設定変更、別サイト、途中のHosting・API・ブランチ変更は拒否する。公開版の作成・アップロード・確定後、最後にリリースを切り替える。書き込みを自動再試行しない。
 4. 配備後は全ファイルのバイト列・Cache-Control・CSPなど、`/`と`/mypage`、匿名APIの403、APIメタデータの不変を確認する。別の認証情報なしBrowserジョブで、匿名画面・Cookie設定・GA4通信0件を確認する。失敗はCI Gateに伝える。実GA4送信・認証済みE2E・公開条件の完了を意味しない。
 
-GitHub Environmentの`mypage-dev-hosting`には、公開項目だけの`MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`と専用プロバイダー名`MYPAGE_HOSTING_WIF_PROVIDER`をVariablesに設定する。前者は既存の公開マニフェストスキーマを使い、`VITE_MYPAGE_ANALYTICS_READY=false`、`VITE_PRIVACY_INTAKE_ENABLED=false`、`analyticsApproved=false`を必須とする。サーバー環境の書き出し、OAuth・認証情報・Secretの値は渡さない。公開済みDEVと同じオリジン・Firebaseアプリ・同意バージョン・CSP接続先一覧を引き継ぐ。設定変更は既存の事前検査とレビューを通す。
+GitHub Environmentの`mypage-dev-hosting`には、公開項目だけの`MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`と専用プロバイダー名`MYPAGE_HOSTING_WIF_PROVIDER`をVariablesに設定する。前者は既存の公開マニフェストスキーマを使い、`VITE_MYPAGE_ANALYTICS_READY=false`、`analyticsApproved=false`を必須とする。サーバー環境の書き出し、OAuth・認証情報・Secretの値は渡さない。公開済みDEVと同じオリジン・Firebaseアプリ・同意バージョン・CSP接続先一覧を引き継ぐ。設定変更は既存の事前検査とレビューを通す。
 
 権限の初期設定は、専用の`mypage-hosting` WIF pool/providerと`mypage-hosting-deploy` SAに分ける。プロバイダーは、固定リポジトリ・所有者・actor ID、初回workflow_dispatch、統合ref、呼び出し元`ci.yml`、再利用先`mypage-hosting-authenticated.yml`、同一workflow SHA、Environment `mypage-dev-hosting`をすべて検査する。既存TerraformのWIF・SA・Stateは変更しない。
 
@@ -174,13 +174,13 @@ go run ./cmd/mypage-history-rebuild --environment=development \
 | 0B受入 | 0A実経路とCanon S01/S04の検証PASS（必要なら局所修正後）、MONのDEV/PROD monitor認証・OBS永続化・失敗通知・max-seat回帰、COSTの実課金境界・Budget実着信・異常利用監視、D01実装証跡、D02両取消経路の規約適合性確認、D03実値、人的Privacy窓口、7暦日削除/cleanup、実metadata/log/backup inventory | 実ユーザー受入を停止 |
 | Phase 1一般公開 | OAuth verification完了、0B実account/端末QA、Bot/外部導線、rollback、monitoring | 日付やCI成功だけで告知しない |
 
-初期公開のプライバシー請求は[有人窓口と削除の運用](#人的privacyと削除の運用)を前提にする。[アプリ内の実装パッケージ](../privacy-intake.md)の有効化は0Bの必須条件ではない。公開マニフェストの`VITE_PRIVACY_INTAKE_ENABLED`は現時点で`false`だけを受理し、サーバー側も`EnablePrivacyIntake=false`を維持する。セッションなしの場合も同じ有人窓口で扱い、新しいBearer認証情報は導入しない。アプリ内の受付・返信UIを後で使う場合は、独立した公開判断を必要とする。
+初期公開のプライバシー請求は[有人窓口と削除の運用](#人的privacyと削除の運用)を前提にする。アプリ内受付・返信UIはPhase 1対象外として撤去した。セッションなしの場合も同じ有人窓口で扱い、新しいBearer認証情報は導入しない。将来受付・返信UIを追加する場合は独立した設計・公開判断を必要とする。
 
 ### 人的Privacyと削除の運用
 
 - D03で返信できるログイン不要の窓口、担当、受付時刻・期限管理、実公開文面を確定する。匿名の一般意見窓口やOAuth user support emailを自動的に流用しない。
 - 依頼目的・環境・対象チャンネル・受付時刻を記録し、新たなOAuth認証を同じ依頼に結び付ける。削除の7暦日は受付時刻から固定し、証拠再発行・ACK消失・再試行で延長しない。
-- 実際の運用担当者の本人情報・権限、非公開CLIの実接続、返信の到達確認、監査の保持・閲覧者は未確定である。現在の`--execute`拒否を運用完了と扱わない。
+- 非公開CLIはowner-controlled ADC/GCP IAMへ接続する。実際の最小権限、返信到達、監査の保持・閲覧者、backup/vendor/logのGateを対象環境で確認する。CLI実装だけを運用完了と扱わない。
 - [削除対象一覧](../support-delete-inventory.md)で実ランタイム・旧書き込み処理・Auth/BQ/キャッシュ/バックアップ/エクスポート/ベンダー/ログを確認する。D01保護、全実行系の停止・完了待ち、セッション失効、横断削除、復元や旧処理からの再生成防止、ストア別の不存在確認、完了通知まで実証する。部分失敗は保留のまま再開する。
 - D02では、外部Google取消検知のためのリフレッシュトークン保存・定期取得を採用しない方針が確定している。アプリ内とGoogle設定画面の両取消経路の適合確認が終わるまで公開を保留する。新しい取消UI/APIも先に追加しない。
 

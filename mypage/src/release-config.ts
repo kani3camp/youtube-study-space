@@ -28,8 +28,6 @@ const frontendFields = [
 	'VITE_MYPAGE_ANALYTICS_READY',
 	'VITE_MYPAGE_GA4_ID',
 	'VITE_MYPAGE_PUBLIC_ORIGIN',
-	'VITE_PRIVACY_INTAKE_ENABLED',
-	'VITE_HISTORY_DETAILS_ENABLED',
 ] as const
 
 type DeploymentField = (typeof deploymentFields)[number]
@@ -90,7 +88,7 @@ function report(diagnostics: ReleaseDiagnostic[]): ReleaseConfigReport {
 			'analytics-console-consent-and-retention-review',
 			'data-inventory-cleanup-monitoring-and-rollback',
 			'D01-implementation-D02-policy-compliance-D03-public-values-and-publication-review',
-			'privacy-intake-operator-reply-and-no-session-exception-contact',
+			'human-privacy-contact-fresh-oauth-and-private-cli',
 		],
 	}
 }
@@ -352,26 +350,6 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 				)
 		}
 		const analytics = frontend.VITE_MYPAGE_ANALYTICS_READY
-		const history = frontend.VITE_HISTORY_DETAILS_ENABLED
-		if (
-			history !== undefined &&
-			history !== 'false' &&
-			(history !== 'true' || selected?.environment !== 'development')
-		)
-			add(
-				'frontend.VITE_HISTORY_DETAILS_ENABLED',
-				'INVALID_FIELD',
-				'Keep bounded history disabled outside a reviewed development acceptance.',
-			)
-		if (
-			frontend.VITE_PRIVACY_INTAKE_ENABLED !== undefined &&
-			frontend.VITE_PRIVACY_INTAKE_ENABLED !== 'false'
-		)
-			add(
-				'frontend.VITE_PRIVACY_INTAKE_ENABLED',
-				'INVALID_FIELD',
-				'Keep privacy intake disabled until operator reply, no-session exception contact, D02 policy compliance, D03 public values and public release gates are completed.',
-			)
 		if (
 			analytics !== undefined &&
 			analytics !== 'true' &&

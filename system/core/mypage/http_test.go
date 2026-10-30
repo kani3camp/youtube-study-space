@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"app.modules/core/serviceaccess"
 )
 
 type boundaryStore struct {
@@ -124,40 +122,6 @@ func TestHTTPAuthorizationBeforeDataAndCache(t *testing.T) {
 	}
 }
 
-func TestHTTPHistoryUsesTheSameAppCheckCustomUIDConsentAndAccessBoundary(t *testing.T) {
-	for _, fault := range []string{"appcheck", "token", "provider", "consent", "access"} {
-		t.Run(fault, func(t *testing.T) {
-			h, store, verifier, _ := boundaryFixture()
-			h.History = &HistoryService{}
-			want := 403
-			switch fault {
-			case "appcheck":
-				verifier.appErr = errors.New("synthetic app proof failure")
-			case "token":
-				verifier.tokenErr = errors.New("synthetic token failure")
-				want = 401
-			case "provider":
-				verifier.identity.Provider = "google.com"
-				want = 401
-			case "consent":
-				store.account.TermsVersion = "old"
-			case "access":
-				h.Auth.Access = accessReaderFunc(func(context.Context, string) (serviceaccess.Snapshot, error) {
-					return serviceaccess.Snapshot{}, serviceaccess.ErrUnavailable
-				})
-				want = 503
-			}
-			w := boundaryRequest(h, "GET", "/api/mypage/history?from=2026-10-01&to=2026-10-02", "")
-			if w.Code != want {
-				t.Fatalf("history auth boundary status=%d want=%d", w.Code, want)
-			}
-			if w.Header().Get("Cache-Control") != "private, no-store" {
-				t.Fatal("history response lost private no-store")
-			}
-		})
-	}
-}
-
 func TestHTTPRejectsAmbiguousInput(t *testing.T) {
 	for _, tc := range []struct {
 		method, path, body string
@@ -246,6 +210,17 @@ func TestHTTPSecurityHeadersApplyToErrorsAndOAuthRedirects(t *testing.T) {
 			if w.Header().Get(key) != want {
 				t.Fatalf("missing security header %s", key)
 			}
+		}
+	}
+}
+
+// 廃止surfaceは認証依存にもデータにも到達しない。
+func TestRemovedPhaseTwoRoutesAreNotExposed(t *testing.T) {
+	for _, path := range []string{"/api/mypage/history", "/api/privacy/requests", "/api/privacy/requests/status"} {
+		h, _, _, _ := boundaryFixture()
+		w := boundaryRequest(h, "GET", path, "")
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("removed route %s: status=%d", path, w.Code)
 		}
 	}
 }
