@@ -70,7 +70,7 @@ class WorkflowSafetyTest(unittest.TestCase):
         operations = self.caller['jobs']['operations']
         dispatch = "(github.event_name == 'workflow_dispatch' && inputs.operation != 'validate')"
         push = "(github.event_name == 'push' && github.ref == 'refs/heads/integration/mypage-canon-20261006')"
-        self.assertEqual(operations['if'], '${{ always() && (' + dispatch + ' || ' + push + ') }}')
+        self.assertEqual(operations['if'], '${{ !cancelled() && (' + dispatch + ' || ' + push + ') }}')
         gate_step = self.caller['jobs']['ci-gate']['steps'][-1]
         self.assertEqual(gate_step['env']['CI_OPERATION_REQUESTED'],
                          '${{ ' + dispatch + ' || ' + push + ' }}')
