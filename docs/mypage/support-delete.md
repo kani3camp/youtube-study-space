@@ -46,7 +46,7 @@ checkpointの`selector/generation/cutoff`を完全一致で転記した0600 JSON
 - `cachePurgedAt`: 全BFF instance/revisionのcacheを破棄した時刻。保護開始後のinstance再起動とinflight終了の確認を使う。旧revisionを再稼働させない。
 - `restoreExcludedAt`: 古いqueue、snapshot、copy/import/restoreが対象を再生成しないことを確認した時刻。停止確認3時刻はcutoff以降にする。
 - `manual`: `legacy-mappings`、`backups-exports`、`derived-vendor`、`platform-logs`それぞれについて、`status`（`completed`または実在しないことを調査した`absent`）、64桁hexのprivate `evidenceRef`、cutoff以降の`observedAt`を記録する。未確認なら`unknown`のまま停止させる。
-- `writersResumedAt`: 初回は未設定/zero。全inspect後にCLIがresume Gateで停止したことをcheckpointで確認し、旧job/queueを破棄したままwriterを再開・照合した時刻を、checkpointの更新時刻以降に記録する。
+- `writersResumedAt`: resumeに到達するまでは未設定/zeroを必須とし、nonzeroなら副作用前に拒否する。全inspect後にCLIがresume Gateで停止したことをcheckpointで確認し、旧job/queueを破棄したままwriterを再開・照合した時刻を、checkpointの更新時刻以降に記録する。早期再開が判明した場合は、時刻だけを書き換えて再開せず、全writerの停止・drainと再生成データの調査をやり直す。
 
 `legacy-mappings`の`absent`は、channel UID以外の旧UID/tenant/shared accountがないことまで含む。存在する場合はこのCLIで推測して消さず、同じ依頼・期限の下で別途帰属確認と処置を行う。
 

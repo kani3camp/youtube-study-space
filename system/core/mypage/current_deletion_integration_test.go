@@ -10,6 +10,7 @@ import (
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
@@ -132,4 +133,57 @@ func TestCurrentDeletionCannotAdoptRecreatedAuthUIDOrUnknownManualScope(t *testi
 	a.Gates.Generation++
 	_, err = a.Apply(ctx, supportdelete.NewOperation(e, start.Now))
 	require.ErrorIs(t, err, ErrDeletionGate)
+}
+
+func TestCurrentDeletionRejectsEarlyWriterResumeAndTimestampRewrite(t *testing.T) {
+	for _, before := range []supportdelete.Step{
+		{Action: "revoke", Scope: "firebase-auth"},
+		{Action: "delete", Scope: "firestore-primary"},
+		{Action: "inspect", Scope: "firestore-web"},
+	} {
+		t.Run(before.Action, func(t *testing.T) {
+			a, start, identity := currentAdapterFixture(t)
+			ctx := context.Background()
+			now := start.Now
+			a.Clock = func() time.Time { now = now.Add(time.Microsecond); return now }
+			e, err := a.Store.Acquire(ctx, start)
+			require.NoError(t, err)
+			for supportdelete.Steps()[e.Cursor] != before {
+				v, applyErr := a.Apply(ctx, supportdelete.NewOperation(e, a.Clock()))
+				require.NoError(t, applyErr)
+				e, err = a.Store.Commit(ctx, e, v, a.Clock())
+				require.NoError(t, err)
+			}
+			// In the inspect case, firestore-primary has already been inspected.
+			// No stage before resume may accept evidence that writers are running.
+			deletes, bqCalls := identity.deletes, a.BigQuery.(*currentTestBQ).calls
+			a.Gates.WritersResumedAt = a.Clock()
+			runner := supportdelete.Engine{Store: a.Store, Effects: a, Manifest: start.Manifest, Clock: a.Clock}
+			_, err = runner.Run(ctx, start.Selector, start.OwnerRef)
+			require.ErrorIs(t, err, ErrDeletionGate)
+			stopped, err := a.Store.Acquire(ctx, start)
+			require.NoError(t, err)
+			assert.Equal(t, e, stopped, "early resume must not advance the checkpoint")
+			assert.Equal(t, deletes, identity.deletes, "early resume must precede Auth effects")
+			assert.Equal(t, bqCalls, a.BigQuery.(*currentTestBQ).calls, "early resume must precede BigQuery effects")
+
+			// Reproduce the reviewed bypass: a writer recreates inspected data,
+			// then the owner updates only the resume timestamp and retries.
+			ref := a.Store.Client.Collection(repository.USERS).Doc(start.Selector.Target.ChannelID)
+			_, err = ref.Set(ctx, map[string]any{"total-study-sec": 999})
+			require.NoError(t, err)
+			a.Gates.WritersResumedAt = a.Clock()
+			_, err = runner.Run(ctx, start.Selector, start.OwnerRef)
+			require.ErrorIs(t, err, ErrDeletionGate, "rewriting the timestamp must not permit finalization")
+			stopped, err = a.Store.Acquire(ctx, start)
+			require.NoError(t, err)
+			require.Equal(t, e, stopped)
+			doc, err := ref.Get(ctx)
+			require.NoError(t, err)
+			require.Equal(t, int64(999), doc.Data()["total-study-sec"])
+			control, err := (&serviceaccess.FirestoreStore{Client: a.Store.Client}).Read(ctx, start.Selector.Target.ChannelID)
+			require.NoError(t, err)
+			require.True(t, control.Control.PrivacyDeletion.Active)
+		})
+	}
 }
