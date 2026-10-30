@@ -28,18 +28,23 @@ for rendered, stage in zip(plans, ("foundation_metadata", "foundation", "registr
                          "resource_drift": rendered.get("resource_drift", []),
                          "deferred_changes": rendered.get("deferred_changes", [])}
     validator = runtime_contract.validate_plan if stage in set(runtime_contract.MODES.values()) else validate_plan
-    if stage in {"runtime_private", "runtime_public"}:
-        # この認証不要のネイティブテストは毎回Stateなしで開始するため、
-        # プロバイダーが生成するランタイムPlanはメンテナンス資源を再作成しようとする。
-        # 運用担当者・初期構築段階の省略を拒否することを確認する。既存資源の完全なno-op Planは別に検証する。
+    if stage == "runtime_private":
+        # desired-state運用では、Stateに無いmaintenance境界もruntimeと同じexact Planで
+        # 初回作成できる。個別bootstrap modeを手動選択する必要はない。
+        summary = validator(envelope, stage)
+        resources = len(envelope["resource_changes"])
+        need(summary == {"resources": resources, "creates": resources})
+    elif stage == "runtime_public":
+        # public Invokerだけはowner管理であり、Stateなしのmock Planがそれをcreate
+        # しようとする経路は引き続き拒否する。実workflowでは固定importを使う。
         try:
             validator(envelope, stage)
         except ContractError as error:
-            need(str(error) == "runtime-maintenance-bootstrap-complete")
+            need(str(error) == "runtime-invoker-owner-managed")
         else:
             need(False)
     else:
         summary = validator(envelope, stage)
         resources = len(envelope["resource_changes"])
         need(summary == {"resources": resources, "creates": resources})
-print("Native mocked maintenance operator Plan accepted; direct runtime creation without completed bootstrap rejected; no cloud I/O.")
+print("Native mocked desired-state maintenance reconciliation accepted; public Invoker remains owner-managed; no cloud I/O.")
