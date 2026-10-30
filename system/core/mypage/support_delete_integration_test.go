@@ -50,7 +50,7 @@ func deletionFixture(t *testing.T) (*FirestoreDeletionStore, supportdelete.Start
 	selector := supportdelete.Selector{Target: supportdelete.Target{Environment: "development", ProjectID: "demo-youtube-study-space-ci", ChannelID: channel}, RequestRef: ref, ExecutionRef: digest(requestID + "execution"), ProofRef: proof}
 	start := supportdelete.Start{Selector: selector, Manifest: supportdelete.Manifest{Ref: digest("synthetic-complete-fleet"), Mode: "emulator"}, OwnerRef: digest(requestID + "owner"), Now: now}
 	t.Cleanup(func() {
-		for _, r := range []*firestore.DocumentRef{client.Collection(serviceaccess.Collection).Doc(channel), client.Collection("support-requests").Doc(ref), client.Collection("support-request-ids").Doc(digest("development:" + requestID)), client.Collection("oauth-transactions").Doc(oauthRef), client.Collection(supportDeleteClaims).Doc(proof), client.Collection(supportDeleteExecutions).Doc(selector.ExecutionRef), client.Collection("users").Doc(channel), client.Collection(supportDeleteBigQueryInventory).Doc(selector.ExecutionRef), client.Collection(supportDeleteBigQueryBinding).Doc(selector.ExecutionRef)} {
+		for _, r := range []*firestore.DocumentRef{client.Collection(serviceaccess.Collection).Doc(channel), client.Collection("support-requests").Doc(ref), client.Collection("support-request-ids").Doc(digest("development:" + requestID)), client.Collection("oauth-transactions").Doc(oauthRef), client.Collection(supportDeleteClaims).Doc(proof), client.Collection(supportDeleteExecutions).Doc(selector.ExecutionRef), client.Collection("users").Doc(channel), client.Collection(currentAuthTargets).Doc(selector.ExecutionRef)} {
 			_, err := r.Delete(ctx)
 			require.NoError(t, err)
 		}
@@ -65,39 +65,11 @@ func (deletionFixtureEffects) Apply(_ context.Context, op supportdelete.Operatio
 	return supportdelete.Evidence{Selector: e.Selector, ManifestRef: e.Manifest.Ref, OperationID: op.ID, Action: op.Step.Action, Scope: op.Step.Scope, Mode: "emulator", TraceRef: digest("synthetic-evidence:" + op.ID), Generation: e.Generation, Cutoff: e.Cutoff, ObservedAt: op.ObservedAfter, Known: true, Complete: true, AllInstances: true, OldQueueRejected: true, RestoreExcluded: true}, nil
 }
 
-// 汎用チェックポイントのテストデータには、派生データ/ベンダーの完全な合成空一覧を使う。
-// この段階を進める際、注入したEvidenceだけで永続的な所有権スナップショットを迂回しない。
-type emptyDerivedInventory struct{}
-
-func (emptyDerivedInventory) Capture(_ context.Context, op supportdelete.Operation) (DerivedInventorySnapshot, error) {
-	sources := make([]DerivedSource, len(derivedSources))
-	for i, name := range derivedSources {
-		sources[i] = DerivedSource{Name: name, Complete: true, Supported: true, Items: []DerivedItem{}}
-	}
-	s := DerivedInventorySnapshot{SchemaVersion: 1, Execution: op.Execution, CaptureOperationID: op.ID, TraceRef: digest("empty-synthetic-derived-inventory"), CapturedAt: op.ObservedAfter, Sources: sources}
-	s.InventoryRef = derivedInventoryRef(s)
-	return s, nil
-}
-
-func emptyDerivedAdapter(store *FirestoreDeletionStore, now time.Time) *DerivedDeletionEffects {
-	return &DerivedDeletionEffects{
-		Store: store, Inventory: emptyDerivedInventory{},
-		Executor: &derivedFake{objects: map[string]*derivedObject{}, catalogKnown: true, applyCount: map[string]int{}, identities: map[string]string{}},
-		Guard:    derivedFixtureGuard{now: now}, Clock: func() time.Time { return now },
-	}
-}
-
 func advanceDeletion(t *testing.T, s *FirestoreDeletionStore, e supportdelete.Execution, cursor int, now time.Time) supportdelete.Execution {
 	t.Helper()
 	for e.Cursor < cursor {
 		op := supportdelete.NewOperation(e, now)
-		var v supportdelete.Evidence
-		var err error
-		if op.Step.Scope == "derived-vendor" {
-			v, err = emptyDerivedAdapter(s, now).Apply(context.Background(), op)
-		} else {
-			v, err = (deletionFixtureEffects{}).Apply(context.Background(), op)
-		}
+		v, err := (deletionFixtureEffects{}).Apply(context.Background(), op)
 		require.NoError(t, err)
 		e, err = s.Commit(context.Background(), e, v, now)
 		require.NoError(t, err)
@@ -189,9 +161,9 @@ func TestDeletionMissingTraceWrongTargetAndBindingLeaveNoGuard(t *testing.T) {
 func TestDeletionFreshGenerationAndRequestCASPreserveModerationAndScrubLinks(t *testing.T) {
 	s, start, oauthRef := deletionFixture(t)
 	ctx := context.Background()
-	operator := syntheticOperator(s.Client)
-	reply := ReplyOperation{Intent: OperatorIntent{Environment: "development", ProjectID: "demo-youtube-study-space-ci", RequestRef: start.Selector.RequestRef, Purpose: SupportDelete, OperationID: digest("deletion-terminal-reply"), Action: "reply"}, ProofRef: start.Selector.ProofRef, Body: "Synthetic private reply", At: start.Now}
-	require.NoError(t, operator.Reply(ctx, reply))
+	// 廃止済み受付/返信の残存フィールドもfinalizeの置換で消去する。
+	_, seedErr := s.Client.Collection("support-requests").Doc(start.Selector.RequestRef).Set(ctx, map[string]any{"body": "Synthetic private request", "operatorReply": "Synthetic private reply"}, firestore.MergeAll)
+	require.NoError(t, seedErr)
 	controls := &serviceaccess.FirestoreStore{Client: s.Client}
 	_, err := controls.Change(ctx, start.Selector.Target.ChannelID, serviceaccess.Change{Reason: serviceaccess.Moderation, Active: true, ReasonCode: "SECURITY", Reference: digest("moderation1")}, start.Now)
 	require.NoError(t, err)
@@ -236,8 +208,6 @@ func TestDeletionFreshGenerationAndRequestCASPreserveModerationAndScrubLinks(t *
 			require.Len(t, doc.Data(), 4)
 		}
 	}
-	_, err = operator.auditRef(reply.Intent).Get(ctx)
-	require.NoError(t, err, "body-free reply audit survives terminal receipt cleanup")
 	for _, r := range []*firestore.DocumentRef{s.Client.Collection("oauth-transactions").Doc(oauthRef), s.Client.Collection(supportDeleteClaims).Doc(start.Selector.ProofRef)} {
 		_, err := r.Get(ctx)
 		require.Equal(t, codes.NotFound, status.Code(err))
@@ -348,7 +318,7 @@ func TestDeletionCheckpointClientRulesDenyReadAndWrite(t *testing.T) {
 	encode := base64.RawURLEncoding.EncodeToString
 	token := encode([]byte(`{"alg":"none","typ":"JWT"}`)) + "." + encode([]byte(`{"iss":"https://securetoken.google.com/demo-youtube-study-space-ci","aud":"demo-youtube-study-space-ci","sub":"synthetic-rules-user","user_id":"synthetic-rules-user","iat":1780000000,"exp":2090000000,"firebase":{"sign_in_provider":"custom"}}`)) + "."
 	client := &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	for _, collection := range []string{supportDeleteExecutions, supportDeleteClaims, supportDeleteAuthOwnership, supportDeleteBigQueryInventory, supportDeleteBigQueryBinding, supportOperatorAudit, "support-requests"} {
+	for _, collection := range []string{supportDeleteExecutions, supportDeleteClaims, currentAuthTargets, supportOperatorAudit, "support-requests"} {
 		ref := start.Selector.ExecutionRef
 		if collection == supportDeleteClaims {
 			ref = start.Selector.ProofRef

@@ -148,7 +148,6 @@ func TestStartupTransfersCoverageToReaderAndPreservesMetricCompleteness(t *testi
 			err := runWith(context.Background(), get, syntheticBootstrap(t, "", &events), func(_ context.Context, server *http.Server) error {
 				handler, ok := server.Handler.(*mypage.HTTPHandler)
 				require.True(t, ok)
-				require.Nil(t, handler.Intake)
 				reader, ok := handler.BFF.Reader.(*mypage.FirestoreSnapshotReader)
 				require.True(t, ok)
 				require.Equal(t, tc.coverage, reader.Coverage, "normal startup must transfer exact verified intervals")

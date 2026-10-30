@@ -26,10 +26,11 @@ type target = supportdelete.Target
 type request = supportdelete.Selector
 
 type options struct {
-	mode     string
-	manifest string
-	stdin    bool
-	recover  bool
+	mode              string
+	manifest          string
+	stdin             bool
+	gates, checkpoint string
+	allowProduction   bool
 }
 
 func parseOptions(args []string) (options, error) {
@@ -37,6 +38,28 @@ func parseOptions(args []string) (options, error) {
 	modeSet := false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
+		case "--gates", "--checkpoint":
+			if i+1 >= len(args) || args[i+1] == "" {
+				return options{}, errInput
+			}
+			key := args[i]
+			i++
+			if key == "--gates" {
+				if o.gates != "" {
+					return options{}, errInput
+				}
+				o.gates = args[i]
+			} else {
+				if o.checkpoint != "" {
+					return options{}, errInput
+				}
+				o.checkpoint = args[i]
+			}
+		case "--allow-production":
+			if o.allowProduction {
+				return options{}, errInput
+			}
+			o.allowProduction = true
 		case "--stdin":
 			if o.stdin || o.manifest != "" {
 				return options{}, errInput
@@ -48,22 +71,21 @@ func parseOptions(args []string) (options, error) {
 			}
 			i++
 			o.manifest = args[i]
-		case "--check-config", "--mock", "--execute":
+		case "--check-config", "--execute":
 			if modeSet {
 				return options{}, errInput
 			}
 			modeSet = true
 			o.mode = args[i][2:]
-		case "--recover":
-			if o.recover {
-				return options{}, errInput
-			}
-			o.recover = true
+
 		default:
 			return options{}, errInput
 		}
 	}
-	if (!o.stdin && o.manifest == "") || (o.recover && o.mode != "mock") {
+	if !o.stdin && o.manifest == "" {
+		return options{}, errInput
+	}
+	if o.mode != "execute" && (o.gates != "" || o.checkpoint != "" || o.allowProduction) {
 		return options{}, errInput
 	}
 	return o, nil

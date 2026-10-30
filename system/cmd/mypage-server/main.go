@@ -62,9 +62,6 @@ func configurationValuesFrom(get func(string) string) (configuration, error) {
 	if _, err := mypage.NewGoogleYouTubeOAuth(config.clientID, config.clientSecret, config.server.PublicOrigin, nil); err != nil {
 		return fail()
 	}
-	if _, err := mypage.NewAppCheckVerifier(config.server.ProjectNumber, config.server.WebAppID, nil, time.Now); err != nil {
-		return fail()
-	}
 	if config.metadataKey != "" {
 		if _, err := mypage.NewPublicYouTubeMetadata(config.metadataKey, nil); err != nil {
 			return fail()
@@ -73,9 +70,10 @@ func configurationValuesFrom(get func(string) string) (configuration, error) {
 	return config, nil
 }
 
-// テストで置き換えられるのは、3つの外部初期化操作だけとする。
+// テストで置き換えられるのは、外部初期化操作だけとする。
 // 設定検査、プロバイダー・ハンドラーの遅延組み立て、終了処理は本番起動と共有する。
 type bootstrapDependencies struct {
+	appcheck    func(context.Context, string) (mypage.FirebaseAppCheckClient, error)
 	credentials func(context.Context) (*google.Credentials, error)
 	firebase    func(context.Context, configuration, *google.Credentials) (mypage.FirebaseAuthClient, error)
 	database    func(context.Context, configuration, *google.Credentials) (*firestore.Client, func(), error)
@@ -83,6 +81,7 @@ type bootstrapDependencies struct {
 
 func run(ctx context.Context) error {
 	deps := bootstrapDependencies{
+		appcheck: mypage.NewFirebaseAppCheckClient,
 		credentials: func(ctx context.Context) (*google.Credentials, error) {
 			return google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
 		},
@@ -151,7 +150,12 @@ func runWith(ctx context.Context, get func(string) string, deps bootstrapDepende
 				stats.SegmentQueries, stats.SegmentsReturned, stats.SegmentQueryError, stats.ElapsedMilliseconds, stats.MonthLookups, stats.MonthsReturned, stats.MonthReadErrors)
 		}
 	}
-	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Firestore: database, Firebase: sdk, OAuth: provider, PublicMetadata: metadata, ReadObserver: readObserver, HistorySecret: []byte(config.clientSecret)})
+	// SDKの初回公開JWKS取得も起動予算に含める。
+	appCheck, err := deps.appcheck(bootstrapCtx, config.server.ProjectNumber)
+	if err != nil || bootstrapCtx.Err() != nil {
+		return errors.New("MyPage App Check bootstrap unavailable")
+	}
+	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Firestore: database, Firebase: sdk, AppCheck: appCheck, OAuth: provider, PublicMetadata: metadata, ReadObserver: readObserver})
 	if err != nil || bootstrapCtx.Err() != nil {
 		return errors.New("MyPage handler unavailable")
 	}

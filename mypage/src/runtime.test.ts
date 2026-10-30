@@ -118,67 +118,6 @@ describe('browser authentication runtime', () => {
 		expect(runtime.maintenance.getSnapshot().phase).toBe('active')
 		runtime.memory.dispose()
 	})
-	it.each([
-		'uid',
-		'logout-start',
-	] as const)('discards private history after %s even when fetch ignores abort', async (boundary) => {
-		browserFixture()
-		const { session, setUID } = sessionFixture()
-		setUID('synthetic')
-		let finishSignOut: () => void = () => {}
-		let logout: Promise<void> | null = null
-		if (boundary === 'logout-start')
-			session.signOut = async () =>
-				new Promise<void>((resolve) => {
-					finishSignOut = resolve
-				})
-		let release: (response: Response) => void = () => {}
-		const request: typeof fetch = async (path) =>
-			String(path).startsWith('/api/mypage/history')
-				? new Promise<Response>((resolve) => {
-						release = resolve
-					})
-				: path === '/api/mypage'
-					? Response.json(fixture)
-					: new Response(null, { status: 204 })
-		const runtime = new BrowserRuntime(
-			session,
-			{ privacy: 'p1', terms: 't1' },
-			request,
-			null,
-			false,
-			true,
-		)
-		const dispose = runtime.mount()
-		await settle()
-		const pending = runtime.historyPage(
-			{ from: '2026-10-01', to: '2026-10-02' },
-			new AbortController().signal,
-			'synthetic-operation-key',
-		)
-		await settle()
-		if (boundary === 'uid') setUID('synthetic-new')
-		else logout = runtime.memory.logout()
-		release(
-			Response.json({
-				asOf: '2026-10-24T03:00:00Z',
-				timezone: 'Asia/Tokyo',
-				selection: 'completed_work',
-				coverage: 'recorded_only',
-				sourceConsistent: true,
-				from: '2026-10-01',
-				to: '2026-10-02',
-				items: [],
-				nextCursor: null,
-			}),
-		)
-		await expect(pending).rejects.toMatchObject({ status: 401 })
-		if (logout) {
-			finishSignOut()
-			await logout
-		}
-		dispose()
-	})
 	it('restores auth on a public route without overview reads and honors network events', async () => {
 		vi.useFakeTimers()
 		const { windowTarget } = browserFixture()

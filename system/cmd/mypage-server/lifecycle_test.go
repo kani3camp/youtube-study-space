@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
+	"firebase.google.com/go/v4/appcheck"
 	"firebase.google.com/go/v4/auth"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -43,6 +44,9 @@ func syntheticBootstrap(t *testing.T, fail string, events *[]string) bootstrapDe
 		return nil
 	}
 	return bootstrapDependencies{
+		appcheck: func(context.Context, string) (mypage.FirebaseAppCheckClient, error) {
+			return syntheticAppCheckClient{}, nil
+		},
 		credentials: func(ctx context.Context) (*google.Credentials, error) {
 			return credentials, stage(ctx, "credentials")
 		},
@@ -119,7 +123,6 @@ func TestStartupAssemblesBoundedHTTPServerAndClosesDatabaseAfterServing(t *testi
 				require.Equal(t, io.Discard, server.ErrorLog.Writer())
 				handler, ok := server.Handler.(*mypage.HTTPHandler)
 				require.True(t, ok)
-				require.Nil(t, handler.Intake, "Oct9 automated Privacy intake remains off")
 				require.Equal(t, "https://example.invalid", handler.PublicOrigin)
 				require.Same(t, handler.Verifier, handler.Auth.Minter)
 				if metadataKey == "" {
@@ -458,4 +461,25 @@ func (f syntheticFirebase) VerifyIDToken(context.Context, string) (*auth.Token, 
 func (f syntheticFirebase) CustomToken(context.Context, string) (string, error) {
 	f.t.Fatal("bootstrap attempted token minting")
 	return "", errors.New("synthetic-only")
+}
+
+type syntheticAppCheckClient struct{}
+
+func (syntheticAppCheckClient) VerifyToken(string) (*appcheck.DecodedAppCheckToken, error) {
+	return nil, errors.New("synthetic App Check rejection")
+}
+
+func TestAppCheckBootstrapFailureCannotStartHTTPOrExposeDependencyError(t *testing.T) {
+	values := syntheticConfiguration()
+	var events []string
+	deps := syntheticBootstrap(t, "", &events)
+	deps.appcheck = func(ctx context.Context, number string) (mypage.FirebaseAppCheckClient, error) {
+		require.Equal(t, "123456789", number)
+		_, bounded := ctx.Deadline()
+		require.True(t, bounded)
+		return nil, errors.New("synthetic-private-sdk-error")
+	}
+	err := runWith(context.Background(), func(key string) string { return values[key] }, deps, func(context.Context, *http.Server) error { t.Fatal("App Check failure started HTTP"); return nil })
+	require.EqualError(t, err, "MyPage App Check bootstrap unavailable")
+	require.Equal(t, []string{"credentials", "firebase", "database", "database closed"}, events)
 }

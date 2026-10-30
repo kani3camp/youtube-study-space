@@ -6,11 +6,11 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"net/http"
-	"sync"
-	"sync/atomic"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"firebase.google.com/go/v4/appcheck"
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/stretchr/testify/require"
@@ -36,20 +36,30 @@ func publicJWKS(t *testing.T, key *rsa.PrivateKey, kid string) string {
 	return string(data)
 }
 
-func TestAppCheckSignedClaimsRejectWrongEnvironmentAppExpiryAndMalformedTypes(t *testing.T) {
+// グローバルJWKSUrlはSDK公開のテスト境界。並列化せず、必ず戻す。
+func signedAppCheckSDK(t *testing.T, key *rsa.PrivateKey) FirebaseAppCheckClient {
+	t.Helper()
+	body := publicJWKS(t, key, "synthetic-key")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewEncoder(w).Encode(json.RawMessage(body)))
+	}))
+	t.Cleanup(server.Close)
+	previous := appcheck.JWKSUrl
+	appcheck.JWKSUrl = server.URL
+	t.Cleanup(func() { appcheck.JWKSUrl = previous })
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	sdk, err := NewFirebaseAppCheckClient(ctx, "123456789")
+	require.NoError(t, err)
+	return sdk
+}
+
+func TestSDKAppCheckPreservesEnvironmentAppExpiryAndMalformedClaimBoundary(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	now := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
-	body := publicJWKS(t, key, "synthetic-key")
-	calls := 0
-	v, err := NewAppCheckVerifier("123456789", "1:123456789:web:synthetic", &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
-		calls++
-		require.Equal(t, appCheckJWKSURL, r.URL.String())
-		require.Empty(t, r.Header.Get("Authorization"))
-		return providerResponse(200, body), nil
-	})}, func() time.Time { return now })
+	now := time.Now().UTC().Truncate(time.Second)
+	v, err := NewAppCheckVerifier("123456789", "1:123456789:web:synthetic", signedAppCheckSDK(t, key), func() time.Time { return now })
 	require.NoError(t, err)
-	require.Zero(t, calls)
 	for _, tc := range []struct {
 		name   string
 		mutate func(map[string]any)
@@ -82,83 +92,16 @@ func TestAppCheckSignedClaimsRejectWrongEnvironmentAppExpiryAndMalformedTypes(t 
 			}
 		})
 	}
-	require.Equal(t, 1, calls)
 	other, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	require.Equal(t, "APP_CHECK_REQUIRED", v.Verify(context.Background(), syntheticAppCheck(t, other, "synthetic-key", syntheticAppClaims(now), "JWT")).Error())
-	require.Equal(t, "APP_CHECK_REQUIRED", v.Verify(context.Background(), "synthetic-invalid-secret").Error())
-	require.Equal(t, 1, calls)
-}
-
-func TestAppCheckConcurrentVerificationCachesKeysAndUnknownKidRefreshIsBounded(t *testing.T) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-	now := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
-	body := publicJWKS(t, key, "synthetic-key")
-	var calls atomic.Int32
-	v, err := NewAppCheckVerifier("123456789", "1:123456789:web:synthetic", &http.Client{Transport: providerTransport(func(*http.Request) (*http.Response, error) { calls.Add(1); return providerResponse(200, body), nil })}, func() time.Time { return now })
-	require.NoError(t, err)
-	token := syntheticAppCheck(t, key, "synthetic-key", syntheticAppClaims(now), "JWT")
-	var wg sync.WaitGroup
-	results := make(chan error, 20)
-	for i := 0; i < 20; i++ {
-		wg.Add(1)
-		go func() { defer wg.Done(); results <- v.Verify(context.Background(), token) }()
-	}
-	wg.Wait()
-	close(results)
-	for err := range results {
-		require.NoError(t, err)
-	}
-	require.Equal(t, int32(1), calls.Load())
-	unknown := syntheticAppCheck(t, key, "unknown-key", syntheticAppClaims(now), "JWT")
-	for i := 0; i < 20; i++ {
-		require.Error(t, v.Verify(context.Background(), unknown))
-	}
-	require.Equal(t, int32(1), calls.Load())
-	now = now.Add(time.Minute)
-	require.Error(t, v.Verify(context.Background(), unknown))
-	require.Equal(t, int32(2), calls.Load())
-	body = publicJWKS(t, key, "rotated-key")
-	now = now.Add(time.Minute)
-	require.NoError(t, v.Verify(context.Background(), syntheticAppCheck(t, key, "rotated-key", syntheticAppClaims(now), "JWT")))
-	require.Equal(t, int32(3), calls.Load())
-	now = now.Add(6 * time.Hour)
-	require.NoError(t, v.Verify(context.Background(), syntheticAppCheck(t, key, "rotated-key", syntheticAppClaims(now), "JWT")))
-	require.Equal(t, int32(4), calls.Load())
-}
-
-func TestAppCheckInvalidHeadersAndFetchFailuresFailClosedWithoutRepeatedRequests(t *testing.T) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-	now := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
-	calls := 0
-	v, err := NewAppCheckVerifier("123456789", "1:123456789:web:synthetic", &http.Client{Transport: providerTransport(func(*http.Request) (*http.Response, error) {
-		calls++
-		return providerResponse(503, "synthetic-upstream-private-error"), nil
-	})}, func() time.Time { return now })
-	require.NoError(t, err)
-	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: []byte("synthetic-32-byte-signing-key-only")}, (&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", "synthetic-key"))
-	require.NoError(t, err)
-	unsignedRSA, err := jwt.Signed(signer).Claims(syntheticAppClaims(now)).Serialize()
-	require.NoError(t, err)
-	require.Error(t, v.Verify(context.Background(), unsignedRSA))
-	require.Error(t, v.Verify(context.Background(), syntheticAppCheck(t, key, "", syntheticAppClaims(now), "JWT")))
-	canceled, cancel := context.WithCancel(context.Background())
+	require.EqualError(t, v.Verify(context.Background(), syntheticAppCheck(t, other, "synthetic-key", syntheticAppClaims(now), "JWT")), "APP_CHECK_REQUIRED")
+	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	require.Error(t, v.Verify(canceled, syntheticAppCheck(t, key, "synthetic-key", syntheticAppClaims(now), "JWT")))
-	require.Zero(t, calls)
-	token := syntheticAppCheck(t, key, "synthetic-key", syntheticAppClaims(now), "JWT")
-	for i := 0; i < 5; i++ {
-		err = v.Verify(context.Background(), token)
-		require.Equal(t, "APP_CHECK_REQUIRED", err.Error())
-	}
-	require.Equal(t, 1, calls)
-	now = now.Add(time.Minute)
-	require.Error(t, v.Verify(context.Background(), token))
-	require.Equal(t, 2, calls)
-	for _, tc := range []struct{ project, app string }{{"demo-mypage", "1:123456789:web:synthetic"}, {"123456789", "1:987654321:web:synthetic"}, {"123456789", ""}} {
-		_, err := NewAppCheckVerifier(tc.project, tc.app, nil, time.Now)
-		require.Error(t, err)
-	}
+	require.EqualError(t, v.Verify(ctx, "private-token"), "APP_CHECK_REQUIRED")
+}
+
+type rejectingAppCheck struct{}
+
+func (rejectingAppCheck) VerifyToken(string) (*appcheck.DecodedAppCheckToken, error) {
+	return nil, apiError("APP_CHECK_REQUIRED")
 }

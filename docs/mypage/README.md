@@ -4,11 +4,11 @@
 
 公開準備は[配備手順書](release/README.md)、[実環境のE2E・ロールバック手順](release/e2e.md)を参照する。実装済みの内容と、外部の確認や本人の判断を待つ内容を区別する。設定検査やローカルの合成QAを、公開承認や実環境のE2Eの証拠として扱わない。
 
-[プライバシー申請の受付](privacy-intake.md)は実装のみで、初期状態では無効になっている。受付・本人確認・返信で扱う範囲と、運用上の未決定事項を記録している。Canon 05/09で定める初期公開の手段は、返信できる有人のプライバシー窓口と、既存の新たなOAuth認証・非公開CLI・手順書を使った運用である。アプリ内の受付UIを有効にすることは必須ではない。CLIの実環境用アダプターは未接続であり、現在のソースだけで公開可能とは扱わない。
+初期公開のPrivacy受付は返信可能な人的窓口 → private CLIでSupportRequest作成 → purpose-bound fresh YouTube OAuth → private削除/revoke/開示運用とする。[運用手順](support-operator.md)を参照。アプリ内受付・返信UIと未接続Operator OIDCは撤去した。実環境検証・D02/D03・削除Gateの完了は別途必要である。
 
-横断削除Bのチェックポイント、オフラインCLI、アダプターの分担、未確認事項は[削除手順書](support-delete.md)と[対象一覧](support-delete-inventory.md)を参照する。
+横断削除Bのチェックポイント、現在storeへのprivate CLI、所有者Gate、未確認事項は[削除手順書](support-delete.md)と[対象一覧](support-delete-inventory.md)を参照する。
 
-本文は現行仕様から実装に必要な機密情報を含まない通信仕様を抽出したものである。`openapi.yaml`は10本のAPIエンドポイントの仕様を定める。公開のメンテナンス状態APIを含み、プライバシー受付2本は初期状態では無効、明細1本はDEV限定で初期状態では無効とする。`fixtures/`には実ユーザーに依存しない合成例を置く。メンテナンスモードの状態・例外・手動切替・復旧は[メンテナンスモードv1の手順書](maintenance-mode.md)を参照する。
+本文は現行仕様から実装に必要な機密情報を含まない通信仕様を抽出したものである。`openapi.yaml`は7本のAPIエンドポイントの仕様を定める。公開のメンテナンス状態APIを含む。`fixtures/`には実ユーザーに依存しない合成例を置く。メンテナンスモードの状態・例外・手動切替・復旧は[メンテナンスモードv1の手順書](maintenance-mode.md)を参照する。
 
 - 本人の識別にはYouTubeチャンネルIDと同じ値のFirebase custom-provider uidを使う。クライアントから対象IDを受け取らない。
 - OAuthコールバックの処理権確保と確認時の一度限りの消費を、それぞれアトミックに行う。その後、外部APIの呼び出しとトークン発行をトランザクションのコールバックの外で実行する。
@@ -25,7 +25,7 @@
 
 Goの通信用の型・HTTP処理とフロントエンドの実装は、各パッケージのテストで独立して検証する。基盤構築や本番への配備は含まない。
 
-認証、ブラウザ内の個人データ、ServiceAccessControlの安全条件は [MyPage FSL仕様](../../formal-spec/fsl/specs/README.md) で検証する。検証の範囲は指定した深さまでの状態遷移に限る。3モデルとも実装との自動照合は未接続であり、通常のGo/Vitestテスト、Firestore Emulator、実環境での公開前検証を代替しない。
+認証・本人切替・ServiceAccessControlの安全条件はGo/Vitest/Firestore Emulatorテストで検証する。[検証の責任分担](lean-cleanup.md)を参照する。
 
 構成・公開段階・実環境の確認事項は[配備手順書](release/README.md)を参照する。
 
@@ -51,7 +51,9 @@ GoogleプロバイダーとFirebaseトークン発行はインターフェース
 
 FirebaseBoundaryは、公式Admin SDKのVerifyIDToken/CustomTokenインターフェースを使う。署名検証済みのトークンについて、固定プロジェクトのissuer/audience、custom provider、テナントがないこと、チャンネル形式のUIDとsubjectの一致、期限・発行時刻・認証時刻を追加検証する。SDKやトークンのエラーを公開メッセージやログへ転記しない。発行処理には、サーバーが確認したチャンネルUIDだけを渡す。
 
-AppCheckVerifierは公式のJWT検証手順に沿って、RS256署名・JWT type・固定プロジェクト番号のissuer/audience・対象のWeb App ID・期限・発行時刻を検証する。JWKSは固定のv1エンドポイントから必要時に取得し、最大6時間キャッシュする。取得処理は2秒に制限し、サイズと鍵数にも上限を設ける。未知のkidや取得失敗時には再取得の間隔を制限し、singleflightで同時取得をまとめる。コンストラクターは通信やバックグラウンドループを開始しない。SDKの即時初期化型AppCheckクライアントは使わず、リクエストのcontextと合成HTTPトランスポートで検証できる構成を採用した。
+AppCheckVerifierは公式Firebase Admin Go SDKの`VerifyToken`へRS256署名・JWT type・標準claim・JWKSキャッシュ/更新を委譲する。MyPage固有のproject number issuer/audience・Web App ID・必須iat/exp・厳密な時刻境界だけを薄いwrapperで確認する。SDKの不正claim型によるpanicも固定の認証拒否へ変換し、token/依存先エラーは出力しない。初回JWKS取得は起動予算10秒内で行い、handler構築はI/Oを行わない。SDKはproject ID文字列をaudienceへ連結するため、App Check専用Appへproject numberを渡す（Auth用Appはproject IDのまま）。
+
+独自のJWT parser・JWKS取得/鍵サイズ制限・singleflight・未知kid再取得・6時間後の独自失効は撤去し、鍵の信頼と更新は標準SDKの責任とする。採用中SDKは公開JWKSを起動時取得し、6時間ごとに更新、未知kidは拒否する。独自HTTP clientの注入や公開の終了APIはない。これらは保守対象を標準SDKに集約するための運用差分であり、署名/期限/環境/app不一致の拒否を緩和しない。DEVでの起動・鍵更新時の可用性は次回配備受入で確認する。
 
 一次資料: [App Check custom backend verification](https://firebase.google.com/docs/app-check/custom-resource-backend)、[Firebase ID token verification](https://firebase.google.com/docs/auth/admin/verify-id-tokens)、[custom token signing](https://firebase.google.com/docs/auth/admin/create-custom-tokens)。
 
@@ -103,21 +105,7 @@ work-segmentsの検索条件はuser-idの一致、ended-at > window start、star
 
 新しい書き込み処理の追加読み取りは通常5回で、対象はSAC・イベント・User・Seat・月である。追加書き込みは月次1回と、移行済みUserの処理済み時刻の最大1回である。既存のSeat・User更新とは別に見積もり、再試行も加味する。準備する区間は最大366日、1区間の月数も有限とし、異常に長い区間を通知せずに破棄しない。月次の`days`マップはインデックス除外候補としてFirebase設定に記録し、実適用とは配備証跡で区別する。移行・復旧・複数方式の書き込み処理が混在する場合の手順は[配備手順書](release/README.md#月次履歴の明示移行と復旧)を参照する。
 
-### 明細カーソルと処理量の利用予算
-
-`GET /api/mypage/history`はDEV専用であり、ポリシー未設定時は無効とする。公開価格やPremiumの発売を意味しない。`mypage-maintenance/history-policy`の[候補](history-policy.example.json)は正式な商品枠ではなく、所有者が実費とUXを確認して使う設定例である。本番では拒否する。フロントエンドも`VITE_HISTORY_DETAILS_ENABLED`が明示的にtrueで、かつDEVプロジェクトの場合だけ表示し、既定では無効とする。
-
-対象期間は「JSTの[from,to)に完了した作業区間」とする。日を跨いで開始した区間も、完了日に表示する。これはグラフの期間に重なる部分を集計する処理とは別であり、グラフのために明細の全ページを読み切らない。1リクエストは最大31日、初期50件・最大100件、明細ペイロードは最大120KiB、処理時間は8秒に制限する。過去に閲覧できる範囲と1リクエストの期間は区別し、月次の準備が済んだ記録済み履歴を対象にする。未観測の期間を実作業0とは確定しない。
-
-ended-atと一意な文書IDで並べ替え、オフセットは使わない。有効期間15分のAES-GCMカーソルに、検証済みUIDとの対応、SACチェックポイント、同意、サーバー側の利用権限・ポリシーのリビジョン、期間・ページサイズ・固定readTimeを結び付ける。原記録のID・UIDをカーソルの平文やレスポンスに出さない。既存のサーバー側OAuthシークレットから用途別の鍵を導出し、新しいシークレットや認証情報は作らない。ページ追加中も同じasOfを使い、同時追加による重複や記録の混入を避ける。
-
-原記録のクエリ前に同じスナップショットの月次終了件数と専用インデックスで走査範囲を限定する。有効化には`user-id/segment-type/ended-at`インデックスのDEV適用とQuery Explainとの照合が必要であり、エミュレーターや件数だけを実際のインデックス課金の証明にしない。件数上限・欠損月・不正スキーマの場合、通常APIから既存データを補完しない。明細では、重複などのある個々の記録も`sourceConsistent=false`で区別し、グラフの正確な合計に流用しない。
-
-利用枠は`mypage-history-budgets`のUIDごとの単一文書で管理し、JST日付・消費単位・内容を推測できない重複検知情報・最大4リースだけを保存する。新しい基盤は追加せず、同じFirestoreトランザクションでSACとポリシーを照合して予約する。消費単位は`page size + sentinel + ceil(maxIndexEntries/1000) + 32`という余裕を持たせた技術上の予算であり、利用枠の管理費用なども含む。原記録を読む前に判定し、インスタンス・再起動・並行リクエストを跨いで管理する。Premiumは信頼済みのサーバー側リゾルバーだけが判定し、既存のYouTube会員やクライアント指定プランを自動的にPremiumへ分類しない。既定はStandardとし、どちらの枠にも上限を設ける。
-
-失敗・取消・ACK不明の場合も予約分を消費し、自動返却しない。同じ`Idempotency-Key`は同条件でも409を返して再実行せず、別条件への転用も拒否する。手動再試行は新しい操作として予約する。履歴のキャッシュは持たない。重複検知情報は現在と前のJST日分だけを利用時に残し、最大2048件とする。使われていない単一文書は、次の利用かプライバシー削除まで残る。これをTTL対応の完了や新しい公開保持ポリシーとして扱わない。
-
-リースはリクエスト期限より長い15秒とし、正常終了・失敗時に独立した1秒の制限時間内で解放する。取消やプロセス消失後も期限切れで回復し、日跨ぎでも旧リースを維持して同時実行数を増やさない。429はRetry-AfterとJSTの再開時刻を返し、UIは表示済みページを保持する。認証の変化・停止・世代変更・pagehideでは非公開の明細を消去する。概要・ログアウト・Privacyはこの日次枠を消費せず、通常の5分間隔の利用を止めない。利用枠も既存のPrivacy primary scopeで削除し、旧カーソルは元のSACチェックポイントとの不一致で拒否する。
+明細API・任意期間・Premium tierはPhase 1対象外のため撤去した。月次集計、原記録writer、完全性管理、DEV再集計/切替/rollback CLIは基本表示に必要なため維持する。
 
 ## HTTPとキャッシュ
 

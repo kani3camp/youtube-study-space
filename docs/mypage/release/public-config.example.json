@@ -17,8 +17,7 @@
     "VITE_APP_CHECK_SITE_KEY": "synthetic-public-site-key",
     "VITE_PRIVACY_POLICY_VERSION": "synthetic-p",
     "VITE_TERMS_VERSION": "synthetic-t",
-    "VITE_MYPAGE_ANALYTICS_READY": "false",
-    "VITE_PRIVACY_INTAKE_ENABLED": "false"
+    "VITE_MYPAGE_ANALYTICS_READY": "false"
   },
   "backend": {
     "environment": "development",

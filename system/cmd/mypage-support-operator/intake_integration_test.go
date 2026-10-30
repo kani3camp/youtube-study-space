@@ -99,7 +99,7 @@ func TestHumanDeskCLIEmulatorCreatesReceiptThenRequiresExistingFreshOAuth(t *tes
 			require.Equal(t, input.Channel, record.TargetChannel)
 			require.Equal(t, purpose, record.Purpose)
 			require.Equal(t, input.AcceptedAt, record.AcceptedAt)
-			require.Empty(t, record.Body)
+			require.NotContains(t, doc.Data(), "body")
 			require.Empty(t, record.ProofRef)
 			require.NotEqual(t, receipt.Challenge, record.ChallengeHash)
 			if purpose == mypage.SupportDelete {

@@ -22,6 +22,8 @@ type FirestoreDeletionEffects struct {
 }
 type deletionLookup struct{ collection, field, value, except string }
 
+const historyBudgets = "mypage-history-budgets" // 廃止済み明細機能の残存データも削除対象。
+
 func sourceDeletionLookups(op supportdelete.Operation) ([]deletionLookup, bool) {
 	channel := op.Execution.Selector.Target.ChannelID
 	switch op.Step.Scope {
@@ -74,6 +76,10 @@ func (a *FirestoreDeletionEffects) Apply(ctx context.Context, op supportdelete.O
 			return supportdelete.Evidence{}, deletionStoreError(err)
 		}
 		if op.Step.Scope == "firestore-oauth" {
+			// Keep the current fresh proof until the atomic terminal scrub.
+			for i := range lookups {
+				lookups[i].except = receipt.OAuthTransactionID
+			}
 			lookups = append(lookups, deletionLookup{"oauth-transactions", "support.requestRef", op.Execution.Selector.RequestRef, receipt.OAuthTransactionID})
 		} else {
 			lookups = append(lookups, deletionLookup{"support-request-ids", "requestRef", op.Execution.Selector.RequestRef, digest(receipt.Environment + ":" + receipt.RequestID)})

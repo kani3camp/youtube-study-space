@@ -70,15 +70,7 @@ export function initializeRuntime() {
 				(await signInWithCustomToken(auth, token)).user.uid,
 			signOut: () => signOut(auth),
 		}
-		return new BrowserRuntime(
-			session,
-			policy,
-			fetch,
-			null,
-			env.VITE_PRIVACY_INTAKE_ENABLED === 'true',
-			env.VITE_HISTORY_DETAILS_ENABLED === 'true' &&
-				env.VITE_FIREBASE_PROJECT_ID === 'test-youtube-study-space',
-		)
+		return new BrowserRuntime(session, policy, fetch, null)
 	} catch {
 		return new BrowserRuntime(null, policy, fetch, 'SUPPORTED_BROWSER_REQUIRED')
 	}

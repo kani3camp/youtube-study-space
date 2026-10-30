@@ -4,10 +4,6 @@ import {
 	type TokenSource,
 } from './features/mypage/client'
 import {
-	createHistoryLoader,
-	type HistoryInput,
-} from './features/mypage/history'
-import {
 	MyPageMemory,
 	RequestError,
 	restrictionFrom,
@@ -21,24 +17,6 @@ export type BrowserSession = TokenSource & {
 	signOut: () => Promise<void>
 }
 export type SupportPurpose = 'delete' | 'revoke' | 'disclosure'
-export type PrivacyIntakeReceipt = {
-	requestRef: string
-	supportChallenge?: string
-	purpose: SupportPurpose
-	status: string
-	acceptedAt: string
-	deleteBy: string | null
-}
-export type PrivacyRequestStatus = {
-	requestRef: string
-	purpose: SupportPurpose
-	status: string
-	acceptedAt: string
-	deleteBy: string | null
-	verifiedAt: string
-	reply?: string
-	replyAt?: string
-}
 type ConfirmationResult =
 	| { purpose: 'login' }
 	| { purpose: 'support'; requestRef: string; supportRequestRef?: string }
@@ -58,8 +36,6 @@ export class BrowserRuntime {
 	readonly session: BrowserSession | null
 	readonly policy: { privacy: string; terms: string }
 	readonly unavailable: string | null
-	readonly intakeEnabled: boolean
-	readonly historyEnabled: boolean
 	private request: typeof fetch
 	private completingSession = false
 	private active = false
@@ -101,16 +77,12 @@ export class BrowserRuntime {
 		policy: { privacy: string; terms: string },
 		request: typeof fetch = fetch,
 		unavailable: string | null = null,
-		intakeEnabled = false,
-		historyEnabled = false,
 	) {
 		this.session = session
 		this.observedUID = session?.currentUID() ?? null
 		this.policy = policy
 		this.request = (input, init) => request(input, init)
 		this.unavailable = unavailable
-		this.intakeEnabled = intakeEnabled
-		this.historyEnabled = historyEnabled
 		this.maintenance = new MaintenanceMonitor(this.request, (phase) => {
 			this.invalidateNormalOAuth()
 			this.restoringController?.abort()
@@ -357,54 +329,6 @@ export class BrowserRuntime {
 		}
 	}
 
-	async historyPage(
-		input: HistoryInput,
-		signal: AbortSignal,
-		requestKey: string = crypto.randomUUID(),
-	) {
-		const uid = this.session?.currentUID()
-		if (!this.historyEnabled || !uid || !this.session)
-			throw new RequestError(401, 'AUTH_REQUIRED')
-		const identity = this.authGeneration
-		const lifecycle = this.lifecycleGeneration
-		const memory = this.memory.generation
-		const owns = () =>
-			!signal.aborted &&
-			identity === this.authGeneration &&
-			lifecycle === this.lifecycleGeneration &&
-			memory === this.memory.generation &&
-			this.session?.currentUID() === uid
-		try {
-			const result = await createHistoryLoader(this.session, this.request)(
-				uid,
-				input,
-				signal,
-				requestKey,
-			)
-			if (!owns()) throw new RequestError(401, 'AUTH_REQUIRED')
-			return result
-		} catch (error) {
-			if (!owns()) throw new RequestError(401, 'AUTH_REQUIRED')
-			if (
-				error instanceof RequestError &&
-				error.code === 'MAINTENANCE_ACTIVE'
-			) {
-				this.memory.enterMaintenance()
-				throw error
-			}
-			const restriction = restrictionFrom(error)
-			if (restriction) this.memory.restrict(restriction, uid)
-			else if (
-				error instanceof RequestError &&
-				(error.status === 401 ||
-					error.code === 'PRIVACY_RECONSENT_REQUIRED' ||
-					error.code === 'WEB_ACCOUNT_REQUIRED')
-			)
-				await this.memory.logout()
-			throw error
-		}
-	}
-
 	private async call(
 		path: string,
 		method: 'GET' | 'POST',
@@ -455,63 +379,6 @@ export class BrowserRuntime {
 		} finally {
 			budget.removeEventListener('abort', onAbort)
 		}
-	}
-
-	async submitPrivacyRequest(
-		purpose: SupportPurpose,
-		body: string,
-		submissionKey: string,
-		signal: AbortSignal,
-	): Promise<PrivacyIntakeReceipt> {
-		const uid = this.session?.currentUID()
-		if (!this.intakeEnabled || !uid)
-			throw new RequestError(401, 'AUTH_REQUIRED')
-		const value = await this.call(
-			'/api/privacy/requests',
-			'POST',
-			{ purpose, body, submissionKey },
-			signal,
-			uid,
-		)
-		if (
-			!value ||
-			typeof value !== 'object' ||
-			!('requestRef' in value) ||
-			typeof value.requestRef !== 'string' ||
-			!/^[a-f0-9]{64}$/.test(value.requestRef) ||
-			!('acceptedAt' in value) ||
-			typeof value.acceptedAt !== 'string'
-		)
-			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
-		return value as PrivacyIntakeReceipt
-	}
-
-	async privacyRequestStatus(
-		requestRef: string,
-		signal: AbortSignal,
-	): Promise<PrivacyRequestStatus> {
-		const uid = this.session?.currentUID()
-		if (!this.intakeEnabled || !uid)
-			throw new RequestError(401, 'AUTH_REQUIRED')
-		if (!/^[a-f0-9]{64}$/.test(requestRef))
-			throw new RequestError(400, 'SUPPORT_CHALLENGE_INVALID')
-		const value = await this.call(
-			'/api/privacy/requests/status',
-			'POST',
-			{ requestRef },
-			signal,
-			uid,
-		)
-		if (
-			!value ||
-			typeof value !== 'object' ||
-			!('requestRef' in value) ||
-			value.requestRef !== requestRef ||
-			!('status' in value) ||
-			value.status !== 'verified'
-		)
-			throw new RequestError(503, 'TEMPORARY_UNAVAILABLE')
-		return value as PrivacyRequestStatus
 	}
 
 	async start(signal: AbortSignal, supportChallenge?: string) {
