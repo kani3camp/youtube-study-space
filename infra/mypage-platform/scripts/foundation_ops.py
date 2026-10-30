@@ -20,6 +20,10 @@ import runtime_contract
 
 REPO = Path(__file__).resolve().parents[3]
 PHASE = "context"
+# DEV one-time bootstrap anchor. This exact source was built successfully by
+# Actions run 40985997924 and contains /app/mypage-maintenance-operator.
+# It is resolved to an immutable digest only while the Job does not exist.
+MAINTENANCE_BOOTSTRAP_SOURCE_SHA = "ace38d8237a186325629321641fe8dff58e83bdf"
 
 
 def need(value):
@@ -175,6 +179,8 @@ def reject_unowned_resources(env, plan):
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/mypage-maintenance-invoker@" + contract.PROJECT + ".iam.gserviceaccount.com",
         runtime_contract.MAINTENANCE_ROLE:
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/roles/mypageMaintenanceOperator",
+        runtime_contract.MAINTENANCE_IMAGE_ROLE:
+            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/roles/mypageMaintenanceImageRelease",
         runtime_contract.MAINTENANCE_POOL:
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance",
         runtime_contract.MAINTENANCE_PROVIDER:
@@ -202,7 +208,14 @@ def runtime_settings(env, stage=None):
             need(key not in result)
             result[key] = value
         return result
-    value = runtime_contract.settings(json.loads(raw, object_pairs_hook=pairs), stage)
+    parsed = json.loads(raw, object_pairs_hook=pairs)
+    # One-way migration compatibility: old Environment secrets may still carry
+    # the three retired operator-image keys. Ignore exactly these keys and never
+    # copy them into private tfvars; all other unknown fields stay fail-closed.
+    retired = {"maintenance_operator_enabled", "maintenance_operator_image_digest",
+               "maintenance_operator_image_source_sha"}
+    parsed = {key: item for key, item in parsed.items() if key not in retired}
+    value = runtime_contract.settings(parsed, stage)
     # After the first Terraform creation, CI/CD owns the Cloud Run image.
     # This fixed host remains Terraform-owned; no release JSON overlays the image.
     if stage != "maintenance_operator" and contract.TARGET == "development":
@@ -217,28 +230,51 @@ def runtime_settings(env, stage=None):
     return value
 
 
+def maintenance_bootstrap_image(env, stage):
+    if stage not in set(runtime_contract.MODES.values()):
+        return ""
+    url = ("https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" +
+           contract.REGION + "/jobs/mypage-maintenance-operator")
+    try:
+        request(url, env["MYPAGE_GCP_ACCESS_TOKEN"])
+    except urllib.error.HTTPError as error:
+        need(error.code == 404)
+    else:
+        return ""
+    # Production needs a separately approved artifact and release identity.
+    contract.need(contract.TARGET == "development", "production-maintenance-bootstrap-unapproved")
+    source = MAINTENANCE_BOOTSTRAP_SOURCE_SHA
+    run(["git", "merge-base", "--is-ancestor", source, env["GITHUB_SHA"]],
+        cwd=REPO, check="maintenance-bootstrap-source-ancestor")
+    dockerfile = run(["git", "show", source + ":system/Dockerfile.mypage"],
+                     cwd=REPO, check="maintenance-bootstrap-source")
+    contract.need("go build -tags timetzdata -trimpath -ldflags=\"-s -w\" -o /out/mypage-maintenance-operator" in dockerfile and
+                  "COPY --from=build /out/mypage-maintenance-operator /app/mypage-maintenance-operator" in dockerfile,
+                  "maintenance-bootstrap-source")
+    prefix = ("projects/" + contract.PROJECT + "/locations/" + contract.REGION +
+              "/repositories/mypage/packages/mypage-api")
+    tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source,
+                  env["MYPAGE_GCP_ACCESS_TOKEN"])
+    version = tag.get("version", "")
+    match = re.fullmatch(re.escape(prefix + "/versions/sha256:") + r"([a-f0-9]{64})", version)
+    contract.need(match is not None, "maintenance-bootstrap-image")
+    return runtime_contract.REPOSITORY + "@sha256:" + match[1]
+
+
 def verify_runtime_inputs(env, value, stage):
     # Terraform's initial image is an immutable bootstrap input, not the live
     # application release. Validate its provenance without requiring the current
     # HEAD's source tree to equal an older, already released image.
     prefix = "projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/repositories/mypage/packages/mypage-api"
-    if stage != "maintenance_operator":
-        source = value.get("image_source_sha") or env["GITHUB_SHA"]
-        if source != env["GITHUB_SHA"]:
-            contract.need(re.fullmatch(r"[a-f0-9]{40}", source), "runtime-image-source-sha")
-            run(["git", "fetch", "--no-tags", "--depth=1", "origin", source], cwd=REPO, check="runtime-image-source-fetch")
-            run(["git", "merge-base", "--is-ancestor", source, env["GITHUB_SHA"]],
-                cwd=REPO, check="runtime-image-source-ancestor")
-        tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source, env["MYPAGE_GCP_ACCESS_TOKEN"])
-        expected = prefix + "/versions/sha256:" + value["image_digest"].split("@sha256:")[1]
-        contract.need(tag.get("version") == expected, "runtime-source-image-digest")
-    operator_source = value["maintenance_operator_image_source_sha"]
-    if operator_source != env["GITHUB_SHA"]:
-        run(["git", "fetch", "--no-tags", "--depth=1", "origin", operator_source], cwd=REPO, check="maintenance-operator-source-fetch")
-        run(["git", "merge-base", "--is-ancestor", operator_source, env["GITHUB_SHA"]], cwd=REPO, check="maintenance-operator-source-ancestor")
-    operator_tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + operator_source, env["MYPAGE_GCP_ACCESS_TOKEN"])
-    operator_expected = prefix + "/versions/sha256:" + value["maintenance_operator_image_digest"].split("@sha256:")[1]
-    contract.need(operator_tag.get("version") == operator_expected, "maintenance-operator-source-image-digest")
+    source = value.get("image_source_sha") or env["GITHUB_SHA"]
+    if source != env["GITHUB_SHA"]:
+        contract.need(re.fullmatch(r"[a-f0-9]{40}", source), "runtime-image-source-sha")
+        run(["git", "fetch", "--no-tags", "--depth=1", "origin", source], cwd=REPO, check="runtime-image-source-fetch")
+        run(["git", "merge-base", "--is-ancestor", source, env["GITHUB_SHA"]],
+            cwd=REPO, check="runtime-image-source-ancestor")
+    tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source, env["MYPAGE_GCP_ACCESS_TOKEN"])
+    expected = prefix + "/versions/sha256:" + value["image_digest"].split("@sha256:")[1]
+    contract.need(tag.get("version") == expected, "runtime-source-image-digest")
     if stage != "maintenance_operator":
         for name, field in (("mypage-oauth-client-id", "oauth_client_id_version"),
                             ("mypage-oauth-client-secret", "oauth_client_secret_version"),
@@ -290,7 +326,10 @@ def prepare(env):
         PHASE = "runtime-inputs"
         value = runtime_settings(env, stage)
         contract.need(json.loads((root / "runtime-settings.json").read_text()) == {"runtime_settings": value}, "runtime-staged-settings")
+        bootstrap_image = maintenance_bootstrap_image(env, stage)
         verify_runtime_inputs(env, value, stage)
+        if bootstrap_image:
+            arguments.append("-var=maintenance_bootstrap_image_digest=" + bootstrap_image)
         if stage in {"maintenance_upgrade", "runtime_public"}:
             verify_owner_public_invoker(env)
         arguments.append("-var-file=" + str(root / "runtime-settings.json"))

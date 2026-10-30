@@ -17,10 +17,10 @@ Production・OAuthの実E2E・Privacy/GA4・一般公開の承認は対象外。
    Registry metadataとDocker RepoDigestsを照合した **正確なdigest** を同じActions run内のjob outputに渡す。
    タグを本番のデプロイ参照に用いず、`@sha256:...`だけを使う。
 4. `mypage-auto-deploy`はそのrunのdigestとsource SHAを専用backend reusable workflowへ渡す。
-   DEV専用WIF/短命tokenでtag→digestを再確認する。現Cloud Runのidentity・Ready・image・設定、
-   Hosting版、統合HEAD、v1 resourceVersionを確認し、**現在のServiceをコピーしてimageだけを置き換える**。
-   既に同じdigestを配信中なら、書き込みはせず疎通だけ検査する。
-5. 新リビジョンがReady、最新へ100%トラフィック、非imageのCloud Run設定・IAM/Secret参照が不変であることを再確認する。
+   DEV専用WIF/短命tokenでtag→digestを再確認する。現Cloud Run Serviceと固定maintenance Jobのidentity・image・設定、
+   Hosting版、統合HEAD、Serviceのv1 resourceVersionを確認し、**両方のimageだけを同じdigestへ置き換える**。
+   既に同じdigestなら、その資源への書き込みは行わない。
+5. Serviceの新リビジョンがReady、最新へ100%トラフィック、maintenance Jobがreconcile済みで、両資源の非image設定・IAM/Secret参照が不変であることを再確認する。
    Hostingの匿名APIが`APP_CHECK_REQUIRED`の403、Cloud Run直URLがHost境界の`INVALID_REQUEST`の400を
    それぞれ`no-store`で返し、`/`と`/mypage`を配信できることを検査する。
    成功と失敗の両方で復旧用のrelease recordを保存する。
@@ -33,15 +33,16 @@ flowchart TD
     A[コードPRを統合] --> B[Credentialless CI]
     B -->|成功| C[Build / offline検査 / Push]
     C --> D[Registry digestとタグを検証]
-    D --> E[Cloud Runのimageのみ更新]
-    E --> F[Ready / smoke / 設定不変]
+    D --> E[Service + maintenance Jobのimageのみ更新]
+    E --> F[Ready / Job reconcile / smoke / 設定不変]
     F --> G[Release record]
 ```
 
 ## Terraformとの責任境界
 
-- `infra/mypage-platform/modules/runtime/main.tf` はCloud Runの初回作成時にimmutableなbootstrap imageを指定する。
-  作成後は`lifecycle.ignore_changes = [template[0].containers[0].image]`で **imageだけ** をCI/CDへ委譲する。
+- Cloud Run Serviceの既存bootstrap imageはTerraform入力として残るが、通常releaseでは更新しない。maintenance JobをDEVで初めて作るときだけ、Job不存在をread-only確認したうえで、実ビルド済み・operator binary含有をsourceで確認した固定SHA tagをArtifact Registryからdigestへ解決し、**そのPlan/Applyだけのprivate入力**として使う。GitHub Environmentの設定JSONへmaintenance専用digest/source SHAを保存しない。
+- 作成後はService/Jobともcontainer **imageだけ** を`lifecycle.ignore_changes`でCI/CDへ委譲する。Jobのcommand/env/resources/IAM/runtime SA等はTerraform管理のまま。
+- 旧Environment secretに `maintenance_operator_enabled` / `maintenance_operator_image_digest` / `maintenance_operator_image_source_sha` が残っていても、移行互換としてその3キーだけを読み捨てる。private tfvarsやPlanには伝播せず、他の未知キーは引き続き拒否する。運用上は確認後に旧3キーを削除する。
 - CPU・メモリ・concurrency・環境変数・Secret version・サービスアカウント・ingress・traffic・IAM等は
   Terraform/既存専用運用が管理する。`ignore_changes`をtemplate全体に広げない。
 - Terraformの`gcp-plan`/`gcp-apply`はインフラ構成を変更するときだけ使う。
@@ -86,16 +87,16 @@ source SHAが現在の統合HEADの祖先であることを確認する。
 
 ロールバックは既知の良好なdigest/source SHAを指定する**新しい配備**で行う。
 対象のrevision、旧digest、Hosting互換性、Auth/同意版・秘密参照・設定を確認してから操作する。
-Cloud Run imageの更新は1回のresourceVersion付きPUTのみで、自動再試行・自動rollbackはしない。
-応答消失は`publishStatus=unknown`、配備後の疎通失敗も実Cloud Runのrevisionを確認して復旧する。
+Serviceは1回のresourceVersion付きPUT、maintenance Jobは1回のetag付きPATCHで更新し、自動再試行・自動rollbackはしない。Job PATCHはCloud Run v2のLong-running Operation完了とgeneration前進を確認してから成功扱いにする。Jobのlabels/annotations等のユーザー設定をGETから保持し、executionCount/latestCreatedExecution等の出力専用状態は競合判定に使わない。
+応答消失は`publishStatus=unknown`またはJobの未確定状態として残し、配備後の疎通失敗も実Cloud RunのService/Jobをreadbackして復旧する。
 旧digestと旧revisionの実配備記録は14日保存する。ユーザーデータやSecretを巻き戻さない。
 
 ## 専用Backend identityの境界
 
 [初回設定スクリプト](../../../infra/mypage-platform/scripts/backend_identity.py)の既存DEV専用
 `mypage-backend-deploy` SA/WIFを使用する。
-対象は`mypage-api` serviceの`run.services.get`/`run.services.update`、
-同サービスruntime SAへの`roles/iam.serviceAccountUser`（actAs）、
+対象は`mypage-api` serviceの`run.services.get`/`run.services.update`に加え、Terraform管理のDEV専用custom roleで固定`mypage-maintenance-operator` Jobの`run.jobs.get`/`run.jobs.update`だけを許可する。
+API runtime SAとmaintenance Job runtime SAのそれぞれにresource-level `roles/iam.serviceAccountUser`（actAs）を付与し、他SAへは広げない。**このJob更新role/binding/actAsはdevelopmentだけに作り、Productionへ同名backend deployer principalを作成・予約しない。**
 DEV Artifact Registryのreader、Hosting viewerとquotaの必要最小権限。
 GitHub Environment `mypage-dev-backend` とcallerの完全一致を維持する。
 

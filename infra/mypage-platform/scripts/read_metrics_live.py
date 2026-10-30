@@ -236,12 +236,19 @@ def validate_refresh(refresh, plan, stage):
                not change.get("replace_paths") and not c.has_unknown(change.get("after_unknown")),
                "metrics-refresh-no-remote-write")
         seen.add(item["address"])
-    drift = r.one(refresh.get("resource_drift"), "metrics-refresh-drift")
+    value = r.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
+    _, remaining_drift = m.cicd_image_drifts(refresh, value)
+    drift = r.one(remaining_drift, "metrics-refresh-drift")
     change = drift.get("change", {})
+    plan_service_drifts = [item for item in plan.get("resource_drift", []) or []
+                           if item.get("address") == r.SERVICE]
+    c.need(len(plan_service_drifts) <= 1, "metrics-refresh-source")
+    source = (plan_service_drifts[0].get("change", {}).get("before")
+              if plan_service_drifts else planned_service(plan)["before"])
     c.need(drift.get("address") == r.SERVICE and drift.get("mode") == "managed" and
            drift.get("provider_name") == "registry.terraform.io/hashicorp/google" and
            change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths") and
-           not c.has_unknown(change.get("after_unknown")) and change.get("before") == planned_service(plan)["before"],
+           not c.has_unknown(change.get("after_unknown")) and change.get("before") == source,
            "metrics-refresh-source")
     # ネイティブrefresh-only JSONのplannedルートは空である。
     # 再取得した資源はplanned_valuesではなくprior_stateにある（Terraform core）。

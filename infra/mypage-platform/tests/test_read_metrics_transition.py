@@ -17,9 +17,6 @@ def fixture(enabled=True, stage="runtime_private"):
         "project_number": c.PROJECT_NUMBER, "web_app_id": "1:" + c.PROJECT_NUMBER + ":web:synthetic",
         "public_origin": r.ORIGIN, "privacy_version": "synthetic-p", "terms_version": "synthetic-t",
         "oauth_client_id_version": "1", "oauth_client_secret_version": "2", "youtube_api_key_version": "3",
-        "maintenance_operator_enabled": True,
-        "maintenance_operator_image_digest": r.REPOSITORY + "@sha256:" + "b" * 64,
-        "maintenance_operator_image_source_sha": "c" * 40,
         "read_metrics_enabled": enabled, "read_metrics_from_revision": "mypage-api-before",
     })
     before_value = value | {"read_metrics_enabled": not enabled}
@@ -29,7 +26,7 @@ def fixture(enabled=True, stage="runtime_private"):
                                 ("MYPAGE_YOUTUBE_API_KEY", "mypage-youtube-api-key", "youtube_api_key_version")):
         env.append({"name": name, "value_source": [{"secret_key_ref": [{"secret": secret, "version": value[field]}]}]})
     resources = r.resource_contract(stage, value)
-    for address in (r.MAINTENANCE_ROLE,):
+    for address in (r.MAINTENANCE_ROLE, r.MAINTENANCE_IMAGE_ROLE):
         resources[address]["deleted"] = False
     resources[r.SERVICE].update(
         scaling=[{"min_instance_count": 0, "max_instance_count": 1, "scaling_mode": "AUTOMATIC"}],
@@ -99,6 +96,44 @@ class MetricsTransitionTest(unittest.TestCase):
                     state = applied_state(plan)
                     m.validate_readback(state, plan, stage)
                     self.assertEqual(plan, original)
+
+    def test_metrics_transition_accepts_verified_service_and_job_image_refresh_drift(self):
+        plan = fixture(True, "runtime_private")
+        target_image = r.REPOSITORY + "@sha256:" + "d" * 64
+        old_image = r.REPOSITORY + "@sha256:" + "c" * 64
+
+        service_change = service(plan)
+        for candidate in (service_change["before"], service_change["after"]):
+            m.container(candidate)["image"] = target_image
+        service_after_state = deepcopy(service_change["before"])
+        service_after_state["uid"] = "fixed-service-uid"
+        service_before_state = deepcopy(service_after_state)
+        service_before_state.update(generation="6", observed_generation="6")
+        m.container(service_before_state)["image"] = old_image
+        service_drift = {
+            "address": r.SERVICE, "mode": "managed",
+            "provider_name": "registry.terraform.io/hashicorp/google",
+            "change": {"actions": ["update"], "before": service_before_state,
+                       "after": service_after_state, "after_unknown": {}},
+        }
+
+        job_change = next(item["change"] for item in plan["resource_changes"]
+                          if item["address"] == r.MAINTENANCE_JOB)
+        job_before_state = deepcopy(job_change["before"])
+        job_before_state["template"][0]["template"][0]["containers"][0]["image"] = old_image
+        for candidate in (job_change["before"], job_change["after"]):
+            candidate["template"][0]["template"][0]["containers"][0]["image"] = target_image
+        job_drift = {
+            "address": r.MAINTENANCE_JOB, "mode": "managed",
+            "provider_name": "registry.terraform.io/hashicorp/google",
+            "change": {"actions": ["update"], "before": job_before_state,
+                       "after": deepcopy(job_change["before"]), "after_unknown": {}},
+        }
+        plan["resource_drift"] = [service_drift, job_drift]
+        original = deepcopy(plan)
+        self.assertEqual(r.validate_plan(plan, "runtime_private"),
+                         {"resources": len(plan["resource_changes"]), "creates": 0, "updates": 1})
+        self.assertEqual(plan, original)
 
     def test_undeclared_update_and_noop_transition_are_rejected(self):
         plan = fixture()

@@ -25,7 +25,10 @@ MAINTENANCE_PROVIDER = "module.platform[0].google_iam_workload_identity_pool_pro
 MAINTENANCE_WIF = "module.platform[0].google_service_account_iam_member.maintenance_workload_identity[0]"
 MAINTENANCE_JOB = "module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]"
 MAINTENANCE_JOB_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_invoker[0]"
-MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER}
+MAINTENANCE_IMAGE_ROLE = "module.platform[0].google_project_iam_custom_role.maintenance_image_release[0]"
+MAINTENANCE_IMAGE_BINDING = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_image_release[0]"
+MAINTENANCE_IMAGE_ACT_AS = "module.platform[0].google_service_account_iam_member.maintenance_image_release_act_as[0]"
+MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, MAINTENANCE_IMAGE_BINDING, MAINTENANCE_IMAGE_ACT_AS}
 MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-operator-apply": "maintenance_operator",
          "maintenance-upgrade-plan": "maintenance_upgrade", "maintenance-upgrade-apply": "maintenance_upgrade",
          "runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
@@ -33,7 +36,7 @@ MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-opera
 PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/services/mypage-api"
 PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
 FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "privacy_version", "terms_version",
-          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision", "maintenance_operator_enabled", "maintenance_operator_image_digest", "maintenance_operator_image_source_sha"}
+          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
 
 
 def maintenance_provider_condition():
@@ -51,22 +54,21 @@ def maintenance_provider_condition():
 def settings(value, stage=None):
     c.need(stage is None or stage in set(MODES.values()), "runtime-settings-stage")
     operator_only = stage == "maintenance_operator"
-    operator_fields = {"maintenance_operator_enabled", "maintenance_operator_image_digest", "maintenance_operator_image_source_sha"}
-    optional = {"history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision", *operator_fields}
-    required = operator_fields if operator_only else FIELDS - optional
+    optional = {"history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
+    required = {"image_digest"} if operator_only else FIELDS - optional
     c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= required, "runtime-settings-fields")
-    defaults = {field: "" for field in FIELDS} | {"read_metrics_enabled": False, "maintenance_operator_enabled": False}
-    # 既存の環境シークレットにはランタイム設定全体が残る場合があるが、初期構築専用段階では
-    # 別途レビューした運用担当者用イメージだけを結び付ける。無関係な値をPlanの確定内容に影響させない。
-    value = defaults | ({field: value[field] for field in operator_fields} if operator_only else value)
+    defaults = {field: "" for field in FIELDS} | {"read_metrics_enabled": False}
+    # Bootstrap-only maintenance stages use the same application image as the API.
+    # No per-operator digest/source fields exist in environment JSON.
+    value = defaults | ({"image_digest": value["image_digest"],
+                         "image_source_sha": value.get("image_source_sha", "")} if operator_only else value)
     # JSONの受入検査は、意図的にTerraformの型変換より厳しくする。
     c.need(type(value["read_metrics_enabled"]) is bool, "runtime-read-metrics-type")
-    c.need(type(value["maintenance_operator_enabled"]) is bool, "runtime-maintenance-operator-type")
     c.need(c.TARGET == "development" or (not value["read_metrics_enabled"] and value["read_metrics_from_revision"] == ""), "runtime-production-read-metrics")
-    c.need(all(type(v) is str for k, v in value.items() if k not in {"read_metrics_enabled", "maintenance_operator_enabled"}), "runtime-settings-types")
-    c.need(value["maintenance_operator_enabled"] and re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["maintenance_operator_image_digest"]) and commit_sha(value["maintenance_operator_image_source_sha"]), "runtime-maintenance-operator-image")
+    c.need(all(type(v) is str for k, v in value.items() if k != "read_metrics_enabled"), "runtime-settings-types")
+    c.need(re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["image_digest"]), "runtime-image")
+    c.need(value["image_source_sha"] == "" or re.fullmatch(r"[a-f0-9]{40}", value["image_source_sha"]), "runtime-image-source-sha")
     if not operator_only:
-        c.need(re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["image_digest"]), "runtime-image")
         c.need(value["project_number"] == c.PROJECT_NUMBER, "runtime-project-number")
         c.need(re.fullmatch("1:" + value["project_number"] + r":web:[A-Za-z0-9]+", value["web_app_id"]), "runtime-app-project")
         c.need(value["public_origin"] == ORIGIN, "runtime-origin")
@@ -74,7 +76,6 @@ def settings(value, stage=None):
             c.need(re.fullmatch(r"[A-Za-z0-9._-]{1,64}", value[field]), "runtime-policy-version")
         for field in ("oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version"):
             c.need(re.fullmatch(r"[1-9][0-9]*", value[field]), "runtime-secret-version")
-        c.need(value["image_source_sha"] == "" or re.fullmatch(r"[a-f0-9]{40}", value["image_source_sha"]), "runtime-image-source-sha")
         c.need(value["hosting_backend_host"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]+\.a\.run\.app", value["hosting_backend_host"]), "runtime-hosting-backend")
         c.need(value["previous_image_digest"] == "" or re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["previous_image_digest"]), "runtime-previous-image")
         c.need(value["read_metrics_from_revision"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", value["read_metrics_from_revision"]), "runtime-read-metrics-revision")
@@ -115,6 +116,23 @@ def maintenance_resource_contract(value=None):
                           "deletion_policy": "PREVENT", "deletion_protection": True, "launch_stage": "GA"},
         MAINTENANCE_JOB_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator", "role": "roles/run.jobsExecutorWithOverrides", "member": "serviceAccount:" + invoker_email},
     }
+    # The backend image deployer is intentionally DEV-only until a separate
+    # Production release identity is approved. Never create a dangling prod
+    # principal or silently grant a future same-name service account access.
+    if c.TARGET == "development":
+        resources |= {
+            MAINTENANCE_IMAGE_ROLE: {"project": c.PROJECT, "role_id": "mypageMaintenanceImageRelease",
+                                     "title": "MyPage maintenance image release",
+                                     "description": "Allows the existing backend deployer to read and update only the maintenance Cloud Run Job.",
+                                     "stage": "GA", "deletion_policy": "PREVENT",
+                                     "permissions": ["run.jobs.get", "run.jobs.update"]},
+            MAINTENANCE_IMAGE_BINDING: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator",
+                                        "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceImageRelease",
+                                        "member": "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"},
+            MAINTENANCE_IMAGE_ACT_AS: {"service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + operator_email,
+                                       "role": "roles/iam.serviceAccountUser",
+                                       "member": "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"},
+        }
     if value is not None:
         resources[MAINTENANCE_PROVIDER] |= {
             "attribute_condition": maintenance_provider_condition(),
@@ -139,7 +157,7 @@ def maintenance_resource_contract(value=None):
                 "service_account": operator_email, "max_retries": 0, "timeout": "60s",
                 "execution_environment": "EXECUTION_ENVIRONMENT_GEN2",
                 "containers": [{
-                    "image": value["maintenance_operator_image_digest"], "command": ["/app/mypage-maintenance-operator"], "args": [],
+                    "image": value["image_digest"], "command": ["/app/mypage-maintenance-operator"], "args": [],
                     "resources": [{"limits": {"cpu": "1", "memory": "512Mi"}}],
                     "env": [
                         {"name": "GOOGLE_CLOUD_PROJECT", "value": c.PROJECT},
@@ -213,14 +231,14 @@ def validate_planned_revision(after, desired, service, actions, check):
            and re.fullmatch(re.escape(service) + r"-[a-z0-9-]{1,50}", desired), check)
 
 
-def validate_maintenance_resource(address, after, unknown, value, actions):
+def validate_maintenance_resource(address, after, unknown, value, actions, bootstrap_image=None):
     operator_email = "mypage-maintenance-job@" + c.PROJECT + ".iam.gserviceaccount.com"
     invoker_email = "mypage-maintenance-invoker@" + c.PROJECT + ".iam.gserviceaccount.com"
     if address in {MAINTENANCE_OPERATOR_SA, MAINTENANCE_INVOKER_SA}:
         c.need(after.get("disabled") is False and after.get("deletion_policy") == "PREVENT",
                "maintenance-service-account-disabled")
         return
-    if address in {MAINTENANCE_ROLE}:
+    if address in {MAINTENANCE_ROLE, MAINTENANCE_IMAGE_ROLE}:
         # deletedはプロバイダーの計算値なので、作成時だけunknownになる。
         # 既存ロールのno-opでは、毎回既知のfalseでなければならない。
         c.need(after.get("deletion_policy") == "PREVENT" and
@@ -271,7 +289,12 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
                and task.get("execution_environment") == "EXECUTION_ENVIRONMENT_GEN2", "maintenance-job-runtime")
         container = one(task.get("containers"), "maintenance-job-container")
         expected_command = "/app/mypage-maintenance-operator"
-        c.need(container.get("image") == value["maintenance_operator_image_digest"] and container.get("command") == [expected_command] and not container.get("args"), "maintenance-job-image-command")
+        image = container.get("image")
+        c.need(type(image) is str and re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", image),
+               "maintenance-job-image")
+        if actions == ["create"]:
+            c.need(image == (bootstrap_image or value["image_digest"]), "maintenance-job-bootstrap-image")
+        c.need(container.get("command") == [expected_command] and not container.get("args"), "maintenance-job-image-command")
         environment = container.get("env")
         c.need(type(environment) is list and all(type(item) is dict for item in environment), "maintenance-job-environment")
         env = {item.get("name"): item.get("value") for item in environment}
@@ -280,6 +303,60 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
         resources = one(container.get("resources"), "maintenance-job-resources")
         c.need(resources.get("limits") == {"cpu": "1", "memory": "512Mi"}, "maintenance-job-limits")
         return
+def maintenance_job_image(job):
+    template = one(job.get("template"), "maintenance-job-template")
+    task = one(template.get("template"), "maintenance-job-task")
+    container = one(task.get("containers"), "maintenance-job-container")
+    image = container.get("image")
+    c.need(type(image) is str and re.fullmatch(
+        re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", image),
+        "maintenance-job-image")
+    return image
+
+
+def maintenance_job_configuration(job):
+    """Return only Terraform-owned Job configuration; ignore execution/status metadata."""
+    template = one(job.get("template"), "maintenance-job-template")
+    task = one(template.get("template"), "maintenance-job-task")
+    container = one(task.get("containers"), "maintenance-job-container")
+    return {
+        "project": job.get("project"),
+        "name": job.get("name"),
+        "location": job.get("location"),
+        "deletion_policy": job.get("deletion_policy"),
+        "deletion_protection": job.get("deletion_protection"),
+        "launch_stage": job.get("launch_stage"),
+        "template": {
+            "task_count": template.get("task_count"),
+            "parallelism": template.get("parallelism"),
+            "task": {
+                "service_account": task.get("service_account"),
+                "max_retries": task.get("max_retries"),
+                "timeout": task.get("timeout"),
+                "execution_environment": task.get("execution_environment"),
+                "container": {
+                    "command": container.get("command"),
+                    "args": container.get("args"),
+                    "resources": container.get("resources"),
+                    "env": container.get("env"),
+                },
+            },
+        },
+    }
+
+
+def validate_cicd_job_image_refresh(before, after, value):
+    """Accept only CI-owned maintenance Job image refresh; executions may change output metadata."""
+    c.need(type(before) is dict and type(after) is dict, "maintenance-job-refresh-shape")
+    old_image, new_image = maintenance_job_image(before), maintenance_job_image(after)
+    validate_maintenance_resource(MAINTENANCE_JOB, before, {}, value, ["no-op"])
+    validate_maintenance_resource(MAINTENANCE_JOB, after, {}, value, ["no-op"])
+    c.need(maintenance_job_configuration(before) == maintenance_job_configuration(after),
+           "maintenance-job-refresh-config")
+    return new_image
+
+
+
 def validate_service(after, unknown, value, actions):
     # security入力だけknownを要求。revision等のprovider出力はTerraformに任せる。
     for template_mask in unknown.get("template", []) or []:
@@ -412,15 +489,29 @@ def validate_initial_plan(plan, stage):
     foundation["resource_changes"] = [item for item in changes if item.get("address") in base]
     foundation["resource_drift"] = []
     c.validate_refresh(plan, expected)
-    # Native refresh must remain a no-op. Only the CI/CD-owned image and
-    # provider-computed revision metadata may drift; never mask config changes.
+    # Native refresh must remain a no-op. Only the CI/CD-owned Service/Job
+    # images and provider-computed metadata may drift; never mask config changes.
     for observation in plan.get("resource_drift", []) or []:
+        change = observation.get("change", {})
         if observation.get("address") == SERVICE:
-            change = observation.get("change", {})
             c.need(change.get("actions") == ["update"] and
                    not c.has_unknown(change.get("after_unknown")), "runtime-refresh-action")
             validate_cicd_image_refresh(change.get("before"), change.get("after"), value)
+        elif observation.get("address") == MAINTENANCE_JOB:
+            c.need(change.get("actions") == ["update"] and
+                   not c.has_unknown(change.get("after_unknown")), "runtime-refresh-action")
+            validate_cicd_job_image_refresh(change.get("before"), change.get("after"), value)
     c.validate_plan(foundation, base_stage)
+    bootstrap_input = plan.get("variables", {}).get("maintenance_bootstrap_image_digest", {}).get("value", "")
+    c.need(bootstrap_input == "" or
+           (c.TARGET == "development" and re.fullmatch(
+               re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", bootstrap_input)),
+           "maintenance-bootstrap-image")
+    service_after = next((item.get("change", {}).get("after") for item in changes
+                          if item.get("address") == SERVICE), None)
+    maintenance_bootstrap_image = (bootstrap_input or
+                                   (service_image(service_after)
+                                    if type(service_after) is dict else value["image_digest"]))
     seen = set()
     for item in changes:
         address = item.get("address")
@@ -433,8 +524,9 @@ def validate_initial_plan(plan, stage):
         # 初回配備とno-opだけを許可する。配信リビジョンの更新には別途レビューした遷移を使い、
         # この検査の許可範囲を暗黙に広げない。
         c.need(change.get("actions") in [["create"], ["no-op"]] and not change.get("replace_paths"), "runtime-resource-action")
-        if stage in {"runtime_private", "runtime_public"} and address in maintenance_resource_contract():
-            c.need(change.get("actions") == ["no-op"], "runtime-maintenance-bootstrap-complete")
+        # desired-state runtime stages may create an exact missing maintenance
+        # boundary. Foreign same-name resources are rejected before Apply and
+        # all maintenance fields remain constrained by the contract below.
         if stage == "maintenance_upgrade" and address not in maintenance_resource_contract():
             c.need(change.get("actions") == ["no-op"], "maintenance-upgrade-runtime-noop")
         importing = change.get("importing")
@@ -459,7 +551,8 @@ def validate_initial_plan(plan, stage):
                 valid = after.get(key) == expected_value
             c.need(valid and not c.has_unknown(unknown.get(key)), "runtime-resource-value-" + address + "-" + key)
         if address in maintenance_resource_contract():
-            validate_maintenance_resource(address, after, unknown, value, change.get("actions"))
+            validate_maintenance_resource(address, after, unknown, value, change.get("actions"),
+                                          maintenance_bootstrap_image)
         elif address == SERVICE:
             if change.get("actions") == ["no-op"]:
                 # ignore_changes makes the actual serving digest authoritative.

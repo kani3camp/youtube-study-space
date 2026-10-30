@@ -43,7 +43,7 @@ Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-
 
 Cloud Runは `mypage-api`、専用SA/ADC、`min_instance_count=0`、`max_instance_count=1`（Dev）/ `3`（Production）、CPU 1 / RAM 512Mi、port 8080、30秒timeout。
 
-リビジョンのイメージはArtifact Registryのダイジェスト（`@sha256:...`）で固定し、タグやlatestで不用意に差し替えない。 **初回Cloud Run作成後のAPIコンテナimageだけはCI/CDが所有し、Terraformは`ignore_changes`でその属性を管理しない。** 既存サービスのimage更新は[Backend CI手順](../../docs/mypage/release/backend-ci.md)のBuild→Registry digest→直接image配備→検証で行う。通常releaseごとにTerraform Plan/Applyやdigest変更PRを実行しない。実費は起動回数・Secret Manager・ログ量・API呼び出しなどで変わるため、未計測で月額1ドル未満と断定しない。<https://cloud.google.com/run/pricing>と<https://cloud.google.com/secret-manager/pricing>を参考に、実対象と試算を別途レビューする。
+リビジョンのイメージはArtifact Registryのダイジェスト（`@sha256:...`）で固定し、タグやlatestで不用意に差し替えない。 **初回Cloud Run作成後のAPI Serviceとmaintenance JobのコンテナimageはCI/CDが所有し、Terraformは両方のimage属性を`ignore_changes`で管理しない。** maintenance専用digest/source SHAをruntime settingsへ追加しない。既存サービスのimage更新は[Backend CI手順](../../docs/mypage/release/backend-ci.md)のBuild→Registry digest→直接image配備→検証で行う。通常releaseごとにTerraform Plan/Applyやdigest変更PRを実行しない。実費は起動回数・Secret Manager・ログ量・API呼び出しなどで変わるため、未計測で月額1ドル未満と断定しない。<https://cloud.google.com/run/pricing>と<https://cloud.google.com/secret-manager/pricing>を参考に、実対象と試算を別途レビューする。
 
 作業履歴の完全性は実データの確認済み区間だけで宣言する。`runtime_settings.history_coverage_json` は**既定が空文字の任意設定**で、空文字ならCloud Runに`MYPAGE_HISTORY_COVERAGE`は存在しない。指定する場合は最大16KiBのJSON配列を渡し、Goの[厳格parser](../../system/cmd/mypage-server/coverage.go)がUTC時刻・順序・重複・上限を起動前に検証する。`[]`や未指定は完全な履歴を表さない。実際のwriterと履歴のRead-only inventoryに基づく区間以外は指定せず、実Deploy/rollbackの設定値と欠損の扱いを照合する。
 
@@ -87,7 +87,7 @@ DevelopmentのFoundation metadataは実作成・State readback済み。Secret ve
 
 runtime設定の任意 `image_source_sha`（既定は空文字）は、既存の不変tagを作成した40桁commit SHAを示す。空文字なら従来どおり実行元SHAのtagを要求する。別SHAの場合はそのcommitが現行HEADの祖先であることと、同SHAの不変tagがbootstrap digestを指すことを確認する。配信imageはCI/CDで別途更新されるため、実行元の`system` treeとの完全一致を要求しない。Docker contextは `system/` 全体であり、Dockerfile、依存lock、ignore設定とGoソースを含む。tagの作り替え、出所不明digest、Terraformから配信imageを巻き戻す変更を拒否する。これはinfra診断だけの変更で既存revisionを更新する必要をなくすためで、Cloud Runのupdate/delete/replaceは引き続き拒否する。
 
-maintenance operatorは通常API releaseと独立した`maintenance_operator_image_digest`と`maintenance_operator_image_source_sha`を必須にする。source SHAは現行review済みcommitのancestorに限定し、Artifact Registryの同SHA tagが指定digestを指すことを検証する。APIコンテナのCI/CDとは独立しており、maintenance operatorのdigestやsource SHAを自動で変更しない。
+maintenance operatorはAPIと同じArtifact Registry成果物を使う。専用のdigest/source SHAはruntime settingsへ持たない。DEV初回Job作成時だけ、実ビルド済みでoperator binaryを含むreview済みsource SHAのimmutable tagをPlan時にread-only解決し、そのdigestをprivateな一時Plan入力として使用する。Job作成後のimageはAPI Serviceと同様にBackend CI/CDが所有し、Terraformはimage属性だけ`ignore_changes`する。旧Environment secretに残る`maintenance_operator_*` 3キーは移行互換のため読み捨て、private tfvarsやPlanへは渡さない。
 
 ## Plan guardの責任分担
 

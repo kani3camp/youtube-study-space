@@ -53,15 +53,67 @@ def container(service):
     return r.one(template.get("containers"), "metrics-transition-container")
 
 
+def service_metrics_enabled(service):
+    template = r.one(service.get("template"), "metrics-image-template")
+    container = r.one(template.get("containers"), "metrics-image-container")
+    entries = container.get("env", [])
+    c.need(type(entries) is list and all(type(item) is dict for item in entries),
+           "metrics-service-image-drift")
+    found = [item for item in entries if item.get("name") == METRICS_ENV]
+    c.need(len(found) <= 1, "metrics-service-image-drift")
+    if not found:
+        return False
+    c.need(found[0].get("value") == "true" and not found[0].get("value_source"),
+           "metrics-service-image-drift")
+    return True
+
+
+def cicd_image_drifts(plan, value):
+    """Split verified CI-owned image refreshes from drift that needs transition handling."""
+    accepted, remaining = [], []
+    for drift in plan.get("resource_drift", []) or []:
+        address = drift.get("address")
+        change = drift.get("change", {})
+        if address == r.MAINTENANCE_JOB:
+            c.need(drift.get("mode") == "managed" and
+                   drift.get("provider_name") == "registry.terraform.io/hashicorp/google" and
+                   change.get("actions") == ["update"] and not change.get("importing") and
+                   not change.get("replace_paths") and not c.has_unknown(change.get("after_unknown")),
+                   "metrics-job-image-drift")
+            r.validate_cicd_job_image_refresh(change.get("before"), change.get("after"), value)
+            accepted.append(drift)
+            continue
+        if address == r.SERVICE:
+            try:
+                c.need(drift.get("mode") == "managed" and
+                       drift.get("provider_name") == "registry.terraform.io/hashicorp/google" and
+                       change.get("actions") == ["update"] and not change.get("importing") and
+                       not change.get("replace_paths") and not c.has_unknown(change.get("after_unknown")),
+                       "metrics-service-image-drift")
+                drift_value = value | {
+                    "read_metrics_enabled": service_metrics_enabled(change.get("before")),
+                    "read_metrics_from_revision": "",
+                }
+                r.validate_cicd_image_refresh(change.get("before"), change.get("after"), drift_value)
+            except c.ContractError:
+                remaining.append(drift)
+            else:
+                accepted.append(drift)
+            continue
+        remaining.append(drift)
+    return accepted, remaining
+
+
 def recovery_transition(plan, stage, value):
     """新たにStateだけを復旧する前に、1回の適用済み切替を証明する。
 
     元のPlanは変更せず、両方のHMACにdrift全体を残す。
     コピーは既存検証器に対して、同等な遷移を示すためだけに使う。
     """
-    if not plan.get("resource_drift"):
+    image_drifts, remaining = cicd_image_drifts(plan, value)
+    if not remaining:
         return None
-    drift = r.one(plan.get("resource_drift"), "metrics-recovery-drift")
+    drift = r.one(remaining, "metrics-recovery-drift")
     change = drift.get("change", {})
     c.need(drift.get("address") == r.SERVICE and drift.get("mode") == "managed"
            and drift.get("provider_name") == "registry.terraform.io/hashicorp/google"
@@ -73,7 +125,7 @@ def recovery_transition(plan, stage, value):
                and not current.get("importing") and not current.get("replace_paths")
                and not c.has_unknown(current.get("after_unknown")), "metrics-recovery-no-remote-write")
     projected = deepcopy(plan)
-    projected["resource_drift"] = []
+    projected["resource_drift"] = deepcopy(image_drifts)
     service = next((x["change"] for x in projected.get("resource_changes", []) if x.get("address") == r.SERVICE), None)
     c.need(service is not None and service.get("after") == change.get("after"), "metrics-recovery-result")
     service.update(actions=["update"], before=deepcopy(change.get("before")))
@@ -87,10 +139,11 @@ def recovery_transition(plan, stage, value):
 def validate_plan(plan, stage, value):
     """環境変数1個の切替だけを許可し、イメージ配備や汎用ランタイム更新は許可しない。"""
     c.need(value["read_metrics_from_revision"] != "", "metrics-transition-declaration")
+    _, remaining_drift = cicd_image_drifts(plan, value)
     recovered = recovery_transition(plan, stage, value)
     if recovered is not None:
         return validate_plan(recovered, stage, value) | {"updates": 0, "stateRecovery": True}
-    c.need(not plan.get("resource_drift"), "metrics-transition-drift")
+    c.need(not remaining_drift, "metrics-transition-drift")
     changes = plan.get("resource_changes")
     c.need(type(changes) is list, "metrics-transition-resources")
     expected = r.resource_contract(stage)
@@ -142,6 +195,11 @@ def validate_plan(plan, stage, value):
     # コピー上でno-opとして扱う。元の完全なPlanは引き続きHMAC照合と条件付きAPI適用に使う。
     checked = deepcopy(plan)
     next(x for x in checked["resource_changes"] if x["address"] == r.SERVICE)["change"]["actions"] = ["no-op"]
+    # CI-owned Service/Job image drifts were independently verified above.
+    # They cannot be compared to the post-transition planned Service state,
+    # so remove only these already-validated observations from this projection.
+    # The original Plan, including all drift, remains unchanged for HMAC/review.
+    checked["resource_drift"] = []
     result = r.validate_initial_plan(checked, stage)
     return result | {"updates": 1}
 

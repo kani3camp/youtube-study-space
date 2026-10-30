@@ -85,11 +85,12 @@ class ReadMetricsTest(unittest.TestCase):
         with self.assertRaisesRegex(c.ContractError, "^runtime-settings-fields$"):
             r.settings(settings_fixture() | {"read_metrics_enabled": True, "unreviewed": "private-input-sentinel"})
 
-    def test_operator_requires_its_own_reviewed_image_source(self):
+    def test_operator_specific_image_fields_are_retired(self):
         value = settings_fixture()
-        value["maintenance_operator_image_source_sha"] = ""
-        with self.assertRaisesRegex(c.ContractError, "^runtime-maintenance-operator-image$"):
-            r.settings(value)
+        for field in ("maintenance_operator_enabled", "maintenance_operator_image_digest",
+                      "maintenance_operator_image_source_sha"):
+            with self.subTest(field=field), self.assertRaisesRegex(c.ContractError, "^runtime-settings-fields$"):
+                r.settings(value | {field: "retired"})
 
     def test_matching_create_and_noop_plans_preserve_resource_inventory(self):
         for enabled in (False, True):

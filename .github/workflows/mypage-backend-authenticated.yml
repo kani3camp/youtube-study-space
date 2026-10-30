@@ -96,11 +96,14 @@ jobs:
           import json, os
           from pathlib import Path
           record = json.loads(Path(os.environ['RECORD']).read_bytes())
+          assert record['schemaVersion'] == 3
           assert record['sourceSHA'] == os.environ['GITHUB_SHA']
           assert record['environment'] == 'development'
           assert record['publishStatus'] in ('confirmed', 'unchanged')
+          assert record['maintenanceJobStatus'] in ('confirmed', 'unchanged')
           assert record['publicReadback'] == 'passed'
           assert record['imageDigest'].startswith('asia-southeast2-docker.pkg.dev/test-youtube-study-space/mypage/mypage-api@sha256:')
+          assert record['maintenanceJobImageDigest'] == record['imageDigest']
           PY
       - name: Preserve verified release record
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
