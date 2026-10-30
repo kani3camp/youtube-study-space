@@ -536,6 +536,15 @@ resource "google_project_iam_custom_role" "maintenance_image_release" {
   }
 }
 
+resource "google_service_account_iam_member" "maintenance_image_release_act_as" {
+  count              = local.maintenance_operator ? 1 : 0
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.maintenance_operator_email}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${local.backend_deployer_email}"
+
+  depends_on = [google_service_account.maintenance_operator]
+}
+
 resource "google_cloud_run_v2_job_iam_member" "maintenance_image_release" {
   count    = local.maintenance_operator ? 1 : 0
   project  = var.project_id

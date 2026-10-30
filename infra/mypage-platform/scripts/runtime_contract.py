@@ -27,7 +27,8 @@ MAINTENANCE_JOB = "module.platform[0].google_cloud_run_v2_job.maintenance_operat
 MAINTENANCE_JOB_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_invoker[0]"
 MAINTENANCE_IMAGE_ROLE = "module.platform[0].google_project_iam_custom_role.maintenance_image_release[0]"
 MAINTENANCE_IMAGE_BINDING = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_image_release[0]"
-MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, MAINTENANCE_IMAGE_BINDING}
+MAINTENANCE_IMAGE_ACT_AS = "module.platform[0].google_service_account_iam_member.maintenance_image_release_act_as[0]"
+MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, MAINTENANCE_IMAGE_BINDING, MAINTENANCE_IMAGE_ACT_AS}
 MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-operator-apply": "maintenance_operator",
          "maintenance-upgrade-plan": "maintenance_upgrade", "maintenance-upgrade-apply": "maintenance_upgrade",
          "runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
@@ -121,6 +122,9 @@ def maintenance_resource_contract(value=None):
         MAINTENANCE_IMAGE_BINDING: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator",
                                     "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceImageRelease",
                                     "member": "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"},
+        MAINTENANCE_IMAGE_ACT_AS: {"service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + operator_email,
+                                   "role": "roles/iam.serviceAccountUser",
+                                   "member": "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"},
         MAINTENANCE_JOB_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator", "role": "roles/run.jobsExecutorWithOverrides", "member": "serviceAccount:" + invoker_email},
     }
     if value is not None:

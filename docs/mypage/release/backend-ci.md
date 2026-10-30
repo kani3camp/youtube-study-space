@@ -95,7 +95,7 @@ Cloud Run imageの更新は1回のresourceVersion付きPUTのみで、自動再�
 [初回設定スクリプト](../../../infra/mypage-platform/scripts/backend_identity.py)の既存DEV専用
 `mypage-backend-deploy` SA/WIFを使用する。
 対象は`mypage-api` serviceの`run.services.get`/`run.services.update`に加え、Terraform管理の専用custom roleで固定`mypage-maintenance-operator` Jobの`run.jobs.get`/`run.jobs.update`だけを許可する。
-同サービスruntime SAへの`roles/iam.serviceAccountUser`（actAs）、
+API runtime SAとmaintenance Job runtime SAのそれぞれにresource-level `roles/iam.serviceAccountUser`（actAs）を付与し、他SAへは広げない。
 DEV Artifact Registryのreader、Hosting viewerとquotaの必要最小権限。
 GitHub Environment `mypage-dev-backend` とcallerの完全一致を維持する。
 
