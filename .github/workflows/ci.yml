@@ -11,8 +11,6 @@ on:
         type: choice
         options:
           - validate
-          - gcp-plan
-          - gcp-apply
           - gcp-user-activity-schema-audit
       environment:
         description: Target environment for manual operations
@@ -132,24 +130,8 @@ jobs:
       infra_result: ${{ needs.infra.result }}
       gcp_terraform_validate_result: ${{ needs.gcp-terraform-validate.result }}
     secrets:
-      GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
-      GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
-      AWS_TERRAFORM_BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
-      AWS_TERRAFORM_BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
-      AWS_TERRAFORM_STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
-      AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
       GCP_TERRAFORM_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
-      GCP_TERRAFORM_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
-      GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
       GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT: ${{ secrets.GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT }}
-      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
-      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
-      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
-      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
-      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
-      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
-      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
-      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
 
   ci-gate:
     name: CI Gate

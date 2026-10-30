@@ -39,7 +39,7 @@ CONDITION = " && ".join([
     # Selected branches/tags is the sole per-branch authorization surface.
     "assertion.ref.startsWith('refs/heads/')", "assertion.ref != 'refs/heads/main'",
     "assertion.event_name == 'workflow_dispatch'",
-    "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + assertion.ref",
+    "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + assertion.ref",
     "assertion.job_workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@' + assertion.ref",
     "assertion.environment in ['terraform-dev-plan', 'terraform-dev-apply']",
     "assertion.actor_id == '54093651'", "assertion.actor == 'kani3camp'", "assertion.run_attempt == '1'",

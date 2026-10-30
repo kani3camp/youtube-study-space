@@ -6,12 +6,13 @@ YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをT
 
 ## 通常のGCP Infrastructure運用
 
-手動操作の入口は `ci.yml` の `workflow_dispatch` に集約します。利用者が選ぶのは次の2項目だけです。
+手動操作の入口は `Terraform`（[`terraform.yml`](../../.github/workflows/terraform.yml)）の `workflow_dispatch` です。利用者が選ぶのは次の3項目だけです。
 
-- `operation`: `gcp-plan` または `gcp-apply`
 - `environment`: `development` または `production`
+- `operation`: `plan` または `apply`
+- `component`: `all`（既定）・`core`・`mypage`
 
-通常運用ではCore GCPとMyPageを別々のTerraform Stateのまま**同じGCP Infrastructure操作**で扱います。`gcp-plan` は両StateのPlanを完了させ、`gcp-apply` は両Planが成功した後にCore→MyPageの順でApplyへ進みます。Stateを物理的に統合してblast radiusを広げず、手動UIだけを統一します。
+Core GCPとMyPageは別々のTerraform Stateのまま、同じ `Terraform` 実行で扱えます。`plan` は選んだStateのPlanを完了させ、`apply` は選んだPlanがすべて成功した後にCore→MyPageの順でApplyへ進みます。Applyの各jobは自分で再Planし、Plan jobとHMACが一致した自分のplan fileだけを適用します。Stateを物理的に統合してblast radiusを広げず、手動UIだけを統一します。同じrunの最初に、資格情報なしのTerraform検査（`ci-gcp-terraform.yml`）を通します。Production Applyは `terraform-prod-apply` Environmentの承認を必須とします（required reviewersはownerがGitHubで設定する）。
 
 MyPageの通常経路は最終desired state（現在は `runtime_public` 相当）を常に対象とし、`foundation_metadata` / `foundation` / `registry` / `maintenance_*` / `runtime_private` を利用者が選択しません。これらのstageは初回bootstrapと既存の安全契約を維持する内部実装であり、通常workflowの操作面には露出させません。image build / releaseとmaintenance ON/OFFはTerraform Applyとは別操作です。
 
@@ -24,8 +25,8 @@ MyPageの通常経路は最終desired state（現在は `runtime_public` 相当�
 3. delete/replaceが必要なら、同じPRの `normal-operations.json` に正確なaddressとactionsを記載する。
    create/updateにはリソース別manifestやtype登録を要求しない。
 4. 作業PRのcredentialless CIとレビューを確認する。認証付き検証が必要なら対象ブランチをGitHub Environmentへ追加する。専用統合ブランチを使う作業ではCodexがそこへマージしてよい。
-5. Environmentで許可した対象ブランチのHEADから `operation=gcp-plan` / `environment=development` を実行し、Core GCPとMyPage両方のPlan結果を確認する。
-6. 適用する場合は同一ブランチ・HEADで `operation=gcp-apply` / `environment=development` を新規dispatchする。各Stateは独立したPlan/Apply identityとsaved plan検証を維持し、両Plan成功後にApplyへ進む。
+5. Environmentで許可した対象ブランチのHEADから `Terraform` を `environment=development` / `operation=plan` で実行し、Core GCPとMyPage両方のPlan結果を確認する。
+6. 適用する場合は同一ブランチ・HEADで `operation=apply` を新規dispatchする。各Stateは独立したPlan/Apply identityとsaved plan検証を維持し、両Plan成功後にApplyへ進む。
 7. `GCP_NORMAL: PASS; role=apply` と事後full-root no-opを確認する。
    別jobの再Plan HMAC比較はGitHub Actionsの `if` 条件で行い、**HMACをstep envやcommandへ渡さない**。一致しなければApplyを実行せず、セクション別比較の真偽値だけで `GCP_NORMAL_REPLAN: STOP` を表示する。値・address・HMACは公開しない。
 8. DEV実地検証と復旧確認を完了してから、専用統合ブランチ→`dev`の最終PR（1本）をレビュー用に残す。`dev`へのマージは本人だけが行う。
@@ -127,8 +128,8 @@ Productionの通常Plan/Applyは既存DEVと同じ `normal-plan` / `normal-apply
 1. `infra/gcp/environments/prod/` のHCLをレビュー対象とし、先にDEVで相当する変更を検証します。既存PRODリソースの宣言とprivate inventoryを落としてはなりません。DEVのRoot/StateをPRODへコピーしません。
 2. 非秘密の差分だけを `normal.tfvars.json` に記載します。既存30資源の選択情報・private metadataは `terraform-prod-plan` / `terraform-prod-apply` Environmentのmanaged入力を引き続き使います。両者の入力内容はPlan/Applyで論理的に一致させます。
 3. delete/replaceはPRODの `normal-operations.json` の `destructive_changes` に正確なresource addressとnative actionsの順序を明示します。create/updateに型別allowlistはありませんが、GCP IAMの明示権限外の操作は拒否されます。
-4. 保護された `main` にレビュー済みリリースを取り込んだ後、本人が初回 `workflow_dispatch` で `operation=gcp-plan`、`environment=production` を指定します。実行SHAは選択refの `github.sha` をそのまま固定し、手入力させません。公開ログではresource type/操作/件数だけを確認します。
-5. Applyが必要な場合は同一main HEADから `operation=gcp-apply`、`environment=production` を新たに実行します。同runの独立Plan/Apply jobのHMAC/State/SHA/期限が一致したsaved planだけを適用します。事後のfull-root no-opとlock解放を確認します。
+4. 保護された `main` にレビュー済みリリースを取り込んだ後、本人が初回 `workflow_dispatch` で `Terraform` を `environment=production`、`operation=plan` で実行します。実行SHAは選択refの `github.sha` をそのまま固定し、手入力させません。公開ログではresource type/操作/件数だけを確認します。
+5. Applyが必要な場合は同一main HEADから `operation=apply`、`environment=production` を新たに実行します。`terraform-prod-apply` のrequired reviewersが承認するまでApply jobは開始しません。同runの独立Plan/Apply jobのHMAC/State/SHA/期限が一致したsaved planだけを適用します。事後のfull-root no-opとlock解放を確認します。
 
 ### 一度限りの本番設定と有効化条件
 

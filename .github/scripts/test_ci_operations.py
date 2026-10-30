@@ -14,32 +14,25 @@ class OperationSelectionTest(unittest.TestCase):
         self.workflow = load(ROOT / '.github/workflows/ci-operations.yml')
         self.command = self.workflow['jobs']['validate-selection']['steps'][0]['run']
         self.env = dict(os.environ) | dict.fromkeys(RESULTS, 'success') | {
-            'OPERATION': 'gcp-plan', 'ENVIRONMENT': 'development', 'REPOSITORY_RESULT': 'success',
+            'OPERATION': 'gcp-user-activity-schema-audit', 'ENVIRONMENT': 'development', 'REPOSITORY_RESULT': 'success',
         }
 
     def run_selector(self, **changes):
         return subprocess.run(['bash', '-c', self.command], env=self.env | changes,
                               capture_output=True).returncode
 
-    def test_supported_operations_require_full_validation_before_credentials(self):
-        for operation in ('gcp-plan', 'gcp-apply'):
-            with self.subTest(operation=operation):
-                self.assertEqual(self.run_selector(OPERATION=operation), 0)
-                self.assertNotEqual(self.run_selector(OPERATION=operation, SYSTEM_RESULT='skipped'), 0)
+    def test_only_the_schema_audit_remains_and_keeps_its_boundaries(self):
+        self.assertEqual(self.run_selector(), 0)
+        self.assertEqual(self.run_selector(SYSTEM_RESULT='skipped'), 0)
         for changes in ({'OPERATION': 'validate'}, {'ENVIRONMENT': 'staging'},
+                        {'ENVIRONMENT': 'production'}, {'GCP_TERRAFORM_VALIDATE_RESULT': 'skipped'},
                         {'REPOSITORY_RESULT': 'failure'}, {'TOOLS_RESULT': 'failure'},
-                        # Application deploys moved to their own Deploy workflows.
+                        # Terraform and application deploys moved to their own workflows.
+                        {'OPERATION': 'gcp-plan'}, {'OPERATION': 'gcp-apply'},
                         {'OPERATION': 'mypage-image-build'}, {'OPERATION': 'mypage-hosting-release'},
                         {'OPERATION': 'mypage-backend-release'}, {'OPERATION': 'mypage-auto-cd'}):
             with self.subTest(changes=changes):
                 self.assertNotEqual(self.run_selector(**changes), 0)
-
-    def test_production_and_read_only_audit_keep_their_distinct_boundaries(self):
-        self.assertEqual(self.run_selector(ENVIRONMENT='production', OPERATION='gcp-apply'), 0)
-        audit = {'OPERATION': 'gcp-user-activity-schema-audit', 'SYSTEM_RESULT': 'skipped'}
-        self.assertEqual(self.run_selector(**audit), 0)
-        self.assertNotEqual(self.run_selector(**audit, ENVIRONMENT='production'), 0)
-        self.assertNotEqual(self.run_selector(**audit, GCP_TERRAFORM_VALIDATE_RESULT='skipped'), 0)
 
     def test_credentialed_calls_cannot_bypass_the_selector(self):
         self.assertEqual(set(self.workflow['on']), {'workflow_call'})

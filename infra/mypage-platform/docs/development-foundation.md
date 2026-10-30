@@ -43,7 +43,7 @@ read roleはSecret payloadを読めない。資源単位のpolicy editorは当�
 
 ## 実行条件
 
-以下は初回Foundation構築時に使用した**履歴上の操作**であり、現在の通常UIでは選択しない。当時は既存 `CI` の `mypage_foundation=true` と段階別modeを使い、`foundation_metadata` の4資源から `foundation` の8資源へ段階導入した。現行の通常運用は `operation=gcp-plan|gcp-apply` と `environment` に集約し、これらのstageはbootstrap内部契約としてのみ保持する。
+以下は初回Foundation構築時に使用した**履歴上の操作**であり、現在の通常UIでは選択しない。当時は既存 `CI` の `mypage_foundation=true` と段階別modeを使い、`foundation_metadata` の4資源から `foundation` の8資源へ段階導入した。現行の通常運用は `Terraform`（`terraform.yml`）の `environment` / `operation=plan|apply` に集約し、これらのstageはbootstrap内部契約としてのみ保持する。
 
 `integration/mypage-canon-20261006`、repository/owner ID、owner actor、run attempt 1、caller `ci.yml` と専用reusable workflowの同一SHAを検査する。PR、fork、他branch、main、再実行、古いSHAはcredential取得前またはOIDC検査で拒否する。AWS trustは同じcustom subjectへ完全一致する。repositoryの既存OIDC subject templateは変更しない。
 
