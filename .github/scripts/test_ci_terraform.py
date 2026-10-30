@@ -102,7 +102,7 @@ class TerraformWorkflowTest(unittest.TestCase):
             'component': ['all', 'core', 'mypage'],
         })
         self.assertEqual(self.workflow['permissions'], {'contents': 'read'})
-        self.assertIn("(inputs.environment == 'development' && 'mypage-dev-runtime-change' || 'gcp-infrastructure-production')",
+        self.assertIn("(inputs.environment == 'development' && 'mypage-dev-cloud-run' || 'mypage-prod-cloud-run')",
                       self.workflow['concurrency']['group'])
 
     def test_selection_rejects_unknown_values_and_disabled_mypage(self):

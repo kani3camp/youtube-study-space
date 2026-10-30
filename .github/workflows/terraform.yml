@@ -48,11 +48,12 @@ on:
 permissions:
   contents: read
 
-# DEV joins the existing Cloud Run change lock during the migration period
-# (docs/development/ci-cd-workflows.md 3.5). PR Plans are read-only, run with
-# -lock=false and never wait for or block an Apply.
+# A manual run serializes with every Cloud Run change of its environment
+# (MyPage Terraform, API deploy, Operator deploy): Terraform refreshes and
+# PATCHes whole Cloud Run resources (docs/development/ci-cd-workflows.md 3.5).
+# PR Plans are read-only, run with -lock=false and never wait for or block it.
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('terraform-pr-plan-{0}', github.event.pull_request.number) || (inputs.environment == 'development' && 'mypage-dev-runtime-change' || 'gcp-infrastructure-production') }}
+  group: ${{ github.event_name == 'pull_request' && format('terraform-pr-plan-{0}', github.event.pull_request.number) || (inputs.environment == 'development' && 'mypage-dev-cloud-run' || 'mypage-prod-cloud-run') }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

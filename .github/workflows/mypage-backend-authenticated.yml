@@ -21,7 +21,7 @@ permissions:
 # Serializes Cloud Run changes (Terraform, API, maintenance operator) in DEV.
 # Hosting itself is verified against its current version before and after deployment.
 concurrency:
-  group: mypage-dev-runtime-change
+  group: mypage-dev-cloud-run
   cancel-in-progress: false
 
 jobs:
