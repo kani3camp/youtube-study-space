@@ -52,15 +52,15 @@ run "reject_foreign_project_number" {
   variables {
     stage = "runtime_private"
     runtime_settings = {
-      image_digest                          = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      project_number                        = "48101442817"
-      web_app_id                            = "1:48101442817:web:abcdef1234567890"
-      public_origin                         = "https://moku.work"
-      privacy_version                       = "2026-10-18"
-      terms_version                         = "2026-10-18"
-      oauth_client_id_version               = "1"
-      oauth_client_secret_version           = "2"
-      youtube_api_key_version               = "3"
+      image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      project_number              = "48101442817"
+      web_app_id                  = "1:48101442817:web:abcdef1234567890"
+      public_origin               = "https://moku.work"
+      privacy_version             = "2026-10-18"
+      terms_version               = "2026-10-18"
+      oauth_client_id_version     = "1"
+      oauth_client_secret_version = "2"
+      youtube_api_key_version     = "3"
     }
   }
   expect_failures = [var.runtime_settings]
@@ -71,16 +71,16 @@ run "runtime_private_is_not_public" {
   variables {
     stage = "runtime_private"
     runtime_settings = {
-      image_digest                          = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      project_number                        = "906336399194"
-      web_app_id                            = "1:906336399194:web:abcdef1234567890"
-      public_origin                         = "https://moku.work"
-      privacy_version                       = "2026-10-18"
-      terms_version                         = "2026-10-18"
-      oauth_client_id_version               = "1"
-      oauth_client_secret_version           = "2"
-      youtube_api_key_version               = "3"
-      history_coverage_json                 = jsonencode([{ start = "2026-10-01T00:00:00Z", end = "2026-10-02T00:00:00Z" }])
+      image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      project_number              = "906336399194"
+      web_app_id                  = "1:906336399194:web:abcdef1234567890"
+      public_origin               = "https://moku.work"
+      privacy_version             = "2026-10-18"
+      terms_version               = "2026-10-18"
+      oauth_client_id_version     = "1"
+      oauth_client_secret_version = "2"
+      youtube_api_key_version     = "3"
+      history_coverage_json       = jsonencode([{ start = "2026-10-01T00:00:00Z", end = "2026-10-02T00:00:00Z" }])
     }
   }
   assert {
@@ -94,15 +94,15 @@ run "public_invoker_requires_explicit_stage" {
   variables {
     stage = "runtime_public"
     runtime_settings = {
-      image_digest                          = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      project_number                        = "906336399194"
-      web_app_id                            = "1:906336399194:web:abcdef1234567890"
-      public_origin                         = "https://moku.work"
-      privacy_version                       = "2026-10-18"
-      terms_version                         = "2026-10-18"
-      oauth_client_id_version               = "1"
-      oauth_client_secret_version           = "2"
-      youtube_api_key_version               = "3"
+      image_digest                = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      project_number              = "906336399194"
+      web_app_id                  = "1:906336399194:web:abcdef1234567890"
+      public_origin               = "https://moku.work"
+      privacy_version             = "2026-10-18"
+      terms_version               = "2026-10-18"
+      oauth_client_id_version     = "1"
+      oauth_client_secret_version = "2"
+      youtube_api_key_version     = "3"
     }
   }
   assert {

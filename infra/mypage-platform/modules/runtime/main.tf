@@ -33,20 +33,20 @@ variable "stage" {
 
 variable "runtime_settings" {
   type = object({
-    image_digest                          = string
-    project_number                        = string
-    web_app_id                            = string
-    public_origin                         = string
-    privacy_version                       = string
-    terms_version                         = string
-    oauth_client_id_version               = string
-    oauth_client_secret_version           = string
-    youtube_api_key_version               = string
-    history_coverage_json                 = optional(string, "")
-    image_source_sha                      = optional(string, "")
-    hosting_backend_host                  = optional(string, "")
-    previous_image_digest                 = optional(string, "")
-    read_metrics_enabled                  = optional(bool, false)
+    image_digest                = string
+    project_number              = string
+    web_app_id                  = string
+    public_origin               = string
+    privacy_version             = string
+    terms_version               = string
+    oauth_client_id_version     = string
+    oauth_client_secret_version = string
+    youtube_api_key_version     = string
+    history_coverage_json       = optional(string, "")
+    image_source_sha            = optional(string, "")
+    hosting_backend_host        = optional(string, "")
+    previous_image_digest       = optional(string, "")
+    read_metrics_enabled        = optional(bool, false)
   })
 }
 
