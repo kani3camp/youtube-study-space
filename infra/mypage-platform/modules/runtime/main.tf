@@ -500,7 +500,7 @@ resource "google_cloud_run_v2_job" "maintenance_operator" {
         # reviewed immutable Artifact Registry tag. Existing runtime stages can
         # otherwise inherit the refreshed Service image; no digest is persisted
         # in GitHub runtime-settings JSON for this Job.
-        image = var.maintenance_bootstrap_image_digest != "" ? var.maintenance_bootstrap_image_digest : (local.deploy_api ? google_cloud_run_v2_service.api[0].template[0].containers[0].image : var.runtime_settings.image_digest)
+        image   = var.maintenance_bootstrap_image_digest != "" ? var.maintenance_bootstrap_image_digest : (local.deploy_api ? google_cloud_run_v2_service.api[0].template[0].containers[0].image : var.runtime_settings.image_digest)
         command = ["/app/mypage-maintenance-operator"]
         resources {
           limits = {

@@ -32,7 +32,7 @@ variable "maintenance_bootstrap_image_digest" {
   type        = string
   default     = ""
   validation {
-    condition = var.maintenance_bootstrap_image_digest == "" || can(regex("^asia-southeast2-docker\\.pkg\\.dev/test-youtube-study-space/mypage/mypage-api@sha256:[a-f0-9]{64}$", var.maintenance_bootstrap_image_digest))
+    condition     = var.maintenance_bootstrap_image_digest == "" || can(regex("^asia-southeast2-docker\\.pkg\\.dev/test-youtube-study-space/mypage/mypage-api@sha256:[a-f0-9]{64}$", var.maintenance_bootstrap_image_digest))
     error_message = "Maintenance bootstrap image must be empty or an exact environment Artifact Registry digest."
   }
 }
@@ -105,14 +105,14 @@ variable "runtime_settings" {
 }
 
 module "platform" {
-  count            = var.stage == "disabled" ? 0 : 1
-  source           = "../../modules/runtime"
-  project_id       = "test-youtube-study-space"
-  region           = "asia-southeast2"
-  environment      = "development"
-  stage            = var.stage
+  count                              = var.stage == "disabled" ? 0 : 1
+  source                             = "../../modules/runtime"
+  project_id                         = "test-youtube-study-space"
+  region                             = "asia-southeast2"
+  environment                        = "development"
+  stage                              = var.stage
   maintenance_bootstrap_image_digest = var.maintenance_bootstrap_image_digest
-  runtime_settings                    = var.runtime_settings
+  runtime_settings                   = var.runtime_settings
 }
 
 output "environment" {
