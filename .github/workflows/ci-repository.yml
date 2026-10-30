@@ -63,6 +63,6 @@ jobs:
           "$RUNNER_TEMP/ci-source-tools/actionlint" -shellcheck= -pyflakes=
           .github/workflows/ci.yml .github/workflows/ci-*.yml
           .github/workflows/gcp-*.yml
-          .github/workflows/terraform.yml
+          .github/workflows/terraform*.yml
           .github/workflows/mypage-*.yml
           .github/workflows/deploy-mypage-*.yml
