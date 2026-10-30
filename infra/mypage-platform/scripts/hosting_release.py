@@ -24,7 +24,10 @@ SITE = 'test--study-space'
 ORIGIN = 'https://' + SITE + '.web.app'
 REPOSITORY = 'kani3camp/youtube-study-space'
 REF = 'refs/heads/integration/mypage-canon-20261006'
-CALLER = REPOSITORY + '/.github/workflows/ci.yml@' + REF
+WORKFLOWS = REPOSITORY + '/.github/workflows/'
+CALLER = WORKFLOWS + 'deploy-mypage-frontend.yml@' + REF
+# Deploy workflows whose release scripts share this owner/ref/run admission.
+CALLERS = frozenset({CALLER, WORKFLOWS + 'deploy-mypage-api.yml@' + REF})
 API = 'https://firebasehosting.googleapis.com/v1beta1/'
 RUN = 'https://run.googleapis.com/v2/projects/' + PROJECT + '/locations/asia-southeast2/services/mypage-api'
 MAX_FILE = 4 * 1024 * 1024
@@ -45,15 +48,15 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def context(env, *, event_name='workflow_dispatch'):
-    need(event_name in ('workflow_dispatch', 'push'), 'execution-event')
+def context(env, *, caller=CALLER):
+    """Admit only the owner's first manual run of the use-case Deploy workflow."""
+    need(caller in CALLERS, 'execution-caller')
     expected = {
         'GITHUB_REPOSITORY': REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
         'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_ACTOR_ID': '54093651',
         'GITHUB_ACTOR': 'kani3camp', 'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
-        'GITHUB_EVENT_NAME': event_name, 'GITHUB_RUN_ATTEMPT': '1',
-        'GITHUB_REF': REF, 'GITHUB_WORKFLOW_REF': CALLER,
-        'MYPAGE_OTHER_OPERATION': 'false',
+        'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_RUN_ATTEMPT': '1',
+        'GITHUB_REF': REF, 'GITHUB_WORKFLOW_REF': caller,
     }
     need(all(env.get(k) == v for k, v in expected.items()), 'execution-context')
     need(re.fullmatch('[a-f0-9]{40}', env.get('GITHUB_SHA', '')), 'source-sha')

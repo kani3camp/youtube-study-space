@@ -95,6 +95,7 @@ class OperatorReleaseTest(unittest.TestCase):
                      'assertion.environment == "mypage-dev-operator"',
                      'assertion.workflow_sha == assertion.job_workflow_sha'):
             self.assertIn(text, condition)
+        self.assertLessEqual(len(condition), o.c.CONDITION_LIMIT)
         for absent in ('push', 'pull_request', 'mypage-backend-authenticated.yml', ' || '):
             self.assertNotIn(absent, condition)
         workflow = Path(o.__file__).resolve().parents[3] / '.github/workflows/mypage-operator-authenticated.yml'

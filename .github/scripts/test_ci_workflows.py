@@ -69,16 +69,12 @@ class WorkflowSafetyTest(unittest.TestCase):
         self.assertEqual(self.caller['permissions'], {'contents': 'read'})
         operations = self.caller['jobs']['operations']
         dispatch = "(github.event_name == 'workflow_dispatch' && inputs.operation != 'validate')"
-        push = "(github.event_name == 'push' && github.ref == 'refs/heads/integration/mypage-canon-20261006')"
-        self.assertEqual(operations['if'], '${{ !cancelled() && (' + dispatch + ' || ' + push + ') }}')
+        self.assertEqual(operations['if'], '${{ !cancelled() && ' + dispatch + ' }}')
         gate_step = self.caller['jobs']['ci-gate']['steps'][-1]
         self.assertEqual(gate_step['env']['CI_OPERATION_REQUESTED'],
-                         '${{ ' + dispatch + ' || ' + push + ' }}')
-        self.assertEqual(self.caller['on']['push']['branches'],
-                         ['integration/mypage-canon-20261006'])
-        self.assertEqual(set(self.caller['on']['push']['paths']),
-                         {'system/**'})
-        self.assertIn("mypage-auto-cd", operations['with']['operation'])
+                         '${{ ' + dispatch.removeprefix('(').removesuffix(')') + ' }}')
+        # No push trigger: no event other than an owner dispatch reaches a deploy.
+        self.assertEqual(set(self.caller['on']), {'pull_request', 'workflow_dispatch'})
         self.assertEqual(operations['permissions'], {'contents': 'read', 'id-token': 'write'})
         for path in (ROOT / '.github/workflows').glob('ci*.yml'):
             workflow = load(path)

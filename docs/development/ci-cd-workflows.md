@@ -74,7 +74,7 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 | `gcp-terraform-authenticated.yml` の `migration-plan` / `migration-apply` job と `terraform_migration.py` の credentialed経路 | どのcallerからも渡されない（`gcp-infrastructure-authenticated.yml` は `normal-plan` / `normal-apply` のみ） | `terraform.yml` 移行PRで撤去。過去の移行証跡（docs・test fixture）は根拠なく削除しない |
 | 同 `normal-e2e` mode | callerなし | 同上 |
 | `mypage-foundation-authenticated.yml` の `foundation-*` / `foundation-metadata-*` / `registry-*` / `maintenance-*` / `runtime-*` mode | callerは `desired-plan` / `desired-apply` / `image-build` のみ | 同上。`desired-stage.txt` によるstage選択は維持 |
-| `ci.yml` の push自動CD（`mypage-auto-cd`）と `backend_cd.py` | 本設計では application deploy を自動化しない | API deploy移行PRで撤去し、Backend WIF conditionから `push` を削除 |
+| `ci.yml` の push自動CD（`mypage-auto-cd`）と `backend_cd.py` | 本設計では application deploy を自動化しない | **撤去済み（#3）**。Backend WIF condition から `push` を削除する（owner） |
 | Backend releaseの Service/Job 同一digest同期（record schema 3 の `maintenanceJob*`） | API と Operator を独立deploy unitにする | **撤去済み（#2）**。record は schema 4（API のみ） |
 | `mypage-maintenance.yml` の未pin `actions/checkout@v7` | 他workflowはSHA pin | 該当workflowに触れるPRでpinする |
 
@@ -102,7 +102,7 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 - 内部の reusable workflow（`gcp-terraform-authenticated.yml`、MyPage Terraform reusable、Hosting / API / Operator の deploy job）は維持してよいが、`workflow_dispatch` を持たせない。
 - Production の Frontend / API / Operator deploy は、公開Gate（[#1133](https://github.com/kani3camp/youtube-study-space/issues/1133)）を満たすまで **入力の選択肢として出さない**。
 - 自動 application deploy は行わない。PR / push を契機に実環境へwriteするのは無し。
-- 各 Deploy workflow は、配備する domain の credentialless 検査を同じ run の中で、資格情報の取得より前に通す（API / Operator: `ci-system.yml`、Frontend: Hosting build job の audit / check / typecheck / test）。統合ブランチの ruleset は PR ごとの `CI Gate` を要求するが、統合後の tree そのものは検査しないため。旧 router の「全 domain の CI 成功」は、配備対象の domain に限った検査へ置き換える。
+- 各 Deploy workflow は、配備する domain の credentialless 検査を同じ run の中で、資格情報の取得より前に通す（API / Operator: `ci-system.yml`、Frontend: `ci-frontend.yml` の `mypage`）。統合ブランチの ruleset は PR ごとの `CI Gate` を要求するが、統合後の tree そのものは検査しないため。旧 router の「全 domain の CI 成功」は、配備対象の domain に限った検査へ置き換える。
 
 ### 3.2 Terraform Plan / Apply
 
@@ -207,7 +207,7 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 | UC1 CI | 現行（router 同居） | `ci.yml` |
 | UC2 PR Plan | 未実装 | なし（credentialless validate のみ） |
 | UC2 手動 Plan / UC3 Apply | 現行 | `ci.yml` dispatch `gcp-plan` / `gcp-apply` |
-| UC4 Frontend | 現行 | `ci.yml` dispatch `mypage-hosting-release` |
-| UC5 API | 現行（Service のみ。Job 同期は撤去済み） | `ci.yml` dispatch `mypage-backend-release` / `mypage-image-build`、integration push 自動CD |
+| UC4 Frontend | 実装済み（未有効化）。旧 router 経路は撤去済み | `deploy-mypage-frontend.yml` |
+| UC5 API | 実装済み（未有効化）。Service のみ。旧 router 経路と push 自動CDは撤去済み | `deploy-mypage-api.yml` |
 | UC6 Operator | 実装済み（未有効化） | `deploy-mypage-maintenance.yml` |
 | UC7 Maintenance mode | 現行 | `mypage-maintenance.yml`（development のみ Environment 作成済み） |

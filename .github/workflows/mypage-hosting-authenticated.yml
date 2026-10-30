@@ -6,9 +6,6 @@ on:
       expected_sha:
         required: true
         type: string
-      other_operation:
-        required: true
-        type: boolean
 
 permissions: {}
 
@@ -18,7 +15,6 @@ concurrency:
 
 env:
   MYPAGE_HOSTING_EXPECTED_SHA: ${{ inputs.expected_sha }}
-  MYPAGE_OTHER_OPERATION: ${{ inputs.other_operation }}
 
 jobs:
   build:

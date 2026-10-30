@@ -48,7 +48,7 @@ REUSABLE = workflow_ref("mypage-foundation-authenticated.yml")
 # packageを分けることで、API配備がJob用imageを取り違えない。
 IMAGE_COMPONENTS = {
     "api": {"package": "mypage-api", "dockerfile": "system/Dockerfile.mypage-api",
-            "check": "system/scripts/check-mypage-image.sh", "caller": CALLER},
+            "check": "system/scripts/check-mypage-image.sh", "caller": workflow_ref("deploy-mypage-api.yml")},
     "maintenance-operator": {"package": "mypage-maintenance-operator",
                              "dockerfile": "system/Dockerfile.mypage-maintenance-operator",
                              "check": "system/scripts/check-mypage-operator-image.sh",
@@ -86,17 +86,42 @@ def caller(env, *, image=False):
 
 
 def subject(kind, event_name="workflow_dispatch", workflow=CALLER):
-    need(kind in {"plan", "apply"} and event_name in {"workflow_dispatch", "push"})
-    need(event_name != "push" or TARGET == "development", "push-production")
+    # Every credentialed MyPage operation is an owner's manual dispatch.
+    need(kind in {"plan", "apply"} and event_name == "workflow_dispatch")
     need(workflow in {CALLER} | {item["caller"] for item in IMAGE_COMPONENTS.values()}, "subject-workflow")
     values = ("340900071", "54093651", GITHUB_ENVIRONMENT + "-" + kind, REF, workflow, REUSABLE, event_name)
     return ":".join(key + ":" + value.replace(":", "%3A") for key, value in zip(CLAIM_KEYS, values))
 
 
+# GCP rejects a provider attribute condition longer than this.
+CONDITION_LIMIT = 4096
+
+
+def provider_condition():
+    """Exact condition for the owner-managed `mypage-foundation` WIF provider.
+
+    The custom `sub` already pins Environment, ref, caller, reusable and event,
+    so each allowed (Environment, caller) pair is one exact `sub`. Plan admits
+    only the Terraform caller; Apply admits the Terraform caller and each
+    image's own Deploy workflow. Push is never admitted.
+    """
+    pairs = [("plan", CALLER), ("apply", CALLER)]
+    pairs += [("apply", item["caller"]) for _, item in sorted(IMAGE_COMPONENTS.items())]
+    subjects = [subject(kind, "workflow_dispatch", workflow) for kind, workflow in pairs]
+    common = {"repository_id": "340900071", "repository_owner_id": "54093651",
+              "actor_id": "54093651", "actor": "kani3camp", "repository": REPOSITORY,
+              "ref": REF, "job_workflow_ref": REUSABLE, "event_name": "workflow_dispatch",
+              "run_attempt": "1"}
+    condition = (" && ".join("assertion." + key + " == " + json.dumps(value) for key, value in common.items()) +
+                 " && assertion.workflow_sha == assertion.job_workflow_sha" +
+                 " && assertion.sub in " + json.dumps(subjects, separators=(", ", ": ")))
+    need(len(condition) <= CONDITION_LIMIT, "provider-condition-length")
+    return condition
+
+
 def trust_policy(account, kind):
     need(re.fullmatch(r"[0-9]{12}", account))
-    # Terraform State credentials are dispatch-only. Push is accepted by
-    # the image-build-only GCP federation, not by AWS State roles.
+    # Terraform State credentials are dispatch-only.
     events = ["workflow_dispatch"]
     return {"Version": "2012-10-17", "Statement": [{
         "Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity",
@@ -152,14 +177,7 @@ def context(env, kind, *, image=False):
                 "GITHUB_ACTOR": "kani3camp", "GITHUB_ACTOR_ID": "54093651",
                 "GITHUB_TRIGGERING_ACTOR": "kani3camp", "GITHUB_RUN_ATTEMPT": "1",
                 "GITHUB_REF": REF, "GITHUB_WORKFLOW_REF": caller(env, image=image), "TF_WORKSPACE": "default"}
-    event_name = env.get("GITHUB_EVENT_NAME")
-    if event_name == "push":
-        # 自動CDはAPI imageだけに残る。Job用imageは手動Deployからだけbuildする。
-        need(TARGET == "development" and image and env.get("MYPAGE_MODE") == "image-build"
-             and env.get("MYPAGE_IMAGE_COMPONENT") == "api", "push-scope")
-    else:
-        need(event_name == "workflow_dispatch", "event-name")
-    expected.pop("GITHUB_EVENT_NAME")
+    need(env.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "event-name")
     need(all(env.get(k) == v for k, v in expected.items()))
     sha = env.get("GITHUB_SHA", "")
     need(re.fullmatch(r"[a-f0-9]{40}", sha) and env.get("MYPAGE_EXPECTED_SHA") == sha)
@@ -288,3 +306,10 @@ def commitment(plan, state_version, sha, key):
         need(type(stable["relevant_attributes"]) is list, "plan-relevant-attributes")
         stable["relevant_attributes"] = sorted(stable["relevant_attributes"], key=canonical)
     return hmac.new(key.encode(), canonical({"plan": stable, "state_version": state_version, "source": sha}), hashlib.sha256).hexdigest()
+
+
+if __name__ == "__main__":
+    import sys
+    # Print-only helper for the owner; it performs no cloud call.
+    need(sys.argv[1:] == ["provider-condition"], "foundation-contract-command")
+    print(provider_condition())

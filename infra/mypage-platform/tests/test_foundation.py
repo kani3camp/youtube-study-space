@@ -422,45 +422,53 @@ class FoundationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             c.validate_plan(plan)
 
-    def test_dev_push_auth_is_explicitly_bounded_and_prod_remains_manual(self):
+    def test_every_credentialed_operation_is_a_manual_dispatch_from_its_own_workflow(self):
         env = {
             'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
-            'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_EVENT_NAME': 'push',
+            'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_EVENT_NAME': 'workflow_dispatch',
             'GITHUB_ACTOR': 'kani3camp', 'GITHUB_ACTOR_ID': '54093651',
             'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1',
-            'GITHUB_REF': c.REF, 'GITHUB_WORKFLOW_REF': c.CALLER,
-            'TF_WORKSPACE': 'default', 'GITHUB_SHA': 'a' * 40,
-            'MYPAGE_EXPECTED_SHA': 'a' * 40,
-            'MYPAGE_MODE': 'runtime-public-apply',
+            'GITHUB_REF': c.REF, 'TF_WORKSPACE': 'default', 'GITHUB_SHA': 'a' * 40,
+            'MYPAGE_EXPECTED_SHA': 'a' * 40, 'MYPAGE_MODE': 'image-build',
         }
-        # Application image build may use DEV WIF on an owner push; Terraform
-        # Plan/Apply and AWS State stay dispatch-only.
+        for component, item in c.IMAGE_COMPONENTS.items():
+            image = env | {'MYPAGE_IMAGE_COMPONENT': component, 'GITHUB_WORKFLOW_REF': item['caller']}
+            with self.subTest(component=component):
+                c.context(image, 'apply', image=True)
+                # No push or other event can build or deploy an application image.
+                for event in ('push', 'pull_request', 'workflow_run'):
+                    with self.assertRaises(ValueError):
+                        c.context(image | {'GITHUB_EVENT_NAME': event}, 'apply', image=True)
+                # Each image is built only by the Deploy workflow of its own use case.
+                for other in [c.CALLER] + [x['caller'] for x in c.IMAGE_COMPONENTS.values() if x is not item]:
+                    with self.assertRaises(ValueError):
+                        c.context(image | {'GITHUB_WORKFLOW_REF': other}, 'apply', image=True)
+        for bad in ('', 'mypage-api', 'all'):
+            with self.subTest(component=bad), self.assertRaises(ValueError):
+                c.context(env | {'MYPAGE_IMAGE_COMPONENT': bad, 'GITHUB_WORKFLOW_REF': c.CALLER}, 'apply', image=True)
         with self.assertRaises(ValueError):
-            c.context(env, 'plan')
-        with self.assertRaises(ValueError):
-            c.context(env, 'apply')
-        c.context(env | {'MYPAGE_MODE': 'image-build', 'MYPAGE_IMAGE_COMPONENT': 'api'}, 'apply', image=True)
-        # The maintenance operator image is built only by its manual Deploy workflow.
-        operator = env | {'MYPAGE_MODE': 'image-build', 'MYPAGE_IMAGE_COMPONENT': 'maintenance-operator',
-                          'GITHUB_WORKFLOW_REF': c.IMAGE_COMPONENTS['maintenance-operator']['caller']}
-        with self.assertRaises(ValueError):
-            c.context(operator, 'apply', image=True)
-        c.context(operator | {'GITHUB_EVENT_NAME': 'workflow_dispatch'}, 'apply', image=True)
-        for bad in ({'GITHUB_WORKFLOW_REF': c.CALLER}, {'MYPAGE_IMAGE_COMPONENT': ''},
-                    {'MYPAGE_IMAGE_COMPONENT': 'mypage-api'}):
-            with self.subTest(bad=bad), self.assertRaises(ValueError):
-                c.context(operator | {'GITHUB_EVENT_NAME': 'workflow_dispatch'} | bad, 'apply', image=True)
-        for mode in ('foundation-apply', 'registry-apply', 'desired-apply',
-                     'runtime-private-apply', 'runtime-public-apply',
-                     'maintenance-operator-apply'):
-            with self.subTest(mode=mode), self.assertRaises(ValueError):
-                c.context(env | {'MYPAGE_MODE': mode}, 'apply')
-        with self.assertRaises(ValueError):
-            c.context(env | {'GITHUB_EVENT_NAME': 'workflow_run'}, 'apply')
-        self.assertNotEqual(c.subject('apply', 'push'), c.subject('apply'))
+            c.subject('apply', 'push')
         self.assertEqual(len(c.trust_policy('123456789012', 'apply')['Statement']), 1)
         self.assertEqual(c.trust_policy('123456789012', 'apply')['Statement'][0]['Condition']['StringEquals']['token.actions.githubusercontent.com:sub'],
                          c.subject('apply'))
+
+    def test_provider_condition_pairs_each_environment_caller_and_exact_subject(self):
+        condition = c.provider_condition()
+        self.assertLessEqual(len(condition), c.CONDITION_LIMIT)
+        prefix, listed = condition.split(' && assertion.sub in ')
+        expected = [('plan', c.CALLER), ('apply', c.CALLER)] + [
+            ('apply', item['caller']) for _, item in sorted(c.IMAGE_COMPONENTS.items())]
+        # The clause list is exact, so image callers never reach the Plan Environment.
+        self.assertEqual(json.loads(listed), [c.subject(kind, 'workflow_dispatch', workflow)
+                                              for kind, workflow in expected])
+        for clause in ('assertion.repository_id == "340900071"', 'assertion.actor_id == "54093651"',
+                       'assertion.ref == ' + json.dumps(c.REF),
+                       'assertion.job_workflow_ref == ' + json.dumps(c.REUSABLE),
+                       'assertion.event_name == "workflow_dispatch"', 'assertion.run_attempt == "1"',
+                       'assertion.workflow_sha == assertion.job_workflow_sha'):
+            self.assertIn(clause, prefix)
+        self.assertNotIn('||', condition)
+        self.assertNotIn('push', condition)
 
     def test_exact_actor_ref_and_sha_before_credentials(self):
         env = {'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
