@@ -30,7 +30,7 @@ workflowファイルの改名・新設は、コードだけでは完結せず、
 3. 新経路を実runで1回検証する。
 4. 旧経路をコードから撤去し、ownerがtrustから **旧claimを削除** する。
 
-資格情報を取得する job は、必ず reusable workflow の中に置く（最上位workflowの job で直接認証しない）。repository の OIDC `sub` テンプレートは `job_workflow_ref` を含むが、GitHub の仕様はこの claim を「reusable workflow を使う job」のものとしてしか定義しておらず、AWS State role は `sub` の完全一致で照合するためである。最上位workflowで直接認証する現行の `mypage-maintenance.yml` は、`sub` に依存しない WIF condition（`workflow_ref` 等）だけを使っている例外であり、新しい経路の手本にしない。
+資格情報を取得する job は、必ず reusable workflow の中に置く（最上位workflowの job で直接認証しない）。repository の OIDC `sub` テンプレートは `job_workflow_ref` を含むが、GitHub の仕様はこの claim を「reusable workflow を使う job」のものとしてしか定義しておらず、AWS State role は `sub` の完全一致で照合するためである。reusable workflow を使わない job でこの claim と `sub` がどうなるかは仕様に書かれておらず、このリポジトリでも実証されていない。そのため、最上位workflowで直接認証している現行の `mypage-maintenance.yml` も例外にせず、認証 job を reusable workflow へ移す。
 
 2と4はリポジトリ外の実状態変更であり、各PRの説明に「必要なowner作業」と「実施済みか」を明記する。
 trustを広げる際は、追加するclaimと脅威境界を同じPRで説明する。
@@ -51,7 +51,7 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 | [`mypage-foundation-authenticated.yml`](../../.github/workflows/mypage-foundation-authenticated.yml) | MyPage root の credentialed plan / apply と image build（2責務が同居） | **分割** | Terraform部分は mypage reusable として残す。image buildは各Deploy workflowへ移す |
 | [`mypage-hosting-authenticated.yml`](../../.github/workflows/mypage-hosting-authenticated.yml) | UC4 DEV Hosting build / deploy / smoke | **残す（最上位化）** | `deploy-mypage-frontend.yml` |
 | [`mypage-backend-authenticated.yml`](../../.github/workflows/mypage-backend-authenticated.yml) | API Service と maintenance Job の同一digest同期deploy | **分割** | `deploy-mypage-api.yml`（Serviceのみ）と `deploy-mypage-maintenance.yml`（Jobのみ） |
-| [`mypage-maintenance.yml`](../../.github/workflows/mypage-maintenance.yml) | UC7 maintenance mode ON/OFF | **残す** | 既に最上位・専用trust。名称も維持する |
+| [`mypage-maintenance.yml`](../../.github/workflows/mypage-maintenance.yml) | UC7 maintenance mode ON/OFF | **残す（認証jobを分離）** | 最上位workflowの名称は維持する。認証 job を reusable workflow へ移し、WIF condition に `job_workflow_ref` を追加する |
 | `gcp-user-activity-schema-audit.yml` | read-only schema audit（`DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED: "false"` で無効） | **保留（owner判断）** | 6ユースケース外。router撤去時に「独立dispatch化」か「撤去」を決める |
 | `codeql-*`、`deploy-docs.yml`、`base-image-update-report.yml`、`formal-spec-report.yml` | 本Issue対象外 | 対象外 | 変更なし |
 
@@ -82,7 +82,7 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 
 - **Production Terraform Apply の承認が未設定**: `terraform-prod-apply` に required reviewers がない（branch policy `main` のみ）。UC3の完了条件を満たすには、ownerがGitHub Environmentへ reviewer を設定する。
 - **PR Plan用のtrustがない**: 手動 Plan の identity は既に Apply と分離されている（Core: `terraform-<target>-normal-plan` SA と `-plan` AWS role、MyPage: `mypage-foundation-plan` SA）。ただしどの trust も `workflow_dispatch`・owner actor・`ci.yml` 固定であり、`pull_request` からは認証できない。
-- **Maintenance mode の認証が一度も成功していない**: 唯一の run（2026-10-29、run 40879914039）は、Environment `mypage-maintenance-development` に `MYPAGE_MAINTENANCE_WIF_PROVIDER` が設定されておらず、認証の前段で停止した。`mypage-maintenance-production` Environment も未作成である。
+- **Maintenance mode の認証が一度も成功していない**: 唯一の run（2026-10-29、run 40879914039）は、Environment `mypage-maintenance-development` に `MYPAGE_MAINTENANCE_WIF_PROVIDER` が設定されておらず、認証の前段で停止した。`mypage-maintenance-production` Environment も未作成である。また、この workflow は reusable workflow を使わずに直接認証しており、`job_workflow_ref` を含む `sub` テンプレートの下で認証できるかは未検証である。
 - **PR時のnative planがない**: 現在のnative planは owner の手動dispatchのみ。PRでは credentialless validate / mock test だけが走る。
 - `gcp-user-activity-schema-audit` は Environment branch policy が `dev` のみで、integration branch からは到達しない（かつ無効化フラグがfalse）。
 
@@ -175,6 +175,7 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 | 5 | `deploy-mypage-frontend.yml` を追加し、router から `mypage-hosting-release` を撤去 | 同上 | Frontend | Hosting WIF condition を新 `workflow_ref` へ更新。必要なら Hosting rollback 方式を確定 |
 | 6 | `terraform.yml`（手動 plan / apply、component 入力）を追加し、`gcp-plan` / `gcp-apply` と `gcp-infrastructure-authenticated.yml` / `mypage-infrastructure-authenticated.yml` を撤去。到達不能 mode を整理 | 同上 | Terraform 手動 | Core / MyPage の GCP WIF condition と AWS State role trust を新 `workflow_ref` へ更新。`terraform-prod-apply` に required reviewers を設定 |
 | 7 | PR Plan identity と `terraform.yml` の `pull_request` Plan | 変更なし | PR Plan | dev / prod の read-only GCP SA・WIF provider、AWS State read role、Environment `terraform-<env>-pr-plan` の作成 |
+| 7a | `mypage-maintenance.yml` の認証 job を reusable workflow へ移し、`actions/checkout` を SHA pin する | 現行（未成功） | Maintenance mode | Maintenance WIF condition（Terraform 管理）への `job_workflow_ref` 追加の Apply、Environment への `MYPAGE_MAINTENANCE_WIF_PROVIDER` 設定 |
 | 8 | `ci.yml` を純粋なCIに縮小し `ci-operations.yml` を削除。schema audit の扱いを確定。docs・契約テストの最終整合 | 新経路のみ | — | 旧 claim を全 trust から削除したことの確認 |
 | 9 | 作業用統合ブランチ → `integration/mypage-canon-20261006` | — | — | — |
 
