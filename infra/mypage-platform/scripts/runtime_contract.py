@@ -25,7 +25,9 @@ MAINTENANCE_PROVIDER = "module.platform[0].google_iam_workload_identity_pool_pro
 MAINTENANCE_WIF = "module.platform[0].google_service_account_iam_member.maintenance_workload_identity[0]"
 MAINTENANCE_JOB = "module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]"
 MAINTENANCE_JOB_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_invoker[0]"
-MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER}
+MAINTENANCE_IMAGE_ROLE = "module.platform[0].google_project_iam_custom_role.maintenance_image_release[0]"
+MAINTENANCE_IMAGE_BINDING = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_image_release[0]"
+MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, MAINTENANCE_IMAGE_BINDING}
 MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-operator-apply": "maintenance_operator",
          "maintenance-upgrade-plan": "maintenance_upgrade", "maintenance-upgrade-apply": "maintenance_upgrade",
          "runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
@@ -33,7 +35,7 @@ MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-opera
 PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/services/mypage-api"
 PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
 FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "privacy_version", "terms_version",
-          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision", "maintenance_operator_enabled", "maintenance_operator_image_digest", "maintenance_operator_image_source_sha"}
+          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
 
 
 def maintenance_provider_condition():
@@ -51,22 +53,21 @@ def maintenance_provider_condition():
 def settings(value, stage=None):
     c.need(stage is None or stage in set(MODES.values()), "runtime-settings-stage")
     operator_only = stage == "maintenance_operator"
-    operator_fields = {"maintenance_operator_enabled", "maintenance_operator_image_digest", "maintenance_operator_image_source_sha"}
-    optional = {"history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision", *operator_fields}
-    required = operator_fields if operator_only else FIELDS - optional
+    optional = {"history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
+    required = {"image_digest"} if operator_only else FIELDS - optional
     c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= required, "runtime-settings-fields")
-    defaults = {field: "" for field in FIELDS} | {"read_metrics_enabled": False, "maintenance_operator_enabled": False}
-    # 既存の環境シークレットにはランタイム設定全体が残る場合があるが、初期構築専用段階では
-    # 別途レビューした運用担当者用イメージだけを結び付ける。無関係な値をPlanの確定内容に影響させない。
-    value = defaults | ({field: value[field] for field in operator_fields} if operator_only else value)
+    defaults = {field: "" for field in FIELDS} | {"read_metrics_enabled": False}
+    # Bootstrap-only maintenance stages use the same application image as the API.
+    # No per-operator digest/source fields exist in environment JSON.
+    value = defaults | ({"image_digest": value["image_digest"],
+                         "image_source_sha": value.get("image_source_sha", "")} if operator_only else value)
     # JSONの受入検査は、意図的にTerraformの型変換より厳しくする。
     c.need(type(value["read_metrics_enabled"]) is bool, "runtime-read-metrics-type")
-    c.need(type(value["maintenance_operator_enabled"]) is bool, "runtime-maintenance-operator-type")
     c.need(c.TARGET == "development" or (not value["read_metrics_enabled"] and value["read_metrics_from_revision"] == ""), "runtime-production-read-metrics")
-    c.need(all(type(v) is str for k, v in value.items() if k not in {"read_metrics_enabled", "maintenance_operator_enabled"}), "runtime-settings-types")
-    c.need(value["maintenance_operator_enabled"] and re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["maintenance_operator_image_digest"]) and commit_sha(value["maintenance_operator_image_source_sha"]), "runtime-maintenance-operator-image")
+    c.need(all(type(v) is str for k, v in value.items() if k != "read_metrics_enabled"), "runtime-settings-types")
+    c.need(re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["image_digest"]), "runtime-image")
+    c.need(value["image_source_sha"] == "" or re.fullmatch(r"[a-f0-9]{40}", value["image_source_sha"]), "runtime-image-source-sha")
     if not operator_only:
-        c.need(re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["image_digest"]), "runtime-image")
         c.need(value["project_number"] == c.PROJECT_NUMBER, "runtime-project-number")
         c.need(re.fullmatch("1:" + value["project_number"] + r":web:[A-Za-z0-9]+", value["web_app_id"]), "runtime-app-project")
         c.need(value["public_origin"] == ORIGIN, "runtime-origin")
@@ -74,7 +75,6 @@ def settings(value, stage=None):
             c.need(re.fullmatch(r"[A-Za-z0-9._-]{1,64}", value[field]), "runtime-policy-version")
         for field in ("oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version"):
             c.need(re.fullmatch(r"[1-9][0-9]*", value[field]), "runtime-secret-version")
-        c.need(value["image_source_sha"] == "" or re.fullmatch(r"[a-f0-9]{40}", value["image_source_sha"]), "runtime-image-source-sha")
         c.need(value["hosting_backend_host"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]+\.a\.run\.app", value["hosting_backend_host"]), "runtime-hosting-backend")
         c.need(value["previous_image_digest"] == "" or re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["previous_image_digest"]), "runtime-previous-image")
         c.need(value["read_metrics_from_revision"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", value["read_metrics_from_revision"]), "runtime-read-metrics-revision")
@@ -113,6 +113,14 @@ def maintenance_resource_contract(value=None):
         MAINTENANCE_WIF: {"role": "roles/iam.workloadIdentityUser"},
         MAINTENANCE_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-operator", "location": c.REGION,
                           "deletion_policy": "PREVENT", "deletion_protection": True, "launch_stage": "GA"},
+        MAINTENANCE_IMAGE_ROLE: {"project": c.PROJECT, "role_id": "mypageMaintenanceImageRelease",
+                                 "title": "MyPage maintenance image release",
+                                 "description": "Allows the existing backend deployer to read and update only the maintenance Cloud Run Job.",
+                                 "stage": "GA", "deletion_policy": "PREVENT",
+                                 "permissions": ["run.jobs.get", "run.jobs.update"]},
+        MAINTENANCE_IMAGE_BINDING: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator",
+                                    "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceImageRelease",
+                                    "member": "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"},
         MAINTENANCE_JOB_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator", "role": "roles/run.jobsExecutorWithOverrides", "member": "serviceAccount:" + invoker_email},
     }
     if value is not None:
@@ -139,7 +147,7 @@ def maintenance_resource_contract(value=None):
                 "service_account": operator_email, "max_retries": 0, "timeout": "60s",
                 "execution_environment": "EXECUTION_ENVIRONMENT_GEN2",
                 "containers": [{
-                    "image": value["maintenance_operator_image_digest"], "command": ["/app/mypage-maintenance-operator"], "args": [],
+                    "image": value["image_digest"], "command": ["/app/mypage-maintenance-operator"], "args": [],
                     "resources": [{"limits": {"cpu": "1", "memory": "512Mi"}}],
                     "env": [
                         {"name": "GOOGLE_CLOUD_PROJECT", "value": c.PROJECT},
@@ -220,7 +228,7 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
         c.need(after.get("disabled") is False and after.get("deletion_policy") == "PREVENT",
                "maintenance-service-account-disabled")
         return
-    if address in {MAINTENANCE_ROLE}:
+    if address in {MAINTENANCE_ROLE, MAINTENANCE_IMAGE_ROLE}:
         # deletedはプロバイダーの計算値なので、作成時だけunknownになる。
         # 既存ロールのno-opでは、毎回既知のfalseでなければならない。
         c.need(after.get("deletion_policy") == "PREVENT" and
@@ -271,7 +279,12 @@ def validate_maintenance_resource(address, after, unknown, value, actions):
                and task.get("execution_environment") == "EXECUTION_ENVIRONMENT_GEN2", "maintenance-job-runtime")
         container = one(task.get("containers"), "maintenance-job-container")
         expected_command = "/app/mypage-maintenance-operator"
-        c.need(container.get("image") == value["maintenance_operator_image_digest"] and container.get("command") == [expected_command] and not container.get("args"), "maintenance-job-image-command")
+        image = container.get("image")
+        c.need(type(image) is str and re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", image),
+               "maintenance-job-image")
+        if actions == ["create"]:
+            c.need(image == value["image_digest"], "maintenance-job-bootstrap-image")
+        c.need(container.get("command") == [expected_command] and not container.get("args"), "maintenance-job-image-command")
         environment = container.get("env")
         c.need(type(environment) is list and all(type(item) is dict for item in environment), "maintenance-job-environment")
         env = {item.get("name"): item.get("value") for item in environment}

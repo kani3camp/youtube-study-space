@@ -14,8 +14,8 @@
 
 ## 初期化と切替
 
-1. 対象環境と承認済みイメージのダイジェストを確認します。`CI`の`operation=gcp-plan`と対象`environment`で、Core GCPとMyPageのdesired stateをまとめてPlanします。DEVの現在のdesired stageには、メンテナンス専用Service Account・WIF・単一Cloud Run Jobを含みます。差分のレビュー後だけ`operation=gcp-apply`を実行します。通常操作で`maintenance_operator` / `maintenance_upgrade`の個別モードは選びません。対象環境のdesired stageが`disabled`ならMyPage資源を変更しません。
-2. GitHub ActionsのMyPage Maintenance Modeを`workflow_dispatch`で実行し、対象`environment`と`enabled=false`を指定して初期化します。欠落文書も同じJobが作成します。
+1. `CI`の`operation=gcp-plan`と対象`environment`で、Core GCPとMyPageのdesired stateをまとめてPlanします。DEVの現在のdesired stageには、メンテナンス専用Service Account・WIF・単一Cloud Run Jobを含みます。差分のレビュー後だけ`operation=gcp-apply`を実行します。通常操作で`maintenance_operator` / `maintenance_upgrade`の個別モードは選びません。対象環境のdesired stageが`disabled`ならMyPage資源を変更しません。maintenance JobのimageはAPIと同じArtifact Registry成果物を使い、作成後はTerraform設定JSONではなくBackend CI/CDが所有します。
+2. 初回構築後は`operation=mypage-backend-release`でreview済みの同一digestをAPI Serviceとmaintenance Jobへ同期し、両方のreadbackが成功したことを確認します。その後、GitHub ActionsのMyPage Maintenance Modeを`workflow_dispatch`で実行し、対象`environment`と`enabled=false`を指定して初期化します。欠落文書も同じJobが作成します。
 3. 開始時は`enabled=true`、解除時は`enabled=false`を指定します。Jobは入力を検証し、トランザクションで現在値を読んで更新します。コミット後に読み返し、結果をログに出します。同じ値への更新は成功のno-opです。
 4. 実行結果とJobログを確認します。読み取り・更新・再読み取りの失敗は成功扱いにしません。失敗時は対象環境・権限・Firestore文書の状態を調査し、復旧後に同じワークフローを再実行します。
 

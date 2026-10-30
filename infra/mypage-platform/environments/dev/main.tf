@@ -43,11 +43,8 @@ variable "runtime_settings" {
     image_source_sha                      = optional(string, "")
     hosting_backend_host                  = optional(string, "")
     previous_image_digest                 = optional(string, "")
-    read_metrics_enabled                  = optional(bool, false)
-    maintenance_operator_enabled          = optional(bool, false)
-    maintenance_operator_image_digest     = optional(string, "")
-    maintenance_operator_image_source_sha = optional(string, "")
-    read_metrics_from_revision            = optional(string, "")
+    read_metrics_enabled       = optional(bool, false)
+    read_metrics_from_revision = optional(string, "")
   })
   default = {
     image_digest                = ""
@@ -59,17 +56,6 @@ variable "runtime_settings" {
     oauth_client_id_version     = ""
     oauth_client_secret_version = ""
     youtube_api_key_version     = ""
-  }
-
-  # 計測設定だけを変える配信更新を、一度限り明示的に許可する。
-  # 環境変数には渡さず、イメージの更新も許可しない。
-  validation {
-    condition = !contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) || (
-      var.runtime_settings.maintenance_operator_enabled &&
-      can(regex("^asia-southeast2-docker\\.pkg\\.dev/test-youtube-study-space/mypage/mypage-api@sha256:[a-f0-9]{64}$", var.runtime_settings.maintenance_operator_image_digest)) &&
-      can(regex("^[a-f0-9]{40}$", var.runtime_settings.maintenance_operator_image_source_sha))
-    )
-    error_message = "Maintenance operator and runtime stages require a separately pinned operator digest and reviewed source SHA."
   }
 
   validation {

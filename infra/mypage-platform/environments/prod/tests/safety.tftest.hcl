@@ -61,9 +61,6 @@ run "reject_foreign_project_number" {
       oauth_client_id_version               = "1"
       oauth_client_secret_version           = "2"
       youtube_api_key_version               = "3"
-      maintenance_operator_enabled          = true
-      maintenance_operator_image_digest     = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-      maintenance_operator_image_source_sha = "cccccccccccccccccccccccccccccccccccccccc"
     }
   }
   expect_failures = [var.runtime_settings]
@@ -83,9 +80,6 @@ run "runtime_private_is_not_public" {
       oauth_client_id_version               = "1"
       oauth_client_secret_version           = "2"
       youtube_api_key_version               = "3"
-      maintenance_operator_enabled          = true
-      maintenance_operator_image_digest     = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-      maintenance_operator_image_source_sha = "cccccccccccccccccccccccccccccccccccccccc"
       history_coverage_json                 = jsonencode([{ start = "2026-10-01T00:00:00Z", end = "2026-10-02T00:00:00Z" }])
     }
   }
@@ -109,9 +103,6 @@ run "public_invoker_requires_explicit_stage" {
       oauth_client_id_version               = "1"
       oauth_client_secret_version           = "2"
       youtube_api_key_version               = "3"
-      maintenance_operator_enabled          = true
-      maintenance_operator_image_digest     = "asia-northeast2-docker.pkg.dev/youtube-study-space/mypage/mypage-api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-      maintenance_operator_image_source_sha = "cccccccccccccccccccccccccccccccccccccccc"
     }
   }
   assert {

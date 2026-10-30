@@ -110,7 +110,6 @@ class FoundationTest(unittest.TestCase):
             self.assertEqual(before['previous_image_digest'], '')
             file.write_text('{"image_digest":"bogus","image_source_sha":"bogus"}')
             self.assertEqual(ops.runtime_settings(env), before)
-            self.assertEqual(before['maintenance_operator_image_digest'], value['maintenance_operator_image_digest'])
 
     def test_maintenance_operator_stage_writes_admitted_runtime_settings(self):
         value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
@@ -173,16 +172,13 @@ class FoundationTest(unittest.TestCase):
     def test_runtime_inputs_match_exact_source_digest_and_enabled_metadata_only(self):
         value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
         env = {'GITHUB_SHA': 'a' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}
-        value['maintenance_operator_image_source_sha'] = env['GITHUB_SHA']
         prefix = 'projects/' + c.PROJECT + '/locations/asia-southeast2/repositories/mypage/packages/mypage-api'
         tag = {'version': prefix + '/versions/sha256:' + value['image_digest'].split('@sha256:')[1]}
-        operator_tag = {'version': prefix + '/versions/sha256:' + value['maintenance_operator_image_digest'].split('@sha256:')[1]}
-        with patch.object(ops, 'request', side_effect=[tag, operator_tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
+        with patch.object(ops, 'request', side_effect=[tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
             ops.verify_runtime_inputs(env, value, 'runtime_private')
         urls = [call.args[0] for call in request.call_args_list]
         self.assertEqual(urls[0], 'https://artifactregistry.googleapis.com/v1/' + prefix + '/tags/' + env['GITHUB_SHA'])
-        self.assertEqual(urls[1], 'https://artifactregistry.googleapis.com/v1/' + prefix + '/tags/' + env['GITHUB_SHA'])
-        self.assertEqual(urls[2:], [
+        self.assertEqual(urls[1:], [
             'https://secretmanager.googleapis.com/v1/projects/' + c.PROJECT + '/secrets/' + secret + '/versions/' + value[field]
             for secret, field in [('mypage-oauth-client-id', 'oauth_client_id_version'),
                                   ('mypage-oauth-client-secret', 'oauth_client_secret_version'),
@@ -190,7 +186,7 @@ class FoundationTest(unittest.TestCase):
         self.assertTrue(all(':access' not in url for url in urls))
         for responses, expected in (
             ([{'version': 'private-rejected-image-marker'}], 'runtime-source-image-digest'),
-            ([tag, operator_tag, {'state': 'private-rejected-state-marker'}], 'runtime-secret-version-enabled'),
+            ([tag, {'state': 'private-rejected-state-marker'}], 'runtime-secret-version-enabled'),
         ):
             output = io.StringIO()
             with patch.object(sys, 'argv', ['foundation_ops.py', 'execute']), \
@@ -205,12 +201,10 @@ class FoundationTest(unittest.TestCase):
         value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
         value['image_source_sha'] = 'b' * 40
         env = {'GITHUB_SHA': 'a' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}
-        value['maintenance_operator_image_source_sha'] = env['GITHUB_SHA']
         prefix = 'projects/' + c.PROJECT + '/locations/asia-southeast2/repositories/mypage/packages/mypage-api'
         tag = {'version': prefix + '/versions/sha256:' + value['image_digest'].split('@sha256:')[1]}
-        operator_tag = {'version': prefix + '/versions/sha256:' + value['maintenance_operator_image_digest'].split('@sha256:')[1]}
         with patch.object(ops, 'run', side_effect=['', '']) as run, \
-                patch.object(ops, 'request', side_effect=[tag, operator_tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
+                patch.object(ops, 'request', side_effect=[tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
             ops.verify_runtime_inputs(env, value, 'runtime_private')
         self.assertEqual(run.call_args_list[0].args[0], ['git', 'fetch', '--no-tags', '--depth=1', 'origin', 'b' * 40])
         self.assertTrue(request.call_args_list[0].args[0].endswith('/tags/' + 'b' * 40))
@@ -227,23 +221,13 @@ class FoundationTest(unittest.TestCase):
                     ops.verify_runtime_inputs(env, value | {'image_source_sha': source}, 'runtime_private')
                 run.assert_not_called()
 
-    def test_operator_image_source_must_be_ancestor_and_resolve_to_its_own_digest(self):
+    def test_maintenance_operator_uses_the_shared_bootstrap_image_contract(self):
         value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
-        env = {'GITHUB_SHA': 'a' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}
-        prefix = 'projects/' + c.PROJECT + '/locations/asia-southeast2/repositories/mypage/packages/mypage-api'
-        api_tag = {'version': prefix + '/versions/sha256:' + value['image_digest'].split('@sha256:')[1]}
-        operator_tag = {'version': prefix + '/versions/sha256:' + value['maintenance_operator_image_digest'].split('@sha256:')[1]}
-        with patch.object(ops, 'run', side_effect=['', '']) as run, patch.object(
-                ops, 'request', side_effect=[api_tag, operator_tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
-            ops.verify_runtime_inputs(env, value, 'runtime_private')
-        self.assertEqual(run.call_args_list[0].args[0], ['git', 'fetch', '--no-tags', '--depth=1', 'origin', 'c' * 40])
-        self.assertEqual(run.call_args_list[1].args[0], ['git', 'merge-base', '--is-ancestor', 'c' * 40, 'a' * 40])
-        self.assertTrue(request.call_args_list[1].args[0].endswith('/tags/' + 'c' * 40))
-        with patch.object(ops, 'run', side_effect=['', '']), patch.object(
-                ops, 'request', side_effect=[api_tag, {'version': 'private-wrong-digest'}]):
-            with self.assertRaisesRegex(c.ContractError, '^maintenance-operator-source-image-digest$'):
-                ops.verify_runtime_inputs(env, value, 'runtime_private')
-
+        operator = ops.runtime_contract.settings(value, 'maintenance_operator')
+        self.assertEqual(operator['image_digest'], value['image_digest'])
+        self.assertEqual(operator['image_source_sha'], '')
+        self.assertNotIn('maintenance_operator_image_digest', operator)
+        self.assertNotIn('maintenance_operator_image_source_sha', operator)
 
     def test_public_invoker_preflight_requires_the_exact_unconditional_owner_binding(self):
         env = {'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}

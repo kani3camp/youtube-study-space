@@ -47,9 +47,6 @@ variable "runtime_settings" {
     hosting_backend_host                  = optional(string, "")
     previous_image_digest                 = optional(string, "")
     read_metrics_enabled                  = optional(bool, false)
-    maintenance_operator_enabled          = optional(bool, false)
-    maintenance_operator_image_digest     = optional(string, "")
-    maintenance_operator_image_source_sha = optional(string, "")
   })
 }
 
@@ -59,7 +56,7 @@ locals {
   runtime_email                  = "${google_service_account.runtime.account_id}@${var.project_id}.iam.gserviceaccount.com"
   runtime_principal              = "serviceAccount:${local.runtime_email}"
   max_instances                  = var.environment == "development" ? 1 : 3
-  maintenance_operator           = contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) && var.runtime_settings.maintenance_operator_enabled
+  maintenance_operator           = contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage)
   maintenance_ref                = var.environment == "production" ? "refs/heads/main" : "refs/heads/integration/mypage-canon-20261006"
   maintenance_project_number     = var.environment == "production" ? "906336399194" : "48101442817"
   maintenance_github_environment = "mypage-maintenance-${var.environment}"
@@ -493,7 +490,9 @@ resource "google_cloud_run_v2_job" "maintenance_operator" {
       timeout               = "60s"
       execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
       containers {
-        image   = var.runtime_settings.maintenance_operator_image_digest
+        # Bootstrap from the same reviewed application image. After creation,
+        # application CI/CD owns this image exactly like the API Service image.
+        image   = var.runtime_settings.image_digest
         command = ["/app/mypage-maintenance-operator"]
         resources {
           limits = {
@@ -516,7 +515,39 @@ resource "google_cloud_run_v2_job" "maintenance_operator" {
   depends_on = [google_project_iam_member.maintenance_firestore]
   lifecycle {
     prevent_destroy = true
+    # Application CI/CD keeps the fixed operator Job on the same immutable
+    # digest as the API image. Terraform retains every non-image field.
+    ignore_changes = [template[0].template[0].containers[0].image]
   }
+}
+
+resource "google_project_iam_custom_role" "maintenance_image_release" {
+  count           = local.maintenance_operator ? 1 : 0
+  project         = var.project_id
+  role_id         = "mypageMaintenanceImageRelease"
+  title           = "MyPage maintenance image release"
+  description     = "Allows the existing backend deployer to read and update only the maintenance Cloud Run Job."
+  deletion_policy = "PREVENT"
+  permissions     = ["run.jobs.get", "run.jobs.update"]
+  stage           = "GA"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_cloud_run_v2_job_iam_member" "maintenance_image_release" {
+  count    = local.maintenance_operator ? 1 : 0
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_job.maintenance_operator[0].name
+  role     = "projects/${var.project_id}/roles/mypageMaintenanceImageRelease"
+  member   = "serviceAccount:${local.backend_deployer_email}"
+
+  depends_on = [
+    google_project_iam_custom_role.maintenance_image_release,
+    google_cloud_run_v2_job.maintenance_operator,
+  ]
 }
 
 resource "google_cloud_run_v2_job_iam_member" "maintenance_invoker" {

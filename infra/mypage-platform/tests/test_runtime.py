@@ -90,6 +90,9 @@ class RuntimeTest(unittest.TestCase):
             (r.MAINTENANCE_JOB_INVOKER,
              lambda item: item["change"].update(after_unknown={"condition": True}),
              "maintenance-iam-unknown"),
+            (r.MAINTENANCE_IMAGE_BINDING,
+             lambda item: item["change"]["after"].update(member="serviceAccount:other@" + c.PROJECT + ".iam.gserviceaccount.com"),
+             "runtime-resource-value-" + r.MAINTENANCE_IMAGE_BINDING + "-member"),
         )
         for address, mutate, check in mutations:
             rejected = fixture("maintenance_upgrade")
@@ -120,6 +123,24 @@ class RuntimeTest(unittest.TestCase):
             with self.subTest(address=address, revision="pinned"), self.assertRaises(c.ContractError) as error:
                 r.validate_plan(rejected, stage)
             self.assertEqual(str(error.exception), check)
+
+    def test_maintenance_job_image_is_ci_owned_after_bootstrap(self):
+        plan = fixture("runtime_public")
+        item = next(item for item in plan["resource_changes"] if item["address"] == r.MAINTENANCE_JOB)
+        item["change"]["actions"] = ["no-op"]
+        item["change"]["after"]["template"][0]["template"][0]["containers"][0]["image"] = (
+            r.REPOSITORY + "@sha256:" + "d" * 64
+        )
+        self.assertEqual(r.validate_plan(plan, "runtime_public"),
+                         {"resources": len(plan["resource_changes"]), "creates": 11})
+
+        created = fixture("maintenance_upgrade")
+        job = next(item for item in created["resource_changes"] if item["address"] == r.MAINTENANCE_JOB)
+        job["change"]["after"]["template"][0]["template"][0]["containers"][0]["image"] = (
+            r.REPOSITORY + "@sha256:" + "d" * 64
+        )
+        with self.assertRaisesRegex(c.ContractError, "^maintenance-job-bootstrap-image$"):
+            r.validate_plan(created, "maintenance_upgrade")
 
     def test_private_and_public_have_exact_resources_and_pinned_secrets(self):
         for stage in ("runtime_private", "runtime_public"):

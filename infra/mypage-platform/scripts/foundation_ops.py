@@ -222,23 +222,15 @@ def verify_runtime_inputs(env, value, stage):
     # application release. Validate its provenance without requiring the current
     # HEAD's source tree to equal an older, already released image.
     prefix = "projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/repositories/mypage/packages/mypage-api"
-    if stage != "maintenance_operator":
-        source = value.get("image_source_sha") or env["GITHUB_SHA"]
-        if source != env["GITHUB_SHA"]:
-            contract.need(re.fullmatch(r"[a-f0-9]{40}", source), "runtime-image-source-sha")
-            run(["git", "fetch", "--no-tags", "--depth=1", "origin", source], cwd=REPO, check="runtime-image-source-fetch")
-            run(["git", "merge-base", "--is-ancestor", source, env["GITHUB_SHA"]],
-                cwd=REPO, check="runtime-image-source-ancestor")
-        tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source, env["MYPAGE_GCP_ACCESS_TOKEN"])
-        expected = prefix + "/versions/sha256:" + value["image_digest"].split("@sha256:")[1]
-        contract.need(tag.get("version") == expected, "runtime-source-image-digest")
-    operator_source = value["maintenance_operator_image_source_sha"]
-    if operator_source != env["GITHUB_SHA"]:
-        run(["git", "fetch", "--no-tags", "--depth=1", "origin", operator_source], cwd=REPO, check="maintenance-operator-source-fetch")
-        run(["git", "merge-base", "--is-ancestor", operator_source, env["GITHUB_SHA"]], cwd=REPO, check="maintenance-operator-source-ancestor")
-    operator_tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + operator_source, env["MYPAGE_GCP_ACCESS_TOKEN"])
-    operator_expected = prefix + "/versions/sha256:" + value["maintenance_operator_image_digest"].split("@sha256:")[1]
-    contract.need(operator_tag.get("version") == operator_expected, "maintenance-operator-source-image-digest")
+    source = value.get("image_source_sha") or env["GITHUB_SHA"]
+    if source != env["GITHUB_SHA"]:
+        contract.need(re.fullmatch(r"[a-f0-9]{40}", source), "runtime-image-source-sha")
+        run(["git", "fetch", "--no-tags", "--depth=1", "origin", source], cwd=REPO, check="runtime-image-source-fetch")
+        run(["git", "merge-base", "--is-ancestor", source, env["GITHUB_SHA"]],
+            cwd=REPO, check="runtime-image-source-ancestor")
+    tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source, env["MYPAGE_GCP_ACCESS_TOKEN"])
+    expected = prefix + "/versions/sha256:" + value["image_digest"].split("@sha256:")[1]
+    contract.need(tag.get("version") == expected, "runtime-source-image-digest")
     if stage != "maintenance_operator":
         for name, field in (("mypage-oauth-client-id", "oauth_client_id_version"),
                             ("mypage-oauth-client-secret", "oauth_client_secret_version"),
