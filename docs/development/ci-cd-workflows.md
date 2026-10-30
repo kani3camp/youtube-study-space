@@ -76,12 +76,13 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 | `mypage-foundation-authenticated.yml` の `foundation-*` / `foundation-metadata-*` / `registry-*` / `maintenance-*` / `runtime-*` mode | callerは `desired-plan` / `desired-apply` / `image-build` のみ | 同上（初回bootstrapの内部契約として維持）。`terraform.yml` は `desired-plan` / `desired-apply` だけを呼ぶ |
 | `ci.yml` の push自動CD（`mypage-auto-cd`）と `backend_cd.py` | 本設計では application deploy を自動化しない | **撤去済み（#3）**。Backend WIF condition から `push` を削除する（owner） |
 | Backend releaseの Service/Job 同一digest同期（record schema 3 の `maintenanceJob*`） | API と Operator を独立deploy unitにする | **撤去済み（#2）**。record は schema 4（API のみ） |
-| `mypage-maintenance.yml` の未pin `actions/checkout@v7` | 他workflowはSHA pin | 該当workflowに触れるPRでpinする |
+| `mypage-maintenance.yml` の未pin `actions/checkout@v7` | 他workflowはSHA pin | **pin済み（#6）** |
 
 ### 2.4 既知のギャップ
 
 - **Production Terraform Apply の承認が未設定**: `terraform-prod-apply` に required reviewers がない（branch policy `main` のみ）。UC3の完了条件を満たすには、ownerがGitHub Environmentへ reviewer を設定する。
 - **PR Plan用のtrustがない**: 手動 Plan の identity は既に Apply と分離されている（Core: `terraform-<target>-normal-plan` SA と `-plan` AWS role、MyPage: `mypage-foundation-plan` SA）。ただしどの trust も `workflow_dispatch`・owner actor・`ci.yml` 固定であり、`pull_request` からは認証できない。
+- **Maintenance WIF provider の `google.subject` が上限を超える（#6 のレビューで判明、既存の欠陥）**: provider（Terraform 管理）は `google.subject = assertion.sub` を mapping する。repository の custom `sub` は7 claim を含み DEV で約449バイト、PROD で約361バイトになり、Google STS の上限127バイトを超えるため、Environment に provider を設定しても token 交換は拒否される（公式仕様と設定からの判断。実 run では未観測）。他の identity と同様に `assertion.repository_id + ':' + assertion.environment + ':' + assertion.actor_id` などの短い値へ変え、MyPage runtime 契約に provider の mapping だけを更新する限定的な遷移を加える必要がある。4.2 の 6（`job_workflow_ref` の追加）と同じ PR で行う。
 - **Maintenance mode の認証が一度も成功していない**: 唯一の run（2026-10-29、run 40879914039）は、Environment `mypage-maintenance-development` に `MYPAGE_MAINTENANCE_WIF_PROVIDER` が設定されておらず、認証の前段で停止した。`mypage-maintenance-production` Environment も未作成である。また、この workflow は reusable workflow を使わずに直接認証しており、`job_workflow_ref` を含む `sub` テンプレートの下で認証できるかは未検証である。
 - **PR時のnative planがない**: 棚卸し時点では native plan は owner の手動dispatchのみで、PRでは credentialless validate / mock test だけが走る（#5 で PR Plan を追加。identity の作成は owner 作業）。
 - `gcp-user-activity-schema-audit` は Environment branch policy が `dev` のみで、integration branch からは到達しない（かつ無効化フラグがfalse）。
@@ -182,12 +183,13 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 | 3 | API / Frontend の Deploy workflow | `deploy-mypage-api.yml`（build-and-deploy / deploy-existing）、`deploy-mypage-frontend.yml`。router から `mypage-image-build` / `mypage-backend-release` / `mypage-hosting-release` と push 自動CD を撤去 | Backend / Hosting / foundation image-build の WIF condition を新 `workflow_ref` へ更新し、Backend から `push` を削除 |
 | 4 | `terraform.yml`（手動 plan / apply、component 入力） | `gcp-plan` / `gcp-apply`、`gcp-infrastructure-authenticated.yml` / `mypage-infrastructure-authenticated.yml` を撤去。到達不能 mode は維持し、呼ばないことをテストで固定 | 4.3 を参照。`terraform-prod-apply` に required reviewers |
 | 5 | PR Plan | `terraform.yml` の `pull_request` Plan（`terraform-pr-plan.yml`）、`terraform_normal_ops` / `foundation_ops` の `pr-plan` role、PR Plan identity の bootstrap・policy 生成 | Core: `bootstrap_pr_plan.py --target dev|prod --apply` と AWS role（`--aws-policies`）、Environment の managed 入力（別の `plan_integrity_key`）。MyPage: `mypage-foundation-pr-plan` SA、`github-pr-plan` provider（`pr-plan-provider-condition`）、AWS role（`pr-plan-aws-policies`）、Environment `mypage-dev-pr-plan` |
-| 6 | Maintenance mode の reusable 化 | 認証 job を reusable workflow へ移し、`actions/checkout` を SHA pin | Maintenance WIF condition（Terraform 管理）への `job_workflow_ref` 追加の Apply、`MYPAGE_MAINTENANCE_WIF_PROVIDER` 設定 |
+| 6 | Maintenance mode の reusable 化 | 認証 job を `mypage-maintenance-authenticated.yml` へ移し、`actions/checkout` を SHA pin、認証前の actor / ref / caller 検査を追加 | Environment `mypage-maintenance-development` へ `MYPAGE_MAINTENANCE_WIF_PROVIDER` を設定（production は Environment 作成から）。WIF condition と principalSet は `workflow_ref`（最上位 = `mypage-maintenance.yml`）を検査しており、reusable 化しても値は変わらない。ただし既存 provider は別の欠陥で認証できない（2.4 の `google.subject`）ため、その修正が先に必要 |
 | 7 | `ci.yml` を純粋なCIへ縮小 | `ci-operations.yml` 削除、schema audit の扱いを確定、concurrency group の改名、docs・契約テストの最終整合 | 旧 claim を全 trust から削除 |
 | 8 | 作業用統合ブランチ → `integration/mypage-canon-20261006` | — | 4.2 の順で実施 |
 
 - 各PRは、追加した最上位 workflow を `ci-repository.yml` の workflow 契約テスト（[`test_ci_workflows.py`](../../.github/scripts/test_ci_workflows.py)、[`test_ci_deploy_workflows.py`](../../.github/scripts/test_ci_deploy_workflows.py) ほか）と actionlint の対象に登録する。
-- 資格情報を取得する job が reusable workflow の外にないことを `test_ci_deploy_workflows.py` が検査する。既知の例外（`mypage-maintenance.yml`）は #6 で空にする。
+- 資格情報を取得する job が reusable workflow の外にないことを `test_ci_deploy_workflows.py` が検査する。#6 で例外は空になった。
+- reusable workflow を呼ぶ job の条件には `always()` を使わない（run のキャンセル後も真になるため）。`!cancelled()` で skip を許容する。これも同じテストで検査する。
 - PR 説明では「旧経路が有効か」「新経路がまだ無効か」を必ず書く。
 
 ### 4.2 最終PR取り込み後の順序（owner）
@@ -199,6 +201,7 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
    - Terraform 契約・Operator 配備スクリプトから旧 `mypage-api` package の許容を外す。
    - 旧 `mypage-backend-deploy` の Job binding と maintenance runtime SA actAs を削除する（削除専用の契約遷移）。
 5. 旧 claim（`ci.yml` を caller とするもの、Backend の `push`）を全 trust から削除する。
+6. Maintenance WIF provider（Terraform 管理）を、provider の更新だけを許す専用の契約遷移で修正する（MyPage runtime 契約は create / no-op しか許可しないため別PR）。`google.subject` を127バイト以内の値へ変える（必須。2.4 参照）ことと、condition へ `job_workflow_ref == mypage-maintenance-authenticated.yml@<ref>` を加える hardening を同時に行う。これが済むまで Set Maintenance Mode は認証できない。
 
 ### 4.3 Terraform の trust 更新（#4、owner）
 
@@ -224,4 +227,4 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 | UC4 Frontend | 実装済み（未有効化）。旧 router 経路は撤去済み | `deploy-mypage-frontend.yml` |
 | UC5 API | 実装済み（未有効化）。Service のみ。旧 router 経路と push 自動CDは撤去済み | `deploy-mypage-api.yml` |
 | UC6 Operator | 実装済み（未有効化） | `deploy-mypage-maintenance.yml` |
-| UC7 Maintenance mode | 現行 | `mypage-maintenance.yml`（development のみ Environment 作成済み） |
+| UC7 Maintenance mode | 実装済み（認証 job を reusable 化）。provider の `google.subject` 欠陥（2.4）と `MYPAGE_MAINTENANCE_WIF_PROVIDER` 未設定のため未成功 | `mypage-maintenance.yml` → `mypage-maintenance-authenticated.yml` |
