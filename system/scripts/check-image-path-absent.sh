@@ -7,9 +7,22 @@ image="${1:?Usage: check-image-path-absent.sh IMAGE PATH...}"
 shift
 test "$#" -gt 0
 
+container=''
+listing=''
+cleanup() {
+	status=$?
+	if [[ -n "$container" ]]; then
+		docker rm -f "$container" >/dev/null 2>&1 || true
+	fi
+	if [[ -n "$listing" ]]; then
+		rm -f "$listing"
+	fi
+	exit "$status"
+}
+trap cleanup EXIT
+
 listing="$(mktemp)"
 container="$(docker create --network=none "$image")"
-trap 'docker rm -f "$container" >/dev/null; rm -f "$listing"' EXIT
 docker export "$container" | tar -t >"$listing"
 # 一覧を取得できたことを、必ず存在するpathで確認する（空の一覧で素通りしない）。
 grep -Fxq -e app/ -e ./app/ -e app "$listing"

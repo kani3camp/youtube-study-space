@@ -26,6 +26,8 @@ jobs:
         run: docker build --platform linux/amd64 --file system/Dockerfile.mypage-api --tag mypage-api:ci system
       - name: Execute the image offline as nonroot
         run: bash system/scripts/check-mypage-image.sh mypage-api:ci
+      - name: Prove the absence check rejects a non-executable bundled binary
+        run: bash system/scripts/test-check-image-path-absent.sh mypage-api:ci app/mypage-maintenance-operator
       - name: Reject High and Critical image vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -49,6 +51,8 @@ jobs:
         run: docker build --platform linux/amd64 --file system/Dockerfile.mypage-maintenance-operator --tag mypage-maintenance-operator:ci system
       - name: Execute the image offline as nonroot
         run: bash system/scripts/check-mypage-operator-image.sh mypage-maintenance-operator:ci
+      - name: Prove the absence check rejects a non-executable bundled binary
+        run: bash system/scripts/test-check-image-path-absent.sh mypage-maintenance-operator:ci app/mypage-server
       - name: Reject High and Critical image vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
