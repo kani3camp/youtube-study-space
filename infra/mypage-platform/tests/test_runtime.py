@@ -94,6 +94,12 @@ class RuntimeTest(unittest.TestCase):
             (r.MAINTENANCE_IMAGE_BINDING,
              lambda item: item["change"]["after"].update(member="serviceAccount:other@" + c.PROJECT + ".iam.gserviceaccount.com"),
              "runtime-resource-value-" + r.MAINTENANCE_IMAGE_BINDING + "-member"),
+            (r.OPERATOR_IMAGE_BINDING,
+             lambda item: item["change"]["after"].update(member="serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"),
+             "runtime-resource-value-" + r.OPERATOR_IMAGE_BINDING + "-member"),
+            (r.OPERATOR_IMAGE_ACT_AS,
+             lambda item: item["change"]["after"].update(role="roles/iam.serviceAccountTokenCreator"),
+             "runtime-resource-value-" + r.OPERATOR_IMAGE_ACT_AS + "-role"),
         )
         for address, mutate, check in mutations:
             rejected = fixture("maintenance_upgrade")
@@ -134,6 +140,16 @@ class RuntimeTest(unittest.TestCase):
         )
         self.assertEqual(r.validate_plan(plan, "runtime_public"),
                          {"resources": len(plan["resource_changes"]), "creates": 11})
+        # The dedicated operator package is accepted beside the legacy API package
+        # until the first operator release has been verified.
+        container = item["change"]["after"]["template"][0]["template"][0]["containers"][0]
+        container["image"] = r.OPERATOR_REPOSITORY + "@sha256:" + "d" * 64
+        r.validate_plan(plan, "runtime_public")
+        for foreign in (r.IMAGE_REGISTRY + "other@sha256:" + "d" * 64,
+                        r.OPERATOR_REPOSITORY + ":latest"):
+            container["image"] = foreign
+            with self.subTest(image=foreign), self.assertRaisesRegex(c.ContractError, "^maintenance-job-image$"):
+                r.validate_plan(plan, "runtime_public")
 
         created = fixture("maintenance_upgrade")
         bootstrap = r.REPOSITORY + "@sha256:" + "d" * 64
@@ -158,6 +174,8 @@ class RuntimeTest(unittest.TestCase):
         self.assertNotIn(r.MAINTENANCE_IMAGE_ROLE, resources)
         self.assertNotIn(r.MAINTENANCE_IMAGE_BINDING, resources)
         self.assertNotIn(r.MAINTENANCE_IMAGE_ACT_AS, resources)
+        self.assertNotIn(r.OPERATOR_IMAGE_BINDING, resources)
+        self.assertNotIn(r.OPERATOR_IMAGE_ACT_AS, resources)
         self.assertIn(r.MAINTENANCE_JOB, resources)
 
     def test_private_and_public_have_exact_resources_and_pinned_secrets(self):
@@ -294,6 +312,7 @@ class RuntimeTest(unittest.TestCase):
                "GITHUB_TRIGGERING_ACTOR": "kani3camp", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_REF": c.REF,
                "GITHUB_WORKFLOW_REF": c.CALLER, "TF_WORKSPACE": "default", "GITHUB_SHA": "a" * 40,
                "MYPAGE_EXPECTED_SHA": "a" * 40, "MYPAGE_MODE": "image-build", "MYPAGE_ROLE": "apply",
+               "MYPAGE_IMAGE_COMPONENT": "api",
                "MYPAGE_GCP_SERVICE_ACCOUNT": "mypage-foundation-apply@" + c.PROJECT + ".iam.gserviceaccount.com",
                "MYPAGE_GCP_WIF_PROVIDER": "projects/123456789/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions"}
         image_ops.preflight(env)

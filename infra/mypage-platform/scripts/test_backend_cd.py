@@ -40,7 +40,7 @@ class CDTest(unittest.TestCase):
                 cd.push_context(env() | {key: value})
 
     def test_only_system_sources_trigger_build(self):
-        self.assertTrue(cd.classify_paths(["system/Dockerfile.mypage"]))
+        self.assertTrue(cd.classify_paths(["system/Dockerfile.mypage-maintenance-operator"]))
         self.assertTrue(cd.classify_paths(["system/go.mod", "docs/README.md"]))
         self.assertFalse(cd.classify_paths(["docs/README.md"]))
         self.assertFalse(cd.classify_paths(["infra/mypage-platform/environments/dev/runtime-release.json"]))

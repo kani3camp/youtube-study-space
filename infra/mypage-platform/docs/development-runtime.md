@@ -36,14 +36,16 @@ repoの固定Terraformを用いたcredential不要のnative `terraform_data` fix
 
 no-op試験で変わった出力metadataは、別の新しい通常no-op PlanでのみStateへ反映する。許可差分はetag/update_time/last_modifierの3出力だけ（既存の観測済みnull正規化を除く）。UID・generation・Ready/revision/traffic・全設定は不変、etag非空かつ変更、update_time前進を要求する。これはmetrics更新の古いetagを受け直して続行する経路ではない。別のFromRevision付き更新Planでは引き続き未反映driftを拒否する。
 
-`system/Dockerfile.mypage`は既存のdigest固定Go / distrolessイメージを使用し、Cloud Run用のlinux/amd64バイナリをビルドする。CGOなし、timezone dataをバイナリへ含め、nonrootで起動する。Secretやローカル環境ファイルをイメージへ渡さない。
+`system/Dockerfile.mypage-api`（API server）と`system/Dockerfile.mypage-maintenance-operator`（maintenance Job）は、既存のdigest固定Go / distrolessイメージを使用し、Cloud Run用のlinux/amd64バイナリを1つずつビルドする。CGOなし、timezone dataをバイナリへ含め、nonrootで起動する。Secretやローカル環境ファイルをイメージへ渡さない。
 
 ```sh
-docker build --platform linux/amd64 --file system/Dockerfile.mypage --tag mypage-api:ci system
+docker build --platform linux/amd64 --file system/Dockerfile.mypage-api --tag mypage-api:ci system
 bash system/scripts/check-mypage-image.sh mypage-api:ci
+docker build --platform linux/amd64 --file system/Dockerfile.mypage-maintenance-operator --tag mypage-maintenance-operator:ci system
+bash system/scripts/check-mypage-operator-image.sh mypage-maintenance-operator:ci
 ```
 
-通常のSystem CIで実イメージをビルドし、ネットワーク無効・read-only filesystemで`--check-config`を実行する。設定なしの拒否、合成設定の受理、nonrootを確認する。この検証はADC、Secret値、実Google OAuth、Cloud Run起動や公開Readyを証明しない。CIはimage push / deploy / cloud認証を行わない。
+通常のSystem CIで両方の実イメージをビルドし、ネットワーク無効・read-only filesystemで実行する。API imageは`--check-config`で設定なしの拒否、合成設定の受理、nonroot、operator binaryを含まないことを確認する。operator imageはnonroot、引数なしの拒否、API serverを含まないことを確認する。この検証はADC、Secret値、実Google OAuth、Cloud Run起動や公開Readyを証明しない。CIはimage push / deploy / cloud認証を行わない。
 
 ## 実環境の現在地
 

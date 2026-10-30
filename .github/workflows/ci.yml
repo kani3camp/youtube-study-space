@@ -133,7 +133,7 @@ jobs:
   operations:
     name: Authenticated Operations
     needs: [repository, frontend, system, tools, infra, gcp-terraform-validate]
-    if: ${{ always() && ((github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') || (github.event_name == 'push' && github.ref == 'refs/heads/integration/mypage-canon-20261006')) }}
+    if: ${{ !cancelled() && ((github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') || (github.event_name == 'push' && github.ref == 'refs/heads/integration/mypage-canon-20261006')) }}
     permissions:
       contents: read
       id-token: write

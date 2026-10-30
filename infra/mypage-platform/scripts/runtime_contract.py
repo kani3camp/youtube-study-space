@@ -12,7 +12,13 @@ def commit_sha(value):
     return re.fullmatch(r"[a-f0-9]{40}", value) is not None
 
 ORIGIN = c.ORIGIN
-REPOSITORY = c.REGION + "-docker.pkg.dev/" + c.PROJECT + "/mypage/mypage-api"
+IMAGE_REGISTRY = c.REGION + "-docker.pkg.dev/" + c.PROJECT + "/mypage/"
+REPOSITORY = IMAGE_REGISTRY + "mypage-api"
+OPERATOR_REPOSITORY = IMAGE_REGISTRY + "mypage-maintenance-operator"
+# 移行中のJobは、旧API同梱imageと専用operator imageのどちらかを指す。
+# 初回Operator配備でJobが専用packageへ移ったことを確認してから旧packageを外す。
+OPERATOR_DEPLOYER = "mypage-operator-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"
+MAINTENANCE_JOB_IMAGE = "(?:" + re.escape(REPOSITORY) + "|" + re.escape(OPERATOR_REPOSITORY) + r")@sha256:[a-f0-9]{64}"
 SERVICE = "module.platform[0].google_cloud_run_v2_service.api[0]"
 FIRESTORE = "module.platform[0].google_project_iam_member.firestore_user[0]"
 INVOKER = "module.platform[0].google_cloud_run_v2_service_iam_member.public_invoker[0]"
@@ -28,7 +34,10 @@ MAINTENANCE_JOB_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member
 MAINTENANCE_IMAGE_ROLE = "module.platform[0].google_project_iam_custom_role.maintenance_image_release[0]"
 MAINTENANCE_IMAGE_BINDING = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_image_release[0]"
 MAINTENANCE_IMAGE_ACT_AS = "module.platform[0].google_service_account_iam_member.maintenance_image_release_act_as[0]"
-MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, MAINTENANCE_IMAGE_BINDING, MAINTENANCE_IMAGE_ACT_AS}
+OPERATOR_IMAGE_BINDING = "module.platform[0].google_cloud_run_v2_job_iam_member.operator_image_release[0]"
+OPERATOR_IMAGE_ACT_AS = "module.platform[0].google_service_account_iam_member.operator_image_release_act_as[0]"
+MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, MAINTENANCE_IMAGE_BINDING, MAINTENANCE_IMAGE_ACT_AS,
+                                 OPERATOR_IMAGE_BINDING, OPERATOR_IMAGE_ACT_AS}
 MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-operator-apply": "maintenance_operator",
          "maintenance-upgrade-plan": "maintenance_upgrade", "maintenance-upgrade-apply": "maintenance_upgrade",
          "runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
@@ -132,6 +141,14 @@ def maintenance_resource_contract(value=None):
             MAINTENANCE_IMAGE_ACT_AS: {"service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + operator_email,
                                        "role": "roles/iam.serviceAccountUser",
                                        "member": "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"},
+            # 専用Operator deployer。旧Backend deployerの2 bindingは、初回Operator配備の確認後に
+            # 削除専用の遷移で外す（このcontractはcreate/no-opだけを許可するため）。
+            OPERATOR_IMAGE_BINDING: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator",
+                                     "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceImageRelease",
+                                     "member": "serviceAccount:" + OPERATOR_DEPLOYER},
+            OPERATOR_IMAGE_ACT_AS: {"service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + operator_email,
+                                    "role": "roles/iam.serviceAccountUser",
+                                    "member": "serviceAccount:" + OPERATOR_DEPLOYER},
         }
     if value is not None:
         resources[MAINTENANCE_PROVIDER] |= {
@@ -290,7 +307,7 @@ def validate_maintenance_resource(address, after, unknown, value, actions, boots
         container = one(task.get("containers"), "maintenance-job-container")
         expected_command = "/app/mypage-maintenance-operator"
         image = container.get("image")
-        c.need(type(image) is str and re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", image),
+        c.need(type(image) is str and re.fullmatch(MAINTENANCE_JOB_IMAGE, image),
                "maintenance-job-image")
         if actions == ["create"]:
             c.need(image == (bootstrap_image or value["image_digest"]), "maintenance-job-bootstrap-image")
@@ -308,9 +325,8 @@ def maintenance_job_image(job):
     task = one(template.get("template"), "maintenance-job-task")
     container = one(task.get("containers"), "maintenance-job-container")
     image = container.get("image")
-    c.need(type(image) is str and re.fullmatch(
-        re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", image),
-        "maintenance-job-image")
+    c.need(type(image) is str and re.fullmatch(MAINTENANCE_JOB_IMAGE, image),
+           "maintenance-job-image")
     return image
 
 

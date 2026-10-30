@@ -16,6 +16,7 @@ PREFIX = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/repositories/myp
 
 def preflight(env):
     c.context(env, "apply", image=True)
+    c.image_component(env)
     c.need(env.get("MYPAGE_ROLE") == "apply", "image-role")
     c.need(env.get("MYPAGE_GCP_SERVICE_ACCOUNT") == "mypage-foundation-apply@" + c.PROJECT + ".iam.gserviceaccount.com", "image-identity")
     c.need(re.fullmatch(r"projects/[0-9]+/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions",
@@ -38,7 +39,10 @@ def build_push(env):
     c.need(repository.get("name") == PREFIX and repository.get("format") == "DOCKER"
            and repository.get("mode") == "STANDARD_REPOSITORY"
            and repository.get("dockerConfig", {}).get("immutableTags") is True, "image-registry")
-    tag_url = "https://artifactregistry.googleapis.com/v1/" + PREFIX + "/packages/mypage-api/tags/" + env["GITHUB_SHA"]
+    component = c.image_component(env)
+    package = PREFIX + "/packages/" + component["package"]
+    repository_name = runtime.IMAGE_REGISTRY + component["package"]
+    tag_url = "https://artifactregistry.googleapis.com/v1/" + package + "/tags/" + env["GITHUB_SHA"]
     try:
         ops.request(tag_url, token)
     except ops.urllib.error.HTTPError as error:
@@ -46,11 +50,11 @@ def build_push(env):
     else:
         c.need(False, "image-tag-already-exists")
     PHASE = "build"
-    tag = runtime.REPOSITORY + ":" + env["GITHUB_SHA"]
-    run(["docker", "build", "--platform", "linux/amd64", "--file", "system/Dockerfile.mypage",
+    tag = repository_name + ":" + env["GITHUB_SHA"]
+    run(["docker", "build", "--platform", "linux/amd64", "--file", component["dockerfile"],
          "--label", "org.opencontainers.image.revision=" + env["GITHUB_SHA"], "--tag", tag, "system"])
     PHASE = "offline-check"
-    run(["bash", "system/scripts/check-mypage-image.sh", tag])
+    run(["bash", component["check"], tag])
     PHASE = "push"
     registry = c.REGION + "-docker.pkg.dev"
     run(["docker", "login", registry, "--username", "oauth2accesstoken", "--password-stdin"], input_value=token)
@@ -60,9 +64,9 @@ def build_push(env):
         run(["docker", "logout", registry])
     PHASE = "readback"
     metadata = ops.request(tag_url, token)
-    c.need(re.fullmatch(re.escape(PREFIX + "/packages/mypage-api/versions/sha256:") + r"[a-f0-9]{64}", metadata.get("version", "")), "image-digest-readback")
+    c.need(re.fullmatch(re.escape(package + "/versions/sha256:") + r"[a-f0-9]{64}", metadata.get("version", "")), "image-digest-readback")
     local_digests = json.loads(run(["docker", "image", "inspect", "--format", "{{json .RepoDigests}}", tag]))
-    expected_digest = runtime.REPOSITORY + "@" + metadata["version"].rsplit("/", 1)[-1]
+    expected_digest = repository_name + "@" + metadata["version"].rsplit("/", 1)[-1]
     c.need(type(local_digests) is list and expected_digest in local_digests, "image-local-remote-digest")
     output = env.get("GITHUB_OUTPUT")
     if output:

@@ -35,8 +35,25 @@ ENVIRONMENT = CONFIG["environment"]
 GITHUB_ENVIRONMENT = CONFIG["github_environment"]
 ORIGIN = CONFIG["origin"]
 REPOSITORY = "kani3camp/youtube-study-space"
-CALLER = REPOSITORY + "/.github/workflows/ci.yml@" + REF
-REUSABLE = REPOSITORY + "/.github/workflows/mypage-foundation-authenticated.yml@" + REF
+WORKFLOWS = REPOSITORY + "/.github/workflows/"
+
+
+def workflow_ref(name):
+    return WORKFLOWS + name + "@" + REF
+
+
+CALLER = workflow_ref("ci.yml")
+REUSABLE = workflow_ref("mypage-foundation-authenticated.yml")
+# 各imageは、それを配備するユースケースworkflowからだけbuildする。
+# packageを分けることで、API配備がJob用imageを取り違えない。
+IMAGE_COMPONENTS = {
+    "api": {"package": "mypage-api", "dockerfile": "system/Dockerfile.mypage-api",
+            "check": "system/scripts/check-mypage-image.sh", "caller": CALLER},
+    "maintenance-operator": {"package": "mypage-maintenance-operator",
+                             "dockerfile": "system/Dockerfile.mypage-maintenance-operator",
+                             "check": "system/scripts/check-mypage-operator-image.sh",
+                             "caller": workflow_ref("deploy-mypage-maintenance.yml")},
+}
 STATE_KEY = "youtube-study-space/mypage-platform/" + CONFIG["state"] + "/terraform.tfstate"
 WORKSPACE_PREFIX = "youtube-study-space/mypage-platform/" + CONFIG["state"] + "/workspaces"
 EMAIL = "mypage-api@" + PROJECT + ".iam.gserviceaccount.com"
@@ -58,10 +75,21 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
 
-def subject(kind, event_name="workflow_dispatch"):
+def image_component(env):
+    component = env.get("MYPAGE_IMAGE_COMPONENT")
+    need(component in IMAGE_COMPONENTS, "image-component")
+    return IMAGE_COMPONENTS[component]
+
+
+def caller(env, *, image=False):
+    return image_component(env)["caller"] if image else CALLER
+
+
+def subject(kind, event_name="workflow_dispatch", workflow=CALLER):
     need(kind in {"plan", "apply"} and event_name in {"workflow_dispatch", "push"})
     need(event_name != "push" or TARGET == "development", "push-production")
-    values = ("340900071", "54093651", GITHUB_ENVIRONMENT + "-" + kind, REF, CALLER, REUSABLE, event_name)
+    need(workflow in {CALLER} | {item["caller"] for item in IMAGE_COMPONENTS.values()}, "subject-workflow")
+    values = ("340900071", "54093651", GITHUB_ENVIRONMENT + "-" + kind, REF, workflow, REUSABLE, event_name)
     return ":".join(key + ":" + value.replace(":", "%3A") for key, value in zip(CLAIM_KEYS, values))
 
 
@@ -123,11 +151,12 @@ def context(env, kind, *, image=False):
                 "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_EVENT_NAME": "workflow_dispatch",
                 "GITHUB_ACTOR": "kani3camp", "GITHUB_ACTOR_ID": "54093651",
                 "GITHUB_TRIGGERING_ACTOR": "kani3camp", "GITHUB_RUN_ATTEMPT": "1",
-                "GITHUB_REF": REF, "GITHUB_WORKFLOW_REF": CALLER, "TF_WORKSPACE": "default"}
+                "GITHUB_REF": REF, "GITHUB_WORKFLOW_REF": caller(env, image=image), "TF_WORKSPACE": "default"}
     event_name = env.get("GITHUB_EVENT_NAME")
     if event_name == "push":
-        need(TARGET == "development" and env.get("MYPAGE_MODE") in
-             {"image-build"}, "push-scope")
+        # 自動CDはAPI imageだけに残る。Job用imageは手動Deployからだけbuildする。
+        need(TARGET == "development" and image and env.get("MYPAGE_MODE") == "image-build"
+             and env.get("MYPAGE_IMAGE_COMPONENT") == "api", "push-scope")
     else:
         need(event_name == "workflow_dispatch", "event-name")
     expected.pop("GITHUB_EVENT_NAME")

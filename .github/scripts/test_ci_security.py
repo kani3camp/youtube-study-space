@@ -23,16 +23,25 @@ class SecurityPolicyTest(unittest.TestCase):
                 self.blocking_step(load(ROOT / '.github/workflows' / workflow)['jobs'][job],
                                    lambda step: step.get('run', '').strip() == command)
 
-    def test_built_image_rejects_high_and_critical_findings_including_unfixed(self):
-        job = load(ROOT / '.github/workflows/ci-system.yml')['jobs']['mypage-container']
-        scan = self.blocking_step(job, lambda step: step.get('uses', '').startswith('aquasecurity/trivy-action@'))
-        options = scan['with']
-        self.assertEqual(options['image-ref'], 'mypage-api:ci')
-        self.assertEqual(options['scanners'], 'vuln')
-        self.assertEqual(set(options['vuln-type'].split(',')), {'os', 'library'})
-        self.assertEqual(set(options['severity'].split(',')), {'HIGH', 'CRITICAL'})
-        self.assertIs(options['ignore-unfixed'], False)
-        self.assertEqual(str(options['exit-code']), '1')
+    def test_each_deployable_image_rejects_high_and_critical_findings_including_unfixed(self):
+        jobs = load(ROOT / '.github/workflows/ci-system.yml')['jobs']
+        for name, image, dockerfile in (
+            ('mypage-container', 'mypage-api:ci', 'system/Dockerfile.mypage-api'),
+            ('mypage-operator-container', 'mypage-maintenance-operator:ci',
+             'system/Dockerfile.mypage-maintenance-operator'),
+        ):
+            with self.subTest(image=image):
+                job = jobs[name]
+                build = self.blocking_step(job, lambda step: step.get('run', '').startswith('docker build '))
+                self.assertIn('--file ' + dockerfile + ' --tag ' + image + ' ', build['run'])
+                scan = self.blocking_step(job, lambda step: step.get('uses', '').startswith('aquasecurity/trivy-action@'))
+                options = scan['with']
+                self.assertEqual(options['image-ref'], image)
+                self.assertEqual(options['scanners'], 'vuln')
+                self.assertEqual(set(options['vuln-type'].split(',')), {'os', 'library'})
+                self.assertEqual(set(options['severity'].split(',')), {'HIGH', 'CRITICAL'})
+                self.assertIs(options['ignore-unfixed'], False)
+                self.assertEqual(str(options['exit-code']), '1')
 
     def test_maintenance_uses_wif_after_checkout_without_saved_credentials(self):
         workflow = load(ROOT / '.github/workflows/mypage-maintenance.yml')
