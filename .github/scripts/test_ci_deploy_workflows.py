@@ -25,6 +25,15 @@ class DeployWorkflowTest(unittest.TestCase):
                 with self.subTest(workflow=path.name, job=name):
                     self.assertIn((path.name, name), DIRECT_AUTH_EXCEPTIONS)
 
+    def test_credentialed_calls_never_start_after_the_run_was_cancelled(self):
+        # always() stays true after a cancel; a job that calls a reusable workflow
+        # (and so may obtain credentials) must use !cancelled() to tolerate skips.
+        for path in sorted(WORKFLOWS.glob('*.yml')):
+            for name, job in load(path)['jobs'].items():
+                if 'uses' in job:
+                    with self.subTest(workflow=path.name, job=name):
+                        self.assertNotIn('always()', str(job.get('if', '')))
+
     def test_operator_deploy_is_manual_dev_only_and_builds_only_the_operator_image(self):
         workflow = load(WORKFLOWS / 'deploy-mypage-maintenance.yml')
         self.assertEqual(triggers(workflow), {'workflow_dispatch'})
