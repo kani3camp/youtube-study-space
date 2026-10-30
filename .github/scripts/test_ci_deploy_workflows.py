@@ -4,8 +4,8 @@ import unittest
 from test_ci_workflows import ROOT, load
 
 WORKFLOWS = ROOT / '.github/workflows'
-# 最上位workflowのjobで直接認証している既知の箇所。移行計画#7aでreusable化して空にする。
-DIRECT_AUTH_EXCEPTIONS = {('mypage-maintenance.yml', 'transition')}
+# 最上位workflowのjobで直接認証してよい例外はない（#6でmaintenanceもreusable化した）。
+DIRECT_AUTH_EXCEPTIONS = set()
 
 
 def triggers(workflow):

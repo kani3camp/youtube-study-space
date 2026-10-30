@@ -44,11 +44,18 @@ class SecurityPolicyTest(unittest.TestCase):
                 self.assertEqual(str(options['exit-code']), '1')
 
     def test_maintenance_uses_wif_after_checkout_without_saved_credentials(self):
-        workflow = load(ROOT / '.github/workflows/mypage-maintenance.yml')
-        self.assertEqual(set(workflow['on']), {'workflow_dispatch'})
+        caller = load(ROOT / '.github/workflows/mypage-maintenance.yml')
+        self.assertEqual(set(caller['on']), {'workflow_dispatch'})
+        self.assertEqual(caller['permissions'], {})
+        self.assertEqual(caller['jobs']['transition']['uses'],
+                         './.github/workflows/mypage-maintenance-authenticated.yml')
+        self.assertEqual(set(caller['jobs']['transition']['secrets']), {'MYPAGE_MAINTENANCE_WIF_PROVIDER'})
+        workflow = load(ROOT / '.github/workflows/mypage-maintenance-authenticated.yml')
+        self.assertEqual(set(workflow['on']), {'workflow_call'})
         self.assertNotEqual(workflow.get('permissions', {}).get('id-token'), 'write')
         job = workflow['jobs']['transition']
         self.assertEqual(job['permissions']['id-token'], 'write')
+        self.assertEqual(job['environment'], 'mypage-maintenance-${{ inputs.environment }}')
         auth = self.blocking_step(job, lambda step: step.get('uses', '').startswith('google-github-actions/auth@'))
         self.assertEqual(auth['with']['workload_identity_provider'],
                          '${{ secrets.MYPAGE_MAINTENANCE_WIF_PROVIDER }}')
@@ -56,7 +63,13 @@ class SecurityPolicyTest(unittest.TestCase):
                          'mypage-maintenance-invoker@${{ steps.target.outputs.project }}.iam.gserviceaccount.com')
         for step in job['steps']:
             self.assertNotIn('credentials_json', step.get('with', {}))
+            if 'uses' in step:
+                self.assertRegex(step['uses'], r'@[0-9a-f]{40}$')
         checkout = next(step for step in job['steps']
                         if step.get('uses', '').startswith('actions/checkout@'))
+        guard = job['steps'][0]
+        self.assertIn('GITHUB_ACTOR_ID', guard['run'])
+        self.assertIn('mypage-maintenance.yml@${ref}', guard['run'])
+        self.assertLess(job['steps'].index(guard), job['steps'].index(auth))
         self.assertLess(job['steps'].index(checkout), job['steps'].index(auth))
         self.assertIs(checkout['with']['persist-credentials'], False)
