@@ -20,10 +20,9 @@ import runtime_contract
 
 REPO = Path(__file__).resolve().parents[3]
 PHASE = "context"
-# DEV bootstrap anchor. This exact source was built successfully by Actions
-# run 40985997924 and contains /app/mypage-maintenance-operator. Every DEV
-# runtime Plan resolves its immutable tag without first reading the Job; after
-# creation Terraform ignores the Job image, so this private input is inert.
+# DEV one-time bootstrap anchor. This exact source was built successfully by
+# Actions run 40985997924 and contains /app/mypage-maintenance-operator.
+# It is resolved only while the fixed Job is absent.
 MAINTENANCE_BOOTSTRAP_SOURCE_SHA = "ace38d8237a186325629321641fe8dff58e83bdf"
 
 
@@ -65,7 +64,7 @@ def run(args, *, cwd=None, codes=(0,), check="native-command"):
             "artifactregistry.repositories.get", "iam.roles.get", "iam.serviceAccounts.get", "iam.serviceAccounts.getIamPolicy",
             "iam.workloadIdentityPoolProviders.get", "iam.workloadIdentityPools.get",
             "resourcemanager.projects.get", "resourcemanager.projects.getIamPolicy",
-            "run.jobs.get", "run.services.get", "run.services.getIamPolicy", "run.services.list",
+            "run.jobs.get", "run.jobs.getIamPolicy", "run.services.get", "run.services.getIamPolicy", "run.services.list",
             "secretmanager.secrets.get", "secretmanager.secrets.getIamPolicy",
             "serviceusage.services.get", "serviceusage.services.use",
         ):
@@ -234,9 +233,19 @@ def runtime_settings(env, stage=None):
 def maintenance_bootstrap_image(env, stage):
     if stage not in set(runtime_contract.MODES.values()):
         return ""
-    # Do not probe the Job before Terraform Plan. During first bootstrap the
-    # plan identity may not yet have run.jobs.get, and requiring it here creates
-    # a circular dependency with the IAM resources this Plan is about to add.
+    url = ("https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" +
+           contract.REGION + "/jobs/mypage-maintenance-operator")
+    try:
+        request(url, env["MYPAGE_GCP_ACCESS_TOKEN"])
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            pass
+        elif error.code == 403:
+            raise contract.ContractError("maintenance-bootstrap-job-read-permission") from None
+        else:
+            raise contract.ContractError("maintenance-bootstrap-job-read") from None
+    else:
+        return ""
     # Production needs a separately approved artifact and release identity.
     contract.need(contract.TARGET == "development", "production-maintenance-bootstrap-unapproved")
     source = MAINTENANCE_BOOTSTRAP_SOURCE_SHA

@@ -133,17 +133,18 @@ class FoundationTest(unittest.TestCase):
         self.assertEqual(ops.runtime_settings(env | {'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(legacy)}), clean)
         with self.assertRaisesRegex(c.ContractError, '^runtime-settings-fields$'):
             ops.runtime_settings(env | {'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(value | {'unreviewed': 'x'})})
-    def test_dev_runtime_plan_resolves_reviewed_bootstrap_without_job_read(self):
+    def test_missing_dev_maintenance_job_resolves_reviewed_bootstrap_tag_without_secret_digest(self):
         env = {'GITHUB_SHA': 'f' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token'}
         prefix = ('projects/' + c.PROJECT + '/locations/' + c.REGION +
                   '/repositories/mypage/packages/mypage-api')
         digest = 'd' * 64
-        calls = []
+        job_url = ('https://run.googleapis.com/v2/projects/' + c.PROJECT +
+                   '/locations/' + c.REGION + '/jobs/mypage-maintenance-operator')
 
         def cloud(url, _token):
-            calls.append(url)
+            if url == job_url:
+                raise ops.urllib.error.HTTPError(url, 404, 'not found', None, None)
             self.assertTrue(url.endswith('/tags/' + ops.MAINTENANCE_BOOTSTRAP_SOURCE_SHA))
-            self.assertNotIn('/jobs/', url)
             return {'version': prefix + '/versions/sha256:' + digest}
 
         dockerfile = ('go build -tags timetzdata -trimpath -ldflags="-s -w" '
@@ -153,17 +154,31 @@ class FoundationTest(unittest.TestCase):
              patch.object(ops, 'run', side_effect=['', dockerfile]) as run:
             self.assertEqual(ops.maintenance_bootstrap_image(env, 'runtime_public'),
                              ops.runtime_contract.REPOSITORY + '@sha256:' + digest)
-        self.assertEqual(len(calls), 1)
         self.assertIn('merge-base', run.call_args_list[0].args[0])
         self.assertEqual(run.call_args_list[1].args[0][:2], ['git', 'show'])
+
+        with patch.object(ops, 'request', return_value={'name': 'existing-job'}), \
+             patch.object(ops, 'run') as run:
+            self.assertEqual(ops.maintenance_bootstrap_image(env, 'runtime_public'), '')
+            run.assert_not_called()
+
+    def test_maintenance_bootstrap_job_read_permission_has_fixed_diagnostic(self):
+        env = {'GITHUB_SHA': 'f' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token'}
+        denied = ops.urllib.error.HTTPError('private-url', 403, 'denied', None, None)
+        with patch.object(ops, 'request', side_effect=denied), \
+             patch.object(ops, 'run') as run, \
+             self.assertRaisesRegex(c.ContractError, '^maintenance-bootstrap-job-read-permission\\Z'):
+            ops.maintenance_bootstrap_image(env, 'runtime_public')
+        run.assert_not_called()
 
     def test_dev_bootstrap_registry_read_failure_has_fixed_diagnostic(self):
         env = {'GITHUB_SHA': 'f' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token'}
         dockerfile = ('go build -tags timetzdata -trimpath -ldflags="-s -w" '
                       '-o /out/mypage-maintenance-operator ./cmd/mypage-maintenance-operator\n'
                       'COPY --from=build /out/mypage-maintenance-operator /app/mypage-maintenance-operator\n')
-        denied = ops.urllib.error.HTTPError('private-url', 403, 'denied', None, None)
-        with patch.object(ops, 'request', side_effect=denied), \
+        job_missing = ops.urllib.error.HTTPError('private-job-url', 404, 'not found', None, None)
+        registry_denied = ops.urllib.error.HTTPError('private-registry-url', 403, 'denied', None, None)
+        with patch.object(ops, 'request', side_effect=[job_missing, registry_denied]), \
              patch.object(ops, 'run', side_effect=['', dockerfile]), \
              self.assertRaisesRegex(c.ContractError, '^maintenance-bootstrap-image-read\\Z'):
             ops.maintenance_bootstrap_image(env, 'runtime_public')
