@@ -142,11 +142,12 @@ jobs:
       MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
       MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
 
-  # Both selected Plans must succeed before any Apply starts.
+  # Both selected Plans must succeed before any Apply starts. !cancelled() (not
+  # always()) so that cancelling the run after the Plans never starts an Apply.
   core-apply:
     name: Core Apply
     needs: [select, core-plan, mypage-plan]
-    if: ${{ always() && inputs.operation == 'apply' && (inputs.component == 'all' || inputs.component == 'core') && needs.core-plan.result == 'success' && (needs.mypage-plan.result == 'success' || needs.mypage-plan.result == 'skipped') }}
+    if: ${{ !cancelled() && inputs.operation == 'apply' && (inputs.component == 'all' || inputs.component == 'core') && needs.core-plan.result == 'success' && (needs.mypage-plan.result == 'success' || needs.mypage-plan.result == 'skipped') }}
     permissions:
       contents: read
       id-token: write
@@ -169,7 +170,7 @@ jobs:
   mypage-apply:
     name: MyPage Apply
     needs: [select, core-plan, mypage-plan, core-apply]
-    if: ${{ always() && inputs.operation == 'apply' && (inputs.component == 'all' || inputs.component == 'mypage') && needs.mypage-plan.result == 'success' && (needs.core-plan.result == 'success' || needs.core-plan.result == 'skipped') && (needs.core-apply.result == 'success' || (inputs.component == 'mypage' && needs.core-apply.result == 'skipped')) }}
+    if: ${{ !cancelled() && inputs.operation == 'apply' && (inputs.component == 'all' || inputs.component == 'mypage') && needs.mypage-plan.result == 'success' && (needs.core-plan.result == 'success' || needs.core-plan.result == 'skipped') && (needs.core-apply.result == 'success' || (inputs.component == 'mypage' && needs.core-apply.result == 'skipped')) }}
     permissions:
       contents: read
       id-token: write

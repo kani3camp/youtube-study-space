@@ -75,6 +75,8 @@ class TerraformWorkflowTest(unittest.TestCase):
         self.assertEqual(core['needs'], ['select', 'core-plan', 'mypage-plan'])
         self.assertEqual(mypage['needs'], ['select', 'core-plan', 'mypage-plan', 'core-apply'])
         for job in (core, mypage):
+            # Cancelling the run after the Plans must never start an Apply.
+            self.assertTrue(job['if'].startswith('${{ !cancelled() && '))
             self.assertIn("inputs.operation == 'apply'", job['if'])
             self.assertIn("needs.core-plan.result == 'success'", job['if'])
             self.assertIn("needs.mypage-plan.result == 'success'", job['if'])
