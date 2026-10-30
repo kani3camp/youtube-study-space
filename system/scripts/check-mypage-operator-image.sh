@@ -15,14 +15,6 @@ for arguments in --help ''; do
 	test "$status" = 1
 done
 
-# operator imageはAPI serverを含めない。
-server_status=0
-docker run --rm --network=none --read-only --entrypoint /app/mypage-server "$image" --check-config >/dev/null 2>&1 || server_status=$?
-case "$server_status" in
-126 | 127) ;;
-*)
-	echo 'MyPage maintenance operator image unexpectedly contains the API server.' >&2
-	exit 1
-	;;
-esac
+# operator imageはAPI serverを含めない（実行の可否ではなくpathの不存在で確認する）。
+bash "$(dirname "$0")/check-image-path-absent.sh" "$image" app/mypage-server
 echo 'MyPage maintenance operator image: nonroot, operator-only, rejects missing arguments offline.'

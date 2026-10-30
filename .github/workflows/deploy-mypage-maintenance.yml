@@ -60,9 +60,19 @@ jobs:
               ;;
           esac
 
+  validate:
+    name: Credentialless System Validation
+    needs: select
+    # The integration ruleset requires CI Gate on each PR but not on the exact
+    # merged tree; re-run the deployed domain's checks for this commit.
+    uses: ./.github/workflows/ci-system.yml
+    with:
+      system: true
+      firestore_integration: true
+
   build:
     name: Build Operator Image
-    needs: select
+    needs: [select, validate]
     if: ${{ inputs.mode == 'build-and-deploy' }}
     permissions:
       contents: read
@@ -79,9 +89,9 @@ jobs:
 
   deploy:
     name: Deploy Operator Job Image
-    needs: [select, build]
+    needs: [select, validate, build]
     # Run after a successful build, or without a build for an explicit rollback.
-    if: ${{ always() && needs.select.result == 'success' && (needs.build.result == 'success' || (inputs.mode == 'deploy-existing' && needs.build.result == 'skipped')) }}
+    if: ${{ always() && needs.select.result == 'success' && needs.validate.result == 'success' && (needs.build.result == 'success' || (inputs.mode == 'deploy-existing' && needs.build.result == 'skipped')) }}
     permissions:
       contents: read
       id-token: write

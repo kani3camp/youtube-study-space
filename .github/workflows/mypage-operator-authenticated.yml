@@ -60,6 +60,8 @@ jobs:
       - name: Update only the Job image without executing it
         env:
           MYPAGE_OPERATOR_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          # Read-only branch HEAD check; the token has only contents: read.
+          GITHUB_TOKEN: ${{ github.token }}
         run: python3 infra/mypage-platform/scripts/operator_release.py deploy
       - name: Preserve recovery references on every outcome
         if: ${{ always() }}

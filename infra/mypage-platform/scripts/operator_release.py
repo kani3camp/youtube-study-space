@@ -239,6 +239,8 @@ def wait_job_update(token, operation, before, value):
 
 def deploy(env):
     context(env)
+    # The branch HEAD is re-read through the GitHub API before and after the write.
+    c.need(env.get('GITHUB_TOKEN'), 'operator-github-token')
     token = env['MYPAGE_OPERATOR_ACCESS_TOKEN']
     value = declaration(env, token)
     # Rollback may only select an immutable tag built from an ancestor commit.

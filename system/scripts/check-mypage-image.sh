@@ -6,16 +6,8 @@ image="${1:?Usage: check-mypage-image.sh API_IMAGE}"
 test "$(docker image inspect --format '{{.Config.User}}' "$image")" = 'nonroot:nonroot'
 
 # API imageはmaintenance operatorを含めない。Jobは専用imageを独立して配備する。
-# 起動ファイルがない場合、Dockerは126/127で終了する（Goバイナリの拒否は1）。
-operator_status=0
-docker run --rm --network=none --read-only --entrypoint /app/mypage-maintenance-operator "$image" --help >/dev/null 2>&1 || operator_status=$?
-case "$operator_status" in
-126 | 127) ;;
-*)
-	echo 'MyPage API image unexpectedly contains the maintenance operator.' >&2
-	exit 1
-	;;
-esac
+# 実行の可否ではなく、image filesystemにそのpathが無いことを確認する。
+bash "$(dirname "$0")/check-image-path-absent.sh" "$image" app/mypage-maintenance-operator
 
 # 設定不足は、認証情報探索や待ち受け開始より前に失敗する必要がある。
 if docker run --rm --network=none --read-only "$image" --check-config; then

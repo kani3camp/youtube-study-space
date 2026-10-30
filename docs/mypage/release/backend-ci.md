@@ -117,6 +117,7 @@ API releaseとは同じdigestへ同期しない。`core/mypage` のMaintenanceCo
 前方・後方互換を保つか、APIとOperatorの両方の配備が必要であることをPR説明に明記する。
 
 1. `integration/mypage-canon-20261006`を選び、`mode=build-and-deploy`で実行する。
+   同じrun内で、資格情報を取得する前にSystemのcredentialless検査（`ci-system.yml`）を通す。
    `system/Dockerfile.mypage-maintenance-operator`（operator binaryだけを含む）をビルドし、offline・nonroot検査後に
    `mypage/mypage-maintenance-operator:<source SHA>`のimmutable tagでpushし、Registry metadataとRepoDigestsを照合したdigestを次のjobへ渡す。
 2. [配備スクリプト](../../../infra/mypage-platform/scripts/operator_release.py)は、固定actor・統合ref・caller・初回実行・SHA一致を

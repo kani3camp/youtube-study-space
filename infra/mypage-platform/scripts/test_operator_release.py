@@ -17,7 +17,8 @@ def environment():
             'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_RUN_ATTEMPT': '1',
             'GITHUB_REF': o.c.REF, 'GITHUB_WORKFLOW_REF': o.CALLER,
             'GITHUB_SHA': 'a' * 40, 'GITHUB_RUN_ID': '123',
-            'MYPAGE_OPERATOR_EXPECTED_SHA': 'a' * 40, 'MYPAGE_OPERATOR_ACCESS_TOKEN': 'synthetic-token'}
+            'MYPAGE_OPERATOR_EXPECTED_SHA': 'a' * 40, 'MYPAGE_OPERATOR_ACCESS_TOKEN': 'synthetic-token',
+            'GITHUB_TOKEN': 'synthetic-github'}
 
 
 def release():
@@ -161,13 +162,21 @@ class OperatorReleaseTest(unittest.TestCase):
             self.assertEqual(o.wait_job_update('token', operation, job(), release()), job(after=True))
         self.assertEqual(request.call_count, 2)
 
-    def execute(self, *, moved=False, unchanged=False, superseded=False):
+    def execute(self, *, moved=False, unchanged=False, superseded=False, without=None):
         before_job = job(after=unchanged)
         after_job = deepcopy(before_job) if unchanged else job(after=True)
         job_calls, gets = [], 0
         with tempfile.TemporaryDirectory() as directory:
             env = environment() | {'RUNNER_TEMP': directory}
+            if without:
+                env.pop(without)
             path = Path(directory) / 'mypage-operator-release-record.json'
+
+            def github(url, *, token=None, github=False):
+                # The real branch HEAD check runs; only the HTTP transport is fake.
+                self.assertTrue(github and token == 'synthetic-github')
+                self.assertTrue(url.endswith('/git/ref/heads/' + o.c.REF.removeprefix('refs/heads/')))
+                return 200, {}, json.dumps({'object': {'sha': env['GITHUB_SHA']}}).encode()
 
             def jobrequest(token, body=None, *, url=o.JOB_URL, missing_ok=False):
                 nonlocal gets
@@ -191,10 +200,9 @@ class OperatorReleaseTest(unittest.TestCase):
                 return value
 
             with patch.object(o, 'declaration', return_value=release()), \
-                 patch.object(o.backend, 'verify_source'), patch.object(o, 'registry'), \
-                 patch.object(o.hosting, 'verify_head'), \
+                 patch.object(o, 'registry'), patch.object(o.hosting, 'http', side_effect=github), \
                  patch.object(o, 'job_request', side_effect=jobrequest), patch.object(o.time, 'sleep'):
-                if moved or superseded:
+                if moved or superseded or without:
                     with self.assertRaises(ValueError):
                         o.deploy(env)
                 else:
@@ -216,6 +224,11 @@ class OperatorReleaseTest(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertEqual(record['jobStatus'], 'unchanged')
         self.assertEqual(record['readback'], 'passed')
+
+    def test_missing_github_token_stops_before_any_job_write(self):
+        calls, record = self.execute(without='GITHUB_TOKEN')
+        self.assertEqual(calls, [])
+        self.assertIsNone(record)
 
     def test_competing_job_change_prevents_write_and_late_change_fails_readback(self):
         calls, record = self.execute(moved=True)

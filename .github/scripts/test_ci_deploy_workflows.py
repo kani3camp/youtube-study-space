@@ -41,8 +41,13 @@ class DeployWorkflowTest(unittest.TestCase):
                                          'image_component': 'maintenance-operator'})
         self.assertEqual(set(build['secrets']), {'MYPAGE_GCP_WIF_PROVIDER', 'MYPAGE_GCP_SERVICE_ACCOUNT'})
         self.assertEqual(deploy['uses'], './.github/workflows/mypage-operator-authenticated.yml')
-        self.assertEqual(deploy['needs'], ['select', 'build'])
+        self.assertEqual(deploy['needs'], ['select', 'validate', 'build'])
         self.assertIn("needs.select.result == 'success'", deploy['if'])
+        self.assertIn("needs.validate.result == 'success'", deploy['if'])
+        # The deployed domain is validated in the same run before any credentials.
+        self.assertEqual(jobs['validate']['uses'], './.github/workflows/ci-system.yml')
+        self.assertEqual(jobs['validate']['with'], {'system': True, 'firestore_integration': True})
+        self.assertEqual(build['needs'], ['select', 'validate'])
         self.assertNotIn('secrets', deploy)
         self.assertEqual(deploy['with']['expected_sha'], '${{ github.sha }}')
 
@@ -63,6 +68,18 @@ class DeployWorkflowTest(unittest.TestCase):
         self.assertIs(steps[checkout]['with']['persist-credentials'], False)
         self.assertEqual(steps[auth]['with']['service_account'],
                          'mypage-operator-deploy@test-youtube-study-space.iam.gserviceaccount.com')
+
+    def test_release_steps_receive_every_runtime_input_their_script_reads(self):
+        # The release scripts verify the branch HEAD through the GitHub API.
+        for name, script in (('mypage-backend-authenticated.yml', 'backend_release.py deploy'),
+                             ('mypage-operator-authenticated.yml', 'operator_release.py deploy'),
+                             ('mypage-hosting-authenticated.yml', 'hosting_release.py deploy')):
+            jobs = load(WORKFLOWS / name)['jobs']
+            steps = [step for job in jobs.values() for step in job.get('steps', [])
+                     if step.get('run', '').endswith(script)]
+            with self.subTest(workflow=name):
+                self.assertEqual(len(steps), 1)
+                self.assertEqual(steps[0]['env'].get('GITHUB_TOKEN'), '${{ github.token }}')
 
     def test_api_release_and_operator_release_use_distinct_identities(self):
         api = load(WORKFLOWS / 'mypage-backend-authenticated.yml')['jobs']['deploy']
