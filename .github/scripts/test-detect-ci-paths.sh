@@ -131,26 +131,21 @@ assert_exact_groups "system room_image_prompt menu_image_generator video_maker_s
 assert_exact_groups "system firestore_integration youtube_monitor" system/core/app.go youtube-monitor/src/app.ts
 
 all_groups="system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all"
-manual_output="$(env -u CI_AUTHENTICATED_TERRAFORM_DISPATCH GITHUB_EVENT_NAME=workflow_dispatch "$detector")"
-assert_output_groups "$all_groups" "$manual_output" "manual dispatch with absent Terraform marker"
-for marker in "" false FALSE 1 yes malformed; do
+# A manual CI run always selects every domain; the retired Terraform dispatch
+# marker can no longer narrow it.
+for marker in "" true false; do
 	manual_output="$(GITHUB_EVENT_NAME=workflow_dispatch CI_AUTHENTICATED_TERRAFORM_DISPATCH="$marker" "$detector")"
-	assert_output_groups "$all_groups" "$manual_output" "manual dispatch with non-true Terraform marker: $marker"
+	assert_output_groups "$all_groups" "$manual_output" "manual dispatch with marker: $marker"
 done
-
-authenticated_output="$(GITHUB_EVENT_NAME=workflow_dispatch CI_AUTHENTICATED_TERRAFORM_DISPATCH=true "$detector")"
-assert_output_groups gcp_terraform "$authenticated_output" "authenticated Terraform dispatch"
-
-# A marker cannot narrow other events, incomplete PRs, or explicit path tests.
 for event_name in pull_request push schedule unsupported; do
-	fallback_output="$(GITHUB_EVENT_NAME="$event_name" CI_AUTHENTICATED_TERRAFORM_DISPATCH=true BASE_SHA= HEAD_SHA= "$detector")"
-	assert_output_groups "$all_groups" "$fallback_output" "non-dispatch event: $event_name"
+	fallback_output="$(GITHUB_EVENT_NAME="$event_name" BASE_SHA= HEAD_SHA= "$detector")"
+	assert_output_groups "$all_groups" "$fallback_output" "non-dispatch event without SHAs: $event_name"
 done
-unchanged_pr_output="$(GITHUB_EVENT_NAME=pull_request CI_AUTHENTICATED_TERRAFORM_DISPATCH=true BASE_SHA=HEAD HEAD_SHA=HEAD "$detector")"
-assert_output_groups "" "$unchanged_pr_output" "unchanged PR with ignored Terraform marker"
-explicit_paths_output="$(GITHUB_EVENT_NAME=workflow_dispatch CI_AUTHENTICATED_TERRAFORM_DISPATCH=true "$detector" --paths system/core/app.go)"
+unchanged_pr_output="$(GITHUB_EVENT_NAME=pull_request BASE_SHA=HEAD HEAD_SHA=HEAD "$detector")"
+assert_output_groups "" "$unchanged_pr_output" "unchanged PR"
+explicit_paths_output="$(GITHUB_EVENT_NAME=workflow_dispatch "$detector" --paths system/core/app.go)"
 assert_output_groups "system firestore_integration" "$explicit_paths_output" "explicit paths override dispatch scope"
-ci_paths_output="$(GITHUB_EVENT_NAME=workflow_dispatch CI_AUTHENTICATED_TERRAFORM_DISPATCH=true "$detector" --paths .github/workflows/ci.yml)"
+ci_paths_output="$(GITHUB_EVENT_NAME=workflow_dispatch "$detector" --paths .github/workflows/ci.yml)"
 assert_output_groups "$all_groups" "$ci_paths_output" "CI source paths still select all groups"
 
 fallback_output="$(GITHUB_EVENT_NAME=pull_request "$detector")"

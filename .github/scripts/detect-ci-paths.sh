@@ -200,13 +200,8 @@ resolve_changed_paths() {
 
 	local event_name="${GITHUB_EVENT_NAME:-}"
 	if [[ "$event_name" == "workflow_dispatch" ]]; then
-		# Only the caller's exact typed input selects this operational scope.
-		# Authentication remains the reusable workflow's separate trust boundary.
-		if [[ "${CI_AUTHENTICATED_TERRAFORM_DISPATCH:-}" == "true" ]]; then
-			gcp_terraform=true
-		else
-			set_all_groups
-		fi
+		# A manual CI run re-validates every domain; it has no operational scope.
+		set_all_groups
 		return
 	fi
 

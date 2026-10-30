@@ -2,35 +2,17 @@ name: CI
 
 # UC1: credentialless validation only. Terraform, application deploys and
 # maintenance mode have their own workflows (docs/development/ci-cd-workflows.md).
-# The single remaining manual operation is the disabled, DEV-only user activity
-# schema audit, kept until the owner decides to retire or relocate it.
+# workflow_dispatch re-runs the full validation; it has no inputs and no credentials.
 on:
   pull_request:
   workflow_dispatch:
-    inputs:
-      operation:
-        description: validate re-runs CI; the schema audit is the only manual operation left
-        required: false
-        default: validate
-        type: choice
-        options:
-          - validate
-          - gcp-user-activity-schema-audit
-      environment:
-        description: Target environment (the schema audit is development-only)
-        required: false
-        default: development
-        type: choice
-        options:
-          - development
-          - production
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') }}
+  cancel-in-progress: true
 
 jobs:
   changes:
@@ -66,7 +48,6 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CI_AUTHENTICATED_TERRAFORM_DISPATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'gcp-user-activity-schema-audit' }}
         run: bash .github/scripts/detect-ci-paths.sh
 
   system:
@@ -116,27 +97,6 @@ jobs:
     if: ${{ needs.changes.outputs.gcp_terraform == 'true' || needs.changes.outputs.all == 'true' }}
     uses: ./.github/workflows/ci-gcp-terraform.yml
 
-  operations:
-    name: Authenticated Operations
-    needs: [repository, frontend, system, tools, infra, gcp-terraform-validate]
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') }}
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/ci-operations.yml
-    with:
-      operation: ${{ inputs.operation }}
-      environment: ${{ inputs.environment }}
-      repository_result: ${{ needs.repository.result }}
-      frontend_result: ${{ needs.frontend.result }}
-      system_result: ${{ needs.system.result }}
-      tools_result: ${{ needs.tools.result }}
-      infra_result: ${{ needs.infra.result }}
-      gcp_terraform_validate_result: ${{ needs.gcp-terraform-validate.result }}
-    secrets:
-      GCP_TERRAFORM_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
-      GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT: ${{ secrets.GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT }}
-
   ci-gate:
     name: CI Gate
     if: always()
@@ -148,7 +108,6 @@ jobs:
       - infra
       - repository
       - gcp-terraform-validate
-      - operations
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -157,5 +116,4 @@ jobs:
       - name: Require successful selected validations
         env:
           CI_NEEDS: ${{ toJSON(needs) }}
-          CI_OPERATION_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.operation != 'validate' }}
         run: python3 .github/scripts/check-ci-results.py

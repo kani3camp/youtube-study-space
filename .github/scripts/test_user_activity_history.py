@@ -16,7 +16,7 @@ GCP = ROOT / "infra/gcp"
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(GCP / "scripts"))
 from prepare_user_activity_history_adoption import normalize_field, prepare
-from test_gcp_user_activity_schema_audit_workflow import (
+from test_user_activity_history_preparation import (
     DUMMY_DESCRIPTIONS, UserActivityAdoptionPreparationTest, UserActivityHistoryPlanTest,
 )
 from terraform_plan_summary import build_summary

@@ -54,7 +54,7 @@ jobs:
           python3 .github/scripts/test_terraform_export_topic_gate.py
           python3 .github/scripts/test_terraform_export_scheduler_gate.py
           python3 .github/scripts/test_terraform_export_function_gate.py
-          python3 .github/scripts/test_gcp_user_activity_schema_audit_workflow.py
+          python3 .github/scripts/test_user_activity_history_preparation.py
 
       - name: Check formatting
         run: terraform fmt -check -recursive infra/gcp

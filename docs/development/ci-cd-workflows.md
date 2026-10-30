@@ -43,8 +43,8 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 
 | Workflow | 現在のユースケース | 分類 | 移行先 |
 | --- | --- | --- | --- |
-| [`ci.yml`](../../.github/workflows/ci.yml) | PR CI、`workflow_dispatch` の操作router（`gcp-plan` / `gcp-apply` / `gcp-user-activity-schema-audit` / `mypage-image-build` / `mypage-hosting-release` / `mypage-backend-release`）、`system/**` push時のMyPage DEV自動CD | **残す（縮小済み）** | UC1 通常CI。push自動CDと、schema audit 以外の操作は撤去済み（#3、#4）。残る手動 operation は schema audit だけ（owner 判断待ち） |
-| [`ci-operations.yml`](../../.github/workflows/ci-operations.yml) | 操作router本体。CI結果の前提検査と下位workflow呼び出し | **縮小（schema audit 専用）** | schema audit の扱いを owner が決めるまで残す。撤去または独立 workflow 化と同時に削除する |
+| [`ci.yml`](../../.github/workflows/ci.yml) | PR CI、`workflow_dispatch` の操作router（`gcp-plan` / `gcp-apply` / `gcp-user-activity-schema-audit` / `mypage-image-build` / `mypage-hosting-release` / `mypage-backend-release`）、`system/**` push時のMyPage DEV自動CD | **残す（縮小済み）** | UC1 通常CI。push自動CDと全操作を撤去済み（#3、#4、schema audit は #8）。`workflow_dispatch` は入力なしの再検査だけ |
+| `ci-operations.yml`（#8 で削除） | 操作router本体。CI結果の前提検査と下位workflow呼び出し | **廃止** | 各ユースケースworkflowへ分解し、最後に残った schema audit とともに削除 |
 | `ci-system.yml` / `ci-frontend.yml` / `ci-tools.yml` / `ci-infra.yml` / `ci-repository.yml` | UC1 credentialless検査 | **残す** | 変更なし（`ci-repository.yml` の契約テスト対象だけ追随） |
 | [`ci-gcp-terraform.yml`](../../.github/workflows/ci-gcp-terraform.yml) | UC1 Terraform fmt / validate / mock・native credentialless test | **残す** | UC1のまま。実state planはUC2へ分離 |
 | `gcp-infrastructure-authenticated.yml`（#4 で削除） | Core + MyPage の plan / apply 合成（componentは常に両方） | **統合→廃止** | `terraform.yml`（UC2/UC3）へ統合 |
@@ -54,7 +54,7 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 | [`mypage-hosting-authenticated.yml`](../../.github/workflows/mypage-hosting-authenticated.yml) | UC4 DEV Hosting build / deploy / smoke | **残す（最上位化）** | `deploy-mypage-frontend.yml` |
 | [`mypage-backend-authenticated.yml`](../../.github/workflows/mypage-backend-authenticated.yml) | API Service と maintenance Job の同一digest同期deploy | **分割** | `deploy-mypage-api.yml`（Serviceのみ）と `deploy-mypage-maintenance.yml`（Jobのみ） |
 | [`mypage-maintenance.yml`](../../.github/workflows/mypage-maintenance.yml) | UC7 maintenance mode ON/OFF | **残す（認証jobを分離）** | 最上位workflowの名称は維持する。認証 job を reusable workflow へ移し、WIF condition に `job_workflow_ref` を追加する |
-| `gcp-user-activity-schema-audit.yml` | read-only schema audit（`DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED: "false"` で無効） | **保留（owner判断）** | 6ユースケース外。#7 時点では無効のまま `ci.yml` → `ci-operations.yml` 経由で据え置く。「撤去」か「独立 dispatch 化」（trust の `workflow_ref` 更新を伴う）を owner が決める |
+| `gcp-user-activity-schema-audit.yml` | read-only schema audit（`DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED: "false"` で無効） | **撤去（#8、owner 判断）** | 2026年の一回限りの集計監査（終了 PR #1238、クラウド側の SA・trust は撤回済み）のための workflow。結果は [`user-activity-history-canonicalization.md`](../../infra/gcp/docs/user-activity-history-canonicalization.md) に記録済み。CLI（`system/cmd/user-activity-schema-audit`）と記録は残し、再実行時は改めて承認して経路を用意する |
 | `codeql-*`、`deploy-docs.yml`、`base-image-update-report.yml`、`formal-spec-report.yml` | 本Issue対象外 | 対象外 | 変更なし |
 
 ### 2.2 資格情報付きworkflowの詳細
@@ -87,7 +87,7 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 - **Maintenance WIF provider の `google.subject` が上限を超える（#6 のレビューで判明、既存の欠陥）**: provider（Terraform 管理）は `google.subject = assertion.sub` を mapping する。repository の custom `sub` は7 claim を含み DEV で約449バイト、PROD で約361バイトになり、Google STS の上限127バイトを超えるため、Environment に provider を設定しても token 交換は拒否される（公式仕様と設定からの判断。実 run では未観測）。他の identity と同様に `assertion.repository_id + ':' + assertion.environment + ':' + assertion.actor_id` などの短い値へ変え、MyPage runtime 契約に provider の mapping だけを更新する限定的な遷移を加える必要がある。4.2 の 6（`job_workflow_ref` の追加）と同じ PR で行う。
 - **Maintenance mode の認証が一度も成功していない**: 唯一の run（2026-10-29、run 40879914039）は、Environment `mypage-maintenance-development` に `MYPAGE_MAINTENANCE_WIF_PROVIDER` が設定されておらず、認証の前段で停止した。`mypage-maintenance-production` Environment も未作成である。棚卸し時点ではこの workflow は reusable workflow を使わずに直接認証していた（#6 で reusable 化済み）。残る作業は (1) 上記 `google.subject` 欠陥の修正（別PRの契約遷移）、(2) Environment への Secret 設定、(3) 実 run での検証であり、`job_workflow_ref` を condition に加える hardening は (1) と同時に行う。
 - **PR時のnative planがない**: 棚卸し時点では native plan は owner の手動dispatchのみで、PRでは credentialless validate / mock test だけが走る（#5 で PR Plan を追加。identity の作成は owner 作業）。
-- `gcp-user-activity-schema-audit` は Environment branch policy が `dev` のみで、integration branch からは到達しない（かつ無効化フラグがfalse）。
+- `gcp-user-activity-schema-audit` は Environment branch policy が `dev` のみで、integration branch からは到達しない（かつ無効化フラグがfalse）。#8 で撤去した。
 
 ## 3. 目標構成
 
@@ -186,8 +186,9 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 | 4 | `terraform.yml`（手動 plan / apply、component 入力） | `gcp-plan` / `gcp-apply`、`gcp-infrastructure-authenticated.yml` / `mypage-infrastructure-authenticated.yml` を撤去。到達不能 mode は維持し、呼ばないことをテストで固定 | 4.3 を参照。`terraform-prod-apply` に required reviewers |
 | 5 | PR Plan | `terraform.yml` の `pull_request` Plan（`terraform-pr-plan.yml`）、`terraform_normal_ops` / `foundation_ops` の `pr-plan` role、PR Plan identity の bootstrap・policy 生成 | Core: `bootstrap_pr_plan.py --target dev|prod --apply` と AWS role（`--aws-policies`）、Environment の managed 入力（別の `plan_integrity_key`）。MyPage: `mypage-foundation-pr-plan` SA、`github-pr-plan` provider（`pr-plan-provider-condition`）、AWS role（`pr-plan-aws-policies`）、Environment `mypage-dev-pr-plan` |
 | 6 | Maintenance mode の reusable 化 | 認証 job を `mypage-maintenance-authenticated.yml` へ移し、`actions/checkout` を SHA pin、認証前の actor / ref / caller 検査を追加 | Environment `mypage-maintenance-development` へ `MYPAGE_MAINTENANCE_WIF_PROVIDER` を設定（production は Environment 作成から）。WIF condition と principalSet は `workflow_ref`（最上位 = `mypage-maintenance.yml`）を検査しており、reusable 化しても値は変わらない。ただし既存 provider は別の欠陥で認証できない（2.4 の `google.subject`）ため、その修正が先に必要 |
-| 7 | `ci.yml` の最終整理 | concurrency group の改名（`mypage-<env>-cloud-run` / `mypage-dev-hosting`）と共有 lock の契約テスト、docs の最終整合。schema audit は owner 判断のため据え置き（`ci-operations.yml` は schema audit 専用） | 移行・検証済みの DEV identity から旧 claim を削除（4.2 の 5）。schema audit の扱いを決める |
-| 8 | 作業用統合ブランチ → `integration/mypage-canon-20261006` | — | 4.2 の順で実施 |
+| 7 | `ci.yml` の最終整理 | concurrency group の改名（`mypage-<env>-cloud-run` / `mypage-dev-hosting`）と共有 lock の契約テスト、docs の最終整合。schema audit は #8 で撤去 | 移行・検証済みの DEV identity から旧 claim を削除（4.2 の 5） |
+| 8 | schema audit の撤去（owner 判断） | `gcp-user-activity-schema-audit.yml`・`ci-operations.yml`・要約 script・監査専用 fixture とテストを削除し、`ci.yml` の `operation` 入力・`operations` job・CI Gate の operation 判定を撤去。履歴 adoption のテストは `test_user_activity_history_preparation.py` へ分離 | Environment `gcp-dev-user-activity-schema-audit` とその secret の削除（任意） |
+| 9 | 作業用統合ブランチ → `integration/mypage-canon-20261006` | — | 4.2 の順で実施 |
 
 - 各PRは、追加した最上位 workflow を `ci-repository.yml` の workflow 契約テスト（[`test_ci_workflows.py`](../../.github/scripts/test_ci_workflows.py)、[`test_ci_deploy_workflows.py`](../../.github/scripts/test_ci_deploy_workflows.py) ほか）と actionlint の対象に登録する。
 - 資格情報を取得する job が reusable workflow の外にないことを `test_ci_deploy_workflows.py` が検査する。#6 で例外は空になった。
@@ -202,7 +203,7 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 4. 初回 Operator deploy で Job が `mypage-maintenance-operator` package へ移ったことを確認してから、次を1つのPRで行う。
    - Terraform 契約・Operator 配備スクリプトから旧 `mypage-api` package の許容を外す。
    - 旧 `mypage-backend-deploy` の Job binding と maintenance runtime SA actAs を削除する（削除専用の契約遷移）。
-5. 移行・検証済みの **DEV** identity の trust から旧 claim（`ci.yml` を caller とするもの、Backend の `push`）を削除する。PROD の Core Terraform は `main` への取り込みまで `ci.yml` 経路のままなので削除しない（4.3）。schema audit の trust は、撤去か独立化を owner が決めるまで変更しない。
+5. 移行・検証済みの **DEV** identity の trust から旧 claim（`ci.yml` を caller とするもの、Backend の `push`）を削除する。PROD の Core Terraform は `main` への取り込みまで `ci.yml` 経路のままなので削除しない（4.3）。schema audit は #8 で撤去済み（クラウド側の trust は監査後に撤回済み）。
 6. Maintenance WIF provider（Terraform 管理）を、provider の更新だけを許す専用の契約遷移で修正する（MyPage runtime 契約は create / no-op しか許可しないため別PR）。`google.subject` を127バイト以内の値へ変える（必須。2.4 参照）ことと、condition へ `job_workflow_ref == mypage-maintenance-authenticated.yml@<ref>` を加える hardening を同時に行う。これが済むまで Set Maintenance Mode は認証できない。
 
 ### 4.3 Terraform の trust 更新（#4、owner）
@@ -223,7 +224,7 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 
 | UC | 状態 | 経路 |
 | --- | --- | --- |
-| UC1 CI | 実装済み。手動 operation は schema audit（無効、owner 判断待ち）だけ | `ci.yml` |
+| UC1 CI | 実装済み。手動 operation なし（`workflow_dispatch` は再検査のみ） | `ci.yml` |
 | UC2 PR Plan | 実装済み（未有効化）。identity は owner の bootstrap 待ち | `terraform.yml`（`pull_request`）→ `terraform-pr-plan.yml` |
 | UC2 手動 Plan / UC3 Apply | 実装済み（未有効化）。旧 router 経路と orchestrator は撤去済み。PROD Apply の reviewer は owner 設定待ち | `terraform.yml` |
 | UC4 Frontend | 実装済み（未有効化）。旧 router 経路は撤去済み | `deploy-mypage-frontend.yml` |
