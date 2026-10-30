@@ -68,9 +68,10 @@ flowchart TD
 
 このPRのソースレビューと静的CIの成功だけでは、新しい配備経路の実接続や本番公開を宣言しない。
 
-- DEVの`mypage-dev-apply`に使う **foundation GCP WIF** のcondition（`workflow_ref`）に
-  `deploy-mypage-api.yml@refs/heads/integration/mypage-canon-20261006` を追加し、旧`ci.yml`の`push` claimを削除する。
-  image-buildではAWS State Roleを使わない。
+- DEVの **foundation GCP WIF**（`mypage-foundation` pool / `github-actions` provider）のconditionを、
+  `python3 infra/mypage-platform/scripts/foundation_contract.py provider-condition` の出力で置き換える。
+  providerは`workflow_ref`と完全一致の`sub`の両方を検査するため、caller（`deploy-mypage-api.yml` など）と`sub`を組で更新する。
+  出力は`workflow_dispatch`だけを許可し、旧`ci.yml`の`push` claimを含まない。image-buildではAWS State Roleを使わない。
 - DEVの`mypage-dev-backend`専用GCP WIFのconditionを、[初回設定スクリプト](../../../infra/mypage-platform/scripts/backend_identity.py)の
   `--update-condition`で置き換える。新しいconditionは`workflow_dispatch`だけ、caller `deploy-mypage-api.yml`、
   reusable `mypage-backend-authenticated.yml`、同一workflow SHA、Environment `mypage-dev-backend`を要求し、`push`を許可しない。
@@ -142,5 +143,5 @@ tagとdigestの一致、source SHAが現在の統合HEADの祖先であること
   reusable `mypage-operator-authenticated.yml`、同一workflow SHA、Environmentをすべて検査する。
 - MyPage TerraformのApplyで、Job `run.jobs.get`/`run.jobs.update` custom roleのbindingと、maintenance Job runtime SAへのactAsを
   `mypage-operator-deploy`へ付与する。
-- image buildは既存の`mypage-dev-apply`（`mypage-foundation` WIF）を使う。このWIF condition の `workflow_ref` に
-  `deploy-mypage-maintenance.yml@<統合ref>` を追加する。
+- image buildは既存の`mypage-dev-apply`（`mypage-foundation` WIF）を使う。このproviderのconditionを、上記の
+  `foundation_contract.py provider-condition` の出力で置き換える（`deploy-mypage-maintenance.yml`のcallerと`sub`を含む）。

@@ -452,6 +452,23 @@ class FoundationTest(unittest.TestCase):
         self.assertEqual(c.trust_policy('123456789012', 'apply')['Statement'][0]['Condition']['StringEquals']['token.actions.githubusercontent.com:sub'],
                          c.subject('apply'))
 
+    def test_provider_condition_pairs_each_environment_caller_and_exact_subject(self):
+        condition = c.provider_condition()
+        clauses = condition.split(' || ')
+        expected = [('plan', c.CALLER), ('apply', c.CALLER)] + [
+            ('apply', item['caller']) for _, item in sorted(c.IMAGE_COMPONENTS.items())]
+        self.assertEqual(len(clauses), len(expected))
+        for clause, (kind, workflow) in zip(clauses, expected):
+            with self.subTest(kind=kind, workflow=workflow):
+                self.assertIn('assertion.workflow_ref == ' + json.dumps(workflow), clause)
+                self.assertIn('assertion.sub == ' + json.dumps(c.subject(kind, 'workflow_dispatch', workflow)), clause)
+                self.assertIn('assertion.environment == ' + json.dumps(c.GITHUB_ENVIRONMENT + '-' + kind), clause)
+                self.assertIn('assertion.job_workflow_ref == ' + json.dumps(c.REUSABLE), clause)
+                self.assertIn('assertion.event_name == "workflow_dispatch"', clause)
+                self.assertIn('assertion.run_attempt == "1"', clause)
+        # The clause list is exact, so image callers never reach the Plan Environment.
+        self.assertNotIn('push', condition)
+
     def test_exact_actor_ref_and_sha_before_credentials(self):
         env = {'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
                'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_EVENT_NAME': 'workflow_dispatch',

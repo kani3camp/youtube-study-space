@@ -102,7 +102,7 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 - 内部の reusable workflow（`gcp-terraform-authenticated.yml`、MyPage Terraform reusable、Hosting / API / Operator の deploy job）は維持してよいが、`workflow_dispatch` を持たせない。
 - Production の Frontend / API / Operator deploy は、公開Gate（[#1133](https://github.com/kani3camp/youtube-study-space/issues/1133)）を満たすまで **入力の選択肢として出さない**。
 - 自動 application deploy は行わない。PR / push を契機に実環境へwriteするのは無し。
-- 各 Deploy workflow は、配備する domain の credentialless 検査を同じ run の中で、資格情報の取得より前に通す（API / Operator: `ci-system.yml`、Frontend: Hosting build job の audit / check / typecheck / test）。統合ブランチの ruleset は PR ごとの `CI Gate` を要求するが、統合後の tree そのものは検査しないため。旧 router の「全 domain の CI 成功」は、配備対象の domain に限った検査へ置き換える。
+- 各 Deploy workflow は、配備する domain の credentialless 検査を同じ run の中で、資格情報の取得より前に通す（API / Operator: `ci-system.yml`、Frontend: `ci-frontend.yml` の `mypage`）。統合ブランチの ruleset は PR ごとの `CI Gate` を要求するが、統合後の tree そのものは検査しないため。旧 router の「全 domain の CI 成功」は、配備対象の domain に限った検査へ置き換える。
 
 ### 3.2 Terraform Plan / Apply
 

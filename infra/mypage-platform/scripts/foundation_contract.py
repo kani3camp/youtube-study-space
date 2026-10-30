@@ -93,6 +93,29 @@ def subject(kind, event_name="workflow_dispatch", workflow=CALLER):
     return ":".join(key + ":" + value.replace(":", "%3A") for key, value in zip(CLAIM_KEYS, values))
 
 
+def provider_condition():
+    """Exact condition for the owner-managed `mypage-foundation` WIF provider.
+
+    Each clause pairs one Environment with one caller and repeats that pair in
+    the exact `sub`. Plan admits only the Terraform caller; Apply admits the
+    Terraform caller and each image's own Deploy workflow. Push is never admitted.
+    """
+    pairs = [("plan", CALLER), ("apply", CALLER)]
+    pairs += [("apply", item["caller"]) for _, item in sorted(IMAGE_COMPONENTS.items())]
+    clauses = []
+    for kind, workflow in pairs:
+        values = {"repository_id": "340900071", "repository_owner_id": "54093651",
+                  "actor_id": "54093651", "actor": "kani3camp", "repository": REPOSITORY,
+                  "ref": REF, "workflow_ref": workflow, "job_workflow_ref": REUSABLE,
+                  "event_name": "workflow_dispatch", "run_attempt": "1",
+                  "environment": GITHUB_ENVIRONMENT + "-" + kind,
+                  "sub": subject(kind, "workflow_dispatch", workflow)}
+        clauses.append("(" + " && ".join("assertion." + key + " == " + json.dumps(value)
+                                         for key, value in values.items()) +
+                       " && assertion.workflow_sha == assertion.job_workflow_sha)")
+    return " || ".join(clauses)
+
+
 def trust_policy(account, kind):
     need(re.fullmatch(r"[0-9]{12}", account))
     # Terraform State credentials are dispatch-only.
@@ -280,3 +303,10 @@ def commitment(plan, state_version, sha, key):
         need(type(stable["relevant_attributes"]) is list, "plan-relevant-attributes")
         stable["relevant_attributes"] = sorted(stable["relevant_attributes"], key=canonical)
     return hmac.new(key.encode(), canonical({"plan": stable, "state_version": state_version, "source": sha}), hashlib.sha256).hexdigest()
+
+
+if __name__ == "__main__":
+    import sys
+    # Print-only helper for the owner; it performs no cloud call.
+    need(sys.argv[1:] == ["provider-condition"], "foundation-contract-command")
+    print(provider_condition())

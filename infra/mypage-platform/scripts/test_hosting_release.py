@@ -39,6 +39,11 @@ class ReleaseTest(unittest.TestCase):
                            ('GITHUB_WORKFLOW_REF', h.WORKFLOWS + 'deploy-mypage-api.yml@' + h.REF)]:
             with self.subTest(key=key), self.assertRaises(ValueError):
                 h.context(environment() | {key: value})
+        # An explicit caller must still be one of the reviewed Deploy workflows.
+        for caller in (h.WORKFLOWS + 'ci.yml@' + h.REF, h.WORKFLOWS + 'unrelated.yml@' + h.REF,
+                       h.WORKFLOWS + 'deploy-mypage-api.yml@refs/heads/main'):
+            with self.subTest(caller=caller), self.assertRaises(ValueError):
+                h.context(environment() | {'GITHUB_WORKFLOW_REF': caller}, caller=caller)
 
     def make_dist(self, base):
         dist = base / 'dist'

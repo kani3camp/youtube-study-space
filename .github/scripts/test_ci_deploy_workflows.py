@@ -66,17 +66,20 @@ class DeployWorkflowTest(unittest.TestCase):
             self.assertIn(command, build)
         self.assertEqual(frontend['apply']['needs'], 'build')
 
-    def test_frontend_deploy_is_manual_dev_only(self):
+    def test_frontend_deploy_is_manual_dev_only_and_validates_mypage_first(self):
         workflow = load(WORKFLOWS / 'deploy-mypage-frontend.yml')
         self.assertEqual(triggers(workflow), {'workflow_dispatch'})
         self.assertIsNone(workflow['on']['workflow_dispatch'])
         self.assertEqual(workflow['permissions'], {'contents': 'read'})
-        self.assertEqual(workflow['jobs'], {'hosting': {
-            'name': 'Deploy DEV Hosting',
-            'permissions': {'contents': 'read', 'id-token': 'write'},
-            'uses': './.github/workflows/mypage-hosting-authenticated.yml',
-            'with': {'expected_sha': '${{ github.sha }}'},
-        }})
+        jobs = workflow['jobs']
+        self.assertEqual(set(jobs), {'validate', 'hosting'})
+        self.assertEqual(jobs['validate']['uses'], './.github/workflows/ci-frontend.yml')
+        self.assertEqual(jobs['validate']['with'], {'youtube_monitor': False, 'docs_site': False, 'mypage': True})
+        self.assertEqual(jobs['hosting']['needs'], 'validate')
+        self.assertNotIn('if', jobs['hosting'])
+        self.assertEqual(jobs['hosting']['uses'], './.github/workflows/mypage-hosting-authenticated.yml')
+        self.assertEqual(jobs['hosting']['with'], {'expected_sha': '${{ github.sha }}'})
+        self.assertNotIn('secrets', jobs['hosting'])
 
     def test_operator_release_authenticates_after_the_contract_and_joins_the_cloud_run_lock(self):
         workflow = load(WORKFLOWS / 'mypage-operator-authenticated.yml')

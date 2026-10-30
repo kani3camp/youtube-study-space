@@ -10,8 +10,19 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    name: Credentialless MyPage Validation
+    # The integration ruleset requires CI Gate on each PR but not on the exact
+    # merged tree; re-run the deployed domain's checks for this commit.
+    uses: ./.github/workflows/ci-frontend.yml
+    with:
+      youtube_monitor: false
+      docs_site: false
+      mypage: true
+
   hosting:
     name: Deploy DEV Hosting
+    needs: validate
     permissions:
       contents: read
       id-token: write

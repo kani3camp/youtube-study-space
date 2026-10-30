@@ -26,6 +26,8 @@ REPOSITORY = 'kani3camp/youtube-study-space'
 REF = 'refs/heads/integration/mypage-canon-20261006'
 WORKFLOWS = REPOSITORY + '/.github/workflows/'
 CALLER = WORKFLOWS + 'deploy-mypage-frontend.yml@' + REF
+# Deploy workflows whose release scripts share this owner/ref/run admission.
+CALLERS = frozenset({CALLER, WORKFLOWS + 'deploy-mypage-api.yml@' + REF})
 API = 'https://firebasehosting.googleapis.com/v1beta1/'
 RUN = 'https://run.googleapis.com/v2/projects/' + PROJECT + '/locations/asia-southeast2/services/mypage-api'
 MAX_FILE = 4 * 1024 * 1024
@@ -48,7 +50,7 @@ def sha(data):
 
 def context(env, *, caller=CALLER):
     """Admit only the owner's first manual run of the use-case Deploy workflow."""
-    need(caller.startswith(WORKFLOWS) and caller.endswith('@' + REF), 'execution-caller')
+    need(caller in CALLERS, 'execution-caller')
     expected = {
         'GITHUB_REPOSITORY': REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
         'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_ACTOR_ID': '54093651',

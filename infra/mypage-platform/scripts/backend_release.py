@@ -19,6 +19,8 @@ REGISTRY = ('https://artifactregistry.googleapis.com/v1/projects/' + c.PROJECT +
 
 
 CALLER = c.IMAGE_COMPONENTS['api']['caller']
+if CALLER not in hosting.CALLERS:
+    raise ValueError('backend-caller')
 
 
 def context(env):
