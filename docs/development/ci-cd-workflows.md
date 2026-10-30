@@ -116,7 +116,8 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
   - WIF condition: `event_name == 'pull_request'`、`ref` が `refs/pull/<n>/merge` の形、`workflow_ref == terraform.yml@` + `assertion.ref`、`job_workflow_ref == terraform-pr-plan.yml@` + `assertion.ref`、repository / owner ID・actor 固定、`run_attempt == 1`、専用Environment `terraform-<env>-pr-plan`（MyPage は `mypage-dev-pr-plan`）。Core は専用 pool `terraform-pr-plan` を使う（principalSet は pool 全体を信頼するため、手動 Plan の pool に provider を足さない）。
   - PR の ref は branch ではないため、Environment の branch policy は境界にしない。境界は WIF condition（owner・PR ref・固定 workflow）と identity の権限である。
 - **脅威境界**: 同一repositoryのPRでは workflow 定義そのものがPR作成者の管理下にあるため、trust は「どのコードが実行されるか」を固定できない。よって PR Plan identity の権限（state read と GCP read）そのものが漏えい時の影響上限になる。state には sensitive 値が含まれ得るため、PR Plan を許可する actor は初期状態で owner（`actor_id == 54093651`）に限定する。AIエージェント等の actor を追加する場合は、追加する claim（`actor_id` 等）と state read を委ねてよい理由を PR で明示してから trust を広げる。owner 以外の actor による Terraform 変更PRでは PR Plan job を失敗させ、owner が手動 Plan を実行する。
-- 結果は Job Summary と check に要約し、詳細 plan は sensitive 値を除いた JSON / text を短期 artifact に保存する。PRコメントは投稿しない。
+- 結果は Job Summary と check に、値を含まない要約（resource type・操作・件数）だけを出す。plan file・JSON・artifact は残さない（state 由来の値を PR 作成者の管理下にあるコードの外へ持ち出さないため）。PRコメントは投稿しない。詳細を確認する場合は owner が手動 Plan を実行する。
+- **残るリスク**: AWS の State read role は `sub`（7 claim）と `actor_id` を検査するが、`run_attempt` は検査しない（手動 Plan / Apply の AWS role も同じ）。再実行の actor は初回実行者のままなので、PR 内のコードが preflight を省いた状態で、書き込み権限を持つ者が owner の run を再実行すると、State を読める可能性がある。GCP WIF は `run_attempt == 1` で拒否する。現在 repository の書き込み権限は owner だけなので許容しているが、AWS が `run_attempt` claim を条件キーとして扱えるか確認し、扱えるなら trust に加える（owner 判断）。
 
 **手動 Plan / Apply（UC2 手動 / UC3）**
 
