@@ -111,6 +111,8 @@ Repository Ruleset が要求するCI statusは `CI Gate` だけです。`GCP Ter
 
 手動操作の最上位呼び出し元は`ci.yml`に残す。実AWS/GCPの信頼設定が`workflow_ref`をこのパスに固定しているためである。手動UIは`operation`と`environment`だけを公開し、[ci-operations.yml](../../.github/workflows/ci-operations.yml)がGCP Infrastructure・スキーマ監査・イメージビルド・MyPage配備へ振り分ける。`gcp-plan` / `gcp-apply`はCore GCPとMyPageを独立したTerraform Stateとして扱い、MyPageの初期構築段階は内部に留める。書き込み可能な操作は認証前に、認証情報不要のCI全体の完了を待つ。最上位呼び出し元を`ci.yml`から移す場合は、別途AWS/GCPの信頼設定を段階変更する必要がある。CodeQLは独立したセキュリティ解析ワークフローのままとする。
 
+ユースケース単位のworkflowへの移行計画と、各workflowの資格情報・Environment・排他の棚卸しは[CI / Terraform / Deploy / Operation workflow](ci-cd-workflows.md)を参照する。
+
 Local source verification (with the pinned parser from `.github/codeql/requirements.txt` installed):
 
 ```sh

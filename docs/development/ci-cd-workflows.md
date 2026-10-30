@@ -1,0 +1,187 @@
+# CI / Terraform / Deploy / Operation workflow のユースケース設計
+
+GitHub Actions を「人間が実行したいユースケース」単位で整理するための正本。
+[Issue #1500](https://github.com/kani3camp/youtube-study-space/issues/1500) の棚卸し・目標設計・移行順序をここで管理し、
+各移行PRは本書の「移行状況」表を同じPR内で更新する。
+
+- 本書は **設計と移行の現在地** を記録する。実クラウドで成功したかは対象runの記録で確認する。
+- 本書の記述より、`integration/mypage-canon-20261006` の現行tree・workflow・GitHub/GCP/AWS の実設定を優先する。
+- AWS CDK の手動deployは対象外で、挙動を変えない。
+
+## 1. 現行のtrust model（移行計画の前提）
+
+現行の資格情報付き経路は、すべて **OIDC token の `workflow_ref`（最上位workflow）と `job_workflow_ref`（reusable workflow）** に固定されている。
+workflowファイルの改名・新設は、コードだけでは完結せず、対応するクラウド側trustの更新を伴う。
+
+| 境界 | 現行の固定値 | 定義場所 |
+| --- | --- | --- |
+| Repository OIDC `sub` テンプレート | `repository_id`, `repository_owner_id`, `environment`, `ref`, `workflow_ref`, `job_workflow_ref`, `event_name`（repository単位設定） | GitHub `actions/oidc/customization/sub` |
+| Core Terraform GCP WIF | `workflow_ref == ci.yml@ref`、`job_workflow_ref == gcp-terraform-authenticated.yml@ref`、`workflow_dispatch`、owner actor、`run_attempt == 1` | [`bootstrap_normal_ops.py`](../../infra/gcp/scripts/bootstrap_normal_ops.py)、[`terraform_normal_ops.py`](../../infra/gcp/scripts/terraform_normal_ops.py) |
+| Core Terraform AWS State role | 上記 `sub` の完全一致 | [`terraform-authentication-boundary.md`](../../infra/gcp/docs/terraform-authentication-boundary.md) |
+| MyPage foundation GCP WIF / AWS State role | `ci.yml@integration ref` + `mypage-foundation-authenticated.yml@integration ref`。AWS State は `workflow_dispatch` のみ、GCP image-build は `push` も許可 | [`foundation_contract.py`](../../infra/mypage-platform/scripts/foundation_contract.py) |
+| MyPage Backend deployer WIF | `ci.yml` + `mypage-backend-authenticated.yml`、`workflow_dispatch` または `push`、Environment `mypage-dev-backend` | [`backend_identity.py`](../../infra/mypage-platform/scripts/backend_identity.py) |
+| MyPage Hosting deployer WIF | `ci.yml` + `mypage-hosting-authenticated.yml`、Environment `mypage-dev-hosting` | [MyPage配備手順](../mypage/release/README.md) |
+| Maintenance invoker WIF | `workflow_ref == mypage-maintenance.yml@<env ref>`（最上位workflow直接）、Environment `mypage-maintenance-<env>` | [`modules/runtime/main.tf`](../../infra/mypage-platform/modules/runtime/main.tf) |
+
+したがって、新しい最上位workflowへ移すたびに、次の順序を守る。
+
+1. 新workflowを追加する（旧経路は有効なまま）。
+2. ownerが対象identityのtrust（GCP WIF provider condition / AWS role trust policy / GitHub Environment）へ **新workflowのclaimを追加** する。
+3. 新経路を実runで1回検証する。
+4. 旧経路をコードから撤去し、ownerがtrustから **旧claimを削除** する。
+
+2と4はリポジトリ外の実状態変更であり、各PRの説明に「必要なowner作業」と「実施済みか」を明記する。
+trustを広げる際は、追加するclaimと脅威境界を同じPRで説明する。
+
+## 2. 現行workflow棚卸し
+
+### 2.1 分類
+
+| Workflow | 現在のユースケース | 分類 | 移行先 |
+| --- | --- | --- | --- |
+| [`ci.yml`](../../.github/workflows/ci.yml) | PR CI、`workflow_dispatch` の操作router（`gcp-plan` / `gcp-apply` / `gcp-user-activity-schema-audit` / `mypage-image-build` / `mypage-hosting-release` / `mypage-backend-release`）、`system/**` push時のMyPage DEV自動CD | **残す（縮小）** | UC1 通常CIだけにする。dispatch入力・push自動CD・`operations` jobを撤去 |
+| [`ci-operations.yml`](../../.github/workflows/ci-operations.yml) | 操作router本体。CI結果の前提検査と下位workflow呼び出し | **廃止** | 各ユースケースworkflowへ分解 |
+| `ci-system.yml` / `ci-frontend.yml` / `ci-tools.yml` / `ci-infra.yml` / `ci-repository.yml` | UC1 credentialless検査 | **残す** | 変更なし（`ci-repository.yml` の契約テスト対象だけ追随） |
+| [`ci-gcp-terraform.yml`](../../.github/workflows/ci-gcp-terraform.yml) | UC1 Terraform fmt / validate / mock・native credentialless test | **残す** | UC1のまま。実state planはUC2へ分離 |
+| [`gcp-infrastructure-authenticated.yml`](../../.github/workflows/gcp-infrastructure-authenticated.yml) | Core + MyPage の plan / apply 合成（componentは常に両方） | **統合→廃止** | `terraform.yml`（UC2/UC3）へ統合 |
+| [`gcp-terraform-authenticated.yml`](../../.github/workflows/gcp-terraform-authenticated.yml) | Core root の credentialed plan / apply | **残す（縮小）** | `terraform.yml` から呼ぶ core reusable。到達不能modeを撤去 |
+| [`mypage-infrastructure-authenticated.yml`](../../.github/workflows/mypage-infrastructure-authenticated.yml) | MyPage root の desired-stage 解決 | **統合→廃止** | desired-stage解決を `terraform.yml` の mypage component へ移す |
+| [`mypage-foundation-authenticated.yml`](../../.github/workflows/mypage-foundation-authenticated.yml) | MyPage root の credentialed plan / apply と image build（2責務が同居） | **分割** | Terraform部分は mypage reusable として残す。image buildは各Deploy workflowへ移す |
+| [`mypage-hosting-authenticated.yml`](../../.github/workflows/mypage-hosting-authenticated.yml) | UC4 DEV Hosting build / deploy / smoke | **残す（最上位化）** | `deploy-mypage-frontend.yml` |
+| [`mypage-backend-authenticated.yml`](../../.github/workflows/mypage-backend-authenticated.yml) | API Service と maintenance Job の同一digest同期deploy | **分割** | `deploy-mypage-api.yml`（Serviceのみ）と `deploy-mypage-maintenance.yml`（Jobのみ） |
+| [`mypage-maintenance.yml`](../../.github/workflows/mypage-maintenance.yml) | UC7 maintenance mode ON/OFF | **残す** | 既に最上位・専用trust。名称も維持する |
+| `gcp-user-activity-schema-audit.yml` | read-only schema audit（`DEV_USER_ACTIVITY_SCHEMA_AUDIT_ENABLED: "false"` で無効） | **保留（owner判断）** | 6ユースケース外。router撤去時に「独立dispatch化」か「撤去」を決める |
+| `codeql-*`、`deploy-docs.yml`、`base-image-update-report.yml`、`formal-spec-report.yml` | 本Issue対象外 | 対象外 | 変更なし |
+
+### 2.2 資格情報付きworkflowの詳細
+
+| Workflow | Trigger / caller | GitHub Environment（現設定） | GCP / AWS identity | Write対象 | Concurrency | Source SHA trust | Artifact / record |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `gcp-infrastructure-authenticated.yml` | `ci.yml` dispatch → `ci-operations.yml` | なし（下位jobが取得） | 下位に委譲 | 下位に委譲 | dev: `mypage-dev-runtime-change`、prod: `gcp-infrastructure-production` | `expected_sha == github.sha` | なし |
+| `gcp-terraform-authenticated.yml` | 上記から `normal-plan` / `normal-apply` | `terraform-<dev\|prod>-plan` / `-apply`。**reviewer設定なし**。branch policy: dev=`dev`,integration、prod=`main` | GCP: `GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT`（**plan/apply同一SA**）。AWS: `AWS_TERRAFORM_BACKEND_ROLE_ARN`（plan/apply同一role） | Core GCP資源・Core state | `gcp-terraform-authenticated-<target>` | preflightで actor / ref / `workflow_ref` / SHA を検査、OIDC claim再検査 | HMAC digestをjob output比較（値はログに出さない） |
+| `mypage-infrastructure-authenticated.yml` → `mypage-foundation-authenticated.yml` | 上記から `desired-plan` / `desired-apply` | `mypage-dev-plan` / `mypage-dev-apply`（integrationのみ、reviewerなし）。prod用Environmentは未作成 | GCP: `mypage-foundation-plan` / `-apply` SA（`mypage-foundation` pool）。AWS: `MYPAGE_BACKEND_ROLE_ARN` | MyPage GCP資源・MyPage state | `mypage-<target>-foundation` | `foundation_contract.context` | commitment比較 |
+| `mypage-foundation-authenticated.yml`（image-build） | `ci.yml` dispatch / integration push | `mypage-dev-apply` | GCP: `mypage-foundation-apply` SA（AWS不使用） | Artifact Registry `mypage/mypage-api:<sha>` | `mypage-<target>-foundation` | `image_ops.preflight` | `image_digest` job output |
+| `mypage-backend-authenticated.yml` | `ci.yml` dispatch / integration push自動CD | `mypage-dev-backend` | `mypage-backend-deploy` SA（`run.services.get/update`、Job `run.jobs.get/update`、maintenance runtime SAへのactAs） | Cloud Run Service `mypage-api` の image、Job `mypage-maintenance-operator` の image | `mypage-dev-runtime-change` | `backend_release.context`、rollbackは祖先commitのtagのみ | `mypage-backend-release-record`（schema 3、Job digestが同一であることを検査） |
+| `mypage-hosting-authenticated.yml` | `ci.yml` dispatch | `mypage-dev-hosting` | `mypage-hosting-deploy` SA（DEV `firebasehosting.admin` ほか） | Firebase Hosting DEV site | `mypage-dev-hosting-release` | `hosting_release.context` | `mypage-dev-hosting-release-record` |
+| `mypage-maintenance.yml` | 直接 `workflow_dispatch` | `mypage-maintenance-<env>`（developmentのみ存在、branch policy・reviewerなし。境界はWIF conditionの `ref`） | `mypage-maintenance-invoker` SA | Cloud Run Job execution（Firestore maintenance control） | `mypage-maintenance-<env>` | WIF condition（`workflow_sha == sha`、固定ref） | Job実行ログのみ |
+
+### 2.3 撤去・縮小できるlegacy / migration-only要素
+
+| 要素 | 根拠 | 扱い |
+| --- | --- | --- |
+| `gcp-terraform-authenticated.yml` の `migration-plan` / `migration-apply` job と `terraform_migration.py` の credentialed経路 | どのcallerからも渡されない（`gcp-infrastructure-authenticated.yml` は `normal-plan` / `normal-apply` のみ） | `terraform.yml` 移行PRで撤去。過去の移行証跡（docs・test fixture）は根拠なく削除しない |
+| 同 `normal-e2e` mode | callerなし | 同上 |
+| `mypage-foundation-authenticated.yml` の `foundation-*` / `foundation-metadata-*` / `registry-*` / `maintenance-*` / `runtime-*` mode | callerは `desired-plan` / `desired-apply` / `image-build` のみ | 同上。`desired-stage.txt` によるstage選択は維持 |
+| `ci.yml` の push自動CD（`mypage-auto-cd`）と `backend_cd.py` | 本設計では application deploy を自動化しない | API deploy移行PRで撤去し、Backend WIF conditionから `push` を削除 |
+| Backend releaseの Service/Job 同一digest同期（record schema 3 の `maintenanceJob*`） | API と Operator を独立deploy unitにする | image分離PRで撤去 |
+| `mypage-maintenance.yml` の未pin `actions/checkout@v7` | 他workflowはSHA pin | 該当workflowに触れるPRでpinする |
+
+### 2.4 既知のギャップ
+
+- **Production Terraform Apply の承認が未設定**: `terraform-prod-apply` に required reviewers がない（branch policy `main` のみ）。UC3の完了条件を満たすには、ownerがGitHub Environmentへ reviewer を設定する。
+- **Plan identity と Apply identity が同一**: Core Terraform は plan/apply で同じ GCP SA・AWS role を使い、Environmentだけが異なる。UC2のPR Plan identityは新設が必要。
+- **PR時のnative planがない**: 現在のnative planは owner の手動dispatchのみ。PRでは credentialless validate / mock test だけが走る。
+- `gcp-user-activity-schema-audit` は Environment branch policy が `dev` のみで、integration branch からは到達しない（かつ無効化フラグがfalse）。
+
+## 3. 目標構成
+
+### 3.1 利用者に見せるworkflow
+
+| UC | Workflow（予定名） | Trigger | 入力 | 対象環境 |
+| --- | --- | --- | --- | --- |
+| UC1 | `ci.yml`（名称 `CI`） | `pull_request`（+ 必要なら `push`、deployなし） | なし | なし |
+| UC2/UC3 | `terraform.yml`（名称 `Terraform`） | `pull_request`（Planのみ）/ `workflow_dispatch` | `environment=development\|production`、`operation=plan\|apply`、`component=all\|core\|mypage` | dev / prod |
+| UC4 | `deploy-mypage-frontend.yml`（`Deploy MyPage Frontend`） | `workflow_dispatch` | なし（developmentのみ） | dev |
+| UC5 | `deploy-mypage-api.yml`（`Deploy MyPage API`） | `workflow_dispatch` | `mode=build-and-deploy\|deploy-existing`、`image_digest`、`image_source_sha` | dev |
+| UC6 | `deploy-mypage-maintenance.yml`（`Deploy Maintenance Operator`） | `workflow_dispatch` | 同上 | dev |
+| UC7 | `mypage-maintenance.yml`（`Set Maintenance Mode`） | `workflow_dispatch` | `environment`、`enabled` | dev / prod |
+
+- 内部の reusable workflow（`gcp-terraform-authenticated.yml`、MyPage Terraform reusable、Hosting / API / Operator の deploy job）は維持してよいが、`workflow_dispatch` を持たせない。
+- Production の Frontend / API / Operator deploy は、公開Gate（[#1133](https://github.com/kani3camp/youtube-study-space/issues/1133)）を満たすまで **入力の選択肢として出さない**。
+- 自動 application deploy は行わない。PR / push を契機に実環境へwriteするのは無し。
+
+### 3.2 Terraform Plan / Apply
+
+**PR Plan（UC2 自動）**
+
+- `pull_request` で起動し、変更パスから component を判定する（`infra/gcp/**` → core、`infra/mypage-platform/**` → mypage、共有の CI script / workflow 変更 → 両方）。dev / prod の両方を plan する。
+- fork 由来PRでは資格情報を取得しない。`pull_request` は fork に OIDC / secret を渡さないことに加え、job条件で `head.repo.full_name == github.repository` を要求し、満たさない場合は **失敗として** 理由を表示する（false-green skip にしない）。
+- PR Plan identity は Apply identity と分離した新設identity とする。
+  - GCP: 環境ごとの read-only SA（`get` / `list` / `getIamPolicy` 系のみ。既存 [`bootstrap_normal_ops.py`](../../infra/gcp/scripts/bootstrap_normal_ops.py) の READ 集合を基準にする）。
+  - AWS State: state object の `GetObject` と bucket の対象prefix `ListBucket` のみ。lock file への書き込み権限は与えず、PR Plan は `-lock=false` で実行する（PR Plan は助言であり、Apply は必ず fresh plan を作るため）。
+  - WIF condition: `event_name == 'pull_request'`、`workflow_ref == terraform.yml@refs/pull/<n>/merge`（= `assertion.ref`）、`job_workflow_ref` 固定、repository / owner ID 固定、専用Environment `terraform-<env>-pr-plan`。
+- **脅威境界**: 同一repositoryのPRでは workflow 定義そのものがPR作成者の管理下にあるため、trust は「どのコードが実行されるか」を固定できない。よって PR Plan identity の権限（state read と GCP read）そのものが漏えい時の影響上限になる。state には sensitive 値が含まれ得るため、PR Plan を許可する actor は初期状態で owner（`actor_id == 54093651`）に限定する。AIエージェント等の actor を追加する場合は、追加する claim（`actor_id` 等）と state read を委ねてよい理由を PR で明示してから trust を広げる。owner 以外の actor による Terraform 変更PRでは PR Plan job を失敗させ、owner が手動 Plan を実行する。
+- 結果は Job Summary と check に要約し、詳細 plan は sensitive 値を除いた JSON / text を短期 artifact に保存する。PRコメントは投稿しない。
+
+**手動 Plan / Apply（UC2 手動 / UC3）**
+
+- 既存の「plan job → apply job で独立に再plan → HMAC digest一致時のみ apply job 自身のplan fileを `terraform apply <plan-file>`」方式を維持する。PRで作った plan file を後日 apply しない。
+- source SHA・environment・component は dispatch 入力と `github.sha` で固定し、plan / apply job 間で一致を検査する。
+- Apply は `workflow_dispatch` のみ。Production Apply は `terraform-prod-apply`（および将来の `mypage-prod-apply`）に required reviewers を設定して承認必須とする。
+- Apply identity は既存のものを使い、PR Plan identity とは共有しない。
+
+### 3.3 API と Maintenance Operator の image 分離
+
+| 項目 | API | Maintenance Operator |
+| --- | --- | --- |
+| Dockerfile | `system/Dockerfile.mypage-api`（`./cmd/mypage-server` のみ） | `system/Dockerfile.mypage-maintenance-operator`（`./cmd/mypage-maintenance-operator` のみ） |
+| Artifact Registry | `mypage/mypage-api@sha256:...` | `mypage/mypage-maintenance-operator@sha256:...`（同じ `mypage` repository の別package。repository単位の既存push権限で足りる） |
+| Deploy対象 | Cloud Run Service `mypage-api` のみ | Cloud Run Job `mypage-maintenance-operator` のみ |
+| Deployer identity | `mypage-backend-deploy`（Job権限・maintenance SA actAs を **削除**） | 新設 `mypage-operator-deploy`（Job `run.jobs.get/update` と maintenance runtime SA actAs のみ） |
+| Release record | API digest のみを所有 | Operator digest のみを所有 |
+| Terraform | Service image は `ignore_changes` のまま | Job image は `ignore_changes` のまま。`maintenance_bootstrap_image_digest` の許容package を operator package に切り替える |
+
+- 「APIの更新でJobを変更しない」は、コードの分岐だけでなく API deployer の IAM から Job 権限を外すことで強制する。
+- `core/mypage` の MaintenanceControl / Firestore schema を変える PR は、後方・前方互換を保つか、API と Operator の両方の deploy が必要であることをPR説明に明記する。平常時に同一digestへ同期はしない。
+- 移行期間は、Job の現 image が `mypage-api` package（旧来の同梱image）でも受け入れ、最初の Operator deploy で operator package へ切り替える。切替確認後に旧 package 許容を撤去する。
+
+### 3.4 Rollback
+
+- API / Operator: 各 deploy workflow の `mode=deploy-existing` で、検証済み immutable digest と source SHA を指定する。対象 package・Registry 上の存在・source SHA tag と digest の一致・source SHA が現HEADの祖先であることを検査し、対象 resource だけを更新する（現 `backend_release.py` の rollback 検査を流用）。
+- Frontend: 現行の Hosting release record は直前 release / version を保持している。Hosting の rollback 方式（過去 version の再公開か、過去 commit からの再build）は Frontend 移行PRで既存能力を確認して決める。
+
+### 3.5 Concurrency
+
+GitHub Actions の concurrency group は job ごとに1つしか持てないため、「Terraform は API / Operator の両方と排他、API と Operator は互いに独立」という関係は group だけでは表せない。resource ownership と race の実害から、次の最小排他とする。
+
+| Group | 参加する操作 | 理由 |
+| --- | --- | --- |
+| `terraform-core-<env>` | Core Terraform plan / apply（手動） | 同一 state・同一資源 |
+| `mypage-<env>-cloud-run` | MyPage Terraform plan / apply（手動）、API deploy、Operator deploy | Terraform は refresh 後に Service / Job 全体を PATCH するため、その間の image 更新を巻き戻し得る。API / Operator 同士は相互に直列化されるが、同一環境の Cloud Run 変更に限定した lock で、全操作の global lock にはしない |
+| `mypage-<env>-hosting` | Frontend deploy | Hosting site だけを変更する |
+| `mypage-maintenance-<env>` | Maintenance mode 切替 | Firestore の maintenance control を変更する。Job 実行は開始時点の Job 定義を使うため、Operator deploy とは排他にしない |
+| `terraform-pr-plan-<pr>`（`cancel-in-progress: true`） | PR Plan | read-only・`-lock=false`。apply を待たせない |
+
+加えて、deploy script は既存の resourceVersion / etag / 再読取による楽観的排他を維持し、競合時は自動 retry せず停止する。
+
+## 4. 移行計画
+
+作業用統合ブランチ `integration/ci-usecase-redesign-20261030`（base: `integration/mypage-canon-20261006`）へ PR を積み、最後に統合ブランチから `integration/mypage-canon-20261006` へ1本のPRで戻す。`dev` へはマージしない。
+
+| # | PR | 現行deploy経路 | 新経路 | 必要なowner作業（リポジトリ外） |
+| --- | --- | --- | --- | --- |
+| 1 | 棚卸し・目標設計（本書） | 変更なし | なし | なし |
+| 2 | Operator image・`deploy-mypage-maintenance.yml`・`mypage-operator-deploy` identity（Terraform）を追加 | 旧 Backend release（Service + Job 同期）が有効 | 追加のみ。trust 設定前は認証で停止 | MyPage Terraform Apply（新SA・IAM）、Operator WIF provider の作成、Environment `mypage-dev-operator` の作成。初回 Operator deploy で Job を operator package へ切替 |
+| 3 | API image 分離・Backend release から Job 同期を撤去・API deployer の Job 権限を撤去 | 旧 router 経由の API release（Serviceのみ） | Operator は #2 経路のみ | MyPage Terraform Apply（IAM縮小） |
+| 4 | `deploy-mypage-api.yml`（build-and-deploy / deploy-existing）を追加し、router から `mypage-image-build` / `mypage-backend-release` / push自動CDを撤去 | #4 マージ後は新経路のみ | API | Backend WIF condition と foundation image-build trust を新 `workflow_ref` へ更新し、`push` を削除 |
+| 5 | `deploy-mypage-frontend.yml` を追加し、router から `mypage-hosting-release` を撤去 | 同上 | Frontend | Hosting WIF condition を新 `workflow_ref` へ更新。必要なら Hosting rollback 方式を確定 |
+| 6 | `terraform.yml`（手動 plan / apply、component 入力）を追加し、`gcp-plan` / `gcp-apply` と `gcp-infrastructure-authenticated.yml` / `mypage-infrastructure-authenticated.yml` を撤去。到達不能 mode を整理 | 同上 | Terraform 手動 | Core / MyPage の GCP WIF condition と AWS State role trust を新 `workflow_ref` へ更新。`terraform-prod-apply` に required reviewers を設定 |
+| 7 | PR Plan identity と `terraform.yml` の `pull_request` Plan | 変更なし | PR Plan | dev / prod の read-only GCP SA・WIF provider、AWS State read role、Environment `terraform-<env>-pr-plan` の作成 |
+| 8 | `ci.yml` を純粋なCIに縮小し `ci-operations.yml` を削除。schema audit の扱いを確定。docs・契約テストの最終整合 | 新経路のみ | — | 旧 claim を全 trust から削除したことの確認 |
+| 9 | 作業用統合ブランチ → `integration/mypage-canon-20261006` | — | — | — |
+
+- 各PRは、追加した最上位 workflow を `ci-repository.yml` の workflow 契約テスト（[`test_ci_workflows.py`](../../.github/scripts/test_ci_workflows.py) ほか）と CI path routing（[`detect-ci-paths.sh`](../../.github/scripts/detect-ci-paths.sh)）に登録する。
+- trust 更新前にマージした新経路は、認証段階で停止する（fail closed）。PR 説明では「旧経路が有効か」「新経路がまだ無効か」を必ず書く。
+- 旧 workflow を一時的に残す場合は、fallback として有効か、dead / retired かを本書の表に書く。
+
+## 5. 移行状況
+
+| UC | 状態 | 有効な経路 |
+| --- | --- | --- |
+| UC1 CI | 現行（router 同居） | `ci.yml` |
+| UC2 PR Plan | 未実装 | なし（credentialless validate のみ） |
+| UC2 手動 Plan / UC3 Apply | 現行 | `ci.yml` dispatch `gcp-plan` / `gcp-apply` |
+| UC4 Frontend | 現行 | `ci.yml` dispatch `mypage-hosting-release` |
+| UC5 API | 現行（Job と同期） | `ci.yml` dispatch `mypage-backend-release` / `mypage-image-build`、integration push 自動CD |
+| UC6 Operator | 未分離 | UC5 に同梱 |
+| UC7 Maintenance mode | 現行 | `mypage-maintenance.yml`（development のみ Environment 作成済み） |
