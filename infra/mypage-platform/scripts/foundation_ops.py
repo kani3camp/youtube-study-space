@@ -360,9 +360,14 @@ def prepare(env):
     reject_unowned_resources(env, plan)
     need(state_version(env) == version)
     if kind == "pr-plan":
-        # No commitment, saved-plan record or timestamp leaves a PR Plan job.
-        print("MyPage PR Plan (advisory) accepted by the plan contract: " + str(summary["resources"]) + " resources, " +
-              str(summary["creates"]) + " creates. Nothing from this run can be applied.")
+        # No commitment, saved-plan record or timestamp leaves a PR Plan job;
+        # only these value-free counts reach the log and the Job Summary.
+        message = ("MyPage PR Plan (advisory) accepted by the plan contract: " + str(summary["resources"]) + " resources, " +
+                   str(summary["creates"]) + " creates. Nothing from this run can be applied.")
+        print(message)
+        if env.get("GITHUB_STEP_SUMMARY"):
+            with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
+                stream.write("### MyPage PR Plan\n\n" + message + "\n")
         return
     digest = contract.commitment(plan, version, env["GITHUB_SHA"], env["MYPAGE_PLAN_HMAC_KEY"])
     (root / "prepared.json").write_bytes(contract.canonical({"sha256": hashlib.sha256(saved.read_bytes()).hexdigest(), "source": env["GITHUB_SHA"]}))

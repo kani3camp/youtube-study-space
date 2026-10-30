@@ -29,11 +29,14 @@ class TerraformWorkflowTest(unittest.TestCase):
                               env={'PATH': os.environ.get('PATH', os.defpath), **env,
                                    'GITHUB_OUTPUT': os.devnull}).returncode
 
-    def run_pr_select(self, changed, **env):
+    def run_pr_select(self, changed, *, git_status=0, **env):
         """Run the real selection shell with a fake git that lists `changed`."""
         with tempfile.TemporaryDirectory() as directory:
             git = Path(directory) / 'git'
-            git.write_text('#!/bin/sh\nprintf "%s\\n" ' + ' '.join(f"'{path}'" for path in changed) + '\n')
+            git.write_text('#!/bin/sh\n'
+                           '[ "$2" = "--no-renames" ] || exit 99\n'
+                           'printf "%s\\n" ' + ' '.join(f"'{path}'" for path in changed) + '\n'
+                           f'exit {git_status}\n')
             git.chmod(0o755)
             output = Path(directory) / 'output'
             values = {'GITHUB_REPOSITORY': 'kani3camp/youtube-study-space', 'HEAD_REPOSITORY': 'kani3camp/youtube-study-space',
@@ -56,6 +59,13 @@ class TerraformWorkflowTest(unittest.TestCase):
         ):
             with self.subTest(changed=changed):
                 self.assertEqual(self.run_pr_select(changed), (0, {'core': core, 'mypage': mypage}))
+        # A moved file is listed under both paths, so a root it leaves is still planned.
+        self.assertEqual(self.run_pr_select(['infra/gcp/environments/dev/example.tf', 'docs/example.tf']),
+                         (0, {'core': 'true', 'mypage': 'false'}))
+        # A failed diff fails the job instead of selecting nothing.
+        code, outputs = self.run_pr_select(['infra/gcp/environments/dev/main.tf'], git_status=128)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(outputs, {})
         for env in ({'HEAD_REPOSITORY': 'fork/youtube-study-space'}, {'GITHUB_ACTOR_ID': '1'},
                     {'GITHUB_TRIGGERING_ACTOR': 'other'}, {'GITHUB_RUN_ATTEMPT': '2'}):
             with self.subTest(env=env):
