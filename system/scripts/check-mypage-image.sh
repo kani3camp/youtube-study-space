@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
-# 実際の配備イメージを、ADCやクラウド対象なしのオフラインで実行する。
+# 実際のAPI配備イメージを、ADCやクラウド対象なしのオフラインで実行する。
 set -euo pipefail
 
-image="${1:?Usage: check-mypage-image.sh IMAGE}"
+image="${1:?Usage: check-mypage-image.sh API_IMAGE}"
 test "$(docker image inspect --format '{{.Config.User}}' "$image")" = 'nonroot:nonroot'
 
-# APIと固定Jobは同じ不変イメージを使う。各GoバイナリはADC探索前に--helpを終了コード1で拒否する。
-# 起動ファイルがない場合や実行不能の場合は、異なるコードで終了する。
-for maintenance_binary in mypage-maintenance-operator; do
-	maintenance_status=0
-	docker run --rm --network=none --read-only --entrypoint "/app/$maintenance_binary" "$image" --help >/dev/null 2>&1 || maintenance_status=$?
-	test "$maintenance_status" = 1
-done
+# API imageはmaintenance operatorを含めない。Jobは専用imageを独立して配備する。
+# 起動ファイルがない場合、Dockerは126/127で終了する（Goバイナリの拒否は1）。
+operator_status=0
+docker run --rm --network=none --read-only --entrypoint /app/mypage-maintenance-operator "$image" --help >/dev/null 2>&1 || operator_status=$?
+case "$operator_status" in
+126 | 127) ;;
+*)
+	echo 'MyPage API image unexpectedly contains the maintenance operator.' >&2
+	exit 1
+	;;
+esac
 
 # 設定不足は、認証情報探索や待ち受け開始より前に失敗する必要がある。
 if docker run --rm --network=none --read-only "$image" --check-config; then

@@ -52,49 +52,6 @@ def service(*, after=False):
                                              'secretKeyRef': {'secret': 'synthetic-secret-ref', 'version': '1'}}}]}]}}
 
 
-def job(*, after=False):
-    value = release()
-    image = value['image_digest'] if after else old_image()
-    container = {
-        'image': image,
-        'command': ['/app/mypage-maintenance-operator'],
-        'args': [],
-        'resources': {'limits': {'cpu': '1', 'memory': '512Mi'}},
-        'env': [
-            {'name': 'GOOGLE_CLOUD_PROJECT', 'value': b.c.PROJECT},
-            {'name': 'MYPAGE_ENVIRONMENT', 'value': 'development'},
-        ],
-    }
-    return {
-        'name': b.JOB_NAME,
-        'uid': 'synthetic-job-uid',
-        'etag': 'new-job-etag' if after else 'old-job-etag',
-        'generation': '2' if after else '1',
-        'observedGeneration': '2' if after else '1',
-        'updateTime': '2026-10-26T01:00:01Z' if after else '2026-10-26T01:00:00Z',
-        'launchStage': 'GA',
-        'labels': {'goog-terraform-provisioned': 'true', 'preserve': 'label'},
-        'annotations': {'preserve': 'annotation'},
-        'client': 'terraform',
-        'clientVersion': '8.5.0',
-        'executionCount': 8 if after else 7,
-        'latestCreatedExecution': {'name': 'executions/new' if after else 'executions/old'},
-        'reconciling': False,
-        'terminalCondition': {'state': 'CONDITION_SUCCEEDED'},
-        'template': {
-            'taskCount': 1,
-            'parallelism': 1,
-            'template': {
-                'serviceAccount': 'mypage-maintenance-job@' + b.c.PROJECT + '.iam.gserviceaccount.com',
-                'maxRetries': 0,
-                'timeout': '60s',
-                'executionEnvironment': 'EXECUTION_ENVIRONMENT_GEN2',
-                'containers': [container],
-            },
-        },
-    }
-
-
 def v1service(*, after=False):
     api = service(after=after)
     return {'apiVersion': 'serving.knative.dev/v1', 'kind': 'Service',
@@ -197,44 +154,6 @@ class BackendReleaseTest(unittest.TestCase):
         self.assertEqual(original, v1service())
         self.assertEqual(payload['metadata']['resourceVersion'], 'old-rv')
 
-    def test_maintenance_job_payload_preserves_all_writable_config_and_changes_only_image(self):
-        before = job()
-        payload = b.job_payload(before, release())
-        expected = b.job_mutable_configuration(before)
-        expected['etag'] = 'old-job-etag'
-        expected['template']['template']['containers'][0]['image'] = release()['image_digest']
-        self.assertEqual(payload, expected)
-        self.assertEqual(payload['labels'], before['labels'])
-        self.assertEqual(payload['annotations'], before['annotations'])
-        self.assertNotIn('executionCount', payload)
-        self.assertNotIn('latestCreatedExecution', payload)
-        self.assertNotIn('generation', payload)
-        self.assertNotIn('startExecutionToken', payload)
-        self.assertNotIn('runExecutionToken', payload)
-        self.assertEqual(before, job())
-
-        # Output-only execution metadata may change independently of Job config.
-        b.validate_job_result(job(after=True), before, release())
-        for mutate in (
-            lambda x: x['template']['template'].update(serviceAccount='other'),
-            lambda x: x['template']['template']['containers'][0]['env'].pop(),
-            lambda x: x['labels'].update(preserve='changed'),
-            lambda x: x.update(generation='3'),
-            lambda x: x.update(uid='other-job'),
-        ):
-            after = job(after=True)
-            mutate(after)
-            with self.subTest(mutate=mutate), self.assertRaises(ValueError):
-                b.validate_job_result(after, before, release())
-
-    def test_job_wait_tolerates_stale_get_until_generation_advances(self):
-        operation = {'name': 'projects/' + b.c.PROJECT + '/locations/asia-southeast2/operations/synthetic',
-                     'done': True}
-        with patch.object(b, 'job_request', side_effect=[job(), job(after=True)]) as request, \
-             patch.object(b.time, 'sleep'):
-            self.assertEqual(b.wait_job_update('token', operation, job(), release()), job(after=True))
-        self.assertEqual(request.call_count, 2)
-
     def test_new_revision_must_preserve_all_config_including_unknown_fields(self):
         b.validate_result(service(after=True), service(), release())
         changes = [lambda x: x['template']['containers'][0]['env'].pop(),
@@ -250,14 +169,12 @@ class BackendReleaseTest(unittest.TestCase):
                 b.validate_result(after, service(), release())
 
     def execute(self, *, moved=False, conflict=False, lost=False, unhealthy=False, smoke=False,
-                service_unchanged=False, job_unchanged=False):
+                service_unchanged=False):
         before = service(after=service_unchanged)
         after = deepcopy(before) if service_unchanged else service(after=True)
-        before_job = job(after=job_unchanged)
-        after_job = deepcopy(before_job) if job_unchanged else job(after=True)
         if unhealthy:
             after['terminalCondition']['state'] = 'CONDITION_FAILED'
-        service_calls, job_calls = [], []
+        service_calls = []
         live_gets = 0
         with tempfile.TemporaryDirectory() as directory:
             env = environment() | {'RUNNER_TEMP': directory}
@@ -280,21 +197,8 @@ class BackendReleaseTest(unittest.TestCase):
                     raise ValueError('synthetic-conflict' if conflict else 'synthetic-lost-response')
                 return v1service(after=True)
 
-            def jobrequest(token, body=None, *, url=b.JOB_URL, missing_ok=False):
-                if body is not None:
-                    self.assertEqual(url, b.JOB_PATCH_URL)
-                    job_calls.append(deepcopy(body))
-                    self.assertTrue(path.is_file())
-                    return {'name': 'projects/' + b.c.PROJECT + '/locations/asia-southeast2/operations/synthetic',
-                            'done': True}
-                if url != b.JOB_URL:
-                    return {'name': url.removeprefix('https://run.googleapis.com/v2/'), 'done': True}
-                value = deepcopy(after_job if job_calls else before_job)
-                # A maintenance execution may change output-only counters while
-                # the release checks configuration stability.
-                value['executionCount'] += 10
-                value['latestCreatedExecution'] = {'name': 'executions/concurrent'}
-                return value
+            def no_job_access(*_args, **_kwargs):
+                raise AssertionError('The API release must never read or update the maintenance Job')
 
             host = {'name': 'sites/test--study-space/releases/old',
                     'version': {'name': 'sites/test--study-space/versions/old'}}
@@ -303,7 +207,7 @@ class BackendReleaseTest(unittest.TestCase):
                  patch.object(b.hosting, 'current', return_value=host), \
                  patch.object(b.live, 'request', side_effect=live_request), \
                  patch.object(b.v1, 'request', side_effect=v1request), \
-                 patch.object(b, 'job_request', side_effect=jobrequest), \
+                 patch('urllib.request.OpenerDirector.open', side_effect=no_job_access), \
                  patch.object(b, 'smoke', side_effect=ValueError('synthetic-smoke') if smoke else None):
                 if any((moved, conflict, lost, unhealthy, smoke)):
                     with self.assertRaises(ValueError):
@@ -311,47 +215,41 @@ class BackendReleaseTest(unittest.TestCase):
                 else:
                     b.deploy(env)
             record = json.loads(path.read_bytes()) if path.exists() else None
-        return service_calls, job_calls, record
+        return service_calls, record
 
     def test_release_updates_once_and_records_revision_digest_pair(self):
-        calls, job_calls, record = self.execute()
+        calls, record = self.execute()
         self.assertEqual(len(calls), 1)
-        self.assertEqual(len(job_calls), 1)
         self.assertEqual(record['publishStatus'], 'confirmed')
         self.assertEqual(record['publicReadback'], 'passed')
         self.assertNotIn('stateReadback', record)
         self.assertEqual(record['previousImageDigest'], old_image())
-        self.assertEqual(record['schemaVersion'], 3)
-        self.assertEqual(record['maintenanceJobStatus'], 'confirmed')
-        self.assertEqual(record['maintenanceJobImageDigest'], release()['image_digest'])
+        self.assertEqual(record['schemaVersion'], 4)
+        self.assertFalse(any(key.startswith('maintenanceJob') for key in record))
 
-    def test_service_unchanged_can_update_only_the_maintenance_job(self):
-        service_calls, job_calls, record = self.execute(service_unchanged=True)
-        self.assertEqual(service_calls, [])
-        self.assertEqual(len(job_calls), 1)
+    def test_unchanged_service_is_recorded_without_any_write(self):
+        calls, record = self.execute(service_unchanged=True)
+        self.assertEqual(calls, [])
         self.assertEqual(record['publishStatus'], 'unchanged')
-        self.assertEqual(record['maintenanceJobStatus'], 'confirmed')
-        self.assertEqual(record['maintenanceJobImageDigest'], release()['image_digest'])
+        self.assertEqual(record['publicReadback'], 'passed')
 
     def test_competing_configuration_prevents_write(self):
-        calls, job_calls, record = self.execute(moved=True)
+        calls, record = self.execute(moved=True)
         self.assertEqual(calls, [])
-        self.assertEqual(job_calls, [])
         self.assertIsNone(record)
 
     def test_conflict_and_lost_response_never_retry_and_preserve_recovery_record(self):
         for option in ('conflict', 'lost'):
             with self.subTest(option=option):
-                calls, job_calls, record = self.execute(**{option: True})
+                calls, record = self.execute(**{option: True})
                 self.assertEqual(len(calls), 1)
-                self.assertEqual(job_calls, [])
                 self.assertEqual(record['publishStatus'], 'unknown')
                 self.assertEqual(record['previousRevision'], 'mypage-api-00001-old')
 
     def test_unhealthy_or_failed_smoke_stops_without_rollback(self):
         for option in ('unhealthy', 'smoke'):
             with self.subTest(option=option):
-                calls, job_calls, record = self.execute(**{option: True})
+                calls, record = self.execute(**{option: True})
                 self.assertEqual(len(calls), 1)
                 self.assertEqual(record['publicReadback'], 'pending')
                 self.assertNotIn('stateReadback', record)

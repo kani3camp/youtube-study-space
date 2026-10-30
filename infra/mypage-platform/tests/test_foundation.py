@@ -439,7 +439,17 @@ class FoundationTest(unittest.TestCase):
             c.context(env, 'plan')
         with self.assertRaises(ValueError):
             c.context(env, 'apply')
-        c.context(env | {'MYPAGE_MODE': 'image-build'}, 'apply', image=True)
+        c.context(env | {'MYPAGE_MODE': 'image-build', 'MYPAGE_IMAGE_COMPONENT': 'api'}, 'apply', image=True)
+        # The maintenance operator image is built only by its manual Deploy workflow.
+        operator = env | {'MYPAGE_MODE': 'image-build', 'MYPAGE_IMAGE_COMPONENT': 'maintenance-operator',
+                          'GITHUB_WORKFLOW_REF': c.IMAGE_COMPONENTS['maintenance-operator']['caller']}
+        with self.assertRaises(ValueError):
+            c.context(operator, 'apply', image=True)
+        c.context(operator | {'GITHUB_EVENT_NAME': 'workflow_dispatch'}, 'apply', image=True)
+        for bad in ({'GITHUB_WORKFLOW_REF': c.CALLER}, {'MYPAGE_IMAGE_COMPONENT': ''},
+                    {'MYPAGE_IMAGE_COMPONENT': 'mypage-api'}):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                c.context(operator | {'GITHUB_EVENT_NAME': 'workflow_dispatch'} | bad, 'apply', image=True)
         for mode in ('foundation-apply', 'registry-apply', 'desired-apply',
                      'runtime-private-apply', 'runtime-public-apply',
                      'maintenance-operator-apply'):

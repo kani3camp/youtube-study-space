@@ -1,6 +1,7 @@
 # MyPage DEV BackendのアプリケーションCI/CD
 
 対象は `test-youtube-study-space` / `asia-southeast2` / Cloud Run `mypage-api`。
+maintenance Job `mypage-maintenance-operator` は別の配備単位であり、[Maintenance Operatorの配備](#maintenance-operatorの配備)で扱う。
 **Terraformはサービス・IAM・Secret参照・リソース設定を管理し、CI/CDは作成後のコンテナイメージを管理する。**
 アプリケーションをビルドするたびにPRでdigestを更新したり、Terraform Plan/Applyでリリースしたりしない。
 本ページは採用方針とソース手順を説明する。新CIが実クラウドで成功したかは別途Actions/配備記録で確認する。
@@ -12,15 +13,15 @@ Production・OAuthの実E2E・Privacy/GA4・一般公開の承認は対象外。
    `system/**`のpushだけがDEV用の自動リリース候補になる。PRの`CI`は資格情報を持たない。
 2. 当該統合commitの`CI`がRepository、System、Frontend、Tools、Infra、GCP Terraformのcredentialless検査を完了する。
    検査失敗・予定外のactor/ref/event/再実行はクラウド認証前に停止する。
-3. `mypage-image-build` が固定の`system/Dockerfile.mypage`からlinux/amd64のイメージをビルドし、
+3. `mypage-image-build` が固定の`system/Dockerfile.mypage-api`（API serverだけを含む）からlinux/amd64のイメージをビルドし、
    offline・nonroot検査後、Git SHAをimmutabilityのあるArtifact Registry tagにしてpushする。
    Registry metadataとDocker RepoDigestsを照合した **正確なdigest** を同じActions run内のjob outputに渡す。
    タグを本番のデプロイ参照に用いず、`@sha256:...`だけを使う。
 4. `mypage-auto-deploy`はそのrunのdigestとsource SHAを専用backend reusable workflowへ渡す。
-   DEV専用WIF/短命tokenでtag→digestを再確認する。現Cloud Run Serviceと固定maintenance Jobのidentity・image・設定、
-   Hosting版、統合HEAD、Serviceのv1 resourceVersionを確認し、**両方のimageだけを同じdigestへ置き換える**。
-   既に同じdigestなら、その資源への書き込みは行わない。
-5. Serviceの新リビジョンがReady、最新へ100%トラフィック、maintenance Jobがreconcile済みで、両資源の非image設定・IAM/Secret参照が不変であることを再確認する。
+   DEV専用WIF/短命tokenでtag→digestを再確認する。現Cloud Run Serviceのidentity・image・設定、
+   Hosting版、統合HEAD、Serviceのv1 resourceVersionを確認し、**Serviceのimageだけを置き換える**。
+   maintenance Jobは読み取りも更新もしない。既に同じdigestなら書き込みは行わない。
+5. Serviceの新リビジョンがReady、最新へ100%トラフィックで、非image設定・IAM/Secret参照が不変であることを再確認する。
    Hostingの匿名APIが`APP_CHECK_REQUIRED`の403、Cloud Run直URLがHost境界の`INVALID_REQUEST`の400を
    それぞれ`no-store`で返し、`/`と`/mypage`を配信できることを検査する。
    成功と失敗の両方で復旧用のrelease recordを保存する。
@@ -33,15 +34,15 @@ flowchart TD
     A[コードPRを統合] --> B[Credentialless CI]
     B -->|成功| C[Build / offline検査 / Push]
     C --> D[Registry digestとタグを検証]
-    D --> E[Service + maintenance Jobのimageのみ更新]
-    E --> F[Ready / Job reconcile / smoke / 設定不変]
+    D --> E[Serviceのimageのみ更新]
+    E --> F[Ready / smoke / 設定不変]
     F --> G[Release record]
 ```
 
 ## Terraformとの責任境界
 
 - Cloud Run Serviceの既存bootstrap imageはTerraform入力として残るが、通常releaseでは更新しない。maintenance JobをDEVで初めて作るときだけ、Job不存在をread-only確認したうえで、実ビルド済み・operator binary含有をsourceで確認した固定SHA tagをArtifact Registryからdigestへ解決し、**そのPlan/Applyだけのprivate入力**として使う。GitHub Environmentの設定JSONへmaintenance専用digest/source SHAを保存しない。
-- 作成後はService/Jobともcontainer **imageだけ** を`lifecycle.ignore_changes`でCI/CDへ委譲する。Jobのcommand/env/resources/IAM/runtime SA等はTerraform管理のまま。
+- 作成後はService/Jobともcontainer **imageだけ** を`lifecycle.ignore_changes`でCI/CDへ委譲する（ServiceはこのBackend release、JobはMaintenance Operatorの配備）。Jobのcommand/env/resources/IAM/runtime SA等はTerraform管理のまま。
 - 旧Environment secretに `maintenance_operator_enabled` / `maintenance_operator_image_digest` / `maintenance_operator_image_source_sha` が残っていても、移行互換としてその3キーだけを読み捨てる。private tfvarsやPlanには伝播せず、他の未知キーは引き続き拒否する。運用上は確認後に旧3キーを削除する。
 - CPU・メモリ・concurrency・環境変数・Secret version・サービスアカウント・ingress・traffic・IAM等は
   Terraform/既存専用運用が管理する。`ignore_changes`をtemplate全体に広げない。
@@ -87,16 +88,17 @@ source SHAが現在の統合HEADの祖先であることを確認する。
 
 ロールバックは既知の良好なdigest/source SHAを指定する**新しい配備**で行う。
 対象のrevision、旧digest、Hosting互換性、Auth/同意版・秘密参照・設定を確認してから操作する。
-Serviceは1回のresourceVersion付きPUT、maintenance Jobは1回のetag付きPATCHで更新し、自動再試行・自動rollbackはしない。Job PATCHはCloud Run v2のLong-running Operation完了とgeneration前進を確認してから成功扱いにする。Jobのlabels/annotations等のユーザー設定をGETから保持し、executionCount/latestCreatedExecution等の出力専用状態は競合判定に使わない。
-応答消失は`publishStatus=unknown`またはJobの未確定状態として残し、配備後の疎通失敗も実Cloud RunのService/Jobをreadbackして復旧する。
+Serviceは1回のresourceVersion付きPUTで更新し、自動再試行・自動rollbackはしない。
+応答消失は`publishStatus=unknown`として残し、配備後の疎通失敗も実Cloud RunのServiceをreadbackして復旧する。
 旧digestと旧revisionの実配備記録は14日保存する。ユーザーデータやSecretを巻き戻さない。
 
 ## 専用Backend identityの境界
 
 [初回設定スクリプト](../../../infra/mypage-platform/scripts/backend_identity.py)の既存DEV専用
 `mypage-backend-deploy` SA/WIFを使用する。
-対象は`mypage-api` serviceの`run.services.get`/`run.services.update`に加え、Terraform管理のDEV専用custom roleで固定`mypage-maintenance-operator` Jobの`run.jobs.get`/`run.jobs.update`だけを許可する。
-API runtime SAとmaintenance Job runtime SAのそれぞれにresource-level `roles/iam.serviceAccountUser`（actAs）を付与し、他SAへは広げない。**このJob更新role/binding/actAsはdevelopmentだけに作り、Productionへ同名backend deployer principalを作成・予約しない。**
+対象は`mypage-api` serviceの`run.services.get`/`run.services.update`とAPI runtime SAへのresource-level `roles/iam.serviceAccountUser`（actAs）。
+Terraformが過去に付与した固定`mypage-maintenance-operator` Jobの`run.jobs.get`/`run.jobs.update`とmaintenance Job runtime SAへのactAsは、このreleaseではもう使わない。
+**旧bindingは、初回のMaintenance Operator配備でJobが専用packageへ移ったことを確認してから、削除専用のTerraform遷移で外す**（現在のruntime契約はcreate/no-opだけを許可するため、同じPRでは削除しない）。
 DEV Artifact Registryのreader、Hosting viewerとquotaの必要最小権限。
 GitHub Environment `mypage-dev-backend` とcallerの完全一致を維持する。
 
@@ -106,3 +108,39 @@ GitHub Environment `mypage-dev-backend` とcallerの完全一致を維持する�
 ソースの固定対象/commit/digest照合、v1 resourceVersion、前後の全設定比較、CI保護、
 手動承認運用でこの広い能力を扱う。
 Secret本文・IAM setter・Cloud Run create/delete・Production権限は付与しない。
+
+## Maintenance Operatorの配備
+
+maintenance Job `mypage-maintenance-operator` のimageは、API Serviceと独立した配備単位として
+`Deploy Maintenance Operator`（[`deploy-mypage-maintenance.yml`](../../../.github/workflows/deploy-mypage-maintenance.yml)）だけが更新する。
+API releaseとは同じdigestへ同期しない。`core/mypage` のMaintenanceControl / Firestore schemaを変えるPRは、
+前方・後方互換を保つか、APIとOperatorの両方の配備が必要であることをPR説明に明記する。
+
+1. `integration/mypage-canon-20261006`を選び、`mode=build-and-deploy`で実行する。
+   `system/Dockerfile.mypage-maintenance-operator`（operator binaryだけを含む）をビルドし、offline・nonroot検査後に
+   `mypage/mypage-maintenance-operator:<source SHA>`のimmutable tagでpushし、Registry metadataとRepoDigestsを照合したdigestを次のjobへ渡す。
+2. [配備スクリプト](../../../infra/mypage-platform/scripts/operator_release.py)は、固定actor・統合ref・caller・初回実行・SHA一致を
+   クラウド認証の前に検査する。Environment `mypage-dev-operator` と専用 `mypage-operator-deploy` SA/WIFで短命tokenを取得し、
+   tag→digestを再確認する。Jobのidentity・設定・現imageを読み、**Jobのcontainer imageだけ**を1回のetag付きPATCHで更新する。
+   Long-running Operation完了とgeneration前進、image以外の設定不変をreadbackしてから成功扱いにする。
+   labels/annotations等のユーザー設定をGETから保持し、executionCount/latestCreatedExecution等の出力専用状態は競合判定に使わない。
+3. **Jobは実行しない**（実行はmaintenance modeを変更するため）。API Service・Hosting・Terraform・State・IAMには触れない。
+4. 成功・失敗のどちらでも`mypage-operator-release-record`（schema 1、旧image・旧generationを含む）を14日保存し、
+   受領jobが`mypage-operator-verified-record`を残す。自動再試行・自動rollbackはしない。
+
+ロールバックは`mode=deploy-existing`で、既知の良好な`mypage-maintenance-operator@sha256:...`のdigestとそのsource SHAを指定する。
+tagとdigestの一致、source SHAが現在の統合HEADの祖先であることを確認してからJobだけを更新する。
+
+移行中のJobは、旧API同梱image（`mypage/mypage-api`）を指していてもよい。Terraform契約と配備スクリプトは両packageを現在値として受け入れ、
+配備先は専用packageに限る。初回配備で切替を確認した後、旧packageの許容と旧Backend deployerのJob権限を外す。
+
+初回有効化（owner作業、リポジトリ外）:
+
+- [初回設定スクリプト](../../../infra/mypage-platform/scripts/operator_identity.py)の`--apply`で、DEV専用の`mypage-operator-deploy` SA、
+  `mypage-operator` WIF pool/provider、Environment `mypage-dev-operator`と変数`MYPAGE_OPERATOR_WIF_PROVIDER`を作る（既定はプレビュー）。
+  providerは固定repository・owner・actor、`workflow_dispatch`、初回実行、統合ref、caller `deploy-mypage-maintenance.yml`、
+  reusable `mypage-operator-authenticated.yml`、同一workflow SHA、Environmentをすべて検査する。
+- MyPage TerraformのApplyで、Job `run.jobs.get`/`run.jobs.update` custom roleのbindingと、maintenance Job runtime SAへのactAsを
+  `mypage-operator-deploy`へ付与する。
+- image buildは既存の`mypage-dev-apply`（`mypage-foundation` WIF）を使う。このWIF condition の `workflow_ref` に
+  `deploy-mypage-maintenance.yml@<統合ref>` を追加する。

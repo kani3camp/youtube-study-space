@@ -254,6 +254,7 @@ jobs:
       target: ${{ inputs.environment }}
       mode: image-build
       expected_sha: ${{ github.sha }}
+      image_component: api
     secrets:
       MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
       MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}

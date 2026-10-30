@@ -22,8 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Build the Cloud Run image without credentials
-        run: docker build --platform linux/amd64 --file system/Dockerfile.mypage --tag mypage-api:ci system
+      - name: Build the Cloud Run API image without credentials
+        run: docker build --platform linux/amd64 --file system/Dockerfile.mypage-api --tag mypage-api:ci system
       - name: Execute the image offline as nonroot
         run: bash system/scripts/check-mypage-image.sh mypage-api:ci
       - name: Reject High and Critical image vulnerabilities
@@ -31,6 +31,29 @@ jobs:
         with:
           version: v0.76.1
           image-ref: mypage-api:ci
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: '1'
+
+  mypage-operator-container:
+    name: MyPage Maintenance Operator Container Build
+    if: ${{ inputs.system }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build the Cloud Run Job image without credentials
+        run: docker build --platform linux/amd64 --file system/Dockerfile.mypage-maintenance-operator --tag mypage-maintenance-operator:ci system
+      - name: Execute the image offline as nonroot
+        run: bash system/scripts/check-mypage-operator-image.sh mypage-maintenance-operator:ci
+      - name: Reject High and Critical image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.1
+          image-ref: mypage-maintenance-operator:ci
           scanners: vuln
           vuln-type: os,library
           severity: HIGH,CRITICAL

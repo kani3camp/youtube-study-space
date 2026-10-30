@@ -1,0 +1,107 @@
+name: MyPage DEV Maintenance Operator Release
+
+on:
+  workflow_call:
+    inputs:
+      expected_sha:
+        required: true
+        type: string
+      image_digest:
+        required: false
+        type: string
+        default: ""
+      image_source_sha:
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+# Serializes Cloud Run changes (Terraform, API, maintenance operator) in DEV.
+# Terraform refreshes and PATCHes the whole Job, so it must not interleave.
+concurrency:
+  group: mypage-dev-runtime-change
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: MyPage DEV Operator Job Image Apply
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: mypage-dev-operator
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MYPAGE_OPERATOR_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      MYPAGE_OPERATOR_IMAGE_DIGEST: ${{ inputs.image_digest }}
+      MYPAGE_OPERATOR_IMAGE_SOURCE_SHA: ${{ inputs.image_source_sha }}
+    steps:
+      - name: Checkout reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reject unreviewed context before authentication
+        run: python3 infra/mypage-platform/scripts/operator_release.py context
+      - name: Authenticate dedicated DEV operator deployer
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.MYPAGE_OPERATOR_WIF_PROVIDER }}
+          service_account: mypage-operator-deploy@test-youtube-study-space.iam.gserviceaccount.com
+          project_id: test-youtube-study-space
+          create_credentials_file: false
+          export_environment_variables: false
+          token_format: access_token
+          access_token_lifetime: 600s
+      - name: Update only the Job image without executing it
+        env:
+          MYPAGE_OPERATOR_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: python3 infra/mypage-platform/scripts/operator_release.py deploy
+      - name: Preserve recovery references on every outcome
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: mypage-operator-release-record
+          path: ${{ runner.temp }}/mypage-operator-release-record.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  receipt:
+    name: MyPage DEV Operator Verified Receipt
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Read this run's release record
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: mypage-operator-release-record
+          path: ${{ runner.temp }}/operator-record
+      - name: Verify the Job image readback
+        env:
+          RECORD: ${{ runner.temp }}/operator-record/mypage-operator-release-record.json
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          record = json.loads(Path(os.environ['RECORD']).read_bytes())
+          assert record['schemaVersion'] == 1
+          assert record['sourceSHA'] == os.environ['GITHUB_SHA']
+          assert record['environment'] == 'development'
+          assert record['jobStatus'] in ('confirmed', 'unchanged')
+          assert record['readback'] == 'passed'
+          assert record['imageDigest'].startswith('asia-southeast2-docker.pkg.dev/test-youtube-study-space/mypage/mypage-maintenance-operator@sha256:')
+          PY
+      - name: Preserve verified release record
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: mypage-operator-verified-record
+          path: ${{ runner.temp }}/operator-record/mypage-operator-release-record.json
+          if-no-files-found: error
+          retention-days: 14

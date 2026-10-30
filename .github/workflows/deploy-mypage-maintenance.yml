@@ -1,0 +1,92 @@
+name: Deploy Maintenance Operator
+
+# Updates only the DEV Cloud Run Job image. It never executes the Job, never
+# changes the API Service and never runs Terraform. Production stays absent
+# until the public release gate (#1133) approves a separate identity.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: build-and-deploy builds this commit; deploy-existing reuses a verified image (rollback)
+        required: true
+        default: build-and-deploy
+        type: choice
+        options:
+          - build-and-deploy
+          - deploy-existing
+      image_digest:
+        description: deploy-existing only. Exact mypage-maintenance-operator@sha256 digest
+        required: false
+        type: string
+      image_source_sha:
+        description: deploy-existing only. Source SHA whose immutable tag resolves to the digest
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  select:
+    name: Validate Deploy Selection
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    env:
+      MODE: ${{ inputs.mode }}
+      IMAGE_DIGEST: ${{ inputs.image_digest }}
+      IMAGE_SOURCE_SHA: ${{ inputs.image_source_sha }}
+    steps:
+      - name: Require a complete and unambiguous image selection
+        run: |
+          set -euo pipefail
+          case "${MODE}" in
+            build-and-deploy)
+              [[ -z "${IMAGE_DIGEST}" && -z "${IMAGE_SOURCE_SHA}" ]] || {
+                echo "::error::build-and-deploy builds this commit; do not pass an image."
+                exit 1
+              }
+              ;;
+            deploy-existing)
+              [[ -n "${IMAGE_DIGEST}" && -n "${IMAGE_SOURCE_SHA}" ]] || {
+                echo "::error::deploy-existing requires both image_digest and image_source_sha."
+                exit 1
+              }
+              ;;
+            *)
+              echo "::error::Unsupported deploy mode."
+              exit 1
+              ;;
+          esac
+
+  build:
+    name: Build Operator Image
+    needs: select
+    if: ${{ inputs.mode == 'build-and-deploy' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-foundation-authenticated.yml
+    with:
+      target: development
+      mode: image-build
+      expected_sha: ${{ github.sha }}
+      image_component: maintenance-operator
+    secrets:
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+
+  deploy:
+    name: Deploy Operator Job Image
+    needs: [select, build]
+    # Run after a successful build, or without a build for an explicit rollback.
+    if: ${{ always() && needs.select.result == 'success' && (needs.build.result == 'success' || (inputs.mode == 'deploy-existing' && needs.build.result == 'skipped')) }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-operator-authenticated.yml
+    with:
+      expected_sha: ${{ github.sha }}
+      image_digest: ${{ inputs.mode == 'build-and-deploy' && needs.build.outputs.image_digest || inputs.image_digest }}
+      image_source_sha: ${{ inputs.mode == 'build-and-deploy' && github.sha || inputs.image_source_sha }}
