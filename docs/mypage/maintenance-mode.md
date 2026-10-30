@@ -14,7 +14,7 @@
 
 ## 初期化と切替
 
-1. 先にDEVのreview済みMyPageイメージがArtifact Registryに存在することを確認します。GitHub EnvironmentのJSONへmaintenance用digestを書きません。Plan/Apply identityにはproject custom role `mypageMaintenanceRead`（`run.jobs.get` / `run.jobs.getIamPolicy` の2権限だけ）を恒常read-only bootstrap権限としてPlan/Apply identityへ用意します。Jobが不存在の場合だけ、コードで固定した実ビルド済みsource SHAのimmutable tagをPlan時にread-only解決してprivate digest入力にします。
+1. 先にDEVのreview済みMyPageイメージがArtifact Registryに存在することを確認します。GitHub EnvironmentのJSONへmaintenance用digestを書きません。Plan/Apply identityには既存のRuntime metadata-only custom roleへ `run.jobs.get` / `run.jobs.getIamPolicy` の2権限だけを追加し、Plan/Apply identityの恒常read-only bootstrap権限として維持します。Jobが不存在の場合だけ、コードで固定した実ビルド済みsource SHAのimmutable tagをPlan時にread-only解決してprivate digest入力にします。
 2. `CI`の`operation=gcp-plan`と対象`environment`で、Core GCPとMyPageのdesired stateをまとめてPlanします。DEVの現在のdesired stageには、メンテナンス専用Service Account・WIF・単一Cloud Run Jobを含みます。差分のレビュー後だけ`operation=gcp-apply`を実行します。通常操作で`maintenance_operator` / `maintenance_upgrade`の個別モードは選びません。対象環境のdesired stageが`disabled`ならMyPage資源を変更しません。Job作成後のimageはTerraform設定JSONではなくBackend CI/CDが所有します。
 3. 初回構築後は`operation=mypage-backend-release`でreview済みの同一digestをAPI Serviceとmaintenance Jobへ同期し、Service revision、Job generation、設定不変のreadbackが成功したことを確認します。その後、GitHub ActionsのMyPage Maintenance Modeを`workflow_dispatch`で実行し、対象`environment`と`enabled=false`を指定して初期化します。欠落文書も同じJobが作成します。
 4. 開始時は`enabled=true`、解除時は`enabled=false`を指定します。Jobは入力を検証し、トランザクションで現在値を読んで更新します。コミット後に読み返し、結果をログに出します。同じ値への更新は成功のno-opです。
