@@ -15,8 +15,8 @@ def environment():
             'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_ACTOR_ID': '54093651',
             'GITHUB_ACTOR': 'kani3camp', 'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
             'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_RUN_ATTEMPT': '1',
-            'GITHUB_REF': b.c.REF, 'GITHUB_WORKFLOW_REF': b.c.CALLER,
-            'GITHUB_SHA': 'a' * 40, 'GITHUB_RUN_ID': '123', 'MYPAGE_OTHER_OPERATION': 'false',
+            'GITHUB_REF': b.c.REF, 'GITHUB_WORKFLOW_REF': b.CALLER,
+            'GITHUB_SHA': 'a' * 40, 'GITHUB_RUN_ID': '123',
             'MYPAGE_BACKEND_EXPECTED_SHA': 'a' * 40, 'MYPAGE_BACKEND_ACCESS_TOKEN': 'synthetic-token'}
 
 
@@ -94,6 +94,7 @@ class BackendReleaseTest(unittest.TestCase):
     def test_new_identity_is_bound_to_exact_dev_source_actor_and_environment(self):
         condition = identity.condition()
         for text in ('assertion.ref == ' + json.dumps(b.c.REF),
+                     'assertion.workflow_ref == ' + json.dumps(identity.CALLER),
                      'assertion.job_workflow_ref == ' + json.dumps(identity.REUSABLE),
                      'assertion.actor_id == "54093651"', 'assertion.run_attempt == "1"',
                      'assertion.event_name == "workflow_dispatch"',
@@ -102,32 +103,19 @@ class BackendReleaseTest(unittest.TestCase):
             self.assertIn(text, condition)
         self.assertEqual(set(identity.PERMISSIONS), {'run.services.get', 'run.services.update'})
         self.assertNotIn('mypage-foundation', condition)
+        for absent in ('push', ' || ', '/ci.yml@'):
+            self.assertNotIn(absent, condition)
 
     def test_rejects_unauthorized_context_before_any_cloud_access(self):
         b.context(environment())
         for key, value in [('GITHUB_REF', 'refs/heads/main'), ('GITHUB_ACTOR_ID', '0'),
                            ('GITHUB_RUN_ATTEMPT', '2'), ('GITHUB_EVENT_NAME', 'pull_request'),
-                           ('MYPAGE_OTHER_OPERATION', 'true'), ('MYPAGE_BACKEND_EXPECTED_SHA', 'b' * 40),
+                           ('GITHUB_EVENT_NAME', 'push'), ('GITHUB_WORKFLOW_REF', b.c.CALLER),
+                           ('GITHUB_WORKFLOW_REF', b.c.workflow_ref('deploy-mypage-frontend.yml')),
+                           ('MYPAGE_BACKEND_EXPECTED_SHA', 'b' * 40),
                            ('AWS_ACCESS_KEY_ID', 'synthetic-private')]:
             with self.subTest(key=key), self.assertRaises(ValueError):
                 b.context(environment() | {key: value})
-
-    def test_push_backend_release_preserves_manual_hosting_boundary(self):
-        env = environment()
-        b.context(env | {'GITHUB_EVENT_NAME': 'push',
-                         'MYPAGE_BACKEND_IMAGE_DIGEST': release()['image_digest'],
-                         'MYPAGE_BACKEND_IMAGE_SOURCE_SHA': env['GITHUB_SHA']})
-        with self.assertRaises(ValueError):
-            b.context(env | {'GITHUB_EVENT_NAME': 'push'})
-        for bad in ('pull_request', 'workflow_run', 'schedule'):
-            with self.subTest(event=bad), self.assertRaises(ValueError):
-                b.context(env | {'GITHUB_EVENT_NAME': bad})
-        import hosting_release as hosting
-        with self.assertRaises(ValueError):
-            hosting.context(env | {'GITHUB_EVENT_NAME': 'push'})
-        for event in ('workflow_dispatch', 'push'):
-            self.assertIn('assertion.event_name == "' + event + '"', identity.condition())
-        self.assertIn(' || ', identity.condition())
 
     def test_manual_release_resolves_exact_source_tag_without_json(self):
         given = environment()

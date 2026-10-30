@@ -9,15 +9,19 @@ Production・OAuthの実E2E・Privacy/GA4・一般公開の承認は対象外。
 
 ## 通常のDEVアプリケーションリリース
 
-1. コードPRをレビューし、`integration/mypage-canon-20261006`へ統合する。
-   `system/**`のpushだけがDEV用の自動リリース候補になる。PRの`CI`は資格情報を持たない。
-2. 当該統合commitの`CI`がRepository、System、Frontend、Tools、Infra、GCP Terraformのcredentialless検査を完了する。
-   検査失敗・予定外のactor/ref/event/再実行はクラウド認証前に停止する。
-3. `mypage-image-build` が固定の`system/Dockerfile.mypage-api`（API serverだけを含む）からlinux/amd64のイメージをビルドし、
+自動配備は行わない。PR・pushを契機に実環境へ書き込むworkflowは無い。
+
+1. コードPRをレビューし、`integration/mypage-canon-20261006`へ統合する（rulesetがPRと`CI Gate`を要求する）。
+   PRの`CI`は資格情報を持たない。
+2. ownerが`Deploy MyPage API`（[`deploy-mypage-api.yml`](../../../.github/workflows/deploy-mypage-api.yml)）を
+   統合ブランチで`mode=build-and-deploy`として実行する。同じrun内で、まずSystemのcredentialless検査
+   （Go test・lint・vuln・Firestore Emulator・両image build）を行う。rulesetは統合後のtreeそのものを検査しないため、配備対象のcommitで再実行する。
+   検査失敗・予定外のactor/ref/event/caller/再実行はクラウド認証前に停止する。
+3. `mypage-foundation-authenticated.yml`の`image-build`（`image_component=api`）が固定の`system/Dockerfile.mypage-api`（API serverだけを含む）からlinux/amd64のイメージをビルドし、
    offline・nonroot検査後、Git SHAをimmutabilityのあるArtifact Registry tagにしてpushする。
    Registry metadataとDocker RepoDigestsを照合した **正確なdigest** を同じActions run内のjob outputに渡す。
    タグを本番のデプロイ参照に用いず、`@sha256:...`だけを使う。
-4. `mypage-auto-deploy`はそのrunのdigestとsource SHAを専用backend reusable workflowへ渡す。
+4. deploy jobはそのrunのdigestとsource SHAを専用backend reusable workflowへ渡す。
    DEV専用WIF/短命tokenでtag→digestを再確認する。現Cloud Run Serviceのidentity・image・設定、
    Hosting版、統合HEAD、Serviceのv1 resourceVersionを確認し、**Serviceのimageだけを置き換える**。
    maintenance Jobは読み取りも更新もしない。既に同じdigestなら書き込みは行わない。
@@ -25,13 +29,14 @@ Production・OAuthの実E2E・Privacy/GA4・一般公開の承認は対象外。
    Hostingの匿名APIが`APP_CHECK_REQUIRED`の403、Cloud Run直URLがHost境界の`INVALID_REQUEST`の400を
    それぞれ`no-store`で返し、`/`と`/mypage`を配信できることを検査する。
    成功と失敗の両方で復旧用のrelease recordを保存する。
-6. 配備完了は`mypage-backend-verified-record`と`CI Gate`で確認する。
+6. 配備完了は`mypage-backend-verified-record`で確認する。
    **Terraformはリリース中に一切起動しない。Stateのrefresh/Applyも行わない。**
    対象のdigestとrevision、source SHA、旧digest、Hosting版はそのrunの記録を正とする。
 
 ```mermaid
 flowchart TD
-    A[コードPRを統合] --> B[Credentialless CI]
+    A[コードPRを統合] --> H[ownerがDeploy MyPage APIを実行]
+    H --> B[同じrunでSystemのcredentialless検査]
     B -->|成功| C[Build / offline検査 / Push]
     C --> D[Registry digestとタグを検証]
     D --> E[Serviceのimageのみ更新]
@@ -46,7 +51,7 @@ flowchart TD
 - 旧Environment secretに `maintenance_operator_enabled` / `maintenance_operator_image_digest` / `maintenance_operator_image_source_sha` が残っていても、移行互換としてその3キーだけを読み捨てる。private tfvarsやPlanには伝播せず、他の未知キーは引き続き拒否する。運用上は確認後に旧3キーを削除する。
 - CPU・メモリ・concurrency・環境変数・Secret version・サービスアカウント・ingress・traffic・IAM等は
   Terraform/既存専用運用が管理する。`ignore_changes`をtemplate全体に広げない。
-- Terraformの`gcp-plan`/`gcp-apply`はインフラ構成を変更するときだけ使う。
+- TerraformのPlan/Applyはインフラ構成を変更するときだけ使う。
   次回のインフラPlanで、前回Stateと現在Cloud Runの間に複数リビジョンの**正当なimage-only更新**があっても
   設定が不変ならStateの通常refreshとして観測できるよう検査する。
   Registry以外のimage、env/Secret/権限/scale/traffic変更、計画的な予期せぬupdate/replace/deleteは引き続き停止する。
@@ -61,30 +66,24 @@ flowchart TD
 
 ## 初回有効化条件
 
-このPRのソースレビューと静的CIの成功だけでは、新しいCDの実接続や本番公開を宣言しない。
+このPRのソースレビューと静的CIの成功だけでは、新しい配備経路の実接続や本番公開を宣言しない。
 
-- DEVの`mypage-dev-apply`に使う **GCP WIF** の固定 `push` claimsを、既存の本人/固定branch/caller/
-  reusable/同一SHA/Environmentの厳格制約のままレビュー・適用する。
-  image-buildではAWS State Roleを使わないため、**AWS Terraform State Roleにpush許可を追加しない。**
-- DEVの`mypage-dev-backend`専用GCP WIFも、同一repo・同一本人・統合branch・正確なcaller/reusableと
-  一回目のpushだけを追加許可する。Cloud Run `mypage-api`への限定IAMは維持する。
-  Production IAM/WIF/Environmentを変えない。
+- DEVの`mypage-dev-apply`に使う **foundation GCP WIF** のcondition（`workflow_ref`）に
+  `deploy-mypage-api.yml@refs/heads/integration/mypage-canon-20261006` を追加し、旧`ci.yml`の`push` claimを削除する。
+  image-buildではAWS State Roleを使わない。
+- DEVの`mypage-dev-backend`専用GCP WIFのconditionを、[初回設定スクリプト](../../../infra/mypage-platform/scripts/backend_identity.py)の
+  `--update-condition`で置き換える。新しいconditionは`workflow_dispatch`だけ、caller `deploy-mypage-api.yml`、
+  reusable `mypage-backend-authenticated.yml`、同一workflow SHA、Environment `mypage-dev-backend`を要求し、`push`を許可しない。
+  Cloud Run `mypage-api`への限定IAMは維持する。Production IAM/WIF/Environmentを変えない。
 - GitHub Environmentは統合ブランチに限定し、Cloud Run配備用資格情報をPRのWorkflowに露出しない。
-  `GITHUB_TOKEN`のPR作成権限は不要。
-- 現行DEVのCloud RunとTerraform Stateのservice・設定・image・revision、既存registry image、
-  Secret/Hosting/同意版・固定Originとデプロイ権限をread-onlyで確認する。
-  `ignore_changes`導入後の実native Planで、配信中imageの巻き戻しや予期しない操作が無いことを確認する。
-- 最初の統合ブランチpushによるBuild→digest→Cloud Run更新→匿名smoke→配備記録を実測してから運用を有効とする。
-  認証やIAMを未設定ならpush CDは失敗で正しい。再実行でガードを迂回しない。
+- 最初の`Deploy MyPage API`によるBuild→digest→Cloud Run更新→匿名smoke→配備記録を実測してから運用を有効とする。
+  conditionを未更新なら認証で失敗するのが正しい。再実行でガードを迂回しない。
 
 ## 手動配備・ロールバック
 
-DEVのみ、CIの`workflow_dispatch`で
-`operation=mypage-backend-release`, `environment=development` を選ぶ。
-`image_digest`と`image_source_sha`の両方を指定すれば、そのimmutable tagとdigestの完全一致を照合し、
-source SHAが現在の統合HEADの祖先であることを確認する。
-両方空なら現在の統合SHAのタグからdigestをread-onlyで解決する。
-`mypage-image-build`を単独で行う場合も、ビルド/Pushによって自動的にCloud Runを変更しない。
+DEVのみ、`Deploy MyPage API`を`mode=deploy-existing`で実行し、`image_digest`と`image_source_sha`の両方を指定する。
+そのimmutable tagとdigestの完全一致を照合し、source SHAが現在の統合HEADの祖先であることを確認する。
+このmodeではimageをbuildしない。
 
 ロールバックは既知の良好なdigest/source SHAを指定する**新しい配備**で行う。
 対象のrevision、旧digest、Hosting互換性、Auth/同意版・秘密参照・設定を確認してから操作する。

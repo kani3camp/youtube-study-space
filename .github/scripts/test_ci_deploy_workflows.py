@@ -25,31 +25,58 @@ class DeployWorkflowTest(unittest.TestCase):
                 with self.subTest(workflow=path.name, job=name):
                     self.assertIn((path.name, name), DIRECT_AUTH_EXCEPTIONS)
 
-    def test_operator_deploy_is_manual_dev_only_and_builds_only_the_operator_image(self):
-        workflow = load(WORKFLOWS / 'deploy-mypage-maintenance.yml')
+    def test_image_deploys_are_manual_dev_only_and_build_only_their_own_image(self):
+        for name, component, reusable in (
+            ('deploy-mypage-api.yml', 'api', 'mypage-backend-authenticated.yml'),
+            ('deploy-mypage-maintenance.yml', 'maintenance-operator', 'mypage-operator-authenticated.yml'),
+        ):
+            with self.subTest(workflow=name):
+                workflow = load(WORKFLOWS / name)
+                self.assertEqual(triggers(workflow), {'workflow_dispatch'})
+                self.assertEqual(workflow['permissions'], {'contents': 'read'})
+                inputs = workflow['on']['workflow_dispatch']['inputs']
+                self.assertEqual(set(inputs), {'mode', 'image_digest', 'image_source_sha'})
+                self.assertEqual(inputs['mode']['options'], ['build-and-deploy', 'deploy-existing'])
+                jobs = workflow['jobs']
+                build, deploy = jobs['build'], jobs['deploy']
+                self.assertEqual(build['uses'], './.github/workflows/mypage-foundation-authenticated.yml')
+                self.assertEqual(build['with'], {'target': 'development', 'mode': 'image-build',
+                                                 'expected_sha': '${{ github.sha }}',
+                                                 'image_component': component})
+                self.assertEqual(set(build['secrets']), {'MYPAGE_GCP_WIF_PROVIDER', 'MYPAGE_GCP_SERVICE_ACCOUNT'})
+                self.assertEqual(deploy['uses'], './.github/workflows/' + reusable)
+                self.assertEqual(set(deploy['needs']), set(jobs) - {'deploy'})
+                for need in deploy['needs']:
+                    if need != 'build':
+                        self.assertIn('needs.' + need + ".result == 'success'", deploy['if'])
+                self.assertNotIn('secrets', deploy)
+                self.assertEqual(deploy['with']['expected_sha'], '${{ github.sha }}')
+
+    def test_deploys_validate_their_domain_in_the_same_run_before_credentials(self):
+        for name in ('deploy-mypage-api.yml', 'deploy-mypage-maintenance.yml'):
+            with self.subTest(workflow=name):
+                jobs = load(WORKFLOWS / name)['jobs']
+                self.assertEqual(jobs['validate']['uses'], './.github/workflows/ci-system.yml')
+                self.assertEqual(jobs['validate']['with'], {'system': True, 'firestore_integration': True})
+                self.assertEqual(jobs['build']['needs'], ['select', 'validate'])
+                self.assertIn('validate', jobs['deploy']['needs'])
+        frontend = load(WORKFLOWS / 'mypage-hosting-authenticated.yml')['jobs']
+        build = '\n'.join(step.get('run', '') for step in frontend['build']['steps'])
+        for command in ('pnpm audit --audit-level=high', 'pnpm check', 'pnpm typecheck', 'pnpm test'):
+            self.assertIn(command, build)
+        self.assertEqual(frontend['apply']['needs'], 'build')
+
+    def test_frontend_deploy_is_manual_dev_only(self):
+        workflow = load(WORKFLOWS / 'deploy-mypage-frontend.yml')
         self.assertEqual(triggers(workflow), {'workflow_dispatch'})
+        self.assertIsNone(workflow['on']['workflow_dispatch'])
         self.assertEqual(workflow['permissions'], {'contents': 'read'})
-        inputs = workflow['on']['workflow_dispatch']['inputs']
-        self.assertEqual(set(inputs), {'mode', 'image_digest', 'image_source_sha'})
-        self.assertEqual(inputs['mode']['options'], ['build-and-deploy', 'deploy-existing'])
-        self.assertNotIn('environment', inputs)
-        jobs = workflow['jobs']
-        build, deploy = jobs['build'], jobs['deploy']
-        self.assertEqual(build['uses'], './.github/workflows/mypage-foundation-authenticated.yml')
-        self.assertEqual(build['with'], {'target': 'development', 'mode': 'image-build',
-                                         'expected_sha': '${{ github.sha }}',
-                                         'image_component': 'maintenance-operator'})
-        self.assertEqual(set(build['secrets']), {'MYPAGE_GCP_WIF_PROVIDER', 'MYPAGE_GCP_SERVICE_ACCOUNT'})
-        self.assertEqual(deploy['uses'], './.github/workflows/mypage-operator-authenticated.yml')
-        self.assertEqual(deploy['needs'], ['select', 'validate', 'build'])
-        self.assertIn("needs.select.result == 'success'", deploy['if'])
-        self.assertIn("needs.validate.result == 'success'", deploy['if'])
-        # The deployed domain is validated in the same run before any credentials.
-        self.assertEqual(jobs['validate']['uses'], './.github/workflows/ci-system.yml')
-        self.assertEqual(jobs['validate']['with'], {'system': True, 'firestore_integration': True})
-        self.assertEqual(build['needs'], ['select', 'validate'])
-        self.assertNotIn('secrets', deploy)
-        self.assertEqual(deploy['with']['expected_sha'], '${{ github.sha }}')
+        self.assertEqual(workflow['jobs'], {'hosting': {
+            'name': 'Deploy DEV Hosting',
+            'permissions': {'contents': 'read', 'id-token': 'write'},
+            'uses': './.github/workflows/mypage-hosting-authenticated.yml',
+            'with': {'expected_sha': '${{ github.sha }}'},
+        }})
 
     def test_operator_release_authenticates_after_the_contract_and_joins_the_cloud_run_lock(self):
         workflow = load(WORKFLOWS / 'mypage-operator-authenticated.yml')

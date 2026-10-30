@@ -18,18 +18,17 @@ REGISTRY = ('https://artifactregistry.googleapis.com/v1/projects/' + c.PROJECT +
             '/locations/asia-southeast2/repositories/mypage/packages/mypage-api')
 
 
+CALLER = c.IMAGE_COMPONENTS['api']['caller']
+
+
 def context(env):
-    event = env.get('GITHUB_EVENT_NAME')
-    c.need(event in ('workflow_dispatch', 'push'), 'backend-event')
     hosting.context(env | {'MYPAGE_HOSTING_EXPECTED_SHA': env.get('MYPAGE_BACKEND_EXPECTED_SHA', '')},
-                    event_name=event)
+                    caller=CALLER)
     c.need(not any(env.get(key) for key in ('AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY',
                                           'AWS_SESSION_TOKEN')), 'backend-no-state-credentials')
     digest = env.get('MYPAGE_BACKEND_IMAGE_DIGEST', '')
     source = env.get('MYPAGE_BACKEND_IMAGE_SOURCE_SHA', '')
     c.need(bool(digest) == bool(source), 'backend-image-pair')
-    c.need(event != 'push' or (digest and source == env['GITHUB_SHA']),
-           'backend-push-source')
     if digest:
         c.need(type(digest) is str and re.fullmatch(
             re.escape(runtime.REPOSITORY) + r'@sha256:[a-f0-9]{64}', digest),

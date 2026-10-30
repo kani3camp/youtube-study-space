@@ -16,7 +16,7 @@ def environment():
             'GITHUB_ACTOR': 'kani3camp', 'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
             'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_RUN_ATTEMPT': '1',
             'GITHUB_REF': h.REF, 'GITHUB_WORKFLOW_REF': h.CALLER,
-            'MYPAGE_OTHER_OPERATION': 'false', 'GITHUB_SHA': 'a' * 40,
+            'GITHUB_SHA': 'a' * 40,
             'MYPAGE_HOSTING_EXPECTED_SHA': 'a' * 40, 'GITHUB_RUN_ID': '123',
             'MYPAGE_HOSTING_ACCESS_TOKEN': 'synthetic-token', 'GITHUB_TOKEN': 'synthetic-github'}
 
@@ -34,8 +34,9 @@ class ReleaseTest(unittest.TestCase):
         h.context(environment())
         for key, value in [('GITHUB_REF', 'refs/heads/main'), ('GITHUB_EVENT_NAME', 'pull_request'),
                            ('GITHUB_RUN_ATTEMPT', '2'), ('GITHUB_ACTOR_ID', '123'),
-                           ('MYPAGE_OTHER_OPERATION', 'true'), ('MYPAGE_HOSTING_EXPECTED_SHA', 'b' * 40),
-                           ('GITHUB_WORKFLOW_REF', h.CALLER.replace('ci.yml', 'other.yml'))]:
+                           ('GITHUB_EVENT_NAME', 'push'), ('MYPAGE_HOSTING_EXPECTED_SHA', 'b' * 40),
+                           ('GITHUB_WORKFLOW_REF', h.WORKFLOWS + 'ci.yml@' + h.REF),
+                           ('GITHUB_WORKFLOW_REF', h.WORKFLOWS + 'deploy-mypage-api.yml@' + h.REF)]:
             with self.subTest(key=key), self.assertRaises(ValueError):
                 h.context(environment() | {key: value})
 

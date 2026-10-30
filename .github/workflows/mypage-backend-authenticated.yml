@@ -6,9 +6,6 @@ on:
       expected_sha:
         required: true
         type: string
-      other_operation:
-        required: true
-        type: boolean
       image_digest:
         required: false
         type: string
@@ -38,7 +35,6 @@ jobs:
       id-token: write
     env:
       MYPAGE_BACKEND_EXPECTED_SHA: ${{ inputs.expected_sha }}
-      MYPAGE_OTHER_OPERATION: ${{ inputs.other_operation }}
       MYPAGE_BACKEND_IMAGE_DIGEST: ${{ inputs.image_digest }}
       MYPAGE_BACKEND_IMAGE_SOURCE_SHA: ${{ inputs.image_source_sha }}
     steps:

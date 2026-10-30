@@ -2,11 +2,6 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches:
-      - integration/mypage-canon-20261006
-    paths:
-      - system/**
   workflow_dispatch:
     inputs:
       operation:
@@ -19,17 +14,6 @@ on:
           - gcp-plan
           - gcp-apply
           - gcp-user-activity-schema-audit
-          - mypage-image-build
-          - mypage-hosting-release
-          - mypage-backend-release
-      image_digest:
-        description: Optional exact Artifact Registry digest for DEV manual release/rollback
-        required: false
-        type: string
-      image_source_sha:
-        description: Optional immutable image build source SHA (required with digest)
-        required: false
-        type: string
       environment:
         description: Target environment for manual operations
         required: false
@@ -43,8 +27,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.sha) || github.ref }}
-  cancel-in-progress: ${{ !((github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') || (github.event_name == 'push' && github.ref == 'refs/heads/integration/mypage-canon-20261006')) }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') }}
 
 jobs:
   changes:
@@ -133,16 +117,14 @@ jobs:
   operations:
     name: Authenticated Operations
     needs: [repository, frontend, system, tools, infra, gcp-terraform-validate]
-    if: ${{ always() && ((github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') || (github.event_name == 'push' && github.ref == 'refs/heads/integration/mypage-canon-20261006')) }}
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') }}
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/ci-operations.yml
     with:
-      operation: ${{ github.event_name == 'push' && 'mypage-auto-cd' || inputs.operation }}
-      environment: ${{ github.event_name == 'push' && 'development' || inputs.environment }}
-      image_digest: ${{ inputs.image_digest || '' }}
-      image_source_sha: ${{ inputs.image_source_sha || '' }}
+      operation: ${{ inputs.operation }}
+      environment: ${{ inputs.environment }}
       repository_result: ${{ needs.repository.result }}
       frontend_result: ${{ needs.frontend.result }}
       system_result: ${{ needs.system.result }}
@@ -189,5 +171,5 @@ jobs:
       - name: Require successful selected validations
         env:
           CI_NEEDS: ${{ toJSON(needs) }}
-          CI_OPERATION_REQUESTED: ${{ (github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') || (github.event_name == 'push' && github.ref == 'refs/heads/integration/mypage-canon-20261006') }}
+          CI_OPERATION_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.operation != 'validate' }}
         run: python3 .github/scripts/check-ci-results.py

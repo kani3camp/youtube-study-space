@@ -104,16 +104,16 @@ Go変更の必須検査は[AGENTS.md](../../../AGENTS.md)に従い、生成後�
 
 ### DEV HostingをCIで配備する
 
-基盤のTerraform Applyとページ配備は別操作だが、DEVページの更新も既存`CI`の手動実行内で完結させる。`integration/mypage-canon-20261006`を選び、`operation=mypage-hosting-release` / `environment=development`を指定する。実行SHAは選択refの`github.sha`を使い、手入力しない。PR実行・main・他ブランチ・別所有者・再実行・SHA不一致は拒否する。失敗時に同じRunを再実行して継続せず、現在状態を確認して新しく実行する。
+基盤のTerraform Applyとページ配備は別操作である。DEVページの更新は`Deploy MyPage Frontend`（[`deploy-mypage-frontend.yml`](../../../.github/workflows/deploy-mypage-frontend.yml)）の手動実行で行う。`integration/mypage-canon-20261006`を選んで実行する（入力なし、DEVのみ）。実行SHAは選択refの`github.sha`を使い、手入力しない。PR実行・main・他ブランチ・別所有者・再実行・SHA不一致は拒否する。失敗時に同じRunを再実行して継続せず、現在状態を確認して新しく実行する。
 
-1. 既存Repository/Frontend検査の成功後、クラウド認証情報のないBuildジョブで、固定依存の検査・テスト・DEV公開設定検査・ビルドを行う。
+1. クラウド認証情報のないBuildジョブで、固定依存の検査（`pnpm audit`）・check・typecheck・テスト・DEV公開設定検査・ビルドを行う。
 2. 同じ実行の成果物を別Applyジョブへ渡し、ソースSHA・run ID・30分の期限・設定・全ファイルのSHA256を再検証する。Applyは専用WIFと短命トークンを使い、SA鍵やFirebaseログイントークンは使わない。
 3. 対象は`test-youtube-study-space`の`test--study-space`だけとする。現在のHostingのCSP・書き換えなどと、APIの同意バージョン・固定オリジン・Readyリビジョンを照合する。意図しない設定変更、別サイト、途中のHosting・API・ブランチ変更は拒否する。公開版の作成・アップロード・確定後、最後にリリースを切り替える。書き込みを自動再試行しない。
 4. 配備後は全ファイルのバイト列・Cache-Control・CSPなど、`/`と`/mypage`、匿名APIの403、APIメタデータの不変を確認する。別の認証情報なしBrowserジョブで、匿名画面・Cookie設定・GA4通信0件を確認する。失敗はCI Gateに伝える。実GA4送信・認証済みE2E・公開条件の完了を意味しない。
 
 GitHub Environmentの`mypage-dev-hosting`には、公開項目だけの`MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`と専用プロバイダー名`MYPAGE_HOSTING_WIF_PROVIDER`をVariablesに設定する。前者は既存の公開マニフェストスキーマを使い、`VITE_MYPAGE_ANALYTICS_READY=false`、`analyticsApproved=false`を必須とする。サーバー環境の書き出し、OAuth・認証情報・Secretの値は渡さない。公開済みDEVと同じオリジン・Firebaseアプリ・同意バージョン・CSP接続先一覧を引き継ぐ。設定変更は既存の事前検査とレビューを通す。
 
-権限の初期設定は、専用の`mypage-hosting` WIF pool/providerと`mypage-hosting-deploy` SAに分ける。プロバイダーは、固定リポジトリ・所有者・actor ID、初回workflow_dispatch、統合ref、呼び出し元`ci.yml`、再利用先`mypage-hosting-authenticated.yml`、同一workflow SHA、Environment `mypage-dev-hosting`をすべて検査する。既存TerraformのWIF・SA・Stateは変更しない。
+権限の初期設定は、専用の`mypage-hosting` WIF pool/providerと`mypage-hosting-deploy` SAに分ける。プロバイダーは、固定リポジトリ・所有者・actor ID、初回workflow_dispatch、統合ref、呼び出し元`deploy-mypage-frontend.yml`（移行前は`ci.yml`。ownerがconditionの`workflow_ref`を置き換える）、再利用先`mypage-hosting-authenticated.yml`、同一workflow SHA、Environment `mypage-dev-hosting`をすべて検査する。既存TerraformのWIF・SA・Stateは変更しない。
 
 [Firebase公式](https://firebase.google.com/docs/projects/iam/permissions)では、Hostingのカスタムロールは未対応である。専用SAに付与するのはDEVプロジェクトだけの`roles/firebasehosting.admin`だが、IAM上はDEV内の他Hostingサイトの作成・削除なども可能になる。サイト1個への限定は固定API・配備仕様と厳格なWIF受入検査で行い、IAMによるサイト単位制限とは呼ばない。API比較のための`mypage-api` 1サービスの`roles/run.viewer`と、利用枠用のDEV `roles/serviceusage.serviceUsageConsumer`だけを追加する。Cloud Run更新・Firestore・Auth・Secret・IAM変更・本番への権限は付与しない。
 

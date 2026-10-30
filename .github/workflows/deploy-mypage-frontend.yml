@@ -1,0 +1,20 @@
+name: Deploy MyPage Frontend
+
+# Builds this commit and publishes only the DEV Firebase Hosting site. It never
+# changes Cloud Run or Terraform. Production stays absent until the public
+# release gate (#1133) approves a separate identity.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hosting:
+    name: Deploy DEV Hosting
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-hosting-authenticated.yml
+    with:
+      expected_sha: ${{ github.sha }}
