@@ -17,14 +17,12 @@ DOMAIN_GROUPS = {
     'infra': ('aws_cdk', 'node_projects'),
     'gcp-terraform-validate': ('gcp_terraform',),
 }
-DEPENDENCIES = {'changes', 'repository', 'operations', *DOMAIN_GROUPS}
+DEPENDENCIES = {'changes', 'repository', *DOMAIN_GROUPS}
 
 
-def validate(needs, operation_requested):
+def validate(needs):
     if set(needs) != DEPENDENCIES:
         raise ValueError('CI Gate must receive every expected dependency')
-    if operation_requested not in ('true', 'false'):
-        raise ValueError('Operation selection must be an explicit boolean')
     for name, job in needs.items():
         result = job.get('result')
         if result not in ('success', 'skipped'):
@@ -39,17 +37,15 @@ def validate(needs, operation_requested):
         selected = outputs['all'] == 'true' or any(outputs[group] == 'true' for group in groups)
         if selected and needs[name]['result'] != 'success':
             raise ValueError(f'{name}: selected validation must succeed')
-    if operation_requested == 'true' and needs['operations']['result'] != 'success':
-        raise ValueError('Requested authenticated operation must succeed')
 
 
 def main():
     try:
-        validate(json.loads(os.environ['CI_NEEDS']), os.environ['CI_OPERATION_REQUESTED'])
+        validate(json.loads(os.environ['CI_NEEDS']))
     except (KeyError, TypeError, ValueError, AttributeError) as error:
         print(f'::error::{error}', file=sys.stderr)
         return 1
-    print('All selected CI validations and requested operations succeeded.')
+    print('All selected CI validations succeeded.')
     return 0
 
 
