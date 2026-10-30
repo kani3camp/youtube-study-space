@@ -131,6 +131,21 @@ assert_exact_groups "system room_image_prompt menu_image_generator video_maker_s
 assert_exact_groups "system firestore_integration youtube_monitor" system/core/app.go youtube-monitor/src/app.ts
 
 all_groups="system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all"
+# Every repository script that the GCP Terraform CI executes must route to it,
+# so a change to that script alone still runs its own test.
+terraform_ci_scripts="$(grep -oE '\.github/scripts/[A-Za-z0-9_.-]+\.(py|sh|mjs)' "$script_dir/../workflows/ci-gcp-terraform.yml" | sort -u)"
+if [[ "$(printf '%s\n' "$terraform_ci_scripts" | grep -c .)" -lt 10 ]]; then
+	echo "Expected to read the scripts executed by ci-gcp-terraform.yml" >&2
+	exit 1
+fi
+while IFS= read -r script; do
+	routed="$("$detector" --paths "$script")"
+	if ! grep -Fxq 'gcp_terraform=true' <<< "$routed"; then
+		echo "Expected gcp_terraform=true for a script run by ci-gcp-terraform.yml: $script" >&2
+		exit 1
+	fi
+done <<< "$terraform_ci_scripts"
+
 # A manual CI run always selects every domain; the retired Terraform dispatch
 # marker can no longer narrow it.
 for marker in "" true false; do

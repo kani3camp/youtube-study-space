@@ -45,8 +45,7 @@ Usage:
 With --paths, PATH arguments are classified directly for local testing.
 Without --paths, the script resolves paths from the GitHub event:
   - pull_request: BASE_SHA...HEAD_SHA
-  - authenticated Terraform workflow_dispatch: GCP Terraform group only
-  - other workflow_dispatch or an unsupported/incomplete event: all groups
+  - workflow_dispatch (a manual CI re-run) or an unsupported/incomplete event: all groups
 EOF
 }
 
@@ -116,7 +115,7 @@ classify_path() {
 			formal_spec=true
 			matched=true
 			;;
-		.github/scripts/terraform_plan_summary.py|.github/scripts/test_terraform_plan_summary.py|.github/scripts/test_terraform_authenticated_workflow.py|.github/scripts/terraform_identity_diagnostics.py|.github/scripts/terraform_identity_smoke.py|.github/scripts/test_terraform_identity_smoke.py|.github/scripts/test_youtube_quota_alerts.py|.github/scripts/test_backup_bucket.py|.github/scripts/test_export_topic.py|.github/scripts/test_export_scheduler.py|.github/scripts/test_export_function.py|.github/scripts/terraform_export_scheduler_gate.py|.github/scripts/test_terraform_export_scheduler_gate.py|.github/scripts/terraform_export_topic_gate.py|.github/scripts/test_terraform_export_topic_gate.py|.github/scripts/test_notification_channels.py|.github/scripts/terraform_quota_refresh_gate.py|.github/scripts/test_terraform_quota_refresh_gate.py|.github/scripts/terraform_quota_create_gate.py|.github/scripts/test_terraform_quota_create_gate.py|.github/scripts/terraform_plan_diagnostic.py|.github/scripts/test_terraform_plan_diagnostic.py|.github/scripts/terraform_baseline_drift_fields.py|.github/scripts/terraform_baseline_drift_diagnostic.py|.github/scripts/test_terraform_baseline_drift_diagnostic.py|.github/scripts/terraform_protected_plan.py|.github/scripts/test_terraform_protected_plan.py|.github/scripts/terraform_email_adoption_gate.py|.github/scripts/test_terraform_email_adoption_gate.py)
+		.github/scripts/terraform_plan_summary.py|.github/scripts/test_terraform_plan_summary.py|.github/scripts/test_terraform_authenticated_workflow.py|.github/scripts/terraform_identity_diagnostics.py|.github/scripts/terraform_identity_smoke.py|.github/scripts/test_terraform_identity_smoke.py|.github/scripts/test_youtube_quota_alerts.py|.github/scripts/test_backup_bucket.py|.github/scripts/test_export_topic.py|.github/scripts/test_export_scheduler.py|.github/scripts/test_export_function.py|.github/scripts/terraform_export_scheduler_gate.py|.github/scripts/test_terraform_export_scheduler_gate.py|.github/scripts/terraform_export_topic_gate.py|.github/scripts/test_terraform_export_topic_gate.py|.github/scripts/test_notification_channels.py|.github/scripts/terraform_quota_refresh_gate.py|.github/scripts/test_terraform_quota_refresh_gate.py|.github/scripts/terraform_quota_create_gate.py|.github/scripts/test_terraform_quota_create_gate.py|.github/scripts/terraform_plan_diagnostic.py|.github/scripts/test_terraform_plan_diagnostic.py|.github/scripts/terraform_baseline_drift_fields.py|.github/scripts/terraform_baseline_drift_diagnostic.py|.github/scripts/test_terraform_baseline_drift_diagnostic.py|.github/scripts/terraform_protected_plan.py|.github/scripts/test_terraform_protected_plan.py|.github/scripts/terraform_email_adoption_gate.py|.github/scripts/test_terraform_email_adoption_gate.py|.github/scripts/test_terraform_export_function_gate.py|.github/scripts/test_user_activity_history_preparation.py)
 			gcp_terraform=true
 			matched=true
 			;;
