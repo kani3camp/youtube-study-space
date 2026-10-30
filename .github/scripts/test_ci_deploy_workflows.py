@@ -93,7 +93,7 @@ class DeployWorkflowTest(unittest.TestCase):
     def test_operator_release_authenticates_after_the_contract_and_joins_the_cloud_run_lock(self):
         workflow = load(WORKFLOWS / 'mypage-operator-authenticated.yml')
         self.assertEqual(triggers(workflow), {'workflow_call'})
-        self.assertEqual(workflow['concurrency'], {'group': 'mypage-dev-runtime-change',
+        self.assertEqual(workflow['concurrency'], {'group': 'mypage-dev-cloud-run',
                                                    'cancel-in-progress': False})
         job = workflow['jobs']['deploy']
         self.assertEqual(job['environment'], 'mypage-dev-operator')
@@ -107,6 +107,18 @@ class DeployWorkflowTest(unittest.TestCase):
         self.assertIs(steps[checkout]['with']['persist-credentials'], False)
         self.assertEqual(steps[auth]['with']['service_account'],
                          'mypage-operator-deploy@test-youtube-study-space.iam.gserviceaccount.com')
+
+    def test_every_dev_cloud_run_writer_shares_one_lock_and_hosting_stays_separate(self):
+        for name in ('mypage-backend-authenticated.yml', 'mypage-operator-authenticated.yml'):
+            with self.subTest(workflow=name):
+                self.assertEqual(load(WORKFLOWS / name)['concurrency'],
+                                 {'group': 'mypage-dev-cloud-run', 'cancel-in-progress': False})
+        terraform = load(WORKFLOWS / 'terraform.yml')['concurrency']['group']
+        self.assertIn("'development' && 'mypage-dev-cloud-run'", terraform)
+        hosting = load(WORKFLOWS / 'mypage-hosting-authenticated.yml')['concurrency']['group']
+        self.assertNotIn('cloud-run', hosting)
+        for path in WORKFLOWS.glob('*.yml'):
+            self.assertNotIn('mypage-dev-runtime-change', path.read_text(), path.name)
 
     def test_release_steps_receive_every_runtime_input_their_script_reads(self):
         # The release scripts verify the branch HEAD through the GitHub API.

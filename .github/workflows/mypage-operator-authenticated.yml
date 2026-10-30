@@ -21,7 +21,7 @@ permissions:
 # Serializes Cloud Run changes (Terraform, API, maintenance operator) in DEV.
 # Terraform refreshes and PATCHes the whole Job, so it must not interleave.
 concurrency:
-  group: mypage-dev-runtime-change
+  group: mypage-dev-cloud-run
   cancel-in-progress: false
 
 jobs:

@@ -1,5 +1,7 @@
 name: CI Operations
 
+# Router for the one remaining CI manual operation: the disabled, DEV-only user
+# activity schema audit. Every other operation moved to its use-case workflow.
 on:
   workflow_call:
     inputs:

@@ -1,11 +1,15 @@
 name: CI
 
+# UC1: credentialless validation only. Terraform, application deploys and
+# maintenance mode have their own workflows (docs/development/ci-cd-workflows.md).
+# The single remaining manual operation is the disabled, DEV-only user activity
+# schema audit, kept until the owner decides to retire or relocate it.
 on:
   pull_request:
   workflow_dispatch:
     inputs:
       operation:
-        description: Manual operation
+        description: validate re-runs CI; the schema audit is the only manual operation left
         required: false
         default: validate
         type: choice
@@ -13,7 +17,7 @@ on:
           - validate
           - gcp-user-activity-schema-audit
       environment:
-        description: Target environment for manual operations
+        description: Target environment (the schema audit is development-only)
         required: false
         default: development
         type: choice

@@ -10,7 +10,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: mypage-dev-hosting-release
+  group: mypage-dev-hosting
   cancel-in-progress: false
 
 env:
