@@ -20,9 +20,10 @@ import runtime_contract
 
 REPO = Path(__file__).resolve().parents[3]
 PHASE = "context"
-# DEV one-time bootstrap anchor. This exact source was built successfully by
-# Actions run 40985997924 and contains /app/mypage-maintenance-operator.
-# It is resolved to an immutable digest only while the Job does not exist.
+# DEV bootstrap anchor. This exact source was built successfully by Actions
+# run 40985997924 and contains /app/mypage-maintenance-operator. Every DEV
+# runtime Plan resolves its immutable tag without first reading the Job; after
+# creation Terraform ignores the Job image, so this private input is inert.
 MAINTENANCE_BOOTSTRAP_SOURCE_SHA = "ace38d8237a186325629321641fe8dff58e83bdf"
 
 
@@ -233,14 +234,9 @@ def runtime_settings(env, stage=None):
 def maintenance_bootstrap_image(env, stage):
     if stage not in set(runtime_contract.MODES.values()):
         return ""
-    url = ("https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" +
-           contract.REGION + "/jobs/mypage-maintenance-operator")
-    try:
-        request(url, env["MYPAGE_GCP_ACCESS_TOKEN"])
-    except urllib.error.HTTPError as error:
-        need(error.code == 404)
-    else:
-        return ""
+    # Do not probe the Job before Terraform Plan. During first bootstrap the
+    # plan identity may not yet have run.jobs.get, and requiring it here creates
+    # a circular dependency with the IAM resources this Plan is about to add.
     # Production needs a separately approved artifact and release identity.
     contract.need(contract.TARGET == "development", "production-maintenance-bootstrap-unapproved")
     source = MAINTENANCE_BOOTSTRAP_SOURCE_SHA
@@ -253,8 +249,11 @@ def maintenance_bootstrap_image(env, stage):
                   "maintenance-bootstrap-source")
     prefix = ("projects/" + contract.PROJECT + "/locations/" + contract.REGION +
               "/repositories/mypage/packages/mypage-api")
-    tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source,
-                  env["MYPAGE_GCP_ACCESS_TOKEN"])
+    try:
+        tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source,
+                      env["MYPAGE_GCP_ACCESS_TOKEN"])
+    except urllib.error.HTTPError:
+        raise contract.ContractError("maintenance-bootstrap-image-read") from None
     version = tag.get("version", "")
     match = re.fullmatch(re.escape(prefix + "/versions/sha256:") + r"([a-f0-9]{64})", version)
     contract.need(match is not None, "maintenance-bootstrap-image")
