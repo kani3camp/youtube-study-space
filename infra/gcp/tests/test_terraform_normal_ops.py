@@ -24,7 +24,7 @@ def env(role='plan'):
         'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_ACTOR': 'kani3camp',
         'GITHUB_ACTOR_ID': '54093651', 'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
         'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_REF': 'refs/heads/dev',
-        'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
+        'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@refs/heads/dev',
         'GITHUB_SHA': 'a' * 40, 'NORMAL_EXPECTED_SHA': 'a' * 40,
         'NORMAL_TARGET': 'dev', 'NORMAL_MODE': 'normal-apply', 'NORMAL_ROLE': role,
         'GITHUB_JOB': 'normal_' + role, 'GITHUB_RUN_ID': '1234', 'TF_WORKSPACE': 'default',
@@ -223,6 +223,59 @@ class Contracts(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ops.context(v, "plan")
 
+
+    def pr_env(self, target='dev'):
+        ref = 'refs/pull/42/merge'
+        return env('pr-plan') | {'GITHUB_EVENT_NAME': 'pull_request', 'GITHUB_REF': ref,
+                                 'GITHUB_WORKFLOW_REF': ops.CALLER + ref, 'NORMAL_TARGET': target,
+                                 'NORMAL_MODE': 'pr-plan', 'GITHUB_JOB': 'core', 'NORMAL_PR_NUMBER': '42',
+                                 'NORMAL_PR_HEAD_REPOSITORY': 'kani3camp/youtube-study-space'}
+
+    def test_pr_plan_admits_only_the_owners_same_repository_first_run(self):
+        for target in ('dev', 'prod'):
+            self.assertEqual(ops.context(self.pr_env(target), 'pr-plan'), target)
+        for key, bad in (('GITHUB_ACTOR_ID', '0'), ('GITHUB_TRIGGERING_ACTOR', 'other'),
+                         ('GITHUB_RUN_ATTEMPT', '2'), ('NORMAL_PR_HEAD_REPOSITORY', 'fork/youtube-study-space'),
+                         ('NORMAL_PR_NUMBER', '43'), ('GITHUB_REF', 'refs/heads/dev'),
+                         ('GITHUB_REF', 'refs/pull/42/head'), ('GITHUB_EVENT_NAME', 'workflow_dispatch'),
+                         ('GITHUB_EVENT_NAME', 'pull_request_target'),
+                         ('GITHUB_WORKFLOW_REF', ops.CALLER.replace('terraform.yml', 'ci.yml') + 'refs/pull/42/merge'),
+                         ('GITHUB_JOB', 'normal_plan'), ('NORMAL_EXPECTED_SHA', 'b' * 40)):
+            with self.subTest(key=key, bad=bad), self.assertRaises(ValueError):
+                ops.context(self.pr_env() | {key: bad}, 'pr-plan')
+        # A PR context can never authorize the manual Plan or Apply roles.
+        for role in ('plan', 'apply'):
+            with self.assertRaises(ValueError):
+                ops.context(self.pr_env() | {'NORMAL_ROLE': role, 'GITHUB_JOB': 'normal_' + role}, role)
+            with self.assertRaises(ValueError):
+                ops.context(env(role) | {'NORMAL_MODE': 'normal-plan'}, 'pr-plan')
+
+    def test_pr_plan_never_locks_and_emits_no_commitment(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            e = self.pr_env() | {'RUNNER_TEMP': temporary, 'GITHUB_OUTPUT': str(Path(temporary) / 'out')}
+            root = ops.private(e); root.mkdir(mode=0o700)
+            calls = []
+            def terraform(_env, _root, _tfroot, name, args, codes=(0,)):
+                calls.append(args)
+                for arg in args:
+                    if arg.startswith('-out='):
+                        Path(arg.removeprefix('-out=')).write_bytes(b'synthetic-plan')
+                return Mock(returncode=0, stdout=json.dumps(plan(('no-op',))).encode())
+            with patch.object(ops, 'inputs', return_value=({'project_id': ops.PROJECT}, b'b' * 32)), \
+                 patch.object(ops, 'identity'), patch.object(ops, 'snapshot', return_value={'state': {'resources': []}}), \
+                 patch.object(ops, 'setup', return_value=root), patch.object(ops, 'review', return_value={}), \
+                 patch.object(ops, 'report_plan'), patch.object(ops, 'verify_storage_ownership'), \
+                 patch.object(ops.common, 'terraform', side_effect=terraform), \
+                 patch.object(ops, 'output_commitments') as commitments, redirect_stdout(io.StringIO()) as output:
+                ops.execute(e)
+            commitments.assert_not_called()
+            self.assertFalse((root / 'normal-prepared.json').exists())
+            self.assertFalse(Path(e['GITHUB_OUTPUT']).exists())
+            plans = [args for args in calls if args[0] == 'plan']
+            self.assertEqual(len(plans), 1)
+            self.assertIn('-lock=false', plans[0])
+            self.assertFalse(any(arg.startswith('-lock-timeout') for arg in plans[0]))
+            self.assertIn('role=pr-plan; advisory only', output.getvalue())
 
     def test_apply_is_not_authorized_by_plan_mode(self):
         with self.assertRaises(ValueError):
@@ -462,7 +515,7 @@ class Contracts(unittest.TestCase):
                 self.assertEqual(integrated.returncode, 0, integrated.stdout + integrated.stderr)
             for change in ({'NORMAL_EXPECTED_SHA': 'b' * 40}, {'NORMAL_EXPECTED_SHA': ''},
                 {'GITHUB_REF': 'refs/tags/v1',
-                 'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/tags/v1'}):
+                 'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@refs/tags/v1'}):
                 bad = runner.run_preflight(MODE=mode, **({'NORMAL_EXPECTED_SHA': 'a' * 40} | change))
                 self.assertNotEqual(bad.returncode, 0)
 

@@ -12,7 +12,7 @@ from test_terraform_migration import environment
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / '.github/workflows/gcp-terraform-authenticated.yml'
-CALLER = ROOT / '.github/workflows/ci.yml'
+CALLER = ROOT / '.github/workflows/terraform.yml'
 
 
 class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
@@ -51,10 +51,11 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn('migration-plan|migration-apply) ;;', self.text)
         self.assertIn('  migration_plan:', self.text)
         self.assertIn('  migration_apply:', self.text)
-        self.assertIn('- gcp-plan', self.caller)
-        self.assertIn('- gcp-apply', self.caller)
-        self.assertNotIn('terraform_mode:', self.caller)
-        self.assertNotIn('default: migration-plan', self.caller)
+        # The only caller exposes plan/apply; legacy migration and e2e modes stay unreachable.
+        self.assertIn('mode: normal-plan', self.caller)
+        self.assertIn('mode: normal-apply', self.caller)
+        for retired in ('migration-plan', 'migration-apply', 'normal-e2e', 'terraform_mode:'):
+            self.assertNotIn(retired, self.caller)
 
     def test_current_modes_admit_same_branch_dev_and_main_only_prod(self):
         for mode in ('migration-plan', 'migration-apply'):
@@ -63,14 +64,14 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     ref = 'refs/heads/' + branch
                     with self.subTest(mode=mode, target=target, ref=ref):
                         result = self.run_preflight(TARGET=target, MODE=mode, GITHUB_REF=ref,
-                            GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref)
+                            GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + ref)
                         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_normal_branch_authorization_does_not_expand_legacy_import(self):
         for branch in ('feature/arbitrary', 'integration/gcp-terraform-normal-ops'):
             ref = 'refs/heads/' + branch
             context = {'GITHUB_REF': ref,
-                       'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref}
+                       'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + ref}
             for mode in ('normal-plan', 'normal-apply', 'normal-e2e'):
                 self.assertEqual(self.run_preflight(MODE=mode,
                     NORMAL_EXPECTED_SHA='a' * 40, **context).returncode, 0)
@@ -80,7 +81,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_production_normal_requires_main_and_disallows_cloud_e2e(self):
         ref = 'refs/heads/main'
         context = {'TARGET': 'prod', 'GITHUB_REF': ref,
-                   'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref,
+                   'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + ref,
                    'NORMAL_EXPECTED_SHA': 'a' * 40}
         for mode in ('normal-plan', 'normal-apply'):
             with self.subTest(mode=mode):
@@ -89,7 +90,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertNotEqual(self.run_preflight(MODE='normal-e2e', **context).returncode, 0)
         self.assertNotEqual(self.run_preflight(MODE='normal-plan', TARGET='prod',
             GITHUB_REF='refs/heads/dev',
-            GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
+            GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/terraform.yml@refs/heads/dev',
             NORMAL_EXPECTED_SHA='a' * 40).returncode, 0)
 
     def test_normal_oidc_targets_correct_gcp_project(self):
@@ -111,7 +112,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             for mode in modes:
                 with self.subTest(target=target, mode=mode):
                     result = self.run_preflight(TARGET=target, MODE=mode, GITHUB_REF=ref,
-                        GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref,
+                        GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + ref,
                         DEV_CURRENT_STATE_ATTESTATION_EMITTER_ENABLED='true', DEV_HISTORY_POST_NOOP_ENABLED='true',
                         DEV_RUNTIME_OWNERSHIP_PLAN_ENABLED='true', PROD_AUTHENTICATED_TERRAFORM_ENABLED='true')
                     self.assertNotEqual(result.returncode, 0)
@@ -132,7 +133,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         }.items():
             with self.subTest(key=key):
                 extra = {'TARGET': 'prod', 'GITHUB_REF': 'refs/heads/main',
-                    'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/main'} if key == 'MIGRATION_PRODUCTION_READY' else {}
+                    'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@refs/heads/main'} if key == 'MIGRATION_PRODUCTION_READY' else {}
                 result = self.run_preflight(**(extra | {key: value}))
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.outputs, '')
@@ -140,7 +141,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                              ('prod', ('refs/heads/dev', 'refs/heads/integration/mypage-canon-20261006'))):
             for ref in refs:
                 result = self.run_preflight(TARGET=target, GITHUB_REF=ref,
-                    GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref)
+                    GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + ref)
                 self.assertNotEqual(result.returncode, 0)
         result = self.run_preflight(GITHUB_REF='refs/heads/integration/mypage-canon-20261006')
         self.assertNotEqual(result.returncode, 0)
@@ -177,8 +178,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertRegex(action, r'@[0-9a-f]{40}$')
         self.assertNotIn('workflow_dispatch:', self.text)
         self.assertIn('cancel-in-progress: false', self.text)
-        self.assertIn("- gcp-plan", self.caller)
-        self.assertIn("- gcp-apply", self.caller)
+        self.assertIn("          - plan\n          - apply\n", self.caller)
         self.assertNotIn("terraform_authenticated:", self.caller)
 
 

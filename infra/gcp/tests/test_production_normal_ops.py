@@ -24,7 +24,7 @@ def context(target="prod", role="plan"):
         "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_ACTOR": "kani3camp",
         "GITHUB_ACTOR_ID": "54093651", "GITHUB_TRIGGERING_ACTOR": "kani3camp",
         "GITHUB_RUN_ATTEMPT": "1", "GITHUB_REF": "refs/heads/" + branch,
-        "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/ci.yml@refs/heads/" + branch,
+        "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/terraform.yml@refs/heads/" + branch,
         "GITHUB_SHA": "a" * 40, "NORMAL_EXPECTED_SHA": "a" * 40,
         "NORMAL_TARGET": target, "NORMAL_MODE": "normal-apply",
         "NORMAL_ROLE": role, "GITHUB_JOB": "normal_" + role,
@@ -50,9 +50,9 @@ class ProductionNormalOps(unittest.TestCase):
             for bad in (
                 {"GITHUB_REF": "refs/heads/dev"},
                 {"GITHUB_REF": "refs/heads/feature/foo",
-                 "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/ci.yml@refs/heads/feature/foo"},
+                 "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/terraform.yml@refs/heads/feature/foo"},
                 {"GITHUB_REF": "refs/tags/v1"},
-                {"GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/ci.yml@refs/heads/dev"},
+                {"GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/terraform.yml@refs/heads/dev"},
                 {"GITHUB_ACTOR_ID": "100"},
                 {"GITHUB_TRIGGERING_ACTOR": "someone-else"},
                 {"GITHUB_RUN_ATTEMPT": "2"},
@@ -75,12 +75,12 @@ class ProductionNormalOps(unittest.TestCase):
         self.assertEqual(ops.context(context("dev")), "dev")
         branch = context("dev") | {
             "GITHUB_REF": "refs/heads/feature/safe",
-            "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/ci.yml@refs/heads/feature/safe",
+            "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/terraform.yml@refs/heads/feature/safe",
         }
         self.assertEqual(ops.context(branch), "dev")
         with self.assertRaises(ValueError):
             ops.context(context("dev") | {"GITHUB_REF": "refs/heads/main",
-                                        "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/ci.yml@refs/heads/main"})
+                                        "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/terraform.yml@refs/heads/main"})
 
     def test_project_and_kind_are_pinned(self):
         self.assertEqual(ops.target_project(context()), PROD)

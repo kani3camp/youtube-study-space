@@ -24,7 +24,9 @@ Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-
 
 ## 通常desired stateとbootstrap内部stage
 
-通常運用では`ci.yml`の`operation=gcp-plan` / `gcp-apply`と`environment=development|production`だけを使う。MyPageは`mypage-infrastructure-authenticated.yml`で最終desired state（現在は`runtime_public`相当）に固定してPlan/Applyする。利用者はstageを選ばない。Core GCPとはStateを分けたまま、同じGCP Infrastructure実行内で両方を扱う。
+通常運用では`Terraform`（`terraform.yml`）の`environment` / `operation=plan|apply` / `component=all|mypage`だけを使う。MyPageは`terraform.yml`がreview済みの`desired-stage.txt`を解決し、最終desired state（現在は`runtime_public`相当）に固定してPlan/Applyする。利用者はstageを選ばない。Core GCPとはStateを分けたまま、同じ`Terraform`実行内で両方を扱える。
+
+ownerの同一repository PRでMyPage rootが変わると、`Terraform` がDEVのdesired stateを **PR Plan** する（[`terraform-pr-plan.yml`](../../.github/workflows/terraform-pr-plan.yml)）。PR Plan identityは手動Plan / Applyと別で、`mypage-foundation-pr-plan` SA（`mypage-foundation-plan`と同じ読み取り権限）、`mypage-foundation` poolの`github-pr-plan` provider（conditionは`python3 infra/mypage-platform/scripts/foundation_contract.py pr-plan-provider-condition`）、State読み取りだけのAWS role（`pr-plan-aws-policies <account> <bucket>`）、Environment `mypage-dev-pr-plan`（手動と別の`MYPAGE_PLAN_HMAC_KEY`）を使う。`-lock=false`で実行し、plan contractの判定だけを表示してcommitmentを残さない。
 
 以下のstageは初回構築と既存の拒否条件を維持するための内部実装であり、通常の手動UIには出さない。ソースの`stage = "disabled"`は未構築ルートの既定値で、Module count=0・新GCP資源=0を意味する。初回構築時だけ段階を明示し、既定値を実Stateの状態と混同しない。
 
@@ -43,7 +45,7 @@ Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-
 
 Cloud Runは `mypage-api`、専用SA/ADC、`min_instance_count=0`、`max_instance_count=1`（Dev）/ `3`（Production）、CPU 1 / RAM 512Mi、port 8080、30秒timeout。
 
-リビジョンのイメージはArtifact Registryのダイジェスト（`@sha256:...`）で固定し、タグやlatestで不用意に差し替えない。 **初回Cloud Run作成後のAPI Serviceとmaintenance JobのコンテナimageはCI/CDが所有し、Terraformは両方のimage属性を`ignore_changes`で管理しない。** maintenance専用digest/source SHAをruntime settingsへ追加しない。既存サービスのimage更新は[Backend CI手順](../../docs/mypage/release/backend-ci.md)のBuild→Registry digest→直接image配備→検証で行う。通常releaseごとにTerraform Plan/Applyやdigest変更PRを実行しない。実費は起動回数・Secret Manager・ログ量・API呼び出しなどで変わるため、未計測で月額1ドル未満と断定しない。<https://cloud.google.com/run/pricing>と<https://cloud.google.com/secret-manager/pricing>を参考に、実対象と試算を別途レビューする。
+リビジョンのイメージはArtifact Registryのダイジェスト（`@sha256:...`）で固定し、タグやlatestで不用意に差し替えない。 **初回Cloud Run作成後のAPI Serviceとmaintenance JobのコンテナimageはCI/CDが所有し、Terraformは両方のimage属性を`ignore_changes`で管理しない。** API ServiceはBackend release、Jobは独立した`Deploy Maintenance Operator`が更新し、同じdigestへ同期しない。 maintenance専用digest/source SHAをruntime settingsへ追加しない。既存サービスのimage更新は[Backend CI手順](../../docs/mypage/release/backend-ci.md)のBuild→Registry digest→直接image配備→検証で行う。通常releaseごとにTerraform Plan/Applyやdigest変更PRを実行しない。実費は起動回数・Secret Manager・ログ量・API呼び出しなどで変わるため、未計測で月額1ドル未満と断定しない。<https://cloud.google.com/run/pricing>と<https://cloud.google.com/secret-manager/pricing>を参考に、実対象と試算を別途レビューする。
 
 作業履歴の完全性は実データの確認済み区間だけで宣言する。`runtime_settings.history_coverage_json` は**既定が空文字の任意設定**で、空文字ならCloud Runに`MYPAGE_HISTORY_COVERAGE`は存在しない。指定する場合は最大16KiBのJSON配列を渡し、Goの[厳格parser](../../system/cmd/mypage-server/coverage.go)がUTC時刻・順序・重複・上限を起動前に検証する。`[]`や未指定は完全な履歴を表さない。実際のwriterと履歴のRead-only inventoryに基づく区間以外は指定せず、実Deploy/rollbackの設定値と欠損の扱いを照合する。
 
@@ -69,7 +71,7 @@ bash infra/mypage-platform/scripts/check-local.sh
 
 ## 初回bootstrap・公開準備の作業と停止条件
 
-通常の変更ではこの段階一覧を手動選択せず、`gcp-plan` で両Stateの差分を確認し、承認した差分だけ `gcp-apply` する。以下は空環境からのbootstrapや公開準備の履歴・停止条件であり、日常の操作UIではない。
+通常の変更ではこの段階一覧を手動選択せず、`Terraform`の`operation=plan` で両Stateの差分を確認し、承認した差分だけ `operation=apply` する。以下は空環境からのbootstrapや公開準備の履歴・停止条件であり、日常の操作UIではない。
 
 1. **Live inventory**：Dev/ProdのSA名、Cloud Runサービス名、Secret ID、Firestore、Firebase Hosting、Google APIsとIAM既存値をread-only収集。既存作成物があれば「新規create」で上書きしない。特に他のTerraform State ownerの有無を確認する。
 2. **Backend/権限準備**：MyPage専用S3 keyと `.tflock`、AWS identity、GCP Workload Identityの**正確なref / workflow / target / principal**を確認。GitHub public PRや任意branchには認証を渡さない。[Development Foundation経路](docs/development-foundation.md)は8資源だけを許可する専用workflowとguardを持つ。専用AWS/GCP/GitHub接続とmetadata段階の実適用は成功済み。同じ境界をtarget-awareに拡張したProduction source経路は、protected Environment進入前のcontext検査に加え、`mypage-prod-plan/apply` Environmentのdeployment branchを`main`だけに固定する。exact SHA・prod専用State/AWS role/GCP SAへ分離し、registry plan/apply、image-build、maintenance operator/upgrade plan/applyだけを許可する。ProductionのEnvironment/secret/state設定と実Plan/Applyは未実施である。
@@ -87,7 +89,7 @@ DevelopmentのFoundation metadataは実作成・State readback済み。Secret ve
 
 runtime設定の任意 `image_source_sha`（既定は空文字）は、既存の不変tagを作成した40桁commit SHAを示す。空文字なら従来どおり実行元SHAのtagを要求する。別SHAの場合はそのcommitが現行HEADの祖先であることと、同SHAの不変tagがbootstrap digestを指すことを確認する。配信imageはCI/CDで別途更新されるため、実行元の`system` treeとの完全一致を要求しない。Docker contextは `system/` 全体であり、Dockerfile、依存lock、ignore設定とGoソースを含む。tagの作り替え、出所不明digest、Terraformから配信imageを巻き戻す変更を拒否する。これはinfra診断だけの変更で既存revisionを更新する必要をなくすためで、Cloud Runのupdate/delete/replaceは引き続き拒否する。
 
-maintenance operatorはAPIと同じArtifact Registry成果物を使う。専用のdigest/source SHAはruntime settingsへ持たない。DEV初回Job作成時だけ、実ビルド済みでoperator binaryを含むreview済みsource SHAのimmutable tagをPlan時にread-only解決し、そのdigestをprivateな一時Plan入力として使用する。Job作成後のimageはAPI Serviceと同様にBackend CI/CDが所有し、Terraformはimage属性だけ`ignore_changes`する。旧Environment secretに残る`maintenance_operator_*` 3キーは移行互換のため読み捨て、private tfvarsやPlanへは渡さない。
+maintenance operatorはAPIと別の`mypage/mypage-maintenance-operator` packageを使い、Job作成後のimageは`Deploy Maintenance Operator`が所有する（API releaseとは同じdigestへ同期しない）。Terraformはimage属性だけ`ignore_changes`する。専用のdigest/source SHAはruntime settingsへ持たない。DEV初回Job作成時だけ、image分離前にビルドされoperator binaryを含む固定source SHAの`mypage-api` immutable tagをPlan時にread-only解決し、そのdigestをprivateな一時Plan入力として使用する。旧Environment secretに残る`maintenance_operator_*` 3キーは移行互換のため読み捨て、private tfvarsやPlanへは渡さない。
 
 ## Plan guardの責任分担
 

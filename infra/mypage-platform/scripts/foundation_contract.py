@@ -35,8 +35,30 @@ ENVIRONMENT = CONFIG["environment"]
 GITHUB_ENVIRONMENT = CONFIG["github_environment"]
 ORIGIN = CONFIG["origin"]
 REPOSITORY = "kani3camp/youtube-study-space"
-CALLER = REPOSITORY + "/.github/workflows/ci.yml@" + REF
-REUSABLE = REPOSITORY + "/.github/workflows/mypage-foundation-authenticated.yml@" + REF
+WORKFLOWS = REPOSITORY + "/.github/workflows/"
+
+
+def workflow_ref(name):
+    return WORKFLOWS + name + "@" + REF
+
+
+# Terraform Plan / Apply caller (the manual Terraform workflow).
+CALLER = workflow_ref("terraform.yml")
+REUSABLE = workflow_ref("mypage-foundation-authenticated.yml")
+# PR Plan: the PR author's code runs with a separate read-only identity, never
+# takes the State lock and emits no commitment. Its ref is refs/pull/<n>/merge.
+PR_REF = re.compile(r"refs/pull/([1-9][0-9]{0,8})/merge")
+PR_PLAN_WORKFLOW = "terraform-pr-plan.yml"
+# 各imageは、それを配備するユースケースworkflowからだけbuildする。
+# packageを分けることで、API配備がJob用imageを取り違えない。
+IMAGE_COMPONENTS = {
+    "api": {"package": "mypage-api", "dockerfile": "system/Dockerfile.mypage-api",
+            "check": "system/scripts/check-mypage-image.sh", "caller": workflow_ref("deploy-mypage-api.yml")},
+    "maintenance-operator": {"package": "mypage-maintenance-operator",
+                             "dockerfile": "system/Dockerfile.mypage-maintenance-operator",
+                             "check": "system/scripts/check-mypage-operator-image.sh",
+                             "caller": workflow_ref("deploy-mypage-maintenance.yml")},
+}
 STATE_KEY = "youtube-study-space/mypage-platform/" + CONFIG["state"] + "/terraform.tfstate"
 WORKSPACE_PREFIX = "youtube-study-space/mypage-platform/" + CONFIG["state"] + "/workspaces"
 EMAIL = "mypage-api@" + PROJECT + ".iam.gserviceaccount.com"
@@ -58,17 +80,61 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
 
-def subject(kind, event_name="workflow_dispatch"):
-    need(kind in {"plan", "apply"} and event_name in {"workflow_dispatch", "push"})
-    need(event_name != "push" or TARGET == "development", "push-production")
-    values = ("340900071", "54093651", GITHUB_ENVIRONMENT + "-" + kind, REF, CALLER, REUSABLE, event_name)
+def image_component(env):
+    component = env.get("MYPAGE_IMAGE_COMPONENT")
+    need(component in IMAGE_COMPONENTS, "image-component")
+    return IMAGE_COMPONENTS[component]
+
+
+def caller(env, *, image=False):
+    return image_component(env)["caller"] if image else CALLER
+
+
+def pr_subject(number):
+    need(type(number) is str and re.fullmatch(r"[1-9][0-9]{0,8}", number), "pr-number")
+    ref = "refs/pull/" + number + "/merge"
+    values = ("340900071", "54093651", GITHUB_ENVIRONMENT + "-pr-plan", ref, WORKFLOWS + "terraform.yml@" + ref,
+              WORKFLOWS + PR_PLAN_WORKFLOW + "@" + ref, "pull_request")
     return ":".join(key + ":" + value.replace(":", "%3A") for key, value in zip(CLAIM_KEYS, values))
+
+
+def subject(kind, event_name="workflow_dispatch", workflow=CALLER):
+    # Every credentialed MyPage operation is an owner's manual dispatch.
+    need(kind in {"plan", "apply"} and event_name == "workflow_dispatch")
+    need(workflow in {CALLER} | {item["caller"] for item in IMAGE_COMPONENTS.values()}, "subject-workflow")
+    values = ("340900071", "54093651", GITHUB_ENVIRONMENT + "-" + kind, REF, workflow, REUSABLE, event_name)
+    return ":".join(key + ":" + value.replace(":", "%3A") for key, value in zip(CLAIM_KEYS, values))
+
+
+# GCP rejects a provider attribute condition longer than this.
+CONDITION_LIMIT = 4096
+
+
+def provider_condition():
+    """Exact condition for the owner-managed `mypage-foundation` WIF provider.
+
+    The custom `sub` already pins Environment, ref, caller, reusable and event,
+    so each allowed (Environment, caller) pair is one exact `sub`. Plan admits
+    only the Terraform caller; Apply admits the Terraform caller and each
+    image's own Deploy workflow. Push is never admitted.
+    """
+    pairs = [("plan", CALLER), ("apply", CALLER)]
+    pairs += [("apply", item["caller"]) for _, item in sorted(IMAGE_COMPONENTS.items())]
+    subjects = [subject(kind, "workflow_dispatch", workflow) for kind, workflow in pairs]
+    common = {"repository_id": "340900071", "repository_owner_id": "54093651",
+              "actor_id": "54093651", "actor": "kani3camp", "repository": REPOSITORY,
+              "ref": REF, "job_workflow_ref": REUSABLE, "event_name": "workflow_dispatch",
+              "run_attempt": "1"}
+    condition = (" && ".join("assertion." + key + " == " + json.dumps(value) for key, value in common.items()) +
+                 " && assertion.workflow_sha == assertion.job_workflow_sha" +
+                 " && assertion.sub in " + json.dumps(subjects, separators=(", ", ": ")))
+    need(len(condition) <= CONDITION_LIMIT, "provider-condition-length")
+    return condition
 
 
 def trust_policy(account, kind):
     need(re.fullmatch(r"[0-9]{12}", account))
-    # Terraform State credentials are dispatch-only. Push is accepted by
-    # the image-build-only GCP federation, not by AWS State roles.
+    # Terraform State credentials are dispatch-only.
     events = ["workflow_dispatch"]
     return {"Version": "2012-10-17", "Statement": [{
         "Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity",
@@ -80,9 +146,47 @@ def trust_policy(account, kind):
     } for event in events]}
 
 
+def pr_plan_provider_condition():
+    """Condition for the owner-managed `github-pr-plan` provider in the `mypage-foundation` pool.
+
+    The ref differs per PR, so the clause binds the caller and reusable to the
+    token's own `refs/pull/<n>/merge` ref instead of listing exact subjects.
+    """
+    values = {"repository_id": "340900071", "repository_owner_id": "54093651", "actor_id": "54093651",
+              "actor": "kani3camp", "repository": REPOSITORY, "event_name": "pull_request",
+              "run_attempt": "1", "environment": GITHUB_ENVIRONMENT + "-pr-plan"}
+    condition = (" && ".join("assertion." + key + " == " + json.dumps(value) for key, value in values.items()) +
+                 " && assertion.ref.matches(" + json.dumps("^" + PR_REF.pattern + "$") + ")" +
+                 " && assertion.workflow_ref == " + json.dumps(WORKFLOWS + "terraform.yml@") + " + assertion.ref" +
+                 " && assertion.job_workflow_ref == " + json.dumps(WORKFLOWS + PR_PLAN_WORKFLOW + "@") + " + assertion.ref" +
+                 " && assertion.workflow_sha == assertion.job_workflow_sha")
+    need(len(condition) <= CONDITION_LIMIT, "provider-condition-length")
+    return condition
+
+
+def pr_plan_trust_policy(account):
+    """AWS State read role trust for PR Plan. The PR number varies, so only it is a wildcard."""
+    need(re.fullmatch(r"[0-9]{12}", account))
+    pattern = pr_subject("1").replace("refs/pull/1/merge", "refs/pull/*/merge")
+    return {"Version": "2012-10-17", "Statement": [{
+        "Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity",
+        "Principal": {"Federated": f"arn:aws:iam::{account}:oidc-provider/token.actions.githubusercontent.com"},
+        "Condition": {"StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                                        "token.actions.githubusercontent.com:actor_id": "54093651"},
+                      "StringLike": {"token.actions.githubusercontent.com:sub": pattern}},
+    }]}
+
+
 def backend_policy(bucket, kind):
-    need(kind in {"plan", "apply"} and re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket))
+    need(kind in {"plan", "apply", "pr-plan"} and re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket))
     arn = "arn:aws:s3:::" + bucket
+    if kind == "pr-plan":
+        # Read the State only. No lock object write, no State write (Plan uses -lock=false).
+        return {"Version": "2012-10-17", "Statement": [
+            {"Sid": "MyPageDefaultStateRead", "Effect": "Allow", "Action": ["s3:GetObject"], "Resource": arn + "/" + STATE_KEY},
+            {"Sid": "MyPageDiscovery", "Effect": "Allow", "Action": "s3:ListBucket", "Resource": arn,
+             "Condition": {"StringEquals": {"s3:prefix": [STATE_KEY, STATE_KEY + ".tflock", WORKSPACE_PREFIX + "/"]}}},
+        ]}
     return {"Version": "2012-10-17", "Statement": [
         {"Sid": "MyPageDefaultState", "Effect": "Allow", "Action": ["s3:GetObject"] + (["s3:PutObject"] if kind == "apply" else []), "Resource": arn + "/" + STATE_KEY},
         {"Sid": "MyPageNativeLock", "Effect": "Allow", "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], "Resource": arn + "/" + STATE_KEY + ".tflock"},
@@ -117,20 +221,35 @@ def stage_for_mode(mode):
     return "foundation_metadata" if mode.startswith("foundation-metadata-") else "foundation"
 
 
+def pr_context(env):
+    """Admit only the owner's same-repository PR Plan of the DEV desired state."""
+    need(TARGET == "development", "pr-plan-target")
+    expected = {"GITHUB_REPOSITORY": REPOSITORY, "GITHUB_REPOSITORY_ID": "340900071",
+                "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_EVENT_NAME": "pull_request",
+                "GITHUB_ACTOR": "kani3camp", "GITHUB_ACTOR_ID": "54093651",
+                "GITHUB_TRIGGERING_ACTOR": "kani3camp", "GITHUB_RUN_ATTEMPT": "1",
+                "MYPAGE_PR_HEAD_REPOSITORY": REPOSITORY, "MYPAGE_MODE": "desired-plan",
+                "TF_WORKSPACE": "default"}
+    need(all(env.get(k) == v for k, v in expected.items()), "pr-plan-context")
+    match = PR_REF.fullmatch(env.get("GITHUB_REF", ""))
+    need(match is not None and match[1] == env.get("MYPAGE_PR_NUMBER"), "pr-plan-ref")
+    need(env.get("GITHUB_WORKFLOW_REF") == WORKFLOWS + "terraform.yml@" + env["GITHUB_REF"], "pr-plan-caller")
+    sha = env.get("GITHUB_SHA", "")
+    need(re.fullmatch(r"[a-f0-9]{40}", sha) and env.get("MYPAGE_EXPECTED_SHA") == sha, "pr-plan-sha")
+    stage_for_mode("desired-plan")
+
+
 def context(env, kind, *, image=False):
+    if kind == "pr-plan":
+        need(not image, "pr-plan-image")
+        return pr_context(env)
     need(kind in {"plan", "apply"})
     expected = {"GITHUB_REPOSITORY": REPOSITORY, "GITHUB_REPOSITORY_ID": "340900071",
                 "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_EVENT_NAME": "workflow_dispatch",
                 "GITHUB_ACTOR": "kani3camp", "GITHUB_ACTOR_ID": "54093651",
                 "GITHUB_TRIGGERING_ACTOR": "kani3camp", "GITHUB_RUN_ATTEMPT": "1",
-                "GITHUB_REF": REF, "GITHUB_WORKFLOW_REF": CALLER, "TF_WORKSPACE": "default"}
-    event_name = env.get("GITHUB_EVENT_NAME")
-    if event_name == "push":
-        need(TARGET == "development" and env.get("MYPAGE_MODE") in
-             {"image-build"}, "push-scope")
-    else:
-        need(event_name == "workflow_dispatch", "event-name")
-    expected.pop("GITHUB_EVENT_NAME")
+                "GITHUB_REF": REF, "GITHUB_WORKFLOW_REF": caller(env, image=image), "TF_WORKSPACE": "default"}
+    need(env.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "event-name")
     need(all(env.get(k) == v for k, v in expected.items()))
     sha = env.get("GITHUB_SHA", "")
     need(re.fullmatch(r"[a-f0-9]{40}", sha) and env.get("MYPAGE_EXPECTED_SHA") == sha)
@@ -259,3 +378,19 @@ def commitment(plan, state_version, sha, key):
         need(type(stable["relevant_attributes"]) is list, "plan-relevant-attributes")
         stable["relevant_attributes"] = sorted(stable["relevant_attributes"], key=canonical)
     return hmac.new(key.encode(), canonical({"plan": stable, "state_version": state_version, "source": sha}), hashlib.sha256).hexdigest()
+
+
+if __name__ == "__main__":
+    import sys
+    # Print-only helper for the owner; it performs no cloud call.
+    arguments = sys.argv[1:]
+    if arguments == ["provider-condition"]:
+        print(provider_condition())
+    elif arguments == ["pr-plan-provider-condition"]:
+        print(pr_plan_provider_condition())
+    elif len(arguments) == 3 and arguments[0] == "pr-plan-aws-policies":
+        print(json.dumps({"role_name": "youtube-study-space-" + GITHUB_ENVIRONMENT + "-pr-plan",
+                          "trust_policy": pr_plan_trust_policy(arguments[1]),
+                          "permission_policy": backend_policy(arguments[2], "pr-plan")}, indent=2))
+    else:
+        need(False, "foundation-contract-command")

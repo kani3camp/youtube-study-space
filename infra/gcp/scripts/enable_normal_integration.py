@@ -49,7 +49,7 @@ def custom_subject(role: str, ref: str) -> str:
         "repository_owner_id": "54093651",
         "environment": "terraform-dev-" + role,
         "ref": ref,
-        "workflow_ref": REPO + "/.github/workflows/ci.yml@" + ref,
+        "workflow_ref": REPO + "/.github/workflows/terraform.yml@" + ref,
         "job_workflow_ref":
             REPO + "/.github/workflows/gcp-terraform-authenticated.yml@" + ref,
         "event_name": "workflow_dispatch",

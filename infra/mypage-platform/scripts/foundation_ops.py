@@ -110,7 +110,9 @@ def stage(env):
     need(re.fullmatch(r"AROA[A-Z0-9]{17}", env.get("MYPAGE_BACKEND_ROLE_ID", "")))
     expected_sa = "mypage-foundation-" + kind + "@" + contract.PROJECT + ".iam.gserviceaccount.com"
     need(env.get("MYPAGE_GCP_SERVICE_ACCOUNT") == expected_sa)
-    need(re.fullmatch(r"projects/[0-9]+/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions", env.get("MYPAGE_GCP_WIF_PROVIDER", "")))
+    provider = "github-pr-plan" if kind == "pr-plan" else "github-actions"
+    need(re.fullmatch(r"projects/[0-9]+/locations/global/workloadIdentityPools/mypage-foundation/providers/" + provider,
+                      env.get("MYPAGE_GCP_WIF_PROVIDER", "")))
     need(len(env.get("MYPAGE_PLAN_HMAC_KEY", "")) >= 32)
     root = directory(env)
     need(not root.exists())
@@ -136,9 +138,17 @@ def oidc(env, *, image=False):
     token = request(url, env["ACTIONS_ID_TOKEN_REQUEST_TOKEN"])["value"]
     encoded = token.split(".")[1]
     claims = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+    if kind == "pr-plan":
+        ref = env["GITHUB_REF"]
+        workflow = contract.WORKFLOWS + "terraform.yml@" + ref
+        reusable = contract.WORKFLOWS + contract.PR_PLAN_WORKFLOW + "@" + ref
+        sub = contract.pr_subject(env["MYPAGE_PR_NUMBER"])
+    else:
+        ref, workflow, reusable = contract.REF, contract.caller(env, image=image), contract.REUSABLE
+        sub = contract.subject(kind, env["GITHUB_EVENT_NAME"], workflow)
     exact = {"aud": "sts.amazonaws.com", "iss": "https://token.actions.githubusercontent.com",
-             "sub": contract.subject(kind, env["GITHUB_EVENT_NAME"]), "repository_id": "340900071", "repository_owner_id": "54093651",
-             "ref": contract.REF, "workflow_ref": contract.CALLER, "job_workflow_ref": contract.REUSABLE,
+             "sub": sub, "repository_id": "340900071", "repository_owner_id": "54093651",
+             "ref": ref, "workflow_ref": workflow, "job_workflow_ref": reusable,
              "workflow_sha": env["GITHUB_SHA"], "job_workflow_sha": env["GITHUB_SHA"],
              "actor_id": "54093651", "actor": "kani3camp", "run_attempt": "1",
              "environment": contract.GITHUB_ENVIRONMENT + "-" + kind,
@@ -222,7 +232,8 @@ def runtime_settings(env, stage=None):
         value = runtime_contract.settings(
             value | {"hosting_backend_host": "mypage-api-eu5mhkcewq-et.a.run.app",
                      "previous_image_digest": ""}, stage)
-    provider = re.fullmatch(r"projects/([0-9]+)/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions",
+    provider = re.fullmatch(r"projects/([0-9]+)/locations/global/workloadIdentityPools/mypage-foundation/providers/"
+                            + ("github-pr-plan" if env.get("MYPAGE_ROLE") == "pr-plan" else "github-actions"),
                             env.get("MYPAGE_GCP_WIF_PROVIDER", ""))
     need(provider and provider[1] == contract.PROJECT_NUMBER)
     if stage != "maintenance_operator":
@@ -246,6 +257,7 @@ def maintenance_bootstrap_image(env, stage):
     source = MAINTENANCE_BOOTSTRAP_SOURCE_SHA
     run(["git", "merge-base", "--is-ancestor", source, env["GITHUB_SHA"]],
         cwd=REPO, check="maintenance-bootstrap-source-ancestor")
+    # The anchor predates the API/operator image split; read its combined Dockerfile.
     dockerfile = run(["git", "show", source + ":system/Dockerfile.mypage"],
                      cwd=REPO, check="maintenance-bootstrap-source")
     contract.need("go build -tags timetzdata -trimpath -ldflags=\"-s -w\" -o /out/mypage-maintenance-operator" in dockerfile and
@@ -320,7 +332,9 @@ def prepare(env):
     PHASE = "plan"
     saved = root / "foundation.tfplan"
     stage = contract.stage_for_mode(env["MYPAGE_MODE"])
-    arguments = ["terraform", "plan", "-input=false", "-no-color", "-lock-timeout=60s", "-var=stage=" + stage, "-out=" + str(saved)]
+    # PR Plan is advisory and has no lock-write permission; Apply always re-plans.
+    lock = "-lock=false" if kind == "pr-plan" else "-lock-timeout=60s"
+    arguments = ["terraform", "plan", "-input=false", "-no-color", lock, "-var=stage=" + stage, "-out=" + str(saved)]
     value = None
     if stage in set(runtime_contract.MODES.values()):
         PHASE = "runtime-inputs"
@@ -345,6 +359,16 @@ def prepare(env):
         summary = contract.validate_plan(plan, stage)
     reject_unowned_resources(env, plan)
     need(state_version(env) == version)
+    if kind == "pr-plan":
+        # No commitment, saved-plan record or timestamp leaves a PR Plan job;
+        # only these value-free counts reach the log and the Job Summary.
+        message = ("MyPage PR Plan (advisory) accepted by the plan contract: " + str(summary["resources"]) + " resources, " +
+                   str(summary["creates"]) + " creates. Nothing from this run can be applied.")
+        print(message)
+        if env.get("GITHUB_STEP_SUMMARY"):
+            with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
+                stream.write("### MyPage PR Plan\n\n" + message + "\n")
+        return
     digest = contract.commitment(plan, version, env["GITHUB_SHA"], env["MYPAGE_PLAN_HMAC_KEY"])
     (root / "prepared.json").write_bytes(contract.canonical({"sha256": hashlib.sha256(saved.read_bytes()).hexdigest(), "source": env["GITHUB_SHA"]}))
     if value is not None and value["read_metrics_from_revision"]:
