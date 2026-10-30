@@ -24,7 +24,7 @@ def env(role='plan'):
         'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_ACTOR': 'kani3camp',
         'GITHUB_ACTOR_ID': '54093651', 'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
         'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_REF': 'refs/heads/dev',
-        'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
+        'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@refs/heads/dev',
         'GITHUB_SHA': 'a' * 40, 'NORMAL_EXPECTED_SHA': 'a' * 40,
         'NORMAL_TARGET': 'dev', 'NORMAL_MODE': 'normal-apply', 'NORMAL_ROLE': role,
         'GITHUB_JOB': 'normal_' + role, 'GITHUB_RUN_ID': '1234', 'TF_WORKSPACE': 'default',
@@ -462,7 +462,7 @@ class Contracts(unittest.TestCase):
                 self.assertEqual(integrated.returncode, 0, integrated.stdout + integrated.stderr)
             for change in ({'NORMAL_EXPECTED_SHA': 'b' * 40}, {'NORMAL_EXPECTED_SHA': ''},
                 {'GITHUB_REF': 'refs/tags/v1',
-                 'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/tags/v1'}):
+                 'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@refs/tags/v1'}):
                 bad = runner.run_preflight(MODE=mode, **({'NORMAL_EXPECTED_SHA': 'a' * 40} | change))
                 self.assertNotEqual(bad.returncode, 0)
 

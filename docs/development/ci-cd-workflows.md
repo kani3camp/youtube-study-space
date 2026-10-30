@@ -45,9 +45,9 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 | [`ci-operations.yml`](../../.github/workflows/ci-operations.yml) | 操作router本体。CI結果の前提検査と下位workflow呼び出し | **廃止** | 各ユースケースworkflowへ分解 |
 | `ci-system.yml` / `ci-frontend.yml` / `ci-tools.yml` / `ci-infra.yml` / `ci-repository.yml` | UC1 credentialless検査 | **残す** | 変更なし（`ci-repository.yml` の契約テスト対象だけ追随） |
 | [`ci-gcp-terraform.yml`](../../.github/workflows/ci-gcp-terraform.yml) | UC1 Terraform fmt / validate / mock・native credentialless test | **残す** | UC1のまま。実state planはUC2へ分離 |
-| [`gcp-infrastructure-authenticated.yml`](../../.github/workflows/gcp-infrastructure-authenticated.yml) | Core + MyPage の plan / apply 合成（componentは常に両方） | **統合→廃止** | `terraform.yml`（UC2/UC3）へ統合 |
+| `gcp-infrastructure-authenticated.yml`（#4 で削除） | Core + MyPage の plan / apply 合成（componentは常に両方） | **統合→廃止** | `terraform.yml`（UC2/UC3）へ統合 |
 | [`gcp-terraform-authenticated.yml`](../../.github/workflows/gcp-terraform-authenticated.yml) | Core root の credentialed plan / apply | **残す（縮小）** | `terraform.yml` から呼ぶ core reusable。到達不能modeを撤去 |
-| [`mypage-infrastructure-authenticated.yml`](../../.github/workflows/mypage-infrastructure-authenticated.yml) | MyPage root の desired-stage 解決 | **統合→廃止** | desired-stage解決を `terraform.yml` の mypage component へ移す |
+| `mypage-infrastructure-authenticated.yml`（#4 で削除） | MyPage root の desired-stage 解決 | **統合→廃止** | desired-stage解決を `terraform.yml` の mypage component へ移す |
 | [`mypage-foundation-authenticated.yml`](../../.github/workflows/mypage-foundation-authenticated.yml) | MyPage root の credentialed plan / apply と image build（2責務が同居） | **分割** | Terraform部分は mypage reusable として残す。image buildは各Deploy workflowへ移す |
 | [`mypage-hosting-authenticated.yml`](../../.github/workflows/mypage-hosting-authenticated.yml) | UC4 DEV Hosting build / deploy / smoke | **残す（最上位化）** | `deploy-mypage-frontend.yml` |
 | [`mypage-backend-authenticated.yml`](../../.github/workflows/mypage-backend-authenticated.yml) | API Service と maintenance Job の同一digest同期deploy | **分割** | `deploy-mypage-api.yml`（Serviceのみ）と `deploy-mypage-maintenance.yml`（Jobのみ） |
@@ -71,9 +71,9 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 
 | 要素 | 根拠 | 扱い |
 | --- | --- | --- |
-| `gcp-terraform-authenticated.yml` の `migration-plan` / `migration-apply` job と `terraform_migration.py` の credentialed経路 | どのcallerからも渡されない（`gcp-infrastructure-authenticated.yml` は `normal-plan` / `normal-apply` のみ） | `terraform.yml` 移行PRで撤去。過去の移行証跡（docs・test fixture）は根拠なく削除しない |
+| `gcp-terraform-authenticated.yml` の `migration-plan` / `migration-apply` job と `terraform_migration.py` の credentialed経路 | どのcallerからも渡されない（`gcp-infrastructure-authenticated.yml` は `normal-plan` / `normal-apply` のみ） | **維持（到達不能）**。既存の契約テストが復旧用の互換性として維持を要求している。#4 で `terraform.yml` が `normal-plan` / `normal-apply` だけを呼ぶことをテストで固定した。撤去は別の判断とする |
 | 同 `normal-e2e` mode | callerなし | 同上 |
-| `mypage-foundation-authenticated.yml` の `foundation-*` / `foundation-metadata-*` / `registry-*` / `maintenance-*` / `runtime-*` mode | callerは `desired-plan` / `desired-apply` / `image-build` のみ | 同上。`desired-stage.txt` によるstage選択は維持 |
+| `mypage-foundation-authenticated.yml` の `foundation-*` / `foundation-metadata-*` / `registry-*` / `maintenance-*` / `runtime-*` mode | callerは `desired-plan` / `desired-apply` / `image-build` のみ | 同上（初回bootstrapの内部契約として維持）。`terraform.yml` は `desired-plan` / `desired-apply` だけを呼ぶ |
 | `ci.yml` の push自動CD（`mypage-auto-cd`）と `backend_cd.py` | 本設計では application deploy を自動化しない | **撤去済み（#3）**。Backend WIF condition から `push` を削除する（owner） |
 | Backend releaseの Service/Job 同一digest同期（record schema 3 の `maintenanceJob*`） | API と Operator を独立deploy unitにする | **撤去済み（#2）**。record は schema 4（API のみ） |
 | `mypage-maintenance.yml` の未pin `actions/checkout@v7` | 他workflowはSHA pin | 該当workflowに触れるPRでpinする |
@@ -178,7 +178,7 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 | 1 | 棚卸し・目標設計（本書） | — | なし |
 | 2 | API / Operator の image 分離と Operator deploy | `Dockerfile.mypage-api` / `Dockerfile.mypage-maintenance-operator`、Backend release から Job 同期を撤去、`deploy-mypage-maintenance.yml` + `mypage-operator-authenticated.yml`、`mypage-operator-deploy` の Job IAM（Terraform、追加のみ）、Terraform 契約の両 package 許容 | `operator_identity.py --apply`、MyPage Terraform Apply、foundation WIF condition へ `deploy-mypage-maintenance.yml` を追加、初回 Operator deploy |
 | 3 | API / Frontend の Deploy workflow | `deploy-mypage-api.yml`（build-and-deploy / deploy-existing）、`deploy-mypage-frontend.yml`。router から `mypage-image-build` / `mypage-backend-release` / `mypage-hosting-release` と push 自動CD を撤去 | Backend / Hosting / foundation image-build の WIF condition を新 `workflow_ref` へ更新し、Backend から `push` を削除 |
-| 4 | `terraform.yml`（手動 plan / apply、component 入力） | `gcp-plan` / `gcp-apply`、`gcp-infrastructure-authenticated.yml` / `mypage-infrastructure-authenticated.yml` を撤去。到達不能 mode を整理 | Core / MyPage の GCP WIF condition と AWS State role trust を新 `workflow_ref` へ更新。`terraform-prod-apply` に required reviewers |
+| 4 | `terraform.yml`（手動 plan / apply、component 入力） | `gcp-plan` / `gcp-apply`、`gcp-infrastructure-authenticated.yml` / `mypage-infrastructure-authenticated.yml` を撤去。到達不能 mode は維持し、呼ばないことをテストで固定 | 4.3 を参照。`terraform-prod-apply` に required reviewers |
 | 5 | PR Plan | `terraform.yml` の `pull_request` Plan と PR Plan identity の bootstrap | dev / prod の read-only GCP SA・WIF provider、AWS State read role、Environment `terraform-<env>-pr-plan` |
 | 6 | Maintenance mode の reusable 化 | 認証 job を reusable workflow へ移し、`actions/checkout` を SHA pin | Maintenance WIF condition（Terraform 管理）への `job_workflow_ref` 追加の Apply、`MYPAGE_MAINTENANCE_WIF_PROVIDER` 設定 |
 | 7 | `ci.yml` を純粋なCIへ縮小 | `ci-operations.yml` 削除、schema audit の扱いを確定、concurrency group の改名、docs・契約テストの最終整合 | 旧 claim を全 trust から削除 |
@@ -198,6 +198,18 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
    - 旧 `mypage-backend-deploy` の Job binding と maintenance runtime SA actAs を削除する（削除専用の契約遷移）。
 5. 旧 claim（`ci.yml` を caller とするもの、Backend の `push`）を全 trust から削除する。
 
+### 4.3 Terraform の trust 更新（#4、owner）
+
+`terraform.yml` を caller にするため、次の trust の `workflow_ref`（と、それを含む `sub`）を `ci.yml` から `terraform.yml` へ置き換える。
+
+| 対象 | 方法 |
+| --- | --- |
+| Core DEV GCP WIF（`terraform-normal` pool） | [`bootstrap_normal_ops.py`](../../infra/gcp/scripts/bootstrap_normal_ops.py) を再実行する（既存 provider を `update-oidc` で更新し readback する） |
+| Core DEV AWS State role（`youtube-study-space-terraform-dev-plan` / `-apply`） | trust policy の `StringLike` `sub` の `workflow_ref` を置き換える（このリポジトリは AWS trust を変更しない）。[`enable_normal_integration.py`](../../infra/gcp/scripts/enable_normal_integration.py) `--verify-aws` で readback する |
+| MyPage DEV foundation GCP WIF（`mypage-foundation` pool） | `foundation_contract.py provider-condition` の出力で condition を置き換える（#3 と同じ手順。出力は Terraform caller を `terraform.yml` にした値になる） |
+| MyPage DEV AWS State role | `foundation_contract.trust_policy()` の出力（`sub` の caller が `terraform.yml`）で置き換える |
+| Core PROD（`main` に取り込むとき） | [`bootstrap_production_normal_ops.py`](../../infra/gcp/scripts/bootstrap_production_normal_ops.py) の GCP condition と、[`production_backend_packet.py`](../../infra/gcp/scripts/production_backend_packet.py) の AWS trust policy を適用する。`main` に入るまで本番の `ci.yml` 経路は変わらない |
+
 ## 5. 移行状況
 
 「実装済み」は作業用統合ブランチ上のコードを指す。実環境で有効かどうかは 4.2 の owner 作業と実runで確認する。
@@ -206,7 +218,7 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 | --- | --- | --- |
 | UC1 CI | 現行（router 同居） | `ci.yml` |
 | UC2 PR Plan | 未実装 | なし（credentialless validate のみ） |
-| UC2 手動 Plan / UC3 Apply | 現行 | `ci.yml` dispatch `gcp-plan` / `gcp-apply` |
+| UC2 手動 Plan / UC3 Apply | 実装済み（未有効化）。旧 router 経路と orchestrator は撤去済み。PROD Apply の reviewer は owner 設定待ち | `terraform.yml` |
 | UC4 Frontend | 実装済み（未有効化）。旧 router 経路は撤去済み | `deploy-mypage-frontend.yml` |
 | UC5 API | 実装済み（未有効化）。Service のみ。旧 router 経路と push 自動CDは撤去済み | `deploy-mypage-api.yml` |
 | UC6 Operator | 実装済み（未有効化） | `deploy-mypage-maintenance.yml` |

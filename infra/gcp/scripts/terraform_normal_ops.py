@@ -26,7 +26,7 @@ import terraform_migration as common
 PROJECT = 'test-youtube-study-space'  # Backwards-compatible DEV test fixture
 PROJECTS = {'dev': PROJECT, 'prod': 'youtube-study-space'}
 BRANCH_REF = re.compile(r'refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*')
-CALLER = 'kani3camp/youtube-study-space/.github/workflows/ci.yml@'
+CALLER = 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@'
 REUSABLE = 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@'
 DIAGNOSTIC_SECTIONS = ('source_run_mode', 'inputs', 'review', 'state', 'resource_changes',
                        'planned_values', 'prior_state', 'checks', 'relevant_attributes', 'other_plan_fields')

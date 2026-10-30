@@ -128,7 +128,7 @@ def context(env, role=None):
         'GITHUB_ACTOR_ID': '54093651', 'GITHUB_ACTOR': 'kani3camp',
         'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1',
         'GITHUB_REF': expected_ref,
-        'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + expected_ref,
+        'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + expected_ref,
     }
     need(all(env.get(key) == value for key, value in exact.items()))
     need(re.fullmatch('[0-9a-f]{40}', env.get('GITHUB_SHA', '')) is not None)
@@ -237,7 +237,7 @@ def verify_oidc(env):
         'repository_id': '340900071', 'repository_owner_id': '54093651',
         'environment': f'terraform-{target}-{role}',
         'ref': expected_ref,
-        'workflow_ref': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + expected_ref,
+        'workflow_ref': 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + expected_ref,
         'job_workflow_ref': 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@' + expected_ref,
         'event_name': 'workflow_dispatch',
     }

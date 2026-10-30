@@ -42,7 +42,8 @@ def workflow_ref(name):
     return WORKFLOWS + name + "@" + REF
 
 
-CALLER = workflow_ref("ci.yml")
+# Terraform Plan / Apply caller (the manual Terraform workflow).
+CALLER = workflow_ref("terraform.yml")
 REUSABLE = workflow_ref("mypage-foundation-authenticated.yml")
 # 各imageは、それを配備するユースケースworkflowからだけbuildする。
 # packageを分けることで、API配備がJob用imageを取り違えない。

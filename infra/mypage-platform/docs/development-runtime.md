@@ -85,7 +85,7 @@ Cloud RunはGen2、service/revisionの両方でDev max=1/min=0、CPU 1/512Mi、r
 
 ### 専用Registryの段階
 
-この節は専用Registryを初回導入した**履歴上の段階**を記録する。当時は `registry-plan` / `registry-apply` を明示dispatchし、Foundation8資源と専用Registry1資源だけを同じ独立DEV Stateで扱った。現行の通常運用ではregistry stageを選択せず、`operation=gcp-plan|gcp-apply` がMyPage最終desired stateをPlan/Applyする。既存のexact actor/ref/workflow、独立Plan照合、HMAC、native lock、private raw evidence、保存Plan適用の契約は内部で維持する。
+この節は専用Registryを初回導入した**履歴上の段階**を記録する。当時は `registry-plan` / `registry-apply` を明示dispatchし、Foundation8資源と専用Registry1資源だけを同じ独立DEV Stateで扱った。現行の通常運用ではregistry stageを選択せず、`Terraform`（`terraform.yml`）の `operation=plan|apply` がMyPage最終desired stateをPlan/Applyする。既存のexact actor/ref/workflow、独立Plan照合、HMAC、native lock、private raw evidence、保存Plan適用の契約は内部で維持する。
 
 Registryは固定project/region/ID、DOCKER、STANDARD_REPOSITORY、immutable tags、cleanup dry-run・自動削除なし。guardは9資源のcreate/no-opだけを許可し、既存の同名RepositoryがState外にあればcreateを拒否する。source追加だけでは実Registry・image・Cloud Runを作成しない。RegistryをStateへ追加した後は、旧foundation段階へ戻さず`registry-plan`でno-opを検証する。
 
