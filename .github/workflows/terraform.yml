@@ -280,6 +280,11 @@ jobs:
             fail "Fork PRs never receive Terraform credentials. The owner runs the manual Terraform Plan."
           [[ "${GITHUB_ACTOR_ID}" == "54093651" && "${GITHUB_TRIGGERING_ACTOR}" == "kani3camp" && "${GITHUB_RUN_ATTEMPT}" == "1" ]] ||
             fail "PR Plan is limited to the owner's first run. The owner runs the manual Terraform Plan."
+          # Read the diff first: a failed diff must fail the job, never select nothing.
+          # --no-renames lists both the old and the new path of a moved file.
+          changed="$(mktemp)"
+          git diff --no-renames --name-only "${BASE_SHA}...${HEAD_SHA}" > "${changed}" ||
+            fail "Could not read the PR diff; no PR Plan was selected."
           core=false
           mypage=false
           while IFS= read -r path; do
@@ -288,7 +293,7 @@ jobs:
               infra/mypage-platform/*|.github/workflows/mypage-foundation-authenticated.yml) mypage=true ;;
               .github/workflows/terraform.yml|.github/workflows/terraform-pr-plan.yml) core=true; mypage=true ;;
             esac
-          done < <(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
+          done < "${changed}"
           {
             echo "core=${core}"
             echo "mypage=${mypage}"
