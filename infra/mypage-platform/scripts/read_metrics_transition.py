@@ -53,6 +53,21 @@ def container(service):
     return r.one(template.get("containers"), "metrics-transition-container")
 
 
+def service_metrics_enabled(service):
+    template = r.one(service.get("template"), "metrics-image-template")
+    container = r.one(template.get("containers"), "metrics-image-container")
+    entries = container.get("env", [])
+    c.need(type(entries) is list and all(type(item) is dict for item in entries),
+           "metrics-service-image-drift")
+    found = [item for item in entries if item.get("name") == METRICS_ENV]
+    c.need(len(found) <= 1, "metrics-service-image-drift")
+    if not found:
+        return False
+    c.need(found[0].get("value") == "true" and not found[0].get("value_source"),
+           "metrics-service-image-drift")
+    return True
+
+
 def cicd_image_drifts(plan, value):
     """Split verified CI-owned image refreshes from drift that needs transition handling."""
     accepted, remaining = [], []
@@ -75,7 +90,11 @@ def cicd_image_drifts(plan, value):
                        change.get("actions") == ["update"] and not change.get("importing") and
                        not change.get("replace_paths") and not c.has_unknown(change.get("after_unknown")),
                        "metrics-service-image-drift")
-                r.validate_cicd_image_refresh(change.get("before"), change.get("after"), value)
+                drift_value = value | {
+                    "read_metrics_enabled": service_metrics_enabled(change.get("before")),
+                    "read_metrics_from_revision": "",
+                }
+                r.validate_cicd_image_refresh(change.get("before"), change.get("after"), drift_value)
             except c.ContractError:
                 remaining.append(drift)
             else:

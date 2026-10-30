@@ -131,7 +131,38 @@ class FoundationTest(unittest.TestCase):
             'maintenance_operator_image_source_sha': 'private-retired-source',
         }
         self.assertEqual(ops.runtime_settings(env | {'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(legacy)}), clean)
-        with self.assertRaisesRegex(c.ContractError, '^runtime-settings-fields        value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
+        with self.assertRaisesRegex(c.ContractError, '^runtime-settings-fields$'):
+            ops.runtime_settings(env | {'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(value | {'unreviewed': 'x'})})
+
+    def test_missing_dev_maintenance_job_resolves_reviewed_bootstrap_tag_without_secret_digest(self):
+        env = {'GITHUB_SHA': 'f' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token'}
+        prefix = ('projects/' + c.PROJECT + '/locations/' + c.REGION +
+                  '/repositories/mypage/packages/mypage-api')
+        digest = 'd' * 64
+
+        def cloud(url, _token):
+            if url.endswith('/jobs/mypage-maintenance-operator'):
+                raise ops.urllib.error.HTTPError(url, 404, 'not found', None, None)
+            self.assertTrue(url.endswith('/tags/' + ops.MAINTENANCE_BOOTSTRAP_SOURCE_SHA))
+            return {'version': prefix + '/versions/sha256:' + digest}
+
+        dockerfile = ('go build -tags timetzdata -trimpath -ldflags="-s -w" '
+                      '-o /out/mypage-maintenance-operator ./cmd/mypage-maintenance-operator\n'
+                      'COPY --from=build /out/mypage-maintenance-operator /app/mypage-maintenance-operator\n')
+        with patch.object(ops, 'request', side_effect=cloud), \
+             patch.object(ops, 'run', side_effect=['', dockerfile]) as run:
+            self.assertEqual(ops.maintenance_bootstrap_image(env, 'runtime_public'),
+                             ops.runtime_contract.REPOSITORY + '@sha256:' + digest)
+        self.assertIn('merge-base', run.call_args_list[0].args[0])
+        self.assertEqual(run.call_args_list[1].args[0][:2], ['git', 'show'])
+
+        with patch.object(ops, 'request', return_value={'name': 'existing-job'}), \
+             patch.object(ops, 'run') as run:
+            self.assertEqual(ops.maintenance_bootstrap_image(env, 'runtime_public'), '')
+            run.assert_not_called()
+
+    def test_maintenance_operator_stage_writes_admitted_runtime_settings(self):
+        value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
         env = {
             'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
             'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_EVENT_NAME': 'workflow_dispatch',

@@ -18,12 +18,13 @@ REGISTRY = ('https://artifactregistry.googleapis.com/v1/projects/' + c.PROJECT +
             '/locations/asia-southeast2/repositories/mypage/packages/mypage-api')
 JOB_NAME = 'projects/' + c.PROJECT + '/locations/asia-southeast2/jobs/mypage-maintenance-operator'
 JOB_URL = 'https://run.googleapis.com/v2/' + JOB_NAME
+JOB_PATCH_URL = JOB_URL + '?allowMissing=false'
 JOB_OPERATION = re.compile(r'projects/' + re.escape(c.PROJECT) + r'/locations/asia-southeast2/operations/[A-Za-z0-9_-]+')
 JOB_OUTPUTS = frozenset({
     '@type', 'uid', 'generation', 'observedGeneration', 'createTime', 'updateTime',
     'deleteTime', 'expireTime', 'creator', 'lastModifier', 'terminalCondition',
     'conditions', 'executionCount', 'latestCreatedExecution', 'reconciling',
-    'satisfiesPzs',
+    'satisfiesPzs', 'startExecutionToken', 'runExecutionToken',
 })
 
 
@@ -163,10 +164,11 @@ def job_request(token, body=None, *, url=JOB_URL, missing_ok=False):
     import urllib.error
     import urllib.request
     operation = url.removeprefix('https://run.googleapis.com/v2/')
-    allowed = url == JOB_URL or JOB_OPERATION.fullmatch(operation)
+    allowed = url in (JOB_URL, JOB_PATCH_URL) or JOB_OPERATION.fullmatch(operation)
     c.need(bool(allowed), 'backend-job-url')
     c.need(type(token) is str and bool(token), 'backend-job-credential')
-    c.need(body is None or url == JOB_URL, 'backend-job-url')
+    c.need((body is None and url != JOB_PATCH_URL) or (body is not None and url == JOB_PATCH_URL),
+           'backend-job-url')
     request = urllib.request.Request(
         url,
         data=None if body is None else c.canonical(body),
@@ -260,7 +262,7 @@ def same_job_configuration(current, expected):
 
 
 def start_job_update(token, before, value):
-    operation = job_request(token, job_payload(before, value))
+    operation = job_request(token, job_payload(before, value), url=JOB_PATCH_URL)
     name = operation.get('name')
     c.need(type(name) is str and JOB_OPERATION.fullmatch(name), 'backend-job-operation')
     c.need(not operation.get('error'), 'backend-job-operation')

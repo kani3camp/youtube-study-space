@@ -209,6 +209,8 @@ class BackendReleaseTest(unittest.TestCase):
         self.assertNotIn('executionCount', payload)
         self.assertNotIn('latestCreatedExecution', payload)
         self.assertNotIn('generation', payload)
+        self.assertNotIn('startExecutionToken', payload)
+        self.assertNotIn('runExecutionToken', payload)
         self.assertEqual(before, job())
 
         # Output-only execution metadata may change independently of Job config.
@@ -280,6 +282,7 @@ class BackendReleaseTest(unittest.TestCase):
 
             def jobrequest(token, body=None, *, url=b.JOB_URL, missing_ok=False):
                 if body is not None:
+                    self.assertEqual(url, b.JOB_PATCH_URL)
                     job_calls.append(deepcopy(body))
                     self.assertTrue(path.is_file())
                     return {'name': 'projects/' + b.c.PROJECT + '/locations/asia-southeast2/operations/synthetic',
