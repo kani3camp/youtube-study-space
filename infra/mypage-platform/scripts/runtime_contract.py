@@ -44,6 +44,8 @@ MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-opera
          "runtime-public-plan": "runtime_public", "runtime-public-apply": "runtime_public"}
 PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/services/mypage-api"
 PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
+# After a read, the provider records Job IAM members with the full Job path, not the short name.
+MAINTENANCE_JOB_FULL_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/jobs/mypage-maintenance-operator"
 FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "privacy_version", "terms_version",
           "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
 
@@ -596,6 +598,8 @@ def validate_initial_plan(plan, stage):
                 continue
             if address == INVOKER and key == "name":
                 valid = after.get(key) in {expected_value, PUBLIC_INVOKER_NAME}
+            elif address in {MAINTENANCE_JOB_INVOKER, MAINTENANCE_IMAGE_BINDING, OPERATOR_IMAGE_BINDING} and key == "name":
+                valid = after.get(key) in {expected_value, MAINTENANCE_JOB_FULL_NAME}
             else:
                 valid = after.get(key) == expected_value
             c.need(valid and not c.has_unknown(unknown.get(key)), "runtime-resource-value-" + address + "-" + key)
