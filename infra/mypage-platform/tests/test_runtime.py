@@ -202,6 +202,49 @@ class RuntimeTest(unittest.TestCase):
                 with self.subTest(address=address, wrong=wrong), self.assertRaises(c.ContractError):
                     r.validate_plan(rejected, "runtime_public")
 
+    def provider_fix_plan(self):
+        plan = fixture("runtime_public")
+        for item in plan["resource_changes"]:
+            item["change"]["actions"] = ["no-op"]
+        item = next(item for item in plan["resource_changes"] if item["address"] == r.MAINTENANCE_PROVIDER)
+        before = deepcopy(item["change"]["after"])
+        before.update(attribute_condition=r.maintenance_provider_condition(legacy=True),
+                      attribute_mapping=r.maintenance_provider_mapping(legacy=True))
+        item["change"].update(actions=["update"], before=before)
+        return plan, item
+
+    def test_maintenance_provider_subject_fits_sts_and_requires_the_reusable_job(self):
+        mapping = r.maintenance_provider_mapping()
+        self.assertEqual(mapping["google.subject"], r.MAINTENANCE_SUBJECT)
+        longest = "340900071:mypage-maintenance-development:54093651"
+        self.assertLessEqual(len(longest.encode()), 127)
+        self.assertIn("assertion.job_workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/"
+                      "mypage-maintenance-authenticated.yml@" + c.REF + "'", r.maintenance_provider_condition())
+        self.assertNotIn("job_workflow_ref", r.maintenance_provider_condition(legacy=True))
+
+    def test_only_the_reviewed_maintenance_provider_fix_is_accepted_as_an_update(self):
+        plan, item = self.provider_fix_plan()
+        self.assertTrue(r.reviewed_provider_update(r.MAINTENANCE_PROVIDER, item["change"]))
+        self.assertEqual(r.validate_plan(plan, "runtime_public"), {"resources": len(plan["resource_changes"]), "creates": 0})
+        for name, mutate in (
+            ("other-before-condition", lambda ch: ch["before"].update(attribute_condition="true")),
+            ("other-before-mapping", lambda ch: ch["before"]["attribute_mapping"].update({"attribute.extra": "assertion.sub"})),
+            ("only-mapping", lambda ch: ch["before"].update(attribute_condition=r.maintenance_provider_condition())),
+            ("after-mapping-extra", lambda ch: ch["after"]["attribute_mapping"].update({"attribute.extra": "assertion.sub"})),
+            ("after-condition-widened", lambda ch: ch["after"].update(attribute_condition="true")),
+            ("other-attribute", lambda ch: ch["after"].update(disabled=True)),
+            ("unknown", lambda ch: ch.update(after_unknown={"attribute_condition": True})),
+            ("replace", lambda ch: ch.update(replace_paths=[["attribute_mapping"]])),
+            ("delete-create", lambda ch: ch.update(actions=["delete", "create"])),
+        ):
+            rejected, changed = self.provider_fix_plan()
+            mutate(changed["change"])
+            with self.subTest(name=name):
+                self.assertFalse(r.reviewed_provider_update(r.MAINTENANCE_PROVIDER, changed["change"]))
+                with self.assertRaises(c.ContractError):
+                    r.validate_plan(rejected, "runtime_public")
+        self.assertFalse(r.reviewed_provider_update(r.MAINTENANCE_POOL, item["change"]))
+
     def state_only_plan(self):
         plan = fixture("runtime_public")
         for item in plan["resource_changes"]:
