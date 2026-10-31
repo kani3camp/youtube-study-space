@@ -1,0 +1,19 @@
+{
+  "asOf": "2026-10-24T03:00:00Z",
+  "timezone": "Asia/Tokyo",
+  "selection": "completed_work",
+  "coverage": "recorded_only",
+  "sourceConsistent": true,
+  "from": "2026-10-01",
+  "to": "2026-10-02",
+  "items": [
+    {
+      "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "startedAt": "2026-09-30T23:00:00Z",
+      "endedAt": "2026-10-01T00:00:00Z",
+      "workSec": 3600,
+      "workName": "合成作業"
+    }
+  ],
+  "nextCursor": null
+}

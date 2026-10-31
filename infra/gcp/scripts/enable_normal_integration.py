@@ -22,6 +22,7 @@ STATE_REGION = "ap-northeast-1"
 LEGACY_AWS_REF = "refs/heads/*"
 CLAIM_KEYS = ("repository_id", "repository_owner_id", "environment", "ref",
               "workflow_ref", "job_workflow_ref", "event_name")
+# terraform.yml is the only caller (#1500); DEV trust may still list ci.yml until the old claims are removed.
 CALLERS = ('ci.yml', 'terraform.yml')
 BRANCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
 PHASE = "start"
@@ -43,7 +44,7 @@ def branch_name(value: str) -> str:
     return value
 
 
-def custom_subject(role: str, ref: str, caller: str = 'ci.yml') -> str:
+def custom_subject(role: str, ref: str, caller: str = 'terraform.yml') -> str:
     need(caller in CALLERS)
     claims = {
         "repository_id": "340900071",
@@ -166,10 +167,11 @@ def check_provider(value: dict) -> None:
     need(value.get("attributeMapping") == config.MAPPING)
     # 本人起動・非mainのbranch ref・同ref/SHAのworkflowをWIF自身が検証する。
     # 既存のTerraform専用入口が併存するDEVも、他の条件は完全一致のまま読み取る。
-    caller = "assertion.workflow_ref == '" + REPO + "/.github/workflows/ci.yml@' + assertion.ref"
+    caller = "assertion.workflow_ref == '" + REPO + "/.github/workflows/terraform.yml@' + assertion.ref"
     callers = 'assertion.workflow_ref in [' + ', '.join(
         "'" + REPO + '/.github/workflows/' + name + "@' + assertion.ref" for name in CALLERS) + ']'
-    need(value.get('attributeCondition') in (config.CONDITION, config.CONDITION.replace(callers, caller)))
+    need(caller in config.CONDITION)
+    need(value.get('attributeCondition') in (config.CONDITION, config.CONDITION.replace(caller, callers)))
     condition = value["attributeCondition"]
     need("refs/heads/dev" not in condition
          and "integration/gcp-terraform-normal-ops" not in condition)

@@ -49,7 +49,7 @@ class BranchAuthorizationTest(unittest.TestCase):
         condition = bootstrap.CONDITION
         self.assertIn("assertion.ref.startsWith('refs/heads/')", condition)
         self.assertIn("assertion.ref != 'refs/heads/main'", condition)
-        self.assertIn("assertion.workflow_ref in", condition)
+        self.assertIn("assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + assertion.ref", condition)
         self.assertIn("' + assertion.ref", condition)
         self.assertIn("assertion.repository_id == '340900071'", condition)
         self.assertIn("assertion.job_workflow_sha == assertion.sha", condition)
@@ -318,16 +318,20 @@ class BranchAuthorizationTest(unittest.TestCase):
                 "attributeCondition": bootstrap.CONDITION + " && assertion.ref == 'refs/heads/dev'"})
 
     def test_gcp_readback_accepts_existing_dual_caller_without_relaxing_other_claims(self):
-        caller = "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + assertion.ref"
+        # DEV trust still lists the retired ci.yml caller next to terraform.yml during the migration.
+        caller = "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + assertion.ref"
         callers = ("assertion.workflow_ref in ['kani3camp/youtube-study-space/.github/workflows/ci.yml@' + assertion.ref, "
                    "'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + assertion.ref]")
+        self.assertIn(caller, bootstrap.CONDITION)
         condition = bootstrap.CONDITION.replace(caller, callers)
+        self.assertNotEqual(condition, bootstrap.CONDITION)
         provider = {'state': 'ACTIVE', 'oidc': {'issuerUri': 'https://token.actions.githubusercontent.com'},
                     'attributeMapping': bootstrap.MAPPING, 'attributeCondition': condition}
         op.check_provider(provider)
         for invalid in (condition.replace("assertion.actor_id == '54093651'", 'true'),
                         condition.replace('terraform.yml@', 'attacker.yml@'),
-                        condition.replace('refs/heads/', 'refs/')):
+                        condition.replace('refs/heads/', 'refs/'),
+                        bootstrap.CONDITION.replace('terraform.yml@', 'ci.yml@')):
             with self.assertRaises(op.Stop):
                 op.check_provider(provider | {'attributeCondition': invalid})
 

@@ -24,9 +24,11 @@ credential内のprojectが空でも、検証済みexplicit targetを使います
 credential metadataのprojectはidentity/trustの証明ではありません。dedicated identity、exact
 table/project権限、WIF cloud trustとprotected Environmentは別途検証が必要です。
 
-一回限りのdevelopment監査は終了し、専用GitHub workflowとCIの監査オプション・公開Summary処理は撤去しました。
-CLIは個別に承認された監査のために保持します。raw JSONとstderrはprivate outputとして扱い、public logs/artifactsへ保存しません。
-source/test PASSはquery実行承認を兼ねません。
+このCLIを実行するGitHub workflow（`gcp-user-activity-schema-audit.yml`）は、2026年の一回限りの監査
+（[結果](../../../infra/gcp/docs/user-activity-history-canonicalization.md)、終了PR #1238）の後、#1500で撤去しました。
+クラウド側の専用SA・権限・trustも監査後に撤回済みです。再実行が必要になった場合は、identity・table限定の
+権限・実行経路を改めて承認してから用意します。raw JSONとstderrはprivate ephemeral outputとして扱い、
+public logs/artifactsへ保存しません。source/test PASSはquery実行承認を兼ねません。
 
 credentialless regression testsは合成WIF JSONを使います。token fileは存在せず、token交換や
 BigQuery queryを行わずに、projectless credentialの読み取りと起動準備を検証します。

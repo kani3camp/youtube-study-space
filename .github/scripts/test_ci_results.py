@@ -21,8 +21,11 @@ class GateResultsTest(unittest.TestCase):
         needs['repository']['result'] = 'success'
         return needs
 
-    def test_unselected_domains_can_skip(self):
+    def test_unselected_domains_can_skip_and_no_operation_dependency_exists(self):
         gate.validate(self.fixture())
+        # CI has no credentialed operation left; an extra dependency is rejected.
+        with self.assertRaises(ValueError):
+            gate.validate(self.fixture() | {'operations': {'result': 'skipped'}})
 
     def test_all_selected_domains_must_succeed(self):
         needs = self.fixture(all='true')
@@ -73,10 +76,6 @@ class GateResultsTest(unittest.TestCase):
                 with self.subTest(group=group, bad=bad), self.assertRaises(ValueError):
                     gate.validate(needs)
 
-    def test_authenticated_dispatch_only_requires_terraform_and_repository(self):
-        needs = self.fixture(gcp_terraform='true')
-        needs['gcp-terraform-validate']['result'] = 'success'
-        gate.validate(needs)
 
     def test_real_gate_entrypoint_returns_nonzero_on_bad_or_missing_json(self):
         for payload, expected in ((json.dumps(self.fixture()), 0), ('{}', 1), ('not-json', 1), ('[]', 1)):

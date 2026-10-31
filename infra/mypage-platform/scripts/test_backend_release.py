@@ -1,0 +1,248 @@
+"""DEV配備・競合・失敗の観測可能な制御を検証する。クラウド認証情報は使わない。"""
+from copy import deepcopy
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import backend_release as b
+import backend_identity as identity
+
+
+def environment():
+    return {'GITHUB_REPOSITORY': b.c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
+            'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_ACTOR_ID': '54093651',
+            'GITHUB_ACTOR': 'kani3camp', 'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
+            'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_RUN_ATTEMPT': '1',
+            'GITHUB_REF': b.c.REF, 'GITHUB_WORKFLOW_REF': b.CALLER,
+            'GITHUB_SHA': 'a' * 40, 'GITHUB_RUN_ID': '123',
+            'MYPAGE_BACKEND_EXPECTED_SHA': 'a' * 40, 'MYPAGE_BACKEND_ACCESS_TOKEN': 'synthetic-token'}
+
+
+def release():
+    return {'image_source_sha': 'a' * 40, 'image_digest': b.runtime.REPOSITORY + '@sha256:' + 'b' * 64,
+            'hosting_backend_host': 'mypage-api-eu5mhkcewq-et.a.run.app'}
+
+
+def old_image():
+    return b.runtime.REPOSITORY + '@sha256:' + 'c' * 64
+
+
+def service(*, after=False):
+    value = release()
+    revision = 'mypage-api-00002-new' if after else 'mypage-api-00001-old'
+    env = {'GOOGLE_CLOUD_PROJECT': b.c.PROJECT, 'MYPAGE_ENVIRONMENT': 'development',
+           'MYPAGE_PROJECT_NUMBER': b.c.PROJECT_NUMBER, 'MYPAGE_PUBLIC_ORIGIN': b.hosting.ORIGIN,
+           'MYPAGE_HOSTING_BACKEND_HOST': value['hosting_backend_host']}
+    return {'name': b.live.SERVICE_NAME, 'uid': 'synthetic-uid', 'etag': 'new' if after else 'old',
+            'generation': '2' if after else '1', 'observedGeneration': '2' if after else '1',
+            'updateTime': '2026-10-26T01:00:01Z' if after else '2026-10-26T01:00:00Z',
+            'uri': 'https://' + value['hosting_backend_host'],
+            'terminalCondition': {'state': 'CONDITION_SUCCEEDED'},
+            'latestReadyRevision': revision, 'latestCreatedRevision': revision,
+            'traffic': [{'type': 'TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST', 'percent': 100}],
+            'trafficStatuses': [{'type': 'TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST', 'percent': 100,
+                                 'revision': revision}],
+            'futureConfig': {'preserve': True}, 'ingress': 'INGRESS_TRAFFIC_ALL',
+            'template': {'serviceAccount': b.c.EMAIL, 'scaling': {'maxInstanceCount': 1},
+                         'containers': [{'image': value['image_digest'] if after else old_image(),
+                                         'env': [{'name': k, 'value': v} for k, v in env.items()] +
+                                         [{'name': 'MYPAGE_OAUTH_CLIENT_SECRET', 'valueSource': {
+                                             'secretKeyRef': {'secret': 'synthetic-secret-ref', 'version': '1'}}}]}]}}
+
+
+def v1service(*, after=False):
+    api = service(after=after)
+    return {'apiVersion': 'serving.knative.dev/v1', 'kind': 'Service',
+            'metadata': {'uid': api['uid'], 'generation': int(api['generation']), 'name': 'mypage-api',
+                         'namespace': b.c.PROJECT, 'resourceVersion': 'new-rv' if after else 'old-rv'},
+            'spec': {'template': {'spec': {'containers': deepcopy(api['template']['containers'])}},
+                     'preserve': {'future': True}},
+            'status': {'latestReadyRevisionName': api['latestReadyRevision'],
+                       'latestCreatedRevisionName': api['latestCreatedRevision'],
+                       'conditions': [{'type': 'Ready', 'status': 'True'}]}}
+
+
+class BackendReleaseTest(unittest.TestCase):
+    def test_windows_bootstrap_supports_native_gh_executable(self):
+        class Result:
+            returncode = 0
+            stdout = '{}'
+        def which(name):
+            return 'synthetic-gh.exe' if name == 'gh' else None
+        with patch.object(identity.os, 'name', 'nt'), patch.object(identity.shutil, 'which', side_effect=which), \
+             patch.object(identity.subprocess, 'run', return_value=Result()) as run:
+            identity.command('gh', ['api', 'synthetic'])
+            self.assertEqual(run.call_args.args[0][0], 'synthetic-gh.exe')
+
+
+    def test_smoke_verifies_host_boundary_and_app_check_not_arbitrary_rejection(self):
+        def response(url):
+            direct = url.startswith('https://mypage-api-')
+            return (400 if direct else 403, {'Cache-Control': 'private, no-store'},
+                    json.dumps({'error': {'code': 'INVALID_REQUEST' if direct else 'APP_CHECK_REQUIRED'}}).encode())
+        with patch.object(b, 'public_get', side_effect=response), \
+             patch.object(b.hosting, 'http', return_value=(200, {}, b'<html>synthetic</html>')):
+            b.smoke()
+        for invalid in ((200, {}, b'{}'), (403, {'Cache-Control': 'no-store'}, b'{"error":{"code":"UNKNOWN"}}'),
+                        (400, {'Cache-Control': 'no-store'}, b'upstream html')):
+            with self.subTest(response=invalid), patch.object(b, 'public_get', return_value=invalid), \
+                 self.assertRaises((ValueError, b.c.ContractError)):
+                b.smoke()
+
+    def test_new_identity_is_bound_to_exact_dev_source_actor_and_environment(self):
+        condition = identity.condition()
+        for text in ('assertion.ref == ' + json.dumps(b.c.REF),
+                     'assertion.workflow_ref == ' + json.dumps(identity.CALLER),
+                     'assertion.job_workflow_ref == ' + json.dumps(identity.REUSABLE),
+                     'assertion.actor_id == "54093651"', 'assertion.run_attempt == "1"',
+                     'assertion.event_name == "workflow_dispatch"',
+                     'assertion.environment == "mypage-dev-backend"',
+                     'assertion.workflow_sha == assertion.job_workflow_sha'):
+            self.assertIn(text, condition)
+        self.assertEqual(set(identity.PERMISSIONS), {'run.services.get', 'run.services.update'})
+        self.assertNotIn('mypage-foundation', condition)
+        self.assertLessEqual(len(condition), b.c.CONDITION_LIMIT)
+        for absent in ('push', ' || ', '/ci.yml@'):
+            self.assertNotIn(absent, condition)
+
+    def test_rejects_unauthorized_context_before_any_cloud_access(self):
+        b.context(environment())
+        for key, value in [('GITHUB_REF', 'refs/heads/main'), ('GITHUB_ACTOR_ID', '0'),
+                           ('GITHUB_RUN_ATTEMPT', '2'), ('GITHUB_EVENT_NAME', 'pull_request'),
+                           ('GITHUB_EVENT_NAME', 'push'), ('GITHUB_WORKFLOW_REF', b.c.CALLER),
+                           ('GITHUB_WORKFLOW_REF', b.c.workflow_ref('deploy-mypage-frontend.yml')),
+                           ('MYPAGE_BACKEND_EXPECTED_SHA', 'b' * 40),
+                           ('AWS_ACCESS_KEY_ID', 'synthetic-private')]:
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                b.context(environment() | {key: value})
+
+    def test_manual_release_resolves_exact_source_tag_without_json(self):
+        given = environment()
+        self.assertEqual(b.declaration(given)['image_digest'], '')
+        prefix = b.REGISTRY.removeprefix('https://artifactregistry.googleapis.com/v1/') + '/versions/'
+        with patch.object(b, 'registry_tag', return_value={'version': prefix + 'sha256:' + 'b' * 64}):
+            self.assertEqual(b.declaration(given, 'synthetic-token')['image_digest'], release()['image_digest'])
+        with patch.object(b, 'registry_tag', return_value={'version': prefix + 'sha256:' + 'bad'}), self.assertRaises(ValueError):
+            b.declaration(given, 'synthetic-token')
+        rollback = given | {'MYPAGE_BACKEND_IMAGE_SOURCE_SHA': 'f' * 40,
+                            'MYPAGE_BACKEND_IMAGE_DIGEST': release()['image_digest']}
+        b.context(rollback)
+        with patch.object(b.hosting, 'verify_head'), patch.object(b.hosting, 'command') as command:
+            b.verify_source(rollback, b.declaration(rollback))
+            self.assertIn('merge-base', command.call_args.args[0])
+
+    def test_only_image_changes_and_original_resource_version_is_preserved(self):
+        original = v1service()
+        payload = b.payload(original, service(), release())
+        expected = deepcopy(original)
+        expected.pop('status')
+        expected['spec']['template']['spec']['containers'][0]['image'] = release()['image_digest']
+        self.assertEqual(payload, expected)
+        self.assertEqual(original, v1service())
+        self.assertEqual(payload['metadata']['resourceVersion'], 'old-rv')
+
+    def test_new_revision_must_preserve_all_config_including_unknown_fields(self):
+        b.validate_result(service(after=True), service(), release())
+        changes = [lambda x: x['template']['containers'][0]['env'].pop(),
+                   lambda x: x['template']['scaling'].update(maxInstanceCount=3),
+                   lambda x: x['futureConfig'].update(preserve=False),
+                   lambda x: x['template'].update(serviceAccount='other'),
+                   lambda x: x.update(generation='3'),
+                   lambda x: x['traffic'][0].update(percent=90)]
+        for mutate in changes:
+            after = service(after=True)
+            mutate(after)
+            with self.subTest(mutate=mutate), self.assertRaises(ValueError):
+                b.validate_result(after, service(), release())
+
+    def execute(self, *, moved=False, conflict=False, lost=False, unhealthy=False, smoke=False,
+                service_unchanged=False):
+        before = service(after=service_unchanged)
+        after = deepcopy(before) if service_unchanged else service(after=True)
+        if unhealthy:
+            after['terminalCondition']['state'] = 'CONDITION_FAILED'
+        service_calls = []
+        live_gets = 0
+        with tempfile.TemporaryDirectory() as directory:
+            env = environment() | {'RUNNER_TEMP': directory}
+            path = Path(directory) / 'mypage-backend-release-record.json'
+
+            def live_request(_token, _url):
+                nonlocal live_gets
+                live_gets += 1
+                if moved and live_gets == 2:
+                    return before | {'etag': 'foreign'}
+                return after if service_calls else before
+
+            def v1request(token, body=None):
+                if body is None:
+                    return v1service(after=bool(service_calls) or service_unchanged)
+                service_calls.append(deepcopy(body))
+                self.assertTrue(path.is_file())
+                self.assertEqual(json.loads(path.read_bytes())['publishStatus'], 'unknown')
+                if conflict or lost:
+                    raise ValueError('synthetic-conflict' if conflict else 'synthetic-lost-response')
+                return v1service(after=True)
+
+            def no_job_access(*_args, **_kwargs):
+                raise AssertionError('The API release must never read or update the maintenance Job')
+
+            host = {'name': 'sites/test--study-space/releases/old',
+                    'version': {'name': 'sites/test--study-space/versions/old'}}
+            with patch.object(b, 'declaration', return_value=release()), patch.object(b, 'verify_source'), \
+                 patch.object(b, 'registry'), patch.object(b.hosting, 'verify_head'), \
+                 patch.object(b.hosting, 'current', return_value=host), \
+                 patch.object(b.live, 'request', side_effect=live_request), \
+                 patch.object(b.v1, 'request', side_effect=v1request), \
+                 patch('urllib.request.OpenerDirector.open', side_effect=no_job_access), \
+                 patch.object(b, 'smoke', side_effect=ValueError('synthetic-smoke') if smoke else None):
+                if any((moved, conflict, lost, unhealthy, smoke)):
+                    with self.assertRaises(ValueError):
+                        b.deploy(env)
+                else:
+                    b.deploy(env)
+            record = json.loads(path.read_bytes()) if path.exists() else None
+        return service_calls, record
+
+    def test_release_updates_once_and_records_revision_digest_pair(self):
+        calls, record = self.execute()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(record['publishStatus'], 'confirmed')
+        self.assertEqual(record['publicReadback'], 'passed')
+        self.assertNotIn('stateReadback', record)
+        self.assertEqual(record['previousImageDigest'], old_image())
+        self.assertEqual(record['schemaVersion'], 4)
+        self.assertFalse(any(key.startswith('maintenanceJob') for key in record))
+
+    def test_unchanged_service_is_recorded_without_any_write(self):
+        calls, record = self.execute(service_unchanged=True)
+        self.assertEqual(calls, [])
+        self.assertEqual(record['publishStatus'], 'unchanged')
+        self.assertEqual(record['publicReadback'], 'passed')
+
+    def test_competing_configuration_prevents_write(self):
+        calls, record = self.execute(moved=True)
+        self.assertEqual(calls, [])
+        self.assertIsNone(record)
+
+    def test_conflict_and_lost_response_never_retry_and_preserve_recovery_record(self):
+        for option in ('conflict', 'lost'):
+            with self.subTest(option=option):
+                calls, record = self.execute(**{option: True})
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(record['publishStatus'], 'unknown')
+                self.assertEqual(record['previousRevision'], 'mypage-api-00001-old')
+
+    def test_unhealthy_or_failed_smoke_stops_without_rollback(self):
+        for option in ('unhealthy', 'smoke'):
+            with self.subTest(option=option):
+                calls, record = self.execute(**{option: True})
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(record['publicReadback'], 'pending')
+                self.assertNotIn('stateReadback', record)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -64,6 +64,12 @@ See [`../../youtube-monitor/README.md`](../../youtube-monitor/README.md) for bui
 
 ## Firestore access boundaries
 
+### モニター認証
+
+OBSの`youtube-monitor`はFirebaseのブラウザClient SDKを使う。現在のソースでは`seats`・`member-seats`・`menu`・`work-name-trend`・`config/constants`の読み取りに、専用のFirebase Auth本人情報とmonitorのclaim・許可リストを必要とする。匿名と通常のMyPageユーザーは拒否する。このソースだけでは、DEVやPRODのRulesとモニター資産が一緒に配備済みとは証明できない。サーバー側のGo/Admin SDKは、これらのRulesではなくIAMとアプリケーション認可を使う。Security RulesはWAFや費用上限の代替にはならない。
+
+実装済みの運用手順ではOBSブラウザ上で一度対話的にログインし、Firebaseのローカル永続化を使う。OBS/CEF再起動時の動作とトークン復元は未検証であり、シーン切替、認証失効時の通知・復旧も含めて実環境で受入試験を行う必要がある。Firestore購読を変更する際は、既存の`set_desired_max_seats`制御ループを維持する。[モニター課題 #1459](https://github.com/kani3camp/youtube-study-space/issues/1459)、[Firebase Rulesの案内](../../firebase/README.md)、[MyPage Phase 0B条件 #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)に従う。
+
 Server-side Go repository tests and browser Client SDK security rules answer different questions:
 
 - normal `go test ./...` validates code without the integration build tag;
@@ -96,13 +102,16 @@ Changes to storage, forwarding, archival, or deletion must also be checked again
 | [ci-frontend.yml](../../.github/workflows/ci-frontend.yml) | YouTube Monitor and Docs Site checks/builds |
 | [ci-tools.yml](../../.github/workflows/ci-tools.yml) | Room Image Prompt, Menu Image Generator, Video Maker Simulator, Figma plugin, Formal Spec |
 | [ci-infra.yml](../../.github/workflows/ci-infra.yml) | AWS CDK tests and synth; no deployment |
-| [ci-repository.yml](../../.github/workflows/ci-repository.yml) | Base-image report tests, Node LTS expiry, documentation links, CI workflow contracts/actionlint |
+| [ci-repository.yml](../../.github/workflows/ci-repository.yml) | Base-image report tests, Node runtime/`@types/node` policy, documentation links, CI workflow contracts/actionlint |
+| [ci-gcp-terraform.yml](../../.github/workflows/ci-gcp-terraform.yml) | Core GCP Terraform、MyPage platform、MyPage OAuth TTL、Production readiness / runtime ownership のcredentialless IaC検証 |
 
 The modules accept only typed selection flags, use read-only repository permissions, and receive no operational secrets or Environments. [Path detection](../../.github/scripts/detect-ci-paths.sh) selects the same validation domains as before; changes to workflows, shared CI actions, or CI selection/result contracts select the full suite. Unchanged domains can skip. Repository checks always run, including during authenticated Terraform dispatches.
 
-`CI Gate` and `GCP Terraform Validate` remain uniquely named direct jobs in `ci.yml`, preserving the existing Required Status Check contexts. Other validation check names acquire their caller prefix (for example, `System / Go Lint`); they are covered by `CI Gate`. The [gate result policy](../../.github/scripts/check-ci-results.py) rejects failed/cancelled reusable calls, missing or malformed detection outputs, unsuccessful detection/repository checks, and skipped selected modules. An unrequested schema audit may skip; a requested audit must succeed. Authenticated Terraform retains its existing separate operational result and is not added as a quality-gate dependency.
+Repository Ruleset が要求するCI statusは `CI Gate` だけです。`GCP Terraform Validate` は `CI Gate` 配下の安定した内部check名として維持し、Rulesetを個別job構造へ結合しません。Other validation check names acquire their caller prefix (for example, `System / Go Lint`); they are covered by `CI Gate`. The [gate result policy](../../.github/scripts/check-ci-results.py) rejects failed/cancelled reusable calls, missing or malformed detection outputs, unsuccessful detection/repository checks, and skipped selected modules. MyPage platform / OAuth TTL / Production readiness / runtime ownership を含むGCP IaC検証は `CI GCP Terraform` に集約されています。
 
-Authenticated Terraform and schema-audit calls, dispatch inputs, cancellation rules, explicit secrets and OIDC permissions stay in `ci.yml`. Their workflow path is part of the cloud trust contract. Schema Audit remains disabled by default. Moving either caller requires a separate change that verifies actual AWS/GCP trust and its rollout; this split requires no Ruleset, IAM, or cloud changes. Existing CodeQL, GCP Production Readiness and GCP Runtime Ownership Contracts workflows retain their separate responsibilities.
+MyPageのアプリケーション配備は、ユースケースごとの最上位workflow（`Deploy MyPage API` / `Deploy MyPage Frontend` / `Deploy Maintenance Operator`）が扱い、`ci.yml`からは呼ばない。各Deploy workflowは配備するdomainのcredentialless検査を同じrunで、資格情報の取得前に通す。Terraformの手動Plan / Applyは`Terraform`（`terraform.yml`）が扱う。`ci.yml`は資格情報を持たない検査だけを行い、手動実行（入力なし）も全domainの再検査にとどまる。移行状況は[CI / Terraform / Deploy / Operation workflow](ci-cd-workflows.md)を正とする。最上位workflowを新設・改名するときは、実AWS/GCPの信頼設定（`workflow_ref`）を段階変更する必要がある。CodeQLは独立したセキュリティ解析ワークフローのままとする。
+
+ユースケース単位のworkflowへの移行計画と、各workflowの資格情報・Environment・排他の棚卸しは[CI / Terraform / Deploy / Operation workflow](ci-cd-workflows.md)を参照する。
 
 Local source verification (with the pinned parser from `.github/codeql/requirements.txt` installed):
 
@@ -111,4 +120,4 @@ python3 -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v
 bash .github/scripts/test-detect-ci-paths.sh
 ```
 
-CI additionally runs pinned actionlint against the orchestrator, all five modules, and the two operational reusable workflows. Selection contracts exhaust all 8,192 combinations of detection flags; result contracts exercise failures, cancellations, skipped selected modules, and incomplete detection. The independent CodeQL source-contract workflow continues to validate its own source and actionlint scope.
+CIは固定バージョンのactionlintで、統括ワークフロー、全再利用検証モジュール、運用用の再利用ワークフローも検査する。選択の仕様テストは全検出フラグの組み合わせを調べ、結果の仕様テストは失敗・キャンセル・選択済みモジュールのスキップ・不完全な検出を検証する。独立したCodeQLソース仕様ワークフローは、自身のソースとactionlint対象を引き続き検証する。

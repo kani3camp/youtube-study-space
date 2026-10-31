@@ -1,7 +1,7 @@
 # Terraform認証・実行境界
 
-認証付き実行の入口は `ci.yml` の本人による初回 `workflow_dispatch` と、同SHAの
-`gcp-terraform-authenticated.yml` です。運用手順は[README](../README.md#通常のdev-terraform開発)、
+認証付き実行の入口は `terraform.yml`（`Terraform`）の本人による初回 `workflow_dispatch` と、同SHAの
+`gcp-terraform-authenticated.yml` です（2026-10-30 の #1500 で `ci.yml` から移行。trust の `workflow_ref` もこのpathへ更新する）。運用手順は[README](../README.md#通常のdev-terraform開発)、
 実際の認証・State・Plan検査はworkflowとcontrollerを正本とします。
 
 ## 共通の信頼境界

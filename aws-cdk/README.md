@@ -87,3 +87,7 @@ pnpm cdk:deploy AwsCdkStack --profile soraride-prod --require-approval never --p
     pnpm cdk:deploy --profile プロファイル名 --parameters AlarmEmail=notify@example.com
     ```
   - 初回のみ、指定したメールに AWS から届く **Confirm subscription** のリンクを開いて承認する。コンソールから行う場合は **SNS → Topics → `AlarmsTopic` に相当するトピック → Subscriptions** で Pending を Confirm する。
+
+### ローカルQAファイルとイメージ作成範囲
+
+Lambda/FargateのCDKアセットは、ローカル導入ツールや非公開QA記録を含む`**/node_modules`をステージング時に除外する。Gitの除外設定だけを、Dockerコンテキストに含める範囲の制限としない。テストでは、実ステージングにQA記録がないこと、記録の追加前後でアセットタグが変わらないこと、書き込み処理のソース変更が両イメージに反映されることを検証する。ソースアセットのタグ一致だけで実イメージとの一致や配備済みを宣言せず、不変ダイジェストとビルド・配備記録を別途照合する。

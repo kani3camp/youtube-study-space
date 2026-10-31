@@ -9,6 +9,7 @@ readonly CI_GROUPS=(
 	video_maker_simulator
 	figma_plugin
 	youtube_monitor
+	mypage
 	docs_site
 	aws_cdk
 	gcp_terraform
@@ -24,6 +25,7 @@ menu_image_generator=false
 video_maker_simulator=false
 figma_plugin=false
 youtube_monitor=false
+mypage=false
 docs_site=false
 aws_cdk=false
 gcp_terraform=false
@@ -44,8 +46,7 @@ Usage:
 With --paths, PATH arguments are classified directly for local testing.
 Without --paths, the script resolves paths from the GitHub event:
   - pull_request: BASE_SHA...HEAD_SHA
-  - authenticated Terraform workflow_dispatch: GCP Terraform group only
-  - other workflow_dispatch or an unsupported/incomplete event: all groups
+  - workflow_dispatch (a manual CI re-run) or an unsupported/incomplete event: all groups
 EOF
 }
 
@@ -56,6 +57,7 @@ set_all_groups() {
 	video_maker_simulator=true
 	figma_plugin=true
 	youtube_monitor=true
+	mypage=true
 	docs_site=true
 	aws_cdk=true
 	gcp_terraform=true
@@ -67,7 +69,7 @@ set_all_groups() {
 
 path_is_ci_config() {
 	case "$1" in
-		.github/workflows/*|.github/codeql/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/check-ci-results.py|.github/scripts/install-ci-source-tools.sh|.github/scripts/test_ci_*.py|.github/scripts/run-firestore-integration-tests.sh|.github/scripts/base-image-update-report*.mjs|.github/actions/*)
+		.github/dependabot.yml|.github/workflows/*|.github/codeql/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/check-ci-results.py|.github/scripts/install-ci-source-tools.sh|.github/scripts/test_ci_*.py|.github/scripts/run-firestore-integration-tests.sh|.github/scripts/base-image-update-report*.mjs|.github/actions/*)
 			return 0
 			;;
 		*)
@@ -114,7 +116,7 @@ classify_path() {
 			formal_spec=true
 			matched=true
 			;;
-		.github/scripts/terraform_plan_summary.py|.github/scripts/test_terraform_plan_summary.py|.github/scripts/test_terraform_authenticated_workflow.py|.github/scripts/terraform_identity_diagnostics.py|.github/scripts/terraform_identity_smoke.py|.github/scripts/test_terraform_identity_smoke.py|.github/scripts/test_youtube_quota_alerts.py|.github/scripts/test_backup_bucket.py|.github/scripts/test_export_topic.py|.github/scripts/test_export_scheduler.py|.github/scripts/test_export_function.py|.github/scripts/terraform_export_scheduler_gate.py|.github/scripts/test_terraform_export_scheduler_gate.py|.github/scripts/terraform_export_topic_gate.py|.github/scripts/test_terraform_export_topic_gate.py|.github/scripts/test_notification_channels.py|.github/scripts/terraform_quota_refresh_gate.py|.github/scripts/test_terraform_quota_refresh_gate.py|.github/scripts/terraform_quota_create_gate.py|.github/scripts/test_terraform_quota_create_gate.py|.github/scripts/terraform_plan_diagnostic.py|.github/scripts/test_terraform_plan_diagnostic.py|.github/scripts/terraform_baseline_drift_fields.py|.github/scripts/terraform_baseline_drift_diagnostic.py|.github/scripts/test_terraform_baseline_drift_diagnostic.py|.github/scripts/terraform_protected_plan.py|.github/scripts/test_terraform_protected_plan.py|.github/scripts/terraform_email_adoption_gate.py|.github/scripts/test_terraform_email_adoption_gate.py)
+		.github/scripts/terraform_plan_summary.py|.github/scripts/test_terraform_plan_summary.py|.github/scripts/test_terraform_authenticated_workflow.py|.github/scripts/terraform_identity_diagnostics.py|.github/scripts/terraform_identity_smoke.py|.github/scripts/test_terraform_identity_smoke.py|.github/scripts/test_youtube_quota_alerts.py|.github/scripts/test_backup_bucket.py|.github/scripts/test_export_topic.py|.github/scripts/test_export_scheduler.py|.github/scripts/test_export_function.py|.github/scripts/terraform_export_scheduler_gate.py|.github/scripts/test_terraform_export_scheduler_gate.py|.github/scripts/terraform_export_topic_gate.py|.github/scripts/test_terraform_export_topic_gate.py|.github/scripts/test_notification_channels.py|.github/scripts/terraform_quota_refresh_gate.py|.github/scripts/test_terraform_quota_refresh_gate.py|.github/scripts/terraform_quota_create_gate.py|.github/scripts/test_terraform_quota_create_gate.py|.github/scripts/terraform_plan_diagnostic.py|.github/scripts/test_terraform_plan_diagnostic.py|.github/scripts/terraform_baseline_drift_fields.py|.github/scripts/terraform_baseline_drift_diagnostic.py|.github/scripts/test_terraform_baseline_drift_diagnostic.py|.github/scripts/terraform_protected_plan.py|.github/scripts/test_terraform_protected_plan.py|.github/scripts/terraform_email_adoption_gate.py|.github/scripts/test_terraform_email_adoption_gate.py|.github/scripts/test_terraform_export_function_gate.py|.github/scripts/test_user_activity_history_preparation.py)
 			gcp_terraform=true
 			matched=true
 			;;
@@ -134,8 +136,17 @@ classify_path() {
 			figma_plugin=true
 			matched=true
 			;;
-		youtube-monitor/*|biome.json)
+		youtube-monitor/*)
 			youtube_monitor=true
+			matched=true
+			;;
+		mypage/*|docs/mypage/*)
+			mypage=true
+			matched=true
+			;;
+		biome.json)
+			youtube_monitor=true
+			mypage=true
 			matched=true
 			;;
 		docs-site/*)
@@ -148,6 +159,11 @@ classify_path() {
 			;;
 		aws-cdk/*)
 			aws_cdk=true
+			matched=true
+			;;
+		infra/mypage-platform/*|infra/mypage-oauth-ttl/*)
+			gcp_terraform=true
+			mypage=true
 			matched=true
 			;;
 		infra/gcp/*)
@@ -184,15 +200,9 @@ resolve_changed_paths() {
 
 	local event_name="${GITHUB_EVENT_NAME:-}"
 	if [[ "$event_name" == "workflow_dispatch" ]]; then
-		# Only the caller's exact typed input selects this operational scope.
-		# Authentication remains the reusable workflow's separate trust boundary.
-		if [[ "${CI_AUTHENTICATED_TERRAFORM_DISPATCH:-}" == "true" ]]; then
-			gcp_terraform=true
-			detection_reason='認証付きTerraformの手動実行'
-		else
-			set_all_groups
-			detection_reason='通常の手動実行のため全グループを選択'
-		fi
+		# A manual CI run re-validates every domain; it has no operational scope.
+		set_all_groups
+		detection_reason='通常の手動実行のため全グループを選択'
 		return
 	fi
 
@@ -233,6 +243,7 @@ group_value() {
 		video_maker_simulator) printf '%s' "$video_maker_simulator" ;;
 		figma_plugin) printf '%s' "$figma_plugin" ;;
 		youtube_monitor) printf '%s' "$youtube_monitor" ;;
+		mypage) printf '%s' "$mypage" ;;
 		docs_site) printf '%s' "$docs_site" ;;
 		aws_cdk) printf '%s' "$aws_cdk" ;;
 		gcp_terraform) printf '%s' "$gcp_terraform" ;;

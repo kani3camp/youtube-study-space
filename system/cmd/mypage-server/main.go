@@ -1,0 +1,204 @@
+// MyPageのCloud Run起動処理。--check-configはオフラインで検証する。
+// ライフサイクルテストには合成の初期化依存を渡し、実ADCは探索しない。
+package main
+
+import (
+	"context"
+	"errors"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
+
+	"cloud.google.com/go/firestore"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/option"
+
+	"app.modules/core/mypage"
+)
+
+type configuration struct {
+	server                                            mypage.ServerConfig
+	signer, clientID, clientSecret, metadataKey, port string
+}
+
+func configurationFrom(get func(string) string) (configuration, error) {
+	if get("MYPAGE_INFRASTRUCTURE_READY") != "true" {
+		return configuration{}, errors.New("MyPage configuration unavailable")
+	}
+	return configurationValuesFrom(get)
+}
+
+// configurationValuesFromは、起動とオフライン準備で共有する。
+// 基盤準備の宣言は別途起動を制限する。この純粋な検証では確認せず、準備完了の証拠にも使わない。
+func configurationValuesFrom(get func(string) string) (configuration, error) {
+	fail := func() (configuration, error) { return configuration{}, errors.New("MyPage configuration unavailable") }
+	if get("FIRESTORE_EMULATOR_HOST") != "" || get("FIREBASE_AUTH_EMULATOR_HOST") != "" || get("GOOGLE_APPLICATION_CREDENTIALS") != "" {
+		return fail()
+	}
+	environment := get("MYPAGE_ENVIRONMENT")
+	region := get("MYPAGE_REGION")
+	if (environment != "development" || region != "asia-southeast2") && (environment != "production" || region != "asia-northeast2") {
+		return fail()
+	}
+	config := configuration{server: mypage.ServerConfig{Environment: environment, ProjectID: get("GOOGLE_CLOUD_PROJECT"), ProjectNumber: get("MYPAGE_PROJECT_NUMBER"), WebAppID: get("MYPAGE_WEB_APP_ID"), PublicOrigin: get("MYPAGE_PUBLIC_ORIGIN"), HostingBackendHost: get("MYPAGE_HOSTING_BACKEND_HOST"), Policy: mypage.Policy{Privacy: get("MYPAGE_PRIVACY_VERSION"), Terms: get("MYPAGE_TERMS_VERSION")}}, signer: get("MYPAGE_SIGNER_EMAIL"), clientID: get("MYPAGE_OAUTH_CLIENT_ID"), clientSecret: get("MYPAGE_OAUTH_CLIENT_SECRET"), metadataKey: get("MYPAGE_YOUTUBE_API_KEY"), port: get("PORT")}
+	coverage, err := parseHistoryCoverage(get("MYPAGE_HISTORY_COVERAGE"))
+	if err != nil {
+		return fail()
+	}
+	config.server.Coverage = coverage
+	if config.port == "" {
+		config.port = "8080"
+	}
+	port, portErr := strconv.Atoi(config.port)
+	if portErr != nil || port < 1 || port > 65535 || config.server.ValidateRuntime(config.signer) != nil {
+		return fail()
+	}
+
+	if _, err := mypage.NewGoogleYouTubeOAuth(config.clientID, config.clientSecret, config.server.PublicOrigin, nil); err != nil {
+		return fail()
+	}
+	if config.metadataKey != "" {
+		if _, err := mypage.NewPublicYouTubeMetadata(config.metadataKey, nil); err != nil {
+			return fail()
+		}
+	}
+	return config, nil
+}
+
+// テストで置き換えられるのは、外部初期化操作だけとする。
+// 設定検査、プロバイダー・ハンドラーの遅延組み立て、終了処理は本番起動と共有する。
+type bootstrapDependencies struct {
+	appcheck    func(context.Context, string) (mypage.FirebaseAppCheckClient, error)
+	credentials func(context.Context) (*google.Credentials, error)
+	firebase    func(context.Context, configuration, *google.Credentials) (mypage.FirebaseAuthClient, error)
+	database    func(context.Context, configuration, *google.Credentials) (*firestore.Client, func(), error)
+}
+
+func run(ctx context.Context) error {
+	deps := bootstrapDependencies{
+		appcheck: mypage.NewFirebaseAppCheckClient,
+		credentials: func(ctx context.Context) (*google.Credentials, error) {
+			return google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
+		},
+		firebase: func(ctx context.Context, config configuration, credentials *google.Credentials) (mypage.FirebaseAuthClient, error) {
+			return mypage.NewKeylessFirebaseClient(ctx, config.server.ProjectID, config.signer, credentials, nil)
+		},
+		database: func(ctx context.Context, config configuration, credentials *google.Credentials) (*firestore.Client, func(), error) {
+			database, err := firestore.NewClient(ctx, config.server.ProjectID, option.WithCredentials(credentials))
+			if err != nil {
+				return nil, nil, errors.New("MyPage database bootstrap unavailable")
+			}
+			return database, func() {
+				database.Close() //nolint:errcheck // Shutdown errors must not expose credential/dependency detail.
+			}, nil
+		},
+	}
+	return runWith(ctx, os.Getenv, deps, func(ctx context.Context, server *http.Server) error {
+		return serveHTTP(ctx, server, server.ListenAndServe, 10*time.Second)
+	})
+}
+
+func runWith(ctx context.Context, get func(string) string, deps bootstrapDependencies, serve func(context.Context, *http.Server) error) error {
+	config, err := configurationFrom(get)
+	if err != nil {
+		return err
+	}
+	bootstrapCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if bootstrapCtx.Err() != nil {
+		return errors.New("MyPage keyless bootstrap unavailable")
+	}
+	credentials, err := deps.credentials(bootstrapCtx)
+	if err != nil || bootstrapCtx.Err() != nil {
+		return errors.New("MyPage keyless bootstrap unavailable")
+	}
+	sdk, err := deps.firebase(bootstrapCtx, config, credentials)
+	if err != nil || bootstrapCtx.Err() != nil {
+		return errors.New("MyPage keyless bootstrap unavailable")
+	}
+	database, closeDatabase, err := deps.database(bootstrapCtx, config, credentials)
+	if err != nil {
+		return errors.New("MyPage database bootstrap unavailable")
+	}
+	defer closeDatabase()
+	if bootstrapCtx.Err() != nil {
+		return errors.New("MyPage database bootstrap unavailable")
+	}
+	provider, err := mypage.NewGoogleYouTubeOAuth(config.clientID, config.clientSecret, config.server.PublicOrigin, nil)
+	if err != nil {
+		return errors.New("MyPage provider unavailable")
+	}
+	var metadata mypage.PublicMetadataReader
+	if config.metadataKey != "" {
+		metadata, err = mypage.NewPublicYouTubeMetadata(config.metadataKey, nil)
+		if err != nil {
+			return errors.New("MyPage metadata provider unavailable")
+		}
+	}
+	// DEVで明示的に有効化した場合だけ使い、チャンネル識別子・文書内容・認証情報はログに出さない。
+	// 返却文書の件数であり、課金読み取り数ではない。
+	var readObserver func(mypage.SnapshotReadObservation)
+	if config.server.Environment == "development" && get("MYPAGE_READ_METRICS") == "true" {
+		readObserver = func(stats mypage.SnapshotReadObservation) {
+			log.Printf("mypage_snapshot_read user_lookups=%d seat_queries=%d seats_returned=%d seat_query_errors=%d segment_queries=%d segments_returned=%d segment_query_error=%t elapsed_ms=%d month_lookups=%d months_returned=%d month_read_errors=%d",
+				stats.UserLookups, stats.SeatQueries, stats.SeatsReturned, stats.SeatQueryErrors,
+				stats.SegmentQueries, stats.SegmentsReturned, stats.SegmentQueryError, stats.ElapsedMilliseconds, stats.MonthLookups, stats.MonthsReturned, stats.MonthReadErrors)
+		}
+	}
+	// SDKの初回公開JWKS取得も起動予算に含める。
+	appCheck, err := deps.appcheck(bootstrapCtx, config.server.ProjectNumber)
+	if err != nil || bootstrapCtx.Err() != nil {
+		return errors.New("MyPage App Check bootstrap unavailable")
+	}
+	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Firestore: database, Firebase: sdk, AppCheck: appCheck, OAuth: provider, PublicMetadata: metadata, ReadObserver: readObserver})
+	if err != nil || bootstrapCtx.Err() != nil {
+		return errors.New("MyPage handler unavailable")
+	}
+	server := &http.Server{Addr: ":" + config.port, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 25 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384, ErrorLog: log.New(io.Discard, "", 0)}
+	return serve(ctx, server)
+}
+
+func serveHTTP(ctx context.Context, server *http.Server, serve func() error, shutdownTimeout time.Duration) error {
+	done := make(chan struct{})
+	shutdownDone := make(chan error, 1)
+	go func() {
+		select {
+		case <-ctx.Done():
+			shutdownCtx, stop := context.WithTimeout(context.Background(), shutdownTimeout)
+			defer stop()
+			err := server.Shutdown(shutdownCtx)
+			if err != nil {
+				// データベースを解放する前に、残る接続を終了する。
+				server.Close() //nolint:errcheck // Report only the fixed HTTP failure; never expose connection/dependency details.
+			}
+			shutdownDone <- err
+		case <-done:
+			shutdownDone <- nil
+		}
+	}()
+	serveErr := serve()
+	close(done)
+	shutdownErr := <-shutdownDone
+	if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+		// acceptに失敗しても、受入済みの接続が動き続ける場合がある。
+		server.Close() //nolint:errcheck // Return the fixed HTTP diagnostic without dependency details.
+		return errors.New("MyPage HTTP server unavailable")
+	}
+	if shutdownErr != nil {
+		return errors.New("MyPage HTTP server unavailable")
+	}
+	return nil
+}
+
+func main() {
+	os.Exit(command(os.Args[1:], os.Getenv, os.Stdout, os.Stderr, func() error {
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		return run(ctx)
+	}))
+}

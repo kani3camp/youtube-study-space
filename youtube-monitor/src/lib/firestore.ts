@@ -22,8 +22,12 @@ export const getFirebaseConfig = (): FirebaseOptions => {
 	if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_API_KEY)) {
 		alert('NEXT_PUBLIC_FIREBASE_API_KEY is not valid.')
 	}
+	if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN)) {
+		alert('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN is not valid.')
+	}
 	return {
 		apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+		authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
 		projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
 	}
 }

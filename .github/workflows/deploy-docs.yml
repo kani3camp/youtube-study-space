@@ -34,7 +34,7 @@ jobs:
           package_json_file: docs-site/package.json
       - uses: actions/setup-node@v7
         with:
-          node-version: "24"
+          node-version-file: .node-version
           cache: "pnpm"
           cache-dependency-path: docs-site/pnpm-lock.yaml
 

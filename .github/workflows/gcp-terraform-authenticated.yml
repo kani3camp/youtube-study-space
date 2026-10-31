@@ -119,11 +119,8 @@ jobs:
               exit 1
               ;;
           esac
-          expected_caller="kani3camp/youtube-study-space/.github/workflows/ci.yml@${expected_ref}"
-          terraform_caller="kani3camp/youtube-study-space/.github/workflows/terraform.yml@${expected_ref}"
-          [[ "${GITHUB_WORKFLOW_REF}" == "${expected_caller}" ||
-             ( "${TARGET}" == dev && "${GITHUB_WORKFLOW_REF}" == "${terraform_caller}" ) ]] || {
-            echo "::error::Authenticated Terraform requires the target's reviewed CI caller."
+          [[ "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/terraform.yml@${expected_ref}" ]] || {
+            echo "::error::Authenticated Terraform requires the target's reviewed Terraform caller."
             exit 1
           }
           [[ "${GITHUB_REF}" == "${expected_ref}" ]] || {

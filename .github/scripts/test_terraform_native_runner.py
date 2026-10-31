@@ -407,7 +407,7 @@ class NativeRunnerTest(unittest.TestCase):
         self.assertEqual(list(self.observed.iterdir()), [])
 
     def test_workflow_requires_runner_contract_and_bounded_whole_suite(self):
-        text = (runner.ROOT / ".github/workflows/ci.yml").read_text()
+        text = (runner.ROOT / ".github/workflows/ci-gcp-terraform.yml").read_text()
         self.assertIn("python3 .github/scripts/test_terraform_native_runner.py", text)
         self.assertIn("run: python3 -B .github/scripts/run_terraform_native_tests.py --workers 2", text)
         native = text.split("      - name: Test quota alert mock plans and import-only boundary\n", 1)[1].split("      - name:", 1)[0]

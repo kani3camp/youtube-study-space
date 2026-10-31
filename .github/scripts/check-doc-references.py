@@ -10,6 +10,8 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[2]
 TARGETS = (
+    "README.md",
+    "README.en.md",
     "AGENTS.md",
     "CLAUDE.md",
     ".github/copilot-instructions.md",
@@ -17,9 +19,23 @@ TARGETS = (
     "youtube-monitor/README.md",
     "system/README.md",
     "aws-cdk/README.md",
+    "mypage/README.md",
+    "docs/README.md",
+    "docs/mypage/README.md",
+    "docs/mypage/service-access-control.md",
+    "docs/mypage/support-delete.md",
+    "docs/mypage/support-delete-inventory.md",
+    "docs/mypage/release/README.md",
+    "docs/mypage/release/e2e.md",
+    "infra/mypage-oauth-ttl/README.md",
+    "infra/mypage-platform/README.md",
+    "infra/mypage-platform/docs/development-foundation.md",
+    "infra/mypage-platform/docs/development-runtime.md",
+    "mypage/src/assets/fonts/README.md",
     "firebase/README.md",
     "docs-site/README.md",
     "docs/development/architecture.md",
+    "docs/development/ci-cd-workflows.md",
     "docs/design/DESIGN.md",
 )
 
@@ -43,7 +59,12 @@ def iter_local_links(path: Path):
 
 def main() -> int:
     errors: list[str] = []
-    for relative in TARGETS:
+    targets = set(TARGETS)
+    targets.update(
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "docs").rglob("*.md")
+    )
+    for relative in sorted(targets):
         source = ROOT / relative
         if not source.exists():
             errors.append(f"missing governed document: {relative}")
@@ -62,7 +83,7 @@ def main() -> int:
             print(f"- {error}", file=sys.stderr)
         return 1
 
-    print(f"Documentation reference check passed for {len(TARGETS)} documents.")
+    print(f"Documentation reference check passed for {len(targets)} documents.")
     return 0
 
 

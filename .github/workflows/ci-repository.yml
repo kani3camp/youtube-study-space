@@ -17,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: "24"
+          node-version-file: .node-version
       - name: Run tests
         run: node --test .github/scripts/base-image-update-report.test.mjs
 
@@ -44,7 +44,7 @@ jobs:
         run: python3 .github/scripts/check-doc-references.py
 
   ci-contracts:
-    name: CI Workflow Contracts
+    name: Workflow Lint & Safety Checks
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -56,10 +56,13 @@ jobs:
           python-version: '3.12'
       - name: Install pinned source validation tools
         run: bash .github/scripts/install-ci-source-tools.sh "$RUNNER_TEMP/ci-source-tools"
-      - name: Test CI selection, required checks and authentication boundary
+      - name: Test routing, required gate and credential boundary
         run: python -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v
       - name: Lint CI and operational workflow calls
         run: >-
           "$RUNNER_TEMP/ci-source-tools/actionlint" -shellcheck= -pyflakes=
           .github/workflows/ci.yml .github/workflows/ci-*.yml
-          .github/workflows/gcp-terraform-authenticated.yml
+          .github/workflows/gcp-*.yml
+          .github/workflows/terraform*.yml
+          .github/workflows/mypage-*.yml
+          .github/workflows/deploy-mypage-*.yml

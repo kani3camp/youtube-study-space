@@ -1,45 +1,18 @@
 name: CI
 
+# UC1: credentialless validation only. Terraform, application deploys and
+# maintenance mode have their own workflows (docs/development/ci-cd-workflows.md).
+# workflow_dispatch re-runs the full validation; it has no inputs and no credentials.
 on:
   pull_request:
   workflow_dispatch:
-    inputs:
-      terraform_authenticated:
-        description: Authenticated Terraform
-        required: false
-        default: false
-        type: boolean
-      terraform_target:
-        description: Terraform target environment
-        required: false
-        default: dev
-        type: choice
-        options:
-          - dev
-          - prod
-      terraform_mode:
-        description: Terraform operation
-        required: false
-        default: normal-plan
-        type: choice
-        options:
-          - normal-plan
-          - normal-apply
-      terraform_expected_sha:
-        description: DEVの対象SHA（省略可）、PRODの実行元SHA（必須）
-        required: false
-        type: string
-      terraform_source_branch:
-        description: DEVの対象ブランチ（SHAのみも可。両方空欄は実行元自身）
-        required: false
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true) }}
+  cancel-in-progress: true
 
 jobs:
   changes:
@@ -53,6 +26,7 @@ jobs:
       video_maker_simulator: ${{ steps.detect.outputs.video_maker_simulator }}
       figma_plugin: ${{ steps.detect.outputs.figma_plugin }}
       youtube_monitor: ${{ steps.detect.outputs.youtube_monitor }}
+      mypage: ${{ steps.detect.outputs.mypage }}
       docs_site: ${{ steps.detect.outputs.docs_site }}
       aws_cdk: ${{ steps.detect.outputs.aws_cdk }}
       gcp_terraform: ${{ steps.detect.outputs.gcp_terraform }}
@@ -74,7 +48,6 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CI_AUTHENTICATED_TERRAFORM_DISPATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true }}
         run: bash .github/scripts/detect-ci-paths.sh
 
   system:
@@ -89,11 +62,12 @@ jobs:
   frontend:
     name: Frontend
     needs: changes
-    if: ${{ needs.changes.outputs.youtube_monitor == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' || needs.changes.outputs.docs_site == 'true' }}
+    if: ${{ needs.changes.outputs.youtube_monitor == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' || needs.changes.outputs.docs_site == 'true' || needs.changes.outputs.mypage == 'true' }}
     uses: ./.github/workflows/ci-frontend.yml
     with:
       youtube_monitor: ${{ needs.changes.outputs.youtube_monitor == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
       docs_site: ${{ needs.changes.outputs.docs_site == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
+      mypage: ${{ needs.changes.outputs.mypage == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
 
   tools:
     name: Tools
@@ -118,106 +92,10 @@ jobs:
     uses: ./.github/workflows/ci-repository.yml
 
   gcp-terraform-validate:
-    name: GCP Terraform Validate
+    name: GCP Terraform
     needs: changes
     if: ${{ needs.changes.outputs.gcp_terraform == 'true' || needs.changes.outputs.all == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Python for GCP contract tests
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: '3.12'
-
-      - name: Test authenticated Terraform CI guardrails
-        run: |
-          python3 .github/scripts/test_terraform_native_runner.py
-          python3 -B infra/gcp/tests/test_terraform_runtime.py
-          python3 .github/scripts/test_terraform_plan_summary.py
-          python3 .github/scripts/test_terraform_authenticated_workflow.py
-          python3 .github/scripts/test_terraform_identity_smoke.py
-          python3 .github/scripts/test_terraform_email_adoption_gate.py
-          python3 .github/scripts/test_terraform_protected_plan.py
-          python3 .github/scripts/test_terraform_plan_diagnostic.py
-          python3 .github/scripts/test_terraform_baseline_drift_diagnostic.py
-          python3 infra/gcp/tests/test_runtime_plan_contract.py
-          python3 -B infra/gcp/tests/test_terraform_normal_ops.py
-          python3 -B infra/gcp/tests/test_terraform_source.py
-          python3 -B infra/gcp/tests/test_enable_normal_integration.py
-          python3 -B infra/gcp/tests/test_production_normal_ops.py
-          python3 -B infra/gcp/tests/test_bootstrap_production_normal_ops.py
-          python3 .github/scripts/test_terraform_quota_create_gate.py
-          python3 .github/scripts/test_terraform_quota_refresh_gate.py
-          python3 .github/scripts/test_terraform_export_topic_gate.py
-          python3 .github/scripts/test_terraform_export_scheduler_gate.py
-          python3 .github/scripts/test_terraform_export_function_gate.py
-          python3 .github/scripts/test_user_activity_history_preparation.py
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_version: "1.16.4"
-          terraform_wrapper: false
-
-      - name: Check formatting
-        run: terraform fmt -check -recursive infra/gcp
-
-      - name: Initialize and validate roots
-        run: |
-          set -euo pipefail
-          for env in dev prod; do
-            terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly
-            terraform -chdir="infra/gcp/environments/$env" validate
-          done
-
-      - name: Test Pool import fidelity with credentialless mocks
-        run: python3 -B infra/gcp/tests/test_runtime_pool_import_fidelity.py
-
-      - name: Test quota alert mock plans and import-only boundary
-        run: python3 -B .github/scripts/run_terraform_native_tests.py --workers 2
-
-      - name: Test Terraform create/update/delete/replace
-        run: python3 -B infra/gcp/tests/test_terraform_normal_ops_native.py
-
-      - name: Verify multi-platform provider locks are complete
-        run: |
-          set -euo pipefail
-          for env in dev prod; do
-            terraform -chdir="infra/gcp/environments/$env" providers lock \
-              -platform=linux_amd64 \
-              -platform=darwin_arm64
-          done
-
-          git diff --exit-code -- \
-            infra/gcp/environments/dev/.terraform.lock.hcl \
-            infra/gcp/environments/prod/.terraform.lock.hcl
-
-      - name: Verify provider locks match
-        run: cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/gcp/environments/prod/.terraform.lock.hcl
-
-  gcp-terraform-authenticated:
-    name: GCP Terraform Authenticated
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true }}
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/gcp-terraform-authenticated.yml
-    secrets:
-      GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
-      GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
-      AWS_TERRAFORM_BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
-      AWS_TERRAFORM_BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
-      AWS_TERRAFORM_STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
-      AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
-      GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
-    with:
-      target: ${{ inputs.terraform_target }}
-      mode: ${{ inputs.terraform_mode }}
-      expected_sha: ${{ inputs.terraform_expected_sha }}
-      source_branch: ${{ inputs.terraform_source_branch }}
+    uses: ./.github/workflows/ci-gcp-terraform.yml
 
   ci-gate:
     name: CI Gate
