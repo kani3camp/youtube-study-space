@@ -76,7 +76,7 @@ const errorStyle = css`
 	color: #ffb4b4;
 `
 
-export default function OperatorLogin(): JSX.Element {
+export default function MonitorLogin(): JSX.Element {
 	const router = useRouter()
 	const [authorization, setAuthorization] = useState<MonitorAuthorizationState>(
 		{ status: 'checking' },
