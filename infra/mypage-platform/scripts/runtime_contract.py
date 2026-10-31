@@ -492,6 +492,28 @@ def validate_plan(plan, stage):
     return validate_initial_plan(plan, stage)
 
 
+# Terraform-side attributes the Service may adopt without a remote write.
+# #1466 added deletion_policy after the last DEV Apply, so the existing State
+# lacks it; Terraform plans an update that only records it in State.
+STATE_ONLY_SERVICE_ATTRIBUTES = {"deletion_policy": (None, "PREVENT")}
+
+
+def state_only_service_update(address, change):
+    """Return the adopted attribute names for the reviewed Service State-only update, else None."""
+    if (address != SERVICE or change.get("actions") != ["update"] or change.get("replace_paths")
+            or change.get("importing")):
+        return None
+    before, after, unknown = change.get("before"), change.get("after"), change.get("after_unknown") or {}
+    if type(before) is not dict or type(after) is not dict or type(unknown) is not dict or c.has_unknown(unknown):
+        return None
+    changed = {key for key in set(before) | set(after) if before.get(key) != after.get(key)}
+    if not changed or not changed <= set(STATE_ONLY_SERVICE_ATTRIBUTES):
+        return None
+    if any((before.get(key), after.get(key)) != STATE_ONLY_SERVICE_ATTRIBUTES[key] for key in changed):
+        return None
+    return changed
+
+
 def validate_initial_plan(plan, stage):
     value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
     c.need(plan.get("variables", {}).get("stage", {}).get("value") == stage, "runtime-plan-stage")
@@ -504,7 +526,7 @@ def validate_initial_plan(plan, stage):
     foundation["variables"]["stage"]["value"] = base_stage
     foundation["resource_changes"] = [item for item in changes if item.get("address") in base]
     foundation["resource_drift"] = []
-    c.validate_refresh(plan, expected)
+    c.validate_refresh(plan, expected, state_only_service_update)
     # Native refresh must remain a no-op. Only the CI/CD-owned Service/Job
     # images and provider-computed metadata may drift; never mask config changes.
     for observation in plan.get("resource_drift", []) or []:
@@ -538,13 +560,16 @@ def validate_initial_plan(plan, stage):
         c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "runtime-resource-provider")
         change = item.get("change", {})
         # 初回配備とno-opだけを許可する。配信リビジョンの更新には別途レビューした遷移を使い、
-        # この検査の許可範囲を暗黙に広げない。
-        c.need(change.get("actions") in [["create"], ["no-op"]] and not change.get("replace_paths"), "runtime-resource-action")
+        # この検査の許可範囲を暗黙に広げない。例外は、remote writeを伴わない
+        # ServiceのState取り込み（state_only_service_update）だけで、no-opとして検証する。
+        state_only = bool(state_only_service_update(address, change))
+        actions = ["no-op"] if state_only else change.get("actions")
+        c.need(actions in [["create"], ["no-op"]] and not change.get("replace_paths"), "runtime-resource-action")
         # desired-state runtime stages may create an exact missing maintenance
         # boundary. Foreign same-name resources are rejected before Apply and
         # all maintenance fields remain constrained by the contract below.
         if stage == "maintenance_upgrade" and address not in maintenance_resource_contract():
-            c.need(change.get("actions") == ["no-op"], "maintenance-upgrade-runtime-noop")
+            c.need(actions == ["no-op"], "maintenance-upgrade-runtime-noop")
         importing = change.get("importing")
         if address == INVOKER:
             c.need(stage in {"maintenance_upgrade", "runtime_public"} and change.get("actions") == ["no-op"], "runtime-invoker-owner-managed")
@@ -570,12 +595,11 @@ def validate_initial_plan(plan, stage):
             validate_maintenance_resource(address, after, unknown, value, change.get("actions"),
                                           maintenance_bootstrap_image)
         elif address == SERVICE:
-            if change.get("actions") == ["no-op"]:
+            if actions == ["no-op"]:
                 # ignore_changes makes the actual serving digest authoritative.
                 # Never compare it to the stale initial bootstrap digest or
                 # trigger an infrastructure rollback.
-                validate_service(after, unknown, value | {"image_digest": service_image(after)},
-                                 change.get("actions"))
+                validate_service(after, unknown, value | {"image_digest": service_image(after)}, actions)
             else:
                 validate_service(after, unknown, value, change.get("actions"))
     c.need(seen == set(expected), "runtime-resource-set")

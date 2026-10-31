@@ -310,8 +310,12 @@ def registry_timestamp(value):
     return seconds, int((match[2] or "").ljust(9, "0"))
 
 
-def validate_refresh(plan, resources):
-    """RefreshはStateの観測。provider出力の形は再定義せず、適用する操作と最終設定を検証する。"""
+def validate_refresh(plan, resources, state_only=None):
+    """RefreshはStateの観測。provider出力の形は再定義せず、適用する操作と最終設定を検証する。
+
+    state_only(address, planned_change) が属性名の集合を返す資源だけは、その属性を
+    Terraform側のStateに取り込むupdateを許す（remote writeを伴わないreviewed遷移）。
+    """
     planned = {item.get("address"): item for item in plan.get("resource_changes", [])}
     seen = set()
     for item in plan.get("resource_drift", []) or []:
@@ -322,8 +326,16 @@ def validate_refresh(plan, resources):
         change = item.get("change", {})
         need(change.get("actions") == ["update"] and not change.get("importing") and not change.get("replace_paths"), "refresh-action")
         # 変更を取り込むだけでありremote writeは行わない。最終desired値はvalidate_planで検査する。
-        need(planned.get(address, {}).get("change", {}).get("actions") == ["no-op"], "refresh-planned-noop")
-        need(planned[address]["change"].get("after") == change.get("after"), "refresh-planned-state")
+        planned_change = planned.get(address, {}).get("change", {})
+        allowed = state_only(address, planned_change) if state_only else None
+        if not allowed:
+            need(planned_change.get("actions") == ["no-op"], "refresh-planned-noop")
+            need(planned_change.get("after") == change.get("after"), "refresh-planned-state")
+        else:
+            planned_after, observed = planned_change.get("after"), change.get("after")
+            need(type(planned_after) is dict and type(observed) is dict, "refresh-planned-state")
+            need({k: v for k, v in planned_after.items() if k not in allowed} ==
+                 {k: v for k, v in observed.items() if k not in allowed}, "refresh-planned-state")
 
 
 def validate_plan(plan, stage="foundation"):
