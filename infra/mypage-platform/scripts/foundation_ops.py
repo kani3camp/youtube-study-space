@@ -63,12 +63,16 @@ def run(args, *, cwd=None, codes=(0,), check="native-command"):
         for permission in (
             "artifactregistry.repositories.get", "iam.roles.get", "iam.serviceAccounts.get", "iam.serviceAccounts.getIamPolicy",
             "iam.workloadIdentityPoolProviders.get", "iam.workloadIdentityPools.get",
+            "iam.workloadIdentityPools.getAttestationRules",
             "resourcemanager.projects.get", "resourcemanager.projects.getIamPolicy",
             "run.jobs.get", "run.jobs.getIamPolicy", "run.services.get", "run.services.getIamPolicy", "run.services.list",
             "secretmanager.secrets.get", "secretmanager.secrets.getIamPolicy",
             "serviceusage.services.get", "serviceusage.services.use",
         ):
-            if re.search(r"Permission ['\"]" + re.escape(permission) + r"['\"] denied", diagnostics):
+            # IAM APIは権限名を「iam.googleapis.com/workloadIdentityPools.get」の形でも返す。
+            service, rest = permission.split(".", 1)
+            if re.search(r"Permission ['\"](?:" + re.escape(permission) + "|" + re.escape(service + ".googleapis.com/" + rest) +
+                         r")['\"] denied", diagnostics):
                 check = "terraform-plan-permission-" + permission
                 break
         else:

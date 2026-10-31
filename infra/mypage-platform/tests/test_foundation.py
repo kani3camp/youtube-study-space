@@ -244,6 +244,10 @@ class FoundationTest(unittest.TestCase):
         private = 'private-command-output-and-credential-marker'
         cases = (
             ("Permission 'run.services.get' denied", 'terraform-plan-permission-run.services.get'),
+            ("Permission 'iam.googleapis.com/workloadIdentityPools.getAttestationRules' denied",
+             'terraform-plan-permission-iam.workloadIdentityPools.getAttestationRules'),
+            ("Permission 'iam.googleapis.com/workloadIdentityPools.get' denied", 'terraform-plan-permission-iam.workloadIdentityPools.get'),
+            ("Permission 'private.googleapis.com/unreviewed.permission' denied", 'terraform-plan'),
             ("Permission 'private.unreviewed.permission' denied", 'terraform-plan'),
             ('SERVICE_DISABLED', 'terraform-plan-api-disabled'),
             ('Error acquiring the state lock', 'terraform-plan-state-lock'),
@@ -256,15 +260,17 @@ class FoundationTest(unittest.TestCase):
         for native, expected in cases:
             with self.subTest(native=native):
                 result = ops.subprocess.CompletedProcess(['terraform', private], 1, private, native + '\n' + private)
-                output = io.StringIO()
+                output, stdout = io.StringIO(), io.StringIO()
                 with patch.object(sys, 'argv', ['foundation_ops.py', 'execute']), \
                         patch.object(ops.subprocess, 'run', return_value=result), \
                         patch.object(ops, 'prepare', side_effect=lambda env: ops.run(['terraform', private], check='terraform-plan')), \
-                        redirect_stderr(output):
+                        redirect_stderr(output), redirect_stdout(stdout):
                     self.assertEqual(ops.main(), 1)
                 self.assertIn('check=' + expected + '.', output.getvalue())
-                self.assertNotIn(private, output.getvalue())
-                self.assertNotIn('private.unreviewed.permission', output.getvalue())
+                printed = output.getvalue() + stdout.getvalue()
+                self.assertNotIn(private, printed)
+                for unreviewed in ('private.unreviewed.permission', 'private.googleapis.com/unreviewed.permission', 'unreviewed.permission'):
+                    self.assertNotIn(unreviewed, printed)
         success = ops.subprocess.CompletedProcess(['terraform'], 0, private, '')
         with patch.object(ops.subprocess, 'run', return_value=success):
             self.assertEqual(ops.run(['terraform'], check='terraform-plan'), private)
