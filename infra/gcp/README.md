@@ -10,7 +10,7 @@ YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをT
 `terraform_target=dev`、`terraform_mode=normal-plan` / `normal-apply` を選択します。
 `terraform_expected_sha` には実行するbranchの40桁HEADを指定します。
 DEVの通常Plan/Applyは、**`kani3camp`本人の初回手動起動であれば、任意の非`main`ブランチから実行できます**。`terraform-dev-plan` / `terraform-dev-apply` EnvironmentはNo restrictionとし、ブランチの個別追加・削除は不要です。controller / AWS OIDC / GCP WIFの本人制限、同一refの正規workflow、同SHAの検証は維持します。
-PR/fork、tag、`main`でのDEV通常操作、再実行は認証前またはEnvironmentで拒否します。Productionの通常操作は保護された`main`だけです。
+PR/fork、tag、`main`でのDEV通常操作、再実行は認証前に拒否します。Productionの通常操作は保護された`main`だけです。
 `normal-apply` は同じrunで独立Plan job→Apply jobを実行します。
 
 1. 通常のHCL追加・修正は任意の作業/統合ブランチ向けPRで進める。`dev`は運用可能な統合結果だけを最終PRで受け入れる。
