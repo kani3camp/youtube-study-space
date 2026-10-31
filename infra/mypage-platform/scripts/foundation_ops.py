@@ -90,15 +90,20 @@ def run(args, *, cwd=None, codes=(0,), check="native-command"):
 
 PUBLIC_HTTP_STATUS = {"400", "401", "403", "404", "409", "412", "429", "500", "503"}
 DIAGNOSTIC_HEADER = re.compile(r"^(?:[\u2577\u2502\u2575] ?)?(Error|Warning): ", re.MULTILINE)
-DIAGNOSTIC_ADDRESS = re.compile(r"^(?:\u2502)?[ ]*with (\S+),$", re.MULTILINE)
+# Terraformの位置情報は「with <address>,」の直後に「on <file> line <n>」が続く。
+DIAGNOSTIC_ADDRESS = re.compile(r"^(?:\u2502)?[ ]*with (\S+),\n(?:\u2502)?[ ]*on \S+ line [0-9]+", re.MULTILINE)
 
 
 def defined_addresses():
-    """Repository-defined MyPage module addresses; nothing taken from native output is trusted."""
+    """Repository-defined MyPage module addresses; nothing taken from native output is trusted.
+
+    MyPage resources use count 0/1, so only the bare address and index [0] are public.
+    """
     names = set()
     for path in sorted((REPO / "infra/mypage-platform/modules").rglob("*.tf")):
-        names |= {"module.platform[0]." + kind + "." + name
-                  for kind, name in re.findall(r'^resource "([a-z0-9_]+)" "([a-z0-9_]+)"', path.read_text(), re.MULTILINE)}
+        for kind, name in re.findall(r'^resource "([a-z0-9_]+)" "([a-z0-9_]+)"', path.read_text(), re.MULTILINE):
+            base = "module.platform[0]." + kind + "." + name
+            names |= {base, base + "[0]"}
     return names
 
 
@@ -115,11 +120,9 @@ def describe_plan_errors(diagnostics):
         block = diagnostics[header.start():headers[index + 1].start() if index + 1 < len(headers) else len(diagnostics)]
         summary = block.split("\n", 1)[0]
         status = re.search(r"\bError (\d{3})\b", summary)
-        address = None
-        for match in DIAGNOSTIC_ADDRESS.finditer(block):
-            candidate = match.group(1)
-            if PUBLIC_ADDRESS.fullmatch(candidate) and re.sub(r"\[[0-9]+\]$", "", candidate) in known:
-                address = candidate
+        located = [match.group(1) for match in DIAGNOSTIC_ADDRESS.finditer(block)]
+        # 出せるのはリポジトリ定義の文字列だけ。位置情報が一意に既知の資源を指すときに限る。
+        address = located[-1] if located and located[-1] in known else None
         entries.append({
             "address": address or "<withheld>",
             "status": status.group(1) if status and status.group(1) in PUBLIC_HTTP_STATUS else "<withheld>",

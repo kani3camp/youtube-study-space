@@ -208,24 +208,34 @@ class FoundationTest(unittest.TestCase):
             # -no-color: Terraform 1.16 prints plain diagnostics without box characters.
             "Error: Error reading thing: googleapi: Error 403: " + private + " with " + secret_address + ",\n\n"
             "  with " + secret_address + ",\n"
+            "  with module.platform[0].google_service_account.maintenance_operator[98765432101234567890],\n"
+            "  on body-text line 7\n"
             "  with " + job_iam + ",\n"
             "  on ../../modules/runtime/main.tf line 1, in resource \"x\" \"y\":\n"
             "   1: resource \"x\" \"y\" { " + private + " }\n\n"
             "Warning: not an error Error 404\n\n  with module.platform[0].google_service_account.maintenance_operator[0],\n\n"
             "Error: " + private + " without address or status\n\n"
             "Error: Error 418 " + private + "\n\n  with " + secret_address + ",\n\n"
-            "Error: missing status\n\n  with module.platform[0].google_iam_workload_identity_pool.maintenance_github[0],\n")
+            "Error: missing status\n\n  with module.platform[0].google_iam_workload_identity_pool.maintenance_github[0],\n"
+            "  on ../../modules/runtime/main.tf line 2:\n\n"
+            "Error: Error 403 undefined index\n\n"
+            "  with module.platform[0].google_service_account.maintenance_operator[98765432101234567890],\n"
+            "  on ../../modules/runtime/main.tf line 3:\n\n"
+            "Error: Error 403 location-less body line\n\n  with " + job_iam + ",\n")
         entries, printed = self.plan_error_entries(plain)
         self.assertEqual(entries, [
             {'address': job_iam, 'status': '403'},
             {'address': '<withheld>', 'status': '<withheld>'},
             {'address': '<withheld>', 'status': '<withheld>'},
             {'address': 'module.platform[0].google_iam_workload_identity_pool.maintenance_github[0]', 'status': '<withheld>'},
+            {'address': '<withheld>', 'status': '403'},
+            {'address': '<withheld>', 'status': '403'},
         ])
         self.assertNotIn(private, printed)
         self.assertNotIn(secret_address, printed)
+        self.assertNotIn('98765432101234567890', printed)
         boxed = ("\u2577\n\u2502 Error: googleapi: Error 409: " + private + "\n\u2502 \n"
-                 "\u2502   with " + job_iam + ",\n\u2575\n")
+                 "\u2502   with " + job_iam + ",\n\u2502   on ../../modules/runtime/main.tf line 4:\n\u2575\n")
         entries, printed = self.plan_error_entries(boxed)
         self.assertEqual(entries, [{'address': job_iam, 'status': '409'}])
         self.assertNotIn(private, printed)
