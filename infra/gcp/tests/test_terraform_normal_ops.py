@@ -25,7 +25,7 @@ def env(role='plan'):
         'GITHUB_ACTOR_ID': '54093651', 'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
         'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_REF': 'refs/heads/dev',
         'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
-        'GITHUB_SHA': 'a' * 40, 'NORMAL_EXPECTED_SHA': 'a' * 40,
+        'GITHUB_SHA': 'a' * 40, 'NORMAL_EXPECTED_SHA': 'a' * 40, 'NORMAL_SOURCE_SHA': 'a' * 40,
         'NORMAL_TARGET': 'dev', 'NORMAL_MODE': 'normal-apply', 'NORMAL_ROLE': role,
         'GITHUB_JOB': 'normal_' + role, 'GITHUB_RUN_ID': '1234', 'TF_WORKSPACE': 'default',
         'STATE_AWS_REGION': 'ap-northeast-1'}
@@ -197,7 +197,7 @@ class Contracts(unittest.TestCase):
             'GITHUB_REPOSITORY_ID': '0', 'GITHUB_REPOSITORY_OWNER_ID': '0',
             'GITHUB_ACTOR': 'other', 'GITHUB_ACTOR_ID': '0', 'GITHUB_TRIGGERING_ACTOR': 'other',
             'GITHUB_RUN_ATTEMPT': '2', 'GITHUB_REF': 'refs/heads/main',
-            'GITHUB_WORKFLOW_REF': 'other', 'GITHUB_SHA': 'b' * 40, 'NORMAL_EXPECTED_SHA': 'b' * 40,
+            'GITHUB_WORKFLOW_REF': 'other', 'GITHUB_SHA': 'invalid', 'NORMAL_EXPECTED_SHA': 'b' * 40,
             'NORMAL_TARGET': 'prod', 'NORMAL_MODE': 'migration-apply', 'GITHUB_JOB': 'migration_plan',
             'TF_WORKSPACE': 'prod', 'STATE_AWS_REGION': 'us-east-1'}
         for k, v in changes.items():
@@ -212,6 +212,7 @@ class Contracts(unittest.TestCase):
                 v = env(role)
                 v["NORMAL_SOURCE_BRANCH"] = branch
                 v["NORMAL_EXPECTED_SHA"] = "b" * 40
+                v["NORMAL_SOURCE_SHA"] = "b" * 40
                 self.assertEqual(ops.context(v, role), "dev")
                 with self.assertRaises(ValueError):
                     ops.context(v | {"GITHUB_WORKFLOW_REF":
@@ -348,6 +349,7 @@ class Contracts(unittest.TestCase):
         for failure, expected in failures.items():
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
                 e = env('plan') | {'RUNNER_TEMP': temporary, 'NORMAL_TARGET': 'prod',
+                    'NORMAL_SOURCE_SHA': '',
                     'NORMAL_MODE': 'normal-plan', 'GITHUB_REF': 'refs/heads/main',
                     'GITHUB_WORKFLOW_REF': ops.CALLER + 'refs/heads/main',
                     'STATE_BUCKET': 'fixture-state', 'STATE_ACCOUNT_ID': '123456789012'}
@@ -472,7 +474,8 @@ class Contracts(unittest.TestCase):
                 integrated = runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='a' * 40,
                     GITHUB_REF=ref, GITHUB_WORKFLOW_REF=ops.CALLER + ref)
                 self.assertEqual(integrated.returncode, 0, integrated.stdout + integrated.stderr)
-            for change in ({'NORMAL_EXPECTED_SHA': 'b' * 40}, {'NORMAL_EXPECTED_SHA': ''},
+            self.assertEqual(runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='').returncode, 0)
+            for change in ({'NORMAL_EXPECTED_SHA': 'invalid'},
                 {'GITHUB_REF': 'refs/tags/v1',
                  'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/tags/v1'}):
                 bad = runner.run_preflight(MODE=mode, **({'NORMAL_EXPECTED_SHA': 'a' * 40} | change))

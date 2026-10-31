@@ -6,14 +6,14 @@ YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをT
 
 ## 通常のDEV Terraform開発
 
-**workflowはDEV用EnvironmentのSelected branchesに明示追加した信頼済みブランチから、`kani3camp`本人が初回手動起動します。** 初期の実行元は`dev`です。マイページ統合ブランチなども、両EnvironmentへBranchとして追加すれば実行元にできます。許可するブランチ名の一覧をコードやAWS/GCP側へ重複登録しません。Terraform対象のブランチと40桁SHAは別の入力で選べます。対象ソースとして使うだけのブランチはEnvironmentへ追加しません。
+**workflowはDEV用EnvironmentのSelected branchesに明示追加した信頼済みブランチから、`kani3camp`本人が初回手動起動します。** 初期の実行元は`dev`です。マイページ統合ブランチなども、両EnvironmentへBranchとして追加すれば実行元にできます。許可するブランチ名の一覧をコードやAWS/GCP側へ重複登録しません。Terraform対象は通常ブランチだけで選び、特定コミットを使う場合は40桁SHAだけでも指定できます。対象ソースとして使うだけのブランチはEnvironmentへ追加しません。
 
 Environmentのブランチ制限は、クラウド認証とは独立したSecretアクセス境界です。未許可のbranchの別workflow jobが同じEnvironmentを指定してもSecretを取得できないよう、No restrictionにはしません。AWS/GCPでの本人検証だけにSecret保護を委ねません。
 
 1. HCL・module・非秘密入力・破壊的変更のレビュー指定を対象ブランチのPRでレビューします。実行器やworkflowを変更する場合は、先にその変更を、Environmentで許可した信頼済み実行元へ取り込む必要があります。対象ブランチのworkflowやPythonスクリプトを実行器として使用しません。
 2. 非秘密入力は対象ブランチの`normal.tfvars.json`へ追加します。既存Environmentのprivate tfvarsへ重ねるため、既存リソースの選択やprivate inventoryを落としません。秘密値はコミットせず、新しいprivate入力は両DEV Environmentで一致させます。
 3. delete/replaceが必要なら、対象ブランチの`normal-operations.json`に正確なaddressとactionsを記載します。create/updateにリソース別manifestやtype登録は要求しません。
-4. 対象ブランチのCIとレビューを確認し、現在の40桁HEAD SHAを控えます。preflightはEnvironment Secretを使わず、同一repositoryのbranch HEADと指定SHAの一致を確認します。fork、PR ref、branch/SHAの不一致を対象ソースとして使いません。
+4. 対象ソースのCIとレビューを確認します。ブランチだけを指定すると、Environment Secretを使わないpreflightで同一repositoryのHEADを一度だけ取得し、その40桁SHAを後続の全jobで固定します。特定コミットはSHAだけでも選べます。fork、PR ref、branch/SHAの不一致を対象ソースとして使いません。
 5. 実行元にある正規の入口を選びます。以下はActions → CI → Run workflowの入力例です。
 
    マイページ統合ブランチの現行入口はActions → **Terraform**です。Use workflow fromに`integration/mypage-canon-20261006`、environmentに`development`、operationに`plan`／`apply`、componentに`core`／`mypage`／`all`を指定します。この入口では実行元自身のHCLを使い、そのSHAを自動的に固定します。入力項目は当該ブランチのworkflowを正本とします。
@@ -24,12 +24,21 @@ Environmentのブランチ制限は、クラウド認証とは独立したSecret
    | Authenticated Terraform | 有効 | 有効 |
    | Terraform target environment | `dev` | `dev` |
    | Terraform operation | `normal-plan` | `normal-apply` |
-   | DEVのTerraform対象ブランチ | レビュー済みの対象ブランチ | 同じ対象ブランチ |
-   | Exact Terraform source SHA | 対象ブランチの40桁HEAD | Planで確認した同じHEAD |
+   | DEVの対象ブランチ | レビュー済みの対象ブランチ | 空欄 |
+   | DEVの対象SHA | 空欄 | PlanのSummaryにある40桁SHA |
 
-   対象ブランチが空欄の場合は実行元ブランチ自身のHCLを使い、SHAには実行元のHEADを指定します。別のソースを選んでも、workflowのrefは信頼済み実行元のままです。
-6. Planの操作種別・件数を確認してから、Applyを新しくdispatchします。Applyは同じrunで独立Planを作り、control planeのSHA、対象sourceのrepository/branch/SHA、入力・レビュー指定・State・全Plan JSONをHMACで照合して保存Planを適用します。HMAC値をstep envやcommandへ渡しません。
-7. `GCP_NORMAL: PASS; role=apply`と事後full-root no-opを確認します。ブランチが更新された場合は最新HEADでPlanからやり直します。失敗runのRe-runは拒否されます。`dev`へのマージは本人だけが行います。
+   DEVの対象ソースの選び方は以下のとおりです。SHAを指定する場合は省略のない40桁の小文字16進数を使います。
+
+   | 対象ブランチ | 対象SHA | 使用するソース |
+   | --- | --- | --- |
+   | 指定 | 空欄 | preflight時点のブランチHEADをSHAへ解決し固定 |
+   | 空欄 | 指定 | 同一repositoryの指定コミット。過去のコミットも選択可能 |
+   | 空欄 | 空欄 | workflow起動時に確定した実行元自身のコミット |
+   | 指定 | 指定 | preflight時点のブランチHEADとSHAが一致する場合だけ実行 |
+
+   確定した対象SHAはActionsのSummaryに表示します。別のソースを選んでも、workflowのrefは信頼済み実行元のままです。本番は従来どおり`main`の実行元SHA指定が必須です。
+6. Planの操作種別・件数・Summaryの対象SHAを確認してから、Applyを新しくdispatchします。確認済みの同じコミットを使う場合は、対象ブランチを空欄にし、対象SHAにSummaryの値を指定します。**Applyでもブランチだけを指定すると、その新しい実行のpreflight時点でHEADを再取得します。** Applyは同じrunで独立Planを作り、control planeのSHA、対象sourceのrepository/branch/SHA、入力・レビュー指定・State・全Plan JSONをHMACで照合して保存Planを適用します。HMAC値をstep envやcommandへ渡しません。
+7. `GCP_NORMAL: PASS; role=apply`と事後full-root no-opを確認します。更新されたブランチHEADを使いたい場合は、新しいSHAでPlanからやり直します。失敗runのRe-runは拒否されます。`dev`へのマージは本人だけが行います。
 
 破壊的変更の指定例です。Terraform Planのactionsと順序まで一致させ、未使用の指定も残しません。
 

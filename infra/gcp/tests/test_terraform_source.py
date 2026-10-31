@@ -50,11 +50,11 @@ class SourceBoundary(unittest.TestCase):
             'infra/gcp/scripts/terraform_normal_ops.py': 'raise RuntimeError("SOURCE_SCRIPT_EXECUTED")',
             '.github/workflows/ci.yml': 'SOURCE_WORKFLOW_MUST_NOT_RUN'})
         e = env() | {'GITHUB_SHA': control_sha, 'NORMAL_SOURCE_BRANCH': 'feature/selected',
-                     'NORMAL_EXPECTED_SHA': source_sha}
+                     'NORMAL_EXPECTED_SHA': source_sha, 'NORMAL_SOURCE_SHA': source_sha}
         return control, source, e
 
     def test_owner_dispatch_control_ref_is_checked_without_a_branch_name_allowlist(self):
-        e = env() | {'NORMAL_SOURCE_BRANCH': 'feature/source', 'NORMAL_EXPECTED_SHA': 'b' * 40}
+        e = env() | {'NORMAL_SOURCE_BRANCH': 'feature/source', 'NORMAL_EXPECTED_SHA': 'b' * 40, 'NORMAL_SOURCE_SHA': 'b' * 40}
         self.assertEqual(ops.context(e, 'plan'), 'dev')
         for ref in ('refs/heads/main', 'refs/tags/dev', 'refs/pull/1/merge'):
             with self.subTest(ref=ref), self.assertRaises(ValueError):
@@ -64,7 +64,7 @@ class SourceBoundary(unittest.TestCase):
                 ref = 'refs/heads/' + control
                 context = e | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': caller + ref}
                 self.assertEqual(ops.context(context, 'plan'), 'dev')
-                self.assertEqual(selected.branch(context | {'NORMAL_SOURCE_BRANCH': ''}), control)
+                self.assertEqual(selected.branch(context | {'NORMAL_SOURCE_BRANCH': ''}), '')
         for key, value in (('GITHUB_ACTOR', 'other'), ('GITHUB_ACTOR_ID', '0'),
                            ('GITHUB_TRIGGERING_ACTOR', 'other'), ('GITHUB_RUN_ATTEMPT', '2'),
                            ('GITHUB_EVENT_NAME', 'pull_request')):
@@ -72,7 +72,7 @@ class SourceBoundary(unittest.TestCase):
                 ops.context(e | {key: value}, 'plan')
 
     def test_selector_is_same_repository_branch_and_exact_sha(self):
-        e = env() | {'NORMAL_SOURCE_BRANCH': 'feature/source', 'NORMAL_EXPECTED_SHA': 'b' * 40}
+        e = env() | {'NORMAL_SOURCE_BRANCH': 'feature/source', 'NORMAL_EXPECTED_SHA': 'b' * 40, 'NORMAL_SOURCE_SHA': 'b' * 40}
         response = MagicMock()
         good = {'ref': 'refs/heads/feature/source', 'object': {'type': 'commit', 'sha': 'b' * 40}}
         response.__enter__.return_value.read.return_value = json.dumps(good).encode()
@@ -90,10 +90,75 @@ class SourceBoundary(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 selected.identity(e | {'NORMAL_SOURCE_BRANCH': value})
 
+    def test_branch_only_is_resolved_once_and_shared_by_both_roles(self):
+        raw = env() | {'NORMAL_SOURCE_BRANCH': 'feature/source', 'NORMAL_EXPECTED_SHA': '',
+                       'GITHUB_TOKEN': 'FAKE_TOKEN'}
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = json.dumps({
+            'ref': 'refs/heads/feature/source', 'object': {'type': 'commit', 'sha': 'b' * 40}}).encode()
+        with patch.object(selected.urllib.request, 'urlopen', return_value=response) as request:
+            resolved = selected.resolve(raw)
+            self.assertEqual(resolved, {'branch': 'feature/source', 'sha': 'b' * 40})
+            # preflight後にbranch HEADが進んでも、Plan/Applyは解決済みSHAだけを使う。
+            response.__enter__.return_value.read.return_value = json.dumps({
+                'ref': 'refs/heads/feature/source', 'object': {'type': 'commit', 'sha': 'c' * 40}}).encode()
+            for role in ('plan', 'apply'):
+                pinned = env(role) | {'NORMAL_EXPECTED_SHA': '', 'NORMAL_SOURCE_BRANCH': resolved['branch'],
+                                      'NORMAL_SOURCE_SHA': resolved['sha']}
+                self.assertEqual(ops.context(pinned, role), 'dev')
+                self.assertEqual(selected.sha(pinned), 'b' * 40)
+            request.assert_called_once()
+
+    def test_sha_only_selects_a_commit_without_inferring_a_branch(self):
+        raw = env() | {'NORMAL_SOURCE_BRANCH': '', 'NORMAL_EXPECTED_SHA': 'b' * 40, 'GITHUB_TOKEN': 'FAKE_TOKEN'}
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"sha":"' + b'b' * 40 + b'"}'
+        with patch.object(selected.urllib.request, 'urlopen', return_value=response) as request:
+            resolved = selected.resolve(raw)
+        self.assertEqual(resolved, {'branch': '', 'sha': 'b' * 40})
+        self.assertEqual(request.call_args.args[0].full_url,
+                         'https://api.github.com/repos/kani3camp/youtube-study-space/git/commits/' + 'b' * 40)
+        self.assertEqual(selected.identity(raw | {'NORMAL_SOURCE_SHA': resolved['sha']})['branch'], '')
+        response.__enter__.return_value.read.return_value = b'{"sha":"' + b'c' * 40 + b'"}'
+        with patch.object(selected.urllib.request, 'urlopen', return_value=response), self.assertRaises(ValueError):
+            selected.resolve(raw)
+
+    def test_empty_selection_uses_immutable_control_commit_without_api_lookup(self):
+        raw = env() | {'NORMAL_SOURCE_BRANCH': '', 'NORMAL_EXPECTED_SHA': '',
+                       'GITHUB_REF': 'refs/heads/integration/selected'}
+        with patch.object(selected.urllib.request, 'urlopen') as request:
+            self.assertEqual(selected.resolve(raw), {'branch': 'integration/selected', 'sha': raw['GITHUB_SHA']})
+            self.assertEqual(selected.resolve(raw | {'NORMAL_EXPECTED_SHA': raw['GITHUB_SHA']}),
+                             {'branch': '', 'sha': raw['GITHUB_SHA']})
+        request.assert_not_called()
+
+    def test_bad_sha_is_rejected_before_metadata_request_or_secret_use(self):
+        for value in ('short', 'b' * 39, 'B' * 40, 'b' * 40 + '\n'):
+            with patch.object(selected.urllib.request, 'urlopen') as request, self.assertRaises(ValueError):
+                selected.resolve(env() | {'NORMAL_EXPECTED_SHA': value})
+            request.assert_not_called()
+
+    def test_credentialed_jobs_require_the_pinned_output_not_a_new_resolution(self):
+        for role in ('plan', 'apply'):
+            for value in ('', 'short', 'c' * 40):
+                with self.subTest(role=role, pin=value), self.assertRaises(ValueError):
+                    ops.context(env(role) | {'NORMAL_SOURCE_SHA': value}, role)
+
+    def test_resolved_commit_is_published_for_checkout_and_later_apply(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'output'
+            summary = Path(temporary) / 'summary'
+            e = env() | {'NORMAL_EXPECTED_SHA': '', 'GITHUB_OUTPUT': str(output),
+                         'GITHUB_STEP_SUMMARY': str(summary)}
+            selected.publish(e, {'branch': 'feature/source', 'sha': 'b' * 40})
+            self.assertEqual(output.read_text(), 'source_sha=' + 'b' * 40 + '\nsource_branch=feature/source\n')
+            self.assertIn('`' + 'b' * 40 + '`', summary.read_text())
+            self.assertNotIn('FAKE_TOKEN', summary.read_text())
+
     def test_oidc_binds_allowed_control_ref_and_caller_not_source_ref(self):
         ref = 'refs/heads/integration/mypage-canon-20261006'
         e = env() | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': ops.DEV_CALLERS[1] + ref,
-                     'NORMAL_SOURCE_BRANCH': 'feature/data', 'NORMAL_EXPECTED_SHA': 'b' * 40,
+                     'NORMAL_SOURCE_BRANCH': 'feature/data', 'NORMAL_EXPECTED_SHA': 'b' * 40, 'NORMAL_SOURCE_SHA': 'b' * 40,
                      'ACTIONS_ID_TOKEN_REQUEST_URL': 'https://fixture.invalid/token?x=1',
                      'ACTIONS_ID_TOKEN_REQUEST_TOKEN': 'FAKE_REQUEST_TOKEN'}
         fields = {'repository_id': '340900071', 'repository_owner_id': '54093651',
@@ -133,6 +198,14 @@ class SourceBoundary(unittest.TestCase):
                 self.assertEqual(tfvars['marker'], 'source')
                 self.assertEqual(ops.review('dev', e), {'google_pubsub_topic.reviewed': ['delete']})
 
+    def test_sha_only_uses_selected_checkout_instead_of_control_hcl(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            control, source, e = self.fixture(temporary)
+            e['NORMAL_SOURCE_BRANCH'] = ''
+            with patch.object(ops, 'REPO', control):
+                tfroot = ops.source(e, Path(temporary) / 'private')
+            self.assertEqual((tfroot / 'main.tf').read_text(), '# selected source')
+
     def test_wrong_repository_sha_dirty_file_and_symlink_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             control, source, e = self.fixture(temporary)
@@ -141,7 +214,7 @@ class SourceBoundary(unittest.TestCase):
                 selected.verify_checkout(e, control, ops.common.run)
             self.git(source, 'remote', 'set-url', 'origin', 'https://github.com/' + selected.REPOSITORY)
             with self.assertRaises(ValueError):
-                selected.verify_checkout(e | {'NORMAL_EXPECTED_SHA': 'f' * 40}, control, ops.common.run)
+                selected.verify_checkout(e | {'NORMAL_SOURCE_SHA': 'f' * 40}, control, ops.common.run)
             path = source / 'infra/gcp/environments/dev/main.tf'
             path.write_text('dirty')
             with self.assertRaises(ValueError):
@@ -161,10 +234,10 @@ class SourceBoundary(unittest.TestCase):
                 selected.read_file(e, control, relative)
 
     def test_hmac_binds_control_sha_source_sha_and_source_branch(self):
-        e = env() | {'NORMAL_SOURCE_BRANCH': 'feature/source', 'NORMAL_EXPECTED_SHA': 'b' * 40}
+        e = env() | {'NORMAL_SOURCE_BRANCH': 'feature/source', 'NORMAL_EXPECTED_SHA': 'b' * 40, 'NORMAL_SOURCE_SHA': 'b' * 40}
         with patch.object(ops, 'review', return_value={}):
             original = ops.commitment(e, {}, {}, plan(), b'k' * 32)
-            for change in ({'GITHUB_SHA': 'c' * 40}, {'NORMAL_EXPECTED_SHA': 'd' * 40},
+            for change in ({'GITHUB_SHA': 'c' * 40}, {'NORMAL_SOURCE_SHA': 'd' * 40},
                            {'NORMAL_SOURCE_BRANCH': 'feature/other'}):
                 self.assertNotEqual(original, ops.commitment(e | change, {}, {}, plan(), b'k' * 32))
                 before = ops.commitment_components(e, {}, {}, plan(), b'k' * 32)
@@ -174,7 +247,7 @@ class SourceBoundary(unittest.TestCase):
     def test_source_sha_change_cannot_apply_a_prepared_plan(self):
         with tempfile.TemporaryDirectory() as temporary:
             e = env('apply') | {'RUNNER_TEMP': temporary, 'NORMAL_SOURCE_BRANCH': 'feature/source',
-                                'NORMAL_EXPECTED_SHA': 'b' * 40}
+                                'NORMAL_EXPECTED_SHA': 'b' * 40, 'NORMAL_SOURCE_SHA': 'b' * 40}
             root = ops.private(e); root.mkdir(mode=0o700)
             prepared = {'source_sha': 'c' * 40, 'source_branch': 'feature/source', 'control_sha': e['GITHUB_SHA'],
                         'run_id': e['GITHUB_RUN_ID'], 'mode': e['NORMAL_MODE'], 'digest': 'a' * 64,
@@ -205,9 +278,11 @@ class SourceBoundary(unittest.TestCase):
     def test_prod_cannot_select_another_source(self):
         e = env() | {'NORMAL_TARGET': 'prod', 'GITHUB_REF': 'refs/heads/main',
                      'GITHUB_WORKFLOW_REF': ops.CALLER + 'refs/heads/main', 'NORMAL_MODE': 'normal-plan'}
+        e.pop('NORMAL_SOURCE_SHA', None)
         self.assertEqual(ops.context(e), 'prod')
-        with self.assertRaises(ValueError):
-            ops.context(e | {'NORMAL_SOURCE_BRANCH': 'feature/source'})
+        for change in ({'NORMAL_SOURCE_BRANCH': 'feature/source'}, {'NORMAL_SOURCE_SHA': e['GITHUB_SHA']}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                ops.context(e | change)
 
     def test_preflight_never_prints_metadata_api_errors_or_tokens(self):
         output = io.StringIO()

@@ -27,6 +27,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         block = self.text.split('      - name: Enforce trusted execution surface\n', 1)[1]
         script = textwrap.dedent(block.split('        run: |\n', 1)[1].split('\n  normal_plan:', 1)[0])
         values = environment() | {'TARGET': 'dev', 'MODE': 'normal-plan'}
+        values.pop('NORMAL_SOURCE_SHA', None)  # preflightには確定後のjob出力を持ち込まない。
         values.update(changes)
         values['NORMAL_TARGET'] = values['TARGET']
         values['NORMAL_MODE'] = values['MODE']
@@ -156,17 +157,32 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertIn('steps.prepared.outputs.digest == needs.normal_plan.outputs.digest', jobs['normal_apply'])
 
     def test_dev_source_checkout_never_selects_workflow_or_executor(self):
+        self.assertIn('source_sha: ${{ steps.guard.outputs.source_sha }}', self.text)
+        self.assertIn('source_branch: ${{ steps.guard.outputs.source_branch }}', self.text)
         for role in ('plan', 'apply'):
             block = self.text.split('\n  normal_' + role + ':', 1)[1].split('\n  normal_', 1)[0]
-            self.assertIn('NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}', block)
+            self.assertIn("NORMAL_SOURCE_SHA: ${{ inputs.target == 'dev' && needs.preflight.outputs.source_sha || '' }}", block)
             self.assertIn('repository: kani3camp/youtube-study-space', block)
-            self.assertIn('ref: ${{ inputs.expected_sha }}', block)
+            self.assertIn('ref: ${{ needs.preflight.outputs.source_sha }}', block)
+            self.assertNotIn('ref: ${{ inputs.expected_sha }}', block)
             self.assertIn('path: .terraform-source', block)
             self.assertIn('sparse-checkout: infra/gcp', block)
             self.assertLess(block.index('ref: ${{ github.sha }}'), block.index('path: .terraform-source'))
             self.assertNotRegex(block, r'run:.*\.terraform-source')
             self.assertNotIn('working-directory: .terraform-source', block)
         self.assertIn('source_branch: ${{ inputs.terraform_source_branch }}', self.caller)
+
+    def test_dev_sha_can_be_omitted_and_production_sha_remains_required(self):
+        for mode in ('normal-plan', 'normal-apply'):
+            result = self.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='')
+            self.assertEqual(result.returncode, 0)
+            self.assertIn('source_sha=' + 'a' * 40, result.outputs)
+            self.assertIn('source_branch=dev', result.outputs)
+            result = self.run_preflight(TARGET='prod', MODE=mode, NORMAL_EXPECTED_SHA='',
+                GITHUB_REF='refs/heads/main',
+                GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/main')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.outputs, '')
 
     def test_no_proof_history_artifact_or_unpinned_action_authorizes_execution(self):
         for forbidden in ('actions: read', 'actions/upload-artifact', 'actions/download-artifact',
