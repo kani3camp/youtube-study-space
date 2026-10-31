@@ -323,7 +323,7 @@ bootstrapや障害調査にはoperatorの短期SSO/更新可能credentialを使�
 - GCP provider: GitHub OIDC / Workload Identity Federation → GCP
 - ローカルのauthenticated `plan` / state operationはmigration・障害調査等の例外用途とし、AWS SSO / Google ADC等の短期・更新可能credentialを使う
 - public PR CIはcredentiallessを維持する
-- DEV通常操作は専用WIF/SAとPlan/Apply別Environment・least privilegeを使い、許可する非`main`ブランチはGitHub Environmentで管理する
+- DEV通常操作は専用WIF/SAとPlan/Apply別Environment・least privilegeを使う。DEV Environmentはbranchで制限せず、ownerの任意の非`main`ブランチとownerのPR Planをクラウドtrustのactor検査で許可する
 - Productionの既存importおよび通常CRUDは`main`へ固定し、通常CRUDには別途Production用認証設定と実Plan/Apply検証を要求する
 
 既存AWS runtime → GCP WIFとはTerraform CI trustを分離します。
