@@ -103,7 +103,11 @@ resource "google_cloudfunctions2_function" "guard" {
     available_memory      = "256Mi"
     timeout_seconds       = 7
     ingress_settings      = "ALLOW_ALL"
-    environment_variables = { GCLOUD_PROJECT = var.project_id }
+    # Googleが付与する実行IDログの既定値を維持し、毎回の削除・再付与差分を避ける。
+    environment_variables = {
+      GCLOUD_PROJECT   = var.project_id
+      LOG_EXECUTION_ID = "true"
+    }
   }
   lifecycle { prevent_destroy = true }
 }
