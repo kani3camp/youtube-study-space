@@ -545,7 +545,16 @@ class RuntimeDriftDiagnosticTest(unittest.TestCase):
         self.assertEqual(json.loads(lines['Terraform drift summary'].removesuffix('.')),
                          {'observedResources': 2, 'plannedWrites': 2})
         updates = json.loads(lines['Terraform planned update attributes'].removesuffix('.'))
-        self.assertEqual(updates, [{'address': service, 'actions': ['update'], 'attributes': ['env']}])
+        self.assertEqual(updates, [{'address': service, 'actions': ['update'], 'attributes': ['env'], 'enumValues': {}}])
+
+    def test_enum_values_are_shown_only_for_fixed_provider_values(self):
+        self.assertEqual(ops.public_enum_values({'before': {'deletion_policy': 'DELETE'}, 'after': {'deletion_policy': 'PREVENT'}}),
+                         {'deletion_policy': {'before': 'DELETE', 'after': 'PREVENT'}})
+        self.assertEqual(ops.public_enum_values({'before': {}, 'after': {'deletion_policy': 'PREVENT'}}),
+                         {'deletion_policy': {'before': None, 'after': 'PREVENT'}})
+        self.assertEqual(ops.public_enum_values({'before': {'deletion_policy': 'synthetic-secret'}, 'after': {'deletion_policy': 'PREVENT'}}),
+                         {'deletion_policy': {'before': '<withheld>', 'after': 'PREVENT'}})
+        self.assertEqual(ops.public_enum_values({'before': {'env': 'a'}, 'after': {'env': 'b'}}), {})
 
     def test_update_attributes_are_schema_names_only(self):
         change = {'before': {'deletion_policy': None, 'launch_stage': 'GA', 'template': [{'env': 'old-secret'}],
