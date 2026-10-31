@@ -330,6 +330,11 @@ def maintenance_job_image(job):
     return image
 
 
+def empty_list(value):
+    """Treat the provider's null and [] as the same unset list; any other value is kept as-is."""
+    return [] if value is None else value
+
+
 def maintenance_job_configuration(job):
     """Return only Terraform-owned Job configuration; ignore execution/status metadata."""
     template = one(job.get("template"), "maintenance-job-template")
@@ -352,7 +357,8 @@ def maintenance_job_configuration(job):
                 "execution_environment": task.get("execution_environment"),
                 "container": {
                     "command": container.get("command"),
-                    "args": container.get("args"),
+                    # providerは作成直後のStateでnull、refresh後に[]を返す。どちらも「指定なし」。
+                    "args": empty_list(container.get("args")),
                     "resources": container.get("resources"),
                     "env": container.get("env"),
                 },

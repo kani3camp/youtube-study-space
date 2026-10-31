@@ -167,6 +167,21 @@ class RuntimeTest(unittest.TestCase):
         with self.assertRaisesRegex(c.ContractError, "^maintenance-job-bootstrap-image$"):
             r.validate_plan(rejected, "maintenance_upgrade")
 
+    def test_job_refresh_treats_provider_null_and_empty_list_as_the_same_unset_list(self):
+        plan = fixture("runtime_public")
+        value = r.settings(plan["variables"]["runtime_settings"]["value"], "runtime_public")
+        job = next(item["change"]["after"] for item in plan["resource_changes"] if item["address"] == r.MAINTENANCE_JOB)
+        container = lambda state: state["template"][0]["template"][0]["containers"][0]
+        before, after = deepcopy(job), deepcopy(job)
+        container(before)["args"] = None
+        container(after)["args"] = []
+        r.validate_cicd_job_image_refresh(before, after, value)
+        for field, changed in (("args", ["--unreviewed"]), ("command", ["/bin/sh"]), ("command", None)):
+            moved = deepcopy(after)
+            container(moved)[field] = changed
+            with self.subTest(field=field), self.assertRaises(c.ContractError):
+                r.validate_cicd_job_image_refresh(before, moved, value)
+
     def state_only_plan(self):
         plan = fixture("runtime_public")
         for item in plan["resource_changes"]:
