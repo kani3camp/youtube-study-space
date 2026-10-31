@@ -23,7 +23,7 @@ ownerが作成した同一repositoryのPRで `infra/gcp/**` などが変わる�
 - 手動Planと同じreusable（`gcp-terraform-authenticated.yml` の `pr-plan` mode）、Environment `terraform-dev-plan`、identity（`terraform-dev-normal-plan` SA、`terraform-normal` WIF、`youtube-study-space-terraform-dev-plan` AWS role）を使う。PR専用のidentity・Environmentはない。
 - `-lock=false` で実行し、HMAC・saved plan・job outputを残さない。結果はJob Summaryの値なし要約だけで、PRコメントは投稿しない。Applyは必ず手動 `Terraform` で再Planする。
 - fork由来PR、owner以外のactor、再実行は資格情報を取得する前に**失敗として**停止する（green skipにしない）。その場合はownerが手動 `Terraform` の `operation=plan` を実行する。
-- GCP WIFとAWS trustは、PRをPlan Environmentだけに許可する（PRのref `refs/pull/<n>/merge`、`terraform.yml` と同refのreusable、owner、初回実行）。Apply Environment・Apply identityは手動dispatchだけ。
+- GCP WIFとAWS trustは、PRをPlan Environmentだけに許可する（PRのref `refs/pull/<n>/merge`、`terraform.yml` と同refのreusable、owner、初回実行）。Apply Environment・Apply identityは手動dispatchだけ。DEVのtrustとEnvironmentは2026-10-31にこの形へ更新済み。
 
 認証付きDEV操作の資格情報の境界は**クラウドtrustの本人検査**です。GCP WIF / AWS OIDCはowner immutable ID・repository・初回実行・同refの正規workflowを検証し、DEVはownerの任意の非`main` branchの手動dispatchと、ownerのPR Planを許可します。PR/fork、tag、`main`でのDEV通常操作、再実行は認証前に拒否します。Productionの通常操作は保護された`main`だけです。
 
