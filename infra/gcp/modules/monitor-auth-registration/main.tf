@@ -57,6 +57,15 @@ resource "google_artifact_registry_repository" "build" {
   lifecycle { prevent_destroy = true }
 }
 
+# Artifact Registryはresource.name条件に対応しないため、専用リポジトリへ直接付与する。
+resource "google_artifact_registry_repository_iam_member" "builder" {
+  project    = var.project_id
+  location   = var.region
+  repository = google_artifact_registry_repository.build.repository_id
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${var.build_service_account_email}"
+}
+
 resource "google_storage_bucket_object" "source" {
   bucket       = google_storage_bucket.source.name
   name         = "registration-guard/${local.source_sha}.zip"
@@ -72,6 +81,7 @@ resource "google_cloudfunctions2_function" "guard" {
   name            = "monitor-password-signup-guard"
   description     = "一般利用者によるメール・パスワードの新規登録のみを拒否するbeforeCreate関数"
   deletion_policy = "PREVENT"
+  depends_on      = [google_artifact_registry_repository_iam_member.builder]
 
   build_config {
     runtime           = "nodejs24"

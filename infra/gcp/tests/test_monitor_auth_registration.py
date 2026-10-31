@@ -71,6 +71,7 @@ class RegistrationPolicy(unittest.TestCase):
         for target in ('dev', 'prod'):
             spec = bootstrap.desired(target)
             self.assertTrue(all(spec['runtime'] != email for email, _, _ in spec['grants']))
+            self.assertFalse(any(role.startswith('roles/artifactregistry.') for _, role, _ in spec['grants']))
             for email, role, condition in spec['grants']:
                 if role.startswith('roles/storage.'):
                     if 'gcf-v2-sources-' in condition:
@@ -82,8 +83,7 @@ class RegistrationPolicy(unittest.TestCase):
                         self.assertIn(spec['project'] + '-monitor-auth-source', condition)
                     self.assertNotIn('*', condition)
             permissions = {permission for values in spec['roles'].values() for permission in values}
-            self.assertEqual(permissions, {'firebaseauth.configs.get', 'firebaseauth.configs.update',
-                                          'run.services.getIamPolicy', 'run.services.setIamPolicy'})
+            self.assertEqual(permissions, {'firebaseauth.configs.get', 'firebaseauth.configs.update'})
             self.assertNotIn('firebaseauth.configs.getHashConfig', permissions)
 
     def test_bootstrap_preview_never_changes_cloud_permissions(self):

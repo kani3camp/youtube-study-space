@@ -28,6 +28,10 @@ run "registration_only_and_existing_login_preserved" {
     condition     = google_storage_bucket.source.public_access_prevention == "enforced" && google_storage_bucket.source.uniform_bucket_level_access && google_storage_bucket_object.source.deletion_policy == "ABANDON"
     error_message = "ソースは非公開・改版ごとの名前とし、復旧用の旧版を保持する必要があります。"
   }
+  assert {
+    condition     = google_artifact_registry_repository_iam_member.builder.repository == "monitor-auth" && google_artifact_registry_repository_iam_member.builder.role == "roles/artifactregistry.writer" && google_artifact_registry_repository_iam_member.builder.member == "serviceAccount:${var.build_service_account_email}"
+    error_message = "ビルド権限は専用リポジトリに直接付与してください。"
+  }
 }
 run "preserve_existing_before_sign_in" {
   command = apply

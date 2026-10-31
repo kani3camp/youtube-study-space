@@ -30,7 +30,7 @@ python3 infra/gcp/scripts/bootstrap_monitor_auth.py --target dev
 
 レビューした対象環境への権限準備を実行するときだけ、同じコマンドに`--apply`を追加します。本番は`--target prod`を明示します。この操作は管理者の短期認証を使い、長期鍵を作りません。既存のWIF・AWS backend・GitHub Environmentの保護を変更しません。
 
-追加する権限は、Auth構成の参照／更新、認証用ソースバケットだけの読み取り／新規オブジェクト作成、対象関数だけのInvokerポリシー更新です。ビルド用SAにはコードの読み取り・専用リポジトリへの書き込み・ビルドログ出力だけを付与します。Cloud FunctionsがZIPを複製する`gcf-v2-sources-<対象プロジェクト番号>-<region>`についても、この関数の`monitor-password-signup-guard/`配下のオブジェクトだけを読み取り可能にします。プロジェクト番号は実行時に確認し、別関数や別環境のソースへ権限を広げません。実行用SAにFirestore・Authユーザー管理・Secret読み取り・トークン署名の権限は付与しません。既存実行用SAにプロジェクト権限がある場合や、同名カスタムロールの内容が異なる場合は停止します。
+追加する初期権限は、Auth構成の参照／更新、認証用ソースバケットだけの読み取り／新規オブジェクト作成、ビルドログ出力です。Cloud Run／Artifact Registryのサービス単位IAM管理は、既存の通常Apply用権限カタログを使います。専用Artifact Registryのビルド用書き込み権限はTerraformがリポジトリへ直接付与し、プロジェクトの`resource.name`条件で代替しません。Cloud FunctionsがZIPを複製する`gcf-v2-sources-<対象プロジェクト番号>-<region>`についても、この関数の`monitor-password-signup-guard/`配下のオブジェクトだけを読み取り可能にします。プロジェクト番号は実行時に確認し、別関数や別環境のソースへ権限を広げません。実行用SAにFirestore・Authユーザー管理・Secret読み取り・トークン署名の権限は付与しません。既存実行用SAにプロジェクト権限がある場合や、同名カスタムロールの内容が異なる場合は停止します。
 
 通常の構築用SAへ`firebaseauth.configs.getHashConfig`を付与しないでください。TerraformのAuthリソースは公開APIキーなどをStateに保存するため、既存どおりStateと生Planを非公開に保ちます。関数の最小インスタンス数は0、最大は2です。起動・ビルド・ログ・保管に利用料が発生し得ます。
 

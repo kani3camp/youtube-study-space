@@ -23,21 +23,16 @@ def desired(target):
     # 実行時に対象プロジェクトから取得した番号へ置換し、番号をコードへ固定しない。
     staged_source = ("resource.type == 'storage.googleapis.com/Object' && "
                      f"resource.name.startsWith('projects/_/buckets/gcf-v2-sources-PROJECT_NUMBER-{region}/objects/monitor-password-signup-guard/')")
-    repository = f"resource.name == 'projects/{project}/locations/{region}/repositories/monitor-auth' || resource.name.startsWith('projects/{project}/locations/{region}/repositories/monitor-auth/')"
-    invoker = f"resource.name.endsWith('/locations/{region}/services/monitor-password-signup-guard')"
     roles = {
         'monitorAuthConfigRead': ['firebaseauth.configs.get'],
         'monitorAuthConfigWrite': ['firebaseauth.configs.get', 'firebaseauth.configs.update'],
-        'monitorAuthFunctionInvokerPolicy': ['run.services.getIamPolicy', 'run.services.setIamPolicy'],
     }
     grants = [(plan, f'projects/{project}/roles/monitorAuthConfigRead', None),
               (apply, f'projects/{project}/roles/monitorAuthConfigWrite', None),
-              (apply, f'projects/{project}/roles/monitorAuthFunctionInvokerPolicy', invoker),
               (plan, 'roles/storage.objectViewer', source),
               (apply, 'roles/storage.objectViewer', source),
               (apply, 'roles/storage.objectCreator', source),
               (builder, 'roles/storage.objectViewer', source),
-              (builder, 'roles/artifactregistry.writer', repository),
               (builder, 'roles/logging.logWriter', None),
               (builder, 'roles/storage.objectViewer', staged_source)]
     return {'project': project, 'region': region, 'runtime': runtime, 'builder': builder,
@@ -75,10 +70,13 @@ def provision(spec):
         else:
             command(['iam', 'roles', 'create', name, '--project=' + project,
                      '--title=' + name, '--stage=GA', '--permissions=' + ','.join(permissions)])
-    for index, (email, role, expression) in enumerate(spec['grants']):
+    for email, role, expression in spec['grants']:
         if expression is not None:
             expression = expression.replace('PROJECT_NUMBER', project_number)
-        condition = 'None' if expression is None else f'title=monitor-auth-{index},expression={expression}'
+        title = 'monitor-auth-' + email.split('@')[0] + '-' + role.rsplit('/', 1)[-1].replace('.', '-')
+        if expression is not None and 'gcf-v2-sources-' in expression:
+            title += '-staged'
+        condition = 'None' if expression is None else f'title={title},expression={expression}'
         command(['projects', 'add-iam-policy-binding', project, '--member=serviceAccount:' + email,
                  '--role=' + role, '--condition=' + condition])
     for email in (spec['runtime'], spec['builder']):
