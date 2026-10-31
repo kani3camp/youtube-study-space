@@ -15,6 +15,24 @@ GoogleのIdP設定は管理対象に含めません。既存の許可ドメイ�
 
 関数のコードは[`function/`](function/)にあります。SDKはロックファイルで固定し、Cloud Buildが依存をインストールします。配備ZIPには明示したソースと依存定義の4ファイルだけを含め、`node_modules`、テスト、認証情報、一時ファイルを含めません。同じコードからは同じZIPを作り、SHA-256をオブジェクト名に使用します。旧オブジェクトは保持し、既知のコードへ戻せるようにします。
 
+## 現行の制限範囲とパスワードリンクの未解決事項
+
+この構成が拒否するのは、新しいユーザーを作成するメール・パスワード登録です。既存アカウントへパスワード方式を追加する処理は `beforeCreate` を通らないため、この関数だけでは拒否できません。Firebaseのアカウントリンク設定やメールアドレス列挙対策を変更すれば全面的に禁止できる、とも扱わないでください。
+
+公式仕様でも、[アカウントリンク設定は手動リンクを禁止しない](https://docs.cloud.google.com/identity-platform/docs/link-accounts)こと、[メールアドレス列挙対策を有効にしても `accounts:signUp` にIDトークンを渡すリンク経路がある](https://docs.cloud.google.com/identity-platform/docs/admin/email-enumeration-protection)ことが明記されています。
+
+Auth Emulatorでは、マイページと同じCustom Authenticationで初回作成したUIDに対し、IDトークン付きの `accounts:signUp` と `accounts:update` の両方でパスワード追加・パスワードログインが成功し、関数の呼び出し回数が増えないことを再現しています。このテストは現行の穴を記録するための再現テストであり、リンク許可を将来の受け入れ要件にするものではありません。
+
+DEV（`test-youtube-study-space`）でも、パスワードを持たない検証用の既存アカウントに対する `accounts:signUp` のリンクと、その後のパスワードログインが成功しました。メールアドレス列挙対策は有効で、旧 `accounts:update` 経路は `OPERATION_NOT_ALLOWED` で拒否されました。Auth構成は変更せず、一時ユーザー2件を削除して残存0件を確認しています。DEVでは既存権限でCustom Tokenを署名できなかったため、管理者作成した検証用アカウントからパスワードを解除してリンク前の状態を作りました。DEVでCustom Authenticationの経路まで検証済みとは扱いません。
+
+再現用のDEVコマンドは次のとおりです。固定DEVプロジェクトとWeb APIキーの対象を照合し、専用の一時UIDだけを作成・リンク・削除します。プロジェクトのAuth設定・IAM・Firestore・既存ユーザーは変更しません。`gcloud` の短期認証と、リポジトリの `youtube-monitor/.env` に設定されたDEVの公開クライアント設定を使用します。トークン・パスワード・生のAPI応答は表示しません。削除に失敗した場合だけ、後片付け用に生成した検証UIDを表示します。
+
+```sh
+node infra/gcp/modules/monitor-auth-registration/function/dev-link-probe.mjs --target dev
+```
+
+厳密に「一般ユーザーによるパスワード追加自体を禁止」する要件と、「追加は許容してパスワードでの再ログインを運用者に限定」する要件は別です。現行構成はどちらの完全な実装でもありません。前者では認証領域の分離等を含めた設計変更、後者でもリンク時に発行されるトークンや既存セッションを考慮した利用境界の定義が必要です。要件と移行方針を確定するまで、この問題を修正済みとして扱わないでください。
+
 ## 適用前の準備
 
 変数の既定値`monitor_auth_registration = null`ではリソースも認証設定も変更しません。DEVは`normal.tfvars.json`で明示的に有効化し、本番の入力は無効のまま維持します。設定変更とTerraform Applyの結果は対応PR／Actionsを参照してください。ソースや入力を追加しただけでは、稼働中の新規登録は制限されません。

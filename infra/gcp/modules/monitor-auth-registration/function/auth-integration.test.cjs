@@ -88,3 +88,30 @@ test('マイページと同じカスタム認証で初回ユーザーを作成�
   assert.equal((await auth.getUser(uid)).uid, uid)
   assert.equal(calls, before)
 })
+
+// 現行制限の迂回を記録する再現テスト。リンク許可を受け入れ要件にしない。
+// 制限方針の実装後は、その拒否結果を検証するテストへ置き換える。
+for (const endpoint of ['signUp', 'update']) {
+  test(`現行beforeCreateだけではカスタム認証ユーザーへの${endpoint}によるpasswordリンクを拒否できない`, async () => {
+    const uid = `UCpasswordLinkProbe-${endpoint}`
+    const signedIn = await request('v1/accounts:signInWithCustomToken?key=demo-key', {
+      token: JSON.stringify({ uid }), returnSecureToken: true,
+    })
+    assert.equal(signedIn.status, 200)
+    const before = calls
+    const email = `password-link-${endpoint.toLowerCase()}@example.test`
+    const linked = await request(`v1/accounts:${endpoint}?key=demo-key`, {
+      idToken: signedIn.data.idToken, email, password: 'synthetic-test-password', returnSecureToken: true,
+    })
+    assert.equal(linked.status, 200)
+    assert.equal(calls, before)
+    const account = await auth.getUser(uid)
+    assert.equal(account.providerData.some((provider) => provider.providerId === 'password'), true)
+    const passwordLogin = await request('v1/accounts:signInWithPassword?key=demo-key', {
+      email, password: 'synthetic-test-password', returnSecureToken: true,
+    })
+    assert.equal(passwordLogin.status, 200)
+    assert.equal(passwordLogin.data.localId, uid)
+    assert.equal(calls, before)
+  })
+}
