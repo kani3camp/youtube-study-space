@@ -494,8 +494,9 @@ def validate_plan(plan, stage):
 
 # Terraform-side attributes the Service may adopt without a remote write.
 # #1466 added deletion_policy after the last DEV Apply, so the existing State
-# lacks it; Terraform plans an update that only records it in State.
-STATE_ONLY_SERVICE_ATTRIBUTES = {"deletion_policy": (None, "PREVENT")}
+# holds no value or the provider default; Terraform plans an update that only
+# records PREVENT in State (provider 8.5.0 skips the API update for it).
+STATE_ONLY_SERVICE_ATTRIBUTES = {"deletion_policy": ({None, "DELETE"}, "PREVENT")}
 
 
 def state_only_service_update(address, change):
@@ -509,7 +510,8 @@ def state_only_service_update(address, change):
     changed = {key for key in set(before) | set(after) if before.get(key) != after.get(key)}
     if not changed or not changed <= set(STATE_ONLY_SERVICE_ATTRIBUTES):
         return None
-    if any((before.get(key), after.get(key)) != STATE_ONLY_SERVICE_ATTRIBUTES[key] for key in changed):
+    if any(before.get(key) not in STATE_ONLY_SERVICE_ATTRIBUTES[key][0] or
+           after.get(key) != STATE_ONLY_SERVICE_ATTRIBUTES[key][1] for key in changed):
         return None
     return changed
 

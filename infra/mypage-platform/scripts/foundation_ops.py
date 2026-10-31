@@ -322,6 +322,20 @@ def public_entry(item):
 PUBLIC_ATTRIBUTE = re.compile(r"[a-z][a-z0-9_]{0,63}")
 
 
+# Enum-valued Terraform-side attributes whose values are fixed by the provider
+# and safe to show; any other value is withheld.
+PUBLIC_ENUM_ATTRIBUTES = {"deletion_policy": frozenset({"DELETE", "PREVENT", "ABANDON"})}
+
+
+def public_enum_values(change):
+    before, after = change.get("before"), change.get("after")
+    if type(before) is not dict or type(after) is not dict:
+        return {}
+    shown = lambda key, value: value if value is None or value in PUBLIC_ENUM_ATTRIBUTES[key] else "<withheld>"
+    return {key: {"before": shown(key, before.get(key)), "after": shown(key, after.get(key))}
+            for key in sorted(PUBLIC_ENUM_ATTRIBUTES) if before.get(key) != after.get(key)}
+
+
 def changed_attributes(change):
     """Top-level attribute names whose planned value differs; values are never read out."""
     before, after = change.get("before"), change.get("after")
@@ -351,7 +365,8 @@ def describe_runtime_drift(plan):
         (public_entry(item) for item in writes), key=lambda entry: entry["address"]), sort_keys=True) + ".")
     # In-place updates of existing resources: which top-level attributes change.
     print("Terraform planned update attributes: " + json.dumps(sorted(
-        (public_entry(item) | {"attributes": changed_attributes(item.get("change", {}))}
+        (public_entry(item) | {"attributes": changed_attributes(item.get("change", {})),
+                               "enumValues": public_enum_values(item.get("change", {}))}
          for item in writes if item.get("change", {}).get("actions") == ["update"]),
         key=lambda entry: entry["address"]), sort_keys=True) + ".")
 

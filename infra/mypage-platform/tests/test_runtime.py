@@ -183,6 +183,11 @@ class RuntimeTest(unittest.TestCase):
         plan, item = self.state_only_plan()
         self.assertEqual(r.state_only_service_update(r.SERVICE, item["change"]), {"deletion_policy"})
         self.assertEqual(r.validate_plan(plan, "runtime_public"), {"resources": len(plan["resource_changes"]), "creates": 0})
+        # The provider default recorded in State is adopted the same way.
+        default_plan, default_item = self.state_only_plan()
+        default_item["change"]["before"]["deletion_policy"] = "DELETE"
+        self.assertEqual(r.state_only_service_update(r.SERVICE, default_item["change"]), {"deletion_policy"})
+        r.validate_plan(default_plan, "runtime_public")
         for mutate in (
             lambda change: change["after"].update(ingress="INGRESS_TRAFFIC_INTERNAL_ONLY"),
             lambda change: change["after"]["template"][0].update(timeout="60s"),
