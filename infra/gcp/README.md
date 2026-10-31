@@ -6,11 +6,11 @@ YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをT
 
 ## 通常のDEV Terraform開発
 
-**workflowは信頼済みの`dev`から、`kani3camp`本人が初回手動起動します。** Terraform対象のブランチと40桁SHAは別の入力で指定できます。`terraform-dev-plan` / `terraform-dev-apply` EnvironmentはSelected branchesで`dev`だけを許可し、対象ブランチを追加しません。
+**workflowはDEV用EnvironmentのSelected branchesに明示追加した信頼済みブランチから、`kani3camp`本人が初回手動起動します。** 初期の実行元は`dev`です。マイページ統合ブランチなども、両EnvironmentへBranchとして追加すれば実行元にできます。許可するブランチ名の一覧をコードやAWS/GCP側へ重複登録しません。Terraform対象のブランチと40桁SHAは別の入力で選べます。対象ソースとして使うだけのブランチはEnvironmentへ追加しません。
 
-Environmentのブランチ制限は、クラウド認証とは独立したSecretアクセス境界です。別workflow jobが同じEnvironmentを指定しても対象ブランチからSecretを取得できないよう、No restrictionにはしません。AWS/GCPでの本人検証だけにSecret保護を委ねません。
+Environmentのブランチ制限は、クラウド認証とは独立したSecretアクセス境界です。未許可のbranchの別workflow jobが同じEnvironmentを指定してもSecretを取得できないよう、No restrictionにはしません。AWS/GCPでの本人検証だけにSecret保護を委ねません。
 
-1. HCL・module・非秘密入力・破壊的変更のレビュー指定を対象ブランチのPRでレビューします。実行器やworkflowを変更する場合は、先にその変更を`dev`へ取り込む必要があります。対象ブランチのworkflowやPythonスクリプトを実行器として使用しません。
+1. HCL・module・非秘密入力・破壊的変更のレビュー指定を対象ブランチのPRでレビューします。実行器やworkflowを変更する場合は、先にその変更を、Environmentで許可した信頼済み実行元へ取り込む必要があります。対象ブランチのworkflowやPythonスクリプトを実行器として使用しません。
 2. 非秘密入力は対象ブランチの`normal.tfvars.json`へ追加します。既存Environmentのprivate tfvarsへ重ねるため、既存リソースの選択やprivate inventoryを落としません。秘密値はコミットせず、新しいprivate入力は両DEV Environmentで一致させます。
 3. delete/replaceが必要なら、対象ブランチの`normal-operations.json`に正確なaddressとactionsを記載します。create/updateにリソース別manifestやtype登録は要求しません。
 4. 対象ブランチのCIとレビューを確認し、現在の40桁HEAD SHAを控えます。preflightはEnvironment Secretを使わず、同一repositoryのbranch HEADと指定SHAの一致を確認します。fork、PR ref、branch/SHAの不一致を対象ソースとして使いません。
@@ -18,14 +18,14 @@ Environmentのブランチ制限は、クラウド認証とは独立したSecret
 
    | 項目 | DEV Plan | DEV Apply |
    | --- | --- | --- |
-   | Use workflow from | **`dev`** | **`dev`** |
+   | Use workflow from | Environmentで許可した実行元 | 同じ実行元 |
    | Authenticated Terraform | 有効 | 有効 |
    | Terraform target environment | `dev` | `dev` |
    | Terraform operation | `normal-plan` | `normal-apply` |
    | DEVのTerraform対象ブランチ | レビュー済みの対象ブランチ | 同じ対象ブランチ |
    | Exact Terraform source SHA | 対象ブランチの40桁HEAD | Planで確認した同じHEAD |
 
-   対象ブランチが空欄の場合は`dev`自身のHCLを使い、SHAには実行する`dev`のHEADを指定します。workflowの実行refを対象ブランチへ切り替えないでください。
+   対象ブランチが空欄の場合は実行元ブランチ自身のHCLを使い、SHAには実行元のHEADを指定します。別のソースを選んでも、workflowのrefは信頼済み実行元のままです。
 6. Planの操作種別・件数を確認してから、Applyを新しくdispatchします。Applyは同じrunで独立Planを作り、control planeのSHA、対象sourceのrepository/branch/SHA、入力・レビュー指定・State・全Plan JSONをHMACで照合して保存Planを適用します。HMAC値をstep envやcommandへ渡しません。
 7. `GCP_NORMAL: PASS; role=apply`と事後full-root no-opを確認します。ブランチが更新された場合は最新HEADでPlanからやり直します。失敗runのRe-runは拒否されます。`dev`へのマージは本人だけが行います。
 
@@ -46,7 +46,7 @@ HCLやmodule自体もprovider等による実行を伴うため、選択するソ
 
 S3 native locking、Versioning、環境別concurrencyを継続し、workspace・target apply・force-unlockは使いません。raw Plan/State/Secret/API応答をログ・artifactへ公開せず、公開結果は固定phase・操作件数とprovider schemaで検証したリソース種別/操作別件数に限定します。
 
-**有効化の順序:** このcontrol plane分離は、対応workflowと実行器が`dev`へ取り込まれてから利用できます。未マージのfeature branchをEnvironmentへ一時許可して検証しません。DEV StateへPR #1467のAuth資源を適用した状態では、それらを含むsource branch/SHAを選んでください。古いHCLによる資源削除が提案されても適用しません。
+**有効化の順序:** このcontrol plane分離は、対応workflowと実行器を含む信頼済み実行元から利用できます。新しい実行元を許可する前に、そのブランチのworkflowと実行器をレビューしてください。HCLを試すだけのfeature branchを実行元へ一時昇格させません。DEV StateへPR #1467のAuth資源を適用した状態では、それらを含むsource branch/SHAを選んでください。古いHCLによる資源削除が提案されても適用しません。
 
 ### 一回限りのDEV基盤設定
 
@@ -77,17 +77,17 @@ GitHub Secretは値を読み戻せないため名前と更新時刻を確認し�
 
 ### DEVのEnvironment設定と本人起動
 
-DEVの両Environmentは`deployment_branch_policy`を`protected_branches: false, custom_branch_policies: true`とし、Branchルールは完全一致の`dev`だけにします。タグの`dev`やワイルドカードは許可しません。これは同じEnvironmentを参照する全jobのSecretアクセスに適用される境界です。
+DEVの両Environmentは`deployment_branch_policy`を`protected_branches: false, custom_branch_policies: true`とし、信頼する実行元を完全一致のBranchルールで明示追加します。タグやワイルドカードは許可しません。これは同じEnvironmentを参照する全jobのSecretアクセスに適用される境界です。**ブランチを追加すると、そのブランチ上のworkflow一式をSecret参照可能な信頼済みコードとして扱います。** 本人・正規workflowパス・同ref/SHA・非mainなどの共通検証は維持します。
 
 通常のPlan/ApplyはActionsから実行するため、ローカルのAWS/GCP loginやTerraformは不要です。設定の確認・復旧は次の管理用コマンドを使用できます。
 
 ```sh
 python3 infra/gcp/scripts/enable_normal_integration.py
 # 設定反映時だけ実行（GitHub本人認証が必要。AWS/GCP loginは不要）:
-python3 infra/gcp/scripts/enable_normal_integration.py --apply
+python3 infra/gcp/scripts/enable_normal_integration.py --branch integration/mypage-canon-20261006 --apply
 ```
 
-プレビューは読み取りだけです。`--apply`はGitHub本人認証を確認して、DEVの2 Environmentを`dev`だけに制限します。既存の余分なブランチ／タグのルールを除去します。No restrictionの状態を検出した場合は、一覧取得より先にSelected branchesへ戻してSecret境界を閉じます。既存Environmentがない場合や、想定外のreviewer・wait timerなどの保護がある場合は、作成・上書きせず停止します。
+プレビューは読み取りだけです。`--apply`はGitHub本人認証を確認して、DEVの2 Environmentへ`--branch`を追加します。既存の明示許可は削除しません。GitHub Settings → Environmentsの両Environmentへ直接Branchルールを追加しても同じです。No restrictionの状態を検出した場合は、一覧取得より先にSelected branchesへ戻してSecret境界を閉じます。既存Environmentがない場合や、想定外のreviewer・wait timerなどの保護がある場合は、作成・上書きせず停止します。
 
 既存のAWS 7-claim subjectとGCP WIFは、本人のimmutable actor ID、repository、Environment、正規caller/reusable等を検証します。既存の`ci.yml`／`terraform.yml`が併存するcloud trustは読み取り検証して維持し、今回の管理スクリプトで書き換えません。対象source branchをOIDCのworkflow refへ入れません。
 
@@ -95,20 +95,20 @@ python3 infra/gcp/scripts/enable_normal_integration.py --apply
 
 ### 任意ブランチの認証付きE2E
 
-通常のPlan/Applyとは別に、実リソースを作成・削除するE2Eがあります。必要な場合だけ、CIを`normal-e2e`、Use workflow fromは`dev`のまま、対象source branchと正確な40桁HEAD SHAを指定して一度新規dispatchします。
+通常のPlan/Applyとは別に、実リソースを作成・削除するE2Eがあります。必要な場合だけ、CIを`normal-e2e`、Use workflow fromはEnvironmentで許可した実行元にし、対象source branchと正確な40桁HEAD SHAを指定して一度新規dispatchします。
 
 ```sh
 python3 infra/gcp/scripts/enable_normal_integration.py --apply --dispatch-e2e --branch integration/gcp-terraform-normal-ops
 ```
 
-`--branch`はE2EのTerraform対象ソースだけを指定します。workflowは`dev`から起動し、Environmentへ対象ブランチを追加しません。`--dispatch-e2e`は対象branchの必須CI成功と実行者IDをreadbackしてから新規dispatchを1回行います（E2E完了までは判定しません）。失敗runのRe-runは拒否されます。
+`--branch`はE2Eの信頼済み実行元を指定し、既定の対象ソースも同じブランチです。このヘルパーのE2E起動には、当該ブランチにCIのmanual dispatch入力が必要です。通常のPlan/Applyは、その実行元にある正規のCI／Terraform入口を使います。`--dispatch-e2e`は対象branchの必須CI成功と実行者IDをreadbackしてから新規dispatchを1回行います（E2E完了までは判定しません）。失敗runのRe-runは拒否されます。
 既存rootがno-opのときだけ、runnerのprivate source copyに一時的なDEV Pub/Sub topicを追加し、
 create→ラベルupdate→名前replace→deleteを実行します。各段階は対象topicだけの変更を要求し、
 saved plan Apply・full-root no-op・lock解放を検証します。既存業務リソースはテスト用に変更しません。
 最後に元のState resourcesと一致することを検査します。State serial/versionは正常に進みます。
 MyPageのHCL・専用Stateを扱いません。
 
-通常操作のworkflowは`dev`固定です。本人以外の起動や、対象ブランチから直接workflowを起動する操作は、事前検証とEnvironmentのdev限定により拒否します。
+通常操作の実行元はEnvironmentのSelected branchesで管理します。事前検証は本人・正規workflow・同ref/SHAなどを検証し、未許可の実行元はGitHubのEnvironment境界がSecret取得前に拒否します。
 Environment/WIFの保護は維持し、`dev`向け最終PRのマージは本人が実施します。
 E2Eが中途失敗した場合は、そのrunのprobeだけの削除Planで復旧を試みます。
 他リソースの差分・lock・認証失敗があれば停止します。自動force-unlockやStateの復元はしません。
@@ -164,7 +164,7 @@ python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply --enable-ap
 ## 既存import専用経路
 
 `migration-plan` / `migration-apply` は既存baselineのimport/no-op専用として保持します。
-DEVの既存importは、Environmentを利用できる`dev`から実行します。移行用controllerの従来のref検証は変更しませんが、Environmentのdev限定によりintegration branchからの直接実行は許可されません。通常操作のsource選択をimport経路へ広げません。
+DEVの既存importは、Environmentで許可した実行元のうち、移行用controllerが従来許可する`dev` / `integration/mypage-canon-20261006`から実行します。通常操作のsource選択をimport経路へ広げません。
 独自Attestation/Ownership Receiptは再導入しません。
 通常経路はこのimport-only制限を解除しておらず、controller/contract/job本文も変更しません。
 DEVでbaseline外のHCL/Stateを追加した後は、固定manifestのmigration経路が拒否する場合があります。

@@ -69,17 +69,17 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             context = {'GITHUB_REF': ref,
                        'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref}
             for mode in ('normal-plan', 'normal-apply', 'normal-e2e'):
-                self.assertNotEqual(self.run_preflight(MODE=mode,
+                self.assertEqual(self.run_preflight(MODE=mode,
                     NORMAL_EXPECTED_SHA='a' * 40, **context).returncode, 0)
             for mode in ('migration-plan', 'migration-apply'):
                 self.assertNotEqual(self.run_preflight(MODE=mode, **context).returncode, 0)
 
-    def test_feature_workflow_cannot_reach_credentials_even_for_owner(self):
+    def test_dev_preflight_checks_owner_while_environment_selects_trusted_branches(self):
         ref = 'refs/heads/feature/no-environment-registration'
         context = {'GITHUB_REF': ref, 'NORMAL_EXPECTED_SHA': 'a' * 40,
                    'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref}
         for mode in ('normal-plan', 'normal-apply'):
-            self.assertNotEqual(self.run_preflight(MODE=mode, **context).returncode, 0)
+            self.assertEqual(self.run_preflight(MODE=mode, **context).returncode, 0)
             for key, value in (('GITHUB_ACTOR', 'other'), ('GITHUB_ACTOR_ID', '0'),
                                ('GITHUB_TRIGGERING_ACTOR', 'other'), ('GITHUB_RUN_ATTEMPT', '2'),
                                ('GITHUB_EVENT_NAME', 'pull_request')):
@@ -102,6 +102,21 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             GITHUB_REF='refs/heads/dev',
             GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
             NORMAL_EXPECTED_SHA='a' * 40).returncode, 0)
+
+    def test_control_branch_can_use_ci_or_terraform_but_paths_and_prod_stay_fixed(self):
+        for branch in ('dev', 'integration/mypage-canon-20261006', 'feature/trusted-controller'):
+            ref = 'refs/heads/' + branch
+            for caller in ('ci.yml', 'terraform.yml'):
+                values = {'MODE': 'normal-plan', 'NORMAL_EXPECTED_SHA': 'a' * 40,
+                          'GITHUB_REF': ref,
+                          'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/' + caller + '@' + ref}
+                result = self.run_preflight(**values)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                for workflow in ('attacker.yml', 'ci.yml@refs/heads/other'):
+                    bad = values | {'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/' + workflow + '@' + ref}
+                    self.assertNotEqual(self.run_preflight(**bad).returncode, 0)
+        self.assertNotEqual(self.run_preflight(TARGET='prod', MODE='normal-plan', NORMAL_EXPECTED_SHA='a' * 40,
+                            GITHUB_REF='refs/heads/main', GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/terraform.yml@refs/heads/main').returncode, 0)
 
     def test_normal_oidc_targets_correct_gcp_project(self):
         for role in ('normal_plan', 'normal_apply'):

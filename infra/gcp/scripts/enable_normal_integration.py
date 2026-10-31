@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""DEVの本人起動を維持し、Environment Secretをdevブランチに限定する。
+"""DEVの本人起動を維持し、信頼する実行元をEnvironmentへ明示追加する。
 
-GitHubの本人認証で既存DEV両Environmentをdev限定へ復旧する。
+GitHubの本人認証で既存DEV両EnvironmentのSelected branchesを管理する。
 AWS/GCP trustの監査は読み取り専用の任意操作で、本番は扱わない。
 """
 from __future__ import annotations
@@ -169,7 +169,7 @@ def check_provider(value: dict) -> None:
     caller = "assertion.workflow_ref == '" + REPO + "/.github/workflows/ci.yml@' + assertion.ref"
     callers = 'assertion.workflow_ref in [' + ', '.join(
         "'" + REPO + '/.github/workflows/' + name + "@' + assertion.ref" for name in CALLERS) + ']'
-    need(value.get('attributeCondition') in (config.CONDITION, config.CONDITION.replace(caller, callers)))
+    need(value.get('attributeCondition') in (config.CONDITION, config.CONDITION.replace(callers, caller)))
     condition = value["attributeCondition"]
     need("refs/heads/dev" not in condition
          and "integration/gcp-terraform-normal-ops" not in condition)
@@ -211,8 +211,9 @@ def dev_environment(role: str) -> tuple[str, dict]:
     return endpoint, environment
 
 
-def restrict_to_dev(endpoint: str, current: dict) -> None:
+def authorize_control_branch(endpoint: str, current: dict, target: str) -> None:
     need(endpoint in {f'repos/{REPO}/environments/terraform-dev-{role}' for role in ('plan', 'apply')})
+    branch_name(target)
     policy = {'protected_branches': False, 'custom_branch_policies': True}
     if current['deployment_branch_policy'] is None:
         # No restriction時は一覧APIが404になる。先に制限を復旧し、アクセスを閉じる。
@@ -223,16 +224,15 @@ def restrict_to_dev(endpoint: str, current: dict) -> None:
          and isinstance(values.get('branch_policies'), list))
     rules = values['branch_policies']
     need(all(type(r.get('id')) is int and type(r.get('name')) is str for r in rules))
-    def trusted(rule):
-        return rule['name'] == 'dev' and rule.get('type', 'branch') == 'branch'
-    if not any(trusted(rule) for rule in rules):
-        gh('-X', 'POST', path, '--input', '-', data={'name': 'dev', 'type': 'branch'})
-    for rule in rules:
-        if not trusted(rule):
-            gh('-X', 'DELETE', path + '/' + str(rule['id']))
+    need(all(rule.get('type', 'branch') == 'branch' for rule in rules))
+    previous = {branch_name(rule['name']) for rule in rules}
+    if target not in previous:
+        gh('-X', 'POST', path, '--input', '-', data={'name': target, 'type': 'branch'})
     latest = gh(path + '?per_page=100')
-    need(latest['total_count'] == 1 and len(latest['branch_policies']) == 1
-         and trusted(latest['branch_policies'][0]))
+    latest_rules = latest['branch_policies']
+    need(latest['total_count'] == len(previous | {target}) == len(latest_rules)
+         and all(rule.get('type', 'branch') == 'branch' for rule in latest_rules)
+         and {branch_name(rule['name']) for rule in latest_rules} == previous | {target})
 
 
 def dispatch_e2e(target: str) -> None:
@@ -251,7 +251,7 @@ def dispatch_e2e(target: str) -> None:
         need(len(selected) == 1 and selected[0].get("conclusion") == "success")
     PHASE = "github_dispatch"
     result = subprocess.run([
-        "gh", "workflow", "run", "ci.yml", "--repo", REPO, "--ref", 'dev',
+        "gh", "workflow", "run", "ci.yml", "--repo", REPO, "--ref", target,
         "-f", "terraform_authenticated=true",
         "-f", "terraform_target=dev",
         "-f", "terraform_mode=normal-e2e",
@@ -267,9 +267,9 @@ def main() -> None:
     PHASE = "arguments"
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--branch", default=DEFAULT_BRANCH,
-                        help="任意のE2E検証を実行するDEVブランチ。許可ルールには使いません")
+                        help="Environmentへ明示追加する信頼済みの実行元ブランチ")
     parser.add_argument("--apply", action="store_true",
-                        help="既存DEV Plan/Apply Environmentをdevブランチだけに制限します")
+                        help="DEV両Environmentの既存許可を残して--branchを明示追加します")
     parser.add_argument("--dispatch-e2e", action="store_true",
                         help="--applyの検証後にnormal-e2eを1回起動します")
     parser.add_argument("--verify-aws", action="store_true",
@@ -293,17 +293,17 @@ def main() -> None:
     current = {role: dev_environment(role) for role in ("plan", "apply")}
 
     print("NORMAL_BRANCH_ACCESS: PASS; phase=preflight; scope=dev;"
-          " desired_control_branch=dev; cloud_mutation=0")
+          " desired_selected_branches_only=true; cloud_mutation=0")
     if flags.apply:
         PHASE = "github_environment_update"
         for role in ("plan", "apply"):
             endpoint, previous = current[role]
-            restrict_to_dev(endpoint, previous)
+            authorize_control_branch(endpoint, previous, target)
             _, updated = dev_environment(role)
             need(updated['deployment_branch_policy'] == {'protected_branches': False, 'custom_branch_policies': True}
                  and updated['id'] == previous['id']
                  and updated.get('can_admins_bypass') == previous.get('can_admins_bypass'))
-        print("NORMAL_BRANCH_ACCESS: PASS; DEV Environment restricted to dev;"
+        print("NORMAL_BRANCH_ACCESS: PASS; trusted DEV control branch authorized;"
               " AWS/GCP mutation=0")
     if flags.dispatch_e2e:
         dispatch_e2e(target)

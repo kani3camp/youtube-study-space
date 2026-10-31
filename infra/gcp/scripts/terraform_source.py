@@ -7,7 +7,6 @@ import urllib.request
 import zipfile
 
 REPOSITORY = 'kani3camp/youtube-study-space'
-CONTROL_REF = 'refs/heads/dev'
 CHECKOUT = '.terraform-source'
 
 
@@ -19,7 +18,7 @@ def need(value):
 def branch(env):
     value = env.get('NORMAL_SOURCE_BRANCH', '')
     if not value:
-        return 'dev' if env['NORMAL_TARGET'] == 'dev' else 'main'
+        return env['GITHUB_REF'].removeprefix('refs/heads/') if env['NORMAL_TARGET'] == 'dev' else 'main'
     need(env['NORMAL_TARGET'] == 'dev' and type(value) is str
          and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._/-]*', value) is not None
          and not value.startswith('refs/'))

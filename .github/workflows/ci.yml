@@ -33,7 +33,7 @@ on:
         required: false
         type: string
       terraform_source_branch:
-        description: DEVのTerraform対象ブランチ（空欄はdev。workflowはdevから起動）
+        description: DEVのTerraform対象ブランチ（空欄はEnvironmentで許可した実行元自身）
         required: false
         type: string
       gcp_user_activity_schema_audit:

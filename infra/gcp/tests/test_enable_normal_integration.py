@@ -49,7 +49,7 @@ class BranchAuthorizationTest(unittest.TestCase):
         condition = bootstrap.CONDITION
         self.assertIn("assertion.ref.startsWith('refs/heads/')", condition)
         self.assertIn("assertion.ref != 'refs/heads/main'", condition)
-        self.assertIn("assertion.workflow_ref ==", condition)
+        self.assertIn("assertion.workflow_ref in", condition)
         self.assertIn("' + assertion.ref", condition)
         self.assertIn("assertion.repository_id == '340900071'", condition)
         self.assertIn("assertion.job_workflow_sha == assertion.sha", condition)
@@ -251,37 +251,47 @@ class BranchAuthorizationTest(unittest.TestCase):
                 value = environment(role, True)
                 return (f'repos/{op.REPO}/environments/terraform-dev-{role}',
                         value | change if history else value)
-            def update(endpoint, current):
+            def update(endpoint, current, target):
                 history.append(endpoint)
             output = io.StringIO()
             with patch.object(op, 'verify_operator'), patch.object(op, 'verify_oidc_template'), \
                     patch.object(op, 'verify_aws'), patch.object(op, 'verify_gcp'), \
                     patch.object(op, 'dev_environment', side_effect=read), \
-                    patch.object(op, 'restrict_to_dev', side_effect=update), \
+                    patch.object(op, 'authorize_control_branch', side_effect=update), \
                     patch.object(sys, 'argv', ['tool', '--apply']), redirect_stdout(output), self.assertRaises(op.Stop):
                 op.main()
-            self.assertNotIn('DEV Environment restricted to dev', output.getvalue())
+            self.assertNotIn('trusted DEV control branch authorized', output.getvalue())
 
     def test_update_cannot_target_production_or_another_environment(self):
         for name in ('terraform-prod-plan', 'terraform-prod-apply', 'codeql-analysis'):
             with patch.object(op, 'gh') as gh, self.assertRaises(op.Stop):
-                op.restrict_to_dev(f'repos/{op.REPO}/environments/{name}', {})
+                op.authorize_control_branch(f'repos/{op.REPO}/environments/{name}', {}, 'dev')
             gh.assert_not_called()
 
-    def test_wildcards_other_branches_and_dev_tags_are_removed(self):
+    def test_new_control_branch_preserves_existing_exact_authorizations(self):
         endpoint = f'repos/{op.REPO}/environments/terraform-dev-plan'
-        rules = {'total_count': 4, 'branch_policies': [
-            {'id': 1, 'name': 'dev', 'type': 'branch'},
-            {'id': 2, 'name': '*', 'type': 'branch'},
-            {'id': 3, 'name': 'feature/x', 'type': 'branch'},
-            {'id': 4, 'name': 'dev', 'type': 'tag'}]}
-        final = {'total_count': 1, 'branch_policies': [rules['branch_policies'][0]]}
-        with patch.object(op, 'gh', side_effect=[rules, {}, {}, {}, final]) as gh:
-            op.restrict_to_dev(endpoint, environment('plan'))
-        writes = [call.args for call in gh.call_args_list if call.args[0] == '-X']
-        self.assertEqual(writes, [('-X', 'DELETE', endpoint + '/deployment-branch-policies/' + str(i)) for i in (2, 3, 4)])
+        rules = {'total_count': 1, 'branch_policies': [{'id': 1, 'name': 'dev', 'type': 'branch'}]}
+        target = 'integration/mypage-canon-20261006'
+        final = {'total_count': 2, 'branch_policies': rules['branch_policies'] + [{'id': 2, 'name': target, 'type': 'branch'}]}
+        with patch.object(op, 'gh', side_effect=[rules, {}, final]) as gh:
+            op.authorize_control_branch(endpoint, environment('plan'), target)
+        writes = [call for call in gh.call_args_list if call.args[0] == '-X']
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(writes[0].args[:2], ('-X', 'POST'))
+        self.assertEqual(writes[0].kwargs['data'], {'name': target, 'type': 'branch'})
+        with patch.object(op, 'gh', side_effect=[final, final]) as gh:
+            op.authorize_control_branch(endpoint, environment('plan'), 'dev')
+        self.assertTrue(all(call.args[0] != '-X' for call in gh.call_args_list))
 
-    def test_e2e_dispatch_keeps_control_plane_on_dev(self):
+    def test_wildcards_and_tags_cannot_be_silently_trusted(self):
+        endpoint = f'repos/{op.REPO}/environments/terraform-dev-plan'
+        for name, kind in (('*', 'branch'), ('feature/*', 'branch'), ('dev', 'tag')):
+            rules = {'total_count': 1, 'branch_policies': [{'id': 1, 'name': name, 'type': kind}]}
+            with patch.object(op, 'gh', return_value=rules) as gh, self.assertRaises(op.Stop):
+                op.authorize_control_branch(endpoint, environment('plan'), 'dev')
+            self.assertTrue(all(call.args[0] != '-X' for call in gh.call_args_list))
+
+    def test_e2e_dispatch_uses_explicit_trusted_control_branch(self):
         branch = 'feature/source'
         values = [{'login': 'kani3camp', 'id': 54093651}, {'commit': {'sha': 'b' * 40}},
                   {'check_runs': [{'name': n, 'conclusion': 'success'} for n in ('CI Gate', 'GCP Terraform Validate')]}]
@@ -290,7 +300,7 @@ class BranchAuthorizationTest(unittest.TestCase):
                 redirect_stdout(io.StringIO()):
             op.dispatch_e2e(branch)
         args = run.call_args.args[0]
-        self.assertEqual(args[args.index('--ref') + 1], 'dev')
+        self.assertEqual(args[args.index('--ref') + 1], branch)
         self.assertIn('terraform_source_branch=' + branch, args)
         self.assertIn('terraform_expected_sha=' + 'b' * 40, args)
 

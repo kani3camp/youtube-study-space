@@ -1,6 +1,7 @@
 """DEV control planeとTerraform対象の分離を、実Git checkoutとモックAPIで検証する。"""
 from contextlib import redirect_stdout
 import io
+import base64
 import json
 from pathlib import Path
 import subprocess
@@ -52,12 +53,18 @@ class SourceBoundary(unittest.TestCase):
                      'NORMAL_EXPECTED_SHA': source_sha}
         return control, source, e
 
-    def test_owner_dispatch_runs_only_from_dev_but_source_sha_can_differ(self):
+    def test_owner_dispatch_control_ref_is_checked_without_a_branch_name_allowlist(self):
         e = env() | {'NORMAL_SOURCE_BRANCH': 'feature/source', 'NORMAL_EXPECTED_SHA': 'b' * 40}
         self.assertEqual(ops.context(e, 'plan'), 'dev')
-        for ref in ('refs/heads/feature/source', 'refs/heads/main', 'refs/tags/dev', 'refs/pull/1/merge'):
+        for ref in ('refs/heads/main', 'refs/tags/dev', 'refs/pull/1/merge'):
             with self.subTest(ref=ref), self.assertRaises(ValueError):
                 ops.context(e | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': ops.CALLER + ref}, 'plan')
+        for control in ('dev', 'integration/mypage-canon-20261006', 'feature/trusted-controller'):
+            for caller in ops.DEV_CALLERS:
+                ref = 'refs/heads/' + control
+                context = e | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': caller + ref}
+                self.assertEqual(ops.context(context, 'plan'), 'dev')
+                self.assertEqual(selected.branch(context | {'NORMAL_SOURCE_BRANCH': ''}), control)
         for key, value in (('GITHUB_ACTOR', 'other'), ('GITHUB_ACTOR_ID', '0'),
                            ('GITHUB_TRIGGERING_ACTOR', 'other'), ('GITHUB_RUN_ATTEMPT', '2'),
                            ('GITHUB_EVENT_NAME', 'pull_request')):
@@ -82,6 +89,32 @@ class SourceBoundary(unittest.TestCase):
         for value in ('https://github.com/fork/repo', 'refs/pull/1/merge', '../x', 'x/../y', '-option', 'branch\nname'):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 selected.identity(e | {'NORMAL_SOURCE_BRANCH': value})
+
+    def test_oidc_binds_allowed_control_ref_and_caller_not_source_ref(self):
+        ref = 'refs/heads/integration/mypage-canon-20261006'
+        e = env() | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': ops.DEV_CALLERS[1] + ref,
+                     'NORMAL_SOURCE_BRANCH': 'feature/data', 'NORMAL_EXPECTED_SHA': 'b' * 40,
+                     'ACTIONS_ID_TOKEN_REQUEST_URL': 'https://fixture.invalid/token?x=1',
+                     'ACTIONS_ID_TOKEN_REQUEST_TOKEN': 'FAKE_REQUEST_TOKEN'}
+        fields = {'repository_id': '340900071', 'repository_owner_id': '54093651',
+                  'environment': 'terraform-dev-plan', 'ref': ref,
+                  'workflow_ref': e['GITHUB_WORKFLOW_REF'], 'job_workflow_ref': ops.REUSABLE + ref,
+                  'event_name': 'workflow_dispatch'}
+        claims = fields | {'actor_id': '54093651', 'actor': 'kani3camp', 'run_attempt': '1',
+                           'run_id': e['GITHUB_RUN_ID'], 'workflow_sha': e['GITHUB_SHA'],
+                           'job_workflow_sha': e['GITHUB_SHA']}
+        claims['sub'] = ':'.join(f'{key}:{value.replace(":", "%3A")}' for key, value in fields.items())
+        response = MagicMock()
+        def reply(value):
+            payload = base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip('=')
+            response.__enter__.return_value.read.return_value = json.dumps({'value': 'header.' + payload + '.signature'}).encode()
+            with patch.object(ops.common.urllib.request, 'urlopen', return_value=response):
+                ops.oidc(e)
+        reply(claims)
+        for change in ({'ref': 'refs/heads/feature/data'}, {'workflow_sha': 'b' * 40},
+                       {'actor_id': '0'}, {'job_workflow_ref': ops.REUSABLE + 'refs/heads/dev'}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                reply(claims | change)
 
     def test_selected_hcl_inputs_review_and_assets_are_data_only(self):
         with tempfile.TemporaryDirectory() as temporary:
