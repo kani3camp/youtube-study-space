@@ -329,7 +329,9 @@ def changed_attributes(change):
     if type(before) is not dict or type(after) is not dict or type(unknown) is not dict:
         return ["<withheld>"]
     names = {key for key in set(before) | set(after) if before.get(key) != after.get(key)}
-    names |= {key for key, value in unknown.items() if value not in (False, None, {}, [])}
+    # Terraform serializes known nested structures as empty containers ([{}]);
+    # only a nested True marks a value that is unknown until Apply.
+    names |= {key for key, value in unknown.items() if contract.has_unknown(value)}
     return sorted(name if type(name) is str and PUBLIC_ATTRIBUTE.fullmatch(name) else "<withheld>" for name in names)
 
 

@@ -558,6 +558,13 @@ class RuntimeDriftDiagnosticTest(unittest.TestCase):
         self.assertNotIn('secret', json.dumps(names))
         self.assertEqual(ops.changed_attributes({'before': None, 'after': {}}), ['<withheld>'])
 
+    def test_known_nested_structures_in_after_unknown_are_not_changes(self):
+        same = {'template': [{'containers': [{'image': 'x'}]}], 'launch_stage': 'GA'}
+        change = {'before': same | {'launch_stage': 'BETA'}, 'after': same,
+                  'after_unknown': {'template': [{}], 'scaling': {'containers': [{}]}, 'labels': [False],
+                                    'traffic': [{'percent': False, 'revision': True}]}}
+        self.assertEqual(ops.changed_attributes(change), ['launch_stage', 'traffic'])
+
 
 if __name__ == "__main__":
     unittest.main()
