@@ -14,7 +14,9 @@ Environmentのブランチ制限は、クラウド認証とは独立したSecret
 2. 非秘密入力は対象ブランチの`normal.tfvars.json`へ追加します。既存Environmentのprivate tfvarsへ重ねるため、既存リソースの選択やprivate inventoryを落としません。秘密値はコミットせず、新しいprivate入力は両DEV Environmentで一致させます。
 3. delete/replaceが必要なら、対象ブランチの`normal-operations.json`に正確なaddressとactionsを記載します。create/updateにリソース別manifestやtype登録は要求しません。
 4. 対象ブランチのCIとレビューを確認し、現在の40桁HEAD SHAを控えます。preflightはEnvironment Secretを使わず、同一repositoryのbranch HEADと指定SHAの一致を確認します。fork、PR ref、branch/SHAの不一致を対象ソースとして使いません。
-5. Actions → CI → Run workflowで次を指定します。
+5. 実行元にある正規の入口を選びます。以下はActions → CI → Run workflowの入力例です。
+
+   マイページ統合ブランチの現行入口はActions → **Terraform**です。Use workflow fromに`integration/mypage-canon-20261006`、environmentに`development`、operationに`plan`／`apply`、componentに`core`／`mypage`／`all`を指定します。この入口では実行元自身のHCLを使い、そのSHAを自動的に固定します。入力項目は当該ブランチのworkflowを正本とします。
 
    | 項目 | DEV Plan | DEV Apply |
    | --- | --- | --- |
