@@ -20,9 +20,9 @@ import time
 from typing import NamedTuple
 import terraform_source as selected_source
 
+import terraform_runtime as common
+
 REPO = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO / '.github/scripts'))
-import terraform_migration as common
 
 PROJECT = 'test-youtube-study-space'  # Backwards-compatible DEV test fixture
 PROJECTS = {'dev': PROJECT, 'prod': 'youtube-study-space'}
@@ -42,7 +42,7 @@ PLAN_REJECTIONS = frozenset({'format', 'incomplete', 'deferred', 'refresh-drift'
 NORMAL_OBSERVATIONS = frozenset({'etag', 'last_modified_time', 'num_bytes',
                                 'num_long_term_bytes', 'num_rows'})
 PRIVATE = 'gcp-normal-private'
-MODES = {'normal-plan', 'normal-apply', 'normal-e2e'}
+MODES = {'normal-plan', 'normal-apply'}
 ACTIONS = {('no-op',), ('read',), ('create',), ('update',), ('delete',),
            ('delete', 'create'), ('create', 'delete')}
 MAX_AGE = 1800
@@ -97,7 +97,7 @@ def context(env, role=None):
     else:
         # No feature/integration branch may ever operate on Production.
         ref = 'refs/heads/main'
-        need(env.get('GITHUB_REF') == ref and env['NORMAL_MODE'] != 'normal-e2e')
+        need(env.get('GITHUB_REF') == ref)
         need(not env.get('NORMAL_SOURCE_BRANCH'))
     callers = DEV_CALLERS if target == 'dev' else (CALLER,)
     need(env.get('GITHUB_WORKFLOW_REF') in {caller + ref for caller in callers})
@@ -106,7 +106,7 @@ def context(env, role=None):
         need(env.get('NORMAL_EXPECTED_SHA') == env['GITHUB_SHA'])
     if role is not None:
         need(role in {'plan', 'apply'} and env.get('GITHUB_JOB') == 'normal_' + role)
-        need(role != 'apply' or env['NORMAL_MODE'] in {'normal-apply', 'normal-e2e'})
+        need(role != 'apply' or env['NORMAL_MODE'] == 'normal-apply')
         need(env.get('TF_WORKSPACE') == 'default' and env.get('STATE_AWS_REGION') == 'ap-northeast-1')
     return target
 
@@ -262,7 +262,7 @@ def validate_observation_drift(plan, state, provider_schema):
     changes = {item['address']: item for item in plan['resource_changes']}
     seen = set()
     for item in drift:
-        need(type(item) is dict and set(item) <= common.contract.RESOURCE_KEYS | {'change', 'action_reason'})
+        need(type(item) is dict and set(item) <= common.RESOURCE_KEYS | {'change', 'action_reason'})
         address = item['address']
         need(address not in seen and address in native and address in changes)
         seen.add(address)
@@ -272,19 +272,19 @@ def validate_observation_drift(plan, state, provider_schema):
         for key in ('address', 'module_address', 'mode', 'type', 'name', 'index', 'provider_name'):
             need(item.get(key) == current.get(key))
         change, planned = item['change'], current['change']
-        need(type(change) is dict and set(change) <= common.contract.CHANGE_KEYS)
+        need(type(change) is dict and set(change) <= common.CHANGE_KEYS)
         plan_need(change.get('actions') == ['update'] and not change.get('importing')
                   and not change.get('replace_paths'), 'refresh-actions')
         before, after = change['before'], change['after']
         need(type(before) is dict and type(after) is dict and set(before) == set(after))
         differing = {key for key in before if common.canonical(before[key]) != common.canonical(after[key])}
-        plan_need(bool(differing) and differing <= common.contract.observation_keys(
+        plan_need(bool(differing) and differing <= common.observation_keys(
             provider_schema, item['type'], NORMAL_OBSERVATIONS), 'refresh-fields')
         plan_need(common.canonical(before) == common.canonical(native[address]['attributes']), 'refresh-state-before')
         plan_need(common.canonical(after) == common.canonical(planned['before']), 'refresh-plan-before')
         # The shared mask validator rejects every unknown leaf, including nested ones.
         try:
-            common.contract._mask(change.get('after_unknown', {}), unknown=True)
+            common._mask(change.get('after_unknown', {}), unknown=True)
         except Exception:
             raise PlanRejected('refresh-unknowns') from None
         for key in ('before_sensitive', 'after_sensitive'):
@@ -506,8 +506,7 @@ def match(env, digest, now):
 
 
 def snapshot(env, root, name):
-    # Reuse bounded native-S3 state/lock/workspace checks, not migration contracts.
-    return common.snapshot(env | {'MIGRATION_TARGET': env['NORMAL_TARGET']}, root, name)
+    return common.snapshot(env, root, name)
 
 
 def phase(name):
@@ -655,54 +654,6 @@ def apply_saved(env, root, tfroot, binary, before, name):
     return after
 
 
-def e2e(env, root, tfroot, before):
-    need(env['NORMAL_TARGET'] == 'dev')
-    # Only a generated, uniquely named DEV topic; no workload is altered for tests.
-    probe = tfroot / 'normal_probe.tf.json'
-    address = 'google_pubsub_topic.normal_ops_probe'
-    baseline = before['state']['resources']
-    need(all(r.get('name') != 'normal_ops_probe' for r in baseline))
-    try:
-        for phase, suffix, label, expected in [('create', 'a', 'one', 'create'),
-                ('update', 'a', 'two', 'update'), ('replace', 'b', 'two', 'replace'),
-                ('delete', None, None, 'delete')]:
-            if suffix is None:
-                probe.unlink()
-            else:
-                value = {'resource': {'google_pubsub_topic': {'normal_ops_probe': {
-                    'project': PROJECT, 'name': 'terraform-normal-probe-' + env['GITHUB_RUN_ID'] + '-' + suffix,
-                    'labels': {'verification': label}}}}}
-                if probe.exists():
-                    probe.unlink()
-                common.write(probe, common.canonical(value))
-            approved = {} if phase in {'create', 'update'} else {address: ['delete', 'create'] if phase == 'replace' else ['delete']}
-            binary, value, counts = plan(env, root, tfroot, phase, approved, state=before['state'])
-            changed = [c for c in value.get('resource_changes', []) if c['change']['actions'] != ['no-op']]
-            need(len(changed) == 1 and changed[0]['address'] == address and counts[expected] == 1)
-            before = apply_saved(env, root, tfroot, binary, before, phase)
-            print('GCP_NORMAL_E2E: PASS; phase=' + phase)
-    except Exception:
-        # Recovery may delete only this run's probe. Never apply changes to any
-        # existing workload as an incidental cleanup operation.
-        if probe.exists():
-            probe.unlink()
-        try:
-            current = snapshot(env, root, 'recovery-current')
-            binary, value, _ = plan(env, root, tfroot, 'recovery', {address: ['delete']}, state=current['state'])
-            changed = [c for c in value.get('resource_changes', []) if c['change']['actions'] != ['no-op']]
-            need(len(changed) == 1 and changed[0]['address'] == address
-                 and changed[0]['change']['actions'] == ['delete'])
-            apply_saved(env, root, tfroot, binary, current, 'recovery')
-            print('GCP_NORMAL_E2E: recovery_probe_deleted=true')
-        except Exception as error:
-            common.close_http_error(error)
-            print('GCP_NORMAL_E2E: STOP; probe cleanup requires documented operator recovery')
-        raise
-    # Compare identities and all managed attributes after removing the probe.
-    need(before['state']['resources'] == baseline)
-    print('GCP_NORMAL_E2E: PASS; baseline_restored=true')
-
-
 def output_commitments(env, tfvars, before, plan_json, key, *, include_time=False):
     # The runner only logs output names. HMACs must never be placed into step
     # env or interpolated shell commands. GitHub expressions compare them.
@@ -751,8 +702,6 @@ def execute(env, *, prepare_only=False):
     if initial_production_noop(env, before, value, counts):
         # Emitted only after native full-root validation and State readback.
         print(f"GCP_PROD_INITIAL_NOOP: PASS; source={env['GITHUB_SHA']}; run={env['GITHUB_RUN_ID']}; managed=30; state_unchanged=true")
-    if env['NORMAL_MODE'] == 'normal-e2e':
-        need(all(k in {'no-op', 'read'} or v == 0 for k, v in counts.items()))
     phase('plan-binding')
     digest = output_commitments(env, tfvars, before, value, key,
                                 include_time=(role == 'plan'))
@@ -803,12 +752,7 @@ def apply_prepared(env):
     tfroot = root / 'checkout/infra/gcp/environments' / env['NORMAL_TARGET']
     need(tfroot.is_dir() and not tfroot.is_symlink())
     print('GCP_NORMAL: phase=apply-and-verify')
-    after = apply_saved(env, root, tfroot, binary, before, 'normal')
-    if env['NORMAL_MODE'] == 'normal-e2e':
-        counts = prepared['counts']
-        need(type(counts) is dict and
-             all(k in {'no-op', 'read'} or v == 0 for k, v in counts.items()))
-        e2e(env, root, tfroot, after)
+    apply_saved(env, root, tfroot, binary, before, 'normal')
     print('GCP_NORMAL: PASS; role=apply; counts=' +
           json.dumps(prepared['counts'], sort_keys=True))
 

@@ -36,7 +36,6 @@ GROUPS = ('system', 'room_image_prompt', 'menu_image_generator', 'video_maker_si
 DEPENDENCIES = {'changes', *MODULES, 'gcp-terraform-validate', 'gcp-user-activity-schema-audit'}
 AUTH_SECRETS = ('GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', 'GCP_TERRAFORM_NORMAL_WIF_PROVIDER', 'AWS_TERRAFORM_BACKEND_ROLE_ARN', 'AWS_TERRAFORM_BACKEND_ROLE_ID',
                 'AWS_TERRAFORM_STATE_BUCKET', 'AWS_TERRAFORM_STATE_ACCOUNT_ID',
-                'GCP_TERRAFORM_WIF_PROVIDER', 'GCP_TERRAFORM_SERVICE_ACCOUNT',
                 'GCP_TERRAFORM_MANAGED_INPUTS_JSON')
 AUDIT_SECRETS = ('GCP_TERRAFORM_WIF_PROVIDER', 'GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT')
 
@@ -129,7 +128,7 @@ def validate(caller, modules):
         require(dispatch[toggle]['type'] == 'boolean' and dispatch[toggle]['default'] is False
                 and dispatch[toggle]['required'] is False, 'Operations remain opt-in')
     for key, default, options in (('terraform_target', 'dev', ['dev', 'prod']),
-                                  ('terraform_mode', 'migration-plan', ['migration-plan', 'migration-apply', 'normal-plan', 'normal-apply', 'normal-e2e'])):
+                                  ('terraform_mode', 'normal-plan', ['normal-plan', 'normal-apply'])):
         require(dispatch[key]['type'] == 'choice' and dispatch[key]['default'] == default
                 and dispatch[key]['options'] == options and dispatch[key]['required'] is False, 'Dispatch choices stay fixed')
     require(caller['concurrency'] == {

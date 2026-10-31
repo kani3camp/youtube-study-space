@@ -15,7 +15,7 @@
 
 ## DEVの通常Plan/Apply
 
-`normal-plan` / `normal-apply` / `normal-e2e` はDEVの通常操作に使います。
+`normal-plan` / `normal-apply` はDEVの通常操作に使います。
 controllerは `infra/gcp/scripts/terraform_normal_ops.py`、運用入口と設定手順は[README](../README.md#通常のdev-terraform開発)です。
 リソース型・変更件数の独自allowlistはありません。provider schemaと通常変更の検証契約を使用します。
 
@@ -43,33 +43,32 @@ Plan用SAにはリソースの読取りとmetadataだけ、Applyには限定し�
 
 ## PRODの通常Plan/Apply（main固定）
 
-Productionは `normal-plan` / `normal-apply` を `refs/heads/main` と完全一致する同SHA caller/reusableだけに許可します。`normal-e2e` はPRODでは拒否します。GCP Projectは `youtube-study-space`、State keyは `youtube-study-space/prod/terraform.tfstate`、Terraform root/private inputsは `infra/gcp/environments/prod/` 専用です。DEV Root/Stateを使い回しません。
+Productionは `normal-plan` / `normal-apply` を `refs/heads/main` と完全一致する同SHA caller/reusableだけに許可します。GCP Projectは `youtube-study-space`、State keyは `youtube-study-space/prod/terraform.tfstate`、Terraform root/private inputsは `infra/gcp/environments/prod/` 専用です。DEV Root/Stateを使い回しません。
 
-通常Planのrefresh差分は、移行経路と共通のprovider schemaでcomputed専用と確認したBigQuery tableの`etag` / `last_modified_time` / `num_bytes` / `num_long_term_bytes` / `num_rows`だけを許容します。保存済みnative State→refresh前値→refresh後値→Planのbefore、identity・sensitivity maskを照合し、未知値・設定値・作成時刻・他フィールド・他種別のdriftは拒否します。移行経路の許容範囲は従来の2属性のままです。drift全体はHMACに含め、初回30資源・outputsのno-opとState不変の条件は維持します。公開診断は固定理由コードとprovider schemaで照合したresource type・操作・件数だけです。
+通常Planのrefresh差分は、provider schemaでcomputed専用と確認したBigQuery tableの`etag` / `last_modified_time` / `num_bytes` / `num_long_term_bytes` / `num_rows`だけを許容します。保存済みnative State→refresh前値→refresh後値→Planのbefore、identity・sensitivity maskを照合し、未知値・設定値・作成時刻・他フィールド・他種別のdriftは拒否します。drift全体はHMACに含め、初回30資源・outputsのno-opとState不変の条件は維持します。公開診断は固定理由コードとprovider schemaで照合したresource type・操作・件数だけです。
 
-GitHubの `terraform-prod-plan` / `terraform-prod-apply` はmain-only Selected branches、別GCP normal WIF/SA、既存のPROD AWS backend role、同runの独立再Plan/HMAC一致・saved plan seal、明示的な破壊的操作review、適用後のfull-root no-opとnative S3 lockを要求します。source+inputs+target+State/HEAD+全planのHMACは値をstep envやshell commandへ渡さずGitHub式で比較します。既存migration controller/identityの権限は変えません。
+GitHubの `terraform-prod-plan` / `terraform-prod-apply` はmain-only Selected branches、別GCP normal WIF/SA、既存のPROD AWS backend role、同runの独立再Plan/HMAC一致・saved plan seal、明示的な破壊的操作review、適用後のfull-root no-opとnative S3 lockを要求します。source+inputs+target+State/HEAD+全planのHMACは値をstep envやshell commandへ渡さずGitHub式で比較します。旧移行用identityのクラウド設定はこのコード整理では変更しません。
 
 本番用の通常Applyカスタムロールは資源単位の `*.setIamPolicy` を除外し、コード変更だけで公開grantや他identityへの権限昇格を認めません。必要なgrantは独立した権限審査を前提に追加します。
 
 管理端末で既存PROD AWS Roleのnative owner actor_id/main trust、GitHub Environmentのmain-only branch rule、GCPの専用identity/permissionのreadbackを先に行ってください。コードの合格だけでは実PROD認証成功ではありません。実mainリリース後に本番full-root no-op Planを確認し、必要な変更について別途Applyを検証します。初回bootstrapはPlan identityだけを作り、現在のmainで既存30資源の通常full-root no-op実績をAPI/ログで検証する別操作までApply identityを作りません。AWS backendの全inline/attached policyをPROD State/lock/prefixへ完全照合し、Plan内のproject-bearing ID/SA参照もPRODへ制限します。詳細は[README](../README.md#通常のprod-terraform開発main固定)。
 
-## 既存import専用経路
+## 廃止モードと入力互換性
 
-`migration-plan` / `migration-apply` は既存baselineの限定import/no-opとState観測値の同期に使います。
-固定private tfvars/manifest、クラウドmetadata、full-root Planを照合し、一般のcreate/update/delete/replaceは拒否します。
-通常CRUDは上記の `normal-*` 経路で行い、import-only契約を緩めて転用しません。
+`migration-plan` / `migration-apply` / `normal-e2e`はDEV・PRODとも認証前に拒否します。
+移行専用job、controller、空State initializer、E2E dispatch helperはありません。
+通常Plan/ApplyはState欠損時に停止し、自動初期化しません。State復旧は[専用runbook](state-account-recovery.md)を使用します。
 
-Applyでは同runのPlan成功後、独立identityで同SHAを再Planし、source/input/State/metadata/Planを比較します。
-保存Planのseal、事後State差分・クラウドmetadata・full-root no-op・lock解放を検証します。
-詳細は[既存import専用の運用契約](runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)を参照してください。
+既存Environment Secretとの互換性のため、`gcp-migration-inputs-v1` / `gcp-migration-inputs-packed-v1`というwire名、
+`schema_version` / `tfvars` / `manifest` / `plan_integrity_key`の4fieldは保持します。通常実行は固定manifestをimport許可に使いません。
+`terraform_runtime.py`が48KiBのwire、4MiBの展開上限、canonical Base64、単一zlib stream、
+duplicate key・nonfinite・overflow・入れ子wrapper拒否を検査します。圧縮は秘匿化ではなく、両Environmentの入力は一致させます。
 
 ## 実行refとEnvironmentの保護
 
 | 経路 | 許可するref |
 | --- | --- |
 | DEV通常操作 | workflowの実行元はEnvironmentで明示許可した信頼済みbranch。対象sourceは同一repoの任意branchとexact SHA。データとして選ぶだけのbranchは登録しない |
-| DEV既存import | Environmentで許可した実行元のうち、従来controllerが許可するdev/integrationのみ。source選択をimportへ転用しない |
-| Production既存import | `main`固定 |
 | Production通常操作 | **`main`固定**。GCP通常専用WIF/SA、PROD backend role・GitHub 2 Environmentの独立保護と実Plan/Apply認証が必要 |
 
 DEVは本人起動と、Environmentの明示的なSelected branches policyの両方を要求します。Productionのmain-only branch policyは維持します。
@@ -91,9 +90,9 @@ Environment reviewは実行時の確認を加える別の制御です。必要�
 3. AWS backend roleの対象State/lock key、PlanのState書込禁止、Applyの環境限定書込、S3のVersioning・暗号化・公開アクセス遮断を確認する。
 4. GitHub Environmentの許可ref・保護設定と必要なSecret名を確認する。Secret値は読み戻せないため、認証付き実行で動作を検証する。
 5. 認証付きfull-root Plan、必要なApply、事後no-opとlock解放を確認する。
-   初回導入や基盤変更の検証には[単一DEV E2E](../README.md#dev基盤のe2e検証)を使う。
+   実変更が必要な基盤検証は、レビュー済みDEV用HCLの通常Plan/Applyで行う。
 
-設定readback、既存import identityのno-op成功、新しい通常identityの実Plan/Apply成功は区別して記録します。
+設定readbackと通常identityの実Plan/Apply成功は区別して記録します。
 基盤設定やソースのマージだけで、新identityの実証が完了したとは判定しません。
 
 ## 実行記録と変更履歴
