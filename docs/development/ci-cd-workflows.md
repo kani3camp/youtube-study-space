@@ -169,6 +169,22 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 
 加えて、deploy script は既存の resourceVersion / etag / 再読取による楽観的排他を維持し、競合時は自動 retry せず停止する。
 
+### 3.6 Actions の実行保護（owner 設定）
+
+GitHub の Settings → Actions → Policies（workflow execution policy）で、誰がどのイベントで workflow を起動できるかを制限する（2026-10-31 に owner が設定）。リポジトリ外の設定で、全ブランチの workflow に適用される。現在の設定は `gh api repos/kani3camp/youtube-study-space/actions/policies` で読める。
+
+| Policy | 対象 workflow | 許可する actor / event |
+| --- | --- | --- |
+| Allow base image report pull_request_target | `base-image-update-report.yml` | owner と `dependabot[bot]` / `pull_request_target` |
+| Restrict Terraform execution | `terraform.yml` | owner / `pull_request`・`workflow_dispatch` |
+| Restrict manual MyPage operations | `deploy-mypage-api.yml`・`deploy-mypage-frontend.yml`・`deploy-mypage-maintenance.yml`・`mypage-maintenance.yml` | owner / `workflow_dispatch` |
+| Protect authenticated reusable workflows | 資格情報を扱う reusable（`gcp-terraform-authenticated.yml`・`mypage-*-authenticated.yml`） | owner / `workflow_call` |
+| Block unregistered workflows | 除外リストにない全 workflow | なし（起動不可） |
+
+- **workflow を追加・改名するとき**は、同じ PR の作業として「Block unregistered workflows」の除外リストへ追加する（資格情報を扱うなら上の該当 policy にも追加する）。追加しないと、その workflow は `startup_failure` になり起動しない。削除したときは各リストから外す。
+- 防げるのは、協力者や外部の PR が**新しい** workflow ファイルを足して起動すること、制限した workflow を owner 以外が起動すること。起動者を制限していない既存 workflow（`ci.yml` など）を PR で書き換えることは防げない。その場合も DEV Environment の Secret は資格情報ではなく、クラウドの資格情報は trust の actor 検査で取得できない（3.2）。
+- 参照されていても呼ばれない reusable（`main` の `ci.yml` が参照する撤去済みの `gcp-user-activity-schema-audit.yml`）は、起動の妨げにならないことを確認した。
+
 ## 4. 移行計画
 
 作業用統合ブランチ `integration/ci-usecase-redesign-20261030`（base: `integration/mypage-canon-20261006`）へ PR を積み、最後に統合ブランチから `integration/mypage-canon-20261006` へ1本のPRで戻す。`dev` へはマージしない。
@@ -189,7 +205,7 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 | 8 | schema audit の撤去（owner 判断） | `gcp-user-activity-schema-audit.yml`・`ci-operations.yml`・要約 script・監査専用 fixture とテストを削除し、`ci.yml` の `operation` 入力・`operations` job・CI Gate の operation 判定を撤去。履歴 adoption のテストは `test_user_activity_history_preparation.py` へ分離 | Environment `gcp-dev-user-activity-schema-audit` とその secret の削除（任意） |
 | 9 | 作業用統合ブランチ → `integration/mypage-canon-20261006` | — | 4.2 の順で実施 |
 
-- 各PRは、追加した最上位 workflow を `ci-repository.yml` の workflow 契約テスト（[`test_ci_workflows.py`](../../.github/scripts/test_ci_workflows.py)、[`test_ci_deploy_workflows.py`](../../.github/scripts/test_ci_deploy_workflows.py) ほか）と actionlint の対象に登録する。
+- 各PRは、追加した workflow を Actions の実行保護の除外リストへ登録する（3.6）。追加した最上位 workflow は `ci-repository.yml` の workflow 契約テスト（[`test_ci_workflows.py`](../../.github/scripts/test_ci_workflows.py)、[`test_ci_deploy_workflows.py`](../../.github/scripts/test_ci_deploy_workflows.py) ほか）と actionlint の対象に登録する。
 - 資格情報を取得する job が reusable workflow の外にないことを `test_ci_deploy_workflows.py` が検査する。#6 で例外は空になった。
 - reusable workflow を呼ぶ job の条件には `always()` を使わない（run のキャンセル後も真になるため）。`!cancelled()` で skip を許容する。これも同じテストで検査する。
 - PR 説明では「旧経路が有効か」「新経路がまだ無効か」を必ず書く。
