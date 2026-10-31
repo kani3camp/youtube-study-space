@@ -1,50 +1,18 @@
 name: CI
 
+# UC1: credentialless validation only. Terraform, application deploys and
+# maintenance mode have their own workflows (docs/development/ci-cd-workflows.md).
+# workflow_dispatch re-runs the full validation; it has no inputs and no credentials.
 on:
   pull_request:
-  push:
-    branches:
-      - integration/mypage-canon-20261006
-    paths:
-      - system/**
   workflow_dispatch:
-    inputs:
-      operation:
-        description: Manual operation
-        required: false
-        default: validate
-        type: choice
-        options:
-          - validate
-          - gcp-plan
-          - gcp-apply
-          - gcp-user-activity-schema-audit
-          - mypage-image-build
-          - mypage-hosting-release
-          - mypage-backend-release
-      image_digest:
-        description: Optional exact Artifact Registry digest for DEV manual release/rollback
-        required: false
-        type: string
-      image_source_sha:
-        description: Optional immutable image build source SHA (required with digest)
-        required: false
-        type: string
-      environment:
-        description: Target environment for manual operations
-        required: false
-        default: development
-        type: choice
-        options:
-          - development
-          - production
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.sha) || github.ref }}
-  cancel-in-progress: ${{ !((github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') || (github.event_name == 'push' && github.ref == 'refs/heads/integration/mypage-canon-20261006')) }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   changes:
@@ -80,7 +48,6 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CI_AUTHENTICATED_TERRAFORM_DISPATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'gcp-user-activity-schema-audit' }}
         run: bash .github/scripts/detect-ci-paths.sh
 
   system:
@@ -130,45 +97,6 @@ jobs:
     if: ${{ needs.changes.outputs.gcp_terraform == 'true' || needs.changes.outputs.all == 'true' }}
     uses: ./.github/workflows/ci-gcp-terraform.yml
 
-  operations:
-    name: Authenticated Operations
-    needs: [repository, frontend, system, tools, infra, gcp-terraform-validate]
-    if: ${{ always() && ((github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') || (github.event_name == 'push' && github.ref == 'refs/heads/integration/mypage-canon-20261006')) }}
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/ci-operations.yml
-    with:
-      operation: ${{ github.event_name == 'push' && 'mypage-auto-cd' || inputs.operation }}
-      environment: ${{ github.event_name == 'push' && 'development' || inputs.environment }}
-      image_digest: ${{ inputs.image_digest || '' }}
-      image_source_sha: ${{ inputs.image_source_sha || '' }}
-      repository_result: ${{ needs.repository.result }}
-      frontend_result: ${{ needs.frontend.result }}
-      system_result: ${{ needs.system.result }}
-      tools_result: ${{ needs.tools.result }}
-      infra_result: ${{ needs.infra.result }}
-      gcp_terraform_validate_result: ${{ needs.gcp-terraform-validate.result }}
-    secrets:
-      GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
-      GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
-      AWS_TERRAFORM_BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
-      AWS_TERRAFORM_BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
-      AWS_TERRAFORM_STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
-      AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
-      GCP_TERRAFORM_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
-      GCP_TERRAFORM_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
-      GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
-      GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT: ${{ secrets.GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT }}
-      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
-      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
-      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
-      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
-      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
-      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
-      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
-      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
-
   ci-gate:
     name: CI Gate
     if: always()
@@ -180,7 +108,6 @@ jobs:
       - infra
       - repository
       - gcp-terraform-validate
-      - operations
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -189,5 +116,4 @@ jobs:
       - name: Require successful selected validations
         env:
           CI_NEEDS: ${{ toJSON(needs) }}
-          CI_OPERATION_REQUESTED: ${{ (github.event_name == 'workflow_dispatch' && inputs.operation != 'validate') || (github.event_name == 'push' && github.ref == 'refs/heads/integration/mypage-canon-20261006') }}
         run: python3 .github/scripts/check-ci-results.py

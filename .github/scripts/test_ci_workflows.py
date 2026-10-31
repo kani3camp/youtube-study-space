@@ -65,27 +65,16 @@ class WorkflowSafetyTest(unittest.TestCase):
         self.assertNotIn('continue-on-error', step)
         self.assertEqual(step['env']['CI_NEEDS'], '${{ toJSON(needs) }}')
 
-    def test_pr_validation_cannot_receive_operations_credentials(self):
+    def test_ci_never_receives_credentials_or_operation_inputs(self):
         self.assertEqual(self.caller['permissions'], {'contents': 'read'})
-        operations = self.caller['jobs']['operations']
-        dispatch = "(github.event_name == 'workflow_dispatch' && inputs.operation != 'validate')"
-        push = "(github.event_name == 'push' && github.ref == 'refs/heads/integration/mypage-canon-20261006')"
-        self.assertEqual(operations['if'], '${{ always() && (' + dispatch + ' || ' + push + ') }}')
-        gate_step = self.caller['jobs']['ci-gate']['steps'][-1]
-        self.assertEqual(gate_step['env']['CI_OPERATION_REQUESTED'],
-                         '${{ ' + dispatch + ' || ' + push + ' }}')
-        self.assertEqual(self.caller['on']['push']['branches'],
-                         ['integration/mypage-canon-20261006'])
-        self.assertEqual(set(self.caller['on']['push']['paths']),
-                         {'system/**'})
-        self.assertIn("mypage-auto-cd", operations['with']['operation'])
-        self.assertEqual(operations['permissions'], {'contents': 'read', 'id-token': 'write'})
+        # CI is validation only: no push trigger, no dispatch inputs, no operations job.
+        self.assertEqual(set(self.caller['on']), {'pull_request', 'workflow_dispatch'})
+        self.assertIsNone(self.caller['on']['workflow_dispatch'])
+        self.assertNotIn('operations', self.caller['jobs'])
         for path in (ROOT / '.github/workflows').glob('ci*.yml'):
             workflow = load(path)
             self.assertNotEqual(workflow.get('permissions', {}).get('id-token'), 'write')
             for name, job in workflow['jobs'].items():
-                if path.name == 'ci-operations.yml' or (path.name == 'ci.yml' and name == 'operations'):
-                    continue
                 with self.subTest(workflow=path.name, job=name):
                     self.assertNotEqual(job.get('permissions', {}).get('id-token'), 'write')
                     self.assertNotIn('secrets', job)

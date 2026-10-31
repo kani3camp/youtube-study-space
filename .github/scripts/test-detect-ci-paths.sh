@@ -5,6 +5,12 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 detector="$script_dir/detect-ci-paths.sh"
 
+# テストケースの判定結果を、呼び出し元jobのSummaryやoutputsへ書き込まない。
+test_dir="$(mktemp -d)"
+trap 'rm -rf "$test_dir"' EXIT
+export GITHUB_STEP_SUMMARY="$test_dir/summary"
+export GITHUB_OUTPUT="$test_dir/output"
+
 assert_output_groups() {
 	local expected_groups="$1"
 	local output="$2"
@@ -81,16 +87,10 @@ assert_exact_groups gcp_terraform .github/scripts/test_export_topic.py
 assert_exact_groups gcp_terraform .github/scripts/test_export_scheduler.py
 assert_exact_groups gcp_terraform .github/scripts/test_export_function.py
 assert_exact_groups gcp_terraform .github/scripts/test_order_history.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_migration.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_migration_contract.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_migration.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_migration_contract.py
-assert_exact_groups gcp_terraform .github/scripts/production_initializer.py
-assert_exact_groups gcp_terraform .github/scripts/test_production_initializer.py
-assert_exact_groups gcp_terraform .github/scripts/test_production_initializer_controller.py
-assert_exact_groups gcp_terraform .github/scripts/test_production_initializer_s3.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_migration_native_fidelity.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_api_import_fidelity.py
+assert_exact_groups gcp_terraform .github/scripts/test_user_activity_history_preparation.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_observation_native.py
+assert_exact_groups gcp_terraform infra/gcp/scripts/terraform_runtime.py
+assert_exact_groups gcp_terraform infra/gcp/tests/test_terraform_runtime.py
 assert_exact_groups gcp_terraform infra/gcp/modules/retained-order-history/tests/contract.tftest.hcl
 assert_exact_groups gcp_terraform infra/gcp/environments/dev/export-function.tf
 assert_exact_groups gcp_terraform infra/gcp/modules/firestore-export-function/main.tf
@@ -131,26 +131,36 @@ assert_exact_groups "system room_image_prompt menu_image_generator video_maker_s
 assert_exact_groups "system firestore_integration youtube_monitor" system/core/app.go youtube-monitor/src/app.ts
 
 all_groups="system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all"
-manual_output="$(env -u CI_AUTHENTICATED_TERRAFORM_DISPATCH GITHUB_EVENT_NAME=workflow_dispatch "$detector")"
-assert_output_groups "$all_groups" "$manual_output" "manual dispatch with absent Terraform marker"
-for marker in "" false FALSE 1 yes malformed; do
+# Every repository script that the GCP Terraform CI executes must route to it,
+# so a change to that script alone still runs its own test.
+terraform_ci_scripts="$(grep -oE '\.github/scripts/[A-Za-z0-9_.-]+\.(py|sh|mjs)' "$script_dir/../workflows/ci-gcp-terraform.yml" | sort -u)"
+if [[ "$(printf '%s\n' "$terraform_ci_scripts" | grep -c .)" -lt 10 ]]; then
+	echo "Expected to read the scripts executed by ci-gcp-terraform.yml" >&2
+	exit 1
+fi
+while IFS= read -r script; do
+	routed="$("$detector" --paths "$script")"
+	if ! grep -Fxq 'gcp_terraform=true' <<< "$routed"; then
+		echo "Expected gcp_terraform=true for a script run by ci-gcp-terraform.yml: $script" >&2
+		exit 1
+	fi
+done <<< "$terraform_ci_scripts"
+
+# A manual CI run always selects every domain; the retired Terraform dispatch
+# marker can no longer narrow it.
+for marker in "" true false; do
 	manual_output="$(GITHUB_EVENT_NAME=workflow_dispatch CI_AUTHENTICATED_TERRAFORM_DISPATCH="$marker" "$detector")"
-	assert_output_groups "$all_groups" "$manual_output" "manual dispatch with non-true Terraform marker: $marker"
+	assert_output_groups "$all_groups" "$manual_output" "manual dispatch with marker: $marker"
 done
-
-authenticated_output="$(GITHUB_EVENT_NAME=workflow_dispatch CI_AUTHENTICATED_TERRAFORM_DISPATCH=true "$detector")"
-assert_output_groups gcp_terraform "$authenticated_output" "authenticated Terraform dispatch"
-
-# A marker cannot narrow other events, incomplete PRs, or explicit path tests.
 for event_name in pull_request push schedule unsupported; do
-	fallback_output="$(GITHUB_EVENT_NAME="$event_name" CI_AUTHENTICATED_TERRAFORM_DISPATCH=true BASE_SHA= HEAD_SHA= "$detector")"
-	assert_output_groups "$all_groups" "$fallback_output" "non-dispatch event: $event_name"
+	fallback_output="$(GITHUB_EVENT_NAME="$event_name" BASE_SHA= HEAD_SHA= "$detector")"
+	assert_output_groups "$all_groups" "$fallback_output" "non-dispatch event without SHAs: $event_name"
 done
-unchanged_pr_output="$(GITHUB_EVENT_NAME=pull_request CI_AUTHENTICATED_TERRAFORM_DISPATCH=true BASE_SHA=HEAD HEAD_SHA=HEAD "$detector")"
-assert_output_groups "" "$unchanged_pr_output" "unchanged PR with ignored Terraform marker"
-explicit_paths_output="$(GITHUB_EVENT_NAME=workflow_dispatch CI_AUTHENTICATED_TERRAFORM_DISPATCH=true "$detector" --paths system/core/app.go)"
+unchanged_pr_output="$(GITHUB_EVENT_NAME=pull_request BASE_SHA=HEAD HEAD_SHA=HEAD "$detector")"
+assert_output_groups "" "$unchanged_pr_output" "unchanged PR"
+explicit_paths_output="$(GITHUB_EVENT_NAME=workflow_dispatch "$detector" --paths system/core/app.go)"
 assert_output_groups "system firestore_integration" "$explicit_paths_output" "explicit paths override dispatch scope"
-ci_paths_output="$(GITHUB_EVENT_NAME=workflow_dispatch CI_AUTHENTICATED_TERRAFORM_DISPATCH=true "$detector" --paths .github/workflows/ci.yml)"
+ci_paths_output="$(GITHUB_EVENT_NAME=workflow_dispatch "$detector" --paths .github/workflows/ci.yml)"
 assert_output_groups "$all_groups" "$ci_paths_output" "CI source paths still select all groups"
 
 fallback_output="$(GITHUB_EVENT_NAME=pull_request "$detector")"
@@ -178,7 +188,7 @@ assert_exact_groups gcp_terraform infra/gcp/scripts/runtime_plan_selection.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_plan_contract.py
 
 # Every reusable CI module and its executable contracts select the full suite.
-for ci_path in .github/dependabot.yml .github/scripts/test_ci_security.py .github/workflows/ci-{system,frontend,tools,infra,repository,operations,gcp-terraform}.yml .github/scripts/check-ci-results.py .github/scripts/install-ci-source-tools.sh .github/scripts/test_ci_workflows.py .github/scripts/test_ci_results.py .github/scripts/test_ci_operations.py .github/scripts/test_ci_gcp_terraform.py; do
+for ci_path in .github/dependabot.yml .github/scripts/test_ci_security.py .github/workflows/ci-{system,frontend,tools,infra,repository,gcp-terraform}.yml .github/scripts/check-ci-results.py .github/scripts/install-ci-source-tools.sh .github/scripts/test_ci_workflows.py .github/scripts/test_ci_results.py .github/scripts/test_ci_path_summary.py .github/scripts/test_ci_gcp_terraform.py; do
 	assert_exact_groups "$all_groups" "$ci_path"
 done
 

@@ -94,6 +94,12 @@ class RuntimeTest(unittest.TestCase):
             (r.MAINTENANCE_IMAGE_BINDING,
              lambda item: item["change"]["after"].update(member="serviceAccount:other@" + c.PROJECT + ".iam.gserviceaccount.com"),
              "runtime-resource-value-" + r.MAINTENANCE_IMAGE_BINDING + "-member"),
+            (r.OPERATOR_IMAGE_BINDING,
+             lambda item: item["change"]["after"].update(member="serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"),
+             "runtime-resource-value-" + r.OPERATOR_IMAGE_BINDING + "-member"),
+            (r.OPERATOR_IMAGE_ACT_AS,
+             lambda item: item["change"]["after"].update(role="roles/iam.serviceAccountTokenCreator"),
+             "runtime-resource-value-" + r.OPERATOR_IMAGE_ACT_AS + "-role"),
         )
         for address, mutate, check in mutations:
             rejected = fixture("maintenance_upgrade")
@@ -134,6 +140,16 @@ class RuntimeTest(unittest.TestCase):
         )
         self.assertEqual(r.validate_plan(plan, "runtime_public"),
                          {"resources": len(plan["resource_changes"]), "creates": 11})
+        # The dedicated operator package is accepted beside the legacy API package
+        # until the first operator release has been verified.
+        container = item["change"]["after"]["template"][0]["template"][0]["containers"][0]
+        container["image"] = r.OPERATOR_REPOSITORY + "@sha256:" + "d" * 64
+        r.validate_plan(plan, "runtime_public")
+        for foreign in (r.IMAGE_REGISTRY + "other@sha256:" + "d" * 64,
+                        r.OPERATOR_REPOSITORY + ":latest"):
+            container["image"] = foreign
+            with self.subTest(image=foreign), self.assertRaisesRegex(c.ContractError, "^maintenance-job-image$"):
+                r.validate_plan(plan, "runtime_public")
 
         created = fixture("maintenance_upgrade")
         bootstrap = r.REPOSITORY + "@sha256:" + "d" * 64
@@ -151,6 +167,142 @@ class RuntimeTest(unittest.TestCase):
         with self.assertRaisesRegex(c.ContractError, "^maintenance-job-bootstrap-image$"):
             r.validate_plan(rejected, "maintenance_upgrade")
 
+    def test_job_refresh_treats_provider_null_and_empty_list_as_the_same_unset_list(self):
+        plan = fixture("runtime_public")
+        value = r.settings(plan["variables"]["runtime_settings"]["value"], "runtime_public")
+        job = next(item["change"]["after"] for item in plan["resource_changes"] if item["address"] == r.MAINTENANCE_JOB)
+        container = lambda state: state["template"][0]["template"][0]["containers"][0]
+        before, after = deepcopy(job), deepcopy(job)
+        container(before)["args"] = None
+        container(after)["args"] = []
+        r.validate_cicd_job_image_refresh(before, after, value)
+        for field, changed in (("args", ["--unreviewed"]), ("command", ["/bin/sh"]), ("command", None)):
+            moved = deepcopy(after)
+            container(moved)[field] = changed
+            with self.subTest(field=field), self.assertRaises(c.ContractError):
+                r.validate_cicd_job_image_refresh(before, moved, value)
+
+    def test_job_iam_members_accept_the_provider_full_job_path_after_a_read(self):
+        bindings = (r.MAINTENANCE_JOB_INVOKER, r.MAINTENANCE_IMAGE_BINDING, r.OPERATOR_IMAGE_BINDING)
+        plan = fixture("runtime_public")
+        for item in plan["resource_changes"]:
+            item["change"]["actions"] = ["no-op"]
+            if item["address"] in bindings:
+                item["change"]["after"]["name"] = r.MAINTENANCE_JOB_FULL_NAME
+        present = {item["address"] for item in plan["resource_changes"]} & set(bindings)
+        self.assertEqual(present, set(bindings))
+        r.validate_plan(plan, "runtime_public")
+        for address in sorted(present):
+            for wrong in ("projects/" + c.PROJECT + "/locations/" + c.REGION + "/jobs/other-job",
+                          "projects/other-project/locations/" + c.REGION + "/jobs/mypage-maintenance-operator",
+                          "projects/" + c.PROJECT + "/locations/us-central1/jobs/mypage-maintenance-operator",
+                          r.PUBLIC_INVOKER_NAME):
+                rejected = deepcopy(plan)
+                next(item for item in rejected["resource_changes"] if item["address"] == address)["change"]["after"]["name"] = wrong
+                with self.subTest(address=address, wrong=wrong), self.assertRaises(c.ContractError):
+                    r.validate_plan(rejected, "runtime_public")
+
+    def provider_fix_plan(self):
+        plan = fixture("runtime_public")
+        for item in plan["resource_changes"]:
+            item["change"]["actions"] = ["no-op"]
+        item = next(item for item in plan["resource_changes"] if item["address"] == r.MAINTENANCE_PROVIDER)
+        before = deepcopy(item["change"]["after"])
+        before.update(attribute_condition=r.maintenance_provider_condition(legacy=True),
+                      attribute_mapping=r.maintenance_provider_mapping(legacy=True))
+        item["change"].update(actions=["update"], before=before)
+        return plan, item
+
+    def test_maintenance_provider_subject_fits_sts_and_requires_the_reusable_job(self):
+        mapping = r.maintenance_provider_mapping()
+        self.assertEqual(mapping["google.subject"], r.MAINTENANCE_SUBJECT)
+        longest = "340900071:mypage-maintenance-development:54093651"
+        self.assertLessEqual(len(longest.encode()), 127)
+        self.assertIn("assertion.job_workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/"
+                      "mypage-maintenance-authenticated.yml@" + c.REF + "'", r.maintenance_provider_condition())
+        self.assertNotIn("job_workflow_ref", r.maintenance_provider_condition(legacy=True))
+
+    def test_only_the_reviewed_maintenance_provider_fix_is_accepted_as_an_update(self):
+        plan, item = self.provider_fix_plan()
+        self.assertTrue(r.reviewed_provider_update(r.MAINTENANCE_PROVIDER, item["change"]))
+        self.assertEqual(r.validate_plan(plan, "runtime_public"), {"resources": len(plan["resource_changes"]), "creates": 0})
+        for name, mutate in (
+            ("other-before-condition", lambda ch: ch["before"].update(attribute_condition="true")),
+            ("other-before-mapping", lambda ch: ch["before"]["attribute_mapping"].update({"attribute.extra": "assertion.sub"})),
+            ("only-mapping", lambda ch: ch["before"].update(attribute_condition=r.maintenance_provider_condition())),
+            ("after-mapping-extra", lambda ch: ch["after"]["attribute_mapping"].update({"attribute.extra": "assertion.sub"})),
+            ("after-condition-widened", lambda ch: ch["after"].update(attribute_condition="true")),
+            ("other-attribute", lambda ch: ch["after"].update(disabled=True)),
+            ("unknown", lambda ch: ch.update(after_unknown={"attribute_condition": True})),
+            ("replace", lambda ch: ch.update(replace_paths=[["attribute_mapping"]])),
+            ("delete-create", lambda ch: ch.update(actions=["delete", "create"])),
+        ):
+            rejected, changed = self.provider_fix_plan()
+            mutate(changed["change"])
+            with self.subTest(name=name):
+                self.assertFalse(r.reviewed_provider_update(r.MAINTENANCE_PROVIDER, changed["change"]))
+                with self.assertRaises(c.ContractError):
+                    r.validate_plan(rejected, "runtime_public")
+        self.assertFalse(r.reviewed_provider_update(r.MAINTENANCE_POOL, item["change"]))
+
+    def state_only_plan(self):
+        plan = fixture("runtime_public")
+        for item in plan["resource_changes"]:
+            item["change"]["actions"] = ["no-op"]
+        item = next(item for item in plan["resource_changes"] if item["address"] == r.SERVICE)
+        after = item["change"]["after"]
+        after["deletion_policy"] = "PREVENT"
+        before = deepcopy(after)
+        before["deletion_policy"] = None
+        item["change"].update(actions=["update"], before=before)
+        return plan, item
+
+    def test_only_the_reviewed_service_state_adoption_is_accepted_as_an_update(self):
+        plan, item = self.state_only_plan()
+        self.assertEqual(r.state_only_service_update(r.SERVICE, item["change"]), {"deletion_policy"})
+        self.assertEqual(r.validate_plan(plan, "runtime_public"), {"resources": len(plan["resource_changes"]), "creates": 0})
+        # The provider default recorded in State is adopted the same way.
+        default_plan, default_item = self.state_only_plan()
+        default_item["change"]["before"]["deletion_policy"] = "DELETE"
+        self.assertEqual(r.state_only_service_update(r.SERVICE, default_item["change"]), {"deletion_policy"})
+        r.validate_plan(default_plan, "runtime_public")
+        for mutate in (
+            lambda change: change["after"].update(ingress="INGRESS_TRAFFIC_INTERNAL_ONLY"),
+            lambda change: change["after"]["template"][0].update(timeout="60s"),
+            lambda change: change["after"]["template"][0]["containers"][0].update(image=r.REPOSITORY + "@sha256:" + "e" * 64),
+            lambda change: change["after"]["template"][0]["containers"][0]["env"].append({"name": "INJECTED", "value": "x"}),
+            lambda change: change["after"]["traffic"][0].update(percent=50),
+            lambda change: change["after"].update(deletion_policy="DELETE"),
+            lambda change: change["before"].update(deletion_policy="ABANDON"),
+            lambda change: change.update(after_unknown={"uri": True}),
+            lambda change: change.update(replace_paths=[["name"]]),
+            lambda change: change.update(actions=["delete", "create"]),
+        ):
+            rejected, changed = self.state_only_plan()
+            mutate(changed["change"])
+            with self.subTest(mutate=mutate):
+                self.assertIsNone(r.state_only_service_update(r.SERVICE, changed["change"]))
+                with self.assertRaises(c.ContractError):
+                    r.validate_plan(rejected, "runtime_public")
+        # Never for any other resource, even with the same attribute change.
+        other = deepcopy(item["change"])
+        self.assertIsNone(r.state_only_service_update(r.MAINTENANCE_JOB, other))
+
+    def test_refresh_drift_may_be_adopted_only_with_the_reviewed_state_attribute(self):
+        _, item = self.state_only_plan()
+        observed = deepcopy(item["change"]["before"])
+        drift = {"address": r.SERVICE, "mode": "managed", "provider_name": "registry.terraform.io/hashicorp/google",
+                 "change": {"actions": ["update"], "before": deepcopy(observed), "after": observed}}
+        plan = {"resource_changes": [item], "resource_drift": [drift]}
+        resources = {r.SERVICE: {}}
+        c.validate_refresh(plan, resources, r.state_only_service_update)
+        with self.assertRaisesRegex(c.ContractError, "^refresh-planned-noop$"):
+            c.validate_refresh(plan, resources)
+        moved = deepcopy(plan)
+        moved["resource_drift"][0]["change"]["after"]["ingress"] = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+        with self.assertRaisesRegex(c.ContractError, "^refresh-planned-state$"):
+            c.validate_refresh(moved, resources, r.state_only_service_update)
+
     def test_backend_image_release_binding_is_dev_only(self):
         value = r.settings(json.loads((ROOT / "infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json").read_text()))
         with patch.object(r.c, "TARGET", "production"):
@@ -158,6 +310,8 @@ class RuntimeTest(unittest.TestCase):
         self.assertNotIn(r.MAINTENANCE_IMAGE_ROLE, resources)
         self.assertNotIn(r.MAINTENANCE_IMAGE_BINDING, resources)
         self.assertNotIn(r.MAINTENANCE_IMAGE_ACT_AS, resources)
+        self.assertNotIn(r.OPERATOR_IMAGE_BINDING, resources)
+        self.assertNotIn(r.OPERATOR_IMAGE_ACT_AS, resources)
         self.assertIn(r.MAINTENANCE_JOB, resources)
 
     def test_private_and_public_have_exact_resources_and_pinned_secrets(self):
@@ -292,8 +446,9 @@ class RuntimeTest(unittest.TestCase):
         env = {"GITHUB_REPOSITORY": c.REPOSITORY, "GITHUB_REPOSITORY_ID": "340900071", "GITHUB_REPOSITORY_OWNER_ID": "54093651",
                "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_ACTOR": "kani3camp", "GITHUB_ACTOR_ID": "54093651",
                "GITHUB_TRIGGERING_ACTOR": "kani3camp", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_REF": c.REF,
-               "GITHUB_WORKFLOW_REF": c.CALLER, "TF_WORKSPACE": "default", "GITHUB_SHA": "a" * 40,
+               "GITHUB_WORKFLOW_REF": c.IMAGE_COMPONENTS["api"]["caller"], "TF_WORKSPACE": "default", "GITHUB_SHA": "a" * 40,
                "MYPAGE_EXPECTED_SHA": "a" * 40, "MYPAGE_MODE": "image-build", "MYPAGE_ROLE": "apply",
+               "MYPAGE_IMAGE_COMPONENT": "api",
                "MYPAGE_GCP_SERVICE_ACCOUNT": "mypage-foundation-apply@" + c.PROJECT + ".iam.gserviceaccount.com",
                "MYPAGE_GCP_WIF_PROVIDER": "projects/123456789/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions"}
         image_ops.preflight(env)

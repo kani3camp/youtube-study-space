@@ -29,10 +29,8 @@ jobs:
       - name: Test authenticated Terraform CI guardrails
         run: |
           python3 .github/scripts/test_terraform_native_runner.py
+          python3 -B infra/gcp/tests/test_terraform_runtime.py
           python3 .github/scripts/test_terraform_plan_summary.py
-          python3 .github/scripts/test_terraform_migration_contract.py
-          python3 .github/scripts/test_terraform_migration.py
-          python3 .github/scripts/test_production_initializer_controller.py
           python3 .github/scripts/test_terraform_authenticated_workflow.py
           python3 .github/scripts/test_terraform_identity_smoke.py
           python3 .github/scripts/test_terraform_email_adoption_gate.py
@@ -45,21 +43,20 @@ jobs:
           python3 infra/gcp/tests/test_production_backend_packet.py
           python3 infra/gcp/tests/test_production_execution_contract.py
           python3 -B infra/gcp/tests/test_terraform_normal_ops.py
+          python3 -B infra/gcp/tests/test_terraform_source.py
           python3 -B infra/gcp/tests/test_enable_normal_integration.py
           python3 -B infra/gcp/tests/test_production_normal_ops.py
           python3 -B infra/gcp/tests/test_bootstrap_production_normal_ops.py
+          python3 -B infra/gcp/tests/test_bootstrap_pr_plan.py
           python3 .github/scripts/test_terraform_quota_create_gate.py
           python3 .github/scripts/test_terraform_quota_refresh_gate.py
           python3 .github/scripts/test_terraform_export_topic_gate.py
           python3 .github/scripts/test_terraform_export_scheduler_gate.py
           python3 .github/scripts/test_terraform_export_function_gate.py
-          python3 .github/scripts/test_gcp_user_activity_schema_audit_workflow.py
+          python3 .github/scripts/test_user_activity_history_preparation.py
 
       - name: Check formatting
         run: terraform fmt -check -recursive infra/gcp
-
-      - name: Test pure production initializer with pinned local Terraform
-        run: python3 .github/scripts/test_production_initializer.py
 
       - name: Initialize and validate roots
         run: |
@@ -68,9 +65,6 @@ jobs:
             terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly
             terraform -chdir="infra/gcp/environments/$env" validate
           done
-
-      - name: Test output-only initialization with native S3 locking
-        run: python3 .github/scripts/test_production_initializer_s3.py
 
       - name: Test Pool import fidelity with credentialless mocks
         run: python3 -B infra/gcp/tests/test_runtime_pool_import_fidelity.py

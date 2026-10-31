@@ -212,10 +212,66 @@ class FoundationTest(unittest.TestCase):
             written = json.loads((root / 'runtime-settings.json').read_text())
             self.assertEqual(written, {'runtime_settings': expected})
 
+    def plan_error_entries(self, native):
+        private = 'private-command-output-and-credential-marker'
+        result = ops.subprocess.CompletedProcess(['terraform', private], 1, '', native)
+        output, errors = io.StringIO(), io.StringIO()
+        with patch.object(sys, 'argv', ['foundation_ops.py', 'execute']), \
+                patch.object(ops.subprocess, 'run', return_value=result), \
+                patch.object(ops, 'prepare', side_effect=lambda env: ops.run(['terraform', private], check='terraform-plan')), \
+                redirect_stdout(output), redirect_stderr(errors):
+            self.assertEqual(ops.main(), 1)
+        line = next(item for item in output.getvalue().splitlines() if item.startswith('Terraform plan errors: '))
+        return json.loads(line.removeprefix('Terraform plan errors: ').removesuffix('.')), output.getvalue() + errors.getvalue()
+
+    def test_native_plan_failures_publish_only_public_error_addresses_and_status(self):
+        private = 'private-command-output-and-credential-marker'
+        job_iam = 'module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_invoker[0]'
+        secret_address = 'module.platform[0].private_secret.credential_marker'
+        plain = (
+            # -no-color: Terraform 1.16 prints plain diagnostics without box characters.
+            "Error: Error reading thing: googleapi: Error 403: " + private + " with " + secret_address + ",\n\n"
+            "  with " + secret_address + ",\n"
+            "  with module.platform[0].google_service_account.maintenance_operator[98765432101234567890],\n"
+            "  on body-text line 7\n"
+            "  with " + job_iam + ",\n"
+            "  on ../../modules/runtime/main.tf line 1, in resource \"x\" \"y\":\n"
+            "   1: resource \"x\" \"y\" { " + private + " }\n\n"
+            "Warning: not an error Error 404\n\n  with module.platform[0].google_service_account.maintenance_operator[0],\n\n"
+            "Error: " + private + " without address or status\n\n"
+            "Error: Error 418 " + private + "\n\n  with " + secret_address + ",\n\n"
+            "Error: missing status\n\n  with module.platform[0].google_iam_workload_identity_pool.maintenance_github[0],\n"
+            "  on ../../modules/runtime/main.tf line 2:\n\n"
+            "Error: Error 403 undefined index\n\n"
+            "  with module.platform[0].google_service_account.maintenance_operator[98765432101234567890],\n"
+            "  on ../../modules/runtime/main.tf line 3:\n\n"
+            "Error: Error 403 location-less body line\n\n  with " + job_iam + ",\n")
+        entries, printed = self.plan_error_entries(plain)
+        self.assertEqual(entries, [
+            {'address': job_iam, 'status': '403'},
+            {'address': '<withheld>', 'status': '<withheld>'},
+            {'address': '<withheld>', 'status': '<withheld>'},
+            {'address': 'module.platform[0].google_iam_workload_identity_pool.maintenance_github[0]', 'status': '<withheld>'},
+            {'address': '<withheld>', 'status': '403'},
+            {'address': '<withheld>', 'status': '403'},
+        ])
+        self.assertNotIn(private, printed)
+        self.assertNotIn(secret_address, printed)
+        self.assertNotIn('98765432101234567890', printed)
+        boxed = ("\u2577\n\u2502 Error: googleapi: Error 409: " + private + "\n\u2502 \n"
+                 "\u2502   with " + job_iam + ",\n\u2502   on ../../modules/runtime/main.tf line 4:\n\u2575\n")
+        entries, printed = self.plan_error_entries(boxed)
+        self.assertEqual(entries, [{'address': job_iam, 'status': '409'}])
+        self.assertNotIn(private, printed)
+
     def test_native_plan_failures_publish_only_fixed_diagnostic_labels(self):
         private = 'private-command-output-and-credential-marker'
         cases = (
             ("Permission 'run.services.get' denied", 'terraform-plan-permission-run.services.get'),
+            ("Permission 'iam.googleapis.com/workloadIdentityPools.getAttestationRules' denied",
+             'terraform-plan-permission-iam.workloadIdentityPools.getAttestationRules'),
+            ("Permission 'iam.googleapis.com/workloadIdentityPools.get' denied", 'terraform-plan-permission-iam.workloadIdentityPools.get'),
+            ("Permission 'private.googleapis.com/unreviewed.permission' denied", 'terraform-plan'),
             ("Permission 'private.unreviewed.permission' denied", 'terraform-plan'),
             ('SERVICE_DISABLED', 'terraform-plan-api-disabled'),
             ('Error acquiring the state lock', 'terraform-plan-state-lock'),
@@ -228,15 +284,17 @@ class FoundationTest(unittest.TestCase):
         for native, expected in cases:
             with self.subTest(native=native):
                 result = ops.subprocess.CompletedProcess(['terraform', private], 1, private, native + '\n' + private)
-                output = io.StringIO()
+                output, stdout = io.StringIO(), io.StringIO()
                 with patch.object(sys, 'argv', ['foundation_ops.py', 'execute']), \
                         patch.object(ops.subprocess, 'run', return_value=result), \
                         patch.object(ops, 'prepare', side_effect=lambda env: ops.run(['terraform', private], check='terraform-plan')), \
-                        redirect_stderr(output):
+                        redirect_stderr(output), redirect_stdout(stdout):
                     self.assertEqual(ops.main(), 1)
                 self.assertIn('check=' + expected + '.', output.getvalue())
-                self.assertNotIn(private, output.getvalue())
-                self.assertNotIn('private.unreviewed.permission', output.getvalue())
+                printed = output.getvalue() + stdout.getvalue()
+                self.assertNotIn(private, printed)
+                for unreviewed in ('private.unreviewed.permission', 'private.googleapis.com/unreviewed.permission', 'unreviewed.permission'):
+                    self.assertNotIn(unreviewed, printed)
         success = ops.subprocess.CompletedProcess(['terraform'], 0, private, '')
         with patch.object(ops.subprocess, 'run', return_value=success):
             self.assertEqual(ops.run(['terraform'], check='terraform-plan'), private)
@@ -446,35 +504,53 @@ class FoundationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             c.validate_plan(plan)
 
-    def test_dev_push_auth_is_explicitly_bounded_and_prod_remains_manual(self):
+    def test_every_credentialed_operation_is_a_manual_dispatch_from_its_own_workflow(self):
         env = {
             'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
-            'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_EVENT_NAME': 'push',
+            'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_EVENT_NAME': 'workflow_dispatch',
             'GITHUB_ACTOR': 'kani3camp', 'GITHUB_ACTOR_ID': '54093651',
             'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1',
-            'GITHUB_REF': c.REF, 'GITHUB_WORKFLOW_REF': c.CALLER,
-            'TF_WORKSPACE': 'default', 'GITHUB_SHA': 'a' * 40,
-            'MYPAGE_EXPECTED_SHA': 'a' * 40,
-            'MYPAGE_MODE': 'runtime-public-apply',
+            'GITHUB_REF': c.REF, 'TF_WORKSPACE': 'default', 'GITHUB_SHA': 'a' * 40,
+            'MYPAGE_EXPECTED_SHA': 'a' * 40, 'MYPAGE_MODE': 'image-build',
         }
-        # Application image build may use DEV WIF on an owner push; Terraform
-        # Plan/Apply and AWS State stay dispatch-only.
+        for component, item in c.IMAGE_COMPONENTS.items():
+            image = env | {'MYPAGE_IMAGE_COMPONENT': component, 'GITHUB_WORKFLOW_REF': item['caller']}
+            with self.subTest(component=component):
+                c.context(image, 'apply', image=True)
+                # No push or other event can build or deploy an application image.
+                for event in ('push', 'pull_request', 'workflow_run'):
+                    with self.assertRaises(ValueError):
+                        c.context(image | {'GITHUB_EVENT_NAME': event}, 'apply', image=True)
+                # Each image is built only by the Deploy workflow of its own use case.
+                for other in [c.CALLER] + [x['caller'] for x in c.IMAGE_COMPONENTS.values() if x is not item]:
+                    with self.assertRaises(ValueError):
+                        c.context(image | {'GITHUB_WORKFLOW_REF': other}, 'apply', image=True)
+        for bad in ('', 'mypage-api', 'all'):
+            with self.subTest(component=bad), self.assertRaises(ValueError):
+                c.context(env | {'MYPAGE_IMAGE_COMPONENT': bad, 'GITHUB_WORKFLOW_REF': c.CALLER}, 'apply', image=True)
         with self.assertRaises(ValueError):
-            c.context(env, 'plan')
-        with self.assertRaises(ValueError):
-            c.context(env, 'apply')
-        c.context(env | {'MYPAGE_MODE': 'image-build'}, 'apply', image=True)
-        for mode in ('foundation-apply', 'registry-apply', 'desired-apply',
-                     'runtime-private-apply', 'runtime-public-apply',
-                     'maintenance-operator-apply'):
-            with self.subTest(mode=mode), self.assertRaises(ValueError):
-                c.context(env | {'MYPAGE_MODE': mode}, 'apply')
-        with self.assertRaises(ValueError):
-            c.context(env | {'GITHUB_EVENT_NAME': 'workflow_run'}, 'apply')
-        self.assertNotEqual(c.subject('apply', 'push'), c.subject('apply'))
+            c.subject('apply', 'push')
         self.assertEqual(len(c.trust_policy('123456789012', 'apply')['Statement']), 1)
         self.assertEqual(c.trust_policy('123456789012', 'apply')['Statement'][0]['Condition']['StringEquals']['token.actions.githubusercontent.com:sub'],
                          c.subject('apply'))
+
+    def test_provider_condition_pairs_each_environment_caller_and_exact_subject(self):
+        condition = c.provider_condition()
+        self.assertLessEqual(len(condition), c.CONDITION_LIMIT)
+        prefix, listed = condition.split(' && assertion.sub in ')
+        expected = [('plan', c.CALLER), ('apply', c.CALLER)] + [
+            ('apply', item['caller']) for _, item in sorted(c.IMAGE_COMPONENTS.items())]
+        # The clause list is exact, so image callers never reach the Plan Environment.
+        self.assertEqual(json.loads(listed), [c.subject(kind, 'workflow_dispatch', workflow)
+                                              for kind, workflow in expected])
+        for clause in ('assertion.repository_id == "340900071"', 'assertion.actor_id == "54093651"',
+                       'assertion.ref == ' + json.dumps(c.REF),
+                       'assertion.job_workflow_ref == ' + json.dumps(c.REUSABLE),
+                       'assertion.event_name == "workflow_dispatch"', 'assertion.run_attempt == "1"',
+                       'assertion.workflow_sha == assertion.job_workflow_sha'):
+            self.assertIn(clause, prefix)
+        self.assertNotIn('||', condition)
+        self.assertNotIn('push', condition)
 
     def test_exact_actor_ref_and_sha_before_credentials(self):
         env = {'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
@@ -517,5 +593,69 @@ class FoundationTest(unittest.TestCase):
                 ops.state_version(env)
 
 
-if __name__ == '__main__':
+
+class RuntimeDriftDiagnosticTest(unittest.TestCase):
+    def test_drift_detail_shows_only_fixed_addresses_and_action_names(self):
+        secret = 'synthetic-private-value'
+        service = 'module.platform[0].google_cloud_run_v2_service.api[0]'
+        plan = {
+            'resource_drift': [
+                {'address': service, 'change': {'actions': ['update'], 'before': {'image': secret}, 'after': {'image': secret}}},
+                {'address': 'module.other["' + secret + '"].x.y', 'change': {'actions': ['update']}},
+            ],
+            'resource_changes': [
+                {'address': service, 'change': {'actions': ['update'], 'before': {'env': secret + '-old'}, 'after': {'env': secret}}},
+                {'address': 'module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]',
+                 'change': {'actions': ['create'], 'after': {'image': secret}}},
+                {'address': 'module.platform[0].google_service_account.runtime', 'change': {'actions': ['no-op']}},
+            ],
+        }
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ops.describe_runtime_drift(plan)
+        text = output.getvalue()
+        self.assertNotIn(secret, text)
+        lines = dict(line.split(': ', 1) for line in text.strip().splitlines())
+        detail = json.loads(lines['Terraform drift detail'].removesuffix('.'))
+        self.assertEqual(detail, [
+            {'address': service, 'actions': ['update'], 'plannedActions': ['update']},
+            {'address': '<withheld>', 'actions': ['update'], 'plannedActions': ['<withheld>']},
+        ])
+        writes = json.loads(lines['Terraform planned writes'].removesuffix('.'))
+        self.assertEqual([entry['address'] for entry in writes],
+                         ['module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]', service])
+        self.assertEqual(json.loads(lines['Terraform drift summary'].removesuffix('.')),
+                         {'observedResources': 2, 'plannedWrites': 2})
+        updates = json.loads(lines['Terraform planned update attributes'].removesuffix('.'))
+        self.assertEqual(updates, [{'address': service, 'actions': ['update'], 'attributes': ['env'], 'enumValues': {}}])
+
+    def test_enum_values_are_shown_only_for_fixed_provider_values(self):
+        self.assertEqual(ops.public_enum_values({'before': {'deletion_policy': 'DELETE'}, 'after': {'deletion_policy': 'PREVENT'}}),
+                         {'deletion_policy': {'before': 'DELETE', 'after': 'PREVENT'}})
+        self.assertEqual(ops.public_enum_values({'before': {}, 'after': {'deletion_policy': 'PREVENT'}}),
+                         {'deletion_policy': {'before': None, 'after': 'PREVENT'}})
+        self.assertEqual(ops.public_enum_values({'before': {'deletion_policy': 'synthetic-secret'}, 'after': {'deletion_policy': 'PREVENT'}}),
+                         {'deletion_policy': {'before': '<withheld>', 'after': 'PREVENT'}})
+        self.assertEqual(ops.public_enum_values({'before': {'env': 'a'}, 'after': {'env': 'b'}}), {})
+
+    def test_update_attributes_are_schema_names_only(self):
+        change = {'before': {'deletion_policy': None, 'launch_stage': 'GA', 'template': [{'env': 'old-secret'}],
+                             'labels': {'private-key': 'x'}},
+                  'after': {'deletion_policy': 'PREVENT', 'launch_stage': 'GA', 'template': [{'env': 'new-secret'}],
+                            'labels': {'private-key': 'x'}, 'Weird Key': 1},
+                  'after_unknown': {'uri': True, 'etag': False}}
+        names = ops.changed_attributes(change)
+        self.assertEqual(names, ['<withheld>', 'deletion_policy', 'template', 'uri'])
+        self.assertNotIn('secret', json.dumps(names))
+        self.assertEqual(ops.changed_attributes({'before': None, 'after': {}}), ['<withheld>'])
+
+    def test_known_nested_structures_in_after_unknown_are_not_changes(self):
+        same = {'template': [{'containers': [{'image': 'x'}]}], 'launch_stage': 'GA'}
+        change = {'before': same | {'launch_stage': 'BETA'}, 'after': same,
+                  'after_unknown': {'template': [{}], 'scaling': {'containers': [{}]}, 'labels': [False],
+                                    'traffic': [{'percent': False, 'revision': True}]}}
+        self.assertEqual(ops.changed_attributes(change), ['launch_stage', 'traffic'])
+
+
+if __name__ == "__main__":
     unittest.main()

@@ -12,7 +12,13 @@ def commit_sha(value):
     return re.fullmatch(r"[a-f0-9]{40}", value) is not None
 
 ORIGIN = c.ORIGIN
-REPOSITORY = c.REGION + "-docker.pkg.dev/" + c.PROJECT + "/mypage/mypage-api"
+IMAGE_REGISTRY = c.REGION + "-docker.pkg.dev/" + c.PROJECT + "/mypage/"
+REPOSITORY = IMAGE_REGISTRY + "mypage-api"
+OPERATOR_REPOSITORY = IMAGE_REGISTRY + "mypage-maintenance-operator"
+# 移行中のJobは、旧API同梱imageと専用operator imageのどちらかを指す。
+# 初回Operator配備でJobが専用packageへ移ったことを確認してから旧packageを外す。
+OPERATOR_DEPLOYER = "mypage-operator-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"
+MAINTENANCE_JOB_IMAGE = "(?:" + re.escape(REPOSITORY) + "|" + re.escape(OPERATOR_REPOSITORY) + r")@sha256:[a-f0-9]{64}"
 SERVICE = "module.platform[0].google_cloud_run_v2_service.api[0]"
 FIRESTORE = "module.platform[0].google_project_iam_member.firestore_user[0]"
 INVOKER = "module.platform[0].google_cloud_run_v2_service_iam_member.public_invoker[0]"
@@ -28,27 +34,79 @@ MAINTENANCE_JOB_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member
 MAINTENANCE_IMAGE_ROLE = "module.platform[0].google_project_iam_custom_role.maintenance_image_release[0]"
 MAINTENANCE_IMAGE_BINDING = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_image_release[0]"
 MAINTENANCE_IMAGE_ACT_AS = "module.platform[0].google_service_account_iam_member.maintenance_image_release_act_as[0]"
-MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, MAINTENANCE_IMAGE_BINDING, MAINTENANCE_IMAGE_ACT_AS}
+OPERATOR_IMAGE_BINDING = "module.platform[0].google_cloud_run_v2_job_iam_member.operator_image_release[0]"
+OPERATOR_IMAGE_ACT_AS = "module.platform[0].google_service_account_iam_member.operator_image_release_act_as[0]"
+MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, MAINTENANCE_IMAGE_BINDING, MAINTENANCE_IMAGE_ACT_AS,
+                                 OPERATOR_IMAGE_BINDING, OPERATOR_IMAGE_ACT_AS}
 MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-operator-apply": "maintenance_operator",
          "maintenance-upgrade-plan": "maintenance_upgrade", "maintenance-upgrade-apply": "maintenance_upgrade",
          "runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
          "runtime-public-plan": "runtime_public", "runtime-public-apply": "runtime_public"}
 PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/services/mypage-api"
 PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
+# After a read, the provider records Job IAM members with the full Job path, not the short name.
+MAINTENANCE_JOB_FULL_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/jobs/mypage-maintenance-operator"
 FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "privacy_version", "terms_version",
           "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
 
 
-def maintenance_provider_condition():
+# google.subject must stay within Google STS's 127-byte limit. The repository's custom
+# OIDC sub carries workflow_ref and job_workflow_ref (~360-450 bytes), so the provider
+# uses the same short subject as the other MyPage identities (~50 bytes).
+MAINTENANCE_SUBJECT = 'assertion.repository_id+":"+assertion.environment+":"+assertion.actor_id'
+LEGACY_MAINTENANCE_SUBJECT = "assertion.sub"
+
+
+def maintenance_provider_condition(*, legacy=False):
     transition = "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@" + c.REF
+    # Only the reviewed reusable job may authenticate (legacy: before the hardening).
+    reusable = "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance-authenticated.yml@" + c.REF
     return (
         "assertion.repository_id == '340900071' && assertion.repository_owner_id == '54093651' && "
         "assertion.actor_id == '54093651' && assertion.actor == 'kani3camp' && assertion.run_attempt == '1' && "
         "assertion.event_name == 'workflow_dispatch' && assertion.ref == '" + c.REF + "' && "
-        "assertion.workflow_ref == '" + transition + "' && "
+        "assertion.workflow_ref == '" + transition + "' && " +
+        ("" if legacy else "assertion.job_workflow_ref == '" + reusable + "' && ") +
         "assertion.environment == 'mypage-maintenance-" + c.ENVIRONMENT + "' && "
         "assertion.workflow_sha == assertion.sha"
     )
+
+
+def maintenance_provider_mapping(*, legacy=False):
+    return {
+        "attribute.actor": "assertion.actor",
+        "attribute.actor_id": "assertion.actor_id",
+        "attribute.environment": "assertion.environment",
+        "attribute.event_name": "assertion.event_name",
+        "attribute.ref": "assertion.ref",
+        "attribute.repository_id": "assertion.repository_id",
+        "attribute.repository_owner_id": "assertion.repository_owner_id",
+        "attribute.run_attempt": "assertion.run_attempt",
+        "attribute.sha": "assertion.sha",
+        "attribute.workflow_ref": "assertion.workflow_ref",
+        "attribute.workflow_sha": "assertion.workflow_sha",
+        "google.subject": LEGACY_MAINTENANCE_SUBJECT if legacy else MAINTENANCE_SUBJECT,
+    }
+
+
+def reviewed_provider_update(address, change):
+    """True only for the reviewed in-place fix of the existing maintenance provider.
+
+    Exactly attribute_condition and attribute_mapping change, from the exact legacy
+    values to the exact current values; nothing else, no unknowns, no replacement.
+    """
+    if (address != MAINTENANCE_PROVIDER or change.get("actions") != ["update"] or change.get("replace_paths")
+            or change.get("importing")):
+        return False
+    before, after, unknown = change.get("before"), change.get("after"), change.get("after_unknown") or {}
+    if type(before) is not dict or type(after) is not dict or type(unknown) is not dict or c.has_unknown(unknown):
+        return False
+    changed = {key for key in set(before) | set(after) if before.get(key) != after.get(key)}
+    return (changed == {"attribute_condition", "attribute_mapping"} and
+            before.get("attribute_condition") == maintenance_provider_condition(legacy=True) and
+            before.get("attribute_mapping") == maintenance_provider_mapping(legacy=True) and
+            after.get("attribute_condition") == maintenance_provider_condition() and
+            after.get("attribute_mapping") == maintenance_provider_mapping())
 
 
 def settings(value, stage=None):
@@ -132,19 +190,19 @@ def maintenance_resource_contract(value=None):
             MAINTENANCE_IMAGE_ACT_AS: {"service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + operator_email,
                                        "role": "roles/iam.serviceAccountUser",
                                        "member": "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"},
+            # 専用Operator deployer。旧Backend deployerの2 bindingは、初回Operator配備の確認後に
+            # 削除専用の遷移で外す（このcontractはcreate/no-opだけを許可するため）。
+            OPERATOR_IMAGE_BINDING: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator",
+                                     "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceImageRelease",
+                                     "member": "serviceAccount:" + OPERATOR_DEPLOYER},
+            OPERATOR_IMAGE_ACT_AS: {"service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + operator_email,
+                                    "role": "roles/iam.serviceAccountUser",
+                                    "member": "serviceAccount:" + OPERATOR_DEPLOYER},
         }
     if value is not None:
         resources[MAINTENANCE_PROVIDER] |= {
             "attribute_condition": maintenance_provider_condition(),
-            "attribute_mapping": {
-                "attribute.actor": "assertion.actor", "attribute.actor_id": "assertion.actor_id",
-                "attribute.environment": "assertion.environment",
-                "attribute.event_name": "assertion.event_name", "attribute.ref": "assertion.ref",
-                "attribute.repository_id": "assertion.repository_id", "attribute.repository_owner_id": "assertion.repository_owner_id",
-                "attribute.run_attempt": "assertion.run_attempt", "attribute.sha": "assertion.sha",
-                "attribute.workflow_ref": "assertion.workflow_ref", "attribute.workflow_sha": "assertion.workflow_sha",
-                "google.subject": "assertion.sub",
-            },
+            "attribute_mapping": maintenance_provider_mapping(),
             "oidc": [{"issuer_uri": "https://token.actions.githubusercontent.com", "allowed_audiences": []}],
         }
         resources[MAINTENANCE_WIF] |= {
@@ -251,20 +309,7 @@ def validate_maintenance_resource(address, after, unknown, value, actions, boots
     if address == MAINTENANCE_PROVIDER:
         c.need(not c.has_unknown({k: unknown.get(k) for k in ("attribute_condition", "attribute_mapping", "oidc")}), "maintenance-provider-unknown")
         c.need(after.get("attribute_condition") == maintenance_provider_condition(), "maintenance-provider-condition")
-        c.need(after.get("attribute_mapping") == {
-            "attribute.actor": "assertion.actor",
-            "attribute.actor_id": "assertion.actor_id",
-            "attribute.environment": "assertion.environment",
-            "attribute.event_name": "assertion.event_name",
-            "attribute.ref": "assertion.ref",
-            "attribute.repository_id": "assertion.repository_id",
-            "attribute.repository_owner_id": "assertion.repository_owner_id",
-            "attribute.run_attempt": "assertion.run_attempt",
-            "attribute.sha": "assertion.sha",
-            "attribute.workflow_ref": "assertion.workflow_ref",
-            "attribute.workflow_sha": "assertion.workflow_sha",
-            "google.subject": "assertion.sub",
-        }, "maintenance-provider-mapping")
+        c.need(after.get("attribute_mapping") == maintenance_provider_mapping(), "maintenance-provider-mapping")
         oidc = one(after.get("oidc"), "maintenance-provider-oidc")
         empty_options(oidc, ("jwks_json",))
         c.need(oidc.get("issuer_uri") == "https://token.actions.githubusercontent.com"
@@ -290,7 +335,7 @@ def validate_maintenance_resource(address, after, unknown, value, actions, boots
         container = one(task.get("containers"), "maintenance-job-container")
         expected_command = "/app/mypage-maintenance-operator"
         image = container.get("image")
-        c.need(type(image) is str and re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", image),
+        c.need(type(image) is str and re.fullmatch(MAINTENANCE_JOB_IMAGE, image),
                "maintenance-job-image")
         if actions == ["create"]:
             c.need(image == (bootstrap_image or value["image_digest"]), "maintenance-job-bootstrap-image")
@@ -308,10 +353,14 @@ def maintenance_job_image(job):
     task = one(template.get("template"), "maintenance-job-task")
     container = one(task.get("containers"), "maintenance-job-container")
     image = container.get("image")
-    c.need(type(image) is str and re.fullmatch(
-        re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", image),
-        "maintenance-job-image")
+    c.need(type(image) is str and re.fullmatch(MAINTENANCE_JOB_IMAGE, image),
+           "maintenance-job-image")
     return image
+
+
+def empty_list(value):
+    """Treat the provider's null and [] as the same unset list; any other value is kept as-is."""
+    return [] if value is None else value
 
 
 def maintenance_job_configuration(job):
@@ -336,7 +385,8 @@ def maintenance_job_configuration(job):
                 "execution_environment": task.get("execution_environment"),
                 "container": {
                     "command": container.get("command"),
-                    "args": container.get("args"),
+                    # providerは作成直後のStateでnull、refresh後に[]を返す。どちらも「指定なし」。
+                    "args": empty_list(container.get("args")),
                     "resources": container.get("resources"),
                     "env": container.get("env"),
                 },
@@ -476,6 +526,30 @@ def validate_plan(plan, stage):
     return validate_initial_plan(plan, stage)
 
 
+# Terraform-side attributes the Service may adopt without a remote write.
+# #1466 added deletion_policy after the last DEV Apply, so the existing State
+# holds no value or the provider default; Terraform plans an update that only
+# records PREVENT in State (provider 8.5.0 skips the API update for it).
+STATE_ONLY_SERVICE_ATTRIBUTES = {"deletion_policy": ({None, "DELETE"}, "PREVENT")}
+
+
+def state_only_service_update(address, change):
+    """Return the adopted attribute names for the reviewed Service State-only update, else None."""
+    if (address != SERVICE or change.get("actions") != ["update"] or change.get("replace_paths")
+            or change.get("importing")):
+        return None
+    before, after, unknown = change.get("before"), change.get("after"), change.get("after_unknown") or {}
+    if type(before) is not dict or type(after) is not dict or type(unknown) is not dict or c.has_unknown(unknown):
+        return None
+    changed = {key for key in set(before) | set(after) if before.get(key) != after.get(key)}
+    if not changed or not changed <= set(STATE_ONLY_SERVICE_ATTRIBUTES):
+        return None
+    if any(before.get(key) not in STATE_ONLY_SERVICE_ATTRIBUTES[key][0] or
+           after.get(key) != STATE_ONLY_SERVICE_ATTRIBUTES[key][1] for key in changed):
+        return None
+    return changed
+
+
 def validate_initial_plan(plan, stage):
     value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
     c.need(plan.get("variables", {}).get("stage", {}).get("value") == stage, "runtime-plan-stage")
@@ -488,7 +562,7 @@ def validate_initial_plan(plan, stage):
     foundation["variables"]["stage"]["value"] = base_stage
     foundation["resource_changes"] = [item for item in changes if item.get("address") in base]
     foundation["resource_drift"] = []
-    c.validate_refresh(plan, expected)
+    c.validate_refresh(plan, expected, state_only_service_update)
     # Native refresh must remain a no-op. Only the CI/CD-owned Service/Job
     # images and provider-computed metadata may drift; never mask config changes.
     for observation in plan.get("resource_drift", []) or []:
@@ -522,13 +596,19 @@ def validate_initial_plan(plan, stage):
         c.need(item.get("mode") == "managed" and item.get("provider_name") == "registry.terraform.io/hashicorp/google", "runtime-resource-provider")
         change = item.get("change", {})
         # 初回配備とno-opだけを許可する。配信リビジョンの更新には別途レビューした遷移を使い、
-        # この検査の許可範囲を暗黙に広げない。
-        c.need(change.get("actions") in [["create"], ["no-op"]] and not change.get("replace_paths"), "runtime-resource-action")
+        # この検査の許可範囲を暗黙に広げない。例外は、remote writeを伴わない
+        # ServiceのState取り込み（state_only_service_update）だけで、no-opとして検証する。
+        state_only = bool(state_only_service_update(address, change))
+        actions = ["no-op"] if state_only else change.get("actions")
+        # 例外のもう1つは、既存のmaintenance providerを短いgoogle.subjectとjob_workflow_refへ
+        # 直す、レビュー済みのin-place update（reviewed_provider_update）だけ。
+        c.need((actions in [["create"], ["no-op"]] or reviewed_provider_update(address, change)) and
+               not change.get("replace_paths"), "runtime-resource-action")
         # desired-state runtime stages may create an exact missing maintenance
         # boundary. Foreign same-name resources are rejected before Apply and
         # all maintenance fields remain constrained by the contract below.
         if stage == "maintenance_upgrade" and address not in maintenance_resource_contract():
-            c.need(change.get("actions") == ["no-op"], "maintenance-upgrade-runtime-noop")
+            c.need(actions == ["no-op"], "maintenance-upgrade-runtime-noop")
         importing = change.get("importing")
         if address == INVOKER:
             c.need(stage in {"maintenance_upgrade", "runtime_public"} and change.get("actions") == ["no-op"], "runtime-invoker-owner-managed")
@@ -547,6 +627,8 @@ def validate_initial_plan(plan, stage):
                 continue
             if address == INVOKER and key == "name":
                 valid = after.get(key) in {expected_value, PUBLIC_INVOKER_NAME}
+            elif address in {MAINTENANCE_JOB_INVOKER, MAINTENANCE_IMAGE_BINDING, OPERATOR_IMAGE_BINDING} and key == "name":
+                valid = after.get(key) in {expected_value, MAINTENANCE_JOB_FULL_NAME}
             else:
                 valid = after.get(key) == expected_value
             c.need(valid and not c.has_unknown(unknown.get(key)), "runtime-resource-value-" + address + "-" + key)
@@ -554,12 +636,11 @@ def validate_initial_plan(plan, stage):
             validate_maintenance_resource(address, after, unknown, value, change.get("actions"),
                                           maintenance_bootstrap_image)
         elif address == SERVICE:
-            if change.get("actions") == ["no-op"]:
+            if actions == ["no-op"]:
                 # ignore_changes makes the actual serving digest authoritative.
                 # Never compare it to the stale initial bootstrap digest or
                 # trigger an infrastructure rollback.
-                validate_service(after, unknown, value | {"image_digest": service_image(after)},
-                                 change.get("actions"))
+                validate_service(after, unknown, value | {"image_digest": service_image(after)}, actions)
             else:
                 validate_service(after, unknown, value, change.get("actions"))
     c.need(seen == set(expected), "runtime-resource-set")

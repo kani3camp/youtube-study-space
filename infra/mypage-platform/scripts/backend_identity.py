@@ -16,27 +16,31 @@ ENVIRONMENT = 'mypage-dev-backend'
 POOL = 'mypage-backend'
 ROLE = 'mypageBackendRelease'
 PERMISSIONS = ['run.services.get', 'run.services.update']
-REUSABLE = c.REPOSITORY + '/.github/workflows/mypage-backend-authenticated.yml@' + c.REF
+REUSABLE = c.workflow_ref('mypage-backend-authenticated.yml')
+CALLER = c.IMAGE_COMPONENTS['api']['caller']
 
 
-def event_condition(event_name):
-    c.need(event_name in ('workflow_dispatch', 'push'), 'backend-bootstrap-event')
+def condition():
+    # Only the owner's first manual run of Deploy MyPage API. Pushes, PRs, other
+    # refs, identities, retries and prod remain denied.
     values = {'repository_id': '340900071', 'repository_owner_id': '54093651',
               'actor_id': '54093651', 'actor': 'kani3camp', 'repository': c.REPOSITORY,
-              'ref': c.REF, 'workflow_ref': c.CALLER, 'job_workflow_ref': REUSABLE,
-              'event_name': event_name, 'run_attempt': '1', 'environment': ENVIRONMENT}
-    subject = ':'.join(key + ':' + value.replace(':', '%3A') for key, value in (
-        ('repository_id', '340900071'), ('repository_owner_id', '54093651'),
-        ('environment', ENVIRONMENT), ('ref', c.REF), ('workflow_ref', c.CALLER),
-        ('job_workflow_ref', REUSABLE), ('event_name', event_name)))
-    values['sub'] = subject
+              'ref': c.REF, 'workflow_ref': CALLER, 'job_workflow_ref': REUSABLE,
+              'event_name': 'workflow_dispatch', 'run_attempt': '1', 'environment': ENVIRONMENT}
+    values['sub'] = ':'.join(key + ':' + values[key].replace(':', '%3A') for key in c.CLAIM_KEYS)
     return '(' + ' && '.join('assertion.' + key + ' == ' + json.dumps(value) for key, value in values.items()) + \
         ' && assertion.workflow_sha == assertion.job_workflow_sha)'
 
 
-def condition():
-    # Permit two exact signed events. PRs, other refs, identities, retries and prod remain denied.
-    return event_condition('workflow_dispatch') + ' || ' + event_condition('push')
+def update_condition():
+    """Replace only the existing provider condition (owner migration to Deploy MyPage API)."""
+    common = ['--project=' + c.PROJECT, '--quiet', '--format=json']
+    command('gcloud', ['iam', 'workload-identity-pools', 'providers', 'update-oidc', 'github-actions',
+                       '--location=global', '--workload-identity-pool=' + POOL,
+                       '--attribute-condition=' + condition(), *common])
+    number = str(command('gcloud', ['projects', 'describe', c.PROJECT, '--format=json'])['projectNumber'])
+    readback(number)
+    print('DEV Backend provider condition now admits only Deploy MyPage API dispatches.')
 
 def command(tool, arguments, *, body=None, absent=False):
     executable = (shutil.which(tool + '.cmd') or shutil.which(tool)) if os.name == 'nt' else shutil.which(tool)
@@ -148,9 +152,11 @@ def readback(number):
 
 if __name__ == '__main__':
     try:
-        c.need(sys.argv[1:] in ([], ['--apply']), 'backend-bootstrap-arguments')
+        c.need(sys.argv[1:] in ([], ['--apply'], ['--update-condition']), 'backend-bootstrap-arguments')
         if sys.argv[1:] == ['--apply']:
             apply()
+        elif sys.argv[1:] == ['--update-condition']:
+            update_condition()
         else:
             print('Preview: new DEV-only SA/custom role/WIF pool+provider/Environment; no API calls.')
             print('Service: mypage-api; permissions: ' + ', '.join(PERMISSIONS))

@@ -109,7 +109,9 @@ The modules accept only typed selection flags, use read-only repository permissi
 
 Repository Ruleset が要求するCI statusは `CI Gate` だけです。`GCP Terraform Validate` は `CI Gate` 配下の安定した内部check名として維持し、Rulesetを個別job構造へ結合しません。Other validation check names acquire their caller prefix (for example, `System / Go Lint`); they are covered by `CI Gate`. The [gate result policy](../../.github/scripts/check-ci-results.py) rejects failed/cancelled reusable calls, missing or malformed detection outputs, unsuccessful detection/repository checks, and skipped selected modules. MyPage platform / OAuth TTL / Production readiness / runtime ownership を含むGCP IaC検証は `CI GCP Terraform` に集約されています。
 
-手動操作の最上位呼び出し元は`ci.yml`に残す。実AWS/GCPの信頼設定が`workflow_ref`をこのパスに固定しているためである。手動UIは`operation`と`environment`だけを公開し、[ci-operations.yml](../../.github/workflows/ci-operations.yml)がGCP Infrastructure・スキーマ監査・イメージビルド・MyPage配備へ振り分ける。`gcp-plan` / `gcp-apply`はCore GCPとMyPageを独立したTerraform Stateとして扱い、MyPageの初期構築段階は内部に留める。書き込み可能な操作は認証前に、認証情報不要のCI全体の完了を待つ。最上位呼び出し元を`ci.yml`から移す場合は、別途AWS/GCPの信頼設定を段階変更する必要がある。CodeQLは独立したセキュリティ解析ワークフローのままとする。
+MyPageのアプリケーション配備は、ユースケースごとの最上位workflow（`Deploy MyPage API` / `Deploy MyPage Frontend` / `Deploy Maintenance Operator`）が扱い、`ci.yml`からは呼ばない。各Deploy workflowは配備するdomainのcredentialless検査を同じrunで、資格情報の取得前に通す。Terraformの手動Plan / Applyは`Terraform`（`terraform.yml`）が扱う。`ci.yml`は資格情報を持たない検査だけを行い、手動実行（入力なし）も全domainの再検査にとどまる。移行状況は[CI / Terraform / Deploy / Operation workflow](ci-cd-workflows.md)を正とする。最上位workflowを新設・改名するときは、実AWS/GCPの信頼設定（`workflow_ref`）を段階変更する必要がある。CodeQLは独立したセキュリティ解析ワークフローのままとする。
+
+ユースケース単位のworkflowへの移行計画と、各workflowの資格情報・Environment・排他の棚卸しは[CI / Terraform / Deploy / Operation workflow](ci-cd-workflows.md)を参照する。
 
 Local source verification (with the pinned parser from `.github/codeql/requirements.txt` installed):
 

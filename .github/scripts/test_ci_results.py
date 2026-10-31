@@ -21,59 +21,64 @@ class GateResultsTest(unittest.TestCase):
         needs['repository']['result'] = 'success'
         return needs
 
-    def test_unselected_domains_and_operations_can_skip(self):
-        gate.validate(self.fixture(), 'false')
+    def test_unselected_domains_can_skip_and_no_operation_dependency_exists(self):
+        gate.validate(self.fixture())
+        # CI has no credentialed operation left; an extra dependency is rejected.
+        with self.assertRaises(ValueError):
+            gate.validate(self.fixture() | {'operations': {'result': 'skipped'}})
 
     def test_all_selected_domains_must_succeed(self):
         needs = self.fixture(all='true')
         for name in gate.DOMAIN_GROUPS:
             needs[name]['result'] = 'success'
-        gate.validate(needs, 'false')
+        gate.validate(needs)
         for name in gate.DOMAIN_GROUPS:
             changed = copy.deepcopy(needs)
             changed[name]['result'] = 'skipped'
             with self.subTest(name=name), self.assertRaises(ValueError):
-                gate.validate(changed, 'false')
+                gate.validate(changed)
 
-    def test_failure_cancellation_and_unknown_results_reach_gate(self):
-        for name, result in (('system', 'failure'), ('frontend', 'cancelled'),
-                             ('tools', 'unknown')):
-            needs = self.fixture()
-            needs[name]['result'] = result
-            with self.subTest(name=name), self.assertRaises(ValueError):
-                gate.validate(needs, 'false')
+    def test_each_path_group_requires_its_selected_module(self):
+        for name, groups in gate.DOMAIN_GROUPS.items():
+            for group in groups:
+                needs = self.fixture(**{group: 'true'})
+                with self.subTest(name=name, group=group), self.assertRaises(ValueError):
+                    gate.validate(needs)
+
+    def test_every_failure_or_cancellation_reaches_gate_including_reusables(self):
+        for name in gate.DEPENDENCIES:
+            for result in ('failure', 'cancelled', '', 'unknown', None):
+                needs = self.fixture()
+                needs[name]['result'] = result
+                with self.subTest(name=name, result=result), self.assertRaises(ValueError):
+                    gate.validate(needs)
 
     def test_detection_or_repository_skip_cannot_pass(self):
         for name in ('changes', 'repository'):
             needs = self.fixture()
             needs[name]['result'] = 'skipped'
             with self.subTest(name=name), self.assertRaises(ValueError):
-                gate.validate(needs, 'false')
+                gate.validate(needs)
 
     def test_missing_dependencies_or_detection_outputs_fail_closed(self):
-        needs = self.fixture()
-        del needs['system']
-        with self.assertRaises(ValueError):
-            gate.validate(needs, 'false')
-        for bad in (None, '', 'TRUE', True):
-            needs = self.fixture(system=bad)
-            with self.subTest(bad=bad), self.assertRaises(ValueError):
-                gate.validate(needs, 'false')
+        for name in gate.DEPENDENCIES:
+            needs = self.fixture()
+            del needs[name]
+            with self.subTest(dependency=name), self.assertRaises(ValueError):
+                gate.validate(needs)
+        for group in gate.GROUPS:
+            for bad in (None, '', 'TRUE', True):
+                needs = self.fixture()
+                if bad is None:
+                    del needs['changes']['outputs'][group]
+                else:
+                    needs['changes']['outputs'][group] = bad
+                with self.subTest(group=group, bad=bad), self.assertRaises(ValueError):
+                    gate.validate(needs)
 
-    def test_requested_operation_cannot_skip_or_fail(self):
-        needs = self.fixture()
-        for status in ('skipped', 'failure', 'cancelled'):
-            needs['operations']['result'] = status
-            with self.subTest(status=status), self.assertRaises(ValueError):
-                gate.validate(needs, 'true')
-        needs['operations']['result'] = 'success'
-        gate.validate(needs, 'true')
-        for bad in ('', 'TRUE', '1', True):
-            with self.subTest(bad=bad), self.assertRaises(ValueError):
-                gate.validate(needs, bad)
 
     def test_real_gate_entrypoint_returns_nonzero_on_bad_or_missing_json(self):
         for payload, expected in ((json.dumps(self.fixture()), 0), ('{}', 1), ('not-json', 1), ('[]', 1)):
-            env = dict(os.environ, CI_NEEDS=payload, CI_OPERATION_REQUESTED='false')
+            env = dict(os.environ, CI_NEEDS=payload)
             result = subprocess.run([sys.executable, str(SCRIPT)], env=env, capture_output=True)
             self.assertEqual(result.returncode, expected, result.stderr)

@@ -2,7 +2,7 @@
 """Offline value-free validation for development import-fidelity fixtures.
 
 No authenticated workflow calls this fixture adapter. Current execution uses
-terraform_migration and its full-root contract.
+the normal Terraform Plan/Apply controller.
 """
 from __future__ import annotations
 

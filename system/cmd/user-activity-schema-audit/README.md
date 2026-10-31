@@ -24,9 +24,11 @@ credential内のprojectが空でも、検証済みexplicit targetを使います
 credential metadataのprojectはidentity/trustの証明ではありません。dedicated identity、exact
 table/project権限、WIF cloud trustとprotected Environmentは別途検証が必要です。
 
-CLIにproduction targetが存在しても、専用GitHub audit workflowはdevelopment-only、default-offです。
-raw JSONとstderrはprivate ephemeral outputとして扱い、public logs/artifactsへ保存しません。
-workflowの公開Summaryはzero/non-zeroだけです。source/test PASSはquery実行承認を兼ねません。
+このCLIを実行するGitHub workflow（`gcp-user-activity-schema-audit.yml`）は、2026年の一回限りの監査
+（[結果](../../../infra/gcp/docs/user-activity-history-canonicalization.md)、終了PR #1238）の後、#1500で撤去しました。
+クラウド側の専用SA・権限・trustも監査後に撤回済みです。再実行が必要になった場合は、identity・table限定の
+権限・実行経路を改めて承認してから用意します。raw JSONとstderrはprivate ephemeral outputとして扱い、
+public logs/artifactsへ保存しません。source/test PASSはquery実行承認を兼ねません。
 
 credentialless regression testsは合成WIF JSONを使います。token fileは存在せず、token交換や
 BigQuery queryを行わずに、projectless credentialの読み取りと起動準備を検証します。
@@ -35,7 +37,7 @@ BigQuery queryを行わずに、projectless credentialの読み取りと起動�
 
 `USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED`は必須のpositive decimal integerで、hard ceilingは1 GiB
 (`1073741824` bytes)です。未指定・zero・negative・overflow・上限超過はcredential読取前に
-拒否します。workflowもこの上限を明示し、query requestの`maximumBytesBilled`へ設定します。
+拒否します。CLIはquery requestの`maximumBytesBilled`へこの上限を設定します。
 これは次のcost承認候補であり、実queryの承認ではありません。低い明示budgetも指定できます。
 上限超過はSTOPし、budget引上げやquery retryを自動で行いません。canonical schemaならquery0です。
 
@@ -52,7 +54,7 @@ SDKでは`Query.Run`+`LastStatus`を使い、`Read`/`Status`/`Wait`を呼びま�
 Environment準備承認は、token交換やdry-runを含みません。既存operatorでdry-run1回を許可する
 場合もtarget/同一SQL/認証経路/output経路を別途承認し、public出力しません。
 Row-level securityでmaskedなtableはestimate0になり得るため、zeroを無料・安全の根拠にしません。
-Workflowはdry-runを自動追加せず、real aggregate operation1回だけという契約を保持します。
+CLIはdry-runを自動追加せず、指定したaggregate operationを実行します。
 
 Credentialless regressionはpinned SDKのHTTP transportを合成responseで置換し、
 exact4COUNTIF/target/location/budgetのwire request、canonical query0、budget error後query retry0、

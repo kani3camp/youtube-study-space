@@ -71,6 +71,7 @@ locals {
   foundation_plan_email          = "mypage-foundation-plan@${var.project_id}.iam.gserviceaccount.com"
   foundation_apply_email         = "mypage-foundation-apply@${var.project_id}.iam.gserviceaccount.com"
   backend_deployer_email         = "mypage-backend-deploy@${var.project_id}.iam.gserviceaccount.com"
+  operator_deployer_email        = "mypage-operator-deploy@${var.project_id}.iam.gserviceaccount.com"
 }
 
 # 呼び出し元が既定のdisabled段階から切り替えた場合だけ、これらの資源を作成する。
@@ -446,7 +447,8 @@ resource "google_iam_workload_identity_pool_provider" "maintenance_github" {
   disabled                           = false
   deletion_policy                    = "PREVENT"
   attribute_mapping = {
-    "google.subject"                = "assertion.sub"
+    # Google STS limits google.subject to 127 bytes; the custom OIDC sub is far longer.
+    "google.subject"                = "assertion.repository_id+\":\"+assertion.environment+\":\"+assertion.actor_id"
     "attribute.actor"               = "assertion.actor"
     "attribute.repository_id"       = "assertion.repository_id"
     "attribute.repository_owner_id" = "assertion.repository_owner_id"
@@ -459,7 +461,7 @@ resource "google_iam_workload_identity_pool_provider" "maintenance_github" {
     "attribute.environment"         = "assertion.environment"
     "attribute.event_name"          = "assertion.event_name"
   }
-  attribute_condition = "assertion.repository_id == '340900071' && assertion.repository_owner_id == '54093651' && assertion.actor_id == '54093651' && assertion.actor == 'kani3camp' && assertion.run_attempt == '1' && assertion.event_name == 'workflow_dispatch' && assertion.ref == '${local.maintenance_ref}' && assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@${local.maintenance_ref}' && assertion.environment == '${local.maintenance_github_environment}' && assertion.workflow_sha == assertion.sha"
+  attribute_condition = "assertion.repository_id == '340900071' && assertion.repository_owner_id == '54093651' && assertion.actor_id == '54093651' && assertion.actor == 'kani3camp' && assertion.run_attempt == '1' && assertion.event_name == 'workflow_dispatch' && assertion.ref == '${local.maintenance_ref}' && assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@${local.maintenance_ref}' && assertion.job_workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/mypage-maintenance-authenticated.yml@${local.maintenance_ref}' && assertion.environment == '${local.maintenance_github_environment}' && assertion.workflow_sha == assertion.sha"
   oidc {
     issuer_uri        = "https://token.actions.githubusercontent.com"
     allowed_audiences = []
@@ -523,8 +525,8 @@ resource "google_cloud_run_v2_job" "maintenance_operator" {
   depends_on = [google_project_iam_member.maintenance_firestore]
   lifecycle {
     prevent_destroy = true
-    # Application CI/CD keeps the fixed operator Job on the same immutable
-    # digest as the API image. Terraform retains every non-image field.
+    # The Deploy Maintenance Operator workflow owns the Job image, separately
+    # from the API Service image. Terraform retains every non-image field.
     ignore_changes = [template[0].template[0].containers[0].image]
   }
 }
@@ -560,6 +562,32 @@ resource "google_cloud_run_v2_job_iam_member" "maintenance_image_release" {
   name     = google_cloud_run_v2_job.maintenance_operator[0].name
   role     = "projects/${var.project_id}/roles/mypageMaintenanceImageRelease"
   member   = "serviceAccount:${local.backend_deployer_email}"
+
+  depends_on = [
+    google_project_iam_custom_role.maintenance_image_release,
+    google_cloud_run_v2_job.maintenance_operator,
+  ]
+}
+
+# The dedicated operator deployer owns Job image releases. The legacy backend
+# deployer bindings above stay until the first operator release is verified;
+# their removal is a separately reviewed delete-only transition.
+resource "google_service_account_iam_member" "operator_image_release_act_as" {
+  count              = local.maintenance_image_release ? 1 : 0
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.maintenance_operator_email}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${local.operator_deployer_email}"
+
+  depends_on = [google_service_account.maintenance_operator]
+}
+
+resource "google_cloud_run_v2_job_iam_member" "operator_image_release" {
+  count    = local.maintenance_image_release ? 1 : 0
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_job.maintenance_operator[0].name
+  role     = "projects/${var.project_id}/roles/mypageMaintenanceImageRelease"
+  member   = "serviceAccount:${local.operator_deployer_email}"
 
   depends_on = [
     google_project_iam_custom_role.maintenance_image_release,

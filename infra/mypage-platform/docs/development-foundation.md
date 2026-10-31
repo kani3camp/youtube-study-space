@@ -38,12 +38,13 @@ MyPage統合PR [#1236](https://github.com/kani3camp/youtube-study-space/pull/123
 | `mypageFoundationCreate` | 上記read + `iam.serviceAccounts.create`、`secretmanager.secrets.create` | 初回metadata作成時だけApply SAに一時付与 |
 | `mypageFoundationSAPolicy` | `iam.serviceAccounts.getIamPolicy/setIamPolicy` | 作成済みruntime SAだけ |
 | `mypageFoundationSecretPolicy` | `secretmanager.secrets.get/getIamPolicy/setIamPolicy` | 作成済みの3 Secretそれぞれだけ |
+| `mypageRuntimeRead` | `artifactregistry.tags.get`、`resourcemanager.projects.getIamPolicy`、`run.operations.get`、`run.services.get/getIamPolicy`、`secretmanager.versions.get`、`run.jobs.get/getIamPolicy`、`iam.roles.get`、`iam.workloadIdentityPools.get/getAttestationRules`、`iam.workloadIdentityPoolProviders.get` | Plan / Apply / PR Plan SA（project）。`run.jobs.*`以降は2026-10-31に追加した。maintenance資源のPlanは、未作成の資源について404を確認する。読取り権限がないと403になり、Planが`runtime-inputs`で停止していた。`run.jobs.getIamPolicy`は、Job IAMがStateに入った後のrefreshで必要になる（ないとPlanが`terraform-plan`で停止する）。`iam.workloadIdentityPools.getAttestationRules`は、google provider 8.5.0がpoolの読取りで`:listAttestationRules`も呼ぶために必要になる。ないと、Apply直後の読取りが403になってpoolがtaintedになり、以降のPlanも403で止まる |
 
 read roleはSecret payloadを読めない。資源単位のpolicy editorは当該資源の権限を変更できるため、単なるread権限とは扱わず、専用WIF・Environment・実行ソース・plan guardの制限を維持する。create roleの定義自体はbootstrap記録として残し、器の作成後はproject bindingを外す。将来の再作成は自動的に権限を復活させず、対象とownershipの再確認を必要とする。
 
 ## 実行条件
 
-以下は初回Foundation構築時に使用した**履歴上の操作**であり、現在の通常UIでは選択しない。当時は既存 `CI` の `mypage_foundation=true` と段階別modeを使い、`foundation_metadata` の4資源から `foundation` の8資源へ段階導入した。現行の通常運用は `operation=gcp-plan|gcp-apply` と `environment` に集約し、これらのstageはbootstrap内部契約としてのみ保持する。
+以下は初回Foundation構築時に使用した**履歴上の操作**であり、現在の通常UIでは選択しない。当時は既存 `CI` の `mypage_foundation=true` と段階別modeを使い、`foundation_metadata` の4資源から `foundation` の8資源へ段階導入した。現行の通常運用は `Terraform`（`terraform.yml`）の `environment` / `operation=plan|apply` に集約し、これらのstageはbootstrap内部契約としてのみ保持する。
 
 `integration/mypage-canon-20261006`、repository/owner ID、owner actor、run attempt 1、caller `ci.yml` と専用reusable workflowの同一SHAを検査する。PR、fork、他branch、main、再実行、古いSHAはcredential取得前またはOIDC検査で拒否する。AWS trustは同じcustom subjectへ完全一致する。repositoryの既存OIDC subject templateは変更しない。
 

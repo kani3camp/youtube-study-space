@@ -30,13 +30,13 @@ def credentialless_environment() -> dict[str, str]:
 
 
 class ProductionReadinessTest(unittest.TestCase):
-    def preflight(self, mode="migration-plan", **overrides):
+    def preflight(self, mode="normal-plan", **overrides):
         from test_terraform_authenticated_workflow import TerraformAuthenticatedWorkflowTest
         guard = TerraformAuthenticatedWorkflowTest()
         guard.text = WORKFLOW.read_text()
         result = guard.run_preflight(**({
             "TARGET": "prod", "MODE": mode, "GITHUB_REF": "refs/heads/main",
-            "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/main",
+            "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/terraform.yml@refs/heads/main",
         } | overrides))
         return result, dict(line.split("=", 1) for line in result.outputs.splitlines())
 
@@ -58,14 +58,13 @@ class ProductionReadinessTest(unittest.TestCase):
             "allowed_account_ids": '["REPLACE_WITH_STATE_AWS_ACCOUNT_ID"]',
         })
 
-    def test_production_migration_requires_readiness_and_main_before_authentication(self):
-        for mode in ("migration-plan", "migration-apply"):
+    def test_production_normal_requires_main_before_authentication(self):
+        for mode in ("normal-plan", "normal-apply"):
             result, _ = self.preflight(mode)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assert_stops_before_job_inputs(mode, MIGRATION_PRODUCTION_READY="false")
             self.assert_stops_before_job_inputs(mode, GITHUB_RUN_ATTEMPT="2")
             self.assert_stops_before_job_inputs(mode, GITHUB_REF="refs/heads/dev")
-        for mode in ("plan", "apply", "security-probe", "email-adoption", "quota-create", "current-state-read"):
+        for mode in ("migration-plan", "migration-apply", "normal-e2e", "plan", "apply", "security-probe", "email-adoption", "quota-create", "current-state-read"):
             self.assert_stops_before_job_inputs(mode)
 
     def test_readiness_runs_inside_required_credentialless_gcp_ci(self):

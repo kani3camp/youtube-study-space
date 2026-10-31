@@ -24,7 +24,7 @@ def context(target="prod", role="plan"):
         "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_ACTOR": "kani3camp",
         "GITHUB_ACTOR_ID": "54093651", "GITHUB_TRIGGERING_ACTOR": "kani3camp",
         "GITHUB_RUN_ATTEMPT": "1", "GITHUB_REF": "refs/heads/" + branch,
-        "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/ci.yml@refs/heads/" + branch,
+        "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/terraform.yml@refs/heads/" + branch,
         "GITHUB_SHA": "a" * 40, "NORMAL_EXPECTED_SHA": "a" * 40,
         "NORMAL_TARGET": target, "NORMAL_MODE": "normal-apply",
         "NORMAL_ROLE": role, "GITHUB_JOB": "normal_" + role,
@@ -50,9 +50,9 @@ class ProductionNormalOps(unittest.TestCase):
             for bad in (
                 {"GITHUB_REF": "refs/heads/dev"},
                 {"GITHUB_REF": "refs/heads/feature/foo",
-                 "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/ci.yml@refs/heads/feature/foo"},
+                 "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/terraform.yml@refs/heads/feature/foo"},
                 {"GITHUB_REF": "refs/tags/v1"},
-                {"GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/ci.yml@refs/heads/dev"},
+                {"GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/terraform.yml@refs/heads/dev"},
                 {"GITHUB_ACTOR_ID": "100"},
                 {"GITHUB_TRIGGERING_ACTOR": "someone-else"},
                 {"GITHUB_RUN_ATTEMPT": "2"},
@@ -64,23 +64,17 @@ class ProductionNormalOps(unittest.TestCase):
                 with self.subTest(role=role, bad=bad), self.assertRaises(ValueError):
                     ops.context(context(role=role) | bad, role)
 
-    def test_prod_e2e_cannot_touch_real_cloud(self):
-        env = context() | {"NORMAL_MODE": "normal-e2e"}
-        with self.assertRaises(ValueError):
-            ops.context(env)
-        with self.assertRaises(ValueError):
-            ops.e2e(env, None, None, None)
 
-    def test_dev_normal_is_still_non_main(self):
+    def test_dev_workflow_branch_is_selected_by_environment_while_prod_stays_main(self):
         self.assertEqual(ops.context(context("dev")), "dev")
         branch = context("dev") | {
             "GITHUB_REF": "refs/heads/feature/safe",
-            "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/ci.yml@refs/heads/feature/safe",
+            "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/terraform.yml@refs/heads/feature/safe",
         }
         self.assertEqual(ops.context(branch), "dev")
         with self.assertRaises(ValueError):
             ops.context(context("dev") | {"GITHUB_REF": "refs/heads/main",
-                                        "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/ci.yml@refs/heads/main"})
+                                        "GITHUB_WORKFLOW_REF": REPO + "/.github/workflows/terraform.yml@refs/heads/main"})
 
     def test_project_and_kind_are_pinned(self):
         self.assertEqual(ops.target_project(context()), PROD)
@@ -249,10 +243,10 @@ class ProductionNormalOps(unittest.TestCase):
     def test_state_reader_receives_exact_target(self):
         with patch.object(ops.common, "snapshot", return_value={"ok": True}) as snap:
             self.assertEqual(ops.snapshot(context(), Path("/tmp"), "before"), {"ok": True})
-            self.assertEqual(snap.call_args.args[0]["MIGRATION_TARGET"], "prod")
+            self.assertEqual(snap.call_args.args[0]["NORMAL_TARGET"], "prod")
         with patch.object(ops.common, "snapshot", return_value={"ok": True}) as snap:
             ops.snapshot(context("dev"), Path("/tmp"), "before")
-            self.assertEqual(snap.call_args.args[0]["MIGRATION_TARGET"], "dev")
+            self.assertEqual(snap.call_args.args[0]["NORMAL_TARGET"], "dev")
 
     def test_backend_key_and_root_never_cross_environments(self):
         with tempfile.TemporaryDirectory() as folder:

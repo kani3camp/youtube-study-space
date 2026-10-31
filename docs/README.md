@@ -5,6 +5,7 @@
 | 目的 | 参照先 |
 | --- | --- |
 | システム構成・座席数制御・認可境界・CI | [アーキテクチャ](development/architecture.md) |
+| CI / Terraform / Deploy / Operation workflow の構成と移行 | [workflow設計](development/ci-cd-workflows.md) |
 | 座席外観 V2 の互換移行 | [導入手順](development/seat-appearance-v2-rollout.md) |
 | 広報・SNS・サムネイル制作 | [デザイン指針](design/DESIGN.md) |
 | MyPage の API・集計・認証の仕様 | [MyPage](mypage/README.md) |

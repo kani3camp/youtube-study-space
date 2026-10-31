@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Manage DEV Terraform branch authorization through GitHub Environments only.
+"""DEVの本人起動を維持し、信頼する実行元をEnvironmentへ明示追加する。
 
-Per-branch authorization lives in the two GitHub DEV Terraform Environments.
-AWS/GCP trust are long-lived, branch-name-agnostic control planes and are never
-mutated by this script. Optional AWS/GCP flags are read-only audits.
+GitHubの本人認証で既存DEV両EnvironmentのSelected branchesを管理する。
+AWS/GCP trustの監査は読み取り専用の任意操作で、本番は扱わない。
 """
 from __future__ import annotations
 
@@ -17,12 +16,14 @@ import bootstrap_normal_ops as config
 
 REPO = "kani3camp/youtube-study-space"
 PROJECT = "test-youtube-study-space"
-DEFAULT_BRANCH = "integration/gcp-terraform-normal-ops"
+DEFAULT_BRANCH = "dev"
 ISSUER = "token.actions.githubusercontent.com"
 STATE_REGION = "ap-northeast-1"
 LEGACY_AWS_REF = "refs/heads/*"
 CLAIM_KEYS = ("repository_id", "repository_owner_id", "environment", "ref",
               "workflow_ref", "job_workflow_ref", "event_name")
+# terraform.yml is the only caller (#1500); DEV trust may still list ci.yml until the old claims are removed.
+CALLERS = ('ci.yml', 'terraform.yml')
 BRANCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
 PHASE = "start"
 
@@ -43,13 +44,14 @@ def branch_name(value: str) -> str:
     return value
 
 
-def custom_subject(role: str, ref: str) -> str:
+def custom_subject(role: str, ref: str, caller: str = 'terraform.yml') -> str:
+    need(caller in CALLERS)
     claims = {
         "repository_id": "340900071",
         "repository_owner_id": "54093651",
         "environment": "terraform-dev-" + role,
         "ref": ref,
-        "workflow_ref": REPO + "/.github/workflows/ci.yml@" + ref,
+        "workflow_ref": REPO + "/.github/workflows/" + caller + "@" + ref,
         "job_workflow_ref":
             REPO + "/.github/workflows/gcp-terraform-authenticated.yml@" + ref,
         "event_name": "workflow_dispatch",
@@ -126,9 +128,13 @@ def audit_aws_role(document: dict, role: str) -> None:
     need(isinstance(equals, dict) and isinstance(likes, dict)
          and equals.get(ISSUER + ":aud") == "sts.amazonaws.com"
          and equals.get(ISSUER + ":actor_id") == "54093651")
-    # This wildcard is not the authorization surface. GitHub Environment is.
-    # Every other claim remains fixed inside the custom subject.
-    need(likes.get(ISSUER + ":sub") == custom_subject(role, LEGACY_AWS_REF))
+    # 任意ブランチを許可するが、本人のimmutable IDと他のsubject claimsは固定する。
+    subjects = likes.get(ISSUER + ':sub')
+    subjects = [subjects] if isinstance(subjects, str) else subjects
+    allowed = {custom_subject(role, LEGACY_AWS_REF, caller) for caller in CALLERS}
+    need(isinstance(subjects, list) and all(isinstance(s, str) for s in subjects)
+         and len(subjects) == len(set(subjects)) and set(subjects) <= allowed
+         and custom_subject(role, LEGACY_AWS_REF) in subjects)
 
 
 def verify_aws() -> None:
@@ -159,9 +165,13 @@ def check_provider(value: dict) -> None:
     need(value.get("oidc", {}).get("issuerUri")
          == "https://token.actions.githubusercontent.com")
     need(value.get("attributeMapping") == config.MAPPING)
-    # No branch names are allowed in the durable WIF condition. It verifies
-    # branch-shaped refs and same-ref workflow paths; Environment selects names.
-    need(value.get("attributeCondition") == config.CONDITION)
+    # 本人起動・非mainのbranch ref・同ref/SHAのworkflowをWIF自身が検証する。
+    # 既存のTerraform専用入口が併存するDEVも、他の条件は完全一致のまま読み取る。
+    caller = "assertion.workflow_ref == '" + REPO + "/.github/workflows/terraform.yml@' + assertion.ref"
+    callers = 'assertion.workflow_ref in [' + ', '.join(
+        "'" + REPO + '/.github/workflows/' + name + "@' + assertion.ref" for name in CALLERS) + ']'
+    need(caller in config.CONDITION)
+    need(value.get('attributeCondition') in (config.CONDITION, config.CONDITION.replace(caller, callers)))
     condition = value["attributeCondition"]
     need("refs/heads/dev" not in condition
          and "integration/gcp-terraform-normal-ops" not in condition)
@@ -180,112 +190,93 @@ def verify_oidc_template() -> None:
          and settings.get("include_claim_keys") == list(CLAIM_KEYS))
 
 
-def branch_policies(role: str) -> tuple[str, dict]:
+def verify_operator() -> None:
+    operator = gh('user')
+    need(operator.get('login') == 'kani3camp' and operator.get('id') == 54093651)
+
+
+def dev_environment(role: str) -> tuple[str, dict]:
+    need(role in ('plan', 'apply'))
     endpoint = f"repos/{REPO}/environments/terraform-dev-{role}"
     environment = gh(endpoint)
+    need(environment.get('name') == f'terraform-dev-{role}'
+         and type(environment.get('id')) is int
+         and 'deployment_branch_policy' in environment)
     policy = environment.get("deployment_branch_policy")
-    need(isinstance(policy, dict)
-         and policy.get("custom_branch_policies") is True
-         and policy.get("protected_branches") is False)
-    values = gh(endpoint + "/deployment-branch-policies?per_page=100")
-    need(isinstance(values.get("branch_policies"), list)
-         and type(values.get("total_count")) is int
-         and values["total_count"] <= 100)
-    return endpoint, values
+    need(policy is None or (isinstance(policy, dict)
+         and policy.get('custom_branch_policies') is True
+         and policy.get('protected_branches') is False))
+    # PUTが他の保護を暗黙に変更しないよう、未知のreviewer/timer等があれば停止する。
+    rules = environment.get('protection_rules')
+    need(isinstance(rules, list)
+         and all(isinstance(rule, dict) and rule.get('type') == 'branch_policy' for rule in rules))
+    return endpoint, environment
 
 
-def exact_policy_names(values: dict) -> list[str]:
-    policies = values["branch_policies"]
-    need(all(isinstance(item, dict) and isinstance(item.get("name"), str)
-             and item.get("type") in ("branch", None) for item in policies))
-    names = [item["name"] for item in policies]
-    # Keep this operational lane exact. Broad patterns bypass the explicit
-    # per-branch workflow the user chose for DEV.
-    need(not any("*" in name or "?" in name for name in names))
-    return names
-
-
-def branch_present(values: dict, target: str) -> bool:
-    names = exact_policy_names(values)
-    need("dev" in names)
-    return target in names
-
-
-def add_branch(endpoint: str, target: str) -> None:
-    gh("-X", "POST", endpoint + "/deployment-branch-policies",
-       "-H", "Accept: application/vnd.github+json",
-       "--input", "-", data={"name": target})
-
-
-def dispatch_e2e(target: str) -> None:
-    global PHASE
-    PHASE = "github_dispatch_preflight"
-    operator = gh("user")
-    need(operator.get("login") == "kani3camp" and operator.get("id") == 54093651)
-    remote = gh(f"repos/{REPO}/branches/{quote(target, safe='')}")
-    sha = remote.get("commit", {}).get("sha")
-    need(isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{40}", sha) is not None)
-    status = gh(f"repos/{REPO}/commits/{sha}/check-runs?per_page=100")
-    checks = status.get("check_runs", [])
-    need(isinstance(checks, list))
-    for required in ("CI Gate", "GCP Terraform Validate"):
-        selected = [item for item in checks if item.get("name") == required]
-        need(len(selected) == 1 and selected[0].get("conclusion") == "success")
-    PHASE = "github_dispatch"
-    result = subprocess.run([
-        "gh", "workflow", "run", "ci.yml", "--repo", REPO, "--ref", target,
-        "-f", "terraform_authenticated=true",
-        "-f", "terraform_target=dev",
-        "-f", "terraform_mode=normal-e2e",
-        "-f", "terraform_expected_sha=" + sha,
-    ], capture_output=True, text=True, timeout=60, check=False)
-    need(result.returncode == 0)
-    print("NORMAL_BRANCH_ACCESS: PASS; normal-e2e dispatched; sha=" + sha)
+def authorize_control_branch(endpoint: str, current: dict, target: str) -> None:
+    need(endpoint in {f'repos/{REPO}/environments/terraform-dev-{role}' for role in ('plan', 'apply')})
+    branch_name(target)
+    policy = {'protected_branches': False, 'custom_branch_policies': True}
+    if current['deployment_branch_policy'] is None:
+        # No restriction時は一覧APIが404になる。先に制限を復旧し、アクセスを閉じる。
+        gh('-X', 'PUT', endpoint, '--input', '-', data={'deployment_branch_policy': policy})
+    path = endpoint + '/deployment-branch-policies'
+    values = gh(path + '?per_page=100')
+    need(type(values.get('total_count')) is int and values['total_count'] <= 100
+         and isinstance(values.get('branch_policies'), list))
+    rules = values['branch_policies']
+    need(all(type(r.get('id')) is int and type(r.get('name')) is str for r in rules))
+    need(all(rule.get('type', 'branch') == 'branch' for rule in rules))
+    previous = {branch_name(rule['name']) for rule in rules}
+    if target not in previous:
+        gh('-X', 'POST', path, '--input', '-', data={'name': target, 'type': 'branch'})
+    latest = gh(path + '?per_page=100')
+    latest_rules = latest['branch_policies']
+    need(latest['total_count'] == len(previous | {target}) == len(latest_rules)
+         and all(rule.get('type', 'branch') == 'branch' for rule in latest_rules)
+         and {branch_name(rule['name']) for rule in latest_rules} == previous | {target})
 
 
 def main() -> None:
     global PHASE
     PHASE = "arguments"
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--branch", default=DEFAULT_BRANCH,
-                        help="Exact DEV branch to authorize in GitHub Environments")
+                        help="Environmentへ明示追加する信頼済みの実行元ブランチ")
     parser.add_argument("--apply", action="store_true",
-                        help="Add exact branch to DEV plan/apply Environments")
-    parser.add_argument("--dispatch-e2e", action="store_true",
-                        help="After verified --apply, dispatch one normal-e2e")
+                        help="DEV両Environmentの既存許可を残して--branchを明示追加します")
     parser.add_argument("--verify-aws", action="store_true",
-                        help="Optional read-only AWS OIDC trust audit")
+                        help="任意でDEV AWS OIDC trustを読み取り監査します")
     parser.add_argument("--verify-gcp", action="store_true",
-                        help="Optional read-only GCP WIF audit")
+                        help="任意でDEV GCP WIFを読み取り監査します")
     flags = parser.parse_args()
     target = branch_name(flags.branch)
-    need(not flags.dispatch_e2e or flags.apply)
 
+    PHASE = 'github_operator'
+    verify_operator()
+    PHASE = 'github_oidc_template'
+    verify_oidc_template()
+    # Secretのref制限と、クラウド側の本人制限を別々の境界として維持する。
     if flags.verify_aws:
         verify_aws()
     if flags.verify_gcp:
         verify_gcp()
-
-    PHASE = "github_oidc_template"
-    verify_oidc_template()
     PHASE = "github_environments"
-    current = {role: branch_policies(role) for role in ("plan", "apply")}
-    for _, values in current.values():
-        exact_policy_names(values)
+    current = {role: dev_environment(role) for role in ("plan", "apply")}
 
-    print("NORMAL_BRANCH_ACCESS: PASS; phase=preflight; branch=" + target
-          + "; cloud_mutation=0")
+    print("NORMAL_BRANCH_ACCESS: PASS; phase=preflight; scope=dev;"
+          " desired_selected_branches_only=true; cloud_mutation=0")
     if flags.apply:
         PHASE = "github_environment_update"
         for role in ("plan", "apply"):
-            endpoint, values = current[role]
-            if not branch_present(values, target):
-                add_branch(endpoint, target)
-            need(branch_present(branch_policies(role)[1], target))
-        print("NORMAL_BRANCH_ACCESS: PASS; GitHub Environment branch enabled;"
+            endpoint, previous = current[role]
+            authorize_control_branch(endpoint, previous, target)
+            _, updated = dev_environment(role)
+            need(updated['deployment_branch_policy'] == {'protected_branches': False, 'custom_branch_policies': True}
+                 and updated['id'] == previous['id']
+                 and updated.get('can_admins_bypass') == previous.get('can_admins_bypass'))
+        print("NORMAL_BRANCH_ACCESS: PASS; trusted DEV control branch authorized;"
               " AWS/GCP mutation=0")
-    if flags.dispatch_e2e:
-        dispatch_e2e(target)
 
 
 if __name__ == "__main__":

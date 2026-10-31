@@ -22,7 +22,7 @@ REPO = Path(__file__).resolve().parents[3]
 PHASE = "context"
 # DEV one-time bootstrap anchor. This exact source was built successfully by
 # Actions run 40985997924 and contains /app/mypage-maintenance-operator.
-# It is resolved only while the fixed Job is absent.
+# It is resolved to an immutable digest only while the Job does not exist.
 MAINTENANCE_BOOTSTRAP_SOURCE_SHA = "ace38d8237a186325629321641fe8dff58e83bdf"
 
 
@@ -63,12 +63,16 @@ def run(args, *, cwd=None, codes=(0,), check="native-command"):
         for permission in (
             "artifactregistry.repositories.get", "iam.roles.get", "iam.serviceAccounts.get", "iam.serviceAccounts.getIamPolicy",
             "iam.workloadIdentityPoolProviders.get", "iam.workloadIdentityPools.get",
+            "iam.workloadIdentityPools.getAttestationRules",
             "resourcemanager.projects.get", "resourcemanager.projects.getIamPolicy",
             "run.jobs.get", "run.jobs.getIamPolicy", "run.services.get", "run.services.getIamPolicy", "run.services.list",
             "secretmanager.secrets.get", "secretmanager.secrets.getIamPolicy",
             "serviceusage.services.get", "serviceusage.services.use",
         ):
-            if re.search(r"Permission ['\"]" + re.escape(permission) + r"['\"] denied", diagnostics):
+            # IAM APIは権限名を「iam.googleapis.com/workloadIdentityPools.get」の形でも返す。
+            service, rest = permission.split(".", 1)
+            if re.search(r"Permission ['\"](?:" + re.escape(permission) + "|" + re.escape(service + ".googleapis.com/" + rest) +
+                         r")['\"] denied", diagnostics):
                 check = "terraform-plan-permission-" + permission
                 break
         else:
@@ -83,8 +87,51 @@ def run(args, *, cwd=None, codes=(0,), check="native-command"):
                 if marker in diagnostics:
                     check = label
                     break
+        describe_plan_errors(diagnostics)
     contract.need(result.returncode in codes, check)
     return result.stdout
+
+
+PUBLIC_HTTP_STATUS = {"400", "401", "403", "404", "409", "412", "429", "500", "503"}
+DIAGNOSTIC_HEADER = re.compile(r"^(?:[\u2577\u2502\u2575] ?)?(Error|Warning): ", re.MULTILINE)
+# Terraformの位置情報は「with <address>,」の直後に「on <file> line <n>」が続く。
+DIAGNOSTIC_ADDRESS = re.compile(r"^(?:\u2502)?[ ]*with (\S+),\n(?:\u2502)?[ ]*on \S+ line [0-9]+", re.MULTILINE)
+
+
+def defined_addresses():
+    """Repository-defined MyPage module addresses; nothing taken from native output is trusted.
+
+    MyPage resources use count 0/1, so only the bare address and index [0] are public.
+    """
+    names = set()
+    for path in sorted((REPO / "infra/mypage-platform/modules").rglob("*.tf")):
+        for kind, name in re.findall(r'^resource "([a-z0-9_]+)" "([a-z0-9_]+)"', path.read_text(), re.MULTILINE):
+            base = "module.platform[0]." + kind + "." + name
+            names |= {base, base + "[0]"}
+    return names
+
+
+def describe_plan_errors(diagnostics):
+    # ネイティブ診断の本文は出さない。エラーごとに、リポジトリで定義した資源のaddressと
+    # 既知のHTTP statusだけを出す（どの資源の読取りで止まったかの切り分け用）。
+    # -no-colorでは枠なし、TTYでは枠付きになるため、どちらも診断の見出しで区切る。
+    known = defined_addresses()
+    headers = list(DIAGNOSTIC_HEADER.finditer(diagnostics))
+    entries = []
+    for index, header in enumerate(headers):
+        if header.group(1) != "Error":
+            continue
+        block = diagnostics[header.start():headers[index + 1].start() if index + 1 < len(headers) else len(diagnostics)]
+        summary = block.split("\n", 1)[0]
+        status = re.search(r"\bError (\d{3})\b", summary)
+        located = [match.group(1) for match in DIAGNOSTIC_ADDRESS.finditer(block)]
+        # 出せるのはリポジトリ定義の文字列だけ。位置情報が一意に既知の資源を指すときに限る。
+        address = located[-1] if located and located[-1] in known else None
+        entries.append({
+            "address": address or "<withheld>",
+            "status": status.group(1) if status and status.group(1) in PUBLIC_HTTP_STATUS else "<withheld>",
+        })
+    print("Terraform plan errors: " + json.dumps(entries[:20], sort_keys=True) + ".")
 
 
 def request(url, token):
@@ -110,7 +157,9 @@ def stage(env):
     need(re.fullmatch(r"AROA[A-Z0-9]{17}", env.get("MYPAGE_BACKEND_ROLE_ID", "")))
     expected_sa = "mypage-foundation-" + kind + "@" + contract.PROJECT + ".iam.gserviceaccount.com"
     need(env.get("MYPAGE_GCP_SERVICE_ACCOUNT") == expected_sa)
-    need(re.fullmatch(r"projects/[0-9]+/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions", env.get("MYPAGE_GCP_WIF_PROVIDER", "")))
+    provider = "github-pr-plan" if kind == "pr-plan" else "github-actions"
+    need(re.fullmatch(r"projects/[0-9]+/locations/global/workloadIdentityPools/mypage-foundation/providers/" + provider,
+                      env.get("MYPAGE_GCP_WIF_PROVIDER", "")))
     need(len(env.get("MYPAGE_PLAN_HMAC_KEY", "")) >= 32)
     root = directory(env)
     need(not root.exists())
@@ -136,9 +185,17 @@ def oidc(env, *, image=False):
     token = request(url, env["ACTIONS_ID_TOKEN_REQUEST_TOKEN"])["value"]
     encoded = token.split(".")[1]
     claims = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+    if kind == "pr-plan":
+        ref = env["GITHUB_REF"]
+        workflow = contract.WORKFLOWS + "terraform.yml@" + ref
+        reusable = contract.WORKFLOWS + contract.PR_PLAN_WORKFLOW + "@" + ref
+        sub = contract.pr_subject(env["MYPAGE_PR_NUMBER"])
+    else:
+        ref, workflow, reusable = contract.REF, contract.caller(env, image=image), contract.REUSABLE
+        sub = contract.subject(kind, env["GITHUB_EVENT_NAME"], workflow)
     exact = {"aud": "sts.amazonaws.com", "iss": "https://token.actions.githubusercontent.com",
-             "sub": contract.subject(kind, env["GITHUB_EVENT_NAME"]), "repository_id": "340900071", "repository_owner_id": "54093651",
-             "ref": contract.REF, "workflow_ref": contract.CALLER, "job_workflow_ref": contract.REUSABLE,
+             "sub": sub, "repository_id": "340900071", "repository_owner_id": "54093651",
+             "ref": ref, "workflow_ref": workflow, "job_workflow_ref": reusable,
              "workflow_sha": env["GITHUB_SHA"], "job_workflow_sha": env["GITHUB_SHA"],
              "actor_id": "54093651", "actor": "kani3camp", "run_attempt": "1",
              "environment": contract.GITHUB_ENVIRONMENT + "-" + kind,
@@ -194,9 +251,9 @@ def reject_unowned_resources(env, plan):
         try:
             request(urls[item["address"]], env["MYPAGE_GCP_ACCESS_TOKEN"])
         except urllib.error.HTTPError as error:
-            need(error.code == 404)
+            contract.need(error.code == 404, "unowned-resource-lookup")
         else:
-            need(False)
+            contract.need(False, "unowned-resource-exists")
 
 
 def runtime_settings(env, stage=None):
@@ -222,7 +279,8 @@ def runtime_settings(env, stage=None):
         value = runtime_contract.settings(
             value | {"hosting_backend_host": "mypage-api-eu5mhkcewq-et.a.run.app",
                      "previous_image_digest": ""}, stage)
-    provider = re.fullmatch(r"projects/([0-9]+)/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions",
+    provider = re.fullmatch(r"projects/([0-9]+)/locations/global/workloadIdentityPools/mypage-foundation/providers/"
+                            + ("github-pr-plan" if env.get("MYPAGE_ROLE") == "pr-plan" else "github-actions"),
                             env.get("MYPAGE_GCP_WIF_PROVIDER", ""))
     need(provider and provider[1] == contract.PROJECT_NUMBER)
     if stage != "maintenance_operator":
@@ -251,6 +309,7 @@ def maintenance_bootstrap_image(env, stage):
     source = MAINTENANCE_BOOTSTRAP_SOURCE_SHA
     run(["git", "merge-base", "--is-ancestor", source, env["GITHUB_SHA"]],
         cwd=REPO, check="maintenance-bootstrap-source-ancestor")
+    # The anchor predates the API/operator image split; read its combined Dockerfile.
     dockerfile = run(["git", "show", source + ":system/Dockerfile.mypage"],
                      cwd=REPO, check="maintenance-bootstrap-source")
     contract.need("go build -tags timetzdata -trimpath -ldflags=\"-s -w\" -o /out/mypage-maintenance-operator" in dockerfile and
@@ -301,12 +360,70 @@ def verify_owner_public_invoker(env):
     contract.need(not any("allAuthenticatedUsers" in b.get("members", []) for b in policy.get("bindings", [])), "runtime-owner-public-invoker")
 
 
+# Resource addresses are fixed by this repository's module (count indices only),
+# so they are not private. Anything else is withheld.
+PUBLIC_ADDRESS = re.compile(r"module\.platform\[0\]\.[a-z0-9_]+\.[a-z0-9_]+(?:\[[0-9]+\])?")
+PUBLIC_ACTIONS = frozenset({"no-op", "create", "read", "update", "delete"})
+
+
+def public_entry(item):
+    address = item.get("address")
+    actions = item.get("change", {}).get("actions")
+    return {"address": address if type(address) is str and PUBLIC_ADDRESS.fullmatch(address) else "<withheld>",
+            "actions": actions if type(actions) is list and set(actions) <= PUBLIC_ACTIONS else ["<withheld>"]}
+
+
+# Provider schema attribute names (never values, map keys or list contents).
+PUBLIC_ATTRIBUTE = re.compile(r"[a-z][a-z0-9_]{0,63}")
+
+
+# Enum-valued Terraform-side attributes whose values are fixed by the provider
+# and safe to show; any other value is withheld.
+PUBLIC_ENUM_ATTRIBUTES = {"deletion_policy": frozenset({"DELETE", "PREVENT", "ABANDON"})}
+
+
+def public_enum_values(change):
+    before, after = change.get("before"), change.get("after")
+    if type(before) is not dict or type(after) is not dict:
+        return {}
+    shown = lambda key, value: value if value is None or value in PUBLIC_ENUM_ATTRIBUTES[key] else "<withheld>"
+    return {key: {"before": shown(key, before.get(key)), "after": shown(key, after.get(key))}
+            for key in sorted(PUBLIC_ENUM_ATTRIBUTES) if before.get(key) != after.get(key)}
+
+
+def changed_attributes(change):
+    """Top-level attribute names whose planned value differs; values are never read out."""
+    before, after = change.get("before"), change.get("after")
+    unknown = change.get("after_unknown") or {}
+    if type(before) is not dict or type(after) is not dict or type(unknown) is not dict:
+        return ["<withheld>"]
+    names = {key for key in set(before) | set(after) if before.get(key) != after.get(key)}
+    # Terraform serializes known nested structures as empty containers ([{}]);
+    # only a nested True marks a value that is unknown until Apply.
+    names |= {key for key, value in unknown.items() if contract.has_unknown(value)}
+    return sorted(name if type(name) is str and PUBLIC_ATTRIBUTE.fullmatch(name) else "<withheld>" for name in names)
+
+
 def describe_runtime_drift(plan):
-    # 出力値・schema・未知のfield名を公開しない。詳細Planはprivateに保持する。
+    # 出力値・schema・field名を公開しない。詳細Planはprivateに保持する。
+    # 契約違反の切り分けに必要な、固定の資源addressと操作名だけを出す。
     drift = plan.get("resource_drift", []) or []
     changes = plan.get("resource_changes", []) or []
+    planned = {item.get("address"): item for item in changes}
+    writes = [item for item in changes if item.get("change", {}).get("actions") != ["no-op"]]
     print("Terraform drift summary: " + json.dumps({"observedResources": len(drift),
-          "plannedWrites": sum(item.get("change", {}).get("actions") != ["no-op"] for item in changes)}, sort_keys=True) + ".")
+          "plannedWrites": len(writes)}, sort_keys=True) + ".")
+    print("Terraform drift detail: " + json.dumps([
+        public_entry(item) | {"plannedActions": public_entry(planned.get(item.get("address"), {}))["actions"]}
+        for item in drift], sort_keys=True) + ".")
+    print("Terraform planned writes: " + json.dumps(sorted(
+        (public_entry(item) for item in writes), key=lambda entry: entry["address"]), sort_keys=True) + ".")
+    # In-place updates of existing resources: which top-level attributes change.
+    print("Terraform planned update attributes: " + json.dumps(sorted(
+        (public_entry(item) | {"attributes": changed_attributes(item.get("change", {})),
+                               "enumValues": public_enum_values(item.get("change", {}))}
+         for item in writes if item.get("change", {}).get("actions") == ["update"]),
+        key=lambda entry: entry["address"]), sort_keys=True) + ".")
 
 
 def prepare(env):
@@ -328,7 +445,9 @@ def prepare(env):
     PHASE = "plan"
     saved = root / "foundation.tfplan"
     stage = contract.stage_for_mode(env["MYPAGE_MODE"])
-    arguments = ["terraform", "plan", "-input=false", "-no-color", "-lock-timeout=60s", "-var=stage=" + stage, "-out=" + str(saved)]
+    # PR Plan is advisory and has no lock-write permission; Apply always re-plans.
+    lock = "-lock=false" if kind == "pr-plan" else "-lock-timeout=60s"
+    arguments = ["terraform", "plan", "-input=false", "-no-color", lock, "-var=stage=" + stage, "-out=" + str(saved)]
     value = None
     if stage in set(runtime_contract.MODES.values()):
         PHASE = "runtime-inputs"
@@ -353,6 +472,16 @@ def prepare(env):
         summary = contract.validate_plan(plan, stage)
     reject_unowned_resources(env, plan)
     need(state_version(env) == version)
+    if kind == "pr-plan":
+        # No commitment, saved-plan record or timestamp leaves a PR Plan job;
+        # only these value-free counts reach the log and the Job Summary.
+        message = ("MyPage PR Plan (advisory) accepted by the plan contract: " + str(summary["resources"]) + " resources, " +
+                   str(summary["creates"]) + " creates. Nothing from this run can be applied.")
+        print(message)
+        if env.get("GITHUB_STEP_SUMMARY"):
+            with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
+                stream.write("### MyPage PR Plan\n\n" + message + "\n")
+        return
     digest = contract.commitment(plan, version, env["GITHUB_SHA"], env["MYPAGE_PLAN_HMAC_KEY"])
     (root / "prepared.json").write_bytes(contract.canonical({"sha256": hashlib.sha256(saved.read_bytes()).hexdigest(), "source": env["GITHUB_SHA"]}))
     if value is not None and value["read_metrics_from_revision"]:

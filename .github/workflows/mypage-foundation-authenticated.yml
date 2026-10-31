@@ -16,6 +16,11 @@ on:
       expected_sha:
         required: true
         type: string
+      image_component:
+        description: Image to build in image-build mode (api or maintenance-operator)
+        required: false
+        type: string
+        default: ""
     secrets:
       MYPAGE_STATE_BUCKET:
         required: false
@@ -54,6 +59,7 @@ jobs:
       MYPAGE_TARGET: ${{ inputs.target }}
       MYPAGE_MODE: ${{ inputs.mode }}
       MYPAGE_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      MYPAGE_IMAGE_COMPONENT: ${{ inputs.image_component }}
       TF_WORKSPACE: default
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -254,6 +260,7 @@ jobs:
       MYPAGE_TARGET: ${{ inputs.target }}
       MYPAGE_ROLE: apply
       MYPAGE_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      MYPAGE_IMAGE_COMPONENT: ${{ inputs.image_component }}
       MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
       MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
       TF_WORKSPACE: default

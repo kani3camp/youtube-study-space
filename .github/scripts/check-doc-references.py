@@ -35,6 +35,7 @@ TARGETS = (
     "firebase/README.md",
     "docs-site/README.md",
     "docs/development/architecture.md",
+    "docs/development/ci-cd-workflows.md",
     "docs/design/DESIGN.md",
 )
 

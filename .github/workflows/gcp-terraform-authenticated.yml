@@ -12,7 +12,11 @@ on:
         required: true
         type: string
       expected_sha:
-        description: Exact selected branch SHA for normal operations
+        description: DEVの対象SHA（省略可）、PRODの実行元SHA（必須）
+        required: false
+        type: string
+      source_branch:
+        description: DEVの対象ブランチ。SHAのみも可、両方空欄は実行元自身
         required: false
         type: string
     # Explicit names allow Environment secret resolution in called jobs without
@@ -30,10 +34,6 @@ on:
         required: false
       AWS_TERRAFORM_STATE_ACCOUNT_ID:
         required: false
-      GCP_TERRAFORM_WIF_PROVIDER:
-        required: false
-      GCP_TERRAFORM_SERVICE_ACCOUNT:
-        required: false
       GCP_TERRAFORM_MANAGED_INPUTS_JSON:
         required: false
 
@@ -46,7 +46,6 @@ concurrency:
 env:
   TERRAFORM_VERSION: "1.16.4"
   STATE_AWS_REGION: ap-northeast-1
-  MIGRATION_PRODUCTION_READY: "true"
 
 jobs:
   preflight:
@@ -55,9 +54,12 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+    outputs:
+      source_sha: ${{ steps.guard.outputs.source_sha }}
+      source_branch: ${{ steps.guard.outputs.source_branch }}
     steps:
-      - name: Checkout trusted migration preflight source
-        if: ${{ (inputs.mode == 'migration-plan' || inputs.mode == 'migration-apply' || inputs.mode == 'normal-plan' || inputs.mode == 'normal-apply' || inputs.mode == 'normal-e2e') && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && ((inputs.target == 'dev' && startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main') || (inputs.target == 'prod' && github.ref == 'refs/heads/main')) }}
+      - name: Checkout trusted Terraform preflight source
+        if: ${{ (inputs.mode == 'normal-plan' || inputs.mode == 'normal-apply') && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && ((inputs.target == 'dev' && startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main') || (inputs.target == 'prod' && github.ref == 'refs/heads/main')) }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -68,11 +70,11 @@ jobs:
         env:
           TARGET: ${{ inputs.target }}
           MODE: ${{ inputs.mode }}
-          MIGRATION_TARGET: ${{ inputs.target }}
-          MIGRATION_MODE: ${{ inputs.mode }}
           NORMAL_MODE: ${{ inputs.mode }}
           NORMAL_TARGET: ${{ inputs.target }}
           NORMAL_EXPECTED_SHA: ${{ inputs.expected_sha }}
+          NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -99,9 +101,8 @@ jobs:
             echo "::error::Authenticated Terraform only allows initial dispatches by the approved GitHub owner."
             exit 1
           }
-          # Dev's branch allowlist is enforced by the GitHub Environment on
-          # each credentialed plan/apply job. Preflight checks the same-branch
-          # caller and immutable owner before any protected credentials exist.
+          # 信頼するDEV実行元の一覧はEnvironmentのSelected branchesで管理する。
+          # source branchのcheckoutでworkflowの実行refを変更しない。
           # Prod remains main-only; deny tags, PR refs and the retired branch.
           case "${TARGET}" in
             dev)
@@ -118,8 +119,8 @@ jobs:
               exit 1
               ;;
           esac
-          [[ "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@${expected_ref}" ]] || {
-            echo "::error::Authenticated Terraform requires the target's reviewed CI caller."
+          [[ "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/terraform.yml@${expected_ref}" ]] || {
+            echo "::error::Authenticated Terraform requires the target's reviewed Terraform caller."
             exit 1
           }
           [[ "${GITHUB_REF}" == "${expected_ref}" ]] || {
@@ -131,184 +132,17 @@ jobs:
             exit 1
           }
           case "${MODE}" in
-            migration-plan|migration-apply) ;;
-            normal-plan|normal-apply|normal-e2e)
+            normal-plan|normal-apply)
               python3 infra/gcp/scripts/terraform_normal_ops.py preflight
               exit 0
               ;;
             *) echo "::error::Unsupported mode."; exit 1 ;;
           esac
-          python3 .github/scripts/terraform_migration.py preflight
-
-  migration_plan:
-    name: "Terraform Existing Resources Plan (${{ inputs.target }})"
-    needs: preflight
-    if: ${{ inputs.mode == 'migration-plan' || inputs.mode == 'migration-apply' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    environment: terraform-${{ inputs.target }}-plan
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      commitment: ${{ steps.migration.outputs.commitment }}
-      components: ${{ steps.migration.outputs.components }}
-    env:
-      MIGRATION_TARGET: ${{ inputs.target }}
-      MIGRATION_MODE: ${{ inputs.mode }}
-      MIGRATION_ROLE: plan
-      TF_WORKSPACE: default
-      AWS_MAX_ATTEMPTS: "1"
-      AWS_RETRY_MODE: standard
-      STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
-      STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
-      BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
-      BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
-      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
-    steps:
-      - name: Checkout exact migration source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Validate fixed private migration baseline before credentials
-        env:
-          MIGRATION_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
-        run: python3 .github/scripts/terraform_migration.py stage
-      - name: Mask private migration identity fragments
-        shell: bash
-        env:
-          PRIVATE_WIF: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
-        run: |
-          set -euo pipefail
-          for value in "${BACKEND_ROLE_ID}" "${BACKEND_ROLE_ARN##*/}" "${GCP_SERVICE_ACCOUNT%%@*}" "${STATE_BUCKET}"; do
-            [[ -n "${value}" ]] && echo "::add-mask::${value}"
-          done
-          project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF}")"
-          [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
-      - name: Verify exact migration OIDC claims
-        run: python3 .github/scripts/terraform_migration.py oidc
-      - name: Setup pinned migration Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
-        with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-          terraform_wrapper: false
-      - name: Configure migration backend identity
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
-          aws-region: ${{ env.STATE_AWS_REGION }}
-          mask-aws-account-id: true
-          unset-current-credentials: true
-          retry-max-attempts: 1
-      - name: Configure migration GCP identity
-        id: migration_gcp
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
-        with:
-          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
-          project_id: ${{ inputs.target == 'dev' && 'test-youtube-study-space' || 'youtube-study-space' }}
-          create_credentials_file: true
-          export_environment_variables: true
-          cleanup_credentials: true
-          token_format: access_token
-          access_token_lifetime: 1800s
-      - name: Validate bounded existing-resource Terraform plan
-        id: migration
-        env:
-          MIGRATION_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
-          GCP_ACCESS_TOKEN: ${{ steps.migration_gcp.outputs.access_token }}
-        run: python3 .github/scripts/terraform_migration.py execute
-      - name: Remove private migration files
-        if: ${{ always() }}
-        run: python3 .github/scripts/terraform_migration.py cleanup
-
-  migration_apply:
-    name: "Terraform Existing Resources Apply (${{ inputs.target }})"
-    needs: [preflight, migration_plan]
-    if: ${{ inputs.mode == 'migration-apply' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    environment: terraform-${{ inputs.target }}-apply
-    permissions:
-      contents: read
-      id-token: write
-    env:
-      MIGRATION_TARGET: ${{ inputs.target }}
-      MIGRATION_MODE: ${{ inputs.mode }}
-      MIGRATION_ROLE: apply
-      TF_WORKSPACE: default
-      AWS_MAX_ATTEMPTS: "1"
-      AWS_RETRY_MODE: standard
-      STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
-      STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
-      BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
-      BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
-      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
-    steps:
-      - name: Checkout exact migration source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Validate fixed private migration baseline before credentials
-        env:
-          MIGRATION_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
-        run: python3 .github/scripts/terraform_migration.py stage
-      - name: Mask private migration identity fragments
-        shell: bash
-        env:
-          PRIVATE_WIF: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
-        run: |
-          set -euo pipefail
-          for value in "${BACKEND_ROLE_ID}" "${BACKEND_ROLE_ARN##*/}" "${GCP_SERVICE_ACCOUNT%%@*}" "${STATE_BUCKET}"; do
-            [[ -n "${value}" ]] && echo "::add-mask::${value}"
-          done
-          project_number="$(cut -d/ -f2 <<< "${PRIVATE_WIF}")"
-          [[ -n "${project_number}" ]] && echo "::add-mask::${project_number}"
-      - name: Verify exact migration OIDC claims
-        run: python3 .github/scripts/terraform_migration.py oidc
-      - name: Setup pinned migration Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
-        with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-          terraform_wrapper: false
-      - name: Configure migration backend identity
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
-          aws-region: ${{ env.STATE_AWS_REGION }}
-          mask-aws-account-id: true
-          unset-current-credentials: true
-          retry-max-attempts: 1
-      - name: Configure migration GCP identity
-        id: migration_gcp
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
-        with:
-          workload_identity_provider: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
-          project_id: ${{ inputs.target == 'dev' && 'test-youtube-study-space' || 'youtube-study-space' }}
-          create_credentials_file: true
-          export_environment_variables: true
-          cleanup_credentials: true
-          token_format: access_token
-          access_token_lifetime: 1800s
-      - name: Validate bounded existing-resource Terraform apply
-        id: migration
-        env:
-          MIGRATION_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
-          GCP_ACCESS_TOKEN: ${{ steps.migration_gcp.outputs.access_token }}
-          MIGRATION_EXPECTED_COMMITMENT: ${{ needs.migration_plan.outputs.commitment }}
-          MIGRATION_EXPECTED_COMPONENTS: ${{ needs.migration_plan.outputs.components }}
-        run: python3 .github/scripts/terraform_migration.py execute
-      - name: Remove private migration files
-        if: ${{ always() }}
-        run: python3 .github/scripts/terraform_migration.py cleanup
 
   normal_plan:
     name: "Terraform Plan (${{ inputs.target }})"
     needs: preflight
-    if: ${{ inputs.mode == 'normal-plan' || inputs.mode == 'normal-apply' || inputs.mode == 'normal-e2e' }}
+    if: ${{ inputs.mode == 'normal-plan' || inputs.mode == 'normal-apply' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: terraform-${{ inputs.target }}-plan
@@ -324,6 +158,8 @@ jobs:
       NORMAL_MODE: ${{ inputs.mode }}
       NORMAL_ROLE: plan
       NORMAL_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      NORMAL_SOURCE_BRANCH: ${{ inputs.target == 'dev' && needs.preflight.outputs.source_branch || inputs.source_branch }}
+      NORMAL_SOURCE_SHA: ${{ inputs.target == 'dev' && needs.preflight.outputs.source_sha || '' }}
       TF_WORKSPACE: default
       AWS_MAX_ATTEMPTS: "1"
       AWS_RETRY_MODE: standard
@@ -337,6 +173,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Checkout exact DEV Terraform data
+        if: ${{ inputs.target == 'dev' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: kani3camp/youtube-study-space
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          path: .terraform-source
+          sparse-checkout: infra/gcp
           persist-credentials: false
       - name: Validate private Terraform inputs before credentials
         env:
@@ -394,7 +239,7 @@ jobs:
   normal_apply:
     name: "Terraform Apply (${{ inputs.target }})"
     needs: [preflight, normal_plan]
-    if: ${{ inputs.mode == 'normal-apply' || inputs.mode == 'normal-e2e' }}
+    if: ${{ inputs.mode == 'normal-apply' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: terraform-${{ inputs.target }}-apply
@@ -406,6 +251,8 @@ jobs:
       NORMAL_MODE: ${{ inputs.mode }}
       NORMAL_ROLE: apply
       NORMAL_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      NORMAL_SOURCE_BRANCH: ${{ inputs.target == 'dev' && needs.preflight.outputs.source_branch || inputs.source_branch }}
+      NORMAL_SOURCE_SHA: ${{ inputs.target == 'dev' && needs.preflight.outputs.source_sha || '' }}
       TF_WORKSPACE: default
       AWS_MAX_ATTEMPTS: "1"
       AWS_RETRY_MODE: standard
@@ -419,6 +266,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Checkout exact DEV Terraform data
+        if: ${{ inputs.target == 'dev' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: kani3camp/youtube-study-space
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          path: .terraform-source
+          sparse-checkout: infra/gcp
           persist-credentials: false
       - name: Validate private Terraform inputs before credentials
         env:
