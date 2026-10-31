@@ -25,7 +25,9 @@ def preflight(settings, project, region, read):
             raise ValueError('認証用の実行主体が環境に一致しません')
     if settings['runtime_service_account_email'] == settings['build_service_account_email']:
         raise ValueError('実行用SAとビルド用SAを分離してください')
-    current = read('identitytoolkit.googleapis.com', f'admin/v2/projects/{project}/config')
+    # 管理者権限でConfig全体を読むと、パスワードハッシュ用の秘密値も返る。
+    current = read('identitytoolkit.googleapis.com',
+                   f'admin/v2/projects/{project}/config?fields=subtype,blockingFunctions.triggers')
     if current.get('subtype') != 'IDENTITY_PLATFORM':
         raise ValueError('既存プロジェクトのIdentity Platform有効化を先に確認してください')
     triggers = current.get('blockingFunctions', {}).get('triggers', {})
@@ -35,7 +37,7 @@ def preflight(settings, project, region, read):
         raise ValueError('既存beforeSignInの維持設定が一致しません')
     if 'beforeCreate' in triggers:
         function = read('cloudfunctions.googleapis.com',
-                        f'v2/projects/{project}/locations/{region}/functions/monitor-password-signup-guard')
+                        f'v2/projects/{project}/locations/{region}/functions/monitor-password-signup-guard?fields=serviceConfig.uri')
         uri = function.get('serviceConfig', {}).get('uri')
         if not uri or uri != triggers['beforeCreate'].get('functionUri'):
             raise ValueError('既存beforeCreateを上書きできません')

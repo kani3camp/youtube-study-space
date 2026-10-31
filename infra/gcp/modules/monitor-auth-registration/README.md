@@ -34,6 +34,18 @@ python3 infra/gcp/scripts/bootstrap_monitor_auth.py --target dev
 
 通常の構築用SAへ`firebaseauth.configs.getHashConfig`を付与しないでください。TerraformのAuthリソースは公開APIキーなどをStateに保存するため、既存どおりStateと生Planを非公開に保ちます。関数の最小インスタンス数は0、最大は2です。起動・ビルド・ログ・保管に利用料が発生し得ます。
 
+### 秘密値を出力しない構成確認
+
+管理者権限でAuth Config全体や`signIn`全体を表示すると、パスワードハッシュ用の秘密パラメーターも含まれます。APIの取得項目を必要な末端フィールドに限定し、応答やHTTPエラー本文をそのままログ・チャット・PRへ出力しないでください。通常Planの事前確認も、認証種別とトリガーだけを取得します。
+
+DEVの構成確認には、短期認証を内部で取得し、非秘密項目だけを表示する次の読み取り専用コマンドを使えます。本番の指定は受け付けません。
+
+```sh
+python3 -B infra/gcp/scripts/inspect_dev_monitor_auth.py --target dev
+```
+
+ハッシュ用の秘密値は、IDトークンの署名鍵やログイン用トークンではありません。ただし、ユーザー別のパスワードハッシュ・ソルトと組み合わせるとパスワード解析に使えるため、秘密情報として扱います。[Auth Config API](https://docs.cloud.google.com/identity-platform/docs/reference/rest/v2/Config)の`hashConfig`は読み取り専用です。露出時はパスワード方式の利用状況、ユーザー別ハッシュの流出、作業ファイル・State・公開ログへの残存を確認し、プロジェクト鍵の更新方法はFirebaseサポートへ確認してください。ユーザーのパスワード変更や無関係なAPIキーの更新を、この鍵のローテーションと扱わないでください。
+
 ## 有効化と配備
 
 DEVの例です。実行用SAとビルド用SAは分離し、両方とも対象プロジェクト内のものを使用します。値は`infra/gcp/environments/dev/normal.tfvars.json`へレビュー対象の差分として追加します。

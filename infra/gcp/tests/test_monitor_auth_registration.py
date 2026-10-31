@@ -15,6 +15,8 @@ import monitor_auth_registration as policy
 import package_monitor_auth as source
 import terraform_normal_ops as ops
 import bootstrap_monitor_auth as bootstrap
+import inspect_dev_monitor_auth as inspector
+from urllib.parse import parse_qs, urlsplit
 
 PROJECT = 'test-youtube-study-space'
 SETTINGS = {'runtime_service_account_email': f'monitor-auth-runtime@{PROJECT}.iam.gserviceaccount.com',
@@ -45,6 +47,67 @@ class RegistrationPolicy(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.preflight(config, function={'serviceConfig': {'uri': 'https://ours.example.run.app'}})
         self.preflight(config, function={'serviceConfig': {'uri': 'https://existing.example.run.app'}})
+
+    def test_preflight_requests_only_fields_needed_for_policy(self):
+        calls = []
+        def read(host, path):
+            calls.append((host, path))
+            if host == 'identitytoolkit.googleapis.com':
+                return {'subtype': 'IDENTITY_PLATFORM', 'blockingFunctions': {'triggers': {
+                    'beforeCreate': {'functionUri': 'https://ours.example.run.app'}}}}
+            return {'serviceConfig': {'uri': 'https://ours.example.run.app'}}
+        policy.preflight(SETTINGS, PROJECT, 'asia-southeast2', read)
+        self.assertEqual([parse_qs(urlsplit(path).query)['fields'] for _, path in calls],
+                         [['subtype,blockingFunctions.triggers'], ['serviceConfig.uri']])
+
+    def test_inspector_drops_unrequested_secrets_and_trigger_urls(self):
+        config = {'subtype': 'IDENTITY_PLATFORM', 'signIn': {
+            'email': {'enabled': True, 'passwordRequired': True, 'hashConfig': 'TEST_SECRET'},
+            'hashConfig': {'signerKey': 'TEST_SECRET'}},
+            'blockingFunctions': {'triggers': {'beforeCreate': {'functionUri': 'TEST_SECRET'}},
+                                  'forwardInboundCredentials': 'TEST_SECRET'},
+            'unexpected': 'TEST_SECRET'}
+        self.assertEqual(inspector.summarize(config), {
+            'project': PROJECT, 'subtype': 'IDENTITY_PLATFORM', 'email_enabled': True,
+            'password_required': True, 'blocking_triggers': ['beforeCreate']})
+        for mutate in (
+            lambda c: c.update(subtype='TEST_SECRET'),
+            lambda c: c['signIn']['email'].update(enabled='TEST_SECRET'),
+            lambda c: c['blockingFunctions']['triggers'].update(TEST_SECRET={}),
+        ):
+            candidate = deepcopy(config); mutate(candidate)
+            with self.assertRaises(ValueError) as failure:
+                inspector.summarize(candidate)
+            self.assertNotIn('TEST_SECRET', str(failure.exception))
+
+    def test_inspector_uses_dev_read_only_request_with_leaf_field_mask(self):
+        from types import SimpleNamespace
+        response = unittest.mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"subtype":"IDENTITY_PLATFORM"}'
+        with patch.object(inspector.subprocess, 'run', return_value=SimpleNamespace(stdout='TEST_TOKEN\n')) as run, \
+                patch.object(inspector.urllib.request, 'urlopen', return_value=response) as open_url:
+            inspector.inspect()
+        self.assertEqual(run.call_args.args[0], ['gcloud', 'auth', 'print-access-token'])
+        self.assertTrue(run.call_args.kwargs['capture_output'])
+        request = open_url.call_args.args[0]
+        self.assertEqual(request.get_method(), 'GET')
+        url = urlsplit(request.full_url)
+        self.assertEqual(url.path, f'/admin/v2/projects/{PROJECT}/config')
+        self.assertEqual(parse_qs(url.query)['fields'], [
+            'subtype,signIn.email.enabled,signIn.email.passwordRequired,blockingFunctions.triggers'])
+
+    def test_inspector_does_not_print_raw_failures_or_contact_prod(self):
+        output = io.StringIO()
+        with patch.object(sys, 'argv', ['inspect_dev_monitor_auth.py', '--target', 'dev']), \
+                patch.object(inspector, 'inspect', side_effect=RuntimeError('TEST_SECRET')), \
+                unittest.mock.patch('sys.stderr', output), redirect_stdout(output):
+            self.assertEqual(inspector.main(), 1)
+        self.assertNotIn('TEST_SECRET', output.getvalue())
+        with patch.object(sys, 'argv', ['inspect_dev_monitor_auth.py', '--target', 'prod']), \
+                patch.object(inspector, 'inspect') as inspect, unittest.mock.patch('sys.stderr', io.StringIO()):
+            with self.assertRaises(SystemExit):
+                inspector.main()
+        inspect.assert_not_called()
 
     def test_import_requires_explicit_enable_exact_project_address_and_non_destructive_action(self):
         item = {'address': policy.ADDRESS, 'type': 'google_identity_platform_config', 'mode': 'managed',
