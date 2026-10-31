@@ -54,7 +54,7 @@ class TerraformWorkflowTest(unittest.TestCase):
             (['infra/gcp/environments/dev/main.tf'], 'true', 'false'),
             (['infra/mypage-platform/modules/runtime/main.tf'], 'false', 'true'),
             (['.github/workflows/terraform-pr-plan.yml'], 'true', 'true'),
-            (['.github/scripts/terraform_migration.py', 'docs/README.md'], 'true', 'false'),
+            (['.github/scripts/terraform_plan_summary.py', 'docs/README.md'], 'true', 'false'),
             (['docs/README.md'], 'false', 'false'),
         ):
             with self.subTest(changed=changed):
