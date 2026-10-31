@@ -25,7 +25,7 @@ MODULES = {
               'video-maker-simulator-check': 'video_maker_simulator',
               'figma-plugin-room-layout-analyzer-build': 'figma_plugin'},
     'infra': {'aws-cdk-test': 'aws_cdk'},
-    'repository': {'base-image-update-report-test': None, 'node-lts-ignore-expiry': None,
+    'repository': {'base-image-update-report-test': None, 'node-types-ignore-policy': None,
                    'documentation-references': None, 'ci-contracts': None},
 }
 NODE = {'youtube_monitor', 'docs_site', 'menu_image_generator', 'video_maker_simulator',
