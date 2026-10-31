@@ -40,7 +40,7 @@ variables {
 }
 run "enabled_requires_a_packaged_source" {
  command = plan
- expect_failures = [google_storage_bucket_object.source]
+ expect_failures = [google_storage_bucket.source]
 }
 ''')
         run(module, 'test', '-filter=tests/missing-source.tftest.hcl', '-no-color')

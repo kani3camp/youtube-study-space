@@ -39,7 +39,13 @@ resource "google_storage_bucket" "source" {
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
   force_destroy               = false
-  lifecycle { prevent_destroy = true }
+  lifecycle {
+    prevent_destroy = true
+    precondition {
+      condition     = fileexists(local.source_path)
+      error_message = "配備前にpackage_monitor_auth.pyで認証用ZIPを生成してください。"
+    }
+  }
 }
 
 resource "google_artifact_registry_repository" "build" {
@@ -58,12 +64,6 @@ resource "google_storage_bucket_object" "source" {
   content_type = "application/zip"
   # 過去のコードを残して、同じcommitからの再配備・ロールバックを可能にする。
   deletion_policy = "ABANDON"
-  lifecycle {
-    precondition {
-      condition     = fileexists(local.source_path)
-      error_message = "配備前にpackage_monitor_auth.pyで認証用ZIPを生成してください。"
-    }
-  }
 }
 
 resource "google_cloudfunctions2_function" "guard" {
