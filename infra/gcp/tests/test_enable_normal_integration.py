@@ -56,7 +56,7 @@ class BranchAuthorizationTest(unittest.TestCase):
         self.assertNotIn("refs/heads/dev", condition)
         self.assertNotIn("integration/gcp-terraform-normal-ops", condition)
 
-    def test_optional_e2e_branch_accepts_any_non_main_branch(self):
+    def test_control_branch_accepts_any_non_main_branch(self):
         for value in ("dev", "feature/x", "integration/gcp-terraform-normal-ops",
                       "fix/foo.bar-1"):
             self.assertEqual(op.branch_name(value), value)
@@ -291,18 +291,6 @@ class BranchAuthorizationTest(unittest.TestCase):
                 op.authorize_control_branch(endpoint, environment('plan'), 'dev')
             self.assertTrue(all(call.args[0] != '-X' for call in gh.call_args_list))
 
-    def test_e2e_dispatch_uses_explicit_trusted_control_branch(self):
-        branch = 'feature/source'
-        values = [{'login': 'kani3camp', 'id': 54093651}, {'commit': {'sha': 'b' * 40}},
-                  {'check_runs': [{'name': n, 'conclusion': 'success'} for n in ('CI Gate', 'GCP Terraform Validate')]}]
-        with patch.object(op, 'gh', side_effect=values), \
-                patch.object(op.subprocess, 'run', return_value=type('Result', (), {'returncode': 0})()) as run, \
-                redirect_stdout(io.StringIO()):
-            op.dispatch_e2e(branch)
-        args = run.call_args.args[0]
-        self.assertEqual(args[args.index('--ref') + 1], branch)
-        self.assertIn('terraform_source_branch=' + branch, args)
-        self.assertIn('terraform_expected_sha=' + 'b' * 40, args)
 
     def test_optional_cloud_audits_are_read_only(self):
         aws_role_plan, aws_role_apply = role("plan"), role("apply")

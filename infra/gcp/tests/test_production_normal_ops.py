@@ -64,12 +64,6 @@ class ProductionNormalOps(unittest.TestCase):
                 with self.subTest(role=role, bad=bad), self.assertRaises(ValueError):
                     ops.context(context(role=role) | bad, role)
 
-    def test_prod_e2e_cannot_touch_real_cloud(self):
-        env = context() | {"NORMAL_MODE": "normal-e2e"}
-        with self.assertRaises(ValueError):
-            ops.context(env)
-        with self.assertRaises(ValueError):
-            ops.e2e(env, None, None, None)
 
     def test_dev_workflow_branch_is_selected_by_environment_while_prod_stays_main(self):
         self.assertEqual(ops.context(context("dev")), "dev")
@@ -249,10 +243,10 @@ class ProductionNormalOps(unittest.TestCase):
     def test_state_reader_receives_exact_target(self):
         with patch.object(ops.common, "snapshot", return_value={"ok": True}) as snap:
             self.assertEqual(ops.snapshot(context(), Path("/tmp"), "before"), {"ok": True})
-            self.assertEqual(snap.call_args.args[0]["MIGRATION_TARGET"], "prod")
+            self.assertEqual(snap.call_args.args[0]["NORMAL_TARGET"], "prod")
         with patch.object(ops.common, "snapshot", return_value={"ok": True}) as snap:
             ops.snapshot(context("dev"), Path("/tmp"), "before")
-            self.assertEqual(snap.call_args.args[0]["MIGRATION_TARGET"], "dev")
+            self.assertEqual(snap.call_args.args[0]["NORMAL_TARGET"], "dev")
 
     def test_backend_key_and_root_never_cross_environments(self):
         with tempfile.TemporaryDirectory() as folder:

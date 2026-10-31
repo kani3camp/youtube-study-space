@@ -235,33 +235,6 @@ def authorize_control_branch(endpoint: str, current: dict, target: str) -> None:
          and {branch_name(rule['name']) for rule in latest_rules} == previous | {target})
 
 
-def dispatch_e2e(target: str) -> None:
-    global PHASE
-    PHASE = "github_dispatch_preflight"
-    operator = gh("user")
-    need(operator.get("login") == "kani3camp" and operator.get("id") == 54093651)
-    remote = gh(f"repos/{REPO}/branches/{quote(target, safe='')}")
-    sha = remote.get("commit", {}).get("sha")
-    need(isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{40}", sha) is not None)
-    status = gh(f"repos/{REPO}/commits/{sha}/check-runs?per_page=100")
-    checks = status.get("check_runs", [])
-    need(isinstance(checks, list))
-    for required in ("CI Gate", "GCP Terraform Validate"):
-        selected = [item for item in checks if item.get("name") == required]
-        need(len(selected) == 1 and selected[0].get("conclusion") == "success")
-    PHASE = "github_dispatch"
-    result = subprocess.run([
-        "gh", "workflow", "run", "ci.yml", "--repo", REPO, "--ref", target,
-        "-f", "terraform_authenticated=true",
-        "-f", "terraform_target=dev",
-        "-f", "terraform_mode=normal-e2e",
-        "-f", "terraform_expected_sha=" + sha,
-        "-f", "terraform_source_branch=" + target,
-    ], capture_output=True, text=True, timeout=60, check=False)
-    need(result.returncode == 0)
-    print("NORMAL_BRANCH_ACCESS: PASS; normal-e2e dispatched; sha=" + sha)
-
-
 def main() -> None:
     global PHASE
     PHASE = "arguments"
@@ -270,15 +243,12 @@ def main() -> None:
                         help="Environmentへ明示追加する信頼済みの実行元ブランチ")
     parser.add_argument("--apply", action="store_true",
                         help="DEV両Environmentの既存許可を残して--branchを明示追加します")
-    parser.add_argument("--dispatch-e2e", action="store_true",
-                        help="--applyの検証後にnormal-e2eを1回起動します")
     parser.add_argument("--verify-aws", action="store_true",
                         help="任意でDEV AWS OIDC trustを読み取り監査します")
     parser.add_argument("--verify-gcp", action="store_true",
                         help="任意でDEV GCP WIFを読み取り監査します")
     flags = parser.parse_args()
     target = branch_name(flags.branch)
-    need(not flags.dispatch_e2e or flags.apply)
 
     PHASE = 'github_operator'
     verify_operator()
@@ -305,8 +275,6 @@ def main() -> None:
                  and updated.get('can_admins_bypass') == previous.get('can_admins_bypass'))
         print("NORMAL_BRANCH_ACCESS: PASS; trusted DEV control branch authorized;"
               " AWS/GCP mutation=0")
-    if flags.dispatch_e2e:
-        dispatch_e2e(target)
 
 
 if __name__ == "__main__":

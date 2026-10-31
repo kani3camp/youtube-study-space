@@ -95,32 +95,20 @@ python3 infra/gcp/scripts/enable_normal_integration.py --branch integration/mypa
 
 `--verify-aws` / `--verify-gcp`は読み取り監査です。`--apply`もAWS IAM・GCP WIF・Terraform State・業務資源・本番・Environment secrets/variablesを更新しません。失敗時は固定のphaseだけを表示し、資格情報やAPIエラー本文を出力しません。
 
-### 任意ブランチの認証付きE2E
+### 基盤変更の検証と復旧
 
-通常のPlan/Applyとは別に、実リソースを作成・削除するE2Eがあります。必要な場合だけ、CIを`normal-e2e`、Use workflow fromはEnvironmentで許可した実行元にし、対象source branchと正確な40桁HEAD SHAを指定して一度新規dispatchします。
+認証・実行基盤の変更は、offlineの契約テストとnative fixtureに加え、認証付きの通常Planで検証します。
+実変更の検証が必要なら、レビュー済みのDEV用HCLを通常PRで追加し、通常Plan/Applyと事後no-opを確認します。
+削除・置換も`normal-operations.json`の明示レビューを通し、暗黙に一時資源を生成するモードは使いません。
 
-```sh
-python3 infra/gcp/scripts/enable_normal_integration.py --apply --dispatch-e2e --branch integration/gcp-terraform-normal-ops
-```
-
-`--branch`はE2Eの信頼済み実行元を指定し、既定の対象ソースも同じブランチです。このヘルパーのE2E起動には、当該ブランチにCIのmanual dispatch入力が必要です。通常のPlan/Applyは、その実行元にある正規のCI／Terraform入口を使います。`--dispatch-e2e`は対象branchの必須CI成功と実行者IDをreadbackしてから新規dispatchを1回行います（E2E完了までは判定しません）。失敗runのRe-runは拒否されます。
-既存rootがno-opのときだけ、runnerのprivate source copyに一時的なDEV Pub/Sub topicを追加し、
-create→ラベルupdate→名前replace→deleteを実行します。各段階は対象topicだけの変更を要求し、
-saved plan Apply・full-root no-op・lock解放を検証します。既存業務リソースはテスト用に変更しません。
-最後に元のState resourcesと一致することを検査します。State serial/versionは正常に進みます。
-MyPageのHCL・専用Stateを扱いません。
-
-通常操作の実行元はEnvironmentのSelected branchesで管理します。事前検証は本人・正規workflow・同ref/SHAなどを検証し、未許可の実行元はGitHubのEnvironment境界がSecret取得前に拒否します。
-Environment/WIFの保護は維持し、`dev`向け最終PRのマージは本人が実施します。
-E2Eが中途失敗した場合は、そのrunのprobeだけの削除Planで復旧を試みます。
-他リソースの差分・lock・認証失敗があれば停止します。自動force-unlockやStateの復元はしません。
-probeが残った場合は新しいE2Eを起動せず、State内の `google_pubsub_topic.normal_ops_probe` をprivate端末で確認し、
-同じtopic名・projectのHCLを一時的にDEV rootへ宣言して通常Planをno-opに戻します。
-その後、HCL削除と明示的delete reviewを通常PRで適用し、no-opを確認してからE2Eを再実行します。
+旧`normal-e2e`は撤去しました。過去のrunのprobeが残っている場合は、private端末でState内の
+`google_pubsub_topic.normal_ops_probe`を確認し、同じtopic名・projectのHCLをDEV rootへ宣言して通常Planをno-opに戻します。
+その後、HCL削除と明示的delete reviewを通常PRで適用し、事後no-opを確認します。
+自動force-unlockやStateの巻戻しは行いません。State障害は[State account recovery](docs/state-account-recovery.md)を参照します。
 
 ## 通常のPROD Terraform開発（main固定）
 
-Productionの通常Plan/Applyは既存DEVと同じ `normal-plan` / `normal-apply` を使います。**実行refは `main` のみ**。Production `normal-e2e`（一時的な実リソース生成）は禁止します。既存の `migration-*` はimport-only/no-opのまま変更しません。通常実行にはPROD専用IAM/WIF・既存State・全plan/StateのHMAC・saved plan・事後full-root no-opを要求します。Plan属性内の入れ子になったproject-bearing ID、principalSet、SAメールもPRODへ限定し、数値project別名は認証付きResource Manager readbackから取得します。
+Productionの通常Plan/Applyは既存DEVと同じ `normal-plan` / `normal-apply` を使います。**実行refは `main` のみ**。通常実行にはPROD専用IAM/WIF・既存State・全plan/StateのHMAC・saved plan・事後full-root no-opを要求します。Plan属性内の入れ子になったproject-bearing ID、principalSet、SAメールもPRODへ限定し、数値project別名は認証付きResource Manager readbackから取得します。
 
 1. `infra/gcp/environments/prod/` のHCLをレビュー対象とし、先にDEVで相当する変更を検証します。既存PRODリソースの宣言とprivate inventoryを落としてはなりません。DEVのRoot/StateをPRODへコピーしません。
 2. 非秘密の差分だけを `normal.tfvars.json` に記載します。既存30資源の選択情報・private metadataは `terraform-prod-plan` / `terraform-prod-apply` Environmentのmanaged入力を引き続き使います。両者の入力内容はPlan/Applyで論理的に一致させます。
@@ -163,22 +151,17 @@ python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply --enable-ap
 
 **確認範囲：** GitHubコードとcredentialless CIでは本番の実IAM/State readback、実mainでの初回認証付きPlan/Applyの成功を証明できません。これらはSourceの実装と独立した有効化ゲートです。
 
-## 既存import専用経路
+## 完了済み移行経路の撤去
 
-`migration-plan` / `migration-apply` は既存baselineのimport/no-op専用として保持します。
-DEVの既存importは、Environmentで許可した実行元のうち、移行用controllerが従来許可する`dev` / `integration/mypage-canon-20261006`から実行します。通常操作のsource選択をimport経路へ広げません。
-独自Attestation/Ownership Receiptは再導入しません。
-通常経路はこのimport-only制限を解除しておらず、controller/contract/job本文も変更しません。
-DEVでbaseline外のHCL/Stateを追加した後は、固定manifestのmigration経路が拒否する場合があります。
-その場合は通常経路で運用し、legacy contractを緩めません。Productionの既存importは引き続きmain固定で、通常CRUDも上記のmain-only経路で有効化します。
+既存資源の取り込みはDEV・PRODとも完了しています。[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)に実行記録を残し、
+`migration-plan` / `migration-apply`、空State初期化controllerとlive `normal-e2e`を撤去しました。
+固定manifestのimport経路はState復旧には使えず、通常資源追加後のStateにも対応しません。
+これらを復旧用の常設コードとして維持せず、必要な過去実装はGit履歴から確認します。
+再導入が必要になった場合も、現行State・HCL・IAMとの適合を新しいPRで審査します。
 
-既存rootのopt-inやprivate baselineから管理対象を落とすと削除Planにつながるため、
-未選択の既定値を既存Stateへ適用しません。State初期化やimportは、その専用契約と復旧手順に従います。
-新しい資源領域で権限不足となった場合は、権限カタログをレビューして同じbootstrapで更新します。
-MyPage固有リソースと独立Stateは専用統合branchで管理し、二重ownershipを作りません。
-
-移行時のState採用件数、各run・障害・未観測事項は[移行記録](#実行記録と変更履歴)を参照してください。
-現在の件数や実設定は、新しいPlanと管理APIから確認します。
+通常Plan/Applyは既存の管理対象・private tfvarsを維持します。既存Secretのwire schema名と4field形式は互換性のため保持し、
+入力・JSON/圧縮処理、State読取とprovider schema検証は`terraform_runtime.py`を使います。
+新しいimportやStateの初期化が必要な場合は、通常Applyへ流さず、目的と権限を明示して別途設計します。
 
 ## ディレクトリと現行の責務
 
@@ -188,7 +171,7 @@ MyPage固有リソースと独立Stateは専用統合branchで管理し、二重
 | `modules/` | 管理対象の共通Terraform modulesと既存リソース契約 |
 | `scripts/`、`tests/` | 現行の設定検証、offline準備、negative / native fixtureテスト |
 | `docs/` | 復旧・運用・準備判定の既存runbook。現行の判断入口は以下のリンク |
-| `.github/scripts/terraform_migration.py`、`terraform_migration_contract.py` | 既存baseline import-only実行・拒否契約（通常CRUDは`infra/gcp/scripts/terraform_normal_ops.py`） |
+| `scripts/terraform_normal_ops.py`、`terraform_runtime.py` | 通常Plan/Applyとprivate入力・State・plan shapeの共通検査 |
 | `.github/workflows/ci.yml`、`gcp-terraform-authenticated.yml` | credentialless PR CIと保護された本人起動の運用経路 |
 
 ## Version policy
@@ -204,8 +187,7 @@ MyPage固有リソースと独立Stateは専用統合branchで管理し、二重
 通常の検証はcredentiallessです。
 
 ```bash
-python3 .github/scripts/test_terraform_migration.py
-python3 .github/scripts/test_terraform_migration_contract.py
+python3 -B infra/gcp/tests/test_terraform_runtime.py
 python3 .github/scripts/test_terraform_authenticated_workflow.py
 python3 -B infra/gcp/tests/test_terraform_normal_ops.py
 python3 -B infra/gcp/tests/test_terraform_normal_ops_native.py
@@ -216,10 +198,9 @@ done
 ```
 
 PRでは **GCP Terraform Validate** が必要な安全契約・Terraform root/module・nativeテストを検証します。
-`migration-plan` / `migration-apply`、S3 State/Versioning/locking、OIDC/WIF・分離identity、
-secret非漏出・import-only/no-op/unknown/drift拒否の実行コードと対応テストは維持します。
+S3 State/Versioning/locking、OIDC/WIF・分離identity、secret非漏出・通常Plan/Applyの拒否契約と対応テストを維持します。
 復旧・監査は[State account recovery](docs/state-account-recovery.md)、[durable audit](docs/state-durable-audit.md)、
-[現行の運用契約](docs/runtime-wif-api-ownership.md#定常planapplyへの移行2026-10-16)を参照してください。
+[認証・実行境界](docs/terraform-authentication-boundary.md)を参照してください。
 
 ## Remote state bootstrap
 

@@ -452,12 +452,19 @@ class Contracts(unittest.TestCase):
                 snapshot.assert_not_called()
                 tf.assert_not_called()
 
+    def test_retired_modes_are_rejected_by_controller_in_both_environments(self):
+        for target in ('dev', 'prod'):
+            for mode in ('migration-plan', 'migration-apply', 'normal-e2e'):
+                values = env() | {'NORMAL_TARGET': target, 'NORMAL_MODE': mode}
+                with self.subTest(target=target, mode=mode), self.assertRaises(ValueError):
+                    ops.context(values)
+
     def test_normal_modes_reach_preflight_only_for_exact_dev_sha(self):
         sys.path.insert(0, str(ops.REPO / '.github/scripts'))
         from test_terraform_authenticated_workflow import TerraformAuthenticatedWorkflowTest
         runner = TerraformAuthenticatedWorkflowTest()
         runner.text = (ops.REPO / '.github/workflows/gcp-terraform-authenticated.yml').read_text()
-        for mode in ('normal-plan', 'normal-apply', 'normal-e2e'):
+        for mode in ('normal-plan', 'normal-apply'):
             good = runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='a' * 40)
             self.assertEqual(good.returncode, 0, good.stdout + good.stderr)
             for branch in ('integration/gcp-terraform-normal-ops', 'feature/arbitrary'):
