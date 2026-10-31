@@ -167,6 +167,56 @@ class RuntimeTest(unittest.TestCase):
         with self.assertRaisesRegex(c.ContractError, "^maintenance-job-bootstrap-image$"):
             r.validate_plan(rejected, "maintenance_upgrade")
 
+    def state_only_plan(self):
+        plan = fixture("runtime_public")
+        for item in plan["resource_changes"]:
+            item["change"]["actions"] = ["no-op"]
+        item = next(item for item in plan["resource_changes"] if item["address"] == r.SERVICE)
+        after = item["change"]["after"]
+        after["deletion_policy"] = "PREVENT"
+        before = deepcopy(after)
+        before["deletion_policy"] = None
+        item["change"].update(actions=["update"], before=before)
+        return plan, item
+
+    def test_only_the_reviewed_service_state_adoption_is_accepted_as_an_update(self):
+        plan, item = self.state_only_plan()
+        self.assertEqual(r.state_only_service_update(r.SERVICE, item["change"]), {"deletion_policy"})
+        self.assertEqual(r.validate_plan(plan, "runtime_public"), {"resources": len(plan["resource_changes"]), "creates": 0})
+        for mutate in (
+            lambda change: change["after"].update(ingress="INGRESS_TRAFFIC_INTERNAL_ONLY"),
+            lambda change: change["after"]["template"][0].update(timeout="60s"),
+            lambda change: change["after"].update(deletion_policy="DELETE"),
+            lambda change: change["before"].update(deletion_policy="ABANDON"),
+            lambda change: change.update(after_unknown={"uri": True}),
+            lambda change: change.update(replace_paths=[["name"]]),
+            lambda change: change.update(actions=["delete", "create"]),
+        ):
+            rejected, changed = self.state_only_plan()
+            mutate(changed["change"])
+            with self.subTest(mutate=mutate):
+                self.assertIsNone(r.state_only_service_update(r.SERVICE, changed["change"]))
+                with self.assertRaises(c.ContractError):
+                    r.validate_plan(rejected, "runtime_public")
+        # Never for any other resource, even with the same attribute change.
+        other = deepcopy(item["change"])
+        self.assertIsNone(r.state_only_service_update(r.MAINTENANCE_JOB, other))
+
+    def test_refresh_drift_may_be_adopted_only_with_the_reviewed_state_attribute(self):
+        _, item = self.state_only_plan()
+        observed = deepcopy(item["change"]["before"])
+        drift = {"address": r.SERVICE, "mode": "managed", "provider_name": "registry.terraform.io/hashicorp/google",
+                 "change": {"actions": ["update"], "before": deepcopy(observed), "after": observed}}
+        plan = {"resource_changes": [item], "resource_drift": [drift]}
+        resources = {r.SERVICE: {}}
+        c.validate_refresh(plan, resources, r.state_only_service_update)
+        with self.assertRaisesRegex(c.ContractError, "^refresh-planned-noop$"):
+            c.validate_refresh(plan, resources)
+        moved = deepcopy(plan)
+        moved["resource_drift"][0]["change"]["after"]["ingress"] = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+        with self.assertRaisesRegex(c.ContractError, "^refresh-planned-state$"):
+            c.validate_refresh(moved, resources, r.state_only_service_update)
+
     def test_backend_image_release_binding_is_dev_only(self):
         value = r.settings(json.loads((ROOT / "infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json").read_text()))
         with patch.object(r.c, "TARGET", "production"):
