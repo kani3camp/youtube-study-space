@@ -1,12 +1,10 @@
 import { css } from '@emotion/react'
 import Head from 'next/head'
-import { useRouter } from 'next/router'
 import { type FormEvent, useEffect, useState } from 'react'
 import {
 	type MonitorAuthorizationState,
 	observeMonitorAuthorization,
 	signInMonitor,
-	signOutMonitor,
 } from '../lib/monitor-auth'
 
 const page = css`
@@ -77,7 +75,6 @@ const errorStyle = css`
 `
 
 export default function MonitorLogin(): JSX.Element {
-	const router = useRouter()
 	const [authorization, setAuthorization] = useState<MonitorAuthorizationState>(
 		{ status: 'checking' },
 	)
@@ -85,6 +82,7 @@ export default function MonitorLogin(): JSX.Element {
 	const [password, setPassword] = useState('')
 	const [submitting, setSubmitting] = useState(false)
 	const [loginFailed, setLoginFailed] = useState(false)
+	const [loginSucceeded, setLoginSucceeded] = useState(false)
 
 	useEffect(() => observeMonitorAuthorization(setAuthorization), [])
 
@@ -94,7 +92,8 @@ export default function MonitorLogin(): JSX.Element {
 		setLoginFailed(false)
 		try {
 			await signInMonitor(email, password)
-			await router.replace('/')
+			setLoginSucceeded(true)
+			setPassword('')
 		} catch {
 			setLoginFailed(true)
 		} finally {
@@ -111,21 +110,15 @@ export default function MonitorLogin(): JSX.Element {
 			<main css={page}>
 				<section css={card}>
 					<h1>モニター認証</h1>
-					<p css={warning}>
-						配信画面が表示されない場合は、ライブチャット、または緊急連絡フォームからご連絡ください。
-					</p>
-					{authorization.status === 'authorized' ? (
-						<>
-							<p>認証が完了しました。</p>
-							<button type="button" onClick={() => void router.replace('/')}>
-								モニターへ戻る
-							</button>
-							<button type="button" onClick={() => void signOutMonitor()}>
-								ログアウト
-							</button>
-						</>
+					{loginSucceeded ||
+					authorization.status === 'authorized' ||
+					authorization.status === 'unauthorized' ? (
+						<p role="status">ログインしました。</p>
 					) : (
 						<form onSubmit={(event) => void submit(event)}>
+							<p css={warning}>
+								配信画面が表示されない場合は、ライブチャット、または緊急連絡フォームからご連絡ください。
+							</p>
 							<label>
 								メールアドレス
 								<input

@@ -1,5 +1,5 @@
 import type { FC, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
 	type MonitorAuthorizationState,
 	observeMonitorAuthorization,
@@ -14,8 +14,28 @@ const MonitorAuthGate: FC<MonitorAuthGateProps> = ({ children }) => {
 	const [authorization, setAuthorization] = useState<MonitorAuthorizationState>(
 		{ status: 'checking' },
 	)
+	const lastLoginNotice = useRef<string | null>(null)
 
 	useEffect(() => observeMonitorAuthorization(setAuthorization), [])
+	useEffect(() => {
+		if (authorization.status === 'authorized') {
+			lastLoginNotice.current = null
+			return
+		}
+		if (
+			(authorization.status === 'signed-out' ||
+				authorization.status === 'unauthorized') &&
+			lastLoginNotice.current !== authorization.status
+		) {
+			lastLoginNotice.current = authorization.status
+			// 通知失敗で認証状態や配信向け表示を変えない。資格情報は送らない。
+			void fetch('/api/monitor-auth-required', {
+				method: 'POST',
+				headers: { 'X-Monitor-Auth-Required': authorization.status },
+				credentials: 'omit',
+			}).catch(() => undefined)
+		}
+	}, [authorization.status])
 
 	switch (authorization.status) {
 		case 'authorized':

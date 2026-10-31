@@ -24,6 +24,66 @@ describe('MonitorAuthGate', () => {
 	beforeEach(() => {
 		authMocks.observer = undefined
 		authMocks.unsubscribe.mockClear()
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
+	})
+
+	afterEach(() => {
+		vi.unstubAllGlobals()
+	})
+
+	test('does not request a login notice while checking, authorized, or on a communication error', () => {
+		render(<MonitorAuthGate>monitor</MonitorAuthGate>)
+		expect(fetch).not.toHaveBeenCalled()
+		act(() => authMocks.observer?.({ status: 'error' }))
+		expect(fetch).not.toHaveBeenCalled()
+		act(() => authMocks.observer?.({ status: 'authorized', user: {} as User }))
+		expect(fetch).not.toHaveBeenCalled()
+	})
+
+	test.each(['signed-out', 'unauthorized'] as const)(
+		'notifies the server once when %s, without sending credentials',
+		(status) => {
+			render(<MonitorAuthGate>monitor</MonitorAuthGate>)
+			act(() => authMocks.observer?.({ status }))
+			expect(fetch).toHaveBeenCalledExactlyOnceWith(
+				'/api/monitor-auth-required',
+				{
+					method: 'POST',
+					headers: { 'X-Monitor-Auth-Required': status },
+					credentials: 'omit',
+				},
+			)
+			act(() => authMocks.observer?.({ status: 'checking' }))
+			act(() => authMocks.observer?.({ status }))
+			expect(fetch).toHaveBeenCalledTimes(1)
+			act(() =>
+				authMocks.observer?.({ status: 'authorized', user: {} as User }),
+			)
+			act(() => authMocks.observer?.({ status: 'signed-out' }))
+			expect(fetch).toHaveBeenCalledTimes(2)
+		},
+	)
+
+	test('reports missing monitor privileges after the user signs in', () => {
+		render(<MonitorAuthGate>monitor data consumer</MonitorAuthGate>)
+		act(() => authMocks.observer?.({ status: 'signed-out' }))
+		act(() => authMocks.observer?.({ status: 'checking' }))
+		act(() => authMocks.observer?.({ status: 'unauthorized' }))
+		expect(fetch).toHaveBeenLastCalledWith('/api/monitor-auth-required', {
+			method: 'POST',
+			headers: { 'X-Monitor-Auth-Required': 'unauthorized' },
+			credentials: 'omit',
+		})
+		expect(fetch).toHaveBeenCalledTimes(2)
+		expect(screen.queryByText('monitor data consumer')).not.toBeInTheDocument()
+	})
+
+	test('keeps the monitor closed when the notice request fails', async () => {
+		vi.mocked(fetch).mockRejectedValueOnce(new Error('offline'))
+		render(<MonitorAuthGate>monitor data consumer</MonitorAuthGate>)
+		await act(async () => authMocks.observer?.({ status: 'signed-out' }))
+		expect(screen.queryByText('monitor data consumer')).not.toBeInTheDocument()
+		expect(screen.getByText('認証に失敗しました')).toBeInTheDocument()
 	})
 
 	test('mounts monitor data consumers only while authorization is valid', () => {
