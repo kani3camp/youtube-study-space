@@ -66,13 +66,22 @@ resource "google_artifact_registry_repository_iam_member" "builder" {
   member     = "serviceAccount:${var.build_service_account_email}"
 }
 
+# 撤去中だけ、専用ソースバケット上のオブジェクト削除を通常Apply主体へ許可する。
+# 関数・オブジェクトの撤去後、空のバケットとこのgrantを一緒に削除する。
+resource "google_storage_bucket_iam_member" "source_retirement" {
+  bucket = google_storage_bucket.source.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:terraform-dev-normal-apply@${var.project_id}.iam.gserviceaccount.com"
+}
+
 resource "google_storage_bucket_object" "source" {
   bucket       = google_storage_bucket.source.name
   name         = "registration-guard/${local.source_sha}.zip"
   source       = local.source_path
   content_type = "application/zip"
-  # 過去のコードを残して、同じcommitからの再配備・ロールバックを可能にする。
-  deletion_policy = "ABANDON"
+  # トリガー解除後の撤去準備。専用ソースの削除権限を先に設定する。
+  depends_on      = [google_storage_bucket_iam_member.source_retirement]
+  deletion_policy = "DELETE"
 }
 
 resource "google_cloudfunctions2_function" "guard" {
@@ -80,7 +89,7 @@ resource "google_cloudfunctions2_function" "guard" {
   location        = var.region
   name            = "monitor-password-signup-guard"
   description     = "一般利用者によるメール・パスワードの新規登録のみを拒否するbeforeCreate関数"
-  deletion_policy = "PREVENT"
+  deletion_policy = "DELETE"
   depends_on      = [google_artifact_registry_repository_iam_member.builder]
 
   build_config {
