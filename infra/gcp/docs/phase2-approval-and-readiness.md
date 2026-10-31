@@ -14,6 +14,7 @@ code/tests/specは一つのbundleでreviewし、実行はdeployment/schema/state
 4集計すべてis-zero yesでした。監査当時は列未削除でしたが、その後のmetadata/Stateで
 canonical8列とhistory ownershipを確認済みです。再DROP・再import・不要なbackfillは行いません。
 runtime temporary access撤回はoperator readback報告、source gate=falseは#1238で完了。
+その後、完了済み監査のCI入力・workflow・summary処理は撤去しました。以下の監査用設定は履歴であり、現行の実行手順ではありません。
 判定のSQL上の意味、offline canonical preparation、未承認のschema修復→別wave importは
 [`user-activity-history-canonicalization.md`](user-activity-history-canonicalization.md) を参照してください。
 

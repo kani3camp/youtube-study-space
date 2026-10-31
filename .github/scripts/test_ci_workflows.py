@@ -25,7 +25,7 @@ MODULES = {
               'video-maker-simulator-check': 'video_maker_simulator',
               'figma-plugin-room-layout-analyzer-build': 'figma_plugin'},
     'infra': {'aws-cdk-test': 'aws_cdk'},
-    'repository': {'base-image-update-report-test': None, 'node-lts-ignore-expiry': None,
+    'repository': {'base-image-update-report-test': None, 'node-types-ignore-policy': None,
                    'documentation-references': None, 'ci-contracts': None},
 }
 NODE = {'youtube_monitor', 'docs_site', 'menu_image_generator', 'video_maker_simulator',
@@ -33,12 +33,10 @@ NODE = {'youtube_monitor', 'docs_site', 'menu_image_generator', 'video_maker_sim
 GROUPS = ('system', 'room_image_prompt', 'menu_image_generator', 'video_maker_simulator',
           'figma_plugin', 'youtube_monitor', 'docs_site', 'aws_cdk', 'gcp_terraform',
           'node_projects', 'firestore_integration', 'formal_spec', 'all')
-DEPENDENCIES = {'changes', *MODULES, 'gcp-terraform-validate', 'gcp-user-activity-schema-audit'}
+DEPENDENCIES = {'changes', *MODULES, 'gcp-terraform-validate'}
 AUTH_SECRETS = ('GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', 'GCP_TERRAFORM_NORMAL_WIF_PROVIDER', 'AWS_TERRAFORM_BACKEND_ROLE_ARN', 'AWS_TERRAFORM_BACKEND_ROLE_ID',
                 'AWS_TERRAFORM_STATE_BUCKET', 'AWS_TERRAFORM_STATE_ACCOUNT_ID',
-                'GCP_TERRAFORM_WIF_PROVIDER', 'GCP_TERRAFORM_SERVICE_ACCOUNT',
                 'GCP_TERRAFORM_MANAGED_INPUTS_JSON')
-AUDIT_SECRETS = ('GCP_TERRAFORM_WIF_PROVIDER', 'GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT')
 
 
 def selected(expression, flags, inputs=None):
@@ -69,9 +67,8 @@ def validate(caller, modules):
     check = gate['steps'][-1]
     require(check['run'] == 'python3 .github/scripts/check-ci-results.py' and 'if' not in check,
             'Execute the tested result gate unconditionally')
-    require(check['env'] == {'CI_NEEDS': '${{ toJSON(needs) }}',
-            'CI_SCHEMA_AUDIT_REQUESTED': "${{ github.event_name == 'workflow_dispatch' && inputs.gcp_user_activity_schema_audit == true }}"},
-            'Gate receives real results and typed audit selection')
+    require(check['env'] == {'CI_NEEDS': '${{ toJSON(needs) }}'},
+            'Gate receives real validation results')
     require(jobs['gcp-terraform-validate']['name'] == 'GCP Terraform Validate'
             and 'runs-on' in jobs['gcp-terraform-validate'] and 'uses' not in jobs['gcp-terraform-validate'],
             'Terraform required check stays direct')
@@ -110,8 +107,8 @@ def validate(caller, modules):
         require(key != 'continue-on-error', 'Caller failures cannot be ignored')
     for name, toggle, secrets, arguments in (
         ('gcp-terraform-authenticated', 'terraform_authenticated', AUTH_SECRETS,
-         {'target': '${{ inputs.terraform_target }}', 'mode': '${{ inputs.terraform_mode }}', 'expected_sha': '${{ inputs.terraform_expected_sha }}'}),
-        ('gcp-user-activity-schema-audit', 'gcp_user_activity_schema_audit', AUDIT_SECRETS, {'target': 'dev'}),
+         {'target': '${{ inputs.terraform_target }}', 'mode': '${{ inputs.terraform_mode }}', 'expected_sha': '${{ inputs.terraform_expected_sha }}',
+          'source_branch': '${{ inputs.terraform_source_branch }}'}),
     ):
         call = jobs[name]
         require(set(call) == {'name', 'if', 'permissions', 'uses', 'secrets', 'with'}, 'Operational caller stays direct')
@@ -122,13 +119,13 @@ def validate(caller, modules):
         require(call['secrets'] == {s: '${{ secrets.' + s + ' }}' for s in secrets}, 'Explicit operational secrets')
         require(call['with'] == arguments, 'Operational inputs stay fixed')
     dispatch = caller['on']['workflow_dispatch']['inputs']
-    require(set(dispatch) == {'terraform_authenticated', 'terraform_target', 'terraform_mode', 'terraform_expected_sha', 'gcp_user_activity_schema_audit'},
+    require(set(dispatch) == {'terraform_authenticated', 'terraform_target', 'terraform_mode', 'terraform_expected_sha', 'terraform_source_branch'},
             'No retired operational mode/input returns')
-    for toggle in ('terraform_authenticated', 'gcp_user_activity_schema_audit'):
+    for toggle in ('terraform_authenticated',):
         require(dispatch[toggle]['type'] == 'boolean' and dispatch[toggle]['default'] is False
                 and dispatch[toggle]['required'] is False, 'Operations remain opt-in')
     for key, default, options in (('terraform_target', 'dev', ['dev', 'prod']),
-                                  ('terraform_mode', 'migration-plan', ['migration-plan', 'migration-apply', 'normal-plan', 'normal-apply', 'normal-e2e'])):
+                                  ('terraform_mode', 'normal-plan', ['normal-plan', 'normal-apply'])):
         require(dispatch[key]['type'] == 'choice' and dispatch[key]['default'] == default
                 and dispatch[key]['options'] == options and dispatch[key]['required'] is False, 'Dispatch choices stay fixed')
     require(caller['concurrency'] == {
@@ -168,7 +165,7 @@ class WorkflowContractsTest(unittest.TestCase):
             terraform = selected(self.caller['jobs']['gcp-terraform-validate']['if'], flags)
             self.assertEqual(terraform, flags['gcp_terraform'] or flags['all'])
             needs['gcp-terraform-validate']['result'] = 'success' if terraform else 'skipped'
-            test_ci_results.gate.validate(needs, 'false')
+            test_ci_results.gate.validate(needs)
 
     def test_required_display_names_are_unique_across_all_workflows(self):
         names = [job.get('name') for path in (ROOT / '.github/workflows').glob('*.yml')
@@ -193,7 +190,7 @@ class WorkflowContractsTest(unittest.TestCase):
             lambda c, m: m['infra'].update(permissions={'contents': 'read', 'id-token': 'write'}),
             lambda c, m: c['jobs']['gcp-terraform-validate'].update(uses='./.github/workflows/ci-infra.yml'),
             lambda c, m: c['jobs']['gcp-terraform-authenticated'].update(uses='./.github/workflows/ci-infra.yml'),
-            lambda c, m: c['on']['workflow_dispatch']['inputs']['gcp_user_activity_schema_audit'].update(default=True),
+            lambda c, m: c['on']['workflow_dispatch']['inputs'].update(gcp_user_activity_schema_audit={'type': 'boolean', 'default': False, 'required': False}),
         ]
         for mutate in mutations:
             caller, modules = copy.deepcopy(self.caller), copy.deepcopy(self.modules)

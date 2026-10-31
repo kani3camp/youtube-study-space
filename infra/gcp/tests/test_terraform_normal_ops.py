@@ -25,7 +25,7 @@ def env(role='plan'):
         'GITHUB_ACTOR_ID': '54093651', 'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
         'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_REF': 'refs/heads/dev',
         'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
-        'GITHUB_SHA': 'a' * 40, 'NORMAL_EXPECTED_SHA': 'a' * 40,
+        'GITHUB_SHA': 'a' * 40, 'NORMAL_EXPECTED_SHA': 'a' * 40, 'NORMAL_SOURCE_SHA': 'a' * 40,
         'NORMAL_TARGET': 'dev', 'NORMAL_MODE': 'normal-apply', 'NORMAL_ROLE': role,
         'GITHUB_JOB': 'normal_' + role, 'GITHUB_RUN_ID': '1234', 'TF_WORKSPACE': 'default',
         'STATE_AWS_REGION': 'ap-northeast-1'}
@@ -196,26 +196,32 @@ class Contracts(unittest.TestCase):
         changes = {'GITHUB_EVENT_NAME': 'pull_request', 'GITHUB_REPOSITORY': 'fork/repo',
             'GITHUB_REPOSITORY_ID': '0', 'GITHUB_REPOSITORY_OWNER_ID': '0',
             'GITHUB_ACTOR': 'other', 'GITHUB_ACTOR_ID': '0', 'GITHUB_TRIGGERING_ACTOR': 'other',
-            'GITHUB_RUN_ATTEMPT': '2', 'GITHUB_REF': 'refs/heads/integration/mypage-canon-20261006',
-            'GITHUB_WORKFLOW_REF': 'other', 'GITHUB_SHA': 'b' * 40, 'NORMAL_EXPECTED_SHA': 'b' * 40,
+            'GITHUB_RUN_ATTEMPT': '2', 'GITHUB_REF': 'refs/heads/main',
+            'GITHUB_WORKFLOW_REF': 'other', 'GITHUB_SHA': 'invalid', 'NORMAL_EXPECTED_SHA': 'b' * 40,
             'NORMAL_TARGET': 'prod', 'NORMAL_MODE': 'migration-apply', 'GITHUB_JOB': 'migration_plan',
             'TF_WORKSPACE': 'prod', 'STATE_AWS_REGION': 'us-east-1'}
         for k, v in changes.items():
             with self.subTest(key=k), self.assertRaises(ValueError):
                 ops.context(env() | {k: v}, 'plan')
 
-    def test_any_non_main_branch_context_is_allowed_only_with_matching_caller(self):
+    def test_dev_control_plane_and_source_are_independent_of_branch_name_allowlists(self):
         for branch in ("dev", "integration/gcp-terraform-normal-ops",
                        "feature/arbitrary-normal-change"):
             ref = "refs/heads/" + branch
             for role in ("plan", "apply"):
                 v = env(role)
-                v["GITHUB_REF"] = ref
-                v["GITHUB_WORKFLOW_REF"] = ops.CALLER + ref
+                v["NORMAL_SOURCE_BRANCH"] = branch
+                v["NORMAL_EXPECTED_SHA"] = "b" * 40
+                v["NORMAL_SOURCE_SHA"] = "b" * 40
                 self.assertEqual(ops.context(v, role), "dev")
                 with self.assertRaises(ValueError):
                     ops.context(v | {"GITHUB_WORKFLOW_REF":
                                       ops.CALLER + "refs/heads/other"}, role)
+                for key, value in (('GITHUB_ACTOR', 'other'), ('GITHUB_ACTOR_ID', '0'),
+                                   ('GITHUB_TRIGGERING_ACTOR', 'other'), ('GITHUB_RUN_ATTEMPT', '2'),
+                                   ('GITHUB_EVENT_NAME', 'pull_request'), ('NORMAL_EXPECTED_SHA', 'invalid')):
+                    with self.subTest(branch=branch, role=role, key=key), self.assertRaises(ValueError):
+                        ops.context(v | {key: value}, role)
         for bad in ("refs/heads/main", "refs/tags/v1", "refs/pull/1/merge",
                     "refs/heads/-bad"):
             v = env("plan") | {"GITHUB_REF": bad,
@@ -343,6 +349,7 @@ class Contracts(unittest.TestCase):
         for failure, expected in failures.items():
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
                 e = env('plan') | {'RUNNER_TEMP': temporary, 'NORMAL_TARGET': 'prod',
+                    'NORMAL_SOURCE_SHA': '',
                     'NORMAL_MODE': 'normal-plan', 'GITHUB_REF': 'refs/heads/main',
                     'GITHUB_WORKFLOW_REF': ops.CALLER + 'refs/heads/main',
                     'STATE_BUCKET': 'fixture-state', 'STATE_ACCOUNT_ID': '123456789012'}
@@ -447,12 +454,19 @@ class Contracts(unittest.TestCase):
                 snapshot.assert_not_called()
                 tf.assert_not_called()
 
+    def test_retired_modes_are_rejected_by_controller_in_both_environments(self):
+        for target in ('dev', 'prod'):
+            for mode in ('migration-plan', 'migration-apply', 'normal-e2e'):
+                values = env() | {'NORMAL_TARGET': target, 'NORMAL_MODE': mode}
+                with self.subTest(target=target, mode=mode), self.assertRaises(ValueError):
+                    ops.context(values)
+
     def test_normal_modes_reach_preflight_only_for_exact_dev_sha(self):
         sys.path.insert(0, str(ops.REPO / '.github/scripts'))
         from test_terraform_authenticated_workflow import TerraformAuthenticatedWorkflowTest
         runner = TerraformAuthenticatedWorkflowTest()
         runner.text = (ops.REPO / '.github/workflows/gcp-terraform-authenticated.yml').read_text()
-        for mode in ('normal-plan', 'normal-apply', 'normal-e2e'):
+        for mode in ('normal-plan', 'normal-apply'):
             good = runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='a' * 40)
             self.assertEqual(good.returncode, 0, good.stdout + good.stderr)
             for branch in ('integration/gcp-terraform-normal-ops', 'feature/arbitrary'):
@@ -460,7 +474,8 @@ class Contracts(unittest.TestCase):
                 integrated = runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='a' * 40,
                     GITHUB_REF=ref, GITHUB_WORKFLOW_REF=ops.CALLER + ref)
                 self.assertEqual(integrated.returncode, 0, integrated.stdout + integrated.stderr)
-            for change in ({'NORMAL_EXPECTED_SHA': 'b' * 40}, {'NORMAL_EXPECTED_SHA': ''},
+            self.assertEqual(runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='').returncode, 0)
+            for change in ({'NORMAL_EXPECTED_SHA': 'invalid'},
                 {'GITHUB_REF': 'refs/tags/v1',
                  'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/tags/v1'}):
                 bad = runner.run_preflight(MODE=mode, **({'NORMAL_EXPECTED_SHA': 'a' * 40} | change))
