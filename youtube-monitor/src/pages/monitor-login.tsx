@@ -149,7 +149,17 @@ export default function MonitorLogin(): JSX.Element {
 							ログイン状態とモニター閲覧設定を確認しています。
 						</p>
 					) : authorization.status === 'authorized' ? (
-						<p role="status">ログインしました。</p>
+						<>
+							<p role="status">ログインしました。</p>
+							{switchFailed ? (
+								<p css={errorStyle} role="alert">
+									ログアウトできませんでした。もう一度お試しください。
+								</p>
+							) : null}
+							<button type="button" onClick={() => void switchAccount()}>
+								ログアウト
+							</button>
+						</>
 					) : authorization.status === 'denied' ? (
 						<>
 							<p css={errorStyle} role="alert">

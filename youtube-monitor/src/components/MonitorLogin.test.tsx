@@ -90,6 +90,44 @@ describe('monitor operator login', () => {
 		expect(mocks.replace).not.toHaveBeenCalled()
 	})
 
+	test.each(['restored session', 'password login'])(
+		'allows an authorized user to log out after %s and returns to an empty form',
+		async (source) => {
+			render(<MonitorLogin />)
+			if (source === 'password login') {
+				await submit()
+			} else {
+				act(() => mocks.observer?.({ status: 'authorized', user: {} as User }))
+			}
+			await userEvent
+				.setup()
+				.click(screen.getByRole('button', { name: 'ログアウト' }))
+			expect(mocks.signOut).toHaveBeenCalledOnce()
+			expect(await screen.findByLabelText('メールアドレス')).toHaveValue('')
+			expect(screen.getByLabelText('パスワード')).toHaveValue('')
+			expect(screen.queryByText('ログインしました。')).not.toBeInTheDocument()
+			expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+			expect(mocks.replace).not.toHaveBeenCalled()
+		},
+	)
+
+	test('keeps an authorized session available for retry when logout fails', async () => {
+		mocks.signOut.mockRejectedValueOnce(new Error('sensitive logout error'))
+		render(<MonitorLogin />)
+		act(() => mocks.observer?.({ status: 'authorized', user: {} as User }))
+		const user = userEvent.setup()
+		await user.click(screen.getByRole('button', { name: 'ログアウト' }))
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'ログアウトできませんでした。もう一度お試しください。',
+		)
+		expect(screen.getByRole('status')).toHaveTextContent('ログインしました。')
+		expect(screen.queryByText('sensitive logout error')).not.toBeInTheDocument()
+		await user.click(screen.getByRole('button', { name: 'ログアウト' }))
+		expect(mocks.signOut).toHaveBeenCalledTimes(2)
+		expect(await screen.findByLabelText('メールアドレス')).toBeInTheDocument()
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+	})
+
 	test.each([
 		['firestore-denied', '_monitor-readers/{UID}', 'Security Rules'],
 		['firestore-config-missing', 'config/constants', '見つかりません'],
