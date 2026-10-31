@@ -37,7 +37,7 @@ BigQuery queryを行わずに、projectless credentialの読み取りと起動�
 
 `USER_ACTIVITY_SCHEMA_AUDIT_MAX_BYTES_BILLED`は必須のpositive decimal integerで、hard ceilingは1 GiB
 (`1073741824` bytes)です。未指定・zero・negative・overflow・上限超過はcredential読取前に
-拒否します。workflowもこの上限を明示し、query requestの`maximumBytesBilled`へ設定します。
+拒否します。CLIはquery requestの`maximumBytesBilled`へこの上限を設定します。
 これは次のcost承認候補であり、実queryの承認ではありません。低い明示budgetも指定できます。
 上限超過はSTOPし、budget引上げやquery retryを自動で行いません。canonical schemaならquery0です。
 
@@ -54,7 +54,7 @@ SDKでは`Query.Run`+`LastStatus`を使い、`Read`/`Status`/`Wait`を呼びま�
 Environment準備承認は、token交換やdry-runを含みません。既存operatorでdry-run1回を許可する
 場合もtarget/同一SQL/認証経路/output経路を別途承認し、public出力しません。
 Row-level securityでmaskedなtableはestimate0になり得るため、zeroを無料・安全の根拠にしません。
-Workflowはdry-runを自動追加せず、real aggregate operation1回だけという契約を保持します。
+CLIはdry-runを自動追加せず、指定したaggregate operationを実行します。
 
 Credentialless regressionはpinned SDKのHTTP transportを合成responseで置換し、
 exact4COUNTIF/target/location/budgetのwire request、canonical query0、budget error後query retry0、

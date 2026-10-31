@@ -10,7 +10,6 @@ from test_ci_workflows import ROOT, load
 CORE_SECRETS = {'GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', 'GCP_TERRAFORM_NORMAL_WIF_PROVIDER',
                 'AWS_TERRAFORM_BACKEND_ROLE_ARN', 'AWS_TERRAFORM_BACKEND_ROLE_ID',
                 'AWS_TERRAFORM_STATE_BUCKET', 'AWS_TERRAFORM_STATE_ACCOUNT_ID',
-                'GCP_TERRAFORM_WIF_PROVIDER', 'GCP_TERRAFORM_SERVICE_ACCOUNT',
                 'GCP_TERRAFORM_MANAGED_INPUTS_JSON'}
 MYPAGE_SECRETS = {'MYPAGE_STATE_BUCKET', 'MYPAGE_STATE_ACCOUNT', 'MYPAGE_BACKEND_ROLE_ARN',
                   'MYPAGE_BACKEND_ROLE_ID', 'MYPAGE_GCP_WIF_PROVIDER',
@@ -54,7 +53,7 @@ class TerraformWorkflowTest(unittest.TestCase):
             (['infra/gcp/environments/dev/main.tf'], 'true', 'false'),
             (['infra/mypage-platform/modules/runtime/main.tf'], 'false', 'true'),
             (['.github/workflows/terraform-pr-plan.yml'], 'true', 'true'),
-            (['.github/scripts/terraform_migration.py', 'docs/README.md'], 'true', 'false'),
+            (['.github/scripts/terraform_plan_summary.py', 'docs/README.md'], 'true', 'false'),
             (['docs/README.md'], 'false', 'false'),
         ):
             with self.subTest(changed=changed):
@@ -138,6 +137,9 @@ class TerraformWorkflowTest(unittest.TestCase):
                 self.assertEqual(job['with']['mode'], mode)
                 self.assertEqual(job['with']['expected_sha'], '${{ github.sha }}')
                 self.assertEqual(set(job['secrets']), secrets)
+                # A caller may pass only secrets the reusable workflow declares (workflow_call contract).
+                declared = load(ROOT / '.github/workflows' / uses)['on']['workflow_call']['secrets']
+                self.assertLessEqual(set(job['secrets']), set(declared))
                 self.assertEqual(job['permissions'], {'contents': 'read', 'id-token': 'write'})
                 self.assertNotIn('continue-on-error', job)
 

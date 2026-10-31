@@ -35,8 +35,7 @@ MAPPING = {
 }
 CONDITION = " && ".join([
     "assertion.repository_id == '340900071'", "assertion.repository_owner_id == '54093651'",
-    # Branch names are intentionally NOT allowlisted in GCP. GitHub Environment
-    # Selected branches/tags is the sole per-branch authorization surface.
+    # 信頼する実行元のbranch一覧はEnvironmentだけで管理する。source refとは分離する。
     "assertion.ref.startsWith('refs/heads/')", "assertion.ref != 'refs/heads/main'",
     "assertion.event_name == 'workflow_dispatch'",
     "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + assertion.ref",
@@ -114,7 +113,7 @@ def bootstrap():
     permissions = selected_permissions(catalog, baseline)
     if '--check' in sys.argv:
         print(json.dumps({'project': PROJECT, 'roles': permissions,
-            'wif_branch_authorization': 'github-environment',
+            'wif_branch_authorization': 'selected-environment-branches-source-selection',
             'runtime_sa': 'terraform-dev-workload',
             'github_environments': ['terraform-dev-plan', 'terraform-dev-apply']}, indent=2))
         return

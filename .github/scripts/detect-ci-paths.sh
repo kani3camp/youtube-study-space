@@ -36,6 +36,7 @@ all=false
 
 changed_paths=()
 unmatched_paths=()
+detection_reason='指定されたファイルパスで判定'
 
 usage() {
 	cat <<'EOF'
@@ -82,7 +83,7 @@ classify_path() {
 	local matched=false
 
 	case "$path" in
-		.github/scripts/run_terraform_native_tests.py|.github/scripts/test_terraform_native_runner.py|.github/scripts/production_initializer.py|.github/scripts/test_production_initializer.py|.github/scripts/test_production_initializer_controller.py|.github/scripts/test_production_initializer_s3.py|.github/scripts/terraform_migration.py|.github/scripts/terraform_migration_contract.py|.github/scripts/test_terraform_migration.py|.github/scripts/test_terraform_migration_contract.py|.github/scripts/test_terraform_migration_native_fidelity.py|.github/scripts/test_terraform_api_import_fidelity.py|.github/scripts/test_order_history.py)
+		.github/scripts/run_terraform_native_tests.py|.github/scripts/test_terraform_native_runner.py|.github/scripts/test_terraform_observation_native.py|.github/scripts/test_order_history.py|.github/scripts/test_user_activity_history_preparation.py)
 			gcp_terraform=true
 			matched=true
 			;;
@@ -201,11 +202,13 @@ resolve_changed_paths() {
 	if [[ "$event_name" == "workflow_dispatch" ]]; then
 		# A manual CI run re-validates every domain; it has no operational scope.
 		set_all_groups
+		detection_reason='通常の手動実行のため全グループを選択'
 		return
 	fi
 
 	if [[ "$event_name" != "pull_request" ]]; then
 		set_all_groups
+		detection_reason='変更差分を判定できないイベントのため全グループを選択'
 		return
 	fi
 
@@ -213,6 +216,7 @@ resolve_changed_paths() {
 	local head_sha="${HEAD_SHA:-}"
 	if [[ -z "$base_sha" || -z "$head_sha" ]]; then
 		set_all_groups
+		detection_reason='PRの比較SHAが不足しているため全グループを選択'
 		return
 	fi
 
@@ -228,6 +232,7 @@ resolve_changed_paths() {
 		changed_paths+=("$path")
 	done <"$diff_file"
 	rm -f "$diff_file"
+	detection_reason='PRの変更差分で判定'
 }
 
 group_value() {
@@ -267,29 +272,48 @@ write_output() {
 write_summary() {
 	local summary_file="${GITHUB_STEP_SUMMARY:-}"
 	[[ -n "$summary_file" ]] || return 0
+	local group selected_groups=''
+	for group in "${CI_GROUPS[@]}"; do
+		if [[ "$group" != all && "$(group_value "$group")" == true ]]; then
+			selected_groups+="${selected_groups:+、}\`$group\`"
+		fi
+	done
+	if [[ "$all" == true ]]; then
+		selected_groups='全グループ'
+		if ((${#changed_paths[@]} > 0)); then
+			detection_reason='CI設定の変更により全グループを選択'
+		fi
+	fi
 
 	{
-		echo "### Detect CI Changes"
+		echo "### CIの実行対象"
 		echo
-		echo "Changed paths:"
+		printf '**選択グループ:** %s\n\n' "${selected_groups:-追加チェックなし}"
+		printf '%s。共通のリポジトリチェックは常に実行します。\n' "$detection_reason"
 		if ((${#changed_paths[@]} == 0)); then
-			echo "- (none)"
-		else
-			printf '%s\n' "${changed_paths[@]}" | sed 's/^/- /'
+			return 0
 		fi
 		echo
-		echo "Selected groups:"
-		for group in "${CI_GROUPS[@]}"; do
-			printf -- '- %s: %s\n' "$group" "$(group_value "$group")"
-		done
+		echo '<details>'
+		printf '<summary>変更ファイル: %s件 / グループ未対応: %s件</summary>\n\n' "${#changed_paths[@]}" "${#unmatched_paths[@]}"
+		echo '**変更ファイル**'
 		echo
-		echo "Unmatched paths:"
-		if ((${#unmatched_paths[@]} == 0)); then
-			echo "- (none)"
-		else
-			printf '%s\n' "${unmatched_paths[@]}" | sed 's/^/- /'
+		printf '%s\n' "${changed_paths[@]}" | summary_paths
+		if ((${#unmatched_paths[@]} > 0)); then
+			echo
+			echo '**グループ未対応のファイル**'
+			echo
+			printf '%s\n' "${unmatched_paths[@]}" | summary_paths
 		fi
+		echo
+		echo '</details>'
 	} >>"$summary_file"
+}
+
+summary_paths() {
+	# パス中のHTMLで折りたたみを閉じたり、表示内容を書き換えたりしない。
+	sed -e 's/\&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' \
+		-e 's|^|- <code>|' -e 's|$|</code>|'
 }
 
 resolve_changed_paths "$@"

@@ -31,7 +31,7 @@ EXPECTED = (
     "test_youtube_quota_alerts.py", "test_backup_bucket.py", "test_export_topic.py",
     "test_export_scheduler.py", "test_export_function.py", "test_notification_channels.py",
     "test_user_activity_history.py", "test_order_history.py",
-    "test_terraform_migration_native_fidelity.py", "test_terraform_api_import_fidelity.py",
+    "test_terraform_observation_native.py",
 )
 
 
@@ -92,19 +92,19 @@ class NativeRunnerTest(unittest.TestCase):
             " c.close()\n"
         )
 
-    def test_exact_original_ten_witnesses_are_preserved(self):
+    def test_current_witnesses_are_scheduled_once(self):
         self.assertEqual(runner.CASES, EXPECTED)
         self.assertEqual(Counter(runner.SCHEDULE), Counter(EXPECTED))
-        self.assertEqual(runner.SCHEDULE[:2], EXPECTED[-2:])
+        self.assertEqual(runner.SCHEDULE[:1], EXPECTED[-1:])
 
-    def test_all_ten_execute_once_with_bounded_parallel_overlap(self):
+    def test_all_cases_execute_once_with_bounded_parallel_overlap(self):
         for workers in (2, 4):
             with self.subTest(workers=workers):
                 rows = runner.run_suite(self.root, self.mirror, workers=workers)
                 self.assertEqual([r.name for r in rows], list(EXPECTED))
                 self.assertTrue(all(r.status == "PASS" and r.returncode == 0 for r in rows))
                 observations = [json.loads(p.read_text()) for p in self.observed.iterdir()]
-                self.assertEqual(len(observations), 10)
+                self.assertEqual(len(observations), len(EXPECTED))
                 events = [(v["start"], 1) for v in observations] + [(v["end"], -1) for v in observations]
                 active = peak = 0
                 for _, delta in sorted(events):
@@ -125,7 +125,7 @@ class NativeRunnerTest(unittest.TestCase):
         self.assertTrue(all(r.status == "PASS" for r in rows))
         values = [json.loads(p.read_text())["environment"] for p in self.observed.iterdir()]
         for key in ("HOME", "TMPDIR", "TF_PLUGIN_CACHE_DIR"):
-            self.assertEqual(len({v[key] for v in values}), 10)
+            self.assertEqual(len({v[key] for v in values}), len(EXPECTED))
         for env in values:
             self.assertFalse(set(forbidden) & set(env) - {"TF_CLI_CONFIG_FILE"})
             self.assertNotEqual(env["TF_CLI_CONFIG_FILE"], "/canary")
@@ -159,12 +159,12 @@ class NativeRunnerTest(unittest.TestCase):
     def test_failure_preserves_nonzero_exit_and_does_not_omit_other_cases(self):
         (self.scripts / EXPECTED[0]).write_text("raise SystemExit(7)\n")
         rows = runner.run_suite(self.root, self.mirror, workers=2)
-        self.assertEqual(len(rows), 10)
+        self.assertEqual(len(rows), len(EXPECTED))
         self.assertEqual((rows[0].status, rows[0].returncode), ("FAIL", 7))
-        self.assertEqual(sum(r.status == "PASS" for r in rows), 9)
+        self.assertEqual(sum(r.status == "PASS" for r in rows), len(EXPECTED) - 1)
         with patch.object(runner, "run_suite", return_value=rows), redirect_stdout(io.StringIO()) as output:
             self.assertEqual(runner.main([]), 1)
-        self.assertIn("completed=10; passed=9; failed=1", output.getvalue())
+        self.assertIn(f"completed={len(EXPECTED)}; passed={len(EXPECTED)-1}; failed=1", output.getvalue())
 
     def test_launch_error_is_recorded_and_other_cases_still_execute(self):
         original = runner.subprocess.Popen
@@ -175,7 +175,7 @@ class NativeRunnerTest(unittest.TestCase):
         with patch.object(runner.subprocess, "Popen", side_effect=launch):
             rows = runner.run_suite(self.root, self.mirror, workers=2)
         self.assertEqual(rows[0].status, "LAUNCH_ERROR")
-        self.assertEqual(sum(r.status == "PASS" for r in rows), 9)
+        self.assertEqual(sum(r.status == "PASS" for r in rows), len(EXPECTED) - 1)
 
     def test_timeout_kills_grandchildren_and_remaining_cases_complete(self):
         marker = self.root / "port.json"
@@ -186,7 +186,7 @@ class NativeRunnerTest(unittest.TestCase):
             "time.sleep(30)\n")
         rows = runner.run_suite(self.root, self.mirror, workers=2, timeout=1)
         self.assertEqual(rows[0].status, "TIMEOUT")
-        self.assertEqual(sum(r.status == "PASS" for r in rows), 9)
+        self.assertEqual(sum(r.status == "PASS" for r in rows), len(EXPECTED) - 1)
         self.assertTrue(marker.exists())
         port = json.loads(marker.read_text())
         self.assert_listener_closed(port)
@@ -194,7 +194,7 @@ class NativeRunnerTest(unittest.TestCase):
     def test_sigterm_cancels_queued_cases_and_kills_active_grandchildren(self):
         marker = self.root / "cancel-port.json"
         grandchild = self.listener_program(marker)
-        (self.scripts / EXPECTED[-2]).write_text(
+        (self.scripts / EXPECTED[-1]).write_text(
             "import subprocess,sys,time\n"
             f"subprocess.Popen([sys.executable,'-c',{grandchild!r}])\n"
             "time.sleep(30)\n")
@@ -229,7 +229,7 @@ class NativeRunnerTest(unittest.TestCase):
     def test_interruption_during_partial_submission_stops_the_started_case(self):
         marker = self.root / "submit-port.json"
         grandchild = self.listener_program(marker)
-        (self.scripts / EXPECTED[-2]).write_text(
+        (self.scripts / EXPECTED[-1]).write_text(
             "import subprocess,sys,time\n"
             f"subprocess.Popen([sys.executable,'-c',{grandchild!r}])\n"
             "time.sleep(30)\n")

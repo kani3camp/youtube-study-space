@@ -25,11 +25,10 @@ CASES = (
     "test_notification_channels.py",
     "test_user_activity_history.py",
     "test_order_history.py",
-    "test_terraform_migration_native_fidelity.py",
-    "test_terraform_api_import_fidelity.py",
+    "test_terraform_observation_native.py",
 )
-# Start the two longer RPC witnesses first so shorter mocks overlap them.
-SCHEDULE = CASES[-2:] + CASES[:-2]
+# Start the longer RPC witness first so shorter mocks overlap it.
+SCHEDULE = CASES[-1:] + CASES[:-1]
 CASE_TIMEOUT = 180
 MAX_OUTPUT = 64 * 1024
 
