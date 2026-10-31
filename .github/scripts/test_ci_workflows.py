@@ -110,7 +110,8 @@ def validate(caller, modules):
         require(key != 'continue-on-error', 'Caller failures cannot be ignored')
     for name, toggle, secrets, arguments in (
         ('gcp-terraform-authenticated', 'terraform_authenticated', AUTH_SECRETS,
-         {'target': '${{ inputs.terraform_target }}', 'mode': '${{ inputs.terraform_mode }}', 'expected_sha': '${{ inputs.terraform_expected_sha }}'}),
+         {'target': '${{ inputs.terraform_target }}', 'mode': '${{ inputs.terraform_mode }}', 'expected_sha': '${{ inputs.terraform_expected_sha }}',
+          'source_branch': '${{ inputs.terraform_source_branch }}'}),
         ('gcp-user-activity-schema-audit', 'gcp_user_activity_schema_audit', AUDIT_SECRETS, {'target': 'dev'}),
     ):
         call = jobs[name]
@@ -122,7 +123,7 @@ def validate(caller, modules):
         require(call['secrets'] == {s: '${{ secrets.' + s + ' }}' for s in secrets}, 'Explicit operational secrets')
         require(call['with'] == arguments, 'Operational inputs stay fixed')
     dispatch = caller['on']['workflow_dispatch']['inputs']
-    require(set(dispatch) == {'terraform_authenticated', 'terraform_target', 'terraform_mode', 'terraform_expected_sha', 'gcp_user_activity_schema_audit'},
+    require(set(dispatch) == {'terraform_authenticated', 'terraform_target', 'terraform_mode', 'terraform_expected_sha', 'terraform_source_branch', 'gcp_user_activity_schema_audit'},
             'No retired operational mode/input returns')
     for toggle in ('terraform_authenticated', 'gcp_user_activity_schema_audit'):
         require(dispatch[toggle]['type'] == 'boolean' and dispatch[toggle]['default'] is False

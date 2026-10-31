@@ -21,12 +21,14 @@ controllerは `infra/gcp/scripts/terraform_normal_ops.py`、運用入口と設�
 
 | 境界 | 実装 |
 | --- | --- |
-| PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・任意の有効な非`main` branch ref・正確なexpected SHA・same-ref/same-SHA caller/reusableをcredentials前に検査。Environmentでのブランチ個別許可は不要 |
-| Environment/OIDC | 既存DEV Plan/Apply EnvironmentとAWS backend roleを再利用。DEV両Environmentのdeployment_branch_policyはnull（No restriction）。AWSは既存7-claim subjectとネイティブactor_idの完全一致で本人に固定。通常専用GCP WIF/SAはrepository・owner・actor・Environment・workflow path・branch-shaped same-ref・same-SHAを検証し、branch名をallowlistしない |
-| 入力 | 既存private baselineのtfvarsへcommit-bound `normal.tfvars.json`を重ねる。manifestは通常変更の型/件数制限に使わない。projectはDEV固定 |
+| PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・control planeの`refs/heads/dev`・同ref/SHAのcaller/reusableをcredentials前に検査。対象source branch/SHAは別入力とし、同一repoのbranch HEADと照合 |
+| Environment Secret | DEV Plan/Apply EnvironmentはSelected branchesでBranchの`dev`だけを許可。No restrictionにしない。同じEnvironmentを指定する別workflow jobにも適用されるSecretアクセス境界であり、AWS/GCPの本人検証とは独立 |
+| OIDC | 既存AWS 7-claim subjectとGCP WIFによる本人・repository・Environment・正規workflow等の検証を維持。OIDCのref/SHAはcontrol planeの`dev`とそのSHAであり、対象source branchに置き換えない |
+| ソース | 別checkoutの同一repo・固定SHAからDEV rootとmoduleのHCL・入力・配備データをコピー。source側のworkflow／実行器は使わない。別repo・dirty checkout・symlink・未追跡の入力を拒否 |
+| 入力 | private baselineへ選択source SHAの`normal.tfvars.json`を重ね、レビュー指定も同じsource SHAから取得。projectはDEV固定 |
 | Plan | refresh付きfull-root native saved plan。Coreのcomplete/errored/checksとdriftを検査。create/updateのcomputed unknownはTerraformに委ねる |
 | delete/replace | commit内`normal-operations.json`のaddress/actions完全一致が必須。未使用指定も拒否。忘却操作・importは通常経路では拒否 |
-| Apply binding | 同runの独立Apply identityで同SHA/入力を再Plan。timestampと順序のない配列のみ正規化し、全Plan JSON、SHA、run ID、mode、入力、破壊的review、State本文/HEADをprivate keyのHMACで照合。GitHub Actionsのstep `if`でHMAC一致だけを評価し値をstep環境・ログに展開しない。30分の期限、未来時刻・欠落も拒否 |
+| Apply binding | 同runの独立Apply identityで再Plan。全Plan JSON、control SHA、source repository/branch/SHA、run ID、mode、入力、レビュー指定、State本文/HEADをprivate keyのHMACで照合。timestampと順序のない配列だけを正規化。GitHub式で一致を評価し値をstep環境・ログに展開しない。30分の期限、未来時刻・欠落も拒否 |
 | saved plan | 新しく生成した一致Planだけを適用。公開artifactへの生Plan転送はしない。Apply直前にState/保存Planを再確認し、native S3 lockとCoreのstale-plan検査を使う |
 | State | DEV固定key、account制限、AES256、VersionId、lineage/serial、lock/workspace不在。State欠損時は停止し、自動初期化しない |
 | 事後確認 | lineage維持・serial単調増加、refresh付きfull-root no-op、State前後照合とlock解放。エラーを無視せず停止 |
@@ -65,16 +67,16 @@ Applyでは同runのPlan成功後、独立identityで同SHAを再Planし、sourc
 
 | 経路 | 許可するref |
 | --- | --- |
-| DEV通常操作 | 本人の初回手動起動による任意の非`main` branch。Environmentでの個別許可は不要。AWS/GCPは本人・固定repository・正規workflow等を検証 |
-| DEV既存import | 従来の`dev` / `integration/mypage-canon-20261006`のみ。共有Environmentの制限解除でも移行用controllerと認証条件のref制限は維持 |
+| DEV通常操作 | workflowは`dev`固定。対象sourceは同一repoの任意branchとexact SHA。対象branchをEnvironmentへ登録しない |
+| DEV既存import | Environmentを利用できる`dev`から実行。従来controllerのref検証は維持するが、Environmentによりintegration branchからの直接実行は拒否。source選択をimportへ転用しない |
 | Production既存import | `main`固定 |
 | Production通常操作 | **`main`固定**。GCP通常専用WIF/SA、PROD backend role・GitHub 2 Environmentの独立保護と実Plan/Apply認証が必要 |
 
-DEVは本人起動を認可の条件とし、Environmentのブランチ制限は設けません。Productionのmain-only branch policyは維持します。
+DEVは本人起動と、Environmentのdev-only branch policyの両方を要求します。Productionのmain-only branch policyは維持します。
 Environmentのbranch policy・required reviewers・admin bypass等の実設定は、管理APIで確認してください。
-`enable_normal_integration.py --apply`は、GitHub本人認証、DEV AWS trust、DEV GCP WIFを読み取り確認してから、既存DEV Plan/Apply Environmentのdeployment_branch_policyだけをnullへ変更します。AWS/GCP trust、Environmentのsecrets/variables、Productionは変更しません。未知の保護設定があれば停止します。`--verify-aws` / `--verify-gcp`による読み取り監査も可能です。
+`enable_normal_integration.py --apply`はGitHub本人認証を確認してから、既存DEV両EnvironmentをSelected branchesへ設定し、Branchの`dev`だけを許可します。AWS/GCP trust、Environmentのsecrets/variables、Productionは変更しません。未知の保護設定があれば停止します。`--verify-aws` / `--verify-gcp`による読み取り監査も可能です。
 
-本人が実行するbranchのworkflow・HCL・入力は、起動前にレビューと必須CIで確認します。Environmentのブランチ制限解除は、任意のbranchのコードが安全であることを保証しません。
+control planeのworkflowと実行器はdevへのレビューを通して更新します。対象sourceのHCL・module・入力も本人が起動前にレビューと必須CIで確認します。HCL自体の実行をsandbox化する構成ではありません。
 同SHAのcaller/reusableであることは、内容が安全にレビュー済みであることまで保証しません。
 Environment reviewは実行時の確認を加える別の制御です。必要なreview方式は運用条件に合わせて設定します。
 [GitHub Environment](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)と

@@ -12,7 +12,11 @@ on:
         required: true
         type: string
       expected_sha:
-        description: Exact selected branch SHA for normal operations
+        description: Exact Terraform source SHA (DEV) or workflow SHA (PROD)
+        required: false
+        type: string
+      source_branch:
+        description: DEVのTerraform対象ブランチ。実行器はdevのコードを使う
         required: false
         type: string
     # Explicit names allow Environment secret resolution in called jobs without
@@ -73,6 +77,8 @@ jobs:
           NORMAL_MODE: ${{ inputs.mode }}
           NORMAL_TARGET: ${{ inputs.target }}
           NORMAL_EXPECTED_SHA: ${{ inputs.expected_sha }}
+          NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -99,8 +105,8 @@ jobs:
             echo "::error::Authenticated Terraform only allows initial dispatches by the approved GitHub owner."
             exit 1
           }
-          # DEV allows any non-main branch; Environments do not select branches.
-          # Require the immutable owner and same-branch caller before credentials.
+          # DEV通常操作のcontrol planeはdev固定。source branchはworkflowにしない。
+          # Environment自身もdevだけに制限し、別workflowへのSecret露出を防ぐ。
           # Prod remains main-only; deny tags, PR refs and the retired branch.
           case "${TARGET}" in
             dev)
@@ -109,7 +115,10 @@ jobs:
                 echo "::error::Development requires a valid non-production branch ref."
                 exit 1
               }
-              expected_ref="${GITHUB_REF}"
+              case "${MODE}" in
+                normal-plan|normal-apply|normal-e2e) expected_ref="refs/heads/dev" ;;
+                *) expected_ref="${GITHUB_REF}" ;;
+              esac
               ;;
             prod) expected_ref="refs/heads/main" ;;
             *)
@@ -130,7 +139,9 @@ jobs:
             exit 1
           }
           case "${MODE}" in
-            migration-plan|migration-apply) ;;
+            migration-plan|migration-apply)
+              [[ -z "${NORMAL_SOURCE_BRANCH:-}" ]] || exit 1
+              ;;
             normal-plan|normal-apply|normal-e2e)
               python3 infra/gcp/scripts/terraform_normal_ops.py preflight
               exit 0
@@ -323,6 +334,7 @@ jobs:
       NORMAL_MODE: ${{ inputs.mode }}
       NORMAL_ROLE: plan
       NORMAL_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}
       TF_WORKSPACE: default
       AWS_MAX_ATTEMPTS: "1"
       AWS_RETRY_MODE: standard
@@ -336,6 +348,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Checkout exact DEV Terraform data
+        if: ${{ inputs.target == 'dev' && inputs.source_branch != '' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: kani3camp/youtube-study-space
+          ref: ${{ inputs.expected_sha }}
+          path: .terraform-source
+          sparse-checkout: infra/gcp
           persist-credentials: false
       - name: Validate private Terraform inputs before credentials
         env:
@@ -405,6 +426,7 @@ jobs:
       NORMAL_MODE: ${{ inputs.mode }}
       NORMAL_ROLE: apply
       NORMAL_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}
       TF_WORKSPACE: default
       AWS_MAX_ATTEMPTS: "1"
       AWS_RETRY_MODE: standard
@@ -418,6 +440,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Checkout exact DEV Terraform data
+        if: ${{ inputs.target == 'dev' && inputs.source_branch != '' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: kani3camp/youtube-study-space
+          ref: ${{ inputs.expected_sha }}
+          path: .terraform-source
+          sparse-checkout: infra/gcp
           persist-credentials: false
       - name: Validate private Terraform inputs before credentials
         env:

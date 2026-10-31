@@ -49,7 +49,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertNotIn('name: "Import-only migration apply', self.text)
         # Keep the public dispatch values and fail-closed controller selectors stable.
         self.assertIn('default: migration-plan', self.caller)
-        self.assertIn('migration-plan|migration-apply) ;;', self.text)
+        self.assertIn('migration-plan|migration-apply)', self.text)
         self.assertIn('  migration_plan:', self.text)
         self.assertIn('  migration_apply:', self.text)
 
@@ -69,17 +69,17 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             context = {'GITHUB_REF': ref,
                        'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref}
             for mode in ('normal-plan', 'normal-apply', 'normal-e2e'):
-                self.assertEqual(self.run_preflight(MODE=mode,
+                self.assertNotEqual(self.run_preflight(MODE=mode,
                     NORMAL_EXPECTED_SHA='a' * 40, **context).returncode, 0)
             for mode in ('migration-plan', 'migration-apply'):
                 self.assertNotEqual(self.run_preflight(MODE=mode, **context).returncode, 0)
 
-    def test_arbitrary_dev_branch_still_requires_initial_owner_dispatch(self):
+    def test_feature_workflow_cannot_reach_credentials_even_for_owner(self):
         ref = 'refs/heads/feature/no-environment-registration'
         context = {'GITHUB_REF': ref, 'NORMAL_EXPECTED_SHA': 'a' * 40,
                    'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref}
         for mode in ('normal-plan', 'normal-apply'):
-            self.assertEqual(self.run_preflight(MODE=mode, **context).returncode, 0)
+            self.assertNotEqual(self.run_preflight(MODE=mode, **context).returncode, 0)
             for key, value in (('GITHUB_ACTOR', 'other'), ('GITHUB_ACTOR_ID', '0'),
                                ('GITHUB_TRIGGERING_ACTOR', 'other'), ('GITHUB_RUN_ATTEMPT', '2'),
                                ('GITHUB_EVENT_NAME', 'pull_request')):
@@ -128,7 +128,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(result.outputs, '')
         inputs = self.text.split('    # Explicit names', 1)[0]
-        self.assertEqual(re.findall(r'^      ([a-z_]+):', inputs, re.M), ['target', 'mode', 'expected_sha'])
+        self.assertEqual(re.findall(r'^      ([a-z_]+):', inputs, re.M), ['target', 'mode', 'expected_sha', 'source_branch'])
         caller_inputs = self.caller.split('\npermissions:', 1)[0]
         self.assertNotRegex(caller_inputs, r'terraform_(history|current_state|ownership|plan_cost)')
 
@@ -172,6 +172,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                        'terraform_migration.py execute', 'terraform_migration.py cleanup']
             self.assertEqual([block.index(x) for x in ordered], sorted(block.index(x) for x in ordered))
             self.assertIn('ref: ${{ github.sha }}', block)
+
             self.assertIn('persist-credentials: false', block)
             self.assertIn('if: ${{ always() }}', block)
             self.assertIn('token_format: access_token', block)
@@ -179,6 +180,20 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         for expected in ('MIGRATION_EXPECTED_COMMITMENT: ${{ needs.migration_plan.outputs.commitment }}',
                          'MIGRATION_EXPECTED_COMPONENTS: ${{ needs.migration_plan.outputs.components }}'):
             self.assertIn(expected, jobs['migration_apply'])
+
+
+    def test_dev_source_checkout_never_selects_workflow_or_executor(self):
+        for role in ('plan', 'apply'):
+            block = self.text.split('\n  normal_' + role + ':', 1)[1].split('\n  normal_', 1)[0]
+            self.assertIn('NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}', block)
+            self.assertIn('repository: kani3camp/youtube-study-space', block)
+            self.assertIn('ref: ${{ inputs.expected_sha }}', block)
+            self.assertIn('path: .terraform-source', block)
+            self.assertIn('sparse-checkout: infra/gcp', block)
+            self.assertLess(block.index('ref: ${{ github.sha }}'), block.index('path: .terraform-source'))
+            self.assertNotRegex(block, r'run:.*\.terraform-source')
+            self.assertNotIn('working-directory: .terraform-source', block)
+        self.assertIn('source_branch: ${{ inputs.terraform_source_branch }}', self.caller)
 
     def test_no_proof_history_artifact_or_unpinned_action_authorizes_execution(self):
         for forbidden in ('actions: read', 'actions/upload-artifact', 'actions/download-artifact',

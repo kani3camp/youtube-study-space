@@ -29,7 +29,11 @@ on:
           - normal-apply
           - normal-e2e
       terraform_expected_sha:
-        description: Exact selected branch SHA for normal operations
+        description: Exact Terraform source SHA (DEV) or workflow SHA (PROD)
+        required: false
+        type: string
+      terraform_source_branch:
+        description: DEVのTerraform対象ブランチ（空欄はdev。workflowはdevから起動）
         required: false
         type: string
       gcp_user_activity_schema_audit:
@@ -151,6 +155,7 @@ jobs:
           python3 .github/scripts/test_terraform_baseline_drift_diagnostic.py
           python3 infra/gcp/tests/test_runtime_plan_contract.py
           python3 -B infra/gcp/tests/test_terraform_normal_ops.py
+          python3 -B infra/gcp/tests/test_terraform_source.py
           python3 -B infra/gcp/tests/test_enable_normal_integration.py
           python3 -B infra/gcp/tests/test_production_normal_ops.py
           python3 -B infra/gcp/tests/test_bootstrap_production_normal_ops.py
@@ -230,6 +235,7 @@ jobs:
       target: ${{ inputs.terraform_target }}
       mode: ${{ inputs.terraform_mode }}
       expected_sha: ${{ inputs.terraform_expected_sha }}
+      source_branch: ${{ inputs.terraform_source_branch }}
 
   gcp-user-activity-schema-audit:
     name: GCP User Activity Schema Audit

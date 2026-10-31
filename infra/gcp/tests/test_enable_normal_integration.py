@@ -172,38 +172,53 @@ class BranchAuthorizationTest(unittest.TestCase):
             op.dev_environment('plan')
 
     def github_for_apply(self, history, restricted=True, operator=None):
+        settings = {role: environment(role, restricted) for role in ('plan', 'apply')}
+        rules = {role: ([{'id': 1, 'name': 'dev', 'type': 'branch'}] if restricted else [])
+                 for role in ('plan', 'apply')}
         def gh(*values, data=None):
             if values == ('user',):
                 return operator if operator is not None else {'login': 'kani3camp', 'id': 54093651}
             if values == (f'repos/{op.REPO}/actions/oidc/customization/sub',):
                 return {'use_default': False, 'include_claim_keys': list(op.CLAIM_KEYS)}
-            if values[:2] == ('-X', 'PUT'):
-                self.assertEqual(data, {'deployment_branch_policy': None})
-                history.append(values[2])
+            method, endpoint = (values[1], values[2]) if values[0] == '-X' else ('GET', values[0])
+            role = next((role for role in ('plan', 'apply')
+                         if endpoint.startswith(f'repos/{op.REPO}/environments/terraform-dev-{role}')), None)
+            self.assertIsNotNone(role)
+            if method == 'PUT':
+                self.assertEqual(data, {'deployment_branch_policy': {'custom_branch_policies': True, 'protected_branches': False}})
+                settings[role] = environment(role, True)
+            elif method == 'POST':
+                self.assertEqual(data, {'name': 'dev', 'type': 'branch'})
+                rules[role].append({'id': 1, **data})
+            elif method != 'GET':
+                self.fail('予期しないAPI変更')
+            if method != 'GET':
+                history.append((method, endpoint))
                 return {}
-            endpoint = values[0]
-            role = endpoint.rsplit('-', 1)[-1]
-            self.assertIn(role, ('plan', 'apply'))
-            self.assertEqual(endpoint, f'repos/{op.REPO}/environments/terraform-dev-{role}')
-            return environment(role, restricted and endpoint not in history)
+            if '/deployment-branch-policies' in endpoint:
+                self.assertIsNotNone(settings[role]['deployment_branch_policy'])
+                return {'total_count': len(rules[role]), 'branch_policies': deepcopy(rules[role])}
+            return deepcopy(settings[role])
         return gh
 
-    def test_apply_verifies_owner_and_cloud_trust_then_updates_only_two_dev_environments(self):
+    def test_apply_verifies_owner_and_restricts_only_two_dev_environments(self):
         history = []
         def audited():
             self.assertEqual(history, [])
-        with patch.object(op, 'gh', side_effect=self.github_for_apply(history)), \
+        with patch.object(op, 'gh', side_effect=self.github_for_apply(history, restricted=False)), \
                 patch.object(op, 'verify_aws', side_effect=audited) as aws, \
                 patch.object(op, 'verify_gcp', side_effect=audited) as gcp, \
                 patch.object(sys, 'argv', ['tool', '--apply']), redirect_stdout(io.StringIO()):
             op.main()
-        aws.assert_called_once(); gcp.assert_called_once()
-        self.assertEqual(history, [f'repos/{op.REPO}/environments/terraform-dev-{role}' for role in ('plan', 'apply')])
+        aws.assert_not_called(); gcp.assert_not_called()
+        self.assertEqual(len(history), 4)
+        self.assertTrue(all('/environments/terraform-dev-' in endpoint for _, endpoint in history))
+        self.assertEqual([method for method, _ in history], ['PUT', 'POST', 'PUT', 'POST'])
 
     def test_apply_is_idempotent_and_preview_never_writes(self):
-        for args, restricted in ((['tool'], True), (['tool', '--apply'], False)):
+        for args in (['tool'], ['tool', '--apply']):
             history = []
-            with patch.object(op, 'gh', side_effect=self.github_for_apply(history, restricted)), \
+            with patch.object(op, 'gh', side_effect=self.github_for_apply(history)), \
                     patch.object(op, 'verify_aws') as aws, patch.object(op, 'verify_gcp') as gcp, \
                     patch.object(sys, 'argv', args), redirect_stdout(io.StringIO()):
                 op.main()
@@ -224,34 +239,60 @@ class BranchAuthorizationTest(unittest.TestCase):
             with patch.object(op, 'gh', side_effect=self.github_for_apply(history)), \
                     patch.object(op, 'verify_aws'), patch.object(op, 'verify_gcp'), \
                     patch.object(op, name, side_effect=op.Stop('PRIVATE_CANARY')), \
-                    patch.object(sys, 'argv', ['tool', '--apply']), self.assertRaises(op.Stop):
+                    patch.object(sys, 'argv', ['tool', '--apply', '--' + name.replace('_', '-')]), self.assertRaises(op.Stop):
                 op.main()
             self.assertEqual(history, [])
 
     def test_failed_readback_is_not_reported_as_success(self):
-        for change in ({'deployment_branch_policy': {'custom_branch_policies': True, 'protected_branches': False}},
+        for change in ({'deployment_branch_policy': None},
                        {'id': 999}, {'can_admins_bypass': False}):
             history = []
             def read(role):
-                value = environment(role, not bool(history))
+                value = environment(role, True)
                 return (f'repos/{op.REPO}/environments/terraform-dev-{role}',
                         value | change if history else value)
-            def update(endpoint):
+            def update(endpoint, current):
                 history.append(endpoint)
             output = io.StringIO()
             with patch.object(op, 'verify_operator'), patch.object(op, 'verify_oidc_template'), \
                     patch.object(op, 'verify_aws'), patch.object(op, 'verify_gcp'), \
                     patch.object(op, 'dev_environment', side_effect=read), \
-                    patch.object(op, 'allow_all_dev_branches', side_effect=update), \
+                    patch.object(op, 'restrict_to_dev', side_effect=update), \
                     patch.object(sys, 'argv', ['tool', '--apply']), redirect_stdout(output), self.assertRaises(op.Stop):
                 op.main()
-            self.assertNotIn('DEV Environment branch restrictions removed', output.getvalue())
+            self.assertNotIn('DEV Environment restricted to dev', output.getvalue())
 
     def test_update_cannot_target_production_or_another_environment(self):
         for name in ('terraform-prod-plan', 'terraform-prod-apply', 'codeql-analysis'):
             with patch.object(op, 'gh') as gh, self.assertRaises(op.Stop):
-                op.allow_all_dev_branches(f'repos/{op.REPO}/environments/{name}')
+                op.restrict_to_dev(f'repos/{op.REPO}/environments/{name}', {})
             gh.assert_not_called()
+
+    def test_wildcards_other_branches_and_dev_tags_are_removed(self):
+        endpoint = f'repos/{op.REPO}/environments/terraform-dev-plan'
+        rules = {'total_count': 4, 'branch_policies': [
+            {'id': 1, 'name': 'dev', 'type': 'branch'},
+            {'id': 2, 'name': '*', 'type': 'branch'},
+            {'id': 3, 'name': 'feature/x', 'type': 'branch'},
+            {'id': 4, 'name': 'dev', 'type': 'tag'}]}
+        final = {'total_count': 1, 'branch_policies': [rules['branch_policies'][0]]}
+        with patch.object(op, 'gh', side_effect=[rules, {}, {}, {}, final]) as gh:
+            op.restrict_to_dev(endpoint, environment('plan'))
+        writes = [call.args for call in gh.call_args_list if call.args[0] == '-X']
+        self.assertEqual(writes, [('-X', 'DELETE', endpoint + '/deployment-branch-policies/' + str(i)) for i in (2, 3, 4)])
+
+    def test_e2e_dispatch_keeps_control_plane_on_dev(self):
+        branch = 'feature/source'
+        values = [{'login': 'kani3camp', 'id': 54093651}, {'commit': {'sha': 'b' * 40}},
+                  {'check_runs': [{'name': n, 'conclusion': 'success'} for n in ('CI Gate', 'GCP Terraform Validate')]}]
+        with patch.object(op, 'gh', side_effect=values), \
+                patch.object(op.subprocess, 'run', return_value=type('Result', (), {'returncode': 0})()) as run, \
+                redirect_stdout(io.StringIO()):
+            op.dispatch_e2e(branch)
+        args = run.call_args.args[0]
+        self.assertEqual(args[args.index('--ref') + 1], 'dev')
+        self.assertIn('terraform_source_branch=' + branch, args)
+        self.assertIn('terraform_expected_sha=' + 'b' * 40, args)
 
     def test_optional_cloud_audits_are_read_only(self):
         aws_role_plan, aws_role_apply = role("plan"), role("apply")

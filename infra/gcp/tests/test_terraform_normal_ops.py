@@ -204,24 +204,24 @@ class Contracts(unittest.TestCase):
             with self.subTest(key=k), self.assertRaises(ValueError):
                 ops.context(env() | {k: v}, 'plan')
 
-    def test_any_non_main_branch_context_is_allowed_only_with_matching_caller(self):
+    def test_dev_control_plane_accepts_arbitrary_source_but_not_source_workflows(self):
         for branch in ("dev", "integration/gcp-terraform-normal-ops",
                        "feature/arbitrary-normal-change"):
             ref = "refs/heads/" + branch
             for role in ("plan", "apply"):
                 v = env(role)
-                v["GITHUB_REF"] = ref
-                v["GITHUB_WORKFLOW_REF"] = ops.CALLER + ref
+                v["NORMAL_SOURCE_BRANCH"] = branch
+                v["NORMAL_EXPECTED_SHA"] = "b" * 40
                 self.assertEqual(ops.context(v, role), "dev")
                 with self.assertRaises(ValueError):
                     ops.context(v | {"GITHUB_WORKFLOW_REF":
                                       ops.CALLER + "refs/heads/other"}, role)
                 for key, value in (('GITHUB_ACTOR', 'other'), ('GITHUB_ACTOR_ID', '0'),
                                    ('GITHUB_TRIGGERING_ACTOR', 'other'), ('GITHUB_RUN_ATTEMPT', '2'),
-                                   ('GITHUB_EVENT_NAME', 'pull_request'), ('NORMAL_EXPECTED_SHA', 'b' * 40)):
+                                   ('GITHUB_EVENT_NAME', 'pull_request'), ('NORMAL_EXPECTED_SHA', 'invalid')):
                     with self.subTest(branch=branch, role=role, key=key), self.assertRaises(ValueError):
                         ops.context(v | {key: value}, role)
-        for bad in ("refs/heads/main", "refs/tags/v1", "refs/pull/1/merge",
+        for bad in ("refs/heads/feature/arbitrary", "refs/heads/main", "refs/tags/v1", "refs/pull/1/merge",
                     "refs/heads/-bad"):
             v = env("plan") | {"GITHUB_REF": bad,
                                "GITHUB_WORKFLOW_REF": ops.CALLER + bad}
@@ -464,7 +464,7 @@ class Contracts(unittest.TestCase):
                 ref = 'refs/heads/' + branch
                 integrated = runner.run_preflight(MODE=mode, NORMAL_EXPECTED_SHA='a' * 40,
                     GITHUB_REF=ref, GITHUB_WORKFLOW_REF=ops.CALLER + ref)
-                self.assertEqual(integrated.returncode, 0, integrated.stdout + integrated.stderr)
+                self.assertNotEqual(integrated.returncode, 0)
             for change in ({'NORMAL_EXPECTED_SHA': 'b' * 40}, {'NORMAL_EXPECTED_SHA': ''},
                 {'GITHUB_REF': 'refs/tags/v1',
                  'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/tags/v1'}):

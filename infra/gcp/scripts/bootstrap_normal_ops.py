@@ -35,7 +35,7 @@ MAPPING = {
 }
 CONDITION = " && ".join([
     "assertion.repository_id == '340900071'", "assertion.repository_owner_id == '54093651'",
-    # DEVは本人起動なら任意の非mainブランチを許可する。Environmentでも個別許可しない。
+    # Environmentはdev限定。対象source branchはOIDCのworkflow refと分離する。
     "assertion.ref.startsWith('refs/heads/')", "assertion.ref != 'refs/heads/main'",
     "assertion.event_name == 'workflow_dispatch'",
     "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + assertion.ref",
@@ -113,7 +113,7 @@ def bootstrap():
     permissions = selected_permissions(catalog, baseline)
     if '--check' in sys.argv:
         print(json.dumps({'project': PROJECT, 'roles': permissions,
-            'wif_branch_authorization': 'owner-dispatch-any-non-main-branch',
+            'wif_branch_authorization': 'trusted-dev-workflow-source-selection',
             'runtime_sa': 'terraform-dev-workload',
             'github_environments': ['terraform-dev-plan', 'terraform-dev-apply']}, indent=2))
         return

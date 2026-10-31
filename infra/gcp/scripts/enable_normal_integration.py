@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""DEVの本人起動を維持し、Environmentのブランチ制限を解除する。
+"""DEVの本人起動を維持し、Environment Secretをdevブランチに限定する。
 
---applyの前にDEVのAWS/GCP trustを読み取り検証する。変更するのは既存の
-DEV Plan/Apply Environmentのdeployment_branch_policyだけで、本番は扱わない。
+GitHubの本人認証で既存DEV両Environmentをdev限定へ復旧する。
+AWS/GCP trustの監査は読み取り専用の任意操作で、本番は扱わない。
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import bootstrap_normal_ops as config
 
 REPO = "kani3camp/youtube-study-space"
 PROJECT = "test-youtube-study-space"
-DEFAULT_BRANCH = "integration/gcp-terraform-normal-ops"
+DEFAULT_BRANCH = "dev"
 ISSUER = "token.actions.githubusercontent.com"
 STATE_REGION = "ap-northeast-1"
 LEGACY_AWS_REF = "refs/heads/*"
@@ -211,9 +211,28 @@ def dev_environment(role: str) -> tuple[str, dict]:
     return endpoint, environment
 
 
-def allow_all_dev_branches(endpoint: str) -> None:
+def restrict_to_dev(endpoint: str, current: dict) -> None:
     need(endpoint in {f'repos/{REPO}/environments/terraform-dev-{role}' for role in ('plan', 'apply')})
-    gh('-X', 'PUT', endpoint, '--input', '-', data={'deployment_branch_policy': None})
+    policy = {'protected_branches': False, 'custom_branch_policies': True}
+    if current['deployment_branch_policy'] is None:
+        # No restriction時は一覧APIが404になる。先に制限を復旧し、アクセスを閉じる。
+        gh('-X', 'PUT', endpoint, '--input', '-', data={'deployment_branch_policy': policy})
+    path = endpoint + '/deployment-branch-policies'
+    values = gh(path + '?per_page=100')
+    need(type(values.get('total_count')) is int and values['total_count'] <= 100
+         and isinstance(values.get('branch_policies'), list))
+    rules = values['branch_policies']
+    need(all(type(r.get('id')) is int and type(r.get('name')) is str for r in rules))
+    def trusted(rule):
+        return rule['name'] == 'dev' and rule.get('type', 'branch') == 'branch'
+    if not any(trusted(rule) for rule in rules):
+        gh('-X', 'POST', path, '--input', '-', data={'name': 'dev', 'type': 'branch'})
+    for rule in rules:
+        if not trusted(rule):
+            gh('-X', 'DELETE', path + '/' + str(rule['id']))
+    latest = gh(path + '?per_page=100')
+    need(latest['total_count'] == 1 and len(latest['branch_policies']) == 1
+         and trusted(latest['branch_policies'][0]))
 
 
 def dispatch_e2e(target: str) -> None:
@@ -232,11 +251,12 @@ def dispatch_e2e(target: str) -> None:
         need(len(selected) == 1 and selected[0].get("conclusion") == "success")
     PHASE = "github_dispatch"
     result = subprocess.run([
-        "gh", "workflow", "run", "ci.yml", "--repo", REPO, "--ref", target,
+        "gh", "workflow", "run", "ci.yml", "--repo", REPO, "--ref", 'dev',
         "-f", "terraform_authenticated=true",
         "-f", "terraform_target=dev",
         "-f", "terraform_mode=normal-e2e",
         "-f", "terraform_expected_sha=" + sha,
+        "-f", "terraform_source_branch=" + target,
     ], capture_output=True, text=True, timeout=60, check=False)
     need(result.returncode == 0)
     print("NORMAL_BRANCH_ACCESS: PASS; normal-e2e dispatched; sha=" + sha)
@@ -249,13 +269,13 @@ def main() -> None:
     parser.add_argument("--branch", default=DEFAULT_BRANCH,
                         help="任意のE2E検証を実行するDEVブランチ。許可ルールには使いません")
     parser.add_argument("--apply", action="store_true",
-                        help="既存DEV Plan/Apply Environmentのブランチ制限を解除します")
+                        help="既存DEV Plan/Apply Environmentをdevブランチだけに制限します")
     parser.add_argument("--dispatch-e2e", action="store_true",
                         help="--applyの検証後にnormal-e2eを1回起動します")
     parser.add_argument("--verify-aws", action="store_true",
-                        help="DEV AWS OIDC trustを読み取り監査します（--apply時は必須）")
+                        help="任意でDEV AWS OIDC trustを読み取り監査します")
     parser.add_argument("--verify-gcp", action="store_true",
-                        help="DEV GCP WIFを読み取り監査します（--apply時は必須）")
+                        help="任意でDEV GCP WIFを読み取り監査します")
     flags = parser.parse_args()
     target = branch_name(flags.branch)
     need(not flags.dispatch_e2e or flags.apply)
@@ -264,27 +284,26 @@ def main() -> None:
     verify_operator()
     PHASE = 'github_oidc_template'
     verify_oidc_template()
-    # 制限を外す前に、workflowを書き換えてもクラウド側で本人制限が効くことを確認する。
-    if flags.apply or flags.verify_aws:
+    # Secretのref制限と、クラウド側の本人制限を別々の境界として維持する。
+    if flags.verify_aws:
         verify_aws()
-    if flags.apply or flags.verify_gcp:
+    if flags.verify_gcp:
         verify_gcp()
     PHASE = "github_environments"
     current = {role: dev_environment(role) for role in ("plan", "apply")}
 
     print("NORMAL_BRANCH_ACCESS: PASS; phase=preflight; scope=dev;"
-          " desired_branch_restrictions=none; cloud_mutation=0")
+          " desired_control_branch=dev; cloud_mutation=0")
     if flags.apply:
         PHASE = "github_environment_update"
         for role in ("plan", "apply"):
             endpoint, previous = current[role]
-            if previous['deployment_branch_policy'] is not None:
-                allow_all_dev_branches(endpoint)
+            restrict_to_dev(endpoint, previous)
             _, updated = dev_environment(role)
-            need(updated['deployment_branch_policy'] is None
+            need(updated['deployment_branch_policy'] == {'protected_branches': False, 'custom_branch_policies': True}
                  and updated['id'] == previous['id']
                  and updated.get('can_admins_bypass') == previous.get('can_admins_bypass'))
-        print("NORMAL_BRANCH_ACCESS: PASS; DEV Environment branch restrictions removed;"
+        print("NORMAL_BRANCH_ACCESS: PASS; DEV Environment restricted to dev;"
               " AWS/GCP mutation=0")
     if flags.dispatch_e2e:
         dispatch_e2e(target)
