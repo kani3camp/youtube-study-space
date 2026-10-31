@@ -51,18 +51,18 @@ describe('monitor authentication notice API', () => {
 		expect(console.info).toHaveBeenCalledTimes(2)
 	})
 
-	test('reports missing monitor privileges separately from a recent signed-out notice', async () => {
+	test('reports a Firestore denial separately from a recent signed-out notice', async () => {
 		const { default: handler } = await import(
 			'../pages/api/monitor-auth-required'
 		)
 		const res = response()
 		handler(request(), res as unknown as NextApiResponse)
 		handler(
-			request('POST', { 'x-monitor-auth-required': 'unauthorized' }),
+			request('POST', { 'x-monitor-auth-required': 'firestore-denied' }),
 			res as unknown as NextApiResponse,
 		)
 		expect(console.info).toHaveBeenLastCalledWith(
-			`[monitor] ${monitorAccessMessages.unauthorized}ログインURL: http://localhost:18080/monitor-login`,
+			`[monitor] ${monitorAccessMessages['firestore-denied']}`,
 		)
 		expect(console.info).toHaveBeenCalledTimes(2)
 	})
@@ -88,7 +88,7 @@ describe('monitor authentication notice API', () => {
 		},
 	)
 
-	test.each(['untrusted', 'toString', ['firestore-denied']])(
+	test.each(['untrusted', 'unauthorized', 'toString', ['firestore-denied']])(
 		'rejects an unknown or malformed diagnostic reason %s',
 		async (reason) => {
 			const { default: handler } = await import(

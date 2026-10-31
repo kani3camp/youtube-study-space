@@ -40,7 +40,7 @@ describe('MonitorAuthGate', () => {
 		expect(fetch).not.toHaveBeenCalled()
 	})
 
-	test.each(['signed-out', 'unauthorized'] as const)(
+	test.each(['signed-out'] as const)(
 		'notifies the server once when %s, without sending credentials',
 		(status) => {
 			render(<MonitorAuthGate>monitor</MonitorAuthGate>)
@@ -68,10 +68,12 @@ describe('MonitorAuthGate', () => {
 		render(<MonitorAuthGate>monitor data consumer</MonitorAuthGate>)
 		act(() => authMocks.observer?.({ status: 'signed-out' }))
 		act(() => authMocks.observer?.({ status: 'checking' }))
-		act(() => authMocks.observer?.({ status: 'unauthorized' }))
+		act(() =>
+			authMocks.observer?.({ status: 'denied', issue: 'firestore-denied' }),
+		)
 		expect(fetch).toHaveBeenLastCalledWith('/api/monitor-auth-required', {
 			method: 'POST',
-			headers: { 'X-Monitor-Auth-Required': 'unauthorized' },
+			headers: { 'X-Monitor-Auth-Required': 'firestore-denied' },
 			credentials: 'omit',
 		})
 		expect(fetch).toHaveBeenCalledTimes(2)
@@ -109,7 +111,7 @@ describe('MonitorAuthGate', () => {
 		expect(screen.getByText('monitor data consumer')).toBeInTheDocument()
 
 		act(() => {
-			authMocks.observer?.({ status: 'unauthorized' })
+			authMocks.observer?.({ status: 'denied', issue: 'firestore-denied' })
 		})
 		expect(screen.queryByText('monitor data consumer')).not.toBeInTheDocument()
 
@@ -146,7 +148,7 @@ describe('MonitorAuthGate', () => {
 		expect(unmounted).not.toHaveBeenCalled()
 
 		act(() => {
-			authMocks.observer?.({ status: 'unauthorized' })
+			authMocks.observer?.({ status: 'denied', issue: 'firestore-denied' })
 		})
 		expect(unmounted).toHaveBeenCalledOnce()
 	})

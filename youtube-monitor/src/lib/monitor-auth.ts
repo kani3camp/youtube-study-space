@@ -8,22 +8,21 @@ import {
 	type User,
 } from 'firebase/auth'
 import { getFirebaseApp } from './firestore'
+import {
+	checkMonitorFirestoreAccess,
+	type MonitorFirestoreIssue,
+} from './monitor-firestore-access'
 
 export type MonitorAuthorizationState =
 	| { status: 'checking' }
 	| { status: 'signed-out' }
-	| { status: 'unauthorized' }
+	| { status: 'denied'; issue: MonitorFirestoreIssue }
 	| { status: 'authorized'; user: User }
 	| { status: 'error' }
 
 type AuthorizationObserver = (state: MonitorAuthorizationState) => void
 
 const getMonitorAuth = () => getAuth(getFirebaseApp())
-
-export const hasMonitorReaderClaim = async (user: User): Promise<boolean> => {
-	const token = await user.getIdTokenResult()
-	return token.claims.monitor_reader === true
-}
 
 export const observeMonitorAuthorization = (
 	observer: AuthorizationObserver,
@@ -47,6 +46,9 @@ export const observeMonitorAuthorization = (
 			unsubscribe = onIdTokenChanged(
 				auth,
 				(user) => {
+					if (stopped) {
+						return
+					}
 					const revision = ++tokenRevision
 					if (user === null) {
 						authorizedUid = null
@@ -57,14 +59,14 @@ export const observeMonitorAuthorization = (
 					if (authorizedUid !== user.uid) {
 						observer({ status: 'checking' })
 					}
-					void hasMonitorReaderClaim(user)
-						.then((authorized) => {
+					void checkMonitorFirestoreAccess()
+						.then((access) => {
 							if (!stopped && revision === tokenRevision) {
-								authorizedUid = authorized ? user.uid : null
+								authorizedUid = access === 'ready' ? user.uid : null
 								observer(
-									authorized
+									access === 'ready'
 										? { status: 'authorized', user }
-										: { status: 'unauthorized' },
+										: { status: 'denied', issue: access },
 								)
 							}
 						})
@@ -77,6 +79,7 @@ export const observeMonitorAuthorization = (
 				},
 				() => {
 					if (!stopped) {
+						tokenRevision++
 						authorizedUid = null
 						observer({ status: 'error' })
 					}

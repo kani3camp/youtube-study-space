@@ -1,7 +1,5 @@
 export const monitorAccessMessages = {
 	'signed-out': '未ログインです。',
-	unauthorized:
-		'モニター閲覧権限がありません。Firebase Authのカスタムクレーム monitor_reader: true がIDトークンに反映されていることを確認してください。',
 	'firestore-denied':
 		'Firestoreの読み取りが拒否されました。ログインしたUIDの _monitor-readers/{UID} に enabled: true が設定されていること、接続先プロジェクト、Security RulesとApp Checkの設定を確認してください。',
 	'firestore-config-missing':

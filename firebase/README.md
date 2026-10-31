@@ -6,7 +6,7 @@
 
 メール・パスワード認証の有効化、一般利用者の新規登録を拒否する`beforeCreate`、その関数の配備は、[GCP Terraformの認証用モジュール](../infra/gcp/modules/monitor-auth-registration/README.md)で管理します。`firebase.json`には同じAuth設定や関数の配備設定を追加せず、Firebase CLIとTerraformによる二重管理を避けてください。
 
-このディレクトリは引き続きFirestore Rules・インデックス・エミュレーター設定の管理元です。モニター専用ユーザーはFirebaseコンソール／Admin SDKで作成し、claimと許可リストを別途準備します。認証用モジュールは環境ごとの明示的な有効化と適用が必要で、コードのマージだけでは登録制限は有効になりません。
+このディレクトリは引き続きFirestore Rules・インデックス・エミュレーター設定の管理元です。モニター専用ユーザーはFirebaseコンソール／Admin SDKで作成し、許可リストを別途準備します。認証用モジュールは環境ごとの明示的な有効化と適用が必要で、コードのマージだけでは登録制限は有効になりません。
 
 ## テストで確認する範囲
 
@@ -40,7 +40,7 @@ Node.js、Java 21以降、CIで固定しているバージョンのFirebase CLI�
 
 サーバー用の認証情報を使うGoテストは、Security Rulesによるアクセス制御を迂回できます。Goのエミュレーター統合テストが通っただけで、クライアントのアクセス制御を検証できたと判断しないでください。
 
-モニターの読み取りには、Firebase IDトークンの `monitor_reader: true` と、有効な `_monitor-readers/{uid}` 文書の両方が必要です。クライアント向けのRulesでは、この許可リストの参照・変更を認めません。クレームと許可リスト文書は、信頼できるAdmin / サーバー操作で準備してください。段階的な導入と、アクセスを閉じた状態を維持するロールバックの手順は [`../youtube-monitor/README.md`](../youtube-monitor/README.md) を参照してください。
+モニターの読み取りには、Firebaseへのログインと、ログインしたUIDの `_monitor-readers/{uid}` 文書の `enabled: true` が必要です。カスタムクレームは使用しません。クライアント向けのRulesでは、この許可リストの参照・変更を認めません。許可リスト文書は、信頼できるAdmin / サーバー操作で準備してください。段階的な導入と、アクセスを閉じた状態を維持するロールバックの手順は [`../youtube-monitor/README.md`](../youtube-monitor/README.md) を参照してください。
 
 ## 既存プロジェクト：配備前の確認
 

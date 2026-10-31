@@ -29,7 +29,7 @@ export default function handler(
 	if (now - (lastLoggedAt.get(reason) ?? Number.NEGATIVE_INFINITY) >= 60_000) {
 		lastLoggedAt.set(reason, now)
 		const loginUrl =
-			reason === 'signed-out' || reason === 'unauthorized'
+			reason === 'signed-out'
 				? `ログインURL: http://localhost:${process.env.PORT ?? '3000'}/monitor-login`
 				: ''
 		console.info(`[monitor] ${monitorAccessMessages[reason]}${loginUrl}`)

@@ -10,10 +10,6 @@ import {
 	observeMonitorAuthorization,
 	signInMonitor,
 } from '../lib/monitor-auth'
-import {
-	checkMonitorFirestoreAccess,
-	type MonitorFirestoreIssue,
-} from '../lib/monitor-firestore-access'
 
 const page = css`
 	min-height: 100vh;
@@ -91,31 +87,11 @@ export default function MonitorLogin(): JSX.Element {
 	const [submitting, setSubmitting] = useState(false)
 	const [loginFailed, setLoginFailed] = useState(false)
 	const [loginSucceeded, setLoginSucceeded] = useState(false)
-	const [accessCheck, setAccessCheck] = useState<
-		'idle' | 'checking' | 'ready' | 'unauthorized' | MonitorFirestoreIssue
-	>('idle')
 
 	useEffect(() => observeMonitorAuthorization(setAuthorization), [])
 	useEffect(() => {
-		let active = true
-		if (authorization.status === 'unauthorized') {
-			setAccessCheck('unauthorized')
-			void reportMonitorAccessIssue('unauthorized')
-		} else if (authorization.status === 'authorized') {
-			setAccessCheck('checking')
-			void checkMonitorFirestoreAccess().then((result) => {
-				if (active) {
-					setAccessCheck(result)
-					if (result !== 'ready') {
-						void reportMonitorAccessIssue(result)
-					}
-				}
-			})
-		} else {
-			setAccessCheck('idle')
-		}
-		return () => {
-			active = false
+		if (authorization.status === 'denied') {
+			void reportMonitorAccessIssue(authorization.issue)
 		}
 	}, [authorization])
 
@@ -145,14 +121,14 @@ export default function MonitorLogin(): JSX.Element {
 					<h1>モニター認証</h1>
 					{loginSucceeded ||
 					authorization.status === 'authorized' ||
-					authorization.status === 'unauthorized' ? (
+					authorization.status === 'denied' ? (
 						<>
 							<p role="status">ログインしました。</p>
-							{accessCheck === 'checking' ? (
+							{authorization.status === 'checking' ? (
 								<p>モニター閲覧設定を確認しています。</p>
-							) : accessCheck !== 'idle' && accessCheck !== 'ready' ? (
+							) : authorization.status === 'denied' ? (
 								<p css={errorStyle} role="alert">
-									{monitorAccessMessages[accessCheck]}
+									{monitorAccessMessages[authorization.issue]}
 								</p>
 							) : null}
 						</>

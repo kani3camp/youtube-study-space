@@ -23,21 +23,23 @@ const MonitorAuthGate: FC<MonitorAuthGateProps> = ({ children }) => {
 			lastLoginNotice.current = null
 			return
 		}
-		if (
-			(authorization.status === 'signed-out' ||
-				authorization.status === 'unauthorized') &&
-			lastLoginNotice.current !== authorization.status
-		) {
-			lastLoginNotice.current = authorization.status
-			void reportMonitorAccessIssue(authorization.status)
+		const issue =
+			authorization.status === 'signed-out'
+				? 'signed-out'
+				: authorization.status === 'denied'
+					? authorization.issue
+					: null
+		if (issue && lastLoginNotice.current !== issue) {
+			lastLoginNotice.current = issue
+			void reportMonitorAccessIssue(issue)
 		}
-	}, [authorization.status])
+	}, [authorization])
 
 	switch (authorization.status) {
 		case 'authorized':
 			return children
 		case 'signed-out':
-		case 'unauthorized':
+		case 'denied':
 		case 'error':
 			return (
 				<MonitorAccessStatus

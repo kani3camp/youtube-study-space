@@ -3,7 +3,6 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function isAuthorizedMonitor() {
       return request.auth != null
-        && request.auth.token.monitor_reader == true
         && exists(/databases/$(database)/documents/_monitor-readers/$(request.auth.uid))
         && get(/databases/$(database)/documents/_monitor-readers/$(request.auth.uid)).data.enabled == true;
     }
