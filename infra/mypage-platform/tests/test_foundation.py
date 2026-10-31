@@ -188,6 +188,28 @@ class FoundationTest(unittest.TestCase):
             written = json.loads((root / 'runtime-settings.json').read_text())
             self.assertEqual(written, {'runtime_settings': expected})
 
+    def test_native_plan_failures_publish_only_public_error_addresses_and_status(self):
+        private = 'private-command-output-and-credential-marker'
+        native = (
+            "\u2577\n\u2502 Error: Error reading thing: googleapi: Error 403: " + private + "\n\u2502 \n"
+            "\u2502   with module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_invoker[0],\n"
+            "\u2502   on ../../modules/runtime/main.tf line 1\n\u2575\n"
+            "\u2577\n\u2502 Error: " + private + " Error 418\n\u2502   with module.platform[0].bad name,\n\u2575\n"
+            "\u2577\n\u2502 Warning: not an error\n\u2575\n")
+        result = ops.subprocess.CompletedProcess(['terraform', private], 1, '', native)
+        output, errors = io.StringIO(), io.StringIO()
+        with patch.object(sys, 'argv', ['foundation_ops.py', 'execute']), \
+                patch.object(ops.subprocess, 'run', return_value=result), \
+                patch.object(ops, 'prepare', side_effect=lambda env: ops.run(['terraform', private], check='terraform-plan')), \
+                redirect_stdout(output), redirect_stderr(errors):
+            self.assertEqual(ops.main(), 1)
+        line = next(item for item in output.getvalue().splitlines() if item.startswith('Terraform plan errors: '))
+        self.assertEqual(json.loads(line.removeprefix('Terraform plan errors: ').removesuffix('.')), [
+            {'address': 'module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_invoker[0]', 'status': '403'},
+            {'address': '<withheld>', 'status': '<withheld>'},
+        ])
+        self.assertNotIn(private, output.getvalue() + errors.getvalue())
+
     def test_native_plan_failures_publish_only_fixed_diagnostic_labels(self):
         private = 'private-command-output-and-credential-marker'
         cases = (

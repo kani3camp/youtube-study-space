@@ -83,8 +83,28 @@ def run(args, *, cwd=None, codes=(0,), check="native-command"):
                 if marker in diagnostics:
                     check = label
                     break
+        describe_plan_errors(diagnostics)
     contract.need(result.returncode in codes, check)
     return result.stdout
+
+
+PUBLIC_HTTP_STATUS = {"400", "401", "403", "404", "409", "412", "429", "500", "503"}
+
+
+def describe_plan_errors(diagnostics):
+    # ネイティブ診断の本文は出さない。エラーごとに、固定形式の資源addressと
+    # 既知のHTTP status だけを取り出す（どの資源の読取りで止まったかの切り分け用）。
+    entries = []
+    for block in diagnostics.split("\u2577"):
+        if "Error:" not in block:
+            continue
+        address = re.search(r"\bwith (\S+),", block)
+        status = re.search(r"\bError (\d{3})\b", block)
+        entries.append({
+            "address": address.group(1) if address and PUBLIC_ADDRESS.fullmatch(address.group(1)) else "<withheld>",
+            "status": status.group(1) if status and status.group(1) in PUBLIC_HTTP_STATUS else "<withheld>",
+        })
+    print("Terraform plan errors: " + json.dumps(entries[:20], sort_keys=True) + ".")
 
 
 def request(url, token):
