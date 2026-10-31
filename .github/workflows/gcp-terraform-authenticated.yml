@@ -12,7 +12,11 @@ on:
         required: true
         type: string
       expected_sha:
-        description: Exact selected branch SHA for normal operations
+        description: Exact Terraform source SHA (DEV) or workflow SHA (PROD)
+        required: false
+        type: string
+      source_branch:
+        description: DEVのTerraform対象ブランチ。空欄は信頼済み実行元自身
         required: false
         type: string
     # Explicit names allow Environment secret resolution in called jobs without
@@ -73,6 +77,8 @@ jobs:
           NORMAL_MODE: ${{ inputs.mode }}
           NORMAL_TARGET: ${{ inputs.target }}
           NORMAL_EXPECTED_SHA: ${{ inputs.expected_sha }}
+          NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -99,9 +105,8 @@ jobs:
             echo "::error::Authenticated Terraform only allows initial dispatches by the approved GitHub owner."
             exit 1
           }
-          # Dev's branch allowlist is enforced by the GitHub Environment on
-          # each credentialed plan/apply job. Preflight checks the same-branch
-          # caller and immutable owner before any protected credentials exist.
+          # 信頼するDEV実行元の一覧はEnvironmentのSelected branchesで管理する。
+          # source branchのcheckoutでworkflowの実行refを変更しない。
           # Prod remains main-only; deny tags, PR refs and the retired branch.
           case "${TARGET}" in
             dev)
@@ -118,7 +123,10 @@ jobs:
               exit 1
               ;;
           esac
-          [[ "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/ci.yml@${expected_ref}" ]] || {
+          expected_caller="kani3camp/youtube-study-space/.github/workflows/ci.yml@${expected_ref}"
+          terraform_caller="kani3camp/youtube-study-space/.github/workflows/terraform.yml@${expected_ref}"
+          [[ "${GITHUB_WORKFLOW_REF}" == "${expected_caller}" ||
+             ( "${TARGET}" == dev && "${GITHUB_WORKFLOW_REF}" == "${terraform_caller}" ) ]] || {
             echo "::error::Authenticated Terraform requires the target's reviewed CI caller."
             exit 1
           }
@@ -131,7 +139,9 @@ jobs:
             exit 1
           }
           case "${MODE}" in
-            migration-plan|migration-apply) ;;
+            migration-plan|migration-apply)
+              [[ -z "${NORMAL_SOURCE_BRANCH:-}" ]] || exit 1
+              ;;
             normal-plan|normal-apply|normal-e2e)
               python3 infra/gcp/scripts/terraform_normal_ops.py preflight
               exit 0
@@ -324,6 +334,7 @@ jobs:
       NORMAL_MODE: ${{ inputs.mode }}
       NORMAL_ROLE: plan
       NORMAL_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}
       TF_WORKSPACE: default
       AWS_MAX_ATTEMPTS: "1"
       AWS_RETRY_MODE: standard
@@ -337,6 +348,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Checkout exact DEV Terraform data
+        if: ${{ inputs.target == 'dev' && inputs.source_branch != '' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: kani3camp/youtube-study-space
+          ref: ${{ inputs.expected_sha }}
+          path: .terraform-source
+          sparse-checkout: infra/gcp
           persist-credentials: false
       - name: Validate private Terraform inputs before credentials
         env:
@@ -406,6 +426,7 @@ jobs:
       NORMAL_MODE: ${{ inputs.mode }}
       NORMAL_ROLE: apply
       NORMAL_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}
       TF_WORKSPACE: default
       AWS_MAX_ATTEMPTS: "1"
       AWS_RETRY_MODE: standard
@@ -419,6 +440,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Checkout exact DEV Terraform data
+        if: ${{ inputs.target == 'dev' && inputs.source_branch != '' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: kani3camp/youtube-study-space
+          ref: ${{ inputs.expected_sha }}
+          path: .terraform-source
+          sparse-checkout: infra/gcp
           persist-credentials: false
       - name: Validate private Terraform inputs before credentials
         env:

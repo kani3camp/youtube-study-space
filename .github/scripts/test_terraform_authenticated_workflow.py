@@ -49,7 +49,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         self.assertNotIn('name: "Import-only migration apply', self.text)
         # Keep the public dispatch values and fail-closed controller selectors stable.
         self.assertIn('default: migration-plan', self.caller)
-        self.assertIn('migration-plan|migration-apply) ;;', self.text)
+        self.assertIn('migration-plan|migration-apply)', self.text)
         self.assertIn('  migration_plan:', self.text)
         self.assertIn('  migration_apply:', self.text)
 
@@ -74,6 +74,20 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             for mode in ('migration-plan', 'migration-apply'):
                 self.assertNotEqual(self.run_preflight(MODE=mode, **context).returncode, 0)
 
+    def test_dev_preflight_checks_owner_while_environment_selects_trusted_branches(self):
+        ref = 'refs/heads/feature/no-environment-registration'
+        context = {'GITHUB_REF': ref, 'NORMAL_EXPECTED_SHA': 'a' * 40,
+                   'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref}
+        for mode in ('normal-plan', 'normal-apply'):
+            self.assertEqual(self.run_preflight(MODE=mode, **context).returncode, 0)
+            for key, value in (('GITHUB_ACTOR', 'other'), ('GITHUB_ACTOR_ID', '0'),
+                               ('GITHUB_TRIGGERING_ACTOR', 'other'), ('GITHUB_RUN_ATTEMPT', '2'),
+                               ('GITHUB_EVENT_NAME', 'pull_request')):
+                with self.subTest(mode=mode, key=key):
+                    result = self.run_preflight(MODE=mode, **(context | {key: value}))
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.outputs, '')
+
     def test_production_normal_requires_main_and_disallows_cloud_e2e(self):
         ref = 'refs/heads/main'
         context = {'TARGET': 'prod', 'GITHUB_REF': ref,
@@ -88,6 +102,21 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             GITHUB_REF='refs/heads/dev',
             GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev',
             NORMAL_EXPECTED_SHA='a' * 40).returncode, 0)
+
+    def test_control_branch_can_use_ci_or_terraform_but_paths_and_prod_stay_fixed(self):
+        for branch in ('dev', 'integration/mypage-canon-20261006', 'feature/trusted-controller'):
+            ref = 'refs/heads/' + branch
+            for caller in ('ci.yml', 'terraform.yml'):
+                values = {'MODE': 'normal-plan', 'NORMAL_EXPECTED_SHA': 'a' * 40,
+                          'GITHUB_REF': ref,
+                          'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/' + caller + '@' + ref}
+                result = self.run_preflight(**values)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                for workflow in ('attacker.yml', 'ci.yml@refs/heads/other'):
+                    bad = values | {'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/' + workflow + '@' + ref}
+                    self.assertNotEqual(self.run_preflight(**bad).returncode, 0)
+        self.assertNotEqual(self.run_preflight(TARGET='prod', MODE='normal-plan', NORMAL_EXPECTED_SHA='a' * 40,
+                            GITHUB_REF='refs/heads/main', GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/terraform.yml@refs/heads/main').returncode, 0)
 
     def test_normal_oidc_targets_correct_gcp_project(self):
         for role in ('normal_plan', 'normal_apply'):
@@ -114,7 +143,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(result.outputs, '')
         inputs = self.text.split('    # Explicit names', 1)[0]
-        self.assertEqual(re.findall(r'^      ([a-z_]+):', inputs, re.M), ['target', 'mode', 'expected_sha'])
+        self.assertEqual(re.findall(r'^      ([a-z_]+):', inputs, re.M), ['target', 'mode', 'expected_sha', 'source_branch'])
         caller_inputs = self.caller.split('\npermissions:', 1)[0]
         self.assertNotRegex(caller_inputs, r'terraform_(history|current_state|ownership|plan_cost)')
 
@@ -158,6 +187,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                        'terraform_migration.py execute', 'terraform_migration.py cleanup']
             self.assertEqual([block.index(x) for x in ordered], sorted(block.index(x) for x in ordered))
             self.assertIn('ref: ${{ github.sha }}', block)
+
             self.assertIn('persist-credentials: false', block)
             self.assertIn('if: ${{ always() }}', block)
             self.assertIn('token_format: access_token', block)
@@ -165,6 +195,20 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
         for expected in ('MIGRATION_EXPECTED_COMMITMENT: ${{ needs.migration_plan.outputs.commitment }}',
                          'MIGRATION_EXPECTED_COMPONENTS: ${{ needs.migration_plan.outputs.components }}'):
             self.assertIn(expected, jobs['migration_apply'])
+
+
+    def test_dev_source_checkout_never_selects_workflow_or_executor(self):
+        for role in ('plan', 'apply'):
+            block = self.text.split('\n  normal_' + role + ':', 1)[1].split('\n  normal_', 1)[0]
+            self.assertIn('NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}', block)
+            self.assertIn('repository: kani3camp/youtube-study-space', block)
+            self.assertIn('ref: ${{ inputs.expected_sha }}', block)
+            self.assertIn('path: .terraform-source', block)
+            self.assertIn('sparse-checkout: infra/gcp', block)
+            self.assertLess(block.index('ref: ${{ github.sha }}'), block.index('path: .terraform-source'))
+            self.assertNotRegex(block, r'run:.*\.terraform-source')
+            self.assertNotIn('working-directory: .terraform-source', block)
+        self.assertIn('source_branch: ${{ inputs.terraform_source_branch }}', self.caller)
 
     def test_no_proof_history_artifact_or_unpinned_action_authorizes_execution(self):
         for forbidden in ('actions: read', 'actions/upload-artifact', 'actions/download-artifact',

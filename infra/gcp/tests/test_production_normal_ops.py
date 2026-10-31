@@ -71,7 +71,7 @@ class ProductionNormalOps(unittest.TestCase):
         with self.assertRaises(ValueError):
             ops.e2e(env, None, None, None)
 
-    def test_dev_normal_is_still_non_main(self):
+    def test_dev_workflow_branch_is_selected_by_environment_while_prod_stays_main(self):
         self.assertEqual(ops.context(context("dev")), "dev")
         branch = context("dev") | {
             "GITHUB_REF": "refs/heads/feature/safe",

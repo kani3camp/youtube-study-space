@@ -196,7 +196,7 @@ class Contracts(unittest.TestCase):
         changes = {'GITHUB_EVENT_NAME': 'pull_request', 'GITHUB_REPOSITORY': 'fork/repo',
             'GITHUB_REPOSITORY_ID': '0', 'GITHUB_REPOSITORY_OWNER_ID': '0',
             'GITHUB_ACTOR': 'other', 'GITHUB_ACTOR_ID': '0', 'GITHUB_TRIGGERING_ACTOR': 'other',
-            'GITHUB_RUN_ATTEMPT': '2', 'GITHUB_REF': 'refs/heads/integration/mypage-canon-20261006',
+            'GITHUB_RUN_ATTEMPT': '2', 'GITHUB_REF': 'refs/heads/main',
             'GITHUB_WORKFLOW_REF': 'other', 'GITHUB_SHA': 'b' * 40, 'NORMAL_EXPECTED_SHA': 'b' * 40,
             'NORMAL_TARGET': 'prod', 'NORMAL_MODE': 'migration-apply', 'GITHUB_JOB': 'migration_plan',
             'TF_WORKSPACE': 'prod', 'STATE_AWS_REGION': 'us-east-1'}
@@ -204,18 +204,23 @@ class Contracts(unittest.TestCase):
             with self.subTest(key=k), self.assertRaises(ValueError):
                 ops.context(env() | {k: v}, 'plan')
 
-    def test_any_non_main_branch_context_is_allowed_only_with_matching_caller(self):
+    def test_dev_control_plane_and_source_are_independent_of_branch_name_allowlists(self):
         for branch in ("dev", "integration/gcp-terraform-normal-ops",
                        "feature/arbitrary-normal-change"):
             ref = "refs/heads/" + branch
             for role in ("plan", "apply"):
                 v = env(role)
-                v["GITHUB_REF"] = ref
-                v["GITHUB_WORKFLOW_REF"] = ops.CALLER + ref
+                v["NORMAL_SOURCE_BRANCH"] = branch
+                v["NORMAL_EXPECTED_SHA"] = "b" * 40
                 self.assertEqual(ops.context(v, role), "dev")
                 with self.assertRaises(ValueError):
                     ops.context(v | {"GITHUB_WORKFLOW_REF":
                                       ops.CALLER + "refs/heads/other"}, role)
+                for key, value in (('GITHUB_ACTOR', 'other'), ('GITHUB_ACTOR_ID', '0'),
+                                   ('GITHUB_TRIGGERING_ACTOR', 'other'), ('GITHUB_RUN_ATTEMPT', '2'),
+                                   ('GITHUB_EVENT_NAME', 'pull_request'), ('NORMAL_EXPECTED_SHA', 'invalid')):
+                    with self.subTest(branch=branch, role=role, key=key), self.assertRaises(ValueError):
+                        ops.context(v | {key: value}, role)
         for bad in ("refs/heads/main", "refs/tags/v1", "refs/pull/1/merge",
                     "refs/heads/-bad"):
             v = env("plan") | {"GITHUB_REF": bad,

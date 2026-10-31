@@ -14,12 +14,41 @@ import sys
 import tempfile
 from threading import Thread
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import terraform_normal_ops as ops
+import test_terraform_source as source_fixture
 
 
 class NativeCRUD(unittest.TestCase):
+    def test_selected_source_is_used_by_native_terraform(self):
+        with tempfile.TemporaryDirectory(prefix='selected-source-native-') as temporary:
+            fixture = source_fixture.SourceBoundary()
+            control, source, env = fixture.fixture(temporary)
+            main = source / 'infra/gcp/environments/dev/main.tf'
+            main.write_text('resource "terraform_data" "selected" { input = "source-only" }\n')
+            fixture.git(source, 'add', '.')
+            fixture.git(source, '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid',
+                        '-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'native source')
+            env['NORMAL_EXPECTED_SHA'] = fixture.git(source, 'rev-parse', 'HEAD')
+            private = Path(temporary) / 'private'
+            with patch.object(ops, 'REPO', control):
+                tfroot = ops.source(env, private)
+            cli = Path(temporary) / 'terraform.rc'
+            cli.write_text('disable_checkpoint = true\n')
+            clean = {'PATH': os.environ.get('PATH', os.defpath), 'TF_CLI_CONFIG_FILE': str(cli),
+                     'CHECKPOINT_DISABLE': '1', 'TF_INPUT': 'false', 'TF_IN_AUTOMATION': 'true'}
+            for args in (['init', '-backend=false', '-input=false'],
+                         ['plan', '-input=false', '-out=native.tfplan']):
+                result = subprocess.run(['terraform', *args], cwd=tfroot, env=clean, capture_output=True, timeout=60)
+                self.assertEqual(result.returncode, 0, 'native source検証が失敗しました')
+            result = subprocess.run(['terraform', 'show', '-json', 'native.tfplan'], cwd=tfroot,
+                                    env=clean, capture_output=True, check=True, timeout=30)
+            resource = json.loads(result.stdout)['planned_values']['root_module']['resources'][0]
+            self.assertEqual(resource['type'], 'terraform_data')
+            self.assertEqual(resource['values']['input'], 'source-only')
+
     def test_native_create_update_replace_delete_and_post_noop(self):
         topics = {}
         requests = []

@@ -21,12 +21,14 @@ controllerは `infra/gcp/scripts/terraform_normal_ops.py`、運用入口と設�
 
 | 境界 | 実装 |
 | --- | --- |
-| PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・有効な非`main` branch ref・正確なexpected SHA・same-ref/same-SHA caller/reusableをcredentials前に検査。どのbranchを認証付き実行へ許可するかはGitHub Environmentが決定 |
-| Environment/OIDC | 既存DEV Plan/Apply EnvironmentとAWS backend roleを再利用。AWSは既存7-claim subjectとネイティブactor_idの完全一致で本人に固定。通常専用GCP WIF/SAはrepository・owner・actor・Environment・workflow path・branch-shaped same-ref・same-SHAを検証するが**branch名をallowlistしない**。通常Plan/Applyを許可するbranch名はGitHub EnvironmentのSelected branchesだけで管理 |
-| 入力 | 既存private baselineのtfvarsへcommit-bound `normal.tfvars.json`を重ねる。manifestは通常変更の型/件数制限に使わない。projectはDEV固定 |
+| PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・有効な非mainのcontrol ref・同ref/SHAのcaller/reusableをcredentials前に検査。対象source branch/SHAは別入力とし、同一repoのbranch HEADと照合 |
+| Environment Secret | DEV Plan/Apply EnvironmentはSelected branchesで信頼済み実行元をBranchとして明示許可。No restrictionにしない。同じEnvironmentを指定する別workflow jobにも適用されるSecretアクセス境界であり、AWS/GCPの本人検証とは独立 |
+| OIDC | 既存AWS 7-claim subjectとGCP WIFによる本人・repository・Environment・正規workflow等の検証を維持。OIDCのref/SHAはEnvironmentで許可したcontrol planeのrefとSHAであり、対象source branchに置き換えない |
+| ソース | 別checkoutの同一repo・固定SHAからDEV rootとmoduleのHCL・入力・配備データをコピー。source側のworkflow／実行器は使わない。別repo・dirty checkout・symlink・未追跡の入力を拒否 |
+| 入力 | private baselineへ選択source SHAの`normal.tfvars.json`を重ね、レビュー指定も同じsource SHAから取得。projectはDEV固定 |
 | Plan | refresh付きfull-root native saved plan。Coreのcomplete/errored/checksとdriftを検査。create/updateのcomputed unknownはTerraformに委ねる |
 | delete/replace | commit内`normal-operations.json`のaddress/actions完全一致が必須。未使用指定も拒否。忘却操作・importは通常経路では拒否 |
-| Apply binding | 同runの独立Apply identityで同SHA/入力を再Plan。timestampと順序のない配列のみ正規化し、全Plan JSON、SHA、run ID、mode、入力、破壊的review、State本文/HEADをprivate keyのHMACで照合。GitHub Actionsのstep `if`でHMAC一致だけを評価し値をstep環境・ログに展開しない。30分の期限、未来時刻・欠落も拒否 |
+| Apply binding | 同runの独立Apply identityで再Plan。全Plan JSON、control SHA、source repository/branch/SHA、run ID、mode、入力、レビュー指定、State本文/HEADをprivate keyのHMACで照合。timestampと順序のない配列だけを正規化。GitHub式で一致を評価し値をstep環境・ログに展開しない。30分の期限、未来時刻・欠落も拒否 |
 | saved plan | 新しく生成した一致Planだけを適用。公開artifactへの生Plan転送はしない。Apply直前にState/保存Planを再確認し、native S3 lockとCoreのstale-plan検査を使う |
 | State | DEV固定key、account制限、AES256、VersionId、lineage/serial、lock/workspace不在。State欠損時は停止し、自動初期化しない |
 | 事後確認 | lineage維持・serial単調増加、refresh付きfull-root no-op、State前後照合とlock解放。エラーを無視せず停止 |
@@ -65,16 +67,16 @@ Applyでは同runのPlan成功後、独立identityで同SHAを再Planし、sourc
 
 | 経路 | 許可するref |
 | --- | --- |
-| DEV通常操作 | GitHub Environmentで明示選択した任意の非`main` branch。AWS/GCPはbranch名allowlistを持たず、同一refの正規workflowであることだけを検証 |
-| DEV既存import | 従来の`dev` / `integration/mypage-canon-20261006`のみ。共有Environmentへの通常用branch追加ではimportの認可を広げない |
+| DEV通常操作 | workflowの実行元はEnvironmentで明示許可した信頼済みbranch。対象sourceは同一repoの任意branchとexact SHA。データとして選ぶだけのbranchは登録しない |
+| DEV既存import | Environmentで許可した実行元のうち、従来controllerが許可するdev/integrationのみ。source選択をimportへ転用しない |
 | Production既存import | `main`固定 |
 | Production通常操作 | **`main`固定**。GCP通常専用WIF/SA、PROD backend role・GitHub 2 Environmentの独立保護と実Plan/Apply認証が必要 |
 
-Environmentのbranch policyはcredentialed jobの最終認可を行います。preflightだけで許可一覧を取得・代替しません。
-Environmentの許可branch・required reviewers・admin bypass等の実設定は、管理APIで実行時に確認してください。
-許可branchを追加しても、そのbranchのworkflow/controllerの安全性が自動的に保証されるわけではありません。一方、AWS/GCPの恒久trustはbranch追加のたびに変更しません。`enable_normal_integration.py --apply --branch <branch>`が変更するのはDEV Plan/Apply GitHub EnvironmentのSelected branchesだけです。AWS/GCPは必要時に`--verify-aws` / `--verify-gcp`でread-only監査できます。
+DEVは本人起動と、Environmentの明示的なSelected branches policyの両方を要求します。Productionのmain-only branch policyは維持します。
+Environmentのbranch policy・required reviewers・admin bypass等の実設定は、管理APIで確認してください。
+`enable_normal_integration.py --apply`はGitHub本人認証を確認してから、既存DEV両EnvironmentのSelected branchesへ`--branch`を明示追加し、既存の許可は残します。ブランチ名の許可一覧はEnvironmentだけが保持します。AWS/GCP trust、Environmentのsecrets/variables、Productionは変更しません。未知の保護設定があれば停止します。`--verify-aws` / `--verify-gcp`による読み取り監査も可能です。
 
-Selected branches方式のEnvironmentはref名を検査します。許可branch内のコード改変経路には、PRレビュー・必須CI・force-push/deletion禁止を適用します。
+control planeのworkflowと実行器は許可された信頼済み実行元へのレビューを通して更新します。対象sourceのHCL・module・入力も本人が起動前にレビューと必須CIで確認します。HCL自体の実行をsandbox化する構成ではありません。
 同SHAのcaller/reusableであることは、内容が安全にレビュー済みであることまで保証しません。
 Environment reviewは実行時の確認を加える別の制御です。必要なreview方式は運用条件に合わせて設定します。
 [GitHub Environment](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)と
