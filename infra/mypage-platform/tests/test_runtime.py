@@ -182,6 +182,24 @@ class RuntimeTest(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(c.ContractError):
                 r.validate_cicd_job_image_refresh(before, moved, value)
 
+    def test_job_iam_members_accept_the_provider_full_job_path_after_a_read(self):
+        bindings = (r.MAINTENANCE_JOB_INVOKER, r.MAINTENANCE_IMAGE_BINDING, r.OPERATOR_IMAGE_BINDING)
+        plan = fixture("runtime_public")
+        for item in plan["resource_changes"]:
+            item["change"]["actions"] = ["no-op"]
+            if item["address"] in bindings:
+                item["change"]["after"]["name"] = r.MAINTENANCE_JOB_FULL_NAME
+        present = {item["address"] for item in plan["resource_changes"]} & set(bindings)
+        self.assertTrue(present)
+        r.validate_plan(plan, "runtime_public")
+        for wrong in ("projects/" + c.PROJECT + "/locations/" + c.REGION + "/jobs/other-job",
+                      "projects/other-project/locations/" + c.REGION + "/jobs/mypage-maintenance-operator",
+                      r.PUBLIC_INVOKER_NAME):
+            rejected = deepcopy(plan)
+            next(item for item in rejected["resource_changes"] if item["address"] in bindings)["change"]["after"]["name"] = wrong
+            with self.subTest(wrong=wrong), self.assertRaises(c.ContractError):
+                r.validate_plan(rejected, "runtime_public")
+
     def state_only_plan(self):
         plan = fixture("runtime_public")
         for item in plan["resource_changes"]:
