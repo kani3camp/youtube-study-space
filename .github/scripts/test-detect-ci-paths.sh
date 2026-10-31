@@ -124,6 +124,7 @@ all_groups="system room_image_prompt menu_image_generator video_maker_simulator 
 assert_exact_groups "$all_groups" .github/scripts/ci-terraform-source.py
 assert_exact_groups "$all_groups" .github/scripts/test_ci_terraform_source.py
 assert_exact_groups "$all_groups" .github/ci-validation/Dockerfile
+assert_exact_groups "$all_groups" .github/scripts/base-image-pin-check.mjs
 assert_exact_groups "$all_groups" .github/ci-validation/validate.sh
 assert_exact_groups "$all_groups" .github/actions/prepare-ci-validation/action.yml
 manual_output="$(env -u CI_AUTHENTICATED_TERRAFORM_DISPATCH GITHUB_EVENT_NAME=workflow_dispatch "$detector")"

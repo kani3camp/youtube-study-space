@@ -7,7 +7,6 @@ runs:
       shell: bash
       run: |
         docker build --platform linux/amd64 \
-          --build-arg "NODE_VERSION=$(cat .node-version)" \
           --build-arg "TERRAFORM_VERSION=$(cat infra/gcp/.terraform-version)" \
           --file .github/ci-validation/Dockerfile \
           --tag yss-ci-validation:local .github
