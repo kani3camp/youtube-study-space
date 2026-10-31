@@ -9,6 +9,7 @@ import {
 	type MonitorAuthorizationState,
 	observeMonitorAuthorization,
 	signInMonitor,
+	signOutMonitor,
 } from '../lib/monitor-auth'
 
 const page = css`
@@ -86,7 +87,8 @@ export default function MonitorLogin(): JSX.Element {
 	const [password, setPassword] = useState('')
 	const [submitting, setSubmitting] = useState(false)
 	const [loginFailed, setLoginFailed] = useState(false)
-	const [loginSucceeded, setLoginSucceeded] = useState(false)
+	const [switchingAccount, setSwitchingAccount] = useState(false)
+	const [switchFailed, setSwitchFailed] = useState(false)
 
 	useEffect(() => observeMonitorAuthorization(setAuthorization), [])
 	useEffect(() => {
@@ -101,14 +103,29 @@ export default function MonitorLogin(): JSX.Element {
 		event.preventDefault()
 		setSubmitting(true)
 		setLoginFailed(false)
+		setSwitchFailed(false)
 		try {
 			await signInMonitor(email, password)
-			setLoginSucceeded(true)
 			setPassword('')
 		} catch {
 			setLoginFailed(true)
 		} finally {
 			setSubmitting(false)
+		}
+	}
+
+	const switchAccount = async () => {
+		setSwitchingAccount(true)
+		setSwitchFailed(false)
+		try {
+			await signOutMonitor()
+			setEmail('')
+			setPassword('')
+			setLoginFailed(false)
+		} catch {
+			setSwitchFailed(true)
+		} finally {
+			setSwitchingAccount(false)
 		}
 	}
 
@@ -121,22 +138,31 @@ export default function MonitorLogin(): JSX.Element {
 			<main css={page}>
 				<section css={card}>
 					<h1>モニター認証</h1>
-					{authorization.status === 'configuration-error' ? (
+					{switchingAccount ? (
+						<p role="status">ログアウトしています…</p>
+					) : authorization.status === 'configuration-error' ? (
 						<p css={errorStyle} role="alert">
 							{monitorAccessMessages['firebase-config-missing']}
 						</p>
-					) : loginSucceeded ||
-						authorization.status === 'authorized' ||
-						authorization.status === 'denied' ? (
+					) : authorization.status === 'checking' ? (
+						<p role="status">
+							ログイン状態とモニター閲覧設定を確認しています。
+						</p>
+					) : authorization.status === 'authorized' ? (
+						<p role="status">ログインしました。</p>
+					) : authorization.status === 'denied' ? (
 						<>
-							<p role="status">ログインしました。</p>
-							{authorization.status === 'checking' ? (
-								<p>モニター閲覧設定を確認しています。</p>
-							) : authorization.status === 'denied' ? (
+							<p css={errorStyle} role="alert">
+								{monitorAccessMessages[authorization.issue]}
+							</p>
+							{switchFailed ? (
 								<p css={errorStyle} role="alert">
-									{monitorAccessMessages[authorization.issue]}
+									ログアウトできませんでした。もう一度お試しください。
 								</p>
 							) : null}
+							<button type="button" onClick={() => void switchAccount()}>
+								別のアカウントでログイン
+							</button>
 						</>
 					) : (
 						<form onSubmit={(event) => void submit(event)}>
