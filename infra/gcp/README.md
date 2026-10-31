@@ -16,6 +16,8 @@ Environmentのブランチ制限は、クラウド認証とは独立したSecret
 4. 対象ソースのCIとレビューを確認します。ブランチだけを指定すると、Environment Secretを使わないpreflightで同一repositoryのHEADを一度だけ取得し、その40桁SHAを後続の全jobで固定します。特定コミットはSHAだけでも選べます。この場合も通常ブランチ（`refs/heads/*`）の履歴から到達できることを要求し、PR専用refやタグだけに残るコミット、forkだけにあるコミットは対象ソースとして使いません。branch/SHAの両方を指定した場合はHEADとの一致を要求します。
 5. 実行元にある正規の入口を選びます。以下はActions → CI → Run workflowの入力例です。
 
+   `Authenticated Terraform`は既定で有効です。既定の対象・操作はDEVの`normal-plan`で、Applyは`normal-apply`を明示的に選びます。通常CIの全検査だけを手動で再実行したい場合は、このチェックを外します。有効時はGCP Terraformの検査と認証付きPlan/Apply、無効時は認証なしの全CI検査を実行します。Repository共通検査はどちらでも実行します。
+
    マイページ統合ブランチの現行入口はActions → **Terraform**です。Use workflow fromに`integration/mypage-canon-20261006`、environmentに`development`、operationに`plan`／`apply`、componentに`core`／`mypage`／`all`を指定します。この入口では実行元自身のHCLを使い、そのSHAを自動的に固定します。入力項目は当該ブランチのworkflowを正本とします。
 
    | 項目 | DEV Plan | DEV Apply |

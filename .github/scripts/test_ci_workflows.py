@@ -122,8 +122,8 @@ def validate(caller, modules):
     require(set(dispatch) == {'terraform_authenticated', 'terraform_target', 'terraform_mode', 'terraform_expected_sha', 'terraform_source_branch'},
             'No retired operational mode/input returns')
     for toggle in ('terraform_authenticated',):
-        require(dispatch[toggle]['type'] == 'boolean' and dispatch[toggle]['default'] is False
-                and dispatch[toggle]['required'] is False, 'Operations remain opt-in')
+        require(dispatch[toggle]['type'] == 'boolean' and dispatch[toggle]['default'] is True
+                and dispatch[toggle]['required'] is False, 'Manual runs default to Terraform with a full-CI opt-out')
     for key, default, options in (('terraform_target', 'dev', ['dev', 'prod']),
                                   ('terraform_mode', 'normal-plan', ['normal-plan', 'normal-apply'])):
         require(dispatch[key]['type'] == 'choice' and dispatch[key]['default'] == default
@@ -182,6 +182,7 @@ class WorkflowContractsTest(unittest.TestCase):
 
     def test_rejects_regressions_in_gate_selection_permissions_and_operational_caller(self):
         mutations = [
+            lambda c, m: c['on']['workflow_dispatch']['inputs']['terraform_authenticated'].update(default=False),
             lambda c, m: c['jobs']['ci-gate']['needs'].remove('changes'),
             lambda c, m: c['jobs']['ci-gate'].update({'if': 'success()'}),
             lambda c, m: c['jobs']['system'].update(secrets='inherit'),

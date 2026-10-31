@@ -5,9 +5,9 @@ on:
   workflow_dispatch:
     inputs:
       terraform_authenticated:
-        description: Authenticated Terraform
+        description: Authenticated Terraform (disable for full CI validation only)
         required: false
-        default: false
+        default: true
         type: boolean
       terraform_target:
         description: Terraform target environment
