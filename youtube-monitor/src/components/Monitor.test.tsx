@@ -5,7 +5,7 @@ import { Monitor } from '../pages/index'
 const firestoreMocks = vi.hoisted(() => ({
 	subscriptions: new Map<
 		string,
-		{ fail: () => void; unsubscribe: ReturnType<typeof vi.fn> }
+		{ fail: (error?: unknown) => void; unsubscribe: ReturnType<typeof vi.fn> }
 	>(),
 }))
 
@@ -16,11 +16,13 @@ vi.mock('firebase/firestore', async (importOriginal) => ({
 		withConverter: () => ({ path: `${collectionName}/${id}` }),
 	})),
 	getFirestore: vi.fn(() => ({})),
-	onSnapshot: vi.fn(({ path }: { path: string }, _next, fail: () => void) => {
-		const unsubscribe = vi.fn()
-		firestoreMocks.subscriptions.set(path, { fail, unsubscribe })
-		return unsubscribe
-	}),
+	onSnapshot: vi.fn(
+		({ path }: { path: string }, _next, fail: (error?: unknown) => void) => {
+			const unsubscribe = vi.fn()
+			firestoreMocks.subscriptions.set(path, { fail, unsubscribe })
+			return unsubscribe
+		},
+	),
 	orderBy: vi.fn(() => ({})),
 	query: vi.fn((reference) => ({ withConverter: () => reference })),
 }))
@@ -64,7 +66,9 @@ describe('Monitor Firestore failure boundary', () => {
 	beforeEach(() => {
 		firestoreMocks.subscriptions.clear()
 		process.env.NEXT_PUBLIC_API_KEY = 'ci-dummy-api-key'
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
 	})
+	afterEach(() => vi.unstubAllGlobals())
 
 	const readPaths = [
 		'menu',
@@ -83,15 +87,43 @@ describe('Monitor Firestore failure boundary', () => {
 			)
 
 			act(() => {
-				firestoreMocks.subscriptions.get(path)?.fail()
+				firestoreMocks.subscriptions
+					.get(path)
+					?.fail({ code: 'permission-denied' })
 			})
 
 			expect(screen.getByText('配信画面を表示できません')).toBeInTheDocument()
+			expect(fetch).toHaveBeenCalledExactlyOnceWith(
+				'/api/monitor-auth-required',
+				{
+					method: 'POST',
+					headers: { 'X-Monitor-Auth-Required': 'firestore-denied' },
+					credentials: 'omit',
+				},
+			)
 			for (const { unsubscribe } of firestoreMocks.subscriptions.values()) {
 				expect(unsubscribe).toHaveBeenCalledOnce()
 			}
 		},
 	)
+
+	test('reports connectivity failures without diagnosing them as missing permissions', () => {
+		render(<Monitor />)
+		act(() =>
+			firestoreMocks.subscriptions.get('menu')?.fail({ code: 'unavailable' }),
+		)
+		expect(fetch).toHaveBeenCalledExactlyOnceWith(
+			'/api/monitor-auth-required',
+			{
+				method: 'POST',
+				headers: { 'X-Monitor-Auth-Required': 'firestore-error' },
+				credentials: 'omit',
+			},
+		)
+		for (const { unsubscribe } of firestoreMocks.subscriptions.values()) {
+			expect(unsubscribe).toHaveBeenCalledOnce()
+		}
+	})
 
 	test('stops all Firestore listeners when the monitor unmounts', () => {
 		const view = render(<Monitor />)

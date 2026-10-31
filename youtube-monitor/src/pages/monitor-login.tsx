@@ -2,10 +2,18 @@ import { css } from '@emotion/react'
 import Head from 'next/head'
 import { type FormEvent, useEffect, useState } from 'react'
 import {
+	monitorAccessMessages,
+	reportMonitorAccessIssue,
+} from '../lib/monitor-access-issues'
+import {
 	type MonitorAuthorizationState,
 	observeMonitorAuthorization,
 	signInMonitor,
 } from '../lib/monitor-auth'
+import {
+	checkMonitorFirestoreAccess,
+	type MonitorFirestoreIssue,
+} from '../lib/monitor-firestore-access'
 
 const page = css`
 	min-height: 100vh;
@@ -83,8 +91,33 @@ export default function MonitorLogin(): JSX.Element {
 	const [submitting, setSubmitting] = useState(false)
 	const [loginFailed, setLoginFailed] = useState(false)
 	const [loginSucceeded, setLoginSucceeded] = useState(false)
+	const [accessCheck, setAccessCheck] = useState<
+		'idle' | 'checking' | 'ready' | 'unauthorized' | MonitorFirestoreIssue
+	>('idle')
 
 	useEffect(() => observeMonitorAuthorization(setAuthorization), [])
+	useEffect(() => {
+		let active = true
+		if (authorization.status === 'unauthorized') {
+			setAccessCheck('unauthorized')
+			void reportMonitorAccessIssue('unauthorized')
+		} else if (authorization.status === 'authorized') {
+			setAccessCheck('checking')
+			void checkMonitorFirestoreAccess().then((result) => {
+				if (active) {
+					setAccessCheck(result)
+					if (result !== 'ready') {
+						void reportMonitorAccessIssue(result)
+					}
+				}
+			})
+		} else {
+			setAccessCheck('idle')
+		}
+		return () => {
+			active = false
+		}
+	}, [authorization])
 
 	const submit = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault()
@@ -113,7 +146,16 @@ export default function MonitorLogin(): JSX.Element {
 					{loginSucceeded ||
 					authorization.status === 'authorized' ||
 					authorization.status === 'unauthorized' ? (
-						<p role="status">ログインしました。</p>
+						<>
+							<p role="status">ログインしました。</p>
+							{accessCheck === 'checking' ? (
+								<p>モニター閲覧設定を確認しています。</p>
+							) : accessCheck !== 'idle' && accessCheck !== 'ready' ? (
+								<p css={errorStyle} role="alert">
+									{monitorAccessMessages[accessCheck]}
+								</p>
+							) : null}
+						</>
 					) : (
 						<form onSubmit={(event) => void submit(event)}>
 							<p css={warning}>

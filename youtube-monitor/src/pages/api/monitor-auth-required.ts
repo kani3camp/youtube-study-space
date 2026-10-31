@@ -1,9 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+import {
+	isMonitorAccessIssue,
+	type MonitorAccessIssue,
+	monitorAccessMessages,
+} from '../../lib/monitor-access-issues'
 
-const lastLoggedAt = {
-	'signed-out': Number.NEGATIVE_INFINITY,
-	unauthorized: Number.NEGATIVE_INFINITY,
-}
+const lastLoggedAt = new Map<MonitorAccessIssue, number>()
 
 export default function handler(
 	req: NextApiRequest,
@@ -17,22 +19,20 @@ export default function handler(
 	}
 	// 別サイトのフォーム等からの通知を拒否する。認証情報やリクエスト本文は不要。
 	const reason = req.headers['x-monitor-auth-required']
-	if (reason !== 'signed-out' && reason !== 'unauthorized') {
+	if (!isMonitorAccessIssue(reason)) {
 		res.status(403).end()
 		return
 	}
 
 	const now = Date.now()
 	// 再読み込みや複数ブラウザからの通知でも、ログを埋めないようにする。
-	if (now - lastLoggedAt[reason] >= 60_000) {
-		lastLoggedAt[reason] = now
-		const message =
-			reason === 'signed-out'
-				? '未ログインです。'
-				: 'ログイン済みですがモニター閲覧権限がありません。monitor_reader: true を確認してください。'
-		console.info(
-			`[monitor] ${message}ログインURL: http://localhost:${process.env.PORT ?? '3000'}/monitor-login`,
-		)
+	if (now - (lastLoggedAt.get(reason) ?? Number.NEGATIVE_INFINITY) >= 60_000) {
+		lastLoggedAt.set(reason, now)
+		const loginUrl =
+			reason === 'signed-out' || reason === 'unauthorized'
+				? `ログインURL: http://localhost:${process.env.PORT ?? '3000'}/monitor-login`
+				: ''
+		console.info(`[monitor] ${monitorAccessMessages[reason]}${loginUrl}`)
 	}
 	res.status(204).end()
 }

@@ -1,5 +1,6 @@
 import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { reportMonitorAccessIssue } from '../lib/monitor-access-issues'
 import {
 	type MonitorAuthorizationState,
 	observeMonitorAuthorization,
@@ -28,12 +29,7 @@ const MonitorAuthGate: FC<MonitorAuthGateProps> = ({ children }) => {
 			lastLoginNotice.current !== authorization.status
 		) {
 			lastLoginNotice.current = authorization.status
-			// 通知失敗で認証状態や配信向け表示を変えない。資格情報は送らない。
-			void fetch('/api/monitor-auth-required', {
-				method: 'POST',
-				headers: { 'X-Monitor-Auth-Required': authorization.status },
-				credentials: 'omit',
-			}).catch(() => undefined)
+			void reportMonitorAccessIssue(authorization.status)
 		}
 	}, [authorization.status])
 

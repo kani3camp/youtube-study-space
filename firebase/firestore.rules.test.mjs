@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, test } from 'node:test'
 import {
   assertFails,
@@ -8,7 +9,9 @@ import {
 import {
   collection,
   doc,
+  deleteDoc,
   getDoc,
+  getDocFromServer,
   getDocs,
   setDoc,
 } from 'firebase/firestore'
@@ -66,6 +69,30 @@ const readableMonitorCollections = [
 ]
 
 describe('Firestore monitor read boundary', () => {
+  test('server reads for login diagnostics reject missing claims and missing or disabled allowlist entries', async () => {
+    const allowedDb = testEnv.authenticatedContext(allowedUid, { monitor_reader: true }).firestore()
+    const constants = await getDocFromServer(doc(allowedDb, 'config', 'constants'))
+    assert.equal(constants.exists(), true)
+
+    for (const [uid, claims] of [
+      ['other-user', { monitor_reader: true }],
+      ['disabled-monitor', { monitor_reader: true }],
+      [allowedUid, {}],
+    ]) {
+      const db = testEnv.authenticatedContext(uid, claims).firestore()
+      await assert.rejects(getDocFromServer(doc(db, 'config', 'constants')), { code: 'permission-denied' })
+    }
+  })
+
+  test('authorized diagnostics can distinguish missing constants from an access denial', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await deleteDoc(doc(context.firestore(), 'config', 'constants'))
+    })
+    const db = testEnv.authenticatedContext(allowedUid, { monitor_reader: true }).firestore()
+    const constants = await getDocFromServer(doc(db, 'config', 'constants'))
+    assert.equal(constants.exists(), false)
+  })
+
   test('allows only an allowlisted UID carrying the monitor claim', async () => {
     const db = testEnv
       .authenticatedContext(allowedUid, { monitor_reader: true })

@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { monitorAccessMessages } from '../lib/monitor-access-issues'
 
 describe('monitor authentication notice API', () => {
 	beforeEach(() => {
@@ -61,10 +62,47 @@ describe('monitor authentication notice API', () => {
 			res as unknown as NextApiResponse,
 		)
 		expect(console.info).toHaveBeenLastCalledWith(
-			'[monitor] ログイン済みですがモニター閲覧権限がありません。monitor_reader: true を確認してください。ログインURL: http://localhost:18080/monitor-login',
+			`[monitor] ${monitorAccessMessages.unauthorized}ログインURL: http://localhost:18080/monitor-login`,
 		)
 		expect(console.info).toHaveBeenCalledTimes(2)
 	})
+
+	test.each([
+		'firestore-denied',
+		'firestore-config-missing',
+		'firestore-error',
+	] as const)(
+		'logs fixed guidance for %s without a login URL or request contents',
+		async (issue) => {
+			const { default: handler } = await import(
+				'../pages/api/monitor-auth-required'
+			)
+			const res = response()
+			const req = request('POST', { 'x-monitor-auth-required': issue })
+			req.body = { message: 'must-not-be-logged' }
+			handler(req, res as unknown as NextApiResponse)
+			expect(console.info).toHaveBeenCalledExactlyOnceWith(
+				`[monitor] ${monitorAccessMessages[issue]}`,
+			)
+			expect(res.status).toHaveBeenCalledWith(204)
+		},
+	)
+
+	test.each(['untrusted', 'toString', ['firestore-denied']])(
+		'rejects an unknown or malformed diagnostic reason %s',
+		async (reason) => {
+			const { default: handler } = await import(
+				'../pages/api/monitor-auth-required'
+			)
+			const res = response()
+			handler(
+				request('POST', { 'x-monitor-auth-required': reason }),
+				res as unknown as NextApiResponse,
+			)
+			expect(res.status).toHaveBeenCalledWith(403)
+			expect(console.info).not.toHaveBeenCalled()
+		},
+	)
 
 	test.each(['GET', 'OPTIONS'])(
 		'rejects %s without logging',

@@ -46,7 +46,7 @@ const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
 
 type SeatsProps = {
 	menuItems: Menu[]
-	onReadError: () => void
+	onReadError: (error: unknown) => void
 }
 
 const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
