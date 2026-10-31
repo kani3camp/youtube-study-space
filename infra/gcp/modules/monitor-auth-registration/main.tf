@@ -27,7 +27,7 @@ locals {
   source_path = "${path.module}/function/source.zip"
   source_sha  = fileexists(local.source_path) ? filesha256(local.source_path) : ""
   triggers = merge(
-    { beforeCreate = google_cloudfunctions2_function.guard.service_config[0].uri },
+    {},
     var.preserved_before_sign_in_uri == "" ? {} : { beforeSignIn = var.preserved_before_sign_in_uri }
   )
 }
@@ -129,12 +129,15 @@ resource "google_identity_platform_config" "auth" {
       password_required = true
     }
   }
-  blocking_functions {
-    dynamic "triggers" {
-      for_each = local.triggers
-      content {
-        event_type   = triggers.key
-        function_uri = triggers.value
+  dynamic "blocking_functions" {
+    for_each = length(local.triggers) == 0 ? [] : [local.triggers]
+    content {
+      dynamic "triggers" {
+        for_each = blocking_functions.value
+        content {
+          event_type   = triggers.key
+          function_uri = triggers.value
+        }
       }
     }
   }
