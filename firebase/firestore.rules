@@ -3,7 +3,6 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function isAuthorizedMonitor() {
       return request.auth != null
-        && request.auth.token.monitor_reader == true
         && exists(/databases/$(database)/documents/_monitor-readers/$(request.auth.uid))
         && get(/databases/$(database)/documents/_monitor-readers/$(request.auth.uid)).data.enabled == true;
     }
@@ -12,8 +11,8 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // この許可リストはServer/Admin SDKがIAM権限で管理する。
-    // ブラウザから許可済みmonitor UIDの列挙・参照・変更を許可しない。
+    // Server/Admin SDKs manage this allowlist through IAM. Browser clients must
+    // never be able to enumerate, inspect, or change authorized monitor UIDs.
     match /_monitor-readers/{uid} {
       allow read, write: if false;
     }

@@ -9,7 +9,6 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
-import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import terraform_normal_ops as ops
@@ -323,24 +322,6 @@ class SourceBoundary(unittest.TestCase):
             with patch.object(ops, 'apply_saved') as apply, self.assertRaises(ValueError):
                 ops.apply_prepared(e)
             apply.assert_not_called()
-
-    def test_deployment_archive_is_deterministic_without_source_script_execution(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            directory = root / 'modules/monitor-auth-registration/function'
-            directory.mkdir(parents=True)
-            names = ('guard.cjs', 'index.cjs', 'package.json', 'package-lock.json')
-            for name in names:
-                (directory / name).write_text('SOURCE_AS_DATA')
-            (directory / 'untracked-secret.json').write_text('DO_NOT_PACKAGE')
-            tfroot = root / 'environments/dev'
-            tfvars = {'monitor_auth_registration': {}}
-            selected.package_data(tfroot, tfvars)
-            original = (directory / 'source.zip').read_bytes()
-            selected.package_data(tfroot, tfvars)
-            self.assertEqual(original, (directory / 'source.zip').read_bytes())
-            with zipfile.ZipFile(directory / 'source.zip') as archive:
-                self.assertEqual(archive.namelist(), list(names))
 
     def test_prod_cannot_select_another_source(self):
         e = env() | {'NORMAL_TARGET': 'prod', 'GITHUB_REF': 'refs/heads/main',

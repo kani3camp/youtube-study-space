@@ -1,58 +1,50 @@
 # Firebase / Firestore
 
-This directory contains the repository-managed Firestore Security Rules, indexes, and emulator configuration. Treat these files as the existing project definition. Do **not** run `firebase init firestore` as a routine setup step because it can overwrite or regenerate repository-managed configuration.
+このディレクトリでは、Firestore Security Rules・インデックス・エミュレーターの設定をリポジトリで管理しています。これらを既存プロジェクトの定義として扱ってください。設定の上書きや再生成を避けるため、通常のセットアップで `firebase init firestore` を実行しないでください。
 
-## MyPage Phase 0Bの前提となるOBSモニター認証
+## Firebase Authenticationの管理元
 
-リポジトリの`firestore.rules`は、`seats`・`member-seats`・`menu`・`work-name-trend`・`config/constants`の読み取りに、専用monitor claimと有効なUID許可リスト項目を必要とする。匿名と通常MyPageユーザーは拒否する。モニターのソースも専用claimを確認してから購読する。これは実装済みだが、実配備の証拠ではない。古いRulesの環境では、従来の匿名公開が残っている場合がある。
+メール・パスワード認証の有効化は、[GCP Terraformの認証用モジュール](../infra/gcp/modules/monitor-auth/README.md)で管理します。`beforeCreate`による新規登録制限は廃止し、公開登録と既存アカウントへのパスワード追加を許可します。`firebase.json`には同じAuth設定の配備設定を追加せず、Firebase CLIとTerraformによる二重管理を避けてください。
 
-外部利用が可能になる最初のMyPage Phase 0B公開前に、[Issue #1459](https://github.com/kani3camp/youtube-study-space/issues/1459)は次を必要とする。
+このディレクトリは引き続きFirestore Rules・インデックス・エミュレーター設定の管理元です。モニター専用ユーザーはFirebaseコンソール／Admin SDKで作成し、許可リストを別途準備します。認証用モジュールは環境ごとの明示的な有効化と適用が必要で、コードのマージだけでは実環境の認証設定は変わりません。
 
-- モニター専用のFirebase Auth本人情報・claim・許可リスト項目を用意し、実装済みの対話ログインとFirebaseローカル永続化を使う。実OBS/CEF再起動後の保持は未検証である。
-- 対応するモニターとRulesをレビュー済みの組として配備し、各対象環境で匿名・通常MyPageユーザー・全ブラウザ書き込みの拒否を確認する。
-- Client SDK / Security Rulesのテストで、匿名・認可済みモニター・誤UID・無効許可リスト・read/list/write動作を検証し続ける。選択したDEV/PRODで、誤プロジェクトと期限切れセッションの拒否を別途検証し、再起動・更新・運用担当者への通知も確認する。
-- Client SDKの制御と、Security Rulesを経由しないサーバー側Go/IAMを分ける。ブラウザバンドルにサービスアカウント認証情報を追加せず、APIキーやプロジェクトの分離を認可の代替にしない。
-- 各環境で、拒否ルールの適用前に認証情報とログイン手段を準備する。無制限の匿名アクセスを戻さずに復旧できることを検証する。
+## テストで確認する範囲
 
-この節は実装済みの制御と、未完了の実環境公開条件を記述しており、配備完了は示さない。別途承認がない限り、既存Go Botとモニターの座席数制御を維持する。関連する[MyPage公開条件 #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)と[Notion Security Canon](https://app.notion.com/p/3ee357a8d0ce81038e27d0ad4c7eb634)も参照する。
+以下の検証は、それぞれ異なる仕様や制約を確認します。互いに代用することはできません。
 
-## Test layers
-
-These checks cover different contracts and are not interchangeable.
-
-### 1. Normal Go tests
+### 1. 通常のGoテスト
 
 ```sh
 cd system
 go test -shuffle=on -v ./...
 ```
 
-Tests with the `integration` build tag are not included here.
+`integration` ビルドタグを持つテストは含まれません。
 
-### 2. Firestore Emulator integration tests
+### 2. Firestore Emulatorを使う統合テスト
 
-From the repository root:
+リポジトリのルートから実行してください。
 
 ```sh
 npm install --global firebase-tools@15.25.1
 bash .github/scripts/run-firestore-integration-tests.sh
 ```
 
-Requirements are Node.js, Java 21 or later, and the pinned Firebase CLI version used by CI. The script starts Firestore Emulator and runs the Go integration suite. It does not require a real Firebase project or production credentials.
+Node.js、Java 21以降、CIで固定しているバージョンのFirebase CLIが必要です。スクリプトはFirestore Emulatorを起動してGoの統合テストを実行します。実際のFirebaseプロジェクトや本番用の認証情報は不要です。
 
-スクリプトはこのディレクトリに独立した依存関係を導入し、`@firebase/rules-unit-testing`で`firestore.rules.test.mjs`を実行してから、Go統合テストを実行する。Go層はEmulatorの動作に対してFirestoreのシリアライズ・トランザクション・リポジトリ/アプリケーション動作を検証する。Rulesテストは、ブラウザClient SDKの許可・拒否を別に検証する。
+スクリプトは、このディレクトリ専用の依存関係をインストールし、`@firebase/rules-unit-testing` で `firestore.rules.test.mjs` を実行してから、Goの統合テストを実行します。Go側では、Firestoreへのシリアライズ・トランザクション・リポジトリおよびアプリケーションの動作を、エミュレーターで検証します。Rulesのテストでは別途、ブラウザのClient SDKによるアクセスが許可・拒否されることを検証します。
 
-### 3. Client SDK / Security Rules behavior
+### 3. Client SDK / Security Rulesの動作
 
-When `firestore.rules` changes, reason explicitly about browser/client access separately from server-side Go behavior. Verify the intended allow/deny cases for every changed public boundary, especially `config/*` and any collection consumed by `youtube-monitor`.
+`firestore.rules` を変更するときは、サーバー側のGoの動作と、ブラウザ・クライアントからのアクセスを分けて確認してください。特に `config/*` や `youtube-monitor` が利用するコレクションなど、変更するアクセス制御の対象ごとに、意図した読み書きが許可・拒否されることを確認します。
 
-A Go test using server credentials can bypass the question that Security Rules answer. Do not treat a passing Go Emulator integration suite as sufficient evidence for a client-access policy change.
+サーバー用の認証情報を使うGoテストは、Security Rulesによるアクセス制御を迂回できます。Goのエミュレーター統合テストが通っただけで、クライアントのアクセス制御を検証できたと判断しないでください。
 
-モニター読み取りにはFirebase IDトークンの`monitor_reader: true`と、有効な`_monitor-readers/{uid}`文書の両方を必要とする。クライアントルールは許可リストの公開・変更を認めない。claimと許可リスト文書は信頼済みAdmin/サーバー操作だけで作る。段階導入と、拒否を維持する復旧手順は[`../youtube-monitor/README.md`](../youtube-monitor/README.md)を参照する。
+モニターの読み取りには、Firebaseへのログインと、ログインしたUIDの `_monitor-readers/{uid}` 文書の `enabled: true` が必要です。カスタムクレームは使用しません。クライアント向けのRulesでは、この許可リストの参照・変更を認めません。許可リスト文書は、信頼できるAdmin / サーバー操作で準備してください。段階的な導入と、アクセスを閉じた状態を維持するロールバックの手順は [`../youtube-monitor/README.md`](../youtube-monitor/README.md) を参照してください。
 
-## Existing project: inspect before deploying
+## 既存プロジェクト：配備前の確認
 
-Authenticate only when you need to inspect or change a real Firebase project:
+実際のFirebaseプロジェクトを確認・変更する必要がある場合だけ、認証を行ってください。
 
 ```sh
 firebase login
@@ -60,13 +52,13 @@ firebase projects:list
 firebase use <project-id>
 ```
 
-Before any deploy, confirm the selected project explicitly:
+配備前には、選択中のプロジェクトを明示的に確認します。
 
 ```sh
 firebase use
 ```
 
-Review repository-managed inputs before applying them:
+適用前に、リポジトリで管理している設定を確認してください。
 
 ```sh
 cat firebase/firestore.rules
@@ -74,11 +66,11 @@ cat firebase/firestore.indexes.json
 cat firebase/firebase.json
 ```
 
-Firebase CLI does not provide a CDK-style universal `diff` for Firestore Rules/indexes. Use local/source review plus the emulator checks above, and inspect the target project in Firebase/GCP when real-environment verification is required.
+Firebase CLIには、Firestore Rules・インデックスを対象としたCDKのような汎用の `diff` はありません。ローカルのソースレビューと上記のエミュレーター検証を行い、実環境の検証が必要な場合はFirebase / GCPで対象プロジェクトの状態を確認してください。
 
-## Targeted deployment
+## 対象を絞った配備
 
-A deployment changes external project state and requires authorization for the target environment. Prefer the narrowest target instead of generic `firebase deploy`:
+配備は外部プロジェクトの状態を変更するため、対象環境への操作として承認が必要です。`firebase deploy` で全体を配備するのではなく、必要な対象に絞ってください。
 
 ```sh
 cd firebase
@@ -86,14 +78,14 @@ firebase deploy --only firestore:rules --project <project-id>
 firebase deploy --only firestore:indexes --project <project-id>
 ```
 
-Deploy both only when both are intentionally changed:
+Rulesとインデックスの両方を意図的に変更する場合だけ、まとめて配備します。
 
 ```sh
 firebase deploy --only firestore --project <project-id>
 ```
 
-After deployment, verify the intended client-visible behavior against the selected environment. Never deploy merely to discover whether a rules change is syntactically valid; use local/emulator validation first.
+配備後は、対象環境でクライアントから見た動作が想定どおりであることを確認してください。Rulesの構文が正しいかを調べるためだけに配備せず、まずローカルとエミュレーターで検証します。
 
-## New standalone Firebase project bootstrap
+## 独立したFirebaseプロジェクトの新規作成
 
-Only use initialization commands when intentionally creating a separate Firebase project from scratch. They are not part of normal development for this repository. If bootstrap documentation becomes necessary, keep it separate from the existing-environment workflow above so agents do not overwrite checked-in configuration accidentally.
+初期化コマンドを使うのは、意図的に別のFirebaseプロジェクトを新規作成する場合だけです。既存環境の通常作業には含めません。新規作成用の手順が必要になった場合も、管理済みの設定を誤って上書きしないよう、既存環境の作業手順とは分けて記載してください。

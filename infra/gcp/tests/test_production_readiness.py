@@ -113,9 +113,10 @@ class ProductionMockPlanTest(unittest.TestCase):
             for name in ("monitoring-notification-channels", "youtube-quota-alerts", "retained-backup-bucket",
                          "retained-bigquery-dataset", "retained-order-history", "retained-user-activity-history",
                          "firestore-export-topic", "firestore-export-scheduler", "firestore-export-function",
-                         "runtime-aws-wif", "owned-project-apis"):
+                         "runtime-aws-wif", "owned-project-apis", "monitor-auth"):
                 shutil.copytree(GCP / "modules" / name, Path(directory) / "modules" / name,
-                                ignore=shutil.ignore_patterns(".terraform", "*.tfstate*", "*.tfplan", "*.tfvars*"))
+                                ignore=shutil.ignore_patterns(".terraform", "node_modules", "source.zip", "*debug.log",
+                                                             "*.tfstate*", "*.tfplan", "*.tfvars*"))
             env = credentialless_environment()
             for args in (("init", "-backend=false", "-lockfile=readonly", "-input=false"),
                          ("test", "-json", "-verbose")):

@@ -46,7 +46,7 @@ const PAGING_INTERVAL_MSEC = Constants.pagingIntervalSeconds * 1000
 
 type SeatsProps = {
 	menuItems: Menu[]
-	onReadError: () => void
+	onReadError: (error: unknown) => void
 }
 
 const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
@@ -84,7 +84,9 @@ const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 	// biome-ignore lint/correctness/useExhaustiveDependencies: initFirestore は初期化時のみ呼びたい意図的な設計
 	useEffect(() => {
 		if (process.env.NEXT_PUBLIC_API_KEY === undefined) {
-			alert('NEXT_PUBLIC_API_KEY is not defined')
+			alert(
+				'配信画面を表示できません。ライブチャット、または緊急連絡フォームからご連絡ください。',
+			)
 		}
 
 		return initFirestore()

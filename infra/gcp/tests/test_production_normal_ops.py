@@ -236,7 +236,10 @@ class ProductionNormalOps(unittest.TestCase):
 
     def test_prod_review_is_explicit_and_default_empty(self):
         self.assertEqual(ops.review("prod"), {})
-        self.assertEqual(ops.review("dev"), {})
+        # DEVの実ファイルにはレビュー済みの一回限りの削除指定を置ける。
+        # 空の既定値の読取りはfixtureで検証し、実際のPROD指定は空を維持する。
+        with patch.object(ops.selected_source, "read_file", return_value=b'{"destructive_changes":{}}'):
+            self.assertEqual(ops.review("dev"), {})
         with self.assertRaises(ValueError):
             ops.review("staging")
 

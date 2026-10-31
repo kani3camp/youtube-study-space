@@ -21,17 +21,31 @@ import Timer from '../components/Timer'
 import Usage from '../components/Usage'
 import { useTimeTheme } from '../hooks/use-time-theme'
 import { firestoreMenuConverter, getFirebaseApp } from '../lib/firestore'
+import { reportMonitorAccessIssue } from '../lib/monitor-access-issues'
+import {
+	classifyMonitorFirestoreError,
+	type MonitorFirestoreIssue,
+} from '../lib/monitor-firestore-access'
 import { themedRoot } from '../styles/AmbientFrame.styles'
 import type { Menu } from '../types/api'
 
 export const Monitor: FC = () => {
 	const [menuItems, setMenuItems] = useState<Menu[]>([])
-	const [readFailed, setReadFailed] = useState(false)
+	const [readFailure, setReadFailure] = useState<MonitorFirestoreIssue | null>(
+		null,
+	)
 	const { timeTheme, textTone, contrastBridge } = useTimeTheme()
-	const handleReadError = useCallback(() => setReadFailed(true), [])
+	const handleReadError = useCallback((error: unknown) => {
+		setReadFailure((current) => current ?? classifyMonitorFirestoreError(error))
+	}, [])
+	useEffect(() => {
+		if (readFailure) {
+			void reportMonitorAccessIssue(readFailure)
+		}
+	}, [readFailure])
 
 	useEffect(() => {
-		if (readFailed) {
+		if (readFailure) {
 			return undefined
 		}
 
@@ -58,13 +72,13 @@ export const Monitor: FC = () => {
 		return () => {
 			unsubscribe()
 		}
-	}, [handleReadError, readFailed])
+	}, [handleReadError, readFailure])
 
-	if (readFailed) {
+	if (readFailure) {
 		return (
 			<MonitorAccessStatus
-				title="Firestore を読み込めません"
-				detail="読み取り権限またはネットワークを確認してください。安全のためモニターを停止しています。"
+				title="配信画面を表示できません"
+				detail="ライブチャット、または緊急連絡フォームからご連絡ください。"
 			/>
 		)
 	}

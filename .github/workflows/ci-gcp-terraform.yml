@@ -54,6 +54,11 @@ jobs:
           python3 .github/scripts/test_terraform_export_function_gate.py
           python3 .github/scripts/test_user_activity_history_preparation.py
 
+      - name: Test email/password Auth ownership and Terraform contract
+        run: |
+          python3 -B infra/gcp/tests/test_monitor_auth.py
+          python3 -B infra/gcp/scripts/test_monitor_auth_terraform.py
+
       - name: Check formatting
         run: terraform fmt -check -recursive infra/gcp
 

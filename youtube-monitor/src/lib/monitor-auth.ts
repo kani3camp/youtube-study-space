@@ -7,35 +7,40 @@ import {
 	signOut,
 	type User,
 } from 'firebase/auth'
+import { FirebaseConfigurationError } from './firebase-config'
 import { getFirebaseApp } from './firestore'
+import {
+	checkMonitorFirestoreAccess,
+	type MonitorFirestoreIssue,
+} from './monitor-firestore-access'
 
 export type MonitorAuthorizationState =
 	| { status: 'checking' }
 	| { status: 'signed-out' }
-	| { status: 'unauthorized' }
+	| { status: 'denied'; issue: MonitorFirestoreIssue }
 	| { status: 'authorized'; user: User }
 	| { status: 'error' }
+	| { status: 'configuration-error' }
 
 type AuthorizationObserver = (state: MonitorAuthorizationState) => void
 
 const getMonitorAuth = () => getAuth(getFirebaseApp())
 
-export const hasMonitorReaderClaim = async (user: User): Promise<boolean> => {
-	const token = await user.getIdTokenResult()
-	return token.claims.monitor_reader === true
-}
-
 export const observeMonitorAuthorization = (
 	observer: AuthorizationObserver,
 ): (() => void) => {
-	const auth = getMonitorAuth()
 	let stopped = false
 	let tokenRevision = 0
 	let authorizedUid: string | null = null
 	let unsubscribe: () => void = () => undefined
 
-	void setPersistence(auth, browserLocalPersistence)
-		.then(() => {
+	void Promise.resolve()
+		.then(async () => {
+			if (stopped) {
+				return
+			}
+			const auth = getMonitorAuth()
+			await setPersistence(auth, browserLocalPersistence)
 			if (stopped) {
 				return
 			}
@@ -43,6 +48,9 @@ export const observeMonitorAuthorization = (
 			unsubscribe = onIdTokenChanged(
 				auth,
 				(user) => {
+					if (stopped) {
+						return
+					}
 					const revision = ++tokenRevision
 					if (user === null) {
 						authorizedUid = null
@@ -53,14 +61,14 @@ export const observeMonitorAuthorization = (
 					if (authorizedUid !== user.uid) {
 						observer({ status: 'checking' })
 					}
-					void hasMonitorReaderClaim(user)
-						.then((authorized) => {
+					void checkMonitorFirestoreAccess()
+						.then((access) => {
 							if (!stopped && revision === tokenRevision) {
-								authorizedUid = authorized ? user.uid : null
+								authorizedUid = access === 'ready' ? user.uid : null
 								observer(
-									authorized
+									access === 'ready'
 										? { status: 'authorized', user }
-										: { status: 'unauthorized' },
+										: { status: 'denied', issue: access },
 								)
 							}
 						})
@@ -73,15 +81,21 @@ export const observeMonitorAuthorization = (
 				},
 				() => {
 					if (!stopped) {
+						tokenRevision++
 						authorizedUid = null
 						observer({ status: 'error' })
 					}
 				},
 			)
 		})
-		.catch(() => {
+		.catch((error) => {
 			if (!stopped) {
-				observer({ status: 'error' })
+				observer({
+					status:
+						error instanceof FirebaseConfigurationError
+							? 'configuration-error'
+							: 'error',
+				})
 			}
 		})
 

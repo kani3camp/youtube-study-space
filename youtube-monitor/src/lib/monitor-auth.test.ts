@@ -1,189 +1,238 @@
 import type { User } from 'firebase/auth'
 
-const authMocks = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({
 	auth: {},
+	getAuth: vi.fn(),
 	onIdTokenChanged: vi.fn(),
 	setPersistence: vi.fn(),
+	checkAccess: vi.fn(),
+	unsubscribe: vi.fn(),
 	tokenObserver: undefined as ((user: User | null) => void) | undefined,
+	errorObserver: undefined as (() => void) | undefined,
 }))
-
 vi.mock('firebase/auth', () => ({
 	browserLocalPersistence: {},
-	getAuth: vi.fn(() => authMocks.auth),
-	onIdTokenChanged: authMocks.onIdTokenChanged,
-	setPersistence: authMocks.setPersistence,
+	getAuth: mocks.getAuth,
+	onIdTokenChanged: mocks.onIdTokenChanged,
+	setPersistence: mocks.setPersistence,
 	signInWithEmailAndPassword: vi.fn(),
 	signOut: vi.fn(),
 }))
-
-vi.mock('./firestore', () => ({
-	getFirebaseApp: vi.fn(() => ({})),
+vi.mock('./firestore', () => ({ getFirebaseApp: () => ({}) }))
+vi.mock('./monitor-firestore-access', () => ({
+	checkMonitorFirestoreAccess: mocks.checkAccess,
 }))
 
-import {
-	hasMonitorReaderClaim,
-	observeMonitorAuthorization,
-} from './monitor-auth'
+import { FirebaseConfigurationError } from './firebase-config'
+import { observeMonitorAuthorization } from './monitor-auth'
 
-vi.mock('next/font/google', () => ({
-	M_PLUS_Rounded_1c: vi.fn(() => ({
-		style: { fontFamily: 'M PLUS Rounded 1c' },
-		className: 'mock-font-class',
-	})),
-	Source_Code_Pro: vi.fn(() => ({
-		style: { fontFamily: 'mock-source-code-pro' },
-		className: 'mock-source-code-pro-class',
-	})),
-}))
+const user = (uid = 'monitor-user') => ({ uid }) as User
+const subscribed = async () => {
+	await vi.waitFor(() => expect(mocks.tokenObserver).toBeDefined())
+}
 
-const userWithClaim = (monitorReader: unknown, uid = 'monitor-user'): User =>
-	({
-		uid,
-		getIdTokenResult: vi.fn().mockResolvedValue({
-			claims: { monitor_reader: monitorReader },
-		}),
-	}) as unknown as User
-
-describe('hasMonitorReaderClaim', () => {
-	test('accepts only the dedicated boolean monitor claim', async () => {
-		await expect(hasMonitorReaderClaim(userWithClaim(true))).resolves.toBe(true)
-	})
-
-	test.each([false, undefined, 'true', 1])(
-		'rejects a non-boolean-true claim (%s)',
-		async (claim) => {
-			await expect(hasMonitorReaderClaim(userWithClaim(claim))).resolves.toBe(
-				false,
-			)
-		},
-	)
-})
-
-describe('observeMonitorAuthorization', () => {
+describe('monitor session and Firestore authorization', () => {
 	beforeEach(() => {
-		authMocks.tokenObserver = undefined
-		authMocks.setPersistence.mockReset().mockResolvedValue(undefined)
-		authMocks.onIdTokenChanged
+		mocks.tokenObserver = undefined
+		mocks.errorObserver = undefined
+		mocks.getAuth.mockReset().mockReturnValue(mocks.auth)
+		mocks.setPersistence.mockReset().mockResolvedValue(undefined)
+		mocks.checkAccess.mockReset().mockResolvedValue('ready')
+		mocks.unsubscribe.mockReset()
+		mocks.onIdTokenChanged
 			.mockReset()
 			.mockImplementation(
-				(_auth: unknown, next: (user: User | null) => void): (() => void) => {
-					authMocks.tokenObserver = next
-					return vi.fn()
+				(
+					_auth: unknown,
+					next: (user: User | null) => void,
+					error: () => void,
+				) => {
+					mocks.tokenObserver = next
+					mocks.errorObserver = error
+					return mocks.unsubscribe
 				},
 			)
 	})
 
-	test('keeps an authorized monitor mounted during a same-user token refresh', async () => {
+	test('reports Auth initialization failures without accessing Firestore', async () => {
+		mocks.getAuth.mockImplementationOnce(() => {
+			throw new Error('invalid-api-key')
+		})
 		const observer = vi.fn()
-		const user = userWithClaim(true)
 		const stop = observeMonitorAuthorization(observer)
-
-		await vi.waitFor(() => {
-			expect(authMocks.tokenObserver).toBeDefined()
-		})
-		authMocks.tokenObserver?.(user)
-		await vi.waitFor(() => {
-			expect(observer).toHaveBeenLastCalledWith({
-				status: 'authorized',
-				user,
-			})
-		})
-
-		observer.mockClear()
-		authMocks.tokenObserver?.(user)
-		await vi.waitFor(() => {
-			expect(observer).toHaveBeenCalledWith({ status: 'authorized', user })
-		})
-		expect(observer).not.toHaveBeenCalledWith({ status: 'checking' })
-
+		await vi.waitFor(() =>
+			expect(observer).toHaveBeenLastCalledWith({ status: 'error' }),
+		)
+		expect(mocks.checkAccess).not.toHaveBeenCalled()
 		stop()
 	})
 
-	test('still fails closed when a refreshed claim is revoked', async () => {
+	test('reports missing Firebase configuration separately from authentication failure', async () => {
+		mocks.getAuth.mockImplementationOnce(() => {
+			throw new FirebaseConfigurationError('NEXT_PUBLIC_FIREBASE_PROJECT_ID')
+		})
 		const observer = vi.fn()
-		const user = userWithClaim(true)
-		const getIdTokenResult = vi.mocked(user.getIdTokenResult)
 		const stop = observeMonitorAuthorization(observer)
-
-		await vi.waitFor(() => {
-			expect(authMocks.tokenObserver).toBeDefined()
-		})
-		authMocks.tokenObserver?.(user)
-		await vi.waitFor(() => {
+		await vi.waitFor(() =>
 			expect(observer).toHaveBeenLastCalledWith({
-				status: 'authorized',
-				user,
-			})
-		})
-
-		getIdTokenResult.mockResolvedValueOnce({
-			claims: { monitor_reader: false },
-		} as unknown as Awaited<ReturnType<User['getIdTokenResult']>>)
-		observer.mockClear()
-		authMocks.tokenObserver?.(user)
-		await vi.waitFor(() => {
-			expect(observer).toHaveBeenLastCalledWith({ status: 'unauthorized' })
-		})
-		expect(observer).not.toHaveBeenCalledWith({ status: 'checking' })
-
+				status: 'configuration-error',
+			}),
+		)
+		expect(mocks.onIdTokenChanged).not.toHaveBeenCalled()
+		expect(mocks.checkAccess).not.toHaveBeenCalled()
 		stop()
 	})
 
-	test('returns to checking before authorizing a different user', async () => {
+	test('does not subscribe or access Firestore when persistence fails', async () => {
+		mocks.setPersistence.mockRejectedValueOnce(new Error('unavailable'))
 		const observer = vi.fn()
-		const firstUser = userWithClaim(true, 'first-monitor-user')
-		const secondUser = userWithClaim(false, 'second-monitor-user')
 		const stop = observeMonitorAuthorization(observer)
-
-		await vi.waitFor(() => {
-			expect(authMocks.tokenObserver).toBeDefined()
-		})
-		authMocks.tokenObserver?.(firstUser)
-		await vi.waitFor(() => {
-			expect(observer).toHaveBeenLastCalledWith({
-				status: 'authorized',
-				user: firstUser,
-			})
-		})
-
-		observer.mockClear()
-		authMocks.tokenObserver?.(secondUser)
-		expect(observer).toHaveBeenLastCalledWith({ status: 'checking' })
-		await vi.waitFor(() => {
-			expect(observer).toHaveBeenLastCalledWith({ status: 'unauthorized' })
-		})
-
+		await vi.waitFor(() =>
+			expect(observer).toHaveBeenLastCalledWith({ status: 'error' }),
+		)
+		expect(mocks.onIdTokenChanged).not.toHaveBeenCalled()
+		expect(mocks.checkAccess).not.toHaveBeenCalled()
 		stop()
 	})
 
-	test('ignores an obsolete claim result after sign-out', async () => {
-		let resolveClaim: ((value: boolean) => void) | undefined
-		const claimResult = new Promise<boolean>((resolve) => {
-			resolveClaim = resolve
-		})
-		const user = {
-			uid: 'monitor-user',
-			getIdTokenResult: vi.fn(async () => ({
-				claims: { monitor_reader: await claimResult },
-			})),
-		} as unknown as User
+	test('does not access Firestore for a signed-out session', async () => {
 		const observer = vi.fn()
 		const stop = observeMonitorAuthorization(observer)
-
-		await vi.waitFor(() => {
-			expect(authMocks.tokenObserver).toBeDefined()
-		})
-		authMocks.tokenObserver?.(user)
-		expect(observer).toHaveBeenLastCalledWith({ status: 'checking' })
-		authMocks.tokenObserver?.(null)
+		await subscribed()
+		mocks.tokenObserver?.(null)
 		expect(observer).toHaveBeenLastCalledWith({ status: 'signed-out' })
-
-		resolveClaim?.(true)
-		await claimResult
-		await Promise.resolve()
-		expect(observer).not.toHaveBeenCalledWith({ status: 'authorized', user })
-		expect(observer).toHaveBeenLastCalledWith({ status: 'signed-out' })
-
+		expect(mocks.checkAccess).not.toHaveBeenCalled()
 		stop()
 	})
+
+	test.each([undefined, false, true])(
+		'allows an authenticated user after the server read succeeds regardless of the retired claim (%s)',
+		async (claim) => {
+			const account = {
+				uid: 'monitor-user',
+				getIdTokenResult: vi
+					.fn()
+					.mockResolvedValue({ claims: { monitor_reader: claim } }),
+			} as unknown as User
+			const observer = vi.fn()
+			const stop = observeMonitorAuthorization(observer)
+			await subscribed()
+			mocks.tokenObserver?.(account)
+			await vi.waitFor(() =>
+				expect(observer).toHaveBeenLastCalledWith({
+					status: 'authorized',
+					user: account,
+				}),
+			)
+			expect(mocks.checkAccess).toHaveBeenCalledOnce()
+			expect(account.getIdTokenResult).not.toHaveBeenCalled()
+			stop()
+		},
+	)
+
+	test.each([
+		'firestore-denied',
+		'firestore-config-missing',
+		'firestore-error',
+	])(
+		'keeps a signed-in user closed and preserves the %s diagnostic',
+		async (issue) => {
+			mocks.checkAccess.mockResolvedValue(issue)
+			const observer = vi.fn()
+			const stop = observeMonitorAuthorization(observer)
+			await subscribed()
+			mocks.tokenObserver?.(user())
+			await vi.waitFor(() =>
+				expect(observer).toHaveBeenLastCalledWith({ status: 'denied', issue }),
+			)
+			expect(observer).not.toHaveBeenCalledWith(
+				expect.objectContaining({ status: 'authorized' }),
+			)
+			stop()
+		},
+	)
+
+	test('keeps the same user mounted during token refresh but closes when the allowlist no longer permits reads', async () => {
+		const observer = vi.fn()
+		const account = user()
+		const stop = observeMonitorAuthorization(observer)
+		await subscribed()
+		mocks.tokenObserver?.(account)
+		await vi.waitFor(() =>
+			expect(observer).toHaveBeenLastCalledWith({
+				status: 'authorized',
+				user: account,
+			}),
+		)
+		observer.mockClear()
+		mocks.tokenObserver?.(account)
+		await vi.waitFor(() =>
+			expect(observer).toHaveBeenLastCalledWith({
+				status: 'authorized',
+				user: account,
+			}),
+		)
+		expect(observer).not.toHaveBeenCalledWith({ status: 'checking' })
+		mocks.checkAccess.mockResolvedValueOnce('firestore-denied')
+		mocks.tokenObserver?.(account)
+		await vi.waitFor(() =>
+			expect(observer).toHaveBeenLastCalledWith({
+				status: 'denied',
+				issue: 'firestore-denied',
+			}),
+		)
+		stop()
+	})
+
+	test('closes old data before checking a different signed-in account', async () => {
+		const observer = vi.fn()
+		const first = user('first')
+		const stop = observeMonitorAuthorization(observer)
+		await subscribed()
+		mocks.tokenObserver?.(first)
+		await vi.waitFor(() =>
+			expect(observer).toHaveBeenLastCalledWith({
+				status: 'authorized',
+				user: first,
+			}),
+		)
+		mocks.checkAccess.mockResolvedValueOnce('firestore-denied')
+		observer.mockClear()
+		mocks.tokenObserver?.(user('second'))
+		expect(observer).toHaveBeenLastCalledWith({ status: 'checking' })
+		await vi.waitFor(() =>
+			expect(observer).toHaveBeenLastCalledWith({
+				status: 'denied',
+				issue: 'firestore-denied',
+			}),
+		)
+		stop()
+	})
+
+	test.each(['sign-out', 'listener-error', 'unmount'])(
+		'ignores pending authorization after %s',
+		async (event) => {
+			let finish: (access: string) => void = () => undefined
+			mocks.checkAccess.mockReturnValue(
+				new Promise((resolve) => {
+					finish = resolve
+				}),
+			)
+			const observer = vi.fn()
+			const account = user()
+			const stop = observeMonitorAuthorization(observer)
+			await subscribed()
+			mocks.tokenObserver?.(account)
+			if (event === 'sign-out') mocks.tokenObserver?.(null)
+			else if (event === 'listener-error') mocks.errorObserver?.()
+			else stop()
+			observer.mockClear()
+			finish('ready')
+			await Promise.resolve()
+			await Promise.resolve()
+			expect(observer).not.toHaveBeenCalled()
+			if (event !== 'unmount') stop()
+			expect(mocks.unsubscribe).toHaveBeenCalledOnce()
+		},
+	)
 })
