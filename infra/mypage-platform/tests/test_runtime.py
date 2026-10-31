@@ -186,6 +186,9 @@ class RuntimeTest(unittest.TestCase):
         for mutate in (
             lambda change: change["after"].update(ingress="INGRESS_TRAFFIC_INTERNAL_ONLY"),
             lambda change: change["after"]["template"][0].update(timeout="60s"),
+            lambda change: change["after"]["template"][0]["containers"][0].update(image=r.REPOSITORY + "@sha256:" + "e" * 64),
+            lambda change: change["after"]["template"][0]["containers"][0]["env"].append({"name": "INJECTED", "value": "x"}),
+            lambda change: change["after"]["traffic"][0].update(percent=50),
             lambda change: change["after"].update(deletion_policy="DELETE"),
             lambda change: change["before"].update(deletion_policy="ABANDON"),
             lambda change: change.update(after_unknown={"uri": True}),
