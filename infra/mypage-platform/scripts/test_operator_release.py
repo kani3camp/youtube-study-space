@@ -181,6 +181,25 @@ class OperatorReleaseTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'operator-job-operation'):
             o.wait_job_update('token', operation | {'error': {'code': 9}}, job(), release())
 
+    def test_job_wait_rejects_failed_mismatched_or_stalled_updates_without_the_lro(self):
+        # Without LRO polling, the Job readback is the only completion signal.
+        operation = {'name': 'projects/' + o.c.PROJECT + '/locations/' + o.c.REGION + '/operations/synthetic',
+                     'done': False}
+        for name, final in (
+                ('failed', job(after=True) | {'terminalCondition': {'state': 'CONDITION_FAILED'}}),
+                ('observed-generation', job(after=True) | {'observedGeneration': '1'}),
+                ('skipped-generation', job(after=True) | {'generation': '3', 'observedGeneration': '3'}),
+                ('replaced-job', job(after=True) | {'uid': 'other-uid'})):
+            with self.subTest(name=name), patch.object(o, 'job_request', return_value=final), \
+                 patch.object(o.time, 'sleep'), self.assertRaises(ValueError):
+                o.wait_job_update('token', operation, job(), release())
+        for name, stalled in (('generation', job()), ('reconciling', job(after=True) | {'reconciling': True})):
+            clock = iter(range(0, 1000, 100))
+            with self.subTest(stalled=name), patch.object(o, 'job_request', return_value=stalled), \
+                 patch.object(o.time, 'sleep'), patch.object(o.time, 'monotonic', side_effect=lambda: next(clock)), \
+                 self.assertRaisesRegex(ValueError, 'operator-job-ready-timeout'):
+                o.wait_job_update('token', operation, job(), release())
+
     def execute(self, *, moved=False, unchanged=False, superseded=False, without=None):
         before_job = job(after=unchanged)
         after_job = deepcopy(before_job) if unchanged else job(after=True)
