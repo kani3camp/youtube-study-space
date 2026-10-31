@@ -4,9 +4,9 @@
 
 ## Firebase Authenticationの管理元
 
-メール・パスワード認証の有効化、一般利用者の新規登録を拒否する`beforeCreate`、その関数の配備は、[GCP Terraformの認証用モジュール](../infra/gcp/modules/monitor-auth-registration/README.md)で管理します。`firebase.json`には同じAuth設定や関数の配備設定を追加せず、Firebase CLIとTerraformによる二重管理を避けてください。
+メール・パスワード認証の有効化は、[GCP Terraformの認証用モジュール](../infra/gcp/modules/monitor-auth/README.md)で管理します。`beforeCreate`による新規登録制限は廃止し、公開登録と既存アカウントへのパスワード追加を許可します。`firebase.json`には同じAuth設定の配備設定を追加せず、Firebase CLIとTerraformによる二重管理を避けてください。
 
-このディレクトリは引き続きFirestore Rules・インデックス・エミュレーター設定の管理元です。モニター専用ユーザーはFirebaseコンソール／Admin SDKで作成し、許可リストを別途準備します。認証用モジュールは環境ごとの明示的な有効化と適用が必要で、コードのマージだけでは登録制限は有効になりません。
+このディレクトリは引き続きFirestore Rules・インデックス・エミュレーター設定の管理元です。モニター専用ユーザーはFirebaseコンソール／Admin SDKで作成し、許可リストを別途準備します。認証用モジュールは環境ごとの明示的な有効化と適用が必要で、コードのマージだけでは実環境の認証設定は変わりません。
 
 ## テストで確認する範囲
 

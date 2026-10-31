@@ -1,4 +1,0 @@
-.terraform/
-.terraform.lock.hcl
-function/source.zip
-function/*debug.log

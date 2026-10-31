@@ -59,8 +59,8 @@ assert_exact_groups "system firestore_integration aws_cdk" system/.dockerignore
 assert_exact_groups aws_cdk aws-cdk/lib/aws-cdk-stack.ts
 assert_exact_groups gcp_terraform infra/gcp/README.md
 assert_exact_groups gcp_terraform infra/gcp/environments/dev/main.tf
-assert_exact_groups gcp_terraform infra/gcp/modules/monitor-auth-registration/function/guard.cjs
-assert_exact_groups gcp_terraform infra/gcp/scripts/package_monitor_auth.py
+assert_exact_groups gcp_terraform infra/gcp/modules/monitor-auth/main.tf
+assert_exact_groups gcp_terraform infra/gcp/scripts/monitor_auth.py
 assert_exact_groups gcp_terraform infra/gcp/environments/prod/main.tf
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_pool_import_fidelity.py
 assert_exact_groups gcp_terraform .github/scripts/terraform_plan_summary.py
