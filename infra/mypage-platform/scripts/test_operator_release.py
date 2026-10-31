@@ -163,6 +163,43 @@ class OperatorReleaseTest(unittest.TestCase):
             self.assertEqual(o.wait_job_update('token', operation, job(), release()), job(after=True))
         self.assertEqual(request.call_count, 2)
 
+    def test_job_wait_reads_only_the_job_never_the_project_operation(self):
+        # The PATCH returns a pending LRO; the Operator SA cannot read project operations.
+        operation = {'name': 'projects/' + o.c.PROJECT + '/locations/' + o.c.REGION + '/operations/synthetic',
+                     'done': False}
+        urls = []
+
+        def request(token, body=None, *, url=o.JOB_URL, missing_ok=False):
+            urls.append(url)
+            return job(after=len(urls) >= 3) | ({'reconciling': True} if len(urls) == 3 else {})
+
+        with patch.object(o, 'job_request', side_effect=request), patch.object(o.time, 'sleep'):
+            self.assertEqual(o.wait_job_update('token', operation, job(), release()), job(after=True))
+        self.assertEqual(urls, [o.JOB_URL] * 4)
+        with self.assertRaisesRegex(ValueError, 'operator-job-url'):
+            o.job_request('token', url='https://run.googleapis.com/v2/' + operation['name'])
+        with self.assertRaisesRegex(ValueError, 'operator-job-operation'):
+            o.wait_job_update('token', operation | {'error': {'code': 9}}, job(), release())
+
+    def test_job_wait_rejects_failed_mismatched_or_stalled_updates_without_the_lro(self):
+        # Without LRO polling, the Job readback is the only completion signal.
+        operation = {'name': 'projects/' + o.c.PROJECT + '/locations/' + o.c.REGION + '/operations/synthetic',
+                     'done': False}
+        for name, final in (
+                ('failed', job(after=True) | {'terminalCondition': {'state': 'CONDITION_FAILED'}}),
+                ('observed-generation', job(after=True) | {'observedGeneration': '1'}),
+                ('skipped-generation', job(after=True) | {'generation': '3', 'observedGeneration': '3'}),
+                ('replaced-job', job(after=True) | {'uid': 'other-uid'})):
+            with self.subTest(name=name), patch.object(o, 'job_request', return_value=final), \
+                 patch.object(o.time, 'sleep'), self.assertRaises(ValueError):
+                o.wait_job_update('token', operation, job(), release())
+        for name, stalled in (('generation', job()), ('reconciling', job(after=True) | {'reconciling': True})):
+            clock = iter(range(0, 1000, 100))
+            with self.subTest(stalled=name), patch.object(o, 'job_request', return_value=stalled), \
+                 patch.object(o.time, 'sleep'), patch.object(o.time, 'monotonic', side_effect=lambda: next(clock)), \
+                 self.assertRaisesRegex(ValueError, 'operator-job-ready-timeout'):
+                o.wait_job_update('token', operation, job(), release())
+
     def execute(self, *, moved=False, unchanged=False, superseded=False, without=None):
         before_job = job(after=unchanged)
         after_job = deepcopy(before_job) if unchanged else job(after=True)
