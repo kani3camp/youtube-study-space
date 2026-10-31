@@ -267,8 +267,10 @@ class FoundationTest(unittest.TestCase):
                         redirect_stderr(output), redirect_stdout(stdout):
                     self.assertEqual(ops.main(), 1)
                 self.assertIn('check=' + expected + '.', output.getvalue())
-                self.assertNotIn(private, output.getvalue() + stdout.getvalue())
-                self.assertNotIn('private.unreviewed.permission', output.getvalue())
+                printed = output.getvalue() + stdout.getvalue()
+                self.assertNotIn(private, printed)
+                for unreviewed in ('private.unreviewed.permission', 'private.googleapis.com/unreviewed.permission', 'unreviewed.permission'):
+                    self.assertNotIn(unreviewed, printed)
         success = ops.subprocess.CompletedProcess(['terraform'], 0, private, '')
         with patch.object(ops.subprocess, 'run', return_value=success):
             self.assertEqual(ops.run(['terraform'], check='terraform-plan'), private)
