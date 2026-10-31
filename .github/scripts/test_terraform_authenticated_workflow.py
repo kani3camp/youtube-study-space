@@ -74,6 +74,20 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             for mode in ('migration-plan', 'migration-apply'):
                 self.assertNotEqual(self.run_preflight(MODE=mode, **context).returncode, 0)
 
+    def test_arbitrary_dev_branch_still_requires_initial_owner_dispatch(self):
+        ref = 'refs/heads/feature/no-environment-registration'
+        context = {'GITHUB_REF': ref, 'NORMAL_EXPECTED_SHA': 'a' * 40,
+                   'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref}
+        for mode in ('normal-plan', 'normal-apply'):
+            self.assertEqual(self.run_preflight(MODE=mode, **context).returncode, 0)
+            for key, value in (('GITHUB_ACTOR', 'other'), ('GITHUB_ACTOR_ID', '0'),
+                               ('GITHUB_TRIGGERING_ACTOR', 'other'), ('GITHUB_RUN_ATTEMPT', '2'),
+                               ('GITHUB_EVENT_NAME', 'pull_request')):
+                with self.subTest(mode=mode, key=key):
+                    result = self.run_preflight(MODE=mode, **(context | {key: value}))
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.outputs, '')
+
     def test_production_normal_requires_main_and_disallows_cloud_e2e(self):
         ref = 'refs/heads/main'
         context = {'TARGET': 'prod', 'GITHUB_REF': ref,

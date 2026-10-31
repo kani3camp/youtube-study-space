@@ -216,6 +216,11 @@ class Contracts(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     ops.context(v | {"GITHUB_WORKFLOW_REF":
                                       ops.CALLER + "refs/heads/other"}, role)
+                for key, value in (('GITHUB_ACTOR', 'other'), ('GITHUB_ACTOR_ID', '0'),
+                                   ('GITHUB_TRIGGERING_ACTOR', 'other'), ('GITHUB_RUN_ATTEMPT', '2'),
+                                   ('GITHUB_EVENT_NAME', 'pull_request'), ('NORMAL_EXPECTED_SHA', 'b' * 40)):
+                    with self.subTest(branch=branch, role=role, key=key), self.assertRaises(ValueError):
+                        ops.context(v | {key: value}, role)
         for bad in ("refs/heads/main", "refs/tags/v1", "refs/pull/1/merge",
                     "refs/heads/-bad"):
             v = env("plan") | {"GITHUB_REF": bad,

@@ -99,9 +99,8 @@ jobs:
             echo "::error::Authenticated Terraform only allows initial dispatches by the approved GitHub owner."
             exit 1
           }
-          # Dev's branch allowlist is enforced by the GitHub Environment on
-          # each credentialed plan/apply job. Preflight checks the same-branch
-          # caller and immutable owner before any protected credentials exist.
+          # DEV allows any non-main branch; Environments do not select branches.
+          # Require the immutable owner and same-branch caller before credentials.
           # Prod remains main-only; deny tags, PR refs and the retired branch.
           case "${TARGET}" in
             dev)

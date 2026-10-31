@@ -9,18 +9,18 @@ YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをT
 `ci.yml` の本人による初回 `workflow_dispatch` で `terraform_authenticated=true`、
 `terraform_target=dev`、`terraform_mode=normal-plan` / `normal-apply` を選択します。
 `terraform_expected_sha` には実行するbranchの40桁HEADを指定します。
-認証付き通常操作の**ブランチ許可はGitHub EnvironmentのSelected branchesだけ**で管理します。controller / AWS OIDC / GCP WIFはブランチ名を個別allowlistせず、同一refの正規workflow・本人初回dispatch・非`main`のbranch refだけを検証します。
+DEVの通常Plan/Applyは、**`kani3camp`本人の初回手動起動であれば、任意の非`main`ブランチから実行できます**。`terraform-dev-plan` / `terraform-dev-apply` EnvironmentはNo restrictionとし、ブランチの個別追加・削除は不要です。controller / AWS OIDC / GCP WIFの本人制限、同一refの正規workflow、同SHAの検証は維持します。
 PR/fork、tag、`main`でのDEV通常操作、再実行は認証前またはEnvironmentで拒否します。Productionの通常操作は保護された`main`だけです。
 `normal-apply` は同じrunで独立Plan job→Apply jobを実行します。
 
-1. 通常のHCL追加・修正は任意の作業/統合ブランチ向けPRで進める。認証付きPlan/Applyが必要なブランチだけをGitHubの`terraform-dev-plan` / `terraform-dev-apply` Environmentへ明示追加する。`dev`は運用可能な統合結果だけを最終PRで受け入れる。
+1. 通常のHCL追加・修正は任意の作業/統合ブランチ向けPRで進める。`dev`は運用可能な統合結果だけを最終PRで受け入れる。
 2. 新しい非秘密入力は `normal.tfvars.json` に追加する。既存Environmentのprivate tfvarsを読み、
    このcommitのファイルで上書きするため、既存リソースの選択・private inventoryを落とさない。
    秘密値はコミットしない。新しいprivate入力は両DEV Environmentのmanaged入力を同じ内容へ更新する。
 3. delete/replaceが必要なら、同じPRの `normal-operations.json` に正確なaddressとactionsを記載する。
    create/updateにはリソース別manifestやtype登録を要求しない。
-4. 作業PRのcredentialless CIとレビューを確認する。認証付き検証が必要なら対象ブランチをGitHub Environmentへ追加する。専用統合ブランチを使う作業ではCodexがそこへマージしてよい。
-5. Environmentで許可した対象ブランチのHEADから認証付き `normal-plan` / `normal-e2e` を実行し、Actionsのログとjob summaryで変更リソース種別・操作・件数を確認する。
+4. 作業PRのcredentialless CIとレビューを確認する。実行するブランチには現在のworkflow・HCL・入力を含める。専用統合ブランチを使う作業ではCodexがそこへマージしてよい。
+5. 対象ブランチのHEADから認証付き `normal-plan` を実行し、Actionsのログとjob summaryで変更リソース種別・操作・件数を確認する。
 6. 適用する場合は同一ブランチ・HEADで `normal-apply` を新規dispatchする。
    これは新しいPlanを作り、Apply identityの再Plan・State/SHA/入力一致を検査してsaved planを適用する。
 7. `GCP_NORMAL: PASS; role=apply` と事後full-root no-opを確認する。
@@ -73,43 +73,60 @@ runtime SAの権限とactAs付与先、既存identityへの影響を実値で確
 GitHub Secretは値を読み戻せないため名前と更新時刻を確認し、実際の認証・Plan/ApplyはActionsで検証します。
 設定変更時の確認項目は[認証・実行境界](docs/terraform-authentication-boundary.md#設定変更時の確認)を参照してください。
 
-### GitHub Environmentで許可したブランチの認証付きE2E
+### DEVのEnvironment設定と本人起動
 
 AWS DEV backend Roleは移行用workflowと共有する既存の7 claimsカスタムsubjectを維持します。初回設定時にAWSネイティブの `token.actions.githubusercontent.com:actor_id` を `StringEquals: 54093651` で固定し、改変されたworkflowでも他actorからState identityを取得できないようにします。GitHubのrepository-wide subject templateとProduction Roleは変更しません。GCP通常WIFもブランチ名をallowlistせず、repository / owner / Environment / actor / workflow path / same-ref / same-SHAを恒久的に検証します。
-**ブランチごとのPlan/Apply許可はGitHub Environmentだけ**で変更します。`infra/gcp/scripts/enable_normal_integration.py --apply --branch <branch>` は `terraform-dev-plan` / `terraform-dev-apply` のSelected branchesへ完全一致のbranch名を追加するだけです。通常利用にAWS Profileやgcloud loginは不要で、GitHub Environmentを管理できる`gh`認証だけを使います。既存migration/Production identityの権限は変更しません。
-GitHubの Settings → Environments からも操作できます。Planだけを許可する場合は `terraform-dev-plan`、Applyも許可する場合は `terraform-dev-plan` / `terraform-dev-apply` の両方で、Selected branches and tagsへ対象branchを追加します。取消時は同じ画面から対象branchのruleを削除します。WIFやAWS trustの編集は不要です。上のスクリプトは両Environmentへの追加を行います。
+**ブランチごとのPlan/Apply許可は不要です。** DEVの2つのEnvironmentは、[公式API](https://docs.github.com/en/rest/deployments/environments#create-or-update-an-environment)の`deployment_branch_policy: null`（画面のNo restriction）を使用します。通常実行はActionsから行うため、ローカルのAWS/GCP loginやTerraformは不要です。`main`は引き続きDEV実行の対象外で、本番のEnvironmentとmain限定は変更しません。
+
+Environmentの既存設定を読み取り確認するには次を使います。GitHubの本人認証が必要です。プレビューは設定を変更しません。
 
 ```bash
-python3 infra/gcp/scripts/enable_normal_integration.py --branch integration/gcp-terraform-normal-ops
-python3 infra/gcp/scripts/enable_normal_integration.py --branch integration/gcp-terraform-normal-ops --apply
-# CI成功後、そのbranchを許可してE2Eも1回起動:
-python3 infra/gcp/scripts/enable_normal_integration.py --branch integration/gcp-terraform-normal-ops --apply --dispatch-e2e
+python3 infra/gcp/scripts/enable_normal_integration.py
+# 初回の設定反映時だけ実行（管理端末のDEV State用AWS profileとgcloud短期認証が必要）:
+python3 infra/gcp/scripts/enable_normal_integration.py --apply
 ```
 
 既存AWS DEV backend Roleのtrustでは、移行用workflowとの共用のため、
 固定されたrepository/owner/Environment/caller/reusable等の**7 claims**に対し
 ブランチ部分だけ`refs/heads/*`を使う場合があります。現行実値がこの**完全一致した形式**
 であれば読み取り検証して維持し、AWS trustを狭めて既存migrationを壊しません。
-AWS/GCPはブランチ名の運用allowlistを持ちません。実際に認証付きjobへ到達できるbranchはGitHub Environment policyが決めます。
+AWS/GCPはブランチ名の運用allowlistを持たず、クラウド側でも本人のimmutable actor IDを検証します。正規workflowでは資格情報を取得する前に起動者を確認します。
 想定外のwildcard、repo/claim変更、default OIDC subjectは拒否します。
-`--verify-aws` は全Allow経路を検査し、Federated principalの文字列/配列を正規化して、単一の承認済みWebIdentity許可・audience・subject・本人actor IDを要求します。初回のactor固定は各DEV Roleの既存trustの `Condition.StringEquals` に `token.actions.githubusercontent.com:actor_id: "54093651"` を追加し、readbackで確認します。以後のbranch追加ではAWSを変更しません。
+`--verify-aws` は全Allow経路を検査し、Federated principalの文字列/配列を正規化して、単一の承認済みWebIdentity許可・audience・subject・本人actor IDを要求します。既存の`ci.yml`と`terraform.yml`のcallerが併存するtrustも、他のclaimsを完全一致で検証して維持します。未知のcallerや緩い追加subjectは拒否し、AWS/GCP trustは変更しません。
 
-AWS IAMを再監査したい場合だけ認証済みAWS CLIから`--verify-aws`、GCP WIFを再監査したい場合だけ認証済みgcloudから`--verify-gcp`を追加できます。どちらもread-onlyです。通常のbranch追加ではクラウドCLIを使いません。AWS/GCPの恒久trustが不適切ならGitHub Actionsの短期認証がfail-closedで停止し、State Applyへ進みません。GitHub Environmentの実値が想定と異なる場合は**先にSTOP**します。
+`--apply`は、DEVのAWS trustとGCP WIFが本人限定であることを読み取り確認してから、既存のDEV両Environmentのブランチ制限を解除します。既存Environmentがない場合や、想定外のreviewer・wait timerなどの保護がある場合は、作成・上書きせず停止します。読み取り監査だけの場合は`--verify-aws` / `--verify-gcp`を追加できます。AWS/GCPの恒久trustが不適切なら停止し、Environmentを変更しません。
 失敗時は `NORMAL_BRANCH_ACCESS: STOP; phase=<検証段階>` の固定分類だけを表示します。
 AWS/GCP CLIエラーの生ログ・認証情報は表示しません。
 `--apply`が変更するのはGitHub Environmentのbranch policyだけです。AWS IAM / GCP WIF / Terraform State / DEV business resources / Productionには触れません。
-この運用スクリプトは現行の選択branch policyを変更せず、統合branchの明示追加だけを行います。
+ブランチ制限解除後に残る以前のSelected branchesのルールは有効な許可一覧ではありません。通常実行のたびに追加・解除する必要はありません。
 
-一括オプション `--dispatch-e2e` はGitHubで指定branchの必須CI成功と実行者IDをreadbackしてから本人の新規dispatchを1回行います（E2E完了までは判定しない）。
-GitHub Environmentでbranchを許可した後、CIを `normal-e2e`、branch `integration/gcp-terraform-normal-ops`、
-その正確な40桁HEAD SHAで**一度新規dispatch**します。失敗runのRe-runは拒否されます。
+GitHubのActions → CI → Run workflowで、実行ブランチを選び、以下を指定します。
+
+| 項目 | DEV Plan | DEV Apply |
+| --- | --- | --- |
+| Authenticated Terraform | 有効 | 有効 |
+| Terraform target environment | `dev` | `dev` |
+| Terraform operation | `normal-plan` | `normal-apply` |
+| Exact selected branch SHA | 選んだブランチの40桁HEAD | Planで確認した同じHEAD |
+
+Planの結果を確認してから、Applyを新しくdispatchします。Apply実行は同じrunで独立Plan・再照合・保存Plan適用まで進みます。失敗runのRe-runは拒否されます。ブランチが更新された場合は、最新HEADでPlanからやり直してください。
+
+### 任意ブランチの認証付きE2E
+
+通常のPlan/Applyとは別に、実リソースを作成・削除するE2Eがあります。必要な場合だけ、CIを`normal-e2e`、対象branchと正確な40桁HEAD SHAで一度新規dispatchします。
+
+```sh
+python3 infra/gcp/scripts/enable_normal_integration.py --apply --dispatch-e2e --branch integration/gcp-terraform-normal-ops
+```
+
+`--branch`はE2Eの実行先だけを指定し、Environmentのブランチ許可には使いません。`--dispatch-e2e`は対象branchの必須CI成功と実行者IDをreadbackしてから新規dispatchを1回行います（E2E完了までは判定しません）。失敗runのRe-runは拒否されます。
 既存rootがno-opのときだけ、runnerのprivate source copyに一時的なDEV Pub/Sub topicを追加し、
 create→ラベルupdate→名前replace→deleteを実行します。各段階は対象topicだけの変更を要求し、
 saved plan Apply・full-root no-op・lock解放を検証します。既存業務リソースはテスト用に変更しません。
 最後に元のState resourcesと一致することを検査します。State serial/versionは正常に進みます。
 MyPageのHCL・専用Stateを扱いません。
 
-通常操作は有効な非`main` branch refをcontroller/WIFが受け付けますが、**GitHub Environmentで明示許可されていないbranchはcredentialed jobへ入れません**。AWS/GCPの恒久trustが不正なら認証中に拒否されます。
+通常操作は有効な非`main` branch refをcontroller/WIFが受け付けます。本人以外の起動やAWS/GCPの恒久trustが不正な実行は拒否します。
 Environment/WIFの保護は維持し、`dev`向け最終PRのマージは本人が実施します。
 E2Eが中途失敗した場合は、そのrunのprobeだけの削除Planで復旧を試みます。
 他リソースの差分・lock・認証失敗があれば停止します。自動force-unlockやStateの復元はしません。
@@ -165,7 +182,7 @@ python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply --enable-ap
 ## 既存import専用経路
 
 `migration-plan` / `migration-apply` は既存baselineのimport/no-op専用として保持します。
-DEVの既存importは従来の `dev` / `integration/mypage-canon-20261006` に限定します。共有Environmentに通常用branchを追加しても、そのbranchへimport経路の認可は広がりません。
+DEVの既存importは従来の `dev` / `integration/mypage-canon-20261006` に限定します。共有Environmentのブランチ制限を解除しても、移行用controllerのref検証は維持し、import経路の認可を広げません。
 独自Attestation/Ownership Receiptは再導入しません。
 通常経路はこのimport-only制限を解除しておらず、controller/contract/job本文も変更しません。
 DEVでbaseline外のHCL/Stateを追加した後は、固定manifestのmigration経路が拒否する場合があります。
