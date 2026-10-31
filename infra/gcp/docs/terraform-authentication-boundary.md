@@ -72,7 +72,7 @@ duplicate key・nonfinite・overflow・入れ子wrapper拒否を検査します�
 | Production通常操作 | **`main`固定**。GCP通常専用WIF/SA、PROD backend role・GitHub 2 Environmentの独立保護と実Plan/Apply認証が必要 |
 
 DEVは本人起動と、Environmentの明示的なSelected branches policyの両方を要求します。Productionのmain-only branch policyは維持します。
-DEVの対象branchだけを指定した場合、Environmentもクラウド資格情報も使わないpreflightでHEADを一度だけ解決し、job outputのSHAで後続のcheckoutを固定します。SHAだけの場合は同一repoのcommit APIで存在を検証します（GitHub実行contextで既知の実行元SHAは照会不要）。両方省略ならworkflow起動時の実行元SHA、両方指定ならHEADとの一致を確認します。Plan/Apply jobは確定SHAの欠落・不正値・明示指定SHAとの不一致を拒否し、branchを再解決しません。
+DEVの対象branchだけを指定した場合、Environmentもクラウド資格情報も使わないpreflightでHEADを一度だけ解決し、job outputのSHAで後続のcheckoutを固定します。SHAだけの場合は、固定repoの`refs/heads/*`だけを新しい一時bare repositoryへfetchし、通常ブランチ履歴からの到達性を検証します。取得は深さを制限せず、blob本文・tag・PR専用refは対象にしません。元checkoutのshallow境界や古いref、commit APIで取得できるという理由だけでは許可せず、検証失敗・取得失敗時は停止します。本人dispatchのbranch contextで既知の実行元SHAは追加fetch不要です。両方省略ならworkflow起動時の実行元SHA、両方指定ならHEADとの一致を確認します。Plan/Apply jobは確定SHAの欠落・不正値・明示指定SHAとの不一致を拒否し、branchを再解決しません。
 確定SHAはSummaryへ出力します。別のApply実行で確認済みPlanと同じコミットを使うには、branchを空欄にし、SHAだけを指定します。別runでbranchだけを指定するとHEADを新しく解決するため、前のPlanと同じSHAになる保証はありません。Productionは対象sourceの変更を受け付けず、従来どおり実行元`main`のSHA指定を必須とします。
 Environmentのbranch policy・required reviewers・admin bypass等の実設定は、管理APIで確認してください。
 `enable_normal_integration.py --apply`はGitHub本人認証を確認してから、既存DEV両EnvironmentのSelected branchesへ`--branch`を明示追加し、既存の許可は残します。ブランチ名の許可一覧はEnvironmentだけが保持します。AWS/GCP trust、Environmentのsecrets/variables、Productionは変更しません。未知の保護設定があれば停止します。`--verify-aws` / `--verify-gcp`による読み取り監査も可能です。

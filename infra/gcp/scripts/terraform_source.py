@@ -1,7 +1,10 @@
 """信頼済み実行器と、同一repoのTerraform対象ソースを分離する。"""
+import base64
 import json
+import os
 import re
 import subprocess
+import tempfile
 import urllib.parse
 import urllib.request
 import zipfile
@@ -64,6 +67,30 @@ def github(env, path):
         return json.loads(response.read(1_000_001))
 
 
+def require_branch_commit(env, commit):
+    """存在確認だけで許可せず、通常branchの履歴からの到達性を検証する。"""
+    need(type(commit) is str and re.fullmatch(r'[0-9a-f]{40}', commit) is not None)
+    # 元checkoutのshallow境界・PR refs・tags・古いremote refsを証明に使わない。
+    git_env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+    authorization = base64.b64encode(('x-access-token:' + env['GITHUB_TOKEN']).encode()).decode()
+    git_env.update({'GIT_CONFIG_GLOBAL': os.devnull, 'GIT_CONFIG_SYSTEM': os.devnull,
+        'GIT_TERMINAL_PROMPT': '0', 'GIT_CONFIG_COUNT': '1',
+        'GIT_CONFIG_KEY_0': 'http.https://github.com/.extraheader',
+        'GIT_CONFIG_VALUE_0': 'AUTHORIZATION: basic ' + authorization})
+    with tempfile.TemporaryDirectory(prefix='terraform-source-graph-') as directory:
+        def git(*args):
+            result = subprocess.run(['git', '-C', directory, *args], env=git_env,
+                                    capture_output=True, timeout=120)
+            need(result.returncode == 0)
+            return result.stdout
+        git('init', '--bare', '--template=')
+        # blob本文は不要。depthを指定せず全branch履歴を取得する。PR refs/tagsは取得しない。
+        git('fetch', '--no-tags', '--no-recurse-submodules', '--filter=blob:none',
+            'https://github.com/' + REPOSITORY + '.git', '+refs/heads/*:refs/heads/*')
+        need(git('cat-file', '-t', commit).strip() == b'commit')
+        need(git('for-each-ref', '--contains=' + commit, '--format=%(refname)', 'refs/heads/').strip())
+
+
 def resolve(env):
     """Environmentなしのpreflightで一度だけ解決し、後続jobへ固定値を渡す。"""
     if env['NORMAL_TARGET'] != 'dev':
@@ -79,9 +106,9 @@ def resolve(env):
         pinned = result['object'].get('sha')
         need(not requested_sha or requested_sha == pinned)
     elif requested_sha:
-        # 実行元SHAはGitHubの実行contextで既知。それ以外は同じrepoのcommit APIで検証する。
+        # 実行元SHAは本人dispatchのbranch contextで既知。それ以外は通常branchへの到達性を要求する。
         if requested_sha != env['GITHUB_SHA']:
-            need(github(env, 'git/commits/' + requested_sha).get('sha') == requested_sha)
+            require_branch_commit(env, requested_sha)
         pinned = requested_sha
     else:
         requested_branch = env['GITHUB_REF'].removeprefix('refs/heads/')

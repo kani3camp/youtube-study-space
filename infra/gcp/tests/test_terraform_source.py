@@ -111,17 +111,82 @@ class SourceBoundary(unittest.TestCase):
 
     def test_sha_only_selects_a_commit_without_inferring_a_branch(self):
         raw = env() | {'NORMAL_SOURCE_BRANCH': '', 'NORMAL_EXPECTED_SHA': 'b' * 40, 'GITHUB_TOKEN': 'FAKE_TOKEN'}
-        response = MagicMock()
-        response.__enter__.return_value.read.return_value = b'{"sha":"' + b'b' * 40 + b'"}'
-        with patch.object(selected.urllib.request, 'urlopen', return_value=response) as request:
+        with patch.object(selected, 'require_branch_commit') as proof:
             resolved = selected.resolve(raw)
         self.assertEqual(resolved, {'branch': '', 'sha': 'b' * 40})
-        self.assertEqual(request.call_args.args[0].full_url,
-                         'https://api.github.com/repos/kani3camp/youtube-study-space/git/commits/' + 'b' * 40)
+        proof.assert_called_once_with(raw, 'b' * 40)
         self.assertEqual(selected.identity(raw | {'NORMAL_SOURCE_SHA': resolved['sha']})['branch'], '')
-        response.__enter__.return_value.read.return_value = b'{"sha":"' + b'c' * 40 + b'"}'
-        with patch.object(selected.urllib.request, 'urlopen', return_value=response), self.assertRaises(ValueError):
+        with patch.object(selected, 'require_branch_commit', side_effect=ValueError), self.assertRaises(ValueError):
             selected.resolve(raw)
+
+    def test_sha_only_requires_a_normal_branch_ancestor_not_pr_or_tag_objects(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            remote = Path(temporary) / 'remote'
+            base = self.repository(remote, {'file': 'fixture'})
+            self.git(remote, 'branch', '-M', 'main')
+            def commit(message, *parents):
+                args = ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid',
+                        'commit-tree', base + '^{tree}', '-m', message]
+                for parent in parents:
+                    args += ['-p', parent]
+                return self.git(remote, *args)
+            main = commit('main', base)
+            feature = commit('feature', base)
+            fork = commit('fork-only', base)
+            merge = commit('GitHub synthetic PR merge', main, fork)
+            tag = commit('tag-only', base)
+            self.git(remote, '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid',
+                     'tag', '--no-sign', '-a', 'reachable', '-m', 'fixture', main)
+            annotated_tag = self.git(remote, 'rev-parse', 'refs/tags/reachable')
+            refs = {'refs/heads/main': main, 'refs/heads/feature/nested': feature,
+                    'refs/pull/1522/head': fork, 'refs/pull/1522/merge': merge, 'refs/tags/only': tag}
+            for ref, sha in refs.items():
+                self.git(remote, 'update-ref', ref, sha)
+            for sha in (base, main, feature, fork, merge, tag):
+                self.git(remote, 'cat-file', '-e', sha + '^{commit}')  # 全て存在しても許可しない。
+            self.git(remote, 'config', 'uploadpack.allowFilter', 'true')
+            original_run = subprocess.run
+            fetches = []
+            def local_transport(args, **kwargs):
+                if 'fetch' in args:
+                    self.assertEqual(args[-2:], ['https://github.com/' + selected.REPOSITORY + '.git',
+                                                '+refs/heads/*:refs/heads/*'])
+                    self.assertIn('--no-tags', args)
+                    self.assertFalse(any(arg.startswith('--depth') for arg in args))
+                    self.assertNotIn('FAKE_TOKEN', ' '.join(args))
+                    fetches.append(args)
+                    args = [remote.as_uri() if value == args[-2] else value for value in args]
+                result = original_run(args, **kwargs)
+                if 'fetch' in args and result.returncode == 0:
+                    # 存在確認だけでは通せないよう、サーバーが余分なobjectを送った状況も再現する。
+                    # FETCH_HEADやtag objectは通常branchへの到達性の証明に使えない。
+                    extra = original_run(['git', '-C', args[2], 'fetch', '--no-tags', remote.as_uri(),
+                        'refs/pull/1522/merge', 'refs/tags/only', 'refs/tags/reachable'], **kwargs)
+                    self.assertEqual(extra.returncode, 0)
+                    for sha in (fork, merge, tag, annotated_tag):
+                        exists = original_run(['git', '-C', args[2], 'cat-file', '-e', sha], **kwargs)
+                        self.assertEqual(exists.returncode, 0)
+                    self.assertNotIn('AUTHORIZATION', (Path(args[2]) / 'config').read_text())
+                return result
+            with patch.object(selected.subprocess, 'run', side_effect=local_transport), \
+                    patch.object(selected, 'github', side_effect=AssertionError('存在APIへのfallbackは禁止')):
+                for sha in (base, main, feature):
+                    with self.subTest(allowed=sha):
+                        resolved = selected.resolve(env() | {'NORMAL_EXPECTED_SHA': sha, 'GITHUB_TOKEN': 'FAKE_TOKEN'})
+                        self.assertEqual(resolved, {'branch': '', 'sha': sha})
+                for sha in (fork, merge, tag, annotated_tag):
+                    with self.subTest(rejected=sha), self.assertRaises(ValueError):
+                        selected.resolve(env() | {'NORMAL_EXPECTED_SHA': sha, 'GITHUB_TOKEN': 'FAKE_TOKEN'})
+            self.assertEqual(len(fetches), 7)
+
+    def test_branch_proof_fetch_failure_rejects_instead_of_falling_back_to_existence(self):
+        raw = env() | {'NORMAL_EXPECTED_SHA': 'b' * 40, 'GITHUB_TOKEN': 'FAKE_TOKEN'}
+        with patch.object(selected.subprocess, 'run', side_effect=[
+                subprocess.CompletedProcess([], 0, stdout=b'', stderr=b''),
+                subprocess.CompletedProcess([], 1, stdout=b'', stderr=b'PRIVATE_API_ERROR')]), \
+                patch.object(selected, 'github') as existence, self.assertRaises(ValueError):
+            selected.resolve(raw)
+        existence.assert_not_called()
 
     def test_empty_selection_uses_immutable_control_commit_without_api_lookup(self):
         raw = env() | {'NORMAL_SOURCE_BRANCH': '', 'NORMAL_EXPECTED_SHA': '',
