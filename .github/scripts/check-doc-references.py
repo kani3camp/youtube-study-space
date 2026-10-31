@@ -18,6 +18,7 @@ TARGETS = (
     "system/README.md",
     "aws-cdk/README.md",
     "firebase/README.md",
+    "infra/gcp/modules/monitor-auth-registration/README.md",
     "docs-site/README.md",
     "docs/development/architecture.md",
     "docs/design/DESIGN.md",

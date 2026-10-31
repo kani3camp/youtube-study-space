@@ -85,7 +85,7 @@ pnpm build:ci
 
 各環境で、信頼できるFirebase / Admin操作を使って次の準備を行ってください。
 
-1. Firebase Authのメールアドレス・パスワード認証を有効にし、モニター運用者専用のアカウントを作成します。モニターにユーザー登録機能は追加しません。
+1. [Terraformの認証用モジュール](../infra/gcp/modules/monitor-auth-registration/README.md)でメール・パスワード認証と一般利用者の新規登録制限を適用し、Firebaseコンソール／Admin SDKでモニター運用者専用のアカウントを作成します。モニターにユーザー登録機能は追加しません。
 2. 信頼できるAdmin SDK操作で、アカウントに `monitor_reader: true` のカスタムクレームを設定します。Admin用の認証情報やカスタムトークンの署名処理を、このクライアントに置かないでください。
 3. Firebaseコンソールまたは信頼できるサーバー / Admin SDKから、`_monitor-readers/{uid}` を `{ "enabled": true }` で作成します。文書IDにはUIDを使用します。Security Rulesは、このコレクションに対するブラウザからの読み書きをすべて拒否します。
 4. OBSのブラウザソースを配信画面で非表示にし、OBSの**「対話」**から `/operator-login` を開いて、一度ログインします。このページは `browserLocalPersistence` でセッションを永続化します。アプリケーションが入力したパスワードを独自に保存することはありません。

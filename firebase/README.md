@@ -2,6 +2,12 @@
 
 このディレクトリでは、Firestore Security Rules・インデックス・エミュレーターの設定をリポジトリで管理しています。これらを既存プロジェクトの定義として扱ってください。設定の上書きや再生成を避けるため、通常のセットアップで `firebase init firestore` を実行しないでください。
 
+## Firebase Authenticationの管理元
+
+メール・パスワード認証の有効化、一般利用者の新規登録を拒否する`beforeCreate`、その関数の配備は、[GCP Terraformの認証用モジュール](../infra/gcp/modules/monitor-auth-registration/README.md)で管理します。`firebase.json`には同じAuth設定や関数の配備設定を追加せず、Firebase CLIとTerraformによる二重管理を避けてください。
+
+このディレクトリは引き続きFirestore Rules・インデックス・エミュレーター設定の管理元です。モニター専用ユーザーはFirebaseコンソール／Admin SDKで作成し、claimと許可リストを別途準備します。認証用モジュールは環境ごとの明示的な有効化と適用が必要で、コードのマージだけでは登録制限は有効になりません。
+
 ## テストで確認する範囲
 
 以下の検証は、それぞれ異なる仕様や制約を確認します。互いに代用することはできません。
