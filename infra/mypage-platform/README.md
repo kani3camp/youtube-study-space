@@ -26,7 +26,7 @@ Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-
 
 通常運用では`Terraform`（`terraform.yml`）の`environment` / `operation=plan|apply` / `component=all|mypage`だけを使う。MyPageは`terraform.yml`がreview済みの`desired-stage.txt`を解決し、最終desired state（現在は`runtime_public`相当）に固定してPlan/Applyする。利用者はstageを選ばない。Core GCPとはStateを分けたまま、同じ`Terraform`実行内で両方を扱える。
 
-ownerの同一repository PRでMyPage rootが変わると、`Terraform` がDEVのdesired stateを **PR Plan** する。手動Planと同じ`mypage-foundation-authenticated.yml`の`foundation_plan` job、Environment `mypage-dev-plan`、identity（`mypage-foundation-plan` SA、`mypage-foundation` poolの`github-actions` provider、Plan用AWS role）を使う。provider condition（`foundation_contract.py provider-condition`）と、Plan roleのAWS trust（`foundation_contract.py trust-policy <account> plan`）がPRをPlan Environmentだけに許可する。Applyは手動dispatchだけ。`-lock=false`で実行し、plan contractの判定だけを表示してcommitmentを残さない。
+ownerの同一repository PRでMyPage rootが変わると、`Terraform` がDEVのdesired stateを **PR Plan** する。手動Planと同じ`mypage-foundation-authenticated.yml`の`foundation_plan` job、Environment `mypage-dev-plan`、identity（`mypage-foundation-plan` SA、`mypage-foundation` poolの`github-actions` provider、Plan用AWS role）を使う。provider condition（`foundation_contract.py provider-condition`）と、Plan roleのAWS trust（`foundation_contract.py trust-policy <account> plan`）がPRをPlan Environmentだけに許可する。Applyは手動dispatchだけ（DEVのtrustは2026-10-31に更新済み）。`-lock=false`で実行し、plan contractの判定だけを表示してcommitmentを残さない。
 
 以下のstageは初回構築と既存の拒否条件を維持するための内部実装であり、通常の手動UIには出さない。ソースの`stage = "disabled"`は未構築ルートの既定値で、Module count=0・新GCP資源=0を意味する。初回構築時だけ段階を明示し、既定値を実Stateの状態と混同しない。
 

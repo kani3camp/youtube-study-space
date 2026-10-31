@@ -219,7 +219,9 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 
 ### 4.4 PR Plan の統合（owner）
 
-PR Plan を DEV の手動 Plan に統合する PR を取り込んだ後、次の順で行う。順番を逆にすると、PR Plan が通らないまま制限だけが外れる。
+PR Plan を DEV の手動 Plan に統合する PR（#1527）を取り込んだ後、次の順で行う。順番を逆にすると、PR Plan が通らないまま制限だけが外れる。
+
+**状況（2026-10-31）**: 撤去以外の5行は実施済み（GCP / AWS とも readback 済み。DEV の7 Environment は No restriction、PROD は変更なし）。新経路の PR Plan は [run 41205098180](https://github.com/kani3camp/youtube-study-space/actions/runs/41205098180)（#1528）で確認した。MyPage は plan contract まで成功（26資源・作成0）。Core は認証・State 読み取り・native Plan まで成功し、plan-validation の `resource-contract` で停止した（DEV の Core State に #1467 の Auth 資源が適用済みで、統合ブランチの HCL にないため。経路の問題ではない）。撤去も同日に実施し、Environment・SA・project 権限・WIF pool / provider・AWS role が残っていないことを読み戻した。
 
 | 対象 | 方法 |
 | --- | --- |
@@ -237,7 +239,7 @@ PR Plan を DEV の手動 Plan に統合する PR を取り込んだ後、次の
 | UC | 状態 | 経路 |
 | --- | --- | --- |
 | UC1 CI | 実装済み。手動 operation なし（`workflow_dispatch` は再検査のみ） | `ci.yml` |
-| UC2 PR Plan | 実装済み（未有効化）。trust 更新と DEV Environment の branch 制限解除は owner 作業待ち（4.4） | `terraform.yml`（`pull_request`）→ `gcp-terraform-authenticated.yml`（`pr-plan`）/ `mypage-foundation-authenticated.yml` |
+| UC2 PR Plan | DEV で有効（run 41205098180。MyPage 成功、Core は State と HCL のずれで plan-validation 停止）。旧 PR Plan identity は撤去済み（4.4） | `terraform.yml`（`pull_request`）→ `gcp-terraform-authenticated.yml`（`pr-plan`）/ `mypage-foundation-authenticated.yml` |
 | UC2 手動 Plan / UC3 Apply | 実装済み（未有効化）。旧 router 経路と orchestrator は撤去済み。PROD Apply の reviewer は owner 設定待ち | `terraform.yml` |
 | UC4 Frontend | 実装済み（未有効化）。旧 router 経路は撤去済み | `deploy-mypage-frontend.yml` |
 | UC5 API | 実装済み（未有効化）。Service のみ。旧 router 経路と push 自動CDは撤去済み | `deploy-mypage-api.yml` |
