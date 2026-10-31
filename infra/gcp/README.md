@@ -16,16 +16,15 @@ Environmentのブランチ制限は、クラウド認証とは独立したSecret
 4. 対象ソースのCIとレビューを確認します。ブランチだけを指定すると、Environment Secretを使わないpreflightで同一repositoryのHEADを一度だけ取得し、その40桁SHAを後続の全jobで固定します。特定コミットはSHAだけでも選べます。この場合も通常ブランチ（`refs/heads/*`）の履歴から到達できることを要求し、PR専用refやタグだけに残るコミット、forkだけにあるコミットは対象ソースとして使いません。branch/SHAの両方を指定した場合はHEADとの一致を要求します。
 5. 実行元にある正規の入口を選びます。以下はActions → CI → Run workflowの入力例です。
 
-   `Authenticated Terraform`は既定で有効です。既定の対象・操作はDEVの`normal-plan`で、Applyは`normal-apply`を明示的に選びます。通常CIの全検査だけを手動で再実行したい場合は、このチェックを外します。有効時はGCP Terraformの検査と認証付きPlan/Apply、無効時は認証なしの全CI検査を実行します。Repository共通検査はどちらでも実行します。
+   「実行内容」は`全検査のみ`／`検査＋plan`／`検査＋apply`の3択です。既定はDEVの`検査＋plan`です。`全検査のみ`は認証なしの全CI検査を実行します。`検査＋plan`／`検査＋apply`はGCP TerraformとRepository共通の検査に絞り、CI Gateの成功後に認証付きPlan／Applyへ進みます。Applyは明示的に選択した場合だけ実行します。
 
    マイページ統合ブランチの現行入口はActions → **Terraform**です。Use workflow fromに`integration/mypage-canon-20261006`、environmentに`development`、operationに`plan`／`apply`、componentに`core`／`mypage`／`all`を指定します。この入口では実行元自身のHCLを使い、そのSHAを自動的に固定します。入力項目は当該ブランチのworkflowを正本とします。
 
    | 項目 | DEV Plan | DEV Apply |
    | --- | --- | --- |
    | Use workflow from | Environmentで許可した実行元 | 同じ実行元 |
-   | Authenticated Terraform | 有効 | 有効 |
+   | 実行内容 | `検査＋plan` | `検査＋apply` |
    | Terraform target environment | `dev` | `dev` |
-   | Terraform operation | `normal-plan` | `normal-apply` |
    | DEVの対象ブランチ | レビュー済みの対象ブランチ | 空欄 |
    | DEVの対象SHA | 空欄 | PlanのSummaryにある40桁SHA |
 
@@ -126,8 +125,8 @@ Productionの通常Plan/Applyは既存DEVと同じ `normal-plan` / `normal-apply
 1. `infra/gcp/environments/prod/` のHCLをレビュー対象とし、先にDEVで相当する変更を検証します。既存PRODリソースの宣言とprivate inventoryを落としてはなりません。DEVのRoot/StateをPRODへコピーしません。
 2. 非秘密の差分だけを `normal.tfvars.json` に記載します。既存30資源の選択情報・private metadataは `terraform-prod-plan` / `terraform-prod-apply` Environmentのmanaged入力を引き続き使います。両者の入力内容はPlan/Applyで論理的に一致させます。
 3. delete/replaceはPRODの `normal-operations.json` の `destructive_changes` に正確なresource addressとnative actionsの順序を明示します。create/updateに型別allowlistはありませんが、GCP IAMの明示権限外の操作は拒否されます。
-4. 保護された `main` にレビュー済みリリースを取り込んだ後、本人が初回 `workflow_dispatch` で `terraform_target=prod`、`terraform_mode=normal-plan`、`terraform_expected_sha=<mainの40桁SHA>` を指定します。公開ログではresource type/操作/件数だけを確認します。
-5. Applyが必要な場合は同一SHAの `normal-apply` を新たに実行します。同runの独立Plan/Apply jobのHMAC/State/SHA/期限が一致したsaved planだけを適用します。事後のfull-root no-opとlock解放を確認します。
+4. 保護された `main` にレビュー済みリリースを取り込んだ後、本人が初回 `workflow_dispatch` で `terraform_target=prod`、`execution_mode=検査＋plan`、`terraform_expected_sha=<mainの40桁SHA>` を指定します。公開ログではresource type/操作/件数だけを確認します。
+5. Applyが必要な場合は同一SHAの `検査＋apply` を新たに実行します。同runの独立Plan/Apply jobのHMAC/State/SHA/期限が一致したsaved planだけを適用します。事後のfull-root no-opとlock解放を確認します。
 
 ### 一度限りの本番設定と有効化条件
 

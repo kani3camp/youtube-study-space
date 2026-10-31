@@ -1,4 +1,4 @@
-"""Contracts for modular PR validation and the unchanged operational caller."""
+"""Contracts for modular PR validation and manual validation/Plan/Apply selection."""
 import copy
 import importlib.util
 import itertools
@@ -37,6 +37,8 @@ DEPENDENCIES = {'changes', *MODULES, 'gcp-terraform-validate'}
 AUTH_SECRETS = ('GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', 'GCP_TERRAFORM_NORMAL_WIF_PROVIDER', 'AWS_TERRAFORM_BACKEND_ROLE_ARN', 'AWS_TERRAFORM_BACKEND_ROLE_ID',
                 'AWS_TERRAFORM_STATE_BUCKET', 'AWS_TERRAFORM_STATE_ACCOUNT_ID',
                 'GCP_TERRAFORM_MANAGED_INPUTS_JSON')
+AUTH_DISPATCH = "github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査＋plan' || inputs.execution_mode == '検査＋apply')"
+TERRAFORM_MODE = "${{ inputs.execution_mode == '検査＋apply' && 'normal-apply' || 'normal-plan' }}"
 
 
 def selected(expression, flags, inputs=None):
@@ -105,33 +107,33 @@ def validate(caller, modules):
                     or (key == 'permissions' and value == {'contents': 'read'}), 'No elevated/ignored quality execution')
     for key, value in yaml_source.walk(caller):
         require(key != 'continue-on-error', 'Caller failures cannot be ignored')
-    for name, toggle, secrets, arguments in (
-        ('gcp-terraform-authenticated', 'terraform_authenticated', AUTH_SECRETS,
-         {'target': '${{ inputs.terraform_target }}', 'mode': '${{ inputs.terraform_mode }}', 'expected_sha': '${{ inputs.terraform_expected_sha }}',
+    for name, secrets, arguments in (
+        ('gcp-terraform-authenticated', AUTH_SECRETS,
+         {'target': '${{ inputs.terraform_target }}', 'mode': TERRAFORM_MODE, 'expected_sha': '${{ inputs.terraform_expected_sha }}',
           'source_branch': '${{ inputs.terraform_source_branch }}'}),
     ):
         call = jobs[name]
-        require(set(call) == {'name', 'if', 'permissions', 'uses', 'secrets', 'with'}, 'Operational caller stays direct')
-        require(call['if'] == "${{ github.event_name == 'workflow_dispatch' && inputs." + toggle + ' == true }}',
-                'Operational admission is unchanged')
+        require(set(call) == {'name', 'if', 'needs', 'permissions', 'uses', 'secrets', 'with'}, 'Operational caller stays direct')
+        require(call['needs'] == 'ci-gate', 'Validation must succeed before Plan or Apply')
+        require(call['if'] == "${{ !cancelled() && needs.ci-gate.result == 'success' && " + AUTH_DISPATCH + ' }}',
+                'Only successful validation followed by explicit manual Plan/Apply can authenticate')
         require(call['permissions'] == {'contents': 'read', 'id-token': 'write'}, 'Only operational calls grant OIDC')
         require(call['uses'] == './.github/workflows/' + name + '.yml', 'Operational workflow path stays fixed')
         require(call['secrets'] == {s: '${{ secrets.' + s + ' }}' for s in secrets}, 'Explicit operational secrets')
         require(call['with'] == arguments, 'Operational inputs stay fixed')
     dispatch = caller['on']['workflow_dispatch']['inputs']
-    require(set(dispatch) == {'terraform_authenticated', 'terraform_target', 'terraform_mode', 'terraform_expected_sha', 'terraform_source_branch'},
+    require(set(dispatch) == {'execution_mode', 'terraform_target', 'terraform_expected_sha', 'terraform_source_branch'},
             'No retired operational mode/input returns')
-    for toggle in ('terraform_authenticated',):
-        require(dispatch[toggle]['type'] == 'boolean' and dispatch[toggle]['default'] is True
-                and dispatch[toggle]['required'] is False, 'Manual runs default to Terraform with a full-CI opt-out')
     for key, default, options in (('terraform_target', 'dev', ['dev', 'prod']),
-                                  ('terraform_mode', 'normal-plan', ['normal-plan', 'normal-apply'])):
+                                  ('execution_mode', '検査＋plan', ['全検査のみ', '検査＋plan', '検査＋apply'])):
         require(dispatch[key]['type'] == 'choice' and dispatch[key]['default'] == default
                 and dispatch[key]['options'] == options and dispatch[key]['required'] is False, 'Dispatch choices stay fixed')
     require(caller['concurrency'] == {
         'group': '${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}',
-        'cancel-in-progress': "${{ !(github.event_name == 'workflow_dispatch' && inputs.terraform_authenticated == true) }}"},
+        'cancel-in-progress': '${{ !(' + AUTH_DISPATCH + ') }}'},
         'Authenticated execution cannot be auto-cancelled')
+    require(jobs['changes']['steps'][-1]['env']['CI_AUTHENTICATED_TERRAFORM_DISPATCH'] == '${{ ' + AUTH_DISPATCH + ' }}',
+            'Only authenticated manual operations narrow validation to Terraform')
 
 
 class WorkflowContractsTest(unittest.TestCase):
@@ -141,6 +143,49 @@ class WorkflowContractsTest(unittest.TestCase):
 
     def test_workflow_structure_and_authentication_contract(self):
         validate(self.caller, self.modules)
+
+    def test_manual_choices_and_prs_select_scope_operation_and_cancellation(self):
+        import os
+        import subprocess
+        jobs = self.caller['jobs']
+        for event, mode, authenticated, operation in (
+            ('workflow_dispatch', '全検査のみ', False, None),
+            ('workflow_dispatch', '検査＋plan', True, 'normal-plan'),
+            ('workflow_dispatch', '検査＋apply', True, 'normal-apply'),
+            ('workflow_dispatch', 'unknown', False, None),
+            ('workflow_dispatch', '', False, None),
+            ('pull_request', '検査＋apply', False, None),
+            ('pull_request', '', False, None),
+        ):
+            with self.subTest(event=event, mode=mode):
+                def evaluate(expression, gate_result='success', cancelled=False):
+                    # Evaluate this contract's small boolean/string expression subset.
+                    expression = expression.removeprefix('${{').removesuffix('}}').strip()
+                    expression = expression.replace('github.event_name', repr(event)).replace('inputs.execution_mode', repr(mode))
+                    expression = expression.replace('needs.ci-gate.result', repr(gate_result)).replace('cancelled()', repr(cancelled))
+                    expression = expression.replace('&&', ' and ').replace('||', ' or ').replace('!', ' not ')
+                    return eval(expression, {'__builtins__': {}})
+
+                admitted = evaluate(jobs['gcp-terraform-authenticated']['if'])
+                self.assertEqual(admitted, authenticated)
+                self.assertEqual(evaluate(self.caller['concurrency']['cancel-in-progress']), not authenticated)
+                marker = evaluate(jobs['changes']['steps'][-1]['env']['CI_AUTHENTICATED_TERRAFORM_DISPATCH'])
+                self.assertEqual(marker, authenticated)
+                if admitted:
+                    self.assertEqual(evaluate(jobs['gcp-terraform-authenticated']['with']['mode']), operation)
+                for gate_result in ('success', 'failure', 'cancelled', 'skipped'):
+                    for cancelled in (False, True):
+                        self.assertEqual(evaluate(jobs['gcp-terraform-authenticated']['if'], gate_result, cancelled),
+                                         authenticated and gate_result == 'success' and not cancelled)
+                # Execute actual routing: full validation vs Terraform validation only.
+                if event == 'workflow_dispatch':
+                    result = subprocess.run(['bash', '.github/scripts/detect-ci-paths.sh'], cwd=ROOT,
+                        env={'PATH': os.environ.get('PATH', os.defpath), 'GITHUB_EVENT_NAME': event,
+                             'CI_AUTHENTICATED_TERRAFORM_DISPATCH': str(marker).lower()},
+                        capture_output=True, text=True, check=True)
+                    outputs = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+                    self.assertEqual(outputs['all'], str(not authenticated).lower())
+                    self.assertEqual(outputs['gcp_terraform'], 'true')
 
     def test_all_8192_group_combinations_preserve_leaf_selection_and_gate_policy(self):
         import test_ci_results
@@ -182,7 +227,9 @@ class WorkflowContractsTest(unittest.TestCase):
 
     def test_rejects_regressions_in_gate_selection_permissions_and_operational_caller(self):
         mutations = [
-            lambda c, m: c['on']['workflow_dispatch']['inputs']['terraform_authenticated'].update(default=False),
+            lambda c, m: c['on']['workflow_dispatch']['inputs']['execution_mode'].update(default='検査＋apply'),
+            lambda c, m: c['jobs']['gcp-terraform-authenticated'].pop('needs'),
+            lambda c, m: c['jobs']['gcp-terraform-authenticated'].update({'if': '${{ always() }}'}),
             lambda c, m: c['jobs']['ci-gate']['needs'].remove('changes'),
             lambda c, m: c['jobs']['ci-gate'].update({'if': 'success()'}),
             lambda c, m: c['jobs']['system'].update(secrets='inherit'),

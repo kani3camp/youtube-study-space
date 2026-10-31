@@ -192,7 +192,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertRegex(action, r'@[0-9a-f]{40}$')
         self.assertNotIn('workflow_dispatch:', self.text)
         self.assertIn('cancel-in-progress: false', self.text)
-        self.assertIn("inputs.terraform_authenticated == true", self.caller)
+        self.assertNotIn('terraform_authenticated:', self.caller)
+        self.assertIn("inputs.execution_mode == '検査＋plan' || inputs.execution_mode == '検査＋apply'", self.caller)
 
 
 if __name__ == '__main__':
