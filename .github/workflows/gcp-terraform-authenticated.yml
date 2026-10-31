@@ -12,11 +12,11 @@ on:
         required: true
         type: string
       expected_sha:
-        description: Exact Terraform source SHA (DEV) or workflow SHA (PROD)
+        description: DEVの対象SHA（省略可）、PRODの実行元SHA（必須）
         required: false
         type: string
       source_branch:
-        description: DEVのTerraform対象ブランチ。空欄は信頼済み実行元自身
+        description: DEVの対象ブランチ。SHAのみも可、両方空欄は実行元自身
         required: false
         type: string
     # Explicit names allow Environment secret resolution in called jobs without
@@ -54,6 +54,9 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+    outputs:
+      source_sha: ${{ steps.guard.outputs.source_sha }}
+      source_branch: ${{ steps.guard.outputs.source_branch }}
     steps:
       - name: Checkout trusted Terraform preflight source
         if: ${{ (inputs.mode == 'normal-plan' || inputs.mode == 'normal-apply') && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && ((inputs.target == 'dev' && startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main') || (inputs.target == 'prod' && github.ref == 'refs/heads/main')) }}
@@ -158,7 +161,8 @@ jobs:
       NORMAL_MODE: ${{ inputs.mode }}
       NORMAL_ROLE: plan
       NORMAL_EXPECTED_SHA: ${{ inputs.expected_sha }}
-      NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}
+      NORMAL_SOURCE_BRANCH: ${{ inputs.target == 'dev' && needs.preflight.outputs.source_branch || inputs.source_branch }}
+      NORMAL_SOURCE_SHA: ${{ inputs.target == 'dev' && needs.preflight.outputs.source_sha || '' }}
       TF_WORKSPACE: default
       AWS_MAX_ATTEMPTS: "1"
       AWS_RETRY_MODE: standard
@@ -174,11 +178,11 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Checkout exact DEV Terraform data
-        if: ${{ inputs.target == 'dev' && inputs.source_branch != '' }}
+        if: ${{ inputs.target == 'dev' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: kani3camp/youtube-study-space
-          ref: ${{ inputs.expected_sha }}
+          ref: ${{ needs.preflight.outputs.source_sha }}
           path: .terraform-source
           sparse-checkout: infra/gcp
           persist-credentials: false
@@ -250,7 +254,8 @@ jobs:
       NORMAL_MODE: ${{ inputs.mode }}
       NORMAL_ROLE: apply
       NORMAL_EXPECTED_SHA: ${{ inputs.expected_sha }}
-      NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}
+      NORMAL_SOURCE_BRANCH: ${{ inputs.target == 'dev' && needs.preflight.outputs.source_branch || inputs.source_branch }}
+      NORMAL_SOURCE_SHA: ${{ inputs.target == 'dev' && needs.preflight.outputs.source_sha || '' }}
       TF_WORKSPACE: default
       AWS_MAX_ATTEMPTS: "1"
       AWS_RETRY_MODE: standard
@@ -266,11 +271,11 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Checkout exact DEV Terraform data
-        if: ${{ inputs.target == 'dev' && inputs.source_branch != '' }}
+        if: ${{ inputs.target == 'dev' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: kani3camp/youtube-study-space
-          ref: ${{ inputs.expected_sha }}
+          ref: ${{ needs.preflight.outputs.source_sha }}
           path: .terraform-source
           sparse-checkout: infra/gcp
           persist-credentials: false

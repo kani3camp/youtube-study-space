@@ -32,6 +32,7 @@ class NativeCRUD(unittest.TestCase):
             fixture.git(source, '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid',
                         '-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'native source')
             env['NORMAL_EXPECTED_SHA'] = fixture.git(source, 'rev-parse', 'HEAD')
+            env['NORMAL_SOURCE_SHA'] = env['NORMAL_EXPECTED_SHA']
             private = Path(temporary) / 'private'
             with patch.object(ops, 'REPO', control):
                 tfroot = ops.source(env, private)

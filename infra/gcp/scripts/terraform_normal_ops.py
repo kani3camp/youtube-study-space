@@ -93,16 +93,19 @@ def context(env, role=None):
     need(target in PROJECTS and env.get('NORMAL_MODE') in MODES)
     if target == 'dev':
         ref = development_ref(env.get('GITHUB_REF'))
-        selected_source.identity(env)
+        selected_source.validate_selector(env)
+        if role is not None:
+            selected_source.require_pinned(env)
     else:
         # No feature/integration branch may ever operate on Production.
         ref = 'refs/heads/main'
         need(env.get('GITHUB_REF') == ref)
         need(not env.get('NORMAL_SOURCE_BRANCH'))
+        need(not env.get('NORMAL_SOURCE_SHA'))
     callers = DEV_CALLERS if target == 'dev' else (CALLER,)
     need(env.get('GITHUB_WORKFLOW_REF') in {caller + ref for caller in callers})
     need(re.fullmatch('[0-9a-f]{40}', env.get('GITHUB_SHA', '')) is not None)
-    if not env.get('NORMAL_SOURCE_BRANCH'):
+    if target == 'prod':
         need(env.get('NORMAL_EXPECTED_SHA') == env['GITHUB_SHA'])
     if role is not None:
         need(role in {'plan', 'apply'} and env.get('GITHUB_JOB') == 'normal_' + role)
@@ -767,10 +770,10 @@ def main():
                 shutil.rmtree(root)
         elif operation == 'preflight':
             context(env)
-            selected_source.resolve(env)
+            selected_source.publish(env, selected_source.resolve(env))
         elif operation == 'stage':
             context(env, env['NORMAL_ROLE'])
-            if env.get('NORMAL_SOURCE_BRANCH'):
+            if selected_source.separate_checkout(env):
                 selected_source.verify_checkout(env, REPO, common.run)
             inputs(env)
             review(env['NORMAL_TARGET'], env)

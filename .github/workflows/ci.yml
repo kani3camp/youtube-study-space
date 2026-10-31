@@ -26,11 +26,11 @@ on:
           - normal-plan
           - normal-apply
       terraform_expected_sha:
-        description: Exact Terraform source SHA (DEV) or workflow SHA (PROD)
+        description: DEVの対象SHA（省略可）、PRODの実行元SHA（必須）
         required: false
         type: string
       terraform_source_branch:
-        description: DEVのTerraform対象ブランチ（空欄はEnvironmentで許可した実行元自身）
+        description: DEVの対象ブランチ（SHAのみも可。両方空欄は実行元自身）
         required: false
         type: string
 
