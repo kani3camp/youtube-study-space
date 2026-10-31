@@ -1,7 +1,10 @@
 import { css } from '@emotion/react'
 import Head from 'next/head'
-import { useRouter } from 'next/router'
 import { type FormEvent, useEffect, useState } from 'react'
+import {
+	monitorAccessMessages,
+	reportMonitorAccessIssue,
+} from '../lib/monitor-access-issues'
 import {
 	type MonitorAuthorizationState,
 	observeMonitorAuthorization,
@@ -76,8 +79,7 @@ const errorStyle = css`
 	color: #ffb4b4;
 `
 
-export default function OperatorLogin(): JSX.Element {
-	const router = useRouter()
+export default function MonitorLogin(): JSX.Element {
 	const [authorization, setAuthorization] = useState<MonitorAuthorizationState>(
 		{ status: 'checking' },
 	)
@@ -85,16 +87,26 @@ export default function OperatorLogin(): JSX.Element {
 	const [password, setPassword] = useState('')
 	const [submitting, setSubmitting] = useState(false)
 	const [loginFailed, setLoginFailed] = useState(false)
+	const [switchingAccount, setSwitchingAccount] = useState(false)
+	const [switchFailed, setSwitchFailed] = useState(false)
 
 	useEffect(() => observeMonitorAuthorization(setAuthorization), [])
+	useEffect(() => {
+		if (authorization.status === 'denied') {
+			void reportMonitorAccessIssue(authorization.issue)
+		} else if (authorization.status === 'configuration-error') {
+			void reportMonitorAccessIssue('firebase-config-missing')
+		}
+	}, [authorization])
 
 	const submit = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault()
 		setSubmitting(true)
 		setLoginFailed(false)
+		setSwitchFailed(false)
 		try {
 			await signInMonitor(email, password)
-			await router.replace('/')
+			setPassword('')
 		} catch {
 			setLoginFailed(true)
 		} finally {
@@ -102,30 +114,71 @@ export default function OperatorLogin(): JSX.Element {
 		}
 	}
 
+	const switchAccount = async () => {
+		setSwitchingAccount(true)
+		setSwitchFailed(false)
+		try {
+			await signOutMonitor()
+			setEmail('')
+			setPassword('')
+			setLoginFailed(false)
+		} catch {
+			setSwitchFailed(true)
+		} finally {
+			setSwitchingAccount(false)
+		}
+	}
+
 	return (
 		<>
 			<Head>
-				<title>YouTube Monitor Operator Login</title>
+				<title>モニター認証 | YouTube Study Space</title>
 				<meta name="robots" content="noindex,nofollow" />
 			</Head>
 			<main css={page}>
 				<section css={card}>
-					<h1>モニター専用ログイン</h1>
-					<p css={warning}>
-						この画面を配信映像へ表示しないでください。OBSのブラウザソースを非表示にして「対話」から操作します。
-					</p>
-					{authorization.status === 'authorized' ? (
+					<h1>モニター認証</h1>
+					{switchingAccount ? (
+						<p role="status">ログアウトしています…</p>
+					) : authorization.status === 'configuration-error' ? (
+						<p css={errorStyle} role="alert">
+							{monitorAccessMessages['firebase-config-missing']}
+						</p>
+					) : authorization.status === 'checking' ? (
+						<p role="status">
+							ログイン状態とモニター閲覧設定を確認しています。
+						</p>
+					) : authorization.status === 'authorized' ? (
 						<>
-							<p>認証と monitor_reader claim を確認しました。</p>
-							<button type="button" onClick={() => void router.replace('/')}>
-								モニターへ戻る
-							</button>
-							<button type="button" onClick={() => void signOutMonitor()}>
+							<p role="status">ログインしました。</p>
+							{switchFailed ? (
+								<p css={errorStyle} role="alert">
+									ログアウトできませんでした。もう一度お試しください。
+								</p>
+							) : null}
+							<button type="button" onClick={() => void switchAccount()}>
 								ログアウト
+							</button>
+						</>
+					) : authorization.status === 'denied' ? (
+						<>
+							<p css={errorStyle} role="alert">
+								{monitorAccessMessages[authorization.issue]}
+							</p>
+							{switchFailed ? (
+								<p css={errorStyle} role="alert">
+									ログアウトできませんでした。もう一度お試しください。
+								</p>
+							) : null}
+							<button type="button" onClick={() => void switchAccount()}>
+								別のアカウントでログイン
 							</button>
 						</>
 					) : (
 						<form onSubmit={(event) => void submit(event)}>
+							<p css={warning}>
+								配信画面が表示されない場合は、ライブチャット、または緊急連絡フォームからご連絡ください。
+							</p>
 							<label>
 								メールアドレス
 								<input
@@ -148,7 +201,7 @@ export default function OperatorLogin(): JSX.Element {
 							</label>
 							{loginFailed ? (
 								<p css={errorStyle} role="alert">
-									ログインできませんでした。専用アカウントと設定を確認してください。
+									認証に失敗しました。ライブチャット、または緊急連絡フォームからご連絡ください。
 								</p>
 							) : null}
 							<button type="submit" disabled={submitting}>

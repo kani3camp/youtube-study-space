@@ -1,5 +1,6 @@
 import type { FC, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { reportMonitorAccessIssue } from '../lib/monitor-access-issues'
 import {
 	type MonitorAuthorizationState,
 	observeMonitorAuthorization,
@@ -14,38 +15,52 @@ const MonitorAuthGate: FC<MonitorAuthGateProps> = ({ children }) => {
 	const [authorization, setAuthorization] = useState<MonitorAuthorizationState>(
 		{ status: 'checking' },
 	)
+	const lastLoginNotice = useRef<string | null>(null)
 
 	useEffect(() => observeMonitorAuthorization(setAuthorization), [])
+	useEffect(() => {
+		if (authorization.status === 'authorized') {
+			lastLoginNotice.current = null
+			return
+		}
+		const issue =
+			authorization.status === 'signed-out'
+				? 'signed-out'
+				: authorization.status === 'denied'
+					? authorization.issue
+					: authorization.status === 'configuration-error'
+						? 'firebase-config-missing'
+						: null
+		if (issue && lastLoginNotice.current !== issue) {
+			lastLoginNotice.current = issue
+			void reportMonitorAccessIssue(issue)
+		}
+	}, [authorization])
 
 	switch (authorization.status) {
 		case 'authorized':
 			return children
+		case 'configuration-error':
+			return (
+				<MonitorAccessStatus
+					title="配信画面を表示できません"
+					detail="ライブチャット、または緊急連絡フォームからご連絡ください。"
+				/>
+			)
 		case 'signed-out':
-			return (
-				<MonitorAccessStatus
-					title="モニター認証が必要です"
-					detail="配信画面から隔離した状態で /operator-login を開き、専用アカウントでログインしてください。Firestore は読み込まれていません。"
-				/>
-			)
-		case 'unauthorized':
-			return (
-				<MonitorAccessStatus
-					title="モニター権限がありません"
-					detail="専用アカウントの custom claim と UID allowlist を確認してください。Firestore は読み込まれていません。"
-				/>
-			)
+		case 'denied':
 		case 'error':
 			return (
 				<MonitorAccessStatus
-					title="モニター認証を確認できません"
-					detail="認証状態またはブラウザの永続化設定を確認してください。安全のためモニターを停止しています。"
+					title="認証に失敗しました"
+					detail="ライブチャット、または緊急連絡フォームからご連絡ください。"
 				/>
 			)
 		case 'checking':
 			return (
 				<MonitorAccessStatus
-					title="モニター認証を確認しています"
-					detail="認証が確認できるまで Firestore は読み込みません。"
+					title="配信画面を準備しています"
+					detail="しばらくお待ちください。"
 				/>
 			)
 	}

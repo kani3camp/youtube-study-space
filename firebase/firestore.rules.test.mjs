@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, test } from 'node:test'
 import {
   assertFails,
@@ -8,7 +9,9 @@ import {
 import {
   collection,
   doc,
+  deleteDoc,
   getDoc,
+  getDocFromServer,
   getDocs,
   setDoc,
 } from 'firebase/firestore'
@@ -67,9 +70,32 @@ const readableMonitorCollections = [
 ]
 
 describe('Firestore monitor read boundary', () => {
-  test('allows only an allowlisted UID carrying the monitor claim', async () => {
+  test('server reads for login diagnostics accept an allowlisted user without claims and reject missing or disabled entries', async () => {
+    const allowedDb = testEnv.authenticatedContext(allowedUid).firestore()
+    const constants = await getDocFromServer(doc(allowedDb, 'config', 'constants'))
+    assert.equal(constants.exists(), true)
+
+    for (const [uid, claims] of [
+      ['other-user', { monitor_reader: true }],
+      ['disabled-monitor', {}],
+    ]) {
+      const db = testEnv.authenticatedContext(uid, claims).firestore()
+      await assert.rejects(getDocFromServer(doc(db, 'config', 'constants')), { code: 'permission-denied' })
+    }
+  })
+
+  test('authorized diagnostics can distinguish missing constants from an access denial', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await deleteDoc(doc(context.firestore(), 'config', 'constants'))
+    })
+    const db = testEnv.authenticatedContext(allowedUid).firestore()
+    const constants = await getDocFromServer(doc(db, 'config', 'constants'))
+    assert.equal(constants.exists(), false)
+  })
+
+  test('allows an allowlisted UID without custom claims', async () => {
     const db = testEnv
-      .authenticatedContext(allowedUid, { monitor_reader: true })
+      .authenticatedContext(allowedUid)
       .firestore()
 
     for (const [collectionName, documentName] of readableMonitorPaths) {
@@ -91,7 +117,7 @@ describe('Firestore monitor read boundary', () => {
     }
   })
 
-  test('rejects an unlisted UID even when it carries the monitor claim', async () => {
+  test('an obsolete true claim does not grant access to an unlisted UID', async () => {
     const db = testEnv
       .authenticatedContext('other-user', { monitor_reader: true })
       .firestore()
@@ -100,16 +126,23 @@ describe('Firestore monitor read boundary', () => {
     await assertFails(getDocs(collection(db, 'seats')))
   })
 
-  test('rejects an allowlisted UID without the monitor claim', async () => {
-    const db = testEnv.authenticatedContext(allowedUid).firestore()
+  test('an obsolete false claim does not override an enabled allowlist entry', async () => {
+    const db = testEnv.authenticatedContext(allowedUid, { monitor_reader: false }).firestore()
+    for (const [collectionName, documentName] of readableMonitorPaths) {
+      await assertSucceeds(getDoc(doc(db, collectionName, documentName)))
+    }
+  })
 
-    await assertFails(getDoc(doc(db, 'seats', '1')))
-    await assertFails(getDocs(collection(db, 'seats')))
+  test('rejects an authenticated UID without an allowlist entry or custom claims', async () => {
+    const db = testEnv.authenticatedContext('unlisted-user').firestore()
+    for (const [collectionName, documentName] of readableMonitorPaths) {
+      await assertFails(getDoc(doc(db, collectionName, documentName)))
+    }
   })
 
   test('rejects a disabled allowlist entry', async () => {
     const db = testEnv
-      .authenticatedContext('disabled-monitor', { monitor_reader: true })
+      .authenticatedContext('disabled-monitor')
       .firestore()
 
     await assertFails(getDoc(doc(db, 'seats', '1')))
@@ -117,7 +150,7 @@ describe('Firestore monitor read boundary', () => {
 
   test('never exposes the allowlist or unrelated documents', async () => {
     const db = testEnv
-      .authenticatedContext(allowedUid, { monitor_reader: true })
+      .authenticatedContext(allowedUid)
       .firestore()
 
     await assertFails(getDoc(doc(db, '_monitor-readers', allowedUid)))
@@ -129,7 +162,7 @@ describe('Firestore monitor read boundary', () => {
 
   test('rejects browser writes even for an authorized monitor', async () => {
     const db = testEnv
-      .authenticatedContext(allowedUid, { monitor_reader: true })
+      .authenticatedContext(allowedUid)
       .firestore()
 
     await assertFails(setDoc(doc(db, 'seats', '2'), { 'seat-id': 2 }))
@@ -141,10 +174,12 @@ describe('Firestore monitor read boundary', () => {
   test('never exposes or mutates MyPage maintenance control', async () => {
     for (const db of [
       testEnv.unauthenticatedContext().firestore(),
-      testEnv.authenticatedContext(allowedUid, { monitor_reader: true }).firestore(),
+      testEnv.authenticatedContext(allowedUid).firestore(),
     ]) {
       await assertFails(getDoc(doc(db, 'config', 'mypage')))
-      await assertFails(setDoc(doc(db, 'config', 'mypage'), { 'maintenance-enabled': false }))
+      await assertFails(
+        setDoc(doc(db, 'config', 'mypage'), { 'maintenance-enabled': false }),
+      )
     }
   })
 })

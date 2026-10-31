@@ -33,6 +33,7 @@ TARGETS = (
     "infra/mypage-platform/docs/development-runtime.md",
     "mypage/src/assets/fonts/README.md",
     "firebase/README.md",
+    "infra/gcp/modules/monitor-auth/README.md",
     "docs-site/README.md",
     "docs/development/architecture.md",
     "docs/development/ci-cd-workflows.md",
