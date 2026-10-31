@@ -110,9 +110,8 @@ def job_configuration(job):
 def job_request(token, body=None, *, url=JOB_URL, missing_ok=False):
     import urllib.error
     import urllib.request
-    operation = url.removeprefix('https://run.googleapis.com/v2/')
-    allowed = url in (JOB_URL, JOB_PATCH_URL) or JOB_OPERATION.fullmatch(operation)
-    c.need(bool(allowed), 'operator-job-url')
+    # Operator SA has only Job-level permissions; project-wide operations are never read.
+    c.need(url in (JOB_URL, JOB_PATCH_URL), 'operator-job-url')
     c.need(type(token) is str and bool(token), 'operator-job-credential')
     c.need((body is None and url != JOB_PATCH_URL) or (body is not None and url == JOB_PATCH_URL),
            'operator-job-url')
@@ -218,13 +217,11 @@ def start_job_update(token, before, value):
 
 
 def wait_job_update(token, operation, before, value):
+    # Polling the LRO needs project-level run.operations.get. The Job itself reports
+    # completion: generation advances and reconciling clears, then the exact result
+    # (image, configuration, uid) is validated. Only a finished operation's error is used.
     deadline = time.monotonic() + 300
-    current = operation
-    while not current.get('done', False):
-        c.need(time.monotonic() < deadline, 'operator-job-ready-timeout')
-        time.sleep(2)
-        current = job_request(token, url='https://run.googleapis.com/v2/' + operation['name'])
-    c.need(not current.get('error'), 'operator-job-operation')
+    c.need(not operation.get('error'), 'operator-job-operation')
     while True:
         after = job_request(token)
         generation_advanced = (type(after.get('generation')) is str and after['generation'].isdigit() and

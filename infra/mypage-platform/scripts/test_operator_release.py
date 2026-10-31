@@ -163,6 +163,24 @@ class OperatorReleaseTest(unittest.TestCase):
             self.assertEqual(o.wait_job_update('token', operation, job(), release()), job(after=True))
         self.assertEqual(request.call_count, 2)
 
+    def test_job_wait_reads_only_the_job_never_the_project_operation(self):
+        # The PATCH returns a pending LRO; the Operator SA cannot read project operations.
+        operation = {'name': 'projects/' + o.c.PROJECT + '/locations/' + o.c.REGION + '/operations/synthetic',
+                     'done': False}
+        urls = []
+
+        def request(token, body=None, *, url=o.JOB_URL, missing_ok=False):
+            urls.append(url)
+            return job(after=len(urls) >= 3) | ({'reconciling': True} if len(urls) == 3 else {})
+
+        with patch.object(o, 'job_request', side_effect=request), patch.object(o.time, 'sleep'):
+            self.assertEqual(o.wait_job_update('token', operation, job(), release()), job(after=True))
+        self.assertEqual(urls, [o.JOB_URL] * 4)
+        with self.assertRaisesRegex(ValueError, 'operator-job-url'):
+            o.job_request('token', url='https://run.googleapis.com/v2/' + operation['name'])
+        with self.assertRaisesRegex(ValueError, 'operator-job-operation'):
+            o.wait_job_update('token', operation | {'error': {'code': 9}}, job(), release())
+
     def execute(self, *, moved=False, unchanged=False, superseded=False, without=None):
         before_job = job(after=unchanged)
         after_job = deepcopy(before_job) if unchanged else job(after=True)
