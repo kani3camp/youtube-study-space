@@ -171,7 +171,7 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 
 ### 3.6 Actions の実行保護（owner 設定）
 
-GitHub の Settings → Actions → Policies（workflow execution policy）で、誰がどのイベントで workflow を起動できるかを制限する（2026-10-31 に owner が設定）。リポジトリ外の設定で、全ブランチの workflow に適用される。現在の設定は `gh api repos/kani3camp/youtube-study-space/actions/policies` で読める。
+GitHub の Settings → Actions → Policies（workflow execution policy）で、誰がどのイベントで workflow を起動できるかを制限する（2026-10-31 に owner が設定）。リポジトリ外の設定で、全ブランチの workflow に適用される。現在の設定は、`gh api repos/kani3camp/youtube-study-space/actions/policies` で一覧（ID と名前）を取得し、ID ごとに `gh api repos/kani3camp/youtube-study-space/actions/policies/<policy_id>` で対象 path（`conditions`）と許可 actor / event（`rules`）を読む。
 
 | Policy | 対象 workflow | 許可する actor / event |
 | --- | --- | --- |
