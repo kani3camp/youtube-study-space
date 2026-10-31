@@ -38,6 +38,7 @@ MyPage統合PR [#1236](https://github.com/kani3camp/youtube-study-space/pull/123
 | `mypageFoundationCreate` | 上記read + `iam.serviceAccounts.create`、`secretmanager.secrets.create` | 初回metadata作成時だけApply SAに一時付与 |
 | `mypageFoundationSAPolicy` | `iam.serviceAccounts.getIamPolicy/setIamPolicy` | 作成済みruntime SAだけ |
 | `mypageFoundationSecretPolicy` | `secretmanager.secrets.get/getIamPolicy/setIamPolicy` | 作成済みの3 Secretそれぞれだけ |
+| `mypageRuntimeRead` | `artifactregistry.tags.get`、`resourcemanager.projects.getIamPolicy`、`run.operations.get`、`run.services.get/getIamPolicy`、`secretmanager.versions.get`、`run.jobs.get`、`iam.roles.get`、`iam.workloadIdentityPools.get`、`iam.workloadIdentityPoolProviders.get` | Plan / Apply / PR Plan SA（project）。後半の4つは2026-10-31に追加した。maintenance資源のPlanは、未作成の資源について404を確認する。読取り権限がないと403になり、Planが`runtime-inputs`で停止していた |
 
 read roleはSecret payloadを読めない。資源単位のpolicy editorは当該資源の権限を変更できるため、単なるread権限とは扱わず、専用WIF・Environment・実行ソース・plan guardの制限を維持する。create roleの定義自体はbootstrap記録として残し、器の作成後はproject bindingを外す。将来の再作成は自動的に権限を復活させず、対象とownershipの再確認を必要とする。
 

@@ -204,9 +204,9 @@ def reject_unowned_resources(env, plan):
         try:
             request(urls[item["address"]], env["MYPAGE_GCP_ACCESS_TOKEN"])
         except urllib.error.HTTPError as error:
-            need(error.code == 404)
+            contract.need(error.code == 404, "unowned-resource-lookup")
         else:
-            need(False)
+            contract.need(False, "unowned-resource-exists")
 
 
 def runtime_settings(env, stage=None):
@@ -249,7 +249,7 @@ def maintenance_bootstrap_image(env, stage):
     try:
         request(url, env["MYPAGE_GCP_ACCESS_TOKEN"])
     except urllib.error.HTTPError as error:
-        need(error.code == 404)
+        contract.need(error.code == 404, "maintenance-job-lookup")
     else:
         return ""
     # Production needs a separately approved artifact and release identity.
@@ -305,12 +305,33 @@ def verify_owner_public_invoker(env):
     contract.need(not any("allAuthenticatedUsers" in b.get("members", []) for b in policy.get("bindings", [])), "runtime-owner-public-invoker")
 
 
+# Resource addresses are fixed by this repository's module (count indices only),
+# so they are not private. Anything else is withheld.
+PUBLIC_ADDRESS = re.compile(r"module\.platform\[0\]\.[a-z0-9_]+\.[a-z0-9_]+(?:\[[0-9]+\])?")
+PUBLIC_ACTIONS = frozenset({"no-op", "create", "read", "update", "delete"})
+
+
+def public_entry(item):
+    address = item.get("address")
+    actions = item.get("change", {}).get("actions")
+    return {"address": address if type(address) is str and PUBLIC_ADDRESS.fullmatch(address) else "<withheld>",
+            "actions": actions if type(actions) is list and set(actions) <= PUBLIC_ACTIONS else ["<withheld>"]}
+
+
 def describe_runtime_drift(plan):
-    # 出力値・schema・未知のfield名を公開しない。詳細Planはprivateに保持する。
+    # 出力値・schema・field名を公開しない。詳細Planはprivateに保持する。
+    # 契約違反の切り分けに必要な、固定の資源addressと操作名だけを出す。
     drift = plan.get("resource_drift", []) or []
     changes = plan.get("resource_changes", []) or []
+    planned = {item.get("address"): item for item in changes}
+    writes = [item for item in changes if item.get("change", {}).get("actions") != ["no-op"]]
     print("Terraform drift summary: " + json.dumps({"observedResources": len(drift),
-          "plannedWrites": sum(item.get("change", {}).get("actions") != ["no-op"] for item in changes)}, sort_keys=True) + ".")
+          "plannedWrites": len(writes)}, sort_keys=True) + ".")
+    print("Terraform drift detail: " + json.dumps([
+        public_entry(item) | {"plannedActions": public_entry(planned.get(item.get("address"), {}))["actions"]}
+        for item in drift], sort_keys=True) + ".")
+    print("Terraform planned writes: " + json.dumps(sorted(
+        (public_entry(item) for item in writes), key=lambda entry: entry["address"]), sort_keys=True) + ".")
 
 
 def prepare(env):

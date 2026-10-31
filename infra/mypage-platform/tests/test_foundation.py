@@ -511,5 +511,40 @@ class FoundationTest(unittest.TestCase):
                 ops.state_version(env)
 
 
-if __name__ == '__main__':
+
+class RuntimeDriftDiagnosticTest(unittest.TestCase):
+    def test_drift_detail_shows_only_fixed_addresses_and_action_names(self):
+        secret = 'synthetic-private-value'
+        service = 'module.platform[0].google_cloud_run_v2_service.api[0]'
+        plan = {
+            'resource_drift': [
+                {'address': service, 'change': {'actions': ['update'], 'before': {'image': secret}, 'after': {'image': secret}}},
+                {'address': 'module.other["' + secret + '"].x.y', 'change': {'actions': ['update']}},
+            ],
+            'resource_changes': [
+                {'address': service, 'change': {'actions': ['update'], 'after': {'env': secret}}},
+                {'address': 'module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]',
+                 'change': {'actions': ['create'], 'after': {'image': secret}}},
+                {'address': 'module.platform[0].google_service_account.runtime', 'change': {'actions': ['no-op']}},
+            ],
+        }
+        output = io.StringIO()
+        with redirect_stdout(output):
+            ops.describe_runtime_drift(plan)
+        text = output.getvalue()
+        self.assertNotIn(secret, text)
+        lines = dict(line.split(': ', 1) for line in text.strip().splitlines())
+        detail = json.loads(lines['Terraform drift detail'].removesuffix('.'))
+        self.assertEqual(detail, [
+            {'address': service, 'actions': ['update'], 'plannedActions': ['update']},
+            {'address': '<withheld>', 'actions': ['update'], 'plannedActions': ['<withheld>']},
+        ])
+        writes = json.loads(lines['Terraform planned writes'].removesuffix('.'))
+        self.assertEqual([entry['address'] for entry in writes],
+                         ['module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]', service])
+        self.assertEqual(json.loads(lines['Terraform drift summary'].removesuffix('.')),
+                         {'observedResources': 2, 'plannedWrites': 2})
+
+
+if __name__ == "__main__":
     unittest.main()
