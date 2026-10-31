@@ -39,7 +39,7 @@ Environmentのブランチ制限は、クラウド認証とは独立したSecret
 
    SHA単独指定はpreflightで通常ブランチの履歴を一時取得して検証します。選択後にbranchを削除・force-pushし、どの通常ブランチからも到達できなくなったSHAは、別のApply実行では拒否されます。実行元自身のSHAは、本人dispatchのbranch contextで由来が確定しているため、この追加取得は不要です。
 
-   確定した対象SHAはActionsのSummaryに表示します。資格情報なしの検査jobは対象コミットのソースとテストをcheckoutします。検査を指示するworkflow、対象SHAを確定する処理、CI Gate、資格情報付きのPlan／Apply実行器は信頼済み実行元のコミットを使います。検査jobにはEnvironment SecretやOIDC権限を渡さず、checkoutの認証情報も永続化しません。本番は従来どおり`main`の実行元SHA指定が必須です。
+   確定した対象SHAはActionsのSummaryに表示します。資格情報なしの検査jobは対象コミットのソースとテストをcheckoutし、実行元から用意した隔離コンテナ内で実行します。対象コードにはrunnerの環境変数・Actionsのキャッシュ用トークン・コマンドファイル・Dockerソケットを渡さず、ソースは読み取り専用でマウントします。共通検査は通信禁止、Terraform検査はprovider取得用の通信を許可します。検査を指示するworkflow、対象SHAを確定する処理、CI Gate、資格情報付きのPlan／Apply実行器は信頼済み実行元のコミットを使います。検査jobにはEnvironment SecretやOIDC権限を渡さず、checkoutの認証情報も永続化しません。本番は従来どおり`main`の実行元SHA指定が必須です。
 6. Planの操作種別・件数・Summaryの対象SHAを確認してから、Applyを新しくdispatchします。確認済みの同じコミットを使う場合は、対象ブランチを空欄にし、対象SHAにSummaryの値を指定します。**Applyでもブランチだけを指定すると、その新しい実行のpreflight時点でHEADを再取得します。** Applyは同じrunで独立Planを作り、control planeのSHA、対象sourceのrepository/branch/SHA、入力・レビュー指定・State・全Plan JSONをHMACで照合して保存Planを適用します。HMAC値をstep envやcommandへ渡しません。
 7. `GCP_NORMAL: PASS; role=apply`と事後full-root no-opを確認します。更新されたブランチHEADを使いたい場合は、新しいSHAでPlanからやり直します。失敗runのRe-runは拒否されます。`dev`へのマージは本人だけが行います。
 

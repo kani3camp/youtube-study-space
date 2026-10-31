@@ -122,13 +122,13 @@ class SelectedValidationSourceTest(unittest.TestCase):
             'NORMAL_EXPECTED_SHA': '${{ inputs.terraform_expected_sha }}',
             'NORMAL_SOURCE_BRANCH': '${{ inputs.terraform_source_branch }}', 'GITHUB_TOKEN': '${{ github.token }}'})
         pinned = '${{ needs.changes.outputs.validation_sha }}'
-        checkout = jobs['gcp-terraform-validate']['steps'][0]
-        self.assertEqual(checkout['with'], {'ref': pinned, 'persist-credentials': False})
+        checkout = jobs['gcp-terraform-validate']['steps'][2]
+        self.assertEqual(checkout['with'], {'ref': pinned, 'path': '.ci-source', 'persist-credentials': False})
         self.assertEqual(jobs['repository']['with'], {'source_sha': pinned})
         repository = load(ROOT / '.github/workflows/ci-repository.yml')
         for job in repository['jobs'].values():
-            self.assertEqual(job['steps'][0]['with'],
-                             {'ref': '${{ inputs.source_sha }}', 'persist-credentials': False})
+            self.assertEqual(job['steps'][2]['with'],
+                             {'ref': '${{ inputs.source_sha }}', 'path': '.ci-source', 'persist-credentials': False})
         for name in ('changes', 'gcp-terraform-validate', 'repository'):
             self.assertNotIn('id-token', jobs[name].get('permissions', ci['permissions']))
             self.assertNotIn('environment', jobs[name])

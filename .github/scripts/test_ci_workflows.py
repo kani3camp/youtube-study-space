@@ -227,8 +227,10 @@ class WorkflowContractsTest(unittest.TestCase):
     def test_contracts_execute_on_every_ci_run(self):
         checks = self.modules['repository']['jobs']['ci-contracts']['steps']
         commands = '\n'.join(step.get('run', '') for step in checks)
-        self.assertIn("python -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v", commands)
-        self.assertIn('.github/workflows/ci-*.yml', commands)
+        self.assertIn('yss-ci-validation:local contracts', commands)
+        isolated = (ROOT / '.github/ci-validation/validate.sh').read_text()
+        self.assertIn("python -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v", isolated)
+        self.assertIn('.github/workflows/ci-*.yml', isolated)
         self.assertFalse(any('if' in step or 'continue-on-error' in step for step in checks))
 
     def test_rejects_regressions_in_gate_selection_permissions_and_operational_caller(self):
