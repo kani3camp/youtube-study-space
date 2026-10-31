@@ -2,6 +2,7 @@ import type { User } from 'firebase/auth'
 
 const authMocks = vi.hoisted(() => ({
 	auth: {},
+	getAuth: vi.fn(),
 	onIdTokenChanged: vi.fn(),
 	setPersistence: vi.fn(),
 	tokenObserver: undefined as ((user: User | null) => void) | undefined,
@@ -9,7 +10,7 @@ const authMocks = vi.hoisted(() => ({
 
 vi.mock('firebase/auth', () => ({
 	browserLocalPersistence: {},
-	getAuth: vi.fn(() => authMocks.auth),
+	getAuth: authMocks.getAuth,
 	onIdTokenChanged: authMocks.onIdTokenChanged,
 	setPersistence: authMocks.setPersistence,
 	signInWithEmailAndPassword: vi.fn(),
@@ -62,6 +63,7 @@ describe('hasMonitorReaderClaim', () => {
 describe('observeMonitorAuthorization', () => {
 	beforeEach(() => {
 		authMocks.tokenObserver = undefined
+		authMocks.getAuth.mockReset().mockReturnValue(authMocks.auth)
 		authMocks.setPersistence.mockReset().mockResolvedValue(undefined)
 		authMocks.onIdTokenChanged
 			.mockReset()
@@ -71,6 +73,32 @@ describe('observeMonitorAuthorization', () => {
 					return vi.fn()
 				},
 			)
+	})
+
+	test('reports an Auth initialization failure without crashing the consumer', async () => {
+		authMocks.getAuth.mockImplementationOnce(() => {
+			throw new Error('auth/invalid-api-key')
+		})
+		const observer = vi.fn()
+		const stop = observeMonitorAuthorization(observer)
+
+		await vi.waitFor(() => {
+			expect(observer).toHaveBeenLastCalledWith({ status: 'error' })
+		})
+		expect(authMocks.onIdTokenChanged).not.toHaveBeenCalled()
+		stop()
+	})
+
+	test('reports a persistence failure without subscribing to Auth changes', async () => {
+		authMocks.setPersistence.mockRejectedValueOnce(new Error('unavailable'))
+		const observer = vi.fn()
+		const stop = observeMonitorAuthorization(observer)
+
+		await vi.waitFor(() => {
+			expect(observer).toHaveBeenLastCalledWith({ status: 'error' })
+		})
+		expect(authMocks.onIdTokenChanged).not.toHaveBeenCalled()
+		stop()
 	})
 
 	test('keeps an authorized monitor mounted during a same-user token refresh', async () => {

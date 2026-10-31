@@ -28,14 +28,18 @@ export const hasMonitorReaderClaim = async (user: User): Promise<boolean> => {
 export const observeMonitorAuthorization = (
 	observer: AuthorizationObserver,
 ): (() => void) => {
-	const auth = getMonitorAuth()
 	let stopped = false
 	let tokenRevision = 0
 	let authorizedUid: string | null = null
 	let unsubscribe: () => void = () => undefined
 
-	void setPersistence(auth, browserLocalPersistence)
-		.then(() => {
+	void Promise.resolve()
+		.then(async () => {
+			if (stopped) {
+				return
+			}
+			const auth = getMonitorAuth()
+			await setPersistence(auth, browserLocalPersistence)
 			if (stopped) {
 				return
 			}
