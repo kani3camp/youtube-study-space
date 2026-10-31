@@ -20,23 +20,19 @@ on:
       terraform_mode:
         description: Terraform operation
         required: false
-        default: migration-plan
+        default: normal-plan
         type: choice
         options:
-          - migration-plan
-          - migration-apply
           - normal-plan
           - normal-apply
-          - normal-e2e
       terraform_expected_sha:
-        description: Exact selected branch SHA for normal operations
+        description: DEVの対象SHA（省略可）、PRODの実行元SHA（必須）
         required: false
         type: string
-      gcp_user_activity_schema_audit:
-        description: Run the fail-closed development user-activity schema audit
+      terraform_source_branch:
+        description: DEVの対象ブランチ（SHAのみも可。両方空欄は実行元自身）
         required: false
-        default: false
-        type: boolean
+        type: string
 
 permissions:
   contents: read
@@ -139,10 +135,8 @@ jobs:
       - name: Test authenticated Terraform CI guardrails
         run: |
           python3 .github/scripts/test_terraform_native_runner.py
+          python3 -B infra/gcp/tests/test_terraform_runtime.py
           python3 .github/scripts/test_terraform_plan_summary.py
-          python3 .github/scripts/test_terraform_migration_contract.py
-          python3 .github/scripts/test_terraform_migration.py
-          python3 .github/scripts/test_production_initializer_controller.py
           python3 .github/scripts/test_terraform_authenticated_workflow.py
           python3 .github/scripts/test_terraform_identity_smoke.py
           python3 .github/scripts/test_terraform_email_adoption_gate.py
@@ -151,6 +145,7 @@ jobs:
           python3 .github/scripts/test_terraform_baseline_drift_diagnostic.py
           python3 infra/gcp/tests/test_runtime_plan_contract.py
           python3 -B infra/gcp/tests/test_terraform_normal_ops.py
+          python3 -B infra/gcp/tests/test_terraform_source.py
           python3 -B infra/gcp/tests/test_enable_normal_integration.py
           python3 -B infra/gcp/tests/test_production_normal_ops.py
           python3 -B infra/gcp/tests/test_bootstrap_production_normal_ops.py
@@ -159,7 +154,7 @@ jobs:
           python3 .github/scripts/test_terraform_export_topic_gate.py
           python3 .github/scripts/test_terraform_export_scheduler_gate.py
           python3 .github/scripts/test_terraform_export_function_gate.py
-          python3 .github/scripts/test_gcp_user_activity_schema_audit_workflow.py
+          python3 .github/scripts/test_user_activity_history_preparation.py
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
@@ -186,9 +181,6 @@ jobs:
       - name: Check formatting
         run: terraform fmt -check -recursive infra/gcp
 
-      - name: Test pure production initializer with pinned local Terraform
-        run: python3 .github/scripts/test_production_initializer.py
-
       - name: Initialize and validate roots
         run: |
           set -euo pipefail
@@ -196,9 +188,6 @@ jobs:
             terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly
             terraform -chdir="infra/gcp/environments/$env" validate
           done
-
-      - name: Test output-only initialization with native S3 locking
-        run: python3 .github/scripts/test_production_initializer_s3.py
 
       - name: Test Pool import fidelity with credentialless mocks
         run: python3 -B infra/gcp/tests/test_runtime_pool_import_fidelity.py
@@ -239,26 +228,12 @@ jobs:
       AWS_TERRAFORM_BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
       AWS_TERRAFORM_STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
       AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
-      GCP_TERRAFORM_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
-      GCP_TERRAFORM_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_SERVICE_ACCOUNT }}
       GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
     with:
       target: ${{ inputs.terraform_target }}
       mode: ${{ inputs.terraform_mode }}
       expected_sha: ${{ inputs.terraform_expected_sha }}
-
-  gcp-user-activity-schema-audit:
-    name: GCP User Activity Schema Audit
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.gcp_user_activity_schema_audit == true }}
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/gcp-user-activity-schema-audit.yml
-    secrets:
-      GCP_TERRAFORM_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_WIF_PROVIDER }}
-      GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT: ${{ secrets.GCP_USER_ACTIVITY_SCHEMA_AUDIT_SERVICE_ACCOUNT }}
-    with:
-      target: dev
+      source_branch: ${{ inputs.terraform_source_branch }}
 
   ci-gate:
     name: CI Gate
@@ -271,7 +246,6 @@ jobs:
       - infra
       - repository
       - gcp-terraform-validate
-      - gcp-user-activity-schema-audit
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -280,5 +254,4 @@ jobs:
       - name: Require successful selected validations
         env:
           CI_NEEDS: ${{ toJSON(needs) }}
-          CI_SCHEMA_AUDIT_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.gcp_user_activity_schema_audit == true }}
         run: python3 .github/scripts/check-ci-results.py

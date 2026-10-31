@@ -63,4 +63,3 @@ jobs:
           "$RUNNER_TEMP/ci-source-tools/actionlint" -shellcheck= -pyflakes=
           .github/workflows/ci.yml .github/workflows/ci-*.yml
           .github/workflows/gcp-terraform-authenticated.yml
-          .github/workflows/gcp-user-activity-schema-audit.yml

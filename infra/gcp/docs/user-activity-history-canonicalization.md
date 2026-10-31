@@ -40,6 +40,8 @@ legacy値からのbackfill/repairは不要です。tableが空であること、
 
 [Source closure #1238](https://github.com/kani3camp/youtube-study-space/pull/1238) 後のintegration SHAは
 `829b0123174583f3e485dddcac2ddf405b4a093f`、audit gateはfalseです。
+監査用のCIオプション・reusable workflow・summary処理・専用fixtureは撤去しました。
+再実行用の常設入口として保持しません。CLIとSQL、監査結果の記録は残しています。
 runtimeのtemporary trust/bindings/inputs撤回とSA disableはoperatorのreadback報告で完了。
 このsource作業でGCP cleanupを独立再実行・再検証したとは扱いません。追加queryなし。
 

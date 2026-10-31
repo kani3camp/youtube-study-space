@@ -5,6 +5,12 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 detector="$script_dir/detect-ci-paths.sh"
 
+# テストケースの判定結果を、呼び出し元jobのSummaryやoutputsへ書き込まない。
+test_dir="$(mktemp -d)"
+trap 'rm -rf "$test_dir"' EXIT
+export GITHUB_STEP_SUMMARY="$test_dir/summary"
+export GITHUB_OUTPUT="$test_dir/output"
+
 assert_output_groups() {
 	local expected_groups="$1"
 	local output="$2"
@@ -71,16 +77,10 @@ assert_exact_groups gcp_terraform .github/scripts/test_export_topic.py
 assert_exact_groups gcp_terraform .github/scripts/test_export_scheduler.py
 assert_exact_groups gcp_terraform .github/scripts/test_export_function.py
 assert_exact_groups gcp_terraform .github/scripts/test_order_history.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_migration.py
-assert_exact_groups gcp_terraform .github/scripts/terraform_migration_contract.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_migration.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_migration_contract.py
-assert_exact_groups gcp_terraform .github/scripts/production_initializer.py
-assert_exact_groups gcp_terraform .github/scripts/test_production_initializer.py
-assert_exact_groups gcp_terraform .github/scripts/test_production_initializer_controller.py
-assert_exact_groups gcp_terraform .github/scripts/test_production_initializer_s3.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_migration_native_fidelity.py
-assert_exact_groups gcp_terraform .github/scripts/test_terraform_api_import_fidelity.py
+assert_exact_groups gcp_terraform .github/scripts/test_user_activity_history_preparation.py
+assert_exact_groups gcp_terraform .github/scripts/test_terraform_observation_native.py
+assert_exact_groups gcp_terraform infra/gcp/scripts/terraform_runtime.py
+assert_exact_groups gcp_terraform infra/gcp/tests/test_terraform_runtime.py
 assert_exact_groups gcp_terraform infra/gcp/modules/retained-order-history/tests/contract.tftest.hcl
 assert_exact_groups gcp_terraform infra/gcp/environments/dev/export-function.tf
 assert_exact_groups gcp_terraform infra/gcp/modules/firestore-export-function/main.tf
@@ -168,7 +168,7 @@ assert_exact_groups gcp_terraform infra/gcp/scripts/runtime_plan_selection.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_plan_contract.py
 
 # Every reusable CI module and its executable contracts select the full suite.
-for ci_path in .github/workflows/ci-{system,frontend,tools,infra,repository}.yml .github/scripts/check-ci-results.py .github/scripts/install-ci-source-tools.sh .github/scripts/test_ci_workflows.py .github/scripts/test_ci_results.py; do
+for ci_path in .github/workflows/ci-{system,frontend,tools,infra,repository}.yml .github/scripts/check-ci-results.py .github/scripts/install-ci-source-tools.sh .github/scripts/test_ci_workflows.py .github/scripts/test_ci_results.py .github/scripts/test_ci_path_summary.py; do
 	assert_exact_groups "$all_groups" "$ci_path"
 done
 
