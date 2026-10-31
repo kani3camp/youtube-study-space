@@ -64,7 +64,7 @@ def run(args, *, cwd=None, codes=(0,), check="native-command"):
             "artifactregistry.repositories.get", "iam.roles.get", "iam.serviceAccounts.get", "iam.serviceAccounts.getIamPolicy",
             "iam.workloadIdentityPoolProviders.get", "iam.workloadIdentityPools.get",
             "resourcemanager.projects.get", "resourcemanager.projects.getIamPolicy",
-            "run.jobs.get", "run.services.get", "run.services.getIamPolicy", "run.services.list",
+            "run.jobs.get", "run.jobs.getIamPolicy", "run.services.get", "run.services.getIamPolicy", "run.services.list",
             "secretmanager.secrets.get", "secretmanager.secrets.getIamPolicy",
             "serviceusage.services.get", "serviceusage.services.use",
         ):
