@@ -17,7 +17,7 @@ GoogleのIdP設定は管理対象に含めません。既存の許可ドメイ�
 
 ## 適用前の準備
 
-DEV／本番とも、既定値の`monitor_auth_registration = null`ではリソースも認証設定も変更しません。`normal.tfvars.json`に設定を追加する変更をレビューしてから有効化してください。ここにソースを追加しただけでは、稼働中の新規登録は制限されません。
+変数の既定値`monitor_auth_registration = null`ではリソースも認証設定も変更しません。DEVは`normal.tfvars.json`で明示的に有効化し、本番の入力は無効のまま維持します。設定変更とTerraform Applyの結果は対応PR／Actionsを参照してください。ソースや入力を追加しただけでは、稼働中の新規登録は制限されません。
 
 1. 対象プロジェクトのFirebase Authentication with Identity Platformが有効になっていること、課金・利用条件、必要なAPIを確認します。既存Auth設定を取り込む構成であり、プロジェクトやAuthを新規作成・初期化しません。API有効化は既存のAPI管理元で行い、所有権を重複させません。必要なAPIはIdentity Toolkit、Cloud Functions、Cloud Build、Cloud Run、Artifact Registryです。
 2. 既存Auth設定とTerraform Stateの所有者を確認します。他のStateに同じAuth設定がある場合は、先に所有権を整理してください。既存の`beforeCreate`は上書きしません。既存`beforeSignIn`のURLがある場合は、下記の入力に正確に指定します。通常Planの事前確認は、別の`beforeCreate`、未対応トリガー、`beforeSignIn`の不一致を拒否します。
