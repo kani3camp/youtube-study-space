@@ -86,7 +86,7 @@ describe('Monitor Firestore failure boundary', () => {
 				firestoreMocks.subscriptions.get(path)?.fail()
 			})
 
-			expect(screen.getByText('Firestore を読み込めません')).toBeInTheDocument()
+			expect(screen.getByText('配信画面を表示できません')).toBeInTheDocument()
 			for (const { unsubscribe } of firestoreMocks.subscriptions.values()) {
 				expect(unsubscribe).toHaveBeenCalledOnce()
 			}

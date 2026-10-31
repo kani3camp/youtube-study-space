@@ -63,8 +63,8 @@ export const Monitor: FC = () => {
 	if (readFailed) {
 		return (
 			<MonitorAccessStatus
-				title="Firestore を読み込めません"
-				detail="読み取り権限またはネットワークを確認してください。安全のためモニターを停止しています。"
+				title="配信画面を表示できません"
+				detail="ライブチャット、または緊急連絡フォームからご連絡ください。"
 			/>
 		)
 	}

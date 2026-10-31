@@ -105,18 +105,18 @@ export default function OperatorLogin(): JSX.Element {
 	return (
 		<>
 			<Head>
-				<title>YouTube Monitor Operator Login</title>
+				<title>モニター認証 | YouTube Study Space</title>
 				<meta name="robots" content="noindex,nofollow" />
 			</Head>
 			<main css={page}>
 				<section css={card}>
-					<h1>モニター専用ログイン</h1>
+					<h1>モニター認証</h1>
 					<p css={warning}>
-						この画面を配信映像へ表示しないでください。OBSのブラウザソースを非表示にして「対話」から操作します。
+						配信画面が表示されない場合は、ライブチャット、または緊急連絡フォームからご連絡ください。
 					</p>
 					{authorization.status === 'authorized' ? (
 						<>
-							<p>認証と monitor_reader claim を確認しました。</p>
+							<p>認証が完了しました。</p>
 							<button type="button" onClick={() => void router.replace('/')}>
 								モニターへ戻る
 							</button>
@@ -148,7 +148,7 @@ export default function OperatorLogin(): JSX.Element {
 							</label>
 							{loginFailed ? (
 								<p css={errorStyle} role="alert">
-									ログインできませんでした。専用アカウントと設定を確認してください。
+									認証に失敗しました。ライブチャット、または緊急連絡フォームからご連絡ください。
 								</p>
 							) : null}
 							<button type="submit" disabled={submitting}>

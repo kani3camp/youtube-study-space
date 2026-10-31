@@ -21,31 +21,19 @@ const MonitorAuthGate: FC<MonitorAuthGateProps> = ({ children }) => {
 		case 'authorized':
 			return children
 		case 'signed-out':
-			return (
-				<MonitorAccessStatus
-					title="モニター認証が必要です"
-					detail="配信画面から隔離した状態で /operator-login を開き、専用アカウントでログインしてください。Firestore は読み込まれていません。"
-				/>
-			)
 		case 'unauthorized':
-			return (
-				<MonitorAccessStatus
-					title="モニター権限がありません"
-					detail="専用アカウントの custom claim と UID allowlist を確認してください。Firestore は読み込まれていません。"
-				/>
-			)
 		case 'error':
 			return (
 				<MonitorAccessStatus
-					title="モニター認証を確認できません"
-					detail="認証状態またはブラウザの永続化設定を確認してください。安全のためモニターを停止しています。"
+					title="認証に失敗しました"
+					detail="ライブチャット、または緊急連絡フォームからご連絡ください。"
 				/>
 			)
 		case 'checking':
 			return (
 				<MonitorAccessStatus
-					title="モニター認証を確認しています"
-					detail="認証が確認できるまで Firestore は読み込みません。"
+					title="配信画面を準備しています"
+					detail="しばらくお待ちください。"
 				/>
 			)
 	}
