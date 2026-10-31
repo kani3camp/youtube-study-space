@@ -37,8 +37,8 @@ DEPENDENCIES = {'changes', *MODULES, 'gcp-terraform-validate'}
 AUTH_SECRETS = ('GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', 'GCP_TERRAFORM_NORMAL_WIF_PROVIDER', 'AWS_TERRAFORM_BACKEND_ROLE_ARN', 'AWS_TERRAFORM_BACKEND_ROLE_ID',
                 'AWS_TERRAFORM_STATE_BUCKET', 'AWS_TERRAFORM_STATE_ACCOUNT_ID',
                 'GCP_TERRAFORM_MANAGED_INPUTS_JSON')
-AUTH_DISPATCH = "github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査＋plan' || inputs.execution_mode == '検査＋apply')"
-TERRAFORM_MODE = "${{ inputs.execution_mode == '検査＋apply' && 'normal-apply' || 'normal-plan' }}"
+AUTH_DISPATCH = "github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査+plan' || inputs.execution_mode == '検査+apply')"
+TERRAFORM_MODE = "${{ inputs.execution_mode == '検査+apply' && 'normal-apply' || 'normal-plan' }}"
 
 
 def selected(expression, flags, inputs=None):
@@ -130,7 +130,7 @@ def validate(caller, modules):
     require(set(dispatch) == {'execution_mode', 'terraform_target', 'terraform_expected_sha', 'terraform_source_branch'},
             'No retired operational mode/input returns')
     for key, default, options in (('terraform_target', 'dev', ['dev', 'prod']),
-                                  ('execution_mode', '検査＋plan', ['全検査のみ', '検査＋plan', '検査＋apply'])):
+                                  ('execution_mode', '全検査のみ', ['全検査のみ', '検査+plan', '検査+apply'])):
         require(dispatch[key]['type'] == 'choice' and dispatch[key]['default'] == default
                 and dispatch[key]['options'] == options and dispatch[key]['required'] is False, 'Dispatch choices stay fixed')
     require(caller['concurrency'] == {
@@ -155,11 +155,11 @@ class WorkflowContractsTest(unittest.TestCase):
         jobs = self.caller['jobs']
         for event, mode, authenticated, operation in (
             ('workflow_dispatch', '全検査のみ', False, None),
-            ('workflow_dispatch', '検査＋plan', True, 'normal-plan'),
-            ('workflow_dispatch', '検査＋apply', True, 'normal-apply'),
+            ('workflow_dispatch', '検査+plan', True, 'normal-plan'),
+            ('workflow_dispatch', '検査+apply', True, 'normal-apply'),
             ('workflow_dispatch', 'unknown', False, None),
             ('workflow_dispatch', '', False, None),
-            ('pull_request', '検査＋apply', False, None),
+            ('pull_request', '検査+apply', False, None),
             ('pull_request', '', False, None),
         ):
             with self.subTest(event=event, mode=mode):
@@ -233,7 +233,8 @@ class WorkflowContractsTest(unittest.TestCase):
 
     def test_rejects_regressions_in_gate_selection_permissions_and_operational_caller(self):
         mutations = [
-            lambda c, m: c['on']['workflow_dispatch']['inputs']['execution_mode'].update(default='検査＋apply'),
+            lambda c, m: c['on']['workflow_dispatch']['inputs']['execution_mode'].update(default='検査+plan'),
+            lambda c, m: c['on']['workflow_dispatch']['inputs']['execution_mode'].update(default='検査+apply'),
             lambda c, m: c['jobs']['gcp-terraform-authenticated'].pop('needs'),
             lambda c, m: c['jobs']['gcp-terraform-authenticated'].update({'if': '${{ always() }}'}),
             lambda c, m: c['jobs']['ci-gate']['needs'].remove('changes'),

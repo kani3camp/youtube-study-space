@@ -21,7 +21,7 @@ spec.loader.exec_module(resolver)
 
 class SelectedValidationSourceTest(unittest.TestCase):
     def environment(self, **changes):
-        env = fixtures.env() | {'CI_EXECUTION_MODE': '検査＋plan', 'NORMAL_MODE': 'normal-plan',
+        env = fixtures.env() | {'CI_EXECUTION_MODE': '検査+plan', 'NORMAL_MODE': 'normal-plan',
                                 'NORMAL_EXPECTED_SHA': '', 'GITHUB_TOKEN': 'FIXTURE_TOKEN'}
         env.pop('NORMAL_SOURCE_SHA')
         return env | changes
@@ -79,7 +79,7 @@ class SelectedValidationSourceTest(unittest.TestCase):
                 resolver.resolve(env | change)
 
     def test_pr_and_validation_only_keep_controller_commit_and_ignore_terraform_selectors(self):
-        for event, mode in (('pull_request', ''), ('pull_request', '検査＋apply'),
+        for event, mode in (('pull_request', ''), ('pull_request', '検査+apply'),
                             ('workflow_dispatch', '全検査のみ')):
             env = self.environment(GITHUB_EVENT_NAME=event, CI_EXECUTION_MODE=mode,
                                    NORMAL_SOURCE_BRANCH='ignored', NORMAL_EXPECTED_SHA='ignored')

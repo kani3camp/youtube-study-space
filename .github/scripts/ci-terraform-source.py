@@ -14,7 +14,7 @@ def resolve(env):
     sha = env.get('GITHUB_SHA', '')
     ops.need(re.fullmatch('[0-9a-f]{40}', sha) is not None)
     if (env.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
-            and env.get('CI_EXECUTION_MODE') in ('検査＋plan', '検査＋apply')):
+            and env.get('CI_EXECUTION_MODE') in ('検査+plan', '検査+apply')):
         # The controller checkout supplies this resolver; never import target code.
         # Reuse owner/ref/selector checks before any target checkout or credentials.
         ops.context(env)

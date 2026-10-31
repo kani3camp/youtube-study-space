@@ -7,12 +7,12 @@ on:
       execution_mode:
         description: 実行内容（plan/apply時の検査はTerraform関連＋Repository共通）
         required: false
-        default: 検査＋plan
+        default: 全検査のみ
         type: choice
         options:
           - 全検査のみ
-          - 検査＋plan
-          - 検査＋apply
+          - 検査+plan
+          - 検査+apply
       terraform_target:
         description: Terraform target environment
         required: false
@@ -35,7 +35,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査＋plan' || inputs.execution_mode == '検査＋apply')) }}
+  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査+plan' || inputs.execution_mode == '検査+apply')) }}
 
 jobs:
   changes:
@@ -70,7 +70,7 @@ jobs:
         env:
           CI_EXECUTION_MODE: ${{ inputs.execution_mode }}
           NORMAL_TARGET: ${{ inputs.terraform_target }}
-          NORMAL_MODE: ${{ inputs.execution_mode == '検査＋apply' && 'normal-apply' || 'normal-plan' }}
+          NORMAL_MODE: ${{ inputs.execution_mode == '検査+apply' && 'normal-apply' || 'normal-plan' }}
           NORMAL_EXPECTED_SHA: ${{ inputs.terraform_expected_sha }}
           NORMAL_SOURCE_BRANCH: ${{ inputs.terraform_source_branch }}
           GITHUB_TOKEN: ${{ github.token }}
@@ -84,7 +84,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CI_AUTHENTICATED_TERRAFORM_DISPATCH: ${{ github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査＋plan' || inputs.execution_mode == '検査＋apply') }}
+          CI_AUTHENTICATED_TERRAFORM_DISPATCH: ${{ github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査+plan' || inputs.execution_mode == '検査+apply') }}
         run: bash .github/scripts/detect-ci-paths.sh
 
   system:
@@ -217,7 +217,7 @@ jobs:
   gcp-terraform-authenticated:
     name: GCP Terraform Authenticated
     needs: [changes, ci-gate]
-    if: ${{ !cancelled() && needs.ci-gate.result == 'success' && github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査＋plan' || inputs.execution_mode == '検査＋apply') }}
+    if: ${{ !cancelled() && needs.ci-gate.result == 'success' && github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査+plan' || inputs.execution_mode == '検査+apply') }}
     permissions:
       contents: read
       id-token: write
@@ -232,7 +232,7 @@ jobs:
       GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
     with:
       target: ${{ inputs.terraform_target }}
-      mode: ${{ inputs.execution_mode == '検査＋apply' && 'normal-apply' || 'normal-plan' }}
+      mode: ${{ inputs.execution_mode == '検査+apply' && 'normal-apply' || 'normal-plan' }}
       # Use the checked commit, never resolve a moving branch again after CI.
       expected_sha: ${{ needs.changes.outputs.validation_sha }}
       source_branch: ''
