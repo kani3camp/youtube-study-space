@@ -17,7 +17,8 @@ spec.loader.exec_module(gate)
 class GateResultsTest(unittest.TestCase):
     def fixture(self, **outputs):
         needs = {name: {'result': 'skipped'} for name in gate.DEPENDENCIES}
-        needs['changes'] = {'result': 'success', 'outputs': dict.fromkeys(gate.GROUPS, 'false') | outputs}
+        needs['changes'] = {'result': 'success', 'outputs': dict.fromkeys(gate.GROUPS, 'false')
+                            | {'validation_sha': 'a' * 40} | outputs}
         needs['repository']['result'] = 'success'
         return needs
 
@@ -77,6 +78,16 @@ class GateResultsTest(unittest.TestCase):
         needs = self.fixture(gcp_terraform='true')
         needs['gcp-terraform-validate']['result'] = 'success'
         gate.validate(needs)
+
+    def test_missing_or_invalid_validation_sha_cannot_pass(self):
+        for sha in (None, '', 'main', 'A' * 40, 'a' * 39, 123):
+            needs = self.fixture()
+            if sha is None:
+                del needs['changes']['outputs']['validation_sha']
+            else:
+                needs['changes']['outputs']['validation_sha'] = sha
+            with self.subTest(sha=sha), self.assertRaises(ValueError):
+                gate.validate(needs)
 
     def test_real_gate_entrypoint_returns_nonzero_on_bad_or_missing_json(self):
         for payload, expected in ((json.dumps(self.fixture()), 0), ('{}', 1), ('not-json', 1), ('[]', 1)):

@@ -2,6 +2,11 @@ name: CI Repository
 
 on:
   workflow_call:
+    inputs:
+      source_sha:
+        description: Exact commit to validate, pinned by the CI controller
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -10,56 +15,151 @@ jobs:
   base-image-update-report-test:
     name: Base Image Update Report Test
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Checkout
+      - name: Checkout trusted validation controller
         uses: actions/checkout@v7
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
         with:
-          node-version: "24"
-      - name: Run tests
-        run: node --test .github/scripts/base-image-update-report.test.mjs
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare isolated validation tools
+        uses: ./.github/actions/prepare-ci-validation
+      - name: Checkout exact validation source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: .ci-source
+          persist-credentials: false
+      - name: Run isolated validation
+        env:
+          VALIDATION_SHA: ${{ inputs.source_sha }}
+        run: |
+          # Do not expose runner tokens, command files or the Docker socket to target code.
+          marker="$(openssl rand -hex 32)"
+          echo "::stop-commands::${marker}"
+          set +e
+          docker run --rm --init --read-only --network=none \
+            --cap-drop=ALL --security-opt=no-new-privileges \
+            --pids-limit=256 --memory=6g --cpus=2 \
+            --tmpfs /tmp:rw,exec,mode=1777 \
+            --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
+            --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
+            --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
+            yss-ci-validation:local base-image
+          result=$?
+          echo "::${marker}::"
+          exit "$result"
 
   node-types-ignore-policy:
     name: Node Types Ignore Policy
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Checkout
+      - name: Checkout trusted validation controller
         uses: actions/checkout@v7
-      - name: Check Node types ignore policy
-        run: bash tools/ci/check-node-types-ignore.sh
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare isolated validation tools
+        uses: ./.github/actions/prepare-ci-validation
+      - name: Checkout exact validation source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: .ci-source
+          persist-credentials: false
+      - name: Run isolated validation
+        env:
+          VALIDATION_SHA: ${{ inputs.source_sha }}
+        run: |
+          # Do not expose runner tokens, command files or the Docker socket to target code.
+          marker="$(openssl rand -hex 32)"
+          echo "::stop-commands::${marker}"
+          set +e
+          docker run --rm --init --read-only --network=none \
+            --cap-drop=ALL --security-opt=no-new-privileges \
+            --pids-limit=256 --memory=6g --cpus=2 \
+            --tmpfs /tmp:rw,exec,mode=1777 \
+            --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
+            --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
+            --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
+            yss-ci-validation:local node-policy
+          result=$?
+          echo "::${marker}::"
+          exit "$result"
 
   documentation-references:
     name: Documentation References
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Checkout
+      - name: Checkout trusted validation controller
         uses: actions/checkout@v7
-      - name: Test document link guardrails
-        run: python3 .github/scripts/test_check_doc_references.py
-      - name: Check repository-relative documentation links
-        run: python3 .github/scripts/check-doc-references.py
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare isolated validation tools
+        uses: ./.github/actions/prepare-ci-validation
+      - name: Checkout exact validation source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: .ci-source
+          persist-credentials: false
+      - name: Run isolated validation
+        env:
+          VALIDATION_SHA: ${{ inputs.source_sha }}
+        run: |
+          # Do not expose runner tokens, command files or the Docker socket to target code.
+          marker="$(openssl rand -hex 32)"
+          echo "::stop-commands::${marker}"
+          set +e
+          docker run --rm --init --read-only --network=none \
+            --cap-drop=ALL --security-opt=no-new-privileges \
+            --pids-limit=256 --memory=6g --cpus=2 \
+            --tmpfs /tmp:rw,exec,mode=1777 \
+            --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
+            --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
+            --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
+            yss-ci-validation:local docs
+          result=$?
+          echo "::${marker}::"
+          exit "$result"
 
   ci-contracts:
     name: CI Workflow Contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Checkout
+      - name: Checkout trusted validation controller
         uses: actions/checkout@v7
-      - name: Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: '3.12'
-      - name: Install pinned source validation tools
-        run: bash .github/scripts/install-ci-source-tools.sh "$RUNNER_TEMP/ci-source-tools"
-      - name: Test CI selection, required checks and authentication boundary
-        run: python -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v
-      - name: Lint CI and operational workflow calls
-        run: >-
-          "$RUNNER_TEMP/ci-source-tools/actionlint" -shellcheck= -pyflakes=
-          .github/workflows/ci.yml .github/workflows/ci-*.yml
-          .github/workflows/gcp-terraform-authenticated.yml
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare isolated validation tools
+        uses: ./.github/actions/prepare-ci-validation
+      - name: Checkout exact validation source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: .ci-source
+          persist-credentials: false
+      - name: Run isolated validation
+        env:
+          VALIDATION_SHA: ${{ inputs.source_sha }}
+        run: |
+          # Do not expose runner tokens, command files or the Docker socket to target code.
+          marker="$(openssl rand -hex 32)"
+          echo "::stop-commands::${marker}"
+          set +e
+          docker run --rm --init --read-only --network=none \
+            --cap-drop=ALL --security-opt=no-new-privileges \
+            --pids-limit=256 --memory=6g --cpus=2 \
+            --tmpfs /tmp:rw,exec,mode=1777 \
+            --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
+            --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
+            --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
+            yss-ci-validation:local contracts
+          result=$?
+          echo "::${marker}::"
+          exit "$result"
