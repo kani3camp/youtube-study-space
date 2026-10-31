@@ -69,6 +69,7 @@ assert_exact_groups gcp_terraform .github/scripts/test_export_topic.py
 assert_exact_groups gcp_terraform .github/scripts/test_export_scheduler.py
 assert_exact_groups gcp_terraform .github/scripts/test_export_function.py
 assert_exact_groups gcp_terraform .github/scripts/test_order_history.py
+assert_exact_groups gcp_terraform .github/scripts/test_user_activity_history_preparation.py
 assert_exact_groups gcp_terraform .github/scripts/test_terraform_observation_native.py
 assert_exact_groups gcp_terraform infra/gcp/scripts/terraform_runtime.py
 assert_exact_groups gcp_terraform infra/gcp/tests/test_terraform_runtime.py

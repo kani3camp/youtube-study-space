@@ -80,7 +80,7 @@ classify_path() {
 	local matched=false
 
 	case "$path" in
-		.github/scripts/run_terraform_native_tests.py|.github/scripts/test_terraform_native_runner.py|.github/scripts/test_terraform_observation_native.py|.github/scripts/test_order_history.py)
+		.github/scripts/run_terraform_native_tests.py|.github/scripts/test_terraform_native_runner.py|.github/scripts/test_terraform_observation_native.py|.github/scripts/test_order_history.py|.github/scripts/test_user_activity_history_preparation.py)
 			gcp_terraform=true
 			matched=true
 			;;
