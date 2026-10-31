@@ -513,7 +513,10 @@ class FoundationTest(unittest.TestCase):
     def test_provider_condition_pairs_each_environment_caller_and_exact_subject(self):
         condition = c.provider_condition()
         self.assertLessEqual(len(condition), c.CONDITION_LIMIT)
-        prefix, listed = condition.split(' && assertion.sub in ')
+        # The second clause is the owner's PR Plan (test_pr_plan.py).
+        self.assertTrue(condition.startswith('(') and condition.count(') || (') == 1)
+        dispatch = condition[1:condition.index(') || (')]
+        prefix, listed = dispatch.split(' && assertion.sub in ')
         expected = [('plan', c.CALLER), ('apply', c.CALLER)] + [
             ('apply', item['caller']) for _, item in sorted(c.IMAGE_COMPONENTS.items())]
         # The clause list is exact, so image callers never reach the Plan Environment.
@@ -525,7 +528,7 @@ class FoundationTest(unittest.TestCase):
                        'assertion.event_name == "workflow_dispatch"', 'assertion.run_attempt == "1"',
                        'assertion.workflow_sha == assertion.job_workflow_sha'):
             self.assertIn(clause, prefix)
-        self.assertNotIn('||', condition)
+        self.assertNotIn('||', dispatch)
         self.assertNotIn('push', condition)
 
     def test_exact_actor_ref_and_sha_before_credentials(self):

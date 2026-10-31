@@ -111,14 +111,13 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 
 **PR Plan（UC2 自動）**
 
-- `pull_request` で起動し、変更パスから component を判定する（`infra/gcp/**` → core、`infra/mypage-platform/**` → mypage、共有の CI script / workflow 変更 → 両方）。dev / prod の両方を plan する。
+- `pull_request` で起動し、変更パスから component を判定する（`infra/gcp/**` → core、`infra/mypage-platform/**` → mypage、共有の CI script / workflow 変更 → 両方）。DEV だけを plan する（PROD の Plan Environment は `main` 限定のため、PROD は手動 Plan）。
 - fork 由来PRでは資格情報を取得しない。`pull_request` は fork に OIDC / secret を渡さないことに加え、job条件で `head.repo.full_name == github.repository` を要求し、満たさない場合は **失敗として** 理由を表示する（false-green skip にしない）。
-- PR Plan identity は、Apply identity とも、手動 Plan の identity とも分離して新設する。手動 Plan の identity は owner が dispatch した既知のコードだけを実行する前提で権限（state lock の書き込みなど）を持つ。PR Plan は PR 作成者が変更できるコードを実行するため、同じ identity を共有しない。
-  - GCP: 環境ごとの read-only SA（`get` / `list` / `getIamPolicy` 系のみ。既存 [`bootstrap_normal_ops.py`](../../infra/gcp/scripts/bootstrap_normal_ops.py) の READ 集合を基準にする）。
-  - AWS State: state object の `GetObject` と bucket の対象prefix `ListBucket` のみ。lock file への書き込み権限は与えず、PR Plan は `-lock=false` で実行する（PR Plan は助言であり、Apply は必ず fresh plan を作るため）。
-  - WIF condition: `event_name == 'pull_request'`、`ref` が `refs/pull/<n>/merge` の形、`workflow_ref == terraform.yml@` + `assertion.ref`、`job_workflow_ref == terraform-pr-plan.yml@` + `assertion.ref`、repository / owner ID・actor 固定、`run_attempt == 1`、専用Environment `terraform-<env>-pr-plan`（MyPage は `mypage-dev-pr-plan`）。Core は専用 pool `terraform-pr-plan` を使う（principalSet は pool 全体を信頼するため、手動 Plan の pool に provider を足さない）。
-  - PR の ref は branch ではないため、Environment の branch policy は境界にしない。境界は WIF condition（owner・PR ref・固定 workflow）と identity の権限である。
-- **脅威境界**: 同一repositoryのPRでは workflow 定義そのものがPR作成者の管理下にあるため、trust は「どのコードが実行されるか」を固定できない。よって PR Plan identity の権限（state read と GCP read）そのものが漏えい時の影響上限になる。state には sensitive 値が含まれ得るため、PR Plan を許可する actor は初期状態で owner（`actor_id == 54093651`）に限定する。AIエージェント等の actor を追加する場合は、追加する claim（`actor_id` 等）と state read を委ねてよい理由を PR で明示してから trust を広げる。owner 以外の actor による Terraform 変更PRでは PR Plan job を失敗させ、owner が手動 Plan を実行する。
+- PR Plan は DEV の手動 Plan と同じ reusable・Environment・identity を使う（Core: `gcp-terraform-authenticated.yml` の `pr-plan` mode と `terraform-dev-plan`、MyPage: `mypage-foundation-authenticated.yml` の `foundation_plan` と `mypage-dev-plan`）。PR 専用の identity・Environment・workflow は持たない（2026-10-31 の owner 判断。当初は分離していた）。
+  - 理由: ownerの PR で動くコードは、owner が任意の branch から手動 dispatch するコードと信頼の前提が同じ。DEV Environment の Secret は資格情報ではない設定値だけで、資格情報の境界はクラウド trust の actor 検査である。
+  - WIF condition / AWS trust は手動 dispatch の条件に PR 用の節を OR で加える: `event_name == 'pull_request'`、`ref` が `refs/pull/<n>/merge` の形、`workflow_ref == terraform.yml@` + `assertion.ref`、`job_workflow_ref` が同じ reusable の `@` + `assertion.ref`、Environment は **Plan だけ**（`terraform-dev-plan` / `mypage-dev-plan`）。repository / owner ID・actor・`run_attempt == 1` は両節で共通。Apply Environment・Apply identity は手動 dispatch だけ。
+  - `-lock=false` で実行する（PR Plan は助言で、手動の Plan / Apply を待たせない。Apply は必ず fresh plan を作る）。
+- **脅威境界**: 同一repositoryのPRでは workflow 定義そのものがPR作成者の管理下にあるため、trust は「どのコードが実行されるか」を固定できない。PR Plan を許可する actor は owner（`actor_id == 54093651`）に限定する。write 権限を持つ協力者の PR では PR Plan job を失敗させ、owner が手動 Plan を実行する（協力者の job が DEV Environment の Secret を読めても、クラウドの資格情報は actor 検査で取得できない）。AIエージェント等の actor を追加する場合は、追加する claim と理由を PR で明示してから trust を広げる。
 - 結果は Job Summary と check に、値を含まない要約（resource type・操作・件数）だけを出す。plan file・JSON・artifact は残さない（state 由来の値を PR 作成者の管理下にあるコードの外へ持ち出さないため）。PRコメントは投稿しない。詳細を確認する場合は owner が手動 Plan を実行する。
 - **残るリスク**: AWS の State read role は `sub`（7 claim）と `actor_id` を検査するが、`run_attempt` は検査しない（手動 Plan / Apply の AWS role も同じ）。再実行の actor は初回実行者のままなので、PR 内のコードが preflight を省いた状態で、書き込み権限を持つ者が owner の run を再実行すると、State を読める可能性がある。GCP WIF は `run_attempt == 1` で拒否する。現在 repository の書き込み権限は owner だけなので許容しているが、AWS が `run_attempt` claim を条件キーとして扱えるか確認し、扱えるなら trust に加える（owner 判断）。
 
@@ -164,7 +163,7 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 | `mypage-<env>-cloud-run` | 手動 `Terraform` の run 全体（Core / MyPage）、API deploy、Operator deploy | Terraform は refresh 後に Service / Job 全体を PATCH するため、その間の image 更新を巻き戻し得る。group は workflow ごとに1つなので、手動 `Terraform` は component によらずこの group に入る（Core だけの run も Cloud Run 変更と直列化される、保守的な側）。API / Operator 同士も直列化されるが、同一環境の Cloud Run 変更に限定した lock で、全操作の global lock にはしない |
 | `mypage-<env>-hosting` | Frontend deploy（`mypage-hosting-authenticated.yml`） | Hosting site だけを変更する |
 | `mypage-maintenance-<env>` | Maintenance mode 切替 | Firestore の maintenance control を変更する。Job 実行は開始時点の Job 定義を使うため、Operator deploy とは排他にしない |
-| `terraform-pr-plan-<pr>`（`cancel-in-progress: true`） | PR Plan | read-only・`-lock=false`。apply を待たせない |
+| `terraform-pr-plan-<pr>`（`cancel-in-progress: true`）。reusable 内は `gcp-terraform-pr-plan-<pr>` / `mypage-pr-plan-<pr>` | PR Plan | `-lock=false` の助言。手動の Plan / Apply の group に入らず、待たせない |
 
 **改名（#7）**: 移行中は旧 group `mypage-dev-runtime-change` に全参加者を入れていた。全参加者が新経路へ移った #7 で `mypage-dev-cloud-run`（PROD は `mypage-prod-cloud-run`、旧 `gcp-infrastructure-production`）と `mypage-dev-hosting`（旧 `mypage-dev-hosting-release`）へまとめて改名した。新旧 group は互いに排他しないため、最終PRを取り込む前に旧 group の実行中・待機中の run がないことを確認する（4.2）。
 
@@ -184,7 +183,7 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 | 2 | API / Operator の image 分離と Operator deploy | `Dockerfile.mypage-api` / `Dockerfile.mypage-maintenance-operator`、Backend release から Job 同期を撤去、`deploy-mypage-maintenance.yml` + `mypage-operator-authenticated.yml`、`mypage-operator-deploy` の Job IAM（Terraform、追加のみ）、Terraform 契約の両 package 許容 | `operator_identity.py --apply`、MyPage Terraform Apply、foundation WIF condition へ `deploy-mypage-maintenance.yml` を追加、初回 Operator deploy |
 | 3 | API / Frontend の Deploy workflow | `deploy-mypage-api.yml`（build-and-deploy / deploy-existing）、`deploy-mypage-frontend.yml`。router から `mypage-image-build` / `mypage-backend-release` / `mypage-hosting-release` と push 自動CD を撤去 | Backend / Hosting / foundation image-build の WIF condition を新 `workflow_ref` へ更新し、Backend から `push` を削除 |
 | 4 | `terraform.yml`（手動 plan / apply、component 入力） | `gcp-plan` / `gcp-apply`、`gcp-infrastructure-authenticated.yml` / `mypage-infrastructure-authenticated.yml` を撤去。到達不能 mode は呼ばないことをテストで固定（Core の migration / e2e mode はその後 #1521 で撤去） | 4.3 を参照。`terraform-prod-apply` に required reviewers |
-| 5 | PR Plan | `terraform.yml` の `pull_request` Plan（`terraform-pr-plan.yml`）、`terraform_normal_ops` / `foundation_ops` の `pr-plan` role、PR Plan identity の bootstrap・policy 生成 | Core: `bootstrap_pr_plan.py --target dev|prod --apply` と AWS role（`--aws-policies`）、Environment の managed 入力（別の `plan_integrity_key`）。MyPage: `mypage-foundation-pr-plan` SA、`github-pr-plan` provider（`pr-plan-provider-condition`）、AWS role（`pr-plan-aws-policies`）、Environment `mypage-dev-pr-plan` |
+| 5 | PR Plan | `terraform.yml` の `pull_request` Plan。DEV の手動 Plan と同じ reusable・Environment・identity を使う（当初の専用 `terraform-pr-plan.yml` と PR Plan identity は、後続 PR で統合・撤去） | 4.4 を参照 |
 | 6 | Maintenance mode の reusable 化 | 認証 job を `mypage-maintenance-authenticated.yml` へ移し、`actions/checkout` を SHA pin、認証前の actor / ref / caller 検査を追加 | Environment `mypage-maintenance-development` へ `MYPAGE_MAINTENANCE_WIF_PROVIDER` を設定（production は Environment 作成から）。WIF condition と principalSet は `workflow_ref`（最上位 = `mypage-maintenance.yml`）を検査しており、reusable 化しても値は変わらない。ただし既存 provider は別の欠陥で認証できない（2.4 の `google.subject`）ため、その修正が先に必要 |
 | 7 | `ci.yml` の最終整理 | concurrency group の改名（`mypage-<env>-cloud-run` / `mypage-dev-hosting`）と共有 lock の契約テスト、docs の最終整合。schema audit は #8 で撤去 | 移行・検証済みの DEV identity から旧 claim を削除（4.2 の 5） |
 | 8 | schema audit の撤去（owner 判断） | `gcp-user-activity-schema-audit.yml`・`ci-operations.yml`・要約 script・監査専用 fixture とテストを削除し、`ci.yml` の `operation` 入力・`operations` job・CI Gate の operation 判定を撤去。履歴 adoption のテストは `test_user_activity_history_preparation.py` へ分離 | Environment `gcp-dev-user-activity-schema-audit` とその secret の削除（任意） |
@@ -218,6 +217,19 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 | MyPage DEV AWS State role | `foundation_contract.trust_policy()` の出力（`sub` の caller が `terraform.yml`）で置き換える |
 | Core PROD（`main` に取り込むとき） | [`bootstrap_production_normal_ops.py`](../../infra/gcp/scripts/bootstrap_production_normal_ops.py) の GCP condition と、[`production_backend_packet.py`](../../infra/gcp/scripts/production_backend_packet.py) の AWS trust policy を適用する。`main` に入るまで本番の `ci.yml` 経路は変わらない |
 
+### 4.4 PR Plan の統合（owner）
+
+PR Plan を DEV の手動 Plan に統合する PR を取り込んだ後、次の順で行う。順番を逆にすると、PR Plan が通らないまま制限だけが外れる。
+
+| 対象 | 方法 |
+| --- | --- |
+| Core DEV GCP WIF（`terraform-normal` pool） | condition を `bootstrap_normal_ops.condition(('ci.yml', 'terraform.yml'))`（移行中の2 caller + PR 節）へ `update-oidc` で置き換え、`enable_normal_integration.py --verify-gcp` で readback する |
+| Core DEV AWS State role（`youtube-study-space-terraform-dev-plan`） | trust の `StringLike` `sub` に PR 用 subject（`enable_normal_integration.custom_subject('plan', 'refs/pull/*/merge', event_name='pull_request')`）を追加し、`--verify-aws` で readback する。Apply role は変更しない |
+| MyPage DEV foundation GCP WIF（`mypage-foundation` / `github-actions`） | `foundation_contract.py provider-condition` の出力で condition を置き換える |
+| MyPage DEV AWS Plan role | `foundation_contract.py trust-policy <account> plan` の出力で trust を置き換える（PR 用の statement が加わる） |
+| DEV Environment | `enable_normal_integration.py --apply`（Core の2 Environment）と GitHub Settings（`mypage-dev-*`）で branch 制限を外す（No restriction）。PROD の Environment は変更しない |
+| 撤去 | Environment `terraform-dev-pr-plan` / `terraform-prod-pr-plan` / `mypage-dev-pr-plan` と、作成済みなら PR Plan 用の SA・WIF pool / provider（`terraform-pr-plan`、`mypage-foundation/github-pr-plan`）・AWS role を削除する |
+
 ## 5. 移行状況
 
 「実装済み」は作業用統合ブランチ上のコードを指す。実環境で有効かどうかは 4.2 の owner 作業と実runで確認する。
@@ -225,7 +237,7 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 | UC | 状態 | 経路 |
 | --- | --- | --- |
 | UC1 CI | 実装済み。手動 operation なし（`workflow_dispatch` は再検査のみ） | `ci.yml` |
-| UC2 PR Plan | 実装済み（未有効化）。identity は owner の bootstrap 待ち | `terraform.yml`（`pull_request`）→ `terraform-pr-plan.yml` |
+| UC2 PR Plan | 実装済み（未有効化）。trust 更新と DEV Environment の branch 制限解除は owner 作業待ち（4.4） | `terraform.yml`（`pull_request`）→ `gcp-terraform-authenticated.yml`（`pr-plan`）/ `mypage-foundation-authenticated.yml` |
 | UC2 手動 Plan / UC3 Apply | 実装済み（未有効化）。旧 router 経路と orchestrator は撤去済み。PROD Apply の reviewer は owner 設定待ち | `terraform.yml` |
 | UC4 Frontend | 実装済み（未有効化）。旧 router 経路は撤去済み | `deploy-mypage-frontend.yml` |
 | UC5 API | 実装済み（未有効化）。Service のみ。旧 router 経路と push 自動CDは撤去済み | `deploy-mypage-api.yml` |

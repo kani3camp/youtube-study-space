@@ -5,15 +5,15 @@ name: Terraform
 # its own job and applies that job's plan only when it matches the Plan job.
 # Production Apply requires the GitHub Environment approval of
 # terraform-prod-apply (and mypage-prod-apply when MyPage production exists).
-# A same-repository PR by the owner additionally gets an advisory PR Plan with
-# read-only identities (terraform-pr-plan.yml); it can never Apply.
+# A same-repository PR by the owner additionally gets an advisory DEV PR Plan
+# with the manual DEV Plan Environment and identity: lock-free, no commitment,
+# and it can never Apply (the cloud trust admits a PR to the Plan Environment only).
 on:
   pull_request:
     paths:
       - infra/gcp/**
       - infra/mypage-platform/**
       - .github/workflows/terraform.yml
-      - .github/workflows/terraform-pr-plan.yml
       - .github/workflows/gcp-terraform-authenticated.yml
       - .github/workflows/mypage-foundation-authenticated.yml
       - .github/scripts/terraform_*.py
@@ -287,7 +287,7 @@ jobs:
             case "${path}" in
               infra/gcp/*|.github/workflows/gcp-terraform-authenticated.yml|.github/scripts/terraform_*.py) core=true ;;
               infra/mypage-platform/*|.github/workflows/mypage-foundation-authenticated.yml) mypage=true ;;
-              .github/workflows/terraform.yml|.github/workflows/terraform-pr-plan.yml) core=true; mypage=true ;;
+              .github/workflows/terraform.yml) core=true; mypage=true ;;
             esac
           done < "${changed}"
           {
@@ -296,24 +296,21 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "PR Plan roots: core=${core} mypage=${mypage}"
 
+  # Production Environments stay main-only, so a PR plans DEV only.
   pr-plan-core:
     name: PR Plan Core
     needs: pr-select
     if: ${{ needs.pr-select.outputs.core == 'true' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [dev, prod]
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/terraform-pr-plan.yml
+    uses: ./.github/workflows/gcp-terraform-authenticated.yml
     with:
-      target: ${{ matrix.target }}
-      component: core
+      target: dev
+      mode: pr-plan
+      expected_sha: ${{ github.sha }}
       pr_number: ${{ format('{0}', github.event.pull_request.number) }}
       head_repository: ${{ github.event.pull_request.head.repo.full_name }}
-      expected_sha: ${{ github.sha }}
     secrets:
       GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
       GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
@@ -326,18 +323,17 @@ jobs:
   pr-plan-mypage:
     name: PR Plan MyPage
     needs: pr-select
-    # Production MyPage is disabled (desired-stage.txt) and has no PR Plan identity.
     if: ${{ needs.pr-select.outputs.mypage == 'true' }}
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/terraform-pr-plan.yml
+    uses: ./.github/workflows/mypage-foundation-authenticated.yml
     with:
-      target: dev
-      component: mypage
+      target: development
+      mode: desired-plan
+      expected_sha: ${{ github.sha }}
       pr_number: ${{ format('{0}', github.event.pull_request.number) }}
       head_repository: ${{ github.event.pull_request.head.repo.full_name }}
-      expected_sha: ${{ github.sha }}
     secrets:
       MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
       MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}

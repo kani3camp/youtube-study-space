@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DEVの本人限定・任意ブランチ実行と、Environment変更範囲を検証する。"""
+"""DEVの本人限定・任意ブランチ実行とPR Plan、Environmentのbranch制限解除の範囲を検証する。"""
 from copy import deepcopy
 from contextlib import redirect_stdout
 import io
@@ -47,6 +47,7 @@ def environment(role, restricted=True):
 class BranchAuthorizationTest(unittest.TestCase):
     def test_gcp_condition_is_branch_name_agnostic(self):
         condition = bootstrap.CONDITION
+        self.assertLessEqual(len(bootstrap.condition(op.CALLERS)), 4096)
         self.assertIn("assertion.ref.startsWith('refs/heads/')", condition)
         self.assertIn("assertion.ref != 'refs/heads/main'", condition)
         self.assertIn("assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + assertion.ref", condition)
@@ -56,13 +57,33 @@ class BranchAuthorizationTest(unittest.TestCase):
         self.assertNotIn("refs/heads/dev", condition)
         self.assertNotIn("integration/gcp-terraform-normal-ops", condition)
 
-    def test_control_branch_accepts_any_non_main_branch(self):
-        for value in ("dev", "feature/x", "integration/gcp-terraform-normal-ops",
-                      "fix/foo.bar-1"):
-            self.assertEqual(op.branch_name(value), value)
-        for value in ("main", "-bad", "bad branch", "refs/heads/dev", "", "../x"):
-            with self.subTest(value=value), self.assertRaises(op.Stop):
-                op.branch_name(value)
+    def test_gcp_pr_clause_admits_only_the_plan_environment_from_terraform_yml(self):
+        condition = bootstrap.CONDITION
+        dispatch, pull_request = condition.split(' || ')
+        self.assertIn("assertion.event_name == 'workflow_dispatch'", dispatch)
+        self.assertIn("assertion.event_name == 'pull_request'", pull_request)
+        self.assertIn("assertion.environment == 'terraform-dev-plan'", pull_request)
+        self.assertNotIn('terraform-dev-apply', pull_request)
+        self.assertIn("assertion.ref.matches('^refs/pull/[1-9][0-9]{0,8}/merge$')", pull_request)
+        self.assertIn("gcp-terraform-authenticated.yml@' + assertion.ref", pull_request)
+        # The transitional ci.yml caller is never admitted for a PR.
+        self.assertNotIn('ci.yml', bootstrap.condition(op.CALLERS).split(' || ')[1])
+        # Owner, repository and retry limits apply to both clauses.
+        for clause in ("assertion.actor_id == '54093651'", "assertion.run_attempt == '1'",
+                       "assertion.repository_id == '340900071'"):
+            self.assertEqual(condition.count(clause), 1)
+            self.assertNotIn(clause, condition[condition.index('(('):condition.index('))')])
+
+    def test_pr_subject_is_plan_only_and_terraform_yml_only(self):
+        subject = op.custom_subject('plan', op.PR_AWS_REF, event_name='pull_request')
+        self.assertIn('environment:terraform-dev-plan', subject)
+        self.assertIn('event_name:pull_request', subject)
+        self.assertIn('gcp-terraform-authenticated.yml@refs/pull/*/merge', subject)
+        for args in (('apply', op.PR_AWS_REF, 'terraform.yml', 'pull_request'),
+                     ('plan', op.PR_AWS_REF, 'ci.yml', 'pull_request'),
+                     ('plan', op.PR_AWS_REF, 'terraform.yml', 'push')):
+            with self.subTest(args=args), self.assertRaises(op.Stop):
+                op.custom_subject(*args)
 
     def test_existing_aws_branch_agnostic_trust_is_read_only_valid(self):
         for kind in ("plan", "apply"):
@@ -76,6 +97,19 @@ class BranchAuthorizationTest(unittest.TestCase):
                     kind, "refs/heads/dev")
             with self.assertRaises(op.Stop):
                 op.audit_aws_role(invalid, kind)
+
+    def test_plan_role_may_add_the_pr_subject_but_apply_role_may_not(self):
+        pr_subject = op.custom_subject('plan', op.PR_AWS_REF, event_name='pull_request')
+        for kind in ('plan', 'apply'):
+            document = role(kind)['AssumeRolePolicyDocument']
+            conditions = document['Statement'][0]['Condition']
+            subject = pr_subject.replace('terraform-dev-plan', 'terraform-dev-' + kind)
+            conditions['StringLike'][op.ISSUER + ':sub'] = [op.custom_subject(kind, op.LEGACY_AWS_REF), subject]
+            if kind == 'plan':
+                op.audit_aws_role(document, kind)
+            else:
+                with self.assertRaises(op.Stop):
+                    op.audit_aws_role(document, kind)
 
     def test_existing_dual_caller_trust_retains_owner_repository_and_workflow_limits(self):
         for kind in ('plan', 'apply'):
@@ -173,8 +207,6 @@ class BranchAuthorizationTest(unittest.TestCase):
 
     def github_for_apply(self, history, restricted=True, operator=None):
         settings = {role: environment(role, restricted) for role in ('plan', 'apply')}
-        rules = {role: ([{'id': 1, 'name': 'dev', 'type': 'branch'}] if restricted else [])
-                 for role in ('plan', 'apply')}
         def gh(*values, data=None):
             if values == ('user',):
                 return operator if operator is not None else {'login': 'kani3camp', 'id': 54093651}
@@ -182,49 +214,41 @@ class BranchAuthorizationTest(unittest.TestCase):
                 return {'use_default': False, 'include_claim_keys': list(op.CLAIM_KEYS)}
             method, endpoint = (values[1], values[2]) if values[0] == '-X' else ('GET', values[0])
             role = next((role for role in ('plan', 'apply')
-                         if endpoint.startswith(f'repos/{op.REPO}/environments/terraform-dev-{role}')), None)
+                         if endpoint == f'repos/{op.REPO}/environments/terraform-dev-{role}'), None)
             self.assertIsNotNone(role)
             if method == 'PUT':
-                self.assertEqual(data, {'deployment_branch_policy': {'custom_branch_policies': True, 'protected_branches': False}})
-                settings[role] = environment(role, True)
-            elif method == 'POST':
-                self.assertEqual(data, {'name': 'dev', 'type': 'branch'})
-                rules[role].append({'id': 1, **data})
-            elif method != 'GET':
-                self.fail('予期しないAPI変更')
-            if method != 'GET':
+                self.assertEqual(data, {'deployment_branch_policy': None})
+                settings[role] = environment(role, False)
                 history.append((method, endpoint))
                 return {}
-            if '/deployment-branch-policies' in endpoint:
-                self.assertIsNotNone(settings[role]['deployment_branch_policy'])
-                return {'total_count': len(rules[role]), 'branch_policies': deepcopy(rules[role])}
+            self.assertEqual(method, 'GET')
             return deepcopy(settings[role])
         return gh
 
-    def test_apply_verifies_owner_and_restricts_only_two_dev_environments(self):
+    def test_apply_verifies_owner_and_opens_only_two_dev_environments(self):
         history = []
         def audited():
             self.assertEqual(history, [])
-        with patch.object(op, 'gh', side_effect=self.github_for_apply(history, restricted=False)), \
+        output = io.StringIO()
+        with patch.object(op, 'gh', side_effect=self.github_for_apply(history)), \
                 patch.object(op, 'verify_aws', side_effect=audited) as aws, \
                 patch.object(op, 'verify_gcp', side_effect=audited) as gcp, \
-                patch.object(sys, 'argv', ['tool', '--apply']), redirect_stdout(io.StringIO()):
+                patch.object(sys, 'argv', ['tool', '--apply']), redirect_stdout(output):
             op.main()
         aws.assert_not_called(); gcp.assert_not_called()
-        self.assertEqual(len(history), 4)
-        self.assertTrue(all('/environments/terraform-dev-' in endpoint for _, endpoint in history))
-        self.assertEqual([method for method, _ in history], ['PUT', 'POST', 'PUT', 'POST'])
+        self.assertEqual(history, [('PUT', f'repos/{op.REPO}/environments/terraform-dev-plan'),
+                                   ('PUT', f'repos/{op.REPO}/environments/terraform-dev-apply')])
+        self.assertIn('no branch restriction', output.getvalue())
 
     def test_apply_is_idempotent_and_preview_never_writes(self):
-        for args in (['tool'], ['tool', '--apply']):
+        for args, restricted in ((['tool'], True), (['tool', '--apply'], False)):
             history = []
-            with patch.object(op, 'gh', side_effect=self.github_for_apply(history)), \
+            with patch.object(op, 'gh', side_effect=self.github_for_apply(history, restricted)), \
                     patch.object(op, 'verify_aws') as aws, patch.object(op, 'verify_gcp') as gcp, \
                     patch.object(sys, 'argv', args), redirect_stdout(io.StringIO()):
                 op.main()
             self.assertEqual(history, [])
-            if '--apply' not in args:
-                aws.assert_not_called(); gcp.assert_not_called()
+            aws.assert_not_called(); gcp.assert_not_called()
 
     def test_wrong_operator_or_failed_cloud_trust_prevents_all_environment_writes(self):
         for operator in ({'login': 'other', 'id': 54093651}, {'login': 'kani3camp', 'id': 0}):
@@ -244,53 +268,29 @@ class BranchAuthorizationTest(unittest.TestCase):
             self.assertEqual(history, [])
 
     def test_failed_readback_is_not_reported_as_success(self):
-        for change in ({'deployment_branch_policy': None},
+        for change in ({'deployment_branch_policy': {'custom_branch_policies': True, 'protected_branches': False}},
                        {'id': 999}, {'can_admins_bypass': False}):
             history = []
             def read(role):
                 value = environment(role, True)
                 return (f'repos/{op.REPO}/environments/terraform-dev-{role}',
-                        value | change if history else value)
-            def update(endpoint, current, target):
+                        environment(role, False) | change if history else value)
+            def update(endpoint, current):
                 history.append(endpoint)
             output = io.StringIO()
             with patch.object(op, 'verify_operator'), patch.object(op, 'verify_oidc_template'), \
                     patch.object(op, 'verify_aws'), patch.object(op, 'verify_gcp'), \
                     patch.object(op, 'dev_environment', side_effect=read), \
-                    patch.object(op, 'authorize_control_branch', side_effect=update), \
+                    patch.object(op, 'open_environment', side_effect=update), \
                     patch.object(sys, 'argv', ['tool', '--apply']), redirect_stdout(output), self.assertRaises(op.Stop):
                 op.main()
-            self.assertNotIn('trusted DEV control branch authorized', output.getvalue())
+            self.assertNotIn('no branch restriction', output.getvalue())
 
     def test_update_cannot_target_production_or_another_environment(self):
         for name in ('terraform-prod-plan', 'terraform-prod-apply', 'codeql-analysis'):
             with patch.object(op, 'gh') as gh, self.assertRaises(op.Stop):
-                op.authorize_control_branch(f'repos/{op.REPO}/environments/{name}', {}, 'dev')
+                op.open_environment(f'repos/{op.REPO}/environments/{name}', environment('plan'))
             gh.assert_not_called()
-
-    def test_new_control_branch_preserves_existing_exact_authorizations(self):
-        endpoint = f'repos/{op.REPO}/environments/terraform-dev-plan'
-        rules = {'total_count': 1, 'branch_policies': [{'id': 1, 'name': 'dev', 'type': 'branch'}]}
-        target = 'integration/mypage-canon-20261006'
-        final = {'total_count': 2, 'branch_policies': rules['branch_policies'] + [{'id': 2, 'name': target, 'type': 'branch'}]}
-        with patch.object(op, 'gh', side_effect=[rules, {}, final]) as gh:
-            op.authorize_control_branch(endpoint, environment('plan'), target)
-        writes = [call for call in gh.call_args_list if call.args[0] == '-X']
-        self.assertEqual(len(writes), 1)
-        self.assertEqual(writes[0].args[:2], ('-X', 'POST'))
-        self.assertEqual(writes[0].kwargs['data'], {'name': target, 'type': 'branch'})
-        with patch.object(op, 'gh', side_effect=[final, final]) as gh:
-            op.authorize_control_branch(endpoint, environment('plan'), 'dev')
-        self.assertTrue(all(call.args[0] != '-X' for call in gh.call_args_list))
-
-    def test_wildcards_and_tags_cannot_be_silently_trusted(self):
-        endpoint = f'repos/{op.REPO}/environments/terraform-dev-plan'
-        for name, kind in (('*', 'branch'), ('feature/*', 'branch'), ('dev', 'tag')):
-            rules = {'total_count': 1, 'branch_policies': [{'id': 1, 'name': name, 'type': kind}]}
-            with patch.object(op, 'gh', return_value=rules) as gh, self.assertRaises(op.Stop):
-                op.authorize_control_branch(endpoint, environment('plan'), 'dev')
-            self.assertTrue(all(call.args[0] != '-X' for call in gh.call_args_list))
-
 
     def test_optional_cloud_audits_are_read_only(self):
         aws_role_plan, aws_role_apply = role("plan"), role("apply")
@@ -319,11 +319,7 @@ class BranchAuthorizationTest(unittest.TestCase):
 
     def test_gcp_readback_accepts_existing_dual_caller_without_relaxing_other_claims(self):
         # DEV trust still lists the retired ci.yml caller next to terraform.yml during the migration.
-        caller = "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + assertion.ref"
-        callers = ("assertion.workflow_ref in ['kani3camp/youtube-study-space/.github/workflows/ci.yml@' + assertion.ref, "
-                   "'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + assertion.ref]")
-        self.assertIn(caller, bootstrap.CONDITION)
-        condition = bootstrap.CONDITION.replace(caller, callers)
+        condition = bootstrap.condition(op.CALLERS)
         self.assertNotEqual(condition, bootstrap.CONDITION)
         provider = {'state': 'ACTIVE', 'oidc': {'issuerUri': 'https://token.actions.githubusercontent.com'},
                     'attributeMapping': bootstrap.MAPPING, 'attributeCondition': condition}
@@ -331,6 +327,8 @@ class BranchAuthorizationTest(unittest.TestCase):
         for invalid in (condition.replace("assertion.actor_id == '54093651'", 'true'),
                         condition.replace('terraform.yml@', 'attacker.yml@'),
                         condition.replace('refs/heads/', 'refs/'),
+                        condition.replace("assertion.environment == 'terraform-dev-plan'",
+                                          "assertion.environment == 'terraform-dev-apply'"),
                         bootstrap.CONDITION.replace('terraform.yml@', 'ci.yml@')):
             with self.assertRaises(op.Stop):
                 op.check_provider(provider | {'attributeCondition': invalid})

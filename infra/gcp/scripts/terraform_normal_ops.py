@@ -29,10 +29,9 @@ PROJECTS = {'dev': PROJECT, 'prod': 'youtube-study-space'}
 BRANCH_REF = re.compile(r'refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*')
 CALLER = 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@'
 REUSABLE = 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@'
-# PR Plan runs the PR author's workflow code. It uses its own reusable, its own
-# read-only identity per target, never takes the State lock and emits no
-# commitment that an Apply could reuse.
-PR_PLAN_REUSABLE = 'kani3camp/youtube-study-space/.github/workflows/terraform-pr-plan.yml@'
+# PR Plan is the owner's same-repository PR, planned with the DEV manual Plan
+# identity and reusable. It never takes the State lock and emits no commitment
+# that an Apply could reuse.
 PR_REF = re.compile(r'refs/pull/([1-9][0-9]{0,8})/merge')
 DIAGNOSTIC_SECTIONS = ('source_run_mode', 'inputs', 'review', 'state', 'resource_changes',
                        'planned_values', 'prior_state', 'checks', 'relevant_attributes', 'other_plan_fields')
@@ -95,8 +94,10 @@ def pr_context(env, role=None):
              'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1',
              'NORMAL_PR_HEAD_REPOSITORY': 'kani3camp/youtube-study-space'}
     need(all(env.get(k) == v for k, v in exact.items()))
+    # Production Environments stay main-only, so a PR plans DEV only.
     target = env.get('NORMAL_TARGET')
-    need(target in PROJECTS and env.get('NORMAL_MODE') == 'pr-plan')
+    need(target == 'dev' and env.get('NORMAL_MODE') == 'pr-plan')
+    need(not env.get('NORMAL_SOURCE_BRANCH') and not env.get('NORMAL_SOURCE_SHA'))
     match = PR_REF.fullmatch(env.get('GITHUB_REF', ''))
     need(match is not None and match[1] == env.get('NORMAL_PR_NUMBER'))
     ref = env['GITHUB_REF']
@@ -104,13 +105,13 @@ def pr_context(env, role=None):
     need(re.fullmatch('[0-9a-f]{40}', env.get('GITHUB_SHA', '')) is not None)
     need(env.get('NORMAL_EXPECTED_SHA') == env['GITHUB_SHA'])
     if role is not None:
-        need(role == 'pr-plan' and env.get('GITHUB_JOB') == 'core')
+        need(role == 'plan' and env.get('GITHUB_JOB') == 'normal_plan')
         need(env.get('TF_WORKSPACE') == 'default' and env.get('STATE_AWS_REGION') == 'ap-northeast-1')
     return target
 
 
 def context(env, role=None):
-    if env.get('NORMAL_MODE') == 'pr-plan' or role == 'pr-plan':
+    if env.get('NORMAL_MODE') == 'pr-plan':
         return pr_context(env, role)
     exact = {'GITHUB_EVENT_NAME': 'workflow_dispatch',
              'GITHUB_REPOSITORY': 'kani3camp/youtube-study-space',
@@ -590,7 +591,7 @@ def oidc(env):
     part = token.split('.')[1]
     claims = common.decode(common.base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))
     target = env['NORMAL_TARGET']
-    pr = env['NORMAL_ROLE'] == 'pr-plan'
+    pr = env['NORMAL_MODE'] == 'pr-plan'
     if pr:
         ref = env['GITHUB_REF']
     else:
@@ -599,7 +600,7 @@ def oidc(env):
         'repository_id': '340900071', 'repository_owner_id': '54093651',
         'environment': 'terraform-' + target + '-' + env['NORMAL_ROLE'], 'ref': ref,
         'workflow_ref': CALLER + ref,
-        'job_workflow_ref': (PR_PLAN_REUSABLE if pr else REUSABLE) + ref,
+        'job_workflow_ref': REUSABLE + ref,
         'event_name': 'pull_request' if pr else 'workflow_dispatch',
     }
     subject = ':'.join(f'{k}:{v.replace(":", "%3A")}' for k, v in expected.items())
@@ -646,8 +647,8 @@ def setup(env, root, tfvars):
 def plan(env, root, tfroot, name, approved, *, post=False, state=None):
     binary = root / (name + '.tfplan')
     phase('native-plan')
-    # PR Plan is advisory and holds no lock-write permission; Apply re-plans.
-    lock = ['-lock=false'] if env['NORMAL_ROLE'] == 'pr-plan' else ['-lock-timeout=60s']
+    # PR Plan is advisory and never blocks a manual Plan or Apply; Apply re-plans.
+    lock = ['-lock=false'] if env['NORMAL_MODE'] == 'pr-plan' else ['-lock-timeout=60s']
     result = common.terraform(env, root, tfroot, name, ['plan', '-input=false', '-detailed-exitcode', *lock,
         '-var-file=' + str(root / 'inputs.tfvars.json'), '-out=' + str(binary)], codes=(0, 2))
     phase('plan-json')
@@ -723,7 +724,7 @@ def initial_production_noop(env, before, value, counts):
 def execute(env, *, prepare_only=False):
     role = env['NORMAL_ROLE']
     context(env, role)
-    need((role in ('plan', 'pr-plan') and not prepare_only) or
+    need((role == 'plan' and not prepare_only) or
          (role == 'apply' and prepare_only))
     root = private(env)
     tfvars, key = inputs(env)
@@ -741,9 +742,9 @@ def execute(env, *, prepare_only=False):
     if initial_production_noop(env, before, value, counts):
         # Emitted only after native full-root validation and State readback.
         print(f"GCP_PROD_INITIAL_NOOP: PASS; source={env['GITHUB_SHA']}; run={env['GITHUB_RUN_ID']}; managed=30; state_unchanged=true")
-    if role == 'pr-plan':
+    if env['NORMAL_MODE'] == 'pr-plan':
         # No HMAC, saved plan or timestamp leaves this job: nothing can be applied.
-        print('GCP_NORMAL: PASS; role=pr-plan; advisory only; counts=' + json.dumps(counts, sort_keys=True))
+        print('GCP_NORMAL: PASS; mode=pr-plan; advisory only; counts=' + json.dumps(counts, sort_keys=True))
         return
     phase('plan-binding')
     digest = output_commitments(env, tfvars, before, value, key,
@@ -810,7 +811,9 @@ def main():
                 shutil.rmtree(root)
         elif operation == 'preflight':
             context(env)
-            selected_source.publish(env, selected_source.resolve(env))
+            # A PR plans its own merge commit; there is no source to select.
+            if env['NORMAL_MODE'] != 'pr-plan':
+                selected_source.publish(env, selected_source.resolve(env))
         elif operation == 'stage':
             context(env, env['NORMAL_ROLE'])
             if selected_source.separate_checkout(env):

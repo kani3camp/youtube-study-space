@@ -33,18 +33,43 @@ MAPPING = {
     **{'attribute.' + k: 'assertion.' + k for k in ('environment', 'event_name', 'job_workflow_ref',
         'ref', 'repository_id', 'repository_owner_id', 'workflow_ref')},
 }
-CONDITION = " && ".join([
-    "assertion.repository_id == '340900071'", "assertion.repository_owner_id == '54093651'",
-    # 信頼する実行元のbranch一覧はEnvironmentだけで管理する。source refとは分離する。
-    "assertion.ref.startsWith('refs/heads/')", "assertion.ref != 'refs/heads/main'",
-    "assertion.event_name == 'workflow_dispatch'",
-    "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + assertion.ref",
-    "assertion.job_workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@' + assertion.ref",
-    "assertion.environment in ['terraform-dev-plan', 'terraform-dev-apply']",
-    "assertion.actor_id == '54093651'", "assertion.actor == 'kani3camp'", "assertion.run_attempt == '1'",
-    "assertion.workflow_sha == assertion.sha", "assertion.job_workflow_sha == assertion.sha",
-])
+WORKFLOWS = 'kani3camp/youtube-study-space/.github/workflows/'
+PR_REF = '^refs/pull/[1-9][0-9]{0,8}/merge$'
 
+
+def condition(callers=('terraform.yml',)):
+    """DEV normal provider: the owner's manual dispatch, or the owner's PR Plan.
+
+    A PR runs its own (owner-written) workflow code with the manual Plan
+    Environment and identity, so the PR clause admits only `terraform-dev-plan`:
+    Apply stays dispatch-only. `callers` lets the transition keep ci.yml.
+    """
+    if len(callers) == 1:
+        caller = "assertion.workflow_ref == '" + WORKFLOWS + callers[0] + "@' + assertion.ref"
+    else:
+        caller = 'assertion.workflow_ref in [' + ', '.join(
+            "'" + WORKFLOWS + name + "@' + assertion.ref" for name in callers) + ']'
+    reusable = "assertion.job_workflow_ref == '" + WORKFLOWS + "gcp-terraform-authenticated.yml@' + assertion.ref"
+    dispatch = " && ".join([
+        # DEVはownerの任意の非main branchを許可する。境界はactor・repository・初回実行の固定。
+        "assertion.ref.startsWith('refs/heads/')", "assertion.ref != 'refs/heads/main'",
+        "assertion.event_name == 'workflow_dispatch'", caller, reusable,
+        "assertion.environment in ['terraform-dev-plan', 'terraform-dev-apply']",
+    ])
+    pull_request = " && ".join([
+        "assertion.ref.matches('" + PR_REF + "')", "assertion.event_name == 'pull_request'",
+        "assertion.workflow_ref == '" + WORKFLOWS + "terraform.yml@' + assertion.ref", reusable,
+        "assertion.environment == 'terraform-dev-plan'",
+    ])
+    return " && ".join([
+        "assertion.repository_id == '340900071'", "assertion.repository_owner_id == '54093651'",
+        "((" + dispatch + ") || (" + pull_request + "))",
+        "assertion.actor_id == '54093651'", "assertion.actor == 'kani3camp'", "assertion.run_attempt == '1'",
+        "assertion.workflow_sha == assertion.sha", "assertion.job_workflow_sha == assertion.sha",
+    ])
+
+
+CONDITION = condition()
 
 
 def need(value):
@@ -113,7 +138,7 @@ def bootstrap():
     permissions = selected_permissions(catalog, baseline)
     if '--check' in sys.argv:
         print(json.dumps({'project': PROJECT, 'roles': permissions,
-            'wif_branch_authorization': 'selected-environment-branches-source-selection',
+            'wif_branch_authorization': 'owner-any-non-main-branch-or-owner-pr-plan',
             'runtime_sa': 'terraform-dev-workload',
             'github_environments': ['terraform-dev-plan', 'terraform-dev-apply']}, indent=2))
         return
