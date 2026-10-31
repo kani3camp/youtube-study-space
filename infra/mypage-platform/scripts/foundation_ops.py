@@ -318,6 +318,23 @@ def public_entry(item):
             "actions": actions if type(actions) is list and set(actions) <= PUBLIC_ACTIONS else ["<withheld>"]}
 
 
+# Provider schema attribute names (never values, map keys or list contents).
+PUBLIC_ATTRIBUTE = re.compile(r"[a-z][a-z0-9_]{0,63}")
+
+
+def changed_attributes(change):
+    """Top-level attribute names whose planned value differs; values are never read out."""
+    before, after = change.get("before"), change.get("after")
+    unknown = change.get("after_unknown") or {}
+    if type(before) is not dict or type(after) is not dict or type(unknown) is not dict:
+        return ["<withheld>"]
+    names = {key for key in set(before) | set(after) if before.get(key) != after.get(key)}
+    # Terraform serializes known nested structures as empty containers ([{}]);
+    # only a nested True marks a value that is unknown until Apply.
+    names |= {key for key, value in unknown.items() if contract.has_unknown(value)}
+    return sorted(name if type(name) is str and PUBLIC_ATTRIBUTE.fullmatch(name) else "<withheld>" for name in names)
+
+
 def describe_runtime_drift(plan):
     # 出力値・schema・field名を公開しない。詳細Planはprivateに保持する。
     # 契約違反の切り分けに必要な、固定の資源addressと操作名だけを出す。
@@ -332,6 +349,11 @@ def describe_runtime_drift(plan):
         for item in drift], sort_keys=True) + ".")
     print("Terraform planned writes: " + json.dumps(sorted(
         (public_entry(item) for item in writes), key=lambda entry: entry["address"]), sort_keys=True) + ".")
+    # In-place updates of existing resources: which top-level attributes change.
+    print("Terraform planned update attributes: " + json.dumps(sorted(
+        (public_entry(item) | {"attributes": changed_attributes(item.get("change", {}))}
+         for item in writes if item.get("change", {}).get("actions") == ["update"]),
+        key=lambda entry: entry["address"]), sort_keys=True) + ".")
 
 
 def prepare(env):
