@@ -89,19 +89,39 @@ def run(args, *, cwd=None, codes=(0,), check="native-command"):
 
 
 PUBLIC_HTTP_STATUS = {"400", "401", "403", "404", "409", "412", "429", "500", "503"}
+DIAGNOSTIC_HEADER = re.compile(r"^(?:[\u2577\u2502\u2575] ?)?(Error|Warning): ", re.MULTILINE)
+DIAGNOSTIC_ADDRESS = re.compile(r"^(?:\u2502)?[ ]*with (\S+),$", re.MULTILINE)
+
+
+def defined_addresses():
+    """Repository-defined MyPage module addresses; nothing taken from native output is trusted."""
+    names = set()
+    for path in sorted((REPO / "infra/mypage-platform/modules").rglob("*.tf")):
+        names |= {"module.platform[0]." + kind + "." + name
+                  for kind, name in re.findall(r'^resource "([a-z0-9_]+)" "([a-z0-9_]+)"', path.read_text(), re.MULTILINE)}
+    return names
 
 
 def describe_plan_errors(diagnostics):
-    # ネイティブ診断の本文は出さない。エラーごとに、固定形式の資源addressと
-    # 既知のHTTP status だけを取り出す（どの資源の読取りで止まったかの切り分け用）。
+    # ネイティブ診断の本文は出さない。エラーごとに、リポジトリで定義した資源のaddressと
+    # 既知のHTTP statusだけを出す（どの資源の読取りで止まったかの切り分け用）。
+    # -no-colorでは枠なし、TTYでは枠付きになるため、どちらも診断の見出しで区切る。
+    known = defined_addresses()
+    headers = list(DIAGNOSTIC_HEADER.finditer(diagnostics))
     entries = []
-    for block in diagnostics.split("\u2577"):
-        if "Error:" not in block:
+    for index, header in enumerate(headers):
+        if header.group(1) != "Error":
             continue
-        address = re.search(r"\bwith (\S+),", block)
-        status = re.search(r"\bError (\d{3})\b", block)
+        block = diagnostics[header.start():headers[index + 1].start() if index + 1 < len(headers) else len(diagnostics)]
+        summary = block.split("\n", 1)[0]
+        status = re.search(r"\bError (\d{3})\b", summary)
+        address = None
+        for match in DIAGNOSTIC_ADDRESS.finditer(block):
+            candidate = match.group(1)
+            if PUBLIC_ADDRESS.fullmatch(candidate) and re.sub(r"\[[0-9]+\]$", "", candidate) in known:
+                address = candidate
         entries.append({
-            "address": address.group(1) if address and PUBLIC_ADDRESS.fullmatch(address.group(1)) else "<withheld>",
+            "address": address or "<withheld>",
             "status": status.group(1) if status and status.group(1) in PUBLIC_HTTP_STATUS else "<withheld>",
         })
     print("Terraform plan errors: " + json.dumps(entries[:20], sort_keys=True) + ".")
