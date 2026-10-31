@@ -2,6 +2,7 @@
 """認証用Terraformの一回限りの権限準備。既定は予定表示だけで、実行には--applyが必要。"""
 import argparse
 import json
+import re
 import subprocess
 
 TARGETS = {
@@ -18,6 +19,10 @@ def desired(target):
     apply = f'terraform-{target}-normal-apply@{project}.iam.gserviceaccount.com'
     bucket = f'projects/_/buckets/{project}-monitor-auth-source'
     source = f"resource.name == '{bucket}' || resource.name.startsWith('{bucket}/objects/')"
+    # Cloud Functionsは元ZIPを管理バケットへ複製する。別関数のソースは許可しない。
+    # 実行時に対象プロジェクトから取得した番号へ置換し、番号をコードへ固定しない。
+    staged_source = ("resource.type == 'storage.googleapis.com/Object' && "
+                     f"resource.name.startsWith('projects/_/buckets/gcf-v2-sources-PROJECT_NUMBER-{region}/objects/monitor-password-signup-guard/')")
     repository = f"resource.name == 'projects/{project}/locations/{region}/repositories/monitor-auth' || resource.name.startsWith('projects/{project}/locations/{region}/repositories/monitor-auth/')"
     invoker = f"resource.name.endsWith('/locations/{region}/services/monitor-password-signup-guard')"
     roles = {
@@ -33,7 +38,8 @@ def desired(target):
               (apply, 'roles/storage.objectCreator', source),
               (builder, 'roles/storage.objectViewer', source),
               (builder, 'roles/artifactregistry.writer', repository),
-              (builder, 'roles/logging.logWriter', None)]
+              (builder, 'roles/logging.logWriter', None),
+              (builder, 'roles/storage.objectViewer', staged_source)]
     return {'project': project, 'region': region, 'runtime': runtime, 'builder': builder,
             'plan': plan, 'apply': apply, 'roles': roles, 'grants': grants}
 
@@ -49,6 +55,10 @@ def command(args, missing=False):
 
 def provision(spec):
     project = spec['project']
+    metadata = command(['projects', 'describe', project])
+    project_number = str(metadata.get('projectNumber', ''))
+    if metadata.get('projectId') != project or not re.fullmatch(r'[0-9]+', project_number):
+        raise ValueError('対象プロジェクトの番号を確認できません。権限を変更せず停止します。')
     for email in (spec['plan'], spec['apply']):
         command(['iam', 'service-accounts', 'describe', email, '--project=' + project])
     for email in (spec['runtime'], spec['builder']):
@@ -66,6 +76,8 @@ def provision(spec):
             command(['iam', 'roles', 'create', name, '--project=' + project,
                      '--title=' + name, '--stage=GA', '--permissions=' + ','.join(permissions)])
     for index, (email, role, expression) in enumerate(spec['grants']):
+        if expression is not None:
+            expression = expression.replace('PROJECT_NUMBER', project_number)
         condition = 'None' if expression is None else f'title=monitor-auth-{index},expression={expression}'
         command(['projects', 'add-iam-policy-binding', project, '--member=serviceAccount:' + email,
                  '--role=' + role, '--condition=' + condition])

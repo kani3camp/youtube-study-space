@@ -73,7 +73,13 @@ class RegistrationPolicy(unittest.TestCase):
             self.assertTrue(all(spec['runtime'] != email for email, _, _ in spec['grants']))
             for email, role, condition in spec['grants']:
                 if role.startswith('roles/storage.'):
-                    self.assertIn(spec['project'] + '-monitor-auth-source', condition)
+                    if 'gcf-v2-sources-' in condition:
+                        self.assertEqual(email, spec['builder'])
+                        self.assertEqual(role, 'roles/storage.objectViewer')
+                        self.assertIn("resource.type == 'storage.googleapis.com/Object'", condition)
+                        self.assertIn('-' + spec['region'] + '/objects/monitor-password-signup-guard/', condition)
+                    else:
+                        self.assertIn(spec['project'] + '-monitor-auth-source', condition)
                     self.assertNotIn('*', condition)
             permissions = {permission for values in spec['roles'].values() for permission in values}
             self.assertEqual(permissions, {'firebaseauth.configs.get', 'firebaseauth.configs.update',
@@ -89,6 +95,8 @@ class RegistrationPolicy(unittest.TestCase):
     def test_bootstrap_refuses_a_privileged_runtime_before_grants(self):
         spec = bootstrap.desired('dev')
         def reply(args, **kwargs):
+            if args[:2] == ['projects', 'describe']:
+                return {'projectId': spec['project'], 'projectNumber': '123456789'}
             if args[:2] == ['projects', 'get-iam-policy']:
                 return {'bindings': [{'role': 'roles/editor', 'members': ['serviceAccount:' + spec['runtime']]}]}
             return {}
@@ -96,6 +104,30 @@ class RegistrationPolicy(unittest.TestCase):
             with self.assertRaises(ValueError):
                 bootstrap.provision(spec)
         self.assertFalse(any('add-iam-policy-binding' in call.args[0] for call in command.call_args_list))
+
+    def test_bootstrap_resolves_staged_source_to_the_verified_project_number(self):
+        spec = bootstrap.desired('dev')
+        def reply(args, **kwargs):
+            if args[:2] == ['projects', 'describe']:
+                return {'projectId': spec['project'], 'projectNumber': '123456789'}
+            if args[:3] == ['iam', 'roles', 'describe']:
+                return None
+            return {}
+        with patch.object(bootstrap, 'command', side_effect=reply) as command:
+            bootstrap.provision(spec)
+        grants = [call.args[0] for call in command.call_args_list if 'add-iam-policy-binding' in call.args[0]]
+        staged = [args for args in grants if any('gcf-v2-sources-' in arg for arg in args)]
+        self.assertEqual(len(staged), 1)
+        self.assertIn('--member=serviceAccount:' + spec['builder'], staged[0])
+        condition = next(arg for arg in staged[0] if arg.startswith('--condition='))
+        self.assertIn('gcf-v2-sources-123456789-asia-southeast2/objects/monitor-password-signup-guard/', condition)
+        self.assertNotIn('PROJECT_NUMBER', condition)
+
+    def test_bootstrap_refuses_unverified_project_metadata_before_mutation(self):
+        with patch.object(bootstrap, 'command', return_value={'projectId': 'another-project', 'projectNumber': '123'}) as command:
+            with self.assertRaises(ValueError):
+                bootstrap.provision(bootstrap.desired('dev'))
+        self.assertEqual(command.call_count, 1)
 
     def test_archive_is_deterministic_and_contains_only_reviewed_source(self):
         with tempfile.TemporaryDirectory() as tmp:
