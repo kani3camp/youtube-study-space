@@ -62,6 +62,31 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(result.outputs, '')
 
+    def test_owner_pr_plans_dev_only_without_selecting_a_source(self):
+        ref = 'refs/pull/42/merge'
+        context = {'MODE': 'pr-plan', 'GITHUB_EVENT_NAME': 'pull_request', 'GITHUB_REF': ref,
+                   'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + ref,
+                   'NORMAL_EXPECTED_SHA': 'a' * 40, 'NORMAL_PR_NUMBER': '42',
+                   'NORMAL_PR_HEAD_REPOSITORY': 'kani3camp/youtube-study-space'}
+        result = self.run_preflight(**context)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        # The PR plans its own merge commit: no source is published to later jobs.
+        self.assertEqual(result.outputs, '')
+        for change in ({'TARGET': 'prod'}, {'GITHUB_EVENT_NAME': 'workflow_dispatch'},
+                       {'GITHUB_EVENT_NAME': 'pull_request_target'}, {'MODE': 'normal-plan'},
+                       {'MODE': 'normal-apply'}, {'GITHUB_REF': 'refs/heads/dev'},
+                       {'GITHUB_REF': 'refs/pull/42/head'}, {'NORMAL_PR_NUMBER': '43'},
+                       {'NORMAL_PR_HEAD_REPOSITORY': 'fork/youtube-study-space'},
+                       {'GITHUB_ACTOR_ID': '0'}, {'GITHUB_RUN_ATTEMPT': '2'},
+                       {'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref},
+                       {'NORMAL_SOURCE_BRANCH': 'dev'}):
+            with self.subTest(change=change):
+                result = self.run_preflight(**(context | change))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.outputs, '')
+        block = self.text.split('\n  normal_plan:', 1)[1].split('\n  normal_apply:', 1)[0]
+        self.assertIn("if: ${{ inputs.target == 'dev' && inputs.mode != 'pr-plan' }}", block)
+
     def test_production_normal_requires_main_and_disallows_cloud_e2e(self):
         ref = 'refs/heads/main'
         context = {'TARGET': 'prod', 'GITHUB_REF': ref,
@@ -120,7 +145,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(result.outputs, '')
         inputs = self.text.split('    # Explicit names', 1)[0]
-        self.assertEqual(re.findall(r'^      ([a-z_]+):', inputs, re.M), ['target', 'mode', 'expected_sha', 'source_branch'])
+        self.assertEqual(re.findall(r'^      ([a-z_]+):', inputs, re.M),
+                         ['target', 'mode', 'expected_sha', 'source_branch', 'pr_number', 'head_repository'])
         caller_inputs = self.caller.split('\npermissions:', 1)[0]
         self.assertNotRegex(caller_inputs, r'terraform_(history|current_state|ownership|plan_cost)')
 

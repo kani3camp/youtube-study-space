@@ -48,7 +48,7 @@ read roleはSecret payloadを読めない。資源単位のpolicy editorは当�
 
 `integration/mypage-canon-20261006`、repository/owner ID、owner actor、run attempt 1、caller `ci.yml` と専用reusable workflowの同一SHAを検査する。PR、fork、他branch、main、再実行、古いSHAはcredential取得前またはOIDC検査で拒否する。AWS trustは同じcustom subjectへ完全一致する。repositoryの既存OIDC subject templateは変更しない。
 
-GitHub Environment `mypage-dev-plan` / `mypage-dev-apply` を先に作り、Selected branchesはこの統合branchだけに限定する。Apply側は環境の実行制御を設定する。従来の統合branch protectionを追加しないオーナー方針を維持する。統合branchをdevへマージした後の当該branch削除と、この暫定trustの失効・移行は別の明示作業とする。現在のコードはbranchが違えば拒否する。
+GitHub Environment `mypage-dev-plan` / `mypage-dev-apply` を先に作る。branchでは制限しない（No restriction。#1500以降、DEVの資格情報の境界はtrust側の統合ref・owner・初回実行の固定、PR PlanはownerのPRだけ）。Apply側は環境の実行制御を設定する。従来の統合branch protectionを追加しないオーナー方針を維持する。統合branchをdevへマージした後の当該branch削除と、この暫定trustの失効・移行は別の明示作業とする。現在のコードはbranchが違えば拒否する。
 
 両Environmentに次の**専用**secretを設定する。既存GCP移行用secretを流用しない。role ID・bucket・account番号・WIF番号・HMAC keyの実値は公開repoへ置かない。
 

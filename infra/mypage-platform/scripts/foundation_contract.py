@@ -42,13 +42,14 @@ def workflow_ref(name):
     return WORKFLOWS + name + "@" + REF
 
 
+REUSABLE_NAME = "mypage-foundation-authenticated.yml"
 # Terraform Plan / Apply caller (the manual Terraform workflow).
 CALLER = workflow_ref("terraform.yml")
-REUSABLE = workflow_ref("mypage-foundation-authenticated.yml")
-# PR Plan: the PR author's code runs with a separate read-only identity, never
-# takes the State lock and emits no commitment. Its ref is refs/pull/<n>/merge.
+REUSABLE = workflow_ref(REUSABLE_NAME)
+# PR Plan: the owner's same-repository PR plans the DEV desired state with the
+# manual Plan Environment and identity. It never takes the State lock and emits
+# no commitment. Its ref is refs/pull/<n>/merge.
 PR_REF = re.compile(r"refs/pull/([1-9][0-9]{0,8})/merge")
-PR_PLAN_WORKFLOW = "terraform-pr-plan.yml"
 # 各imageは、それを配備するユースケースworkflowからだけbuildする。
 # packageを分けることで、API配備がJob用imageを取り違えない。
 IMAGE_COMPONENTS = {
@@ -93,8 +94,8 @@ def caller(env, *, image=False):
 def pr_subject(number):
     need(type(number) is str and re.fullmatch(r"[1-9][0-9]{0,8}", number), "pr-number")
     ref = "refs/pull/" + number + "/merge"
-    values = ("340900071", "54093651", GITHUB_ENVIRONMENT + "-pr-plan", ref, WORKFLOWS + "terraform.yml@" + ref,
-              WORKFLOWS + PR_PLAN_WORKFLOW + "@" + ref, "pull_request")
+    values = ("340900071", "54093651", GITHUB_ENVIRONMENT + "-plan", ref, WORKFLOWS + "terraform.yml@" + ref,
+              WORKFLOWS + REUSABLE_NAME + "@" + ref, "pull_request")
     return ":".join(key + ":" + value.replace(":", "%3A") for key, value in zip(CLAIM_KEYS, values))
 
 
@@ -113,10 +114,15 @@ CONDITION_LIMIT = 4096
 def provider_condition():
     """Exact condition for the owner-managed `mypage-foundation` WIF provider.
 
-    The custom `sub` already pins Environment, ref, caller, reusable and event,
-    so each allowed (Environment, caller) pair is one exact `sub`. Plan admits
-    only the Terraform caller; Apply admits the Terraform caller and each
-    image's own Deploy workflow. Push is never admitted.
+    Dispatch: the custom `sub` already pins Environment, ref, caller, reusable
+    and event, so each allowed (Environment, caller) pair is one exact `sub`.
+    Plan admits only the Terraform caller; Apply admits the Terraform caller and
+    each image's own Deploy workflow.
+
+    PR Plan: the owner's PR may use only the Plan Environment. The ref differs
+    per PR, so the clause binds the caller and reusable to the token's own
+    `refs/pull/<n>/merge` ref instead of listing exact subjects. Push is never
+    admitted.
     """
     pairs = [("plan", CALLER), ("apply", CALLER)]
     pairs += [("apply", item["caller"]) for _, item in sorted(IMAGE_COMPONENTS.items())]
@@ -125,68 +131,49 @@ def provider_condition():
               "actor_id": "54093651", "actor": "kani3camp", "repository": REPOSITORY,
               "ref": REF, "job_workflow_ref": REUSABLE, "event_name": "workflow_dispatch",
               "run_attempt": "1"}
-    condition = (" && ".join("assertion." + key + " == " + json.dumps(value) for key, value in common.items()) +
-                 " && assertion.workflow_sha == assertion.job_workflow_sha" +
-                 " && assertion.sub in " + json.dumps(subjects, separators=(", ", ": ")))
+    dispatch = (" && ".join("assertion." + key + " == " + json.dumps(value) for key, value in common.items()) +
+                " && assertion.workflow_sha == assertion.job_workflow_sha" +
+                " && assertion.sub in " + json.dumps(subjects, separators=(", ", ": ")))
+    values = {"repository_id": "340900071", "repository_owner_id": "54093651", "actor_id": "54093651",
+              "actor": "kani3camp", "repository": REPOSITORY, "event_name": "pull_request",
+              "run_attempt": "1", "environment": GITHUB_ENVIRONMENT + "-plan"}
+    pull_request = (" && ".join("assertion." + key + " == " + json.dumps(value) for key, value in values.items()) +
+                    " && assertion.ref.matches(" + json.dumps("^" + PR_REF.pattern + "$") + ")" +
+                    " && assertion.workflow_ref == " + json.dumps(WORKFLOWS + "terraform.yml@") + " + assertion.ref" +
+                    " && assertion.job_workflow_ref == " + json.dumps(WORKFLOWS + REUSABLE_NAME + "@") + " + assertion.ref" +
+                    " && assertion.workflow_sha == assertion.job_workflow_sha")
+    # Production trust stays main-only: a PR never plans Production.
+    condition = "(" + dispatch + ") || (" + pull_request + ")" if TARGET == "development" else dispatch
     need(len(condition) <= CONDITION_LIMIT, "provider-condition-length")
     return condition
 
 
 def trust_policy(account, kind):
     need(re.fullmatch(r"[0-9]{12}", account))
-    # Terraform State credentials are dispatch-only.
-    events = ["workflow_dispatch"]
-    return {"Version": "2012-10-17", "Statement": [{
-        "Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity",
-        "Principal": {"Federated": f"arn:aws:iam::{account}:oidc-provider/token.actions.githubusercontent.com"},
+    principal = {"Federated": f"arn:aws:iam::{account}:oidc-provider/token.actions.githubusercontent.com"}
+    # Apply is dispatch-only; Plan also admits the owner's PR Plan.
+    statements = [{
+        "Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity", "Principal": principal,
         "Condition": {"StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                                        "token.actions.githubusercontent.com:sub": subject(kind, event),
+                                        "token.actions.githubusercontent.com:sub": subject(kind),
                                         # 変更されないactorの照合はSTSでも行う。ワークフロー内の検査だけでは変更できてしまう。
                                         "token.actions.githubusercontent.com:actor_id": "54093651"}},
-    } for event in events]}
-
-
-def pr_plan_provider_condition():
-    """Condition for the owner-managed `github-pr-plan` provider in the `mypage-foundation` pool.
-
-    The ref differs per PR, so the clause binds the caller and reusable to the
-    token's own `refs/pull/<n>/merge` ref instead of listing exact subjects.
-    """
-    values = {"repository_id": "340900071", "repository_owner_id": "54093651", "actor_id": "54093651",
-              "actor": "kani3camp", "repository": REPOSITORY, "event_name": "pull_request",
-              "run_attempt": "1", "environment": GITHUB_ENVIRONMENT + "-pr-plan"}
-    condition = (" && ".join("assertion." + key + " == " + json.dumps(value) for key, value in values.items()) +
-                 " && assertion.ref.matches(" + json.dumps("^" + PR_REF.pattern + "$") + ")" +
-                 " && assertion.workflow_ref == " + json.dumps(WORKFLOWS + "terraform.yml@") + " + assertion.ref" +
-                 " && assertion.job_workflow_ref == " + json.dumps(WORKFLOWS + PR_PLAN_WORKFLOW + "@") + " + assertion.ref" +
-                 " && assertion.workflow_sha == assertion.job_workflow_sha")
-    need(len(condition) <= CONDITION_LIMIT, "provider-condition-length")
-    return condition
-
-
-def pr_plan_trust_policy(account):
-    """AWS State read role trust for PR Plan. The PR number varies, so only it is a wildcard."""
-    need(re.fullmatch(r"[0-9]{12}", account))
-    pattern = pr_subject("1").replace("refs/pull/1/merge", "refs/pull/*/merge")
-    return {"Version": "2012-10-17", "Statement": [{
-        "Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity",
-        "Principal": {"Federated": f"arn:aws:iam::{account}:oidc-provider/token.actions.githubusercontent.com"},
-        "Condition": {"StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                                        "token.actions.githubusercontent.com:actor_id": "54093651"},
-                      "StringLike": {"token.actions.githubusercontent.com:sub": pattern}},
-    }]}
+    }]
+    if kind == "plan" and TARGET == "development":
+        # The PR number varies, so only it is a wildcard. Production stays main-only.
+        pattern = pr_subject("1").replace("refs/pull/1/merge", "refs/pull/*/merge")
+        statements.append({
+            "Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity", "Principal": principal,
+            "Condition": {"StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                                            "token.actions.githubusercontent.com:actor_id": "54093651"},
+                          "StringLike": {"token.actions.githubusercontent.com:sub": pattern}},
+        })
+    return {"Version": "2012-10-17", "Statement": statements}
 
 
 def backend_policy(bucket, kind):
-    need(kind in {"plan", "apply", "pr-plan"} and re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket))
+    need(kind in {"plan", "apply"} and re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket))
     arn = "arn:aws:s3:::" + bucket
-    if kind == "pr-plan":
-        # Read the State only. No lock object write, no State write (Plan uses -lock=false).
-        return {"Version": "2012-10-17", "Statement": [
-            {"Sid": "MyPageDefaultStateRead", "Effect": "Allow", "Action": ["s3:GetObject"], "Resource": arn + "/" + STATE_KEY},
-            {"Sid": "MyPageDiscovery", "Effect": "Allow", "Action": "s3:ListBucket", "Resource": arn,
-             "Condition": {"StringEquals": {"s3:prefix": [STATE_KEY, STATE_KEY + ".tflock", WORKSPACE_PREFIX + "/"]}}},
-        ]}
     return {"Version": "2012-10-17", "Statement": [
         {"Sid": "MyPageDefaultState", "Effect": "Allow", "Action": ["s3:GetObject"] + (["s3:PutObject"] if kind == "apply" else []), "Resource": arn + "/" + STATE_KEY},
         {"Sid": "MyPageNativeLock", "Effect": "Allow", "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], "Resource": arn + "/" + STATE_KEY + ".tflock"},
@@ -239,9 +226,13 @@ def pr_context(env):
     stage_for_mode("desired-plan")
 
 
+def is_pr(env):
+    return env.get("GITHUB_EVENT_NAME") == "pull_request"
+
+
 def context(env, kind, *, image=False):
-    if kind == "pr-plan":
-        need(not image, "pr-plan-image")
+    if is_pr(env):
+        need(kind == "plan" and not image, "pr-plan-role")
         return pr_context(env)
     need(kind in {"plan", "apply"})
     expected = {"GITHUB_REPOSITORY": REPOSITORY, "GITHUB_REPOSITORY_ID": "340900071",
@@ -398,11 +389,7 @@ if __name__ == "__main__":
     arguments = sys.argv[1:]
     if arguments == ["provider-condition"]:
         print(provider_condition())
-    elif arguments == ["pr-plan-provider-condition"]:
-        print(pr_plan_provider_condition())
-    elif len(arguments) == 3 and arguments[0] == "pr-plan-aws-policies":
-        print(json.dumps({"role_name": "youtube-study-space-" + GITHUB_ENVIRONMENT + "-pr-plan",
-                          "trust_policy": pr_plan_trust_policy(arguments[1]),
-                          "permission_policy": backend_policy(arguments[2], "pr-plan")}, indent=2))
+    elif len(arguments) == 3 and arguments[0] == "trust-policy" and arguments[2] in {"plan", "apply"}:
+        print(json.dumps(trust_policy(arguments[1], arguments[2]), indent=2))
     else:
         need(False, "foundation-contract-command")

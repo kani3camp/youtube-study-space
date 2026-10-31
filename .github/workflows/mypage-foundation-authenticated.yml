@@ -21,6 +21,16 @@ on:
         required: false
         type: string
         default: ""
+      pr_number:
+        description: PR Plan only (terraform.yml pull_request); empty for manual operations
+        required: false
+        type: string
+        default: ""
+      head_repository:
+        description: PR Plan only; the PR head repository
+        required: false
+        type: string
+        default: ""
     secrets:
       MYPAGE_STATE_BUCKET:
         required: false
@@ -43,8 +53,9 @@ permissions:
   contents: read
 
 # FoundationのApplyは、同じStateのPlanや別のApplyと競合させない。
+# PR Planはlockを取らない助言なので、手動のPlan / Applyを待たせない。
 concurrency:
-  group: mypage-${{ inputs.target }}-foundation
+  group: ${{ github.event_name == 'pull_request' && format('mypage-pr-plan-{0}', inputs.pr_number) || format('mypage-{0}-foundation', inputs.target) }}
   cancel-in-progress: false
 
 jobs:
@@ -60,6 +71,8 @@ jobs:
       MYPAGE_MODE: ${{ inputs.mode }}
       MYPAGE_EXPECTED_SHA: ${{ inputs.expected_sha }}
       MYPAGE_IMAGE_COMPONENT: ${{ inputs.image_component }}
+      MYPAGE_PR_NUMBER: ${{ inputs.pr_number }}
+      MYPAGE_PR_HEAD_REPOSITORY: ${{ inputs.head_repository }}
       TF_WORKSPACE: default
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -104,6 +117,8 @@ jobs:
       MYPAGE_TARGET: ${{ inputs.target }}
       MYPAGE_ROLE: plan
       MYPAGE_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      MYPAGE_PR_NUMBER: ${{ inputs.pr_number }}
+      MYPAGE_PR_HEAD_REPOSITORY: ${{ inputs.head_repository }}
       MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
       MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
       MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}

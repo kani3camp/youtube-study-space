@@ -18,28 +18,27 @@ MyPageの通常経路は最終desired state（現在は `runtime_public` 相当�
 
 ### PR Plan（助言用、Applyしない）
 
-ownerが作成した同一repositoryのPRで `infra/gcp/**` などが変わると、`Terraform` の `pull_request` 経路がDEV / PRODのCore（MyPageはDEVのみ）を **PR Plan** します。
+ownerが作成した同一repositoryのPRで `infra/gcp/**` などが変わると、`Terraform` の `pull_request` 経路がDEVのCoreとMyPageを **PR Plan** します。PRODのPlan Environmentは `main` 限定のため、PRODは手動Planだけです。
 
-- 専用の [`terraform-pr-plan.yml`](../../.github/workflows/terraform-pr-plan.yml) と、手動Plan・Applyとは別のPR Plan identity（`terraform-<env>-normal-pr-plan` SA、`terraform-pr-plan` WIF pool、State読み取りだけのAWS role、Environment `terraform-<env>-pr-plan`）を使う。
+- 手動Planと同じreusable（`gcp-terraform-authenticated.yml` の `pr-plan` mode）、Environment `terraform-dev-plan`、identity（`terraform-dev-normal-plan` SA、`terraform-normal` WIF、`youtube-study-space-terraform-dev-plan` AWS role）を使う。PR専用のidentity・Environmentはない。
 - `-lock=false` で実行し、HMAC・saved plan・job outputを残さない。結果はJob Summaryの値なし要約だけで、PRコメントは投稿しない。Applyは必ず手動 `Terraform` で再Planする。
 - fork由来PR、owner以外のactor、再実行は資格情報を取得する前に**失敗として**停止する（green skipにしない）。その場合はownerが手動 `Terraform` の `operation=plan` を実行する。
-- PR作成者がworkflowを書き換えられるため、trustは実行コードを固定できない。PR Plan identityの権限（GCP read、State read）が漏えい時の影響上限になる。PR Plan Environmentのmanaged入力には、手動Plan / Applyと別の `plan_integrity_key` を設定する。
-- identityは [`bootstrap_pr_plan.py`](scripts/bootstrap_pr_plan.py) `--target dev|prod --apply` で作る（既定はプレビュー）。AWS roleは `--aws-policies <account> <bucket>` が出力するtrust / permission policyでownerが作る。
+- GCP WIFとAWS trustは、PRをPlan Environmentだけに許可する（PRのref `refs/pull/<n>/merge`、`terraform.yml` と同refのreusable、owner、初回実行）。Apply Environment・Apply identityは手動dispatchだけ。
 
-認証付きDEV操作の**ブランチ許可はGitHub EnvironmentのSelected branchesだけ**で管理します。controller / AWS OIDC / GCP WIFはブランチ名を個別allowlistせず、同一refの正規workflow・本人初回dispatch・非`main`のbranch refだけを検証します。PR/fork、tag、`main`でのDEV通常操作、再実行は認証前またはEnvironmentで拒否します。Productionの通常操作は保護された`main`だけです。
+認証付きDEV操作の資格情報の境界は**クラウドtrustの本人検査**です。GCP WIF / AWS OIDCはowner immutable ID・repository・初回実行・同refの正規workflowを検証し、DEVはownerの任意の非`main` branchの手動dispatchと、ownerのPR Planを許可します。PR/fork、tag、`main`でのDEV通常操作、再実行は認証前に拒否します。Productionの通常操作は保護された`main`だけです。
 
-Environmentのブランチ制限は、クラウド認証とは独立したSecretアクセス境界です。未許可のbranchの別workflow jobが同じEnvironmentを指定してもSecretを取得できないよう、No restrictionにはしません。AWS/GCPでの本人検証だけにSecret保護を委ねません。
+DEVのEnvironment（`terraform-dev-plan` / `terraform-dev-apply`）はbranchで制限しません（No restriction）。DEV EnvironmentのSecretはrole ID・SA名・bucket・HMAC key・tfvarsなど資格情報ではない設定値だけで、write権限を持つ協力者のjobが読めても、クラウドの資格情報はactor検査で取得できません。forkのPRにはSecretもOIDCも渡りません。
 
 対象ソースの選択（実行元とは別のブランチ／SHAのHCLをPlan/Applyする機能、`gcp-terraform-authenticated.yml` の `source_branch` / `expected_sha`）はreusable workflowとcontrollerに実装済みです。ただし `Terraform` の手動入力にはまだ出していないため、現在は実行元ブランチ自身のHCLだけを対象にします。
 
-1. 通常のHCL追加・修正は任意の作業/統合ブランチ向けPRで進める。認証付きPlan/Applyが必要なブランチだけをGitHubの`terraform-dev-plan` / `terraform-dev-apply` Environmentへ明示追加する。`dev`は運用可能な統合結果だけを最終PRで受け入れる。
+1. 通常のHCL追加・修正は任意の作業/統合ブランチ向けPRで進める。ownerのPRにはDEVのPR Planが付く。Environmentへのbranch登録は不要。`dev`は運用可能な統合結果だけを最終PRで受け入れる。
 2. 新しい非秘密入力は `normal.tfvars.json` に追加する。既存Environmentのprivate tfvarsを読み、
    このcommitのファイルで上書きするため、既存リソースの選択・private inventoryを落とさない。
    秘密値はコミットしない。新しいprivate入力は両DEV Environmentのmanaged入力を同じ内容へ更新する。
 3. delete/replaceが必要なら、同じPRの `normal-operations.json` に正確なaddressとactionsを記載する。
    create/updateにはリソース別manifestやtype登録を要求しない。
-4. 作業PRのcredentialless CIとレビューを確認する。認証付き検証が必要なら対象ブランチをGitHub Environmentへ追加する。専用統合ブランチを使う作業ではCodexがそこへマージしてよい。
-5. Environmentで許可した対象ブランチのHEADから `Terraform` を `environment=development` / `operation=plan` で実行し、Core GCPとMyPage両方のPlan結果を確認する。
+4. 作業PRのcredentialless CI・PR Plan・レビューを確認する。専用統合ブランチを使う作業ではCodexがそこへマージしてよい。
+5. 対象ブランチのHEADから `Terraform` を `environment=development` / `operation=plan` で実行し、Core GCPとMyPage両方のPlan結果を確認する（MyPageのtrustは統合branchのrefに固定）。
 6. 適用する場合は同一ブランチ・HEADで `operation=apply` を新規dispatchする。各Stateは独立したPlan/Apply identityとsaved plan検証を維持し、両Plan成功後にApplyへ進む。
 7. `GCP_NORMAL: PASS; role=apply` と事後full-root no-opを確認する。
    別jobの再Plan HMAC比較はGitHub Actionsの `if` 条件で行い、**HMACをstep envやcommandへ渡さない**。一致しなければApplyを実行せず、セクション別比較の真偽値だけで `GCP_NORMAL_REPLAN: STOP` を表示する。値・address・HMACは公開しない。
@@ -94,17 +93,17 @@ GitHub Secretは値を読み戻せないため名前と更新時刻を確認し�
 
 ### DEVのEnvironment設定と本人起動
 
-DEVの両Environmentは`deployment_branch_policy`を`protected_branches: false, custom_branch_policies: true`とし、信頼する実行元を完全一致のBranchルールで明示追加します。タグやワイルドカードは許可しません。これは同じEnvironmentを参照する全jobのSecretアクセスに適用される境界です。**ブランチを追加すると、そのブランチ上のworkflow一式をSecret参照可能な信頼済みコードとして扱います。** 本人・正規workflowパス・同ref/SHA・非mainなどの共通検証は維持します。
+DEVの両Environmentは`deployment_branch_policy`を`null`（No restriction）にします。本人・正規workflowパス・同ref/SHA・非mainなどの共通検証はクラウドtrustとpreflightで維持します。
 
 通常のPlan/ApplyはActionsから実行するため、ローカルのAWS/GCP loginやTerraformは不要です。設定の確認・復旧は次の管理用コマンドを使用できます。
 
 ```sh
 python3 infra/gcp/scripts/enable_normal_integration.py
 # 設定反映時だけ実行（GitHub本人認証が必要。AWS/GCP loginは不要）:
-python3 infra/gcp/scripts/enable_normal_integration.py --branch integration/mypage-canon-20261006 --apply
+python3 infra/gcp/scripts/enable_normal_integration.py --apply
 ```
 
-プレビューは読み取りだけです。`--apply`はGitHub本人認証を確認して、DEVの2 Environmentへ`--branch`を追加します。既存の明示許可は削除しません。GitHub Settings → Environmentsの両Environmentへ直接Branchルールを追加しても同じです。No restrictionの状態を検出した場合は、一覧取得より先にSelected branchesへ戻してSecret境界を閉じます。既存Environmentがない場合や、想定外のreviewer・wait timerなどの保護がある場合は、作成・上書きせず停止します。
+プレビューは読み取りだけです。`--apply`はGitHub本人認証を確認して、DEVの2 Environmentのbranch制限を外し（No restriction）、読み戻します。GitHub Settings → Environmentsで両Environmentの「Deployment branches and tags」を「No restriction」にしても同じです。既存Environmentがない場合や、想定外のreviewer・wait timerなどの保護がある場合は、作成・上書きせず停止します。
 
 既存のAWS 7-claim subjectとGCP WIFは、本人のimmutable actor ID、repository、Environment、正規caller/reusable等を検証します。DEVのcloud trustには移行中のため旧`ci.yml`と`terraform.yml`の2 callerが併存しており、管理スクリプトはこれを読み取り検証して維持し、書き換えません（入口は`terraform.yml`だけ。旧claimは検証後に削除する）。対象source branchをOIDCのworkflow refへ入れません。
 
@@ -324,7 +323,7 @@ bootstrapや障害調査にはoperatorの短期SSO/更新可能credentialを使�
 - GCP provider: GitHub OIDC / Workload Identity Federation → GCP
 - ローカルのauthenticated `plan` / state operationはmigration・障害調査等の例外用途とし、AWS SSO / Google ADC等の短期・更新可能credentialを使う
 - public PR CIはcredentiallessを維持する
-- DEV通常操作は専用WIF/SAとPlan/Apply別Environment・least privilegeを使い、許可する非`main`ブランチはGitHub Environmentで管理する
+- DEV通常操作は専用WIF/SAとPlan/Apply別Environment・least privilegeを使う。DEV Environmentはbranchで制限せず、ownerの任意の非`main`ブランチとownerのPR Planをクラウドtrustのactor検査で許可する
 - Productionの既存importおよび通常CRUDは`main`へ固定し、通常CRUDには別途Production用認証設定と実Plan/Apply検証を要求する
 
 既存AWS runtime → GCP WIFとはTerraform CI trustを分離します。

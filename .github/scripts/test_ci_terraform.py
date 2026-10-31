@@ -52,7 +52,9 @@ class TerraformWorkflowTest(unittest.TestCase):
         for changed, core, mypage in (
             (['infra/gcp/environments/dev/main.tf'], 'true', 'false'),
             (['infra/mypage-platform/modules/runtime/main.tf'], 'false', 'true'),
-            (['.github/workflows/terraform-pr-plan.yml'], 'true', 'true'),
+            (['.github/workflows/terraform.yml'], 'true', 'true'),
+            (['.github/workflows/gcp-terraform-authenticated.yml'], 'true', 'false'),
+            (['.github/workflows/mypage-foundation-authenticated.yml'], 'false', 'true'),
             (['.github/scripts/terraform_plan_summary.py', 'docs/README.md'], 'true', 'false'),
             (['docs/README.md'], 'false', 'false'),
         ):
@@ -72,35 +74,36 @@ class TerraformWorkflowTest(unittest.TestCase):
                 self.assertNotEqual(code, 0)
                 self.assertEqual(outputs, {})
 
-    def test_pr_plan_uses_only_the_read_only_reusable_and_never_reaches_apply(self):
+    def test_pr_plan_reuses_the_dev_manual_plan_and_never_reaches_apply(self):
         self.assertEqual(self.workflow['concurrency']['cancel-in-progress'], "${{ github.event_name == 'pull_request' }}")
         self.assertIn("format('terraform-pr-plan-{0}', github.event.pull_request.number)", self.workflow['concurrency']['group'])
-        for name in ('pr-plan-core', 'pr-plan-mypage'):
+        self.assertFalse((ROOT / '.github/workflows/terraform-pr-plan.yml').exists())
+        for name, uses, target, mode, secrets in (
+            ('pr-plan-core', 'gcp-terraform-authenticated.yml', 'dev', 'pr-plan', CORE_SECRETS),
+            ('pr-plan-mypage', 'mypage-foundation-authenticated.yml', 'development', 'desired-plan', MYPAGE_SECRETS),
+        ):
             job = self.jobs[name]
-            self.assertEqual(job['uses'], './.github/workflows/terraform-pr-plan.yml')
-            self.assertEqual(job['needs'], 'pr-select')
-            self.assertEqual(job['with']['expected_sha'], '${{ github.sha }}')
-        self.assertEqual(self.jobs['pr-plan-core']['strategy']['matrix']['target'], ['dev', 'prod'])
-        self.assertEqual(self.jobs['pr-plan-mypage']['with']['target'], 'dev')
+            with self.subTest(job=name):
+                self.assertEqual(job['uses'], './.github/workflows/' + uses)
+                self.assertEqual(job['needs'], 'pr-select')
+                self.assertNotIn('strategy', job)
+                self.assertEqual(job['with'], {
+                    'target': target, 'mode': mode, 'expected_sha': '${{ github.sha }}',
+                    'pr_number': "${{ format('{0}', github.event.pull_request.number) }}",
+                    'head_repository': '${{ github.event.pull_request.head.repo.full_name }}'})
+                self.assertEqual(set(job['secrets']), secrets)
         # Every manual job is unreachable from a PR event.
         self.assertEqual(self.jobs['select']['if'], "${{ github.event_name == 'workflow_dispatch' }}")
         for name in ('validate', 'core-plan', 'mypage-plan', 'core-apply', 'mypage-apply'):
             self.assertIn('select', self.jobs[name]['needs'])
-        reusable = load(ROOT / '.github/workflows/terraform-pr-plan.yml')
-        self.assertEqual(set(reusable['on']), {'workflow_call'})
-        self.assertEqual(reusable['jobs']['core']['environment'], 'terraform-${{ inputs.target }}-pr-plan')
-        self.assertEqual(reusable['jobs']['mypage']['environment'], 'mypage-dev-pr-plan')
-        # Nothing leaves a PR Plan job: no workflow/job outputs, no artifacts, no apply command.
-        self.assertNotIn('outputs', reusable['on']['workflow_call'])
-        for name, job in reusable['jobs'].items():
-            with self.subTest(job=name):
-                self.assertNotIn('outputs', job)
-                for step in job['steps']:
-                    self.assertFalse(step.get('uses', '').startswith('actions/upload-artifact'))
-                    self.assertNotRegex(step.get('run', ''), r'\b(apply|prepare)\b')
-        text = (ROOT / '.github/workflows/terraform-pr-plan.yml').read_text()
-        for forbidden in ('gcp-terraform-authenticated.yml', 'mypage-foundation-authenticated.yml', 'pull_request_target'):
-            self.assertNotIn(forbidden, text)
+        # In the reusables a PR reaches only the Plan job: Apply jobs require a dispatch-only mode.
+        core = load(ROOT / '.github/workflows/gcp-terraform-authenticated.yml')['jobs']
+        self.assertIn("inputs.mode == 'pr-plan'", core['normal_plan']['if'])
+        self.assertEqual(core['normal_plan']['environment'], 'terraform-${{ inputs.target }}-plan')
+        self.assertEqual(core['normal_apply']['if'], "${{ inputs.mode == 'normal-apply' }}")
+        mypage = load(ROOT / '.github/workflows/mypage-foundation-authenticated.yml')['jobs']
+        self.assertNotIn("'desired-plan'", mypage['foundation_apply']['if'])
+        self.assertNotIn("'desired-plan'", mypage['image_build']['if'])
 
     def test_manual_only_with_environment_operation_and_component(self):
         self.assertEqual(set(self.workflow['on']), {'workflow_dispatch', 'pull_request'})

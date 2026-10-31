@@ -157,8 +157,7 @@ def stage(env):
     need(re.fullmatch(r"AROA[A-Z0-9]{17}", env.get("MYPAGE_BACKEND_ROLE_ID", "")))
     expected_sa = "mypage-foundation-" + kind + "@" + contract.PROJECT + ".iam.gserviceaccount.com"
     need(env.get("MYPAGE_GCP_SERVICE_ACCOUNT") == expected_sa)
-    provider = "github-pr-plan" if kind == "pr-plan" else "github-actions"
-    need(re.fullmatch(r"projects/[0-9]+/locations/global/workloadIdentityPools/mypage-foundation/providers/" + provider,
+    need(re.fullmatch(r"projects/[0-9]+/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions",
                       env.get("MYPAGE_GCP_WIF_PROVIDER", "")))
     need(len(env.get("MYPAGE_PLAN_HMAC_KEY", "")) >= 32)
     root = directory(env)
@@ -185,10 +184,10 @@ def oidc(env, *, image=False):
     token = request(url, env["ACTIONS_ID_TOKEN_REQUEST_TOKEN"])["value"]
     encoded = token.split(".")[1]
     claims = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
-    if kind == "pr-plan":
+    if contract.is_pr(env):
         ref = env["GITHUB_REF"]
         workflow = contract.WORKFLOWS + "terraform.yml@" + ref
-        reusable = contract.WORKFLOWS + contract.PR_PLAN_WORKFLOW + "@" + ref
+        reusable = contract.WORKFLOWS + contract.REUSABLE_NAME + "@" + ref
         sub = contract.pr_subject(env["MYPAGE_PR_NUMBER"])
     else:
         ref, workflow, reusable = contract.REF, contract.caller(env, image=image), contract.REUSABLE
@@ -279,8 +278,7 @@ def runtime_settings(env, stage=None):
         value = runtime_contract.settings(
             value | {"hosting_backend_host": "mypage-api-eu5mhkcewq-et.a.run.app",
                      "previous_image_digest": ""}, stage)
-    provider = re.fullmatch(r"projects/([0-9]+)/locations/global/workloadIdentityPools/mypage-foundation/providers/"
-                            + ("github-pr-plan" if env.get("MYPAGE_ROLE") == "pr-plan" else "github-actions"),
+    provider = re.fullmatch(r"projects/([0-9]+)/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions",
                             env.get("MYPAGE_GCP_WIF_PROVIDER", ""))
     need(provider and provider[1] == contract.PROJECT_NUMBER)
     if stage != "maintenance_operator":
@@ -437,8 +435,8 @@ def prepare(env):
     PHASE = "plan"
     saved = root / "foundation.tfplan"
     stage = contract.stage_for_mode(env["MYPAGE_MODE"])
-    # PR Plan is advisory and has no lock-write permission; Apply always re-plans.
-    lock = "-lock=false" if kind == "pr-plan" else "-lock-timeout=60s"
+    # PR Plan is advisory and never blocks a manual Plan or Apply; Apply always re-plans.
+    lock = "-lock=false" if contract.is_pr(env) else "-lock-timeout=60s"
     arguments = ["terraform", "plan", "-input=false", "-no-color", lock, "-var=stage=" + stage, "-out=" + str(saved)]
     value = None
     if stage in set(runtime_contract.MODES.values()):
@@ -464,7 +462,7 @@ def prepare(env):
         summary = contract.validate_plan(plan, stage)
     reject_unowned_resources(env, plan)
     need(state_version(env) == version)
-    if kind == "pr-plan":
+    if contract.is_pr(env):
         # No commitment, saved-plan record or timestamp leaves a PR Plan job;
         # only these value-free counts reach the log and the Job Summary.
         message = ("MyPage PR Plan (advisory) accepted by the plan contract: " + str(summary["resources"]) + " resources, " +

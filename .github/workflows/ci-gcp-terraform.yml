@@ -47,7 +47,6 @@ jobs:
           python3 -B infra/gcp/tests/test_enable_normal_integration.py
           python3 -B infra/gcp/tests/test_production_normal_ops.py
           python3 -B infra/gcp/tests/test_bootstrap_production_normal_ops.py
-          python3 -B infra/gcp/tests/test_bootstrap_pr_plan.py
           python3 .github/scripts/test_terraform_quota_create_gate.py
           python3 .github/scripts/test_terraform_quota_refresh_gate.py
           python3 .github/scripts/test_terraform_export_topic_gate.py
