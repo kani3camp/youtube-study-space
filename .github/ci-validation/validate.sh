@@ -28,6 +28,9 @@ case "$1" in
     python3 .github/scripts/test_terraform_export_scheduler_gate.py
     python3 .github/scripts/test_terraform_export_function_gate.py
     python3 .github/scripts/test_user_activity_history_preparation.py
+    # Test email/password Auth ownership and Terraform contract
+    python3 -B infra/gcp/tests/test_monitor_auth.py
+    python3 -B infra/gcp/scripts/test_monitor_auth_terraform.py
     # Check formatting
     terraform fmt -check -recursive infra/gcp
     # Initialize and validate roots

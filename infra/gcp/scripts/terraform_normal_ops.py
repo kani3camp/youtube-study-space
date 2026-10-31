@@ -302,7 +302,7 @@ def validate_observation_drift(plan, state, provider_schema):
 
 
 def validate(plan, approved, *, post=False, project=PROJECT, project_number=None,
-             state=None, provider_schema=None):
+             state=None, provider_schema=None, monitor_auth_enabled=False):
     plan_need(type(plan) is dict and plan.get('format_version') == '1.2'
               and plan.get('terraform_version') == common.VERSION, 'format')
     plan_need(plan.get('errored') is False and plan.get('complete') is True, 'incomplete')
@@ -317,7 +317,9 @@ def validate(plan, approved, *, post=False, project=PROJECT, project_number=None
         need(type(address) is str and address not in seen)
         seen.add(address)
         action = tuple(change['actions'])
-        need(action in ACTIONS and not change.get('importing'))
+        need(action in ACTIONS)
+        from monitor_auth import validate_import
+        validate_import(item, project, monitor_auth_enabled)
         need(item.get('provider_name') in {'registry.terraform.io/hashicorp/google',
                                          'registry.terraform.io/hashicorp/google-beta'})
         need(item.get('mode') in {'managed', 'data'})
@@ -594,8 +596,9 @@ def source(env, root):
 def setup(env, root, tfvars):
     phase('source-copy')
     tfroot = source(env, root)
-    if env['NORMAL_TARGET'] == 'dev':
-        selected_source.package_data(tfroot, tfvars)
+    if tfvars.get('monitor_email_password_enabled'):
+        from monitor_auth import preflight
+        preflight(True, target_project(env), lambda host, path: common.google(env, host, path))
     common.write(root / 'terraform.rc', b'disable_checkpoint = true\n')
     common.write(root / 'inputs.tfvars.json', common.canonical(tfvars))
     target = env['NORMAL_TARGET']
@@ -632,7 +635,9 @@ def plan(env, root, tfroot, name, approved, *, post=False, state=None):
     phase('plan-validation')
     try:
         counts = validate(value, approved, post=post, project=target_project(env),
-                          project_number=env.get('NORMAL_PROJECT_NUMBER'), state=state, provider_schema=schema)
+                          project_number=env.get('NORMAL_PROJECT_NUMBER'), state=state, provider_schema=schema,
+                          monitor_auth_enabled=any(item.get('change', {}).get('importing') for item in value.get('resource_changes', []))
+                          and common.decode((root / 'inputs.tfvars.json').read_bytes()).get('monitor_email_password_enabled') is True)
     except PlanRejected:
         raise
     except Exception:

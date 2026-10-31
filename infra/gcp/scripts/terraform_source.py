@@ -7,7 +7,6 @@ import subprocess
 import tempfile
 import urllib.parse
 import urllib.request
-import zipfile
 
 REPOSITORY = 'kani3camp/youtube-study-space'
 CHECKOUT = '.terraform-source'
@@ -175,18 +174,3 @@ def data_paths(env, root, run):
         return paths  # 本番の従来のsource/実行方式は変更しない。
     prefixes = ('infra/gcp/environments/dev/', 'infra/gcp/modules/')
     return [name for name in paths if name.startswith(prefixes)]
-
-
-def package_data(tfroot, tfvars):
-    """配備用の固定4ファイルをデータとしてZIP化し、source側のスクリプトは実行しない。"""
-    if tfvars.get('monitor_auth_registration') is None:
-        return
-    directory = tfroot.parents[1] / 'modules/monitor-auth-registration/function'
-    with zipfile.ZipFile(directory / 'source.zip', 'w', compression=zipfile.ZIP_STORED) as archive:
-        for name in ('guard.cjs', 'index.cjs', 'package.json', 'package-lock.json'):
-            path = directory / name
-            need(path.is_file() and not path.is_symlink())
-            info = zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0))
-            info.create_system = 3
-            info.external_attr = 0o100644 << 16
-            archive.writestr(info, path.read_bytes())

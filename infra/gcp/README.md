@@ -4,6 +4,10 @@ YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをT
 
 設計上の正本はNotion「GCP Terraform / IaC移行」、実装・CI・import状態の正本はこのrepository / GitHubです。
 
+## Firebase Authenticationのメール認証
+
+モニター用のメール・パスワード認証は、[認証用モジュール](modules/monitor-auth/README.md)で管理します。`beforeCreate`による新規登録制限は廃止し、公開登録と既存アカウントへのパスワード追加を許可します。モニターデータの閲覧はFirestoreの許可リストで制限します。DEVに適用済みの旧登録制限は、同手順の段階撤去を完了してから最終構成を使います。
+
 ## 通常のDEV Terraform開発
 
 **workflowはDEV用EnvironmentのSelected branchesに明示追加した信頼済みブランチから、`kani3camp`本人が初回手動起動します。** 初期の実行元は`dev`です。マイページ統合ブランチなども、両EnvironmentへBranchとして追加すれば実行元にできます。許可するブランチ名の一覧をコードやAWS/GCP側へ重複登録しません。Terraform対象は通常ブランチだけで選び、特定コミットを使う場合は40桁SHAだけでも指定できます。対象ソースとして使うだけのブランチはEnvironmentへ追加しません。
@@ -54,13 +58,13 @@ Environmentのブランチ制限は、クラウド認証とは独立したSecret
 }
 ```
 
-取得するソースは同一repositoryの固定SHAです。別checkoutから`environments/dev/`と`modules/`のHCL・入力・配備データだけを私用作業ディレクトリへコピーし、対象ブランチの`.github/`・`infra/gcp/scripts/`・`infra/gcp/tests/`はコピーしません。symlink、改変済みcheckout、未追跡の入力でcommitを上書きする操作は拒否します。Authの配備ZIPも信頼済み実行器で固定4ファイルから生成し、対象ブランチのpackagerは呼び出しません。
+取得するソースは同一repositoryの固定SHAです。別checkoutから`environments/dev/`と`modules/`のHCL・入力・配備データだけを私用作業ディレクトリへコピーし、対象ブランチの`.github/`・`infra/gcp/scripts/`・`infra/gcp/tests/`はコピーしません。symlink、改変済みcheckout、未追跡の入力でcommitを上書きする操作は拒否します。登録制限用の配備ZIP生成・関数配備は撤去しました。
 
 HCLやmodule自体もprovider等による実行を伴うため、選択するソースは本人がレビューしたものを使います。この分離は、未レビューのHCLを安全に実行するsandboxではありません。Environment/OIDC、State、Planの契約は[実行契約](docs/terraform-authentication-boundary.md#devの通常planapply)を参照してください。
 
 S3 native locking、Versioning、環境別concurrencyを継続し、workspace・target apply・force-unlockは使いません。raw Plan/State/Secret/API応答をログ・artifactへ公開せず、公開結果は固定phase・操作件数とprovider schemaで検証したリソース種別/操作別件数に限定します。
 
-**有効化の順序:** このcontrol plane分離は、対応workflowと実行器を含む信頼済み実行元から利用できます。新しい実行元を許可する前に、そのブランチのworkflowと実行器をレビューしてください。HCLを試すだけのfeature branchを実行元へ一時昇格させません。DEV StateへPR #1467のAuth資源を適用した状態では、それらを含むsource branch/SHAを選んでください。古いHCLによる資源削除が提案されても適用しません。
+**有効化の順序:** このcontrol plane分離は、対応workflowと実行器を含む信頼済み実行元から利用できます。新しい実行元を許可する前に、そのブランチのworkflowと実行器をレビューしてください。HCLを試すだけのfeature branchを実行元へ一時昇格させません。DEV StateへPR #1467の旧登録制限資源を適用した状態では、認証用モジュールの段階撤去を完了するまで、その段階に合う固定SHAを選んでください。古いHCLによる意図しない資源削除は適用しません。
 
 ### 一回限りのDEV基盤設定
 

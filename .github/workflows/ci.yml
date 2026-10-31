@@ -135,7 +135,7 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.gcp_terraform == 'true' || needs.changes.outputs.all == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout trusted validation controller
         uses: actions/checkout@v7
