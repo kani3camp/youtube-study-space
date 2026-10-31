@@ -1,36 +1,49 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAuthorizedMonitor() {
+      return request.auth != null
+        && request.auth.token.monitor_reader == true
+        && exists(/databases/$(database)/documents/_monitor-readers/$(request.auth.uid))
+        && get(/databases/$(database)/documents/_monitor-readers/$(request.auth.uid)).data.enabled == true;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
-    
+
+    // Server/Admin SDKs manage this allowlist through IAM. Browser clients must
+    // never be able to enumerate, inspect, or change authorized monitor UIDs.
+    match /_monitor-readers/{uid} {
+      allow read, write: if false;
+    }
+
     match /seats/{seat} {
-    	allow read: if true;
+      allow read: if isAuthorizedMonitor();
       allow write: if false;
     }
-    
+
     match /member-seats/{seat} {
-    	allow read: if true;
-    	allow write: if false;
+      allow read: if isAuthorizedMonitor();
+      allow write: if false;
     }
-    
+
     match /config/constants {
-    	allow read: if true;
+      allow read: if isAuthorizedMonitor();
       allow write: if false;
     }
 
     match /config/{doc} {
-    	allow read, write: if false;
+      allow read, write: if false;
     }
 
     match /menu/{doc} {
-      allow read: if true;
+      allow read: if isAuthorizedMonitor();
       allow write: if false;
     }
-    
+
     match /work-name-trend/{doc} {
-      allow read: if true;
+      allow read: if isAuthorizedMonitor();
       allow write: if false;
     }
   }

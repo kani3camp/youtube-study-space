@@ -17,13 +17,23 @@ import { seatAppearanceV2SchemaVersion } from './seat-appearance-schema'
 
 export const getFirebaseConfig = (): FirebaseOptions => {
 	if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)) {
-		alert('NEXT_PUBLIC_FIREBASE_PROJECT_ID is not valid.')
+		alert(
+			'認証に失敗しました。ライブチャット、または緊急連絡フォームからご連絡ください。',
+		)
 	}
 	if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_API_KEY)) {
-		alert('NEXT_PUBLIC_FIREBASE_API_KEY is not valid.')
+		alert(
+			'認証に失敗しました。ライブチャット、または緊急連絡フォームからご連絡ください。',
+		)
+	}
+	if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN)) {
+		alert(
+			'認証に失敗しました。ライブチャット、または緊急連絡フォームからご連絡ください。',
+		)
 	}
 	return {
 		apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+		authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
 		projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
 	}
 }

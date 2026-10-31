@@ -4,7 +4,7 @@ This file is the repository-wide operating contract for coding agents. Tool-spec
 
 ## Communication and Safety
 
-- Use Japanese as the primary language for user-facing communication and pull request discussion unless asked otherwise.
+- ユーザーへの説明、PRでのやり取り、プロジェクトのドキュメントは、別の指定がない限り日本語で記述する。
 - External mutations require user authorization. A direct request to create/edit/push a branch, commit, pull request, deploy, or other external state counts as authorization for the requested scope; do not ask again for the same operation. Obtain new authorization before expanding beyond that scope or performing a materially different destructive/production operation.
 - Do not expose, log, copy, or move credentials/secrets into client-readable locations.
 - Preserve important `NOTE` comments. Temporary review-only explanations may use `[NOTE FOR REVIEW]` and should not become permanent clutter.

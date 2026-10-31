@@ -126,7 +126,7 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.gcp_terraform == 'true' || needs.changes.outputs.all == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -166,6 +166,22 @@ jobs:
         with:
           terraform_version: "1.16.4"
           terraform_wrapper: false
+
+      - name: Setup Node.js for Auth registration guard
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Test Auth registration policy and deterministic source package
+        run: |
+          python3 -B infra/gcp/tests/test_monitor_auth_registration.py
+          python3 -B infra/gcp/scripts/test_monitor_auth_terraform.py
+
+      - name: Install Firebase CLI for Auth Emulator
+        run: npm install --global firebase-tools@15.25.1
+
+      - name: Verify registration rejection and existing/custom sign-in with Auth Emulator
+        run: bash infra/gcp/scripts/test_monitor_auth.sh
 
       - name: Check formatting
         run: terraform fmt -check -recursive infra/gcp

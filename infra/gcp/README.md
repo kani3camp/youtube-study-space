@@ -4,6 +4,10 @@ YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをT
 
 設計上の正本はNotion「GCP Terraform / IaC移行」、実装・CI・import状態の正本はこのrepository / GitHubです。
 
+## Firebase Authenticationの登録制限
+
+モニター用のメール・パスワード認証と、一般利用者の新規登録を拒否する`beforeCreate`は、[認証用モジュール](modules/monitor-auth-registration/README.md)で管理します。環境側の`monitor_auth_registration`は既定で無効です。既存Auth設定の取り込み、専用SA・追加権限の準備、DEVでのマイページ初回登録確認を済ませてから有効化します。Firebase CLIから同じ関数や認証設定を配備しません。
+
 ## 通常のDEV Terraform開発
 
 `ci.yml` の本人による初回 `workflow_dispatch` で `terraform_authenticated=true`、
