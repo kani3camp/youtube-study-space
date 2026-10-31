@@ -1,3 +1,16 @@
 {
-  "destructive_changes": {}
+  "destructive_changes": {
+    "module.monitor_auth_registration[0].google_artifact_registry_repository_iam_member.builder": [
+      "delete"
+    ],
+    "module.monitor_auth_registration[0].google_storage_bucket_object.source": [
+      "delete"
+    ],
+    "module.monitor_auth_registration[0].google_cloudfunctions2_function.guard": [
+      "delete"
+    ],
+    "module.monitor_auth_registration[0].google_cloud_run_v2_service_iam_member.invoker": [
+      "delete"
+    ]
+  }
 }

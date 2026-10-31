@@ -1,13 +1,4 @@
-mock_provider "google" {
-  mock_resource "google_cloudfunctions2_function" {
-    defaults = {
-      service_config = {
-        uri     = "https://registration-guard.example.run.app"
-        service = "projects/demo-monitor-auth/locations/asia-southeast2/services/monitor-password-signup-guard"
-      }
-    }
-  }
-}
+mock_provider "google" {}
 variables {
   project_id                    = "demo-monitor-auth"
   region                        = "asia-southeast2"
@@ -25,20 +16,10 @@ run "registration_guard_detached_and_existing_login_preserved" {
     error_message = "登録制限の撤去ではbeforeCreateを解除し、ログイン用のAuth設定を維持してください。"
   }
   assert {
-    condition     = google_storage_bucket.source.public_access_prevention == "enforced" && google_storage_bucket.source.uniform_bucket_level_access && google_storage_bucket_object.source.deletion_policy == "DELETE"
-    error_message = "専用ソースは非公開を維持し、撤去時にオブジェクトを残さず削除してください。"
+    condition     = google_storage_bucket.source.public_access_prevention == "enforced" && google_storage_bucket.source.uniform_bucket_level_access
+    error_message = "撤去中の専用バケットは、削除完了まで非公開を維持してください。"
   }
-  assert {
-    condition     = google_artifact_registry_repository_iam_member.builder.repository == "monitor-auth" && google_artifact_registry_repository_iam_member.builder.role == "roles/artifactregistry.writer" && google_artifact_registry_repository_iam_member.builder.member == "serviceAccount:${var.build_service_account_email}"
-    error_message = "ビルド権限は専用リポジトリに直接付与してください。"
-  }
-}
-run "prepare_only_dedicated_resource_deletion" {
-  command = plan
-  assert {
-    condition = google_cloudfunctions2_function.guard.deletion_policy == "DELETE" && google_storage_bucket_iam_member.source_retirement.bucket == google_storage_bucket.source.name && google_storage_bucket_iam_member.source_retirement.role == "roles/storage.objectUser" && google_storage_bucket_iam_member.source_retirement.member == "serviceAccount:terraform-dev-normal-apply@${var.project_id}.iam.gserviceaccount.com"
-    error_message = "関数の削除準備と専用ソースバケットへの限定権限だけを設定してください。"
-  }
+
 }
 run "preserve_existing_before_sign_in" {
   command = apply

@@ -38,9 +38,8 @@ variables {
  runtime_service_account_email = "monitor-auth-runtime@demo-monitor-auth.iam.gserviceaccount.com"
  build_service_account_email = "monitor-auth-build@demo-monitor-auth.iam.gserviceaccount.com"
 }
-run "enabled_requires_a_packaged_source" {
+run "retirement_needs_no_function_source" {
  command = plan
- expect_failures = [google_storage_bucket.source]
 }
 ''')
         run(module, 'test', '-filter=tests/missing-source.tftest.hcl', '-no-color')
