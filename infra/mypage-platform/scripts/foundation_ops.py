@@ -296,7 +296,12 @@ def maintenance_bootstrap_image(env, stage):
     try:
         request(url, env["MYPAGE_GCP_ACCESS_TOKEN"])
     except urllib.error.HTTPError as error:
-        contract.need(error.code == 404, "maintenance-job-lookup")
+        if error.code == 404:
+            pass
+        elif error.code == 403:
+            raise contract.ContractError("maintenance-bootstrap-job-read-permission") from None
+        else:
+            raise contract.ContractError("maintenance-bootstrap-job-read") from None
     else:
         return ""
     # Production needs a separately approved artifact and release identity.
@@ -312,8 +317,11 @@ def maintenance_bootstrap_image(env, stage):
                   "maintenance-bootstrap-source")
     prefix = ("projects/" + contract.PROJECT + "/locations/" + contract.REGION +
               "/repositories/mypage/packages/mypage-api")
-    tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source,
-                  env["MYPAGE_GCP_ACCESS_TOKEN"])
+    try:
+        tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source,
+                      env["MYPAGE_GCP_ACCESS_TOKEN"])
+    except urllib.error.HTTPError:
+        raise contract.ContractError("maintenance-bootstrap-image-read") from None
     version = tag.get("version", "")
     match = re.fullmatch(re.escape(prefix + "/versions/sha256:") + r"([a-f0-9]{64})", version)
     contract.need(match is not None, "maintenance-bootstrap-image")

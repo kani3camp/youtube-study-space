@@ -138,9 +138,11 @@ class FoundationTest(unittest.TestCase):
         prefix = ('projects/' + c.PROJECT + '/locations/' + c.REGION +
                   '/repositories/mypage/packages/mypage-api')
         digest = 'd' * 64
+        job_url = ('https://run.googleapis.com/v2/projects/' + c.PROJECT +
+                   '/locations/' + c.REGION + '/jobs/mypage-maintenance-operator')
 
         def cloud(url, _token):
-            if url.endswith('/jobs/mypage-maintenance-operator'):
+            if url == job_url:
                 raise ops.urllib.error.HTTPError(url, 404, 'not found', None, None)
             self.assertTrue(url.endswith('/tags/' + ops.MAINTENANCE_BOOTSTRAP_SOURCE_SHA))
             return {'version': prefix + '/versions/sha256:' + digest}
@@ -159,6 +161,28 @@ class FoundationTest(unittest.TestCase):
              patch.object(ops, 'run') as run:
             self.assertEqual(ops.maintenance_bootstrap_image(env, 'runtime_public'), '')
             run.assert_not_called()
+
+    def test_maintenance_bootstrap_job_read_permission_has_fixed_diagnostic(self):
+        env = {'GITHUB_SHA': 'f' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token'}
+        denied = ops.urllib.error.HTTPError('private-url', 403, 'denied', None, None)
+        with patch.object(ops, 'request', side_effect=denied), \
+             patch.object(ops, 'run') as run, \
+             self.assertRaisesRegex(c.ContractError, '^maintenance-bootstrap-job-read-permission\\Z'):
+            ops.maintenance_bootstrap_image(env, 'runtime_public')
+        run.assert_not_called()
+
+    def test_dev_bootstrap_registry_read_failure_has_fixed_diagnostic(self):
+        env = {'GITHUB_SHA': 'f' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token'}
+        dockerfile = ('go build -tags timetzdata -trimpath -ldflags="-s -w" '
+                      '-o /out/mypage-maintenance-operator ./cmd/mypage-maintenance-operator\n'
+                      'COPY --from=build /out/mypage-maintenance-operator /app/mypage-maintenance-operator\n')
+        job_missing = ops.urllib.error.HTTPError('private-job-url', 404, 'not found', None, None)
+        registry_denied = ops.urllib.error.HTTPError('private-registry-url', 403, 'denied', None, None)
+        with patch.object(ops, 'request', side_effect=[job_missing, registry_denied]), \
+             patch.object(ops, 'run', side_effect=['', dockerfile]), \
+             self.assertRaisesRegex(c.ContractError, '^maintenance-bootstrap-image-read\\Z'):
+            ops.maintenance_bootstrap_image(env, 'runtime_public')
+
     def test_maintenance_operator_stage_writes_admitted_runtime_settings(self):
         value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
         env = {
