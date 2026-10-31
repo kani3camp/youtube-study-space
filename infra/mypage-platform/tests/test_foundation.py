@@ -522,7 +522,7 @@ class RuntimeDriftDiagnosticTest(unittest.TestCase):
                 {'address': 'module.other["' + secret + '"].x.y', 'change': {'actions': ['update']}},
             ],
             'resource_changes': [
-                {'address': service, 'change': {'actions': ['update'], 'after': {'env': secret}}},
+                {'address': service, 'change': {'actions': ['update'], 'before': {'env': secret + '-old'}, 'after': {'env': secret}}},
                 {'address': 'module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]',
                  'change': {'actions': ['create'], 'after': {'image': secret}}},
                 {'address': 'module.platform[0].google_service_account.runtime', 'change': {'actions': ['no-op']}},
@@ -544,6 +544,19 @@ class RuntimeDriftDiagnosticTest(unittest.TestCase):
                          ['module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]', service])
         self.assertEqual(json.loads(lines['Terraform drift summary'].removesuffix('.')),
                          {'observedResources': 2, 'plannedWrites': 2})
+        updates = json.loads(lines['Terraform planned update attributes'].removesuffix('.'))
+        self.assertEqual(updates, [{'address': service, 'actions': ['update'], 'attributes': ['env']}])
+
+    def test_update_attributes_are_schema_names_only(self):
+        change = {'before': {'deletion_policy': None, 'launch_stage': 'GA', 'template': [{'env': 'old-secret'}],
+                             'labels': {'private-key': 'x'}},
+                  'after': {'deletion_policy': 'PREVENT', 'launch_stage': 'GA', 'template': [{'env': 'new-secret'}],
+                            'labels': {'private-key': 'x'}, 'Weird Key': 1},
+                  'after_unknown': {'uri': True, 'etag': False}}
+        names = ops.changed_attributes(change)
+        self.assertEqual(names, ['<withheld>', 'deletion_policy', 'template', 'uri'])
+        self.assertNotIn('secret', json.dumps(names))
+        self.assertEqual(ops.changed_attributes({'before': None, 'after': {}}), ['<withheld>'])
 
 
 if __name__ == "__main__":
