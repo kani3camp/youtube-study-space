@@ -50,16 +50,63 @@ FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "priv
           "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
 
 
-def maintenance_provider_condition():
+# google.subject must stay within Google STS's 127-byte limit. The repository's custom
+# OIDC sub carries workflow_ref and job_workflow_ref (~360-450 bytes), so the provider
+# uses the same short subject as the other MyPage identities (~50 bytes).
+MAINTENANCE_SUBJECT = 'assertion.repository_id+":"+assertion.environment+":"+assertion.actor_id'
+LEGACY_MAINTENANCE_SUBJECT = "assertion.sub"
+
+
+def maintenance_provider_condition(*, legacy=False):
     transition = "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@" + c.REF
+    # Only the reviewed reusable job may authenticate (legacy: before the hardening).
+    reusable = "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance-authenticated.yml@" + c.REF
     return (
         "assertion.repository_id == '340900071' && assertion.repository_owner_id == '54093651' && "
         "assertion.actor_id == '54093651' && assertion.actor == 'kani3camp' && assertion.run_attempt == '1' && "
         "assertion.event_name == 'workflow_dispatch' && assertion.ref == '" + c.REF + "' && "
-        "assertion.workflow_ref == '" + transition + "' && "
+        "assertion.workflow_ref == '" + transition + "' && " +
+        ("" if legacy else "assertion.job_workflow_ref == '" + reusable + "' && ") +
         "assertion.environment == 'mypage-maintenance-" + c.ENVIRONMENT + "' && "
         "assertion.workflow_sha == assertion.sha"
     )
+
+
+def maintenance_provider_mapping(*, legacy=False):
+    return {
+        "attribute.actor": "assertion.actor",
+        "attribute.actor_id": "assertion.actor_id",
+        "attribute.environment": "assertion.environment",
+        "attribute.event_name": "assertion.event_name",
+        "attribute.ref": "assertion.ref",
+        "attribute.repository_id": "assertion.repository_id",
+        "attribute.repository_owner_id": "assertion.repository_owner_id",
+        "attribute.run_attempt": "assertion.run_attempt",
+        "attribute.sha": "assertion.sha",
+        "attribute.workflow_ref": "assertion.workflow_ref",
+        "attribute.workflow_sha": "assertion.workflow_sha",
+        "google.subject": LEGACY_MAINTENANCE_SUBJECT if legacy else MAINTENANCE_SUBJECT,
+    }
+
+
+def reviewed_provider_update(address, change):
+    """True only for the reviewed in-place fix of the existing maintenance provider.
+
+    Exactly attribute_condition and attribute_mapping change, from the exact legacy
+    values to the exact current values; nothing else, no unknowns, no replacement.
+    """
+    if (address != MAINTENANCE_PROVIDER or change.get("actions") != ["update"] or change.get("replace_paths")
+            or change.get("importing")):
+        return False
+    before, after, unknown = change.get("before"), change.get("after"), change.get("after_unknown") or {}
+    if type(before) is not dict or type(after) is not dict or type(unknown) is not dict or c.has_unknown(unknown):
+        return False
+    changed = {key for key in set(before) | set(after) if before.get(key) != after.get(key)}
+    return (changed == {"attribute_condition", "attribute_mapping"} and
+            before.get("attribute_condition") == maintenance_provider_condition(legacy=True) and
+            before.get("attribute_mapping") == maintenance_provider_mapping(legacy=True) and
+            after.get("attribute_condition") == maintenance_provider_condition() and
+            after.get("attribute_mapping") == maintenance_provider_mapping())
 
 
 def settings(value, stage=None):
@@ -155,15 +202,7 @@ def maintenance_resource_contract(value=None):
     if value is not None:
         resources[MAINTENANCE_PROVIDER] |= {
             "attribute_condition": maintenance_provider_condition(),
-            "attribute_mapping": {
-                "attribute.actor": "assertion.actor", "attribute.actor_id": "assertion.actor_id",
-                "attribute.environment": "assertion.environment",
-                "attribute.event_name": "assertion.event_name", "attribute.ref": "assertion.ref",
-                "attribute.repository_id": "assertion.repository_id", "attribute.repository_owner_id": "assertion.repository_owner_id",
-                "attribute.run_attempt": "assertion.run_attempt", "attribute.sha": "assertion.sha",
-                "attribute.workflow_ref": "assertion.workflow_ref", "attribute.workflow_sha": "assertion.workflow_sha",
-                "google.subject": "assertion.sub",
-            },
+            "attribute_mapping": maintenance_provider_mapping(),
             "oidc": [{"issuer_uri": "https://token.actions.githubusercontent.com", "allowed_audiences": []}],
         }
         resources[MAINTENANCE_WIF] |= {
@@ -270,20 +309,7 @@ def validate_maintenance_resource(address, after, unknown, value, actions, boots
     if address == MAINTENANCE_PROVIDER:
         c.need(not c.has_unknown({k: unknown.get(k) for k in ("attribute_condition", "attribute_mapping", "oidc")}), "maintenance-provider-unknown")
         c.need(after.get("attribute_condition") == maintenance_provider_condition(), "maintenance-provider-condition")
-        c.need(after.get("attribute_mapping") == {
-            "attribute.actor": "assertion.actor",
-            "attribute.actor_id": "assertion.actor_id",
-            "attribute.environment": "assertion.environment",
-            "attribute.event_name": "assertion.event_name",
-            "attribute.ref": "assertion.ref",
-            "attribute.repository_id": "assertion.repository_id",
-            "attribute.repository_owner_id": "assertion.repository_owner_id",
-            "attribute.run_attempt": "assertion.run_attempt",
-            "attribute.sha": "assertion.sha",
-            "attribute.workflow_ref": "assertion.workflow_ref",
-            "attribute.workflow_sha": "assertion.workflow_sha",
-            "google.subject": "assertion.sub",
-        }, "maintenance-provider-mapping")
+        c.need(after.get("attribute_mapping") == maintenance_provider_mapping(), "maintenance-provider-mapping")
         oidc = one(after.get("oidc"), "maintenance-provider-oidc")
         empty_options(oidc, ("jwks_json",))
         c.need(oidc.get("issuer_uri") == "https://token.actions.githubusercontent.com"
@@ -574,7 +600,10 @@ def validate_initial_plan(plan, stage):
         # ServiceのState取り込み（state_only_service_update）だけで、no-opとして検証する。
         state_only = bool(state_only_service_update(address, change))
         actions = ["no-op"] if state_only else change.get("actions")
-        c.need(actions in [["create"], ["no-op"]] and not change.get("replace_paths"), "runtime-resource-action")
+        # 例外のもう1つは、既存のmaintenance providerを短いgoogle.subjectとjob_workflow_refへ
+        # 直す、レビュー済みのin-place update（reviewed_provider_update）だけ。
+        c.need((actions in [["create"], ["no-op"]] or reviewed_provider_update(address, change)) and
+               not change.get("replace_paths"), "runtime-resource-action")
         # desired-state runtime stages may create an exact missing maintenance
         # boundary. Foreign same-name resources are rejected before Apply and
         # all maintenance fields remain constrained by the contract below.

@@ -447,7 +447,8 @@ resource "google_iam_workload_identity_pool_provider" "maintenance_github" {
   disabled                           = false
   deletion_policy                    = "PREVENT"
   attribute_mapping = {
-    "google.subject"                = "assertion.sub"
+    # Google STS limits google.subject to 127 bytes; the custom OIDC sub is far longer.
+    "google.subject"                = "assertion.repository_id+\":\"+assertion.environment+\":\"+assertion.actor_id"
     "attribute.actor"               = "assertion.actor"
     "attribute.repository_id"       = "assertion.repository_id"
     "attribute.repository_owner_id" = "assertion.repository_owner_id"
@@ -460,7 +461,7 @@ resource "google_iam_workload_identity_pool_provider" "maintenance_github" {
     "attribute.environment"         = "assertion.environment"
     "attribute.event_name"          = "assertion.event_name"
   }
-  attribute_condition = "assertion.repository_id == '340900071' && assertion.repository_owner_id == '54093651' && assertion.actor_id == '54093651' && assertion.actor == 'kani3camp' && assertion.run_attempt == '1' && assertion.event_name == 'workflow_dispatch' && assertion.ref == '${local.maintenance_ref}' && assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@${local.maintenance_ref}' && assertion.environment == '${local.maintenance_github_environment}' && assertion.workflow_sha == assertion.sha"
+  attribute_condition = "assertion.repository_id == '340900071' && assertion.repository_owner_id == '54093651' && assertion.actor_id == '54093651' && assertion.actor == 'kani3camp' && assertion.run_attempt == '1' && assertion.event_name == 'workflow_dispatch' && assertion.ref == '${local.maintenance_ref}' && assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@${local.maintenance_ref}' && assertion.job_workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/mypage-maintenance-authenticated.yml@${local.maintenance_ref}' && assertion.environment == '${local.maintenance_github_environment}' && assertion.workflow_sha == assertion.sha"
   oidc {
     issuer_uri        = "https://token.actions.githubusercontent.com"
     allowed_audiences = []
