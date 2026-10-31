@@ -31,14 +31,14 @@ DEVのEnvironment（`terraform-dev-plan` / `terraform-dev-apply`）はbranchで�
 
 対象ソースの選択（実行元とは別のブランチ／SHAのHCLをPlan/Applyする機能、`gcp-terraform-authenticated.yml` の `source_branch` / `expected_sha`）はreusable workflowとcontrollerに実装済みです。ただし `Terraform` の手動入力にはまだ出していないため、現在は実行元ブランチ自身のHCLだけを対象にします。
 
-1. 通常のHCL追加・修正は任意の作業/統合ブランチ向けPRで進める。認証付きPlan/Applyが必要なブランチだけをGitHubの`terraform-dev-plan` / `terraform-dev-apply` Environmentへ明示追加する。`dev`は運用可能な統合結果だけを最終PRで受け入れる。
+1. 通常のHCL追加・修正は任意の作業/統合ブランチ向けPRで進める。ownerのPRにはDEVのPR Planが付く。Environmentへのbranch登録は不要。`dev`は運用可能な統合結果だけを最終PRで受け入れる。
 2. 新しい非秘密入力は `normal.tfvars.json` に追加する。既存Environmentのprivate tfvarsを読み、
    このcommitのファイルで上書きするため、既存リソースの選択・private inventoryを落とさない。
    秘密値はコミットしない。新しいprivate入力は両DEV Environmentのmanaged入力を同じ内容へ更新する。
 3. delete/replaceが必要なら、同じPRの `normal-operations.json` に正確なaddressとactionsを記載する。
    create/updateにはリソース別manifestやtype登録を要求しない。
-4. 作業PRのcredentialless CIとレビューを確認する。認証付き検証が必要なら対象ブランチをGitHub Environmentへ追加する。専用統合ブランチを使う作業ではCodexがそこへマージしてよい。
-5. Environmentで許可した対象ブランチのHEADから `Terraform` を `environment=development` / `operation=plan` で実行し、Core GCPとMyPage両方のPlan結果を確認する。
+4. 作業PRのcredentialless CI・PR Plan・レビューを確認する。専用統合ブランチを使う作業ではCodexがそこへマージしてよい。
+5. 対象ブランチのHEADから `Terraform` を `environment=development` / `operation=plan` で実行し、Core GCPとMyPage両方のPlan結果を確認する（MyPageのtrustは統合branchのrefに固定）。
 6. 適用する場合は同一ブランチ・HEADで `operation=apply` を新規dispatchする。各Stateは独立したPlan/Apply identityとsaved plan検証を維持し、両Plan成功後にApplyへ進む。
 7. `GCP_NORMAL: PASS; role=apply` と事後full-root no-opを確認する。
    別jobの再Plan HMAC比較はGitHub Actionsの `if` 条件で行い、**HMACをstep envやcommandへ渡さない**。一致しなければApplyを実行せず、セクション別比較の真偽値だけで `GCP_NORMAL_REPLAN: STOP` を表示する。値・address・HMACは公開しない。

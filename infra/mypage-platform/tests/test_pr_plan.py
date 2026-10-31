@@ -2,7 +2,9 @@
 from contextlib import redirect_stdout
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -75,6 +77,20 @@ class PrPlanTest(unittest.TestCase):
             self.assertIn(clause, pull_request)
         self.assertNotIn('mypage-dev-apply', pull_request)
         self.assertNotIn('workflow_dispatch', pull_request)
+
+    def test_production_trust_never_admits_a_pr(self):
+        script = ("import json, foundation_contract as c; "
+                  "print(json.dumps({'condition': c.provider_condition(), "
+                  "'plan': c.trust_policy('123456789012', 'plan')}))")
+        result = subprocess.run([sys.executable, '-c', script], cwd=ROOT / 'infra/mypage-platform/scripts',
+                                env=os.environ | {'MYPAGE_TARGET': 'production'},
+                                capture_output=True, text=True, check=True)
+        value = json.loads(result.stdout)
+        self.assertNotIn('pull_request', value['condition'])
+        self.assertNotIn('||', value['condition'])
+        self.assertIn('assertion.event_name == "workflow_dispatch"', value['condition'])
+        self.assertEqual(len(value['plan']['Statement']), 1)
+        self.assertNotIn('pull_request', json.dumps(value['plan']))
 
     def test_plan_runs_without_the_lock_and_emits_nothing_an_apply_could_use(self):
         commands = []

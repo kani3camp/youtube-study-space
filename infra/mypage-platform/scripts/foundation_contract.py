@@ -142,7 +142,8 @@ def provider_condition():
                     " && assertion.workflow_ref == " + json.dumps(WORKFLOWS + "terraform.yml@") + " + assertion.ref" +
                     " && assertion.job_workflow_ref == " + json.dumps(WORKFLOWS + REUSABLE_NAME + "@") + " + assertion.ref" +
                     " && assertion.workflow_sha == assertion.job_workflow_sha")
-    condition = "(" + dispatch + ") || (" + pull_request + ")"
+    # Production trust stays main-only: a PR never plans Production.
+    condition = "(" + dispatch + ") || (" + pull_request + ")" if TARGET == "development" else dispatch
     need(len(condition) <= CONDITION_LIMIT, "provider-condition-length")
     return condition
 
@@ -158,8 +159,8 @@ def trust_policy(account, kind):
                                         # 変更されないactorの照合はSTSでも行う。ワークフロー内の検査だけでは変更できてしまう。
                                         "token.actions.githubusercontent.com:actor_id": "54093651"}},
     }]
-    if kind == "plan":
-        # The PR number varies, so only it is a wildcard.
+    if kind == "plan" and TARGET == "development":
+        # The PR number varies, so only it is a wildcard. Production stays main-only.
         pattern = pr_subject("1").replace("refs/pull/1/merge", "refs/pull/*/merge")
         statements.append({
             "Effect": "Allow", "Action": "sts:AssumeRoleWithWebIdentity", "Principal": principal,
