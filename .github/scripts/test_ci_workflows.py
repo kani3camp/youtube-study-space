@@ -75,22 +75,27 @@ def validate(caller, modules):
             and 'runs-on' in jobs['gcp-terraform-validate'] and 'uses' not in jobs['gcp-terraform-validate'],
             'Terraform required check stays direct')
     require(jobs['gcp-terraform-validate']['needs'] == 'changes', 'Terraform depends on detection')
-    require(jobs['changes']['outputs'] == {g: '${{ steps.detect.outputs.' + g + ' }}' for g in GROUPS},
+    require(jobs['changes']['outputs'] == {g: '${{ steps.detect.outputs.' + g + ' }}' for g in GROUPS}
+            | {'validation_sha': '${{ steps.source.outputs.validation_sha }}'},
             'All detection outputs reach callers')
     require(jobs['changes']['steps'][-1]['run'] == 'bash .github/scripts/detect-ci-paths.sh', 'Use canonical detector')
     for name, members in MODULES.items():
         call = jobs[name]
-        expected_keys = {'name', 'uses'} if name == 'repository' else {'name', 'uses', 'needs', 'if'}
+        expected_keys = {'name', 'uses', 'needs', 'with'} if name == 'repository' else {'name', 'uses', 'needs', 'if'}
         if name not in ('repository', 'infra'):
             expected_keys.add('with')
         require(set(call) == expected_keys, 'Bounded quality caller configuration')
         require(call['uses'] == f'./.github/workflows/ci-{name}.yml', 'Use same-tree quality modules')
-        if name != 'repository':
-            require(call['needs'] == 'changes', 'Selected calls depend on detection')
+        require(call['needs'] == 'changes', 'Selected calls depend on detection and source resolution')
         module = modules[name]
         require(set(module) == {'name', 'on', 'permissions', 'jobs'}, 'No additional quality triggers/configuration')
         inputs = {} if name in ('repository', 'infra') else {
             g: {'required': True, 'type': 'boolean'} for g in set(members.values())}
+        if name == 'repository':
+            inputs = {'source_sha': {'description': 'Exact commit to validate, pinned by the CI controller',
+                                     'required': True, 'type': 'string'}}
+            require(call['with'] == {'source_sha': '${{ needs.changes.outputs.validation_sha }}'},
+                    'Repository validation uses the pinned source')
         require(module['on'] == {'workflow_call': {'inputs': inputs} if inputs else None}, 'Typed call-only modules')
         require(module['permissions'] == {'contents': 'read'}, 'Quality modules are read-only')
         require(set(module['jobs']) == set(members), 'Every existing validation remains in its domain')
@@ -109,12 +114,12 @@ def validate(caller, modules):
         require(key != 'continue-on-error', 'Caller failures cannot be ignored')
     for name, secrets, arguments in (
         ('gcp-terraform-authenticated', AUTH_SECRETS,
-         {'target': '${{ inputs.terraform_target }}', 'mode': TERRAFORM_MODE, 'expected_sha': '${{ inputs.terraform_expected_sha }}',
-          'source_branch': '${{ inputs.terraform_source_branch }}'}),
+         {'target': '${{ inputs.terraform_target }}', 'mode': TERRAFORM_MODE, 'expected_sha': '${{ needs.changes.outputs.validation_sha }}',
+          'source_branch': ''}),
     ):
         call = jobs[name]
         require(set(call) == {'name', 'if', 'needs', 'permissions', 'uses', 'secrets', 'with'}, 'Operational caller stays direct')
-        require(call['needs'] == 'ci-gate', 'Validation must succeed before Plan or Apply')
+        require(call['needs'] == ['changes', 'ci-gate'], 'Validation must succeed before Plan or Apply using its pinned SHA')
         require(call['if'] == "${{ !cancelled() && needs.ci-gate.result == 'success' && " + AUTH_DISPATCH + ' }}',
                 'Only successful validation followed by explicit manual Plan/Apply can authenticate')
         require(call['permissions'] == {'contents': 'read', 'id-token': 'write'}, 'Only operational calls grant OIDC')
@@ -192,12 +197,13 @@ class WorkflowContractsTest(unittest.TestCase):
         for values in itertools.product((False, True), repeat=len(GROUPS)):
             flags = dict(zip(GROUPS, values))
             needs = {name: {'result': 'skipped'} for name in DEPENDENCIES}
-            needs['changes'] = {'result': 'success', 'outputs': {g: str(v).lower() for g, v in flags.items()}}
+            needs['changes'] = {'result': 'success', 'outputs': {g: str(v).lower() for g, v in flags.items()}
+                                | {'validation_sha': 'a' * 40}}
             needs['repository']['result'] = 'success'
             for name, members in MODULES.items():
                 call = self.caller['jobs'][name]
                 called = name == 'repository' or selected(call['if'], flags)
-                inputs = {key: selected(expr, flags) for key, expr in call.get('with', {}).items()}
+                inputs = {key: selected(expr, flags) for key, expr in call.get('with', {}).items() if key != 'source_sha'}
                 expected_called = name == 'repository'
                 for job, group in members.items():
                     expected = group is None or flags['all'] or flags[group] or (group in NODE and flags['node_projects'])

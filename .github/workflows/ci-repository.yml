@@ -2,6 +2,11 @@ name: CI Repository
 
 on:
   workflow_call:
+    inputs:
+      source_sha:
+        description: Exact commit to validate, pinned by the CI controller
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -14,6 +19,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -28,6 +36,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
       - name: Check Node types ignore policy
         run: bash tools/ci/check-node-types-ignore.sh
 
@@ -38,6 +49,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
       - name: Test document link guardrails
         run: python3 .github/scripts/test_check_doc_references.py
       - name: Check repository-relative documentation links
@@ -50,6 +64,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:

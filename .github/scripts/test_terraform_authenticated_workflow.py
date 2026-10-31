@@ -170,7 +170,9 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertLess(block.index('ref: ${{ github.sha }}'), block.index('path: .terraform-source'))
             self.assertNotRegex(block, r'run:.*\.terraform-source')
             self.assertNotIn('working-directory: .terraform-source', block)
-        self.assertIn('source_branch: ${{ inputs.terraform_source_branch }}', self.caller)
+        self.assertIn('NORMAL_SOURCE_BRANCH: ${{ inputs.terraform_source_branch }}', self.caller)
+        self.assertIn('expected_sha: ${{ needs.changes.outputs.validation_sha }}', self.caller)
+        self.assertIn("source_branch: ''", self.caller)
 
     def test_dev_sha_can_be_omitted_and_production_sha_remains_required(self):
         for mode in ('normal-plan', 'normal-apply'):

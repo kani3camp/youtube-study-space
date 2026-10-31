@@ -56,11 +56,25 @@ jobs:
       firestore_integration: ${{ steps.detect.outputs.firestore_integration }}
       formal_spec: ${{ steps.detect.outputs.formal_spec }}
       all: ${{ steps.detect.outputs.all }}
+      validation_sha: ${{ steps.source.outputs.validation_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Pin the validation and Terraform source commit
+        id: source
+        env:
+          CI_EXECUTION_MODE: ${{ inputs.execution_mode }}
+          NORMAL_TARGET: ${{ inputs.terraform_target }}
+          NORMAL_MODE: ${{ inputs.execution_mode == '検査＋apply' && 'normal-apply' || 'normal-plan' }}
+          NORMAL_EXPECTED_SHA: ${{ inputs.terraform_expected_sha }}
+          NORMAL_SOURCE_BRANCH: ${{ inputs.terraform_source_branch }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/ci-terraform-source.py
 
       - name: Test CI path detector
         run: bash .github/scripts/test-detect-ci-paths.sh
@@ -111,7 +125,10 @@ jobs:
 
   repository:
     name: Repository
+    needs: changes
     uses: ./.github/workflows/ci-repository.yml
+    with:
+      source_sha: ${{ needs.changes.outputs.validation_sha }}
 
   gcp-terraform-validate:
     name: GCP Terraform Validate
@@ -122,6 +139,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.changes.outputs.validation_sha }}
+          persist-credentials: false
 
       - name: Setup Python for GCP contract tests
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -196,7 +216,7 @@ jobs:
 
   gcp-terraform-authenticated:
     name: GCP Terraform Authenticated
-    needs: ci-gate
+    needs: [changes, ci-gate]
     if: ${{ !cancelled() && needs.ci-gate.result == 'success' && github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査＋plan' || inputs.execution_mode == '検査＋apply') }}
     permissions:
       contents: read
@@ -213,8 +233,9 @@ jobs:
     with:
       target: ${{ inputs.terraform_target }}
       mode: ${{ inputs.execution_mode == '検査＋apply' && 'normal-apply' || 'normal-plan' }}
-      expected_sha: ${{ inputs.terraform_expected_sha }}
-      source_branch: ${{ inputs.terraform_source_branch }}
+      # Use the checked commit, never resolve a moving branch again after CI.
+      expected_sha: ${{ needs.changes.outputs.validation_sha }}
+      source_branch: ''
 
   ci-gate:
     name: CI Gate
@@ -232,6 +253,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - name: Require successful selected validations
         env:
           CI_NEEDS: ${{ toJSON(needs) }}

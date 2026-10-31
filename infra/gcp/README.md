@@ -16,7 +16,7 @@ Environmentのブランチ制限は、クラウド認証とは独立したSecret
 4. 対象ソースのCIとレビューを確認します。ブランチだけを指定すると、Environment Secretを使わないpreflightで同一repositoryのHEADを一度だけ取得し、その40桁SHAを後続の全jobで固定します。特定コミットはSHAだけでも選べます。この場合も通常ブランチ（`refs/heads/*`）の履歴から到達できることを要求し、PR専用refやタグだけに残るコミット、forkだけにあるコミットは対象ソースとして使いません。branch/SHAの両方を指定した場合はHEADとの一致を要求します。
 5. 実行元にある正規の入口を選びます。以下はActions → CI → Run workflowの入力例です。
 
-   「実行内容」は`全検査のみ`／`検査＋plan`／`検査＋apply`の3択です。既定はDEVの`検査＋plan`です。`全検査のみ`は認証なしの全CI検査を実行します。`検査＋plan`／`検査＋apply`はGCP TerraformとRepository共通の検査に絞り、CI Gateの成功後に認証付きPlan／Applyへ進みます。Applyは明示的に選択した場合だけ実行します。
+   「実行内容」は`全検査のみ`／`検査＋plan`／`検査＋apply`の3択です。既定はDEVの`検査＋plan`です。`全検査のみ`は実行元コミットの認証なし全CI検査を実行します。`検査＋plan`／`検査＋apply`では、最初に対象ブランチ・SHAから検査対象SHAを確定し、そのコミットのGCP TerraformとRepository共通の検査に絞ります。fmt・validate・テストを含む検査がCI Gateを通過した後、同じ確定SHAだけを認証付きPlan／Applyへ渡します。検査中に対象ブランチが更新されても、別のコミットへ切り替わりません。Applyは明示的に選択した場合だけ実行します。
 
    マイページ統合ブランチの現行入口はActions → **Terraform**です。Use workflow fromに`integration/mypage-canon-20261006`、environmentに`development`、operationに`plan`／`apply`、componentに`core`／`mypage`／`all`を指定します。この入口では実行元自身のHCLを使い、そのSHAを自動的に固定します。入力項目は当該ブランチのworkflowを正本とします。
 
@@ -39,7 +39,7 @@ Environmentのブランチ制限は、クラウド認証とは独立したSecret
 
    SHA単独指定はpreflightで通常ブランチの履歴を一時取得して検証します。選択後にbranchを削除・force-pushし、どの通常ブランチからも到達できなくなったSHAは、別のApply実行では拒否されます。実行元自身のSHAは、本人dispatchのbranch contextで由来が確定しているため、この追加取得は不要です。
 
-   確定した対象SHAはActionsのSummaryに表示します。別のソースを選んでも、workflowのrefは信頼済み実行元のままです。本番は従来どおり`main`の実行元SHA指定が必須です。
+   確定した対象SHAはActionsのSummaryに表示します。資格情報なしの検査jobは対象コミットのソースとテストをcheckoutします。検査を指示するworkflow、対象SHAを確定する処理、CI Gate、資格情報付きのPlan／Apply実行器は信頼済み実行元のコミットを使います。検査jobにはEnvironment SecretやOIDC権限を渡さず、checkoutの認証情報も永続化しません。本番は従来どおり`main`の実行元SHA指定が必須です。
 6. Planの操作種別・件数・Summaryの対象SHAを確認してから、Applyを新しくdispatchします。確認済みの同じコミットを使う場合は、対象ブランチを空欄にし、対象SHAにSummaryの値を指定します。**Applyでもブランチだけを指定すると、その新しい実行のpreflight時点でHEADを再取得します。** Applyは同じrunで独立Planを作り、control planeのSHA、対象sourceのrepository/branch/SHA、入力・レビュー指定・State・全Plan JSONをHMACで照合して保存Planを適用します。HMAC値をstep envやcommandへ渡しません。
 7. `GCP_NORMAL: PASS; role=apply`と事後full-root no-opを確認します。更新されたブランチHEADを使いたい場合は、新しいSHAでPlanからやり直します。失敗runのRe-runは拒否されます。`dev`へのマージは本人だけが行います。
 
