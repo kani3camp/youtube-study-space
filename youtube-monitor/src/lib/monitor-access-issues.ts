@@ -1,5 +1,7 @@
 export const monitorAccessMessages = {
 	'signed-out': '未ログインです。',
+	'firebase-config-missing':
+		'Firebaseの接続設定が不足しています。NEXT_PUBLIC_FIREBASE_PROJECT_ID と NEXT_PUBLIC_FIREBASE_API_KEY を設定して再ビルド・再起動してください。',
 	'firestore-denied':
 		'Firestoreの読み取りが拒否されました。ログインしたUIDの _monitor-readers/{UID} に enabled: true が設定されていること、接続先プロジェクト、Security RulesとApp Checkの設定を確認してください。',
 	'firestore-config-missing':

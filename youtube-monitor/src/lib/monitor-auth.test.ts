@@ -23,6 +23,7 @@ vi.mock('./monitor-firestore-access', () => ({
 	checkMonitorFirestoreAccess: mocks.checkAccess,
 }))
 
+import { FirebaseConfigurationError } from './firebase-config'
 import { observeMonitorAuthorization } from './monitor-auth'
 
 const user = (uid = 'monitor-user') => ({ uid }) as User
@@ -62,6 +63,22 @@ describe('monitor session and Firestore authorization', () => {
 		await vi.waitFor(() =>
 			expect(observer).toHaveBeenLastCalledWith({ status: 'error' }),
 		)
+		expect(mocks.checkAccess).not.toHaveBeenCalled()
+		stop()
+	})
+
+	test('reports missing Firebase configuration separately from authentication failure', async () => {
+		mocks.getAuth.mockImplementationOnce(() => {
+			throw new FirebaseConfigurationError('NEXT_PUBLIC_FIREBASE_PROJECT_ID')
+		})
+		const observer = vi.fn()
+		const stop = observeMonitorAuthorization(observer)
+		await vi.waitFor(() =>
+			expect(observer).toHaveBeenLastCalledWith({
+				status: 'configuration-error',
+			}),
+		)
+		expect(mocks.onIdTokenChanged).not.toHaveBeenCalled()
 		expect(mocks.checkAccess).not.toHaveBeenCalled()
 		stop()
 	})

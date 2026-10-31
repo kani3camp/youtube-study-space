@@ -68,6 +68,7 @@ describe('monitor authentication notice API', () => {
 	})
 
 	test.each([
+		'firebase-config-missing',
 		'firestore-denied',
 		'firestore-config-missing',
 		'firestore-error',

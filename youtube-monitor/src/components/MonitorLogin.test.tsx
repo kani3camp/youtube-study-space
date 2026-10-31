@@ -111,6 +111,32 @@ describe('monitor operator login', () => {
 		expect(fetch).not.toHaveBeenCalled()
 	})
 
+	test('explains required Firebase settings without presenting a login failure', () => {
+		render(<MonitorLogin />)
+		act(() => mocks.observer?.({ status: 'configuration-error' }))
+		expect(screen.getByRole('alert')).toHaveTextContent(
+			'Firebaseの接続設定が不足',
+		)
+		expect(screen.getByRole('alert')).toHaveTextContent(
+			'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+		)
+		expect(screen.getByRole('alert')).toHaveTextContent(
+			'NEXT_PUBLIC_FIREBASE_API_KEY',
+		)
+		expect(screen.getByRole('alert')).not.toHaveTextContent(
+			'認証に失敗しました',
+		)
+		expect(screen.queryByLabelText('パスワード')).not.toBeInTheDocument()
+		expect(fetch).toHaveBeenCalledExactlyOnceWith(
+			'/api/monitor-auth-required',
+			{
+				method: 'POST',
+				headers: { 'X-Monitor-Auth-Required': 'firebase-config-missing' },
+				credentials: 'omit',
+			},
+		)
+	})
+
 	test('keeps the form open and does not expose raw errors when login fails', async () => {
 		mocks.signIn.mockRejectedValueOnce({
 			code: 'auth/invalid-credential',

@@ -92,6 +92,8 @@ export default function MonitorLogin(): JSX.Element {
 	useEffect(() => {
 		if (authorization.status === 'denied') {
 			void reportMonitorAccessIssue(authorization.issue)
+		} else if (authorization.status === 'configuration-error') {
+			void reportMonitorAccessIssue('firebase-config-missing')
 		}
 	}, [authorization])
 
@@ -119,9 +121,13 @@ export default function MonitorLogin(): JSX.Element {
 			<main css={page}>
 				<section css={card}>
 					<h1>モニター認証</h1>
-					{loginSucceeded ||
-					authorization.status === 'authorized' ||
-					authorization.status === 'denied' ? (
+					{authorization.status === 'configuration-error' ? (
+						<p css={errorStyle} role="alert">
+							{monitorAccessMessages['firebase-config-missing']}
+						</p>
+					) : loginSucceeded ||
+						authorization.status === 'authorized' ||
+						authorization.status === 'denied' ? (
 						<>
 							<p role="status">ログインしました。</p>
 							{authorization.status === 'checking' ? (

@@ -7,6 +7,7 @@ import {
 	signOut,
 	type User,
 } from 'firebase/auth'
+import { FirebaseConfigurationError } from './firebase-config'
 import { getFirebaseApp } from './firestore'
 import {
 	checkMonitorFirestoreAccess,
@@ -19,6 +20,7 @@ export type MonitorAuthorizationState =
 	| { status: 'denied'; issue: MonitorFirestoreIssue }
 	| { status: 'authorized'; user: User }
 	| { status: 'error' }
+	| { status: 'configuration-error' }
 
 type AuthorizationObserver = (state: MonitorAuthorizationState) => void
 
@@ -86,9 +88,14 @@ export const observeMonitorAuthorization = (
 				},
 			)
 		})
-		.catch(() => {
+		.catch((error) => {
 			if (!stopped) {
-				observer({ status: 'error' })
+				observer({
+					status:
+						error instanceof FirebaseConfigurationError
+							? 'configuration-error'
+							: 'error',
+				})
 			}
 		})
 

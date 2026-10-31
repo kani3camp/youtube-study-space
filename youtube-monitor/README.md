@@ -44,9 +44,9 @@ pnpm start
 | `NEXT_PUBLIC_API_KEY` | fetcherがAPIリクエストに使用するクライアント側の設定です。ブラウザへ配布されるため、サーバーの秘密情報として扱うことはできません。 | 可 |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | クライアントが使用するFirebase / FirestoreのプロジェクトIDです。 | 可 |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | クライアントSDKが使用するFirebaseのWeb APIキーです。ブラウザから見える設定値であり、サーバー用の認証情報ではありません。 | 可 |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | モニターが接続するFirebaseプロジェクトのAuthドメインです。 | 可 |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | 任意。FirebaseのAuthドメインです。現在のメール・パスワード認証では未設定でも利用できます。 | 可 |
 
-値の検証と利用箇所は、`src/lib/constants.ts`、`src/lib/api-config.ts`、`src/lib/fetcher.ts`、`src/lib/firestore.ts` にあります。
+値の検証と利用箇所は、`src/lib/firebase-config.ts`、`src/lib/constants.ts`、`src/lib/api-config.ts`、`src/lib/fetcher.ts`、`src/lib/firestore.ts` にあります。
 
 ## 実環境へ接続しない検証
 
@@ -96,6 +96,8 @@ pnpm build:ci
 `/monitor-login` を配信用ブラウザソースのURLに設定したままにせず、認証情報の入力画面を配信へ映さないでください。許可リスト文書の削除、または `enabled` の `false` への変更によって、Rulesで許可される今後の読み取りを失効させます。既存のカスタムクレームの値は参照しないため、設定変更時にクレームの削除やIDトークンの更新を行う必要はありません。
 
 ### ログイン成功後もモニターを表示できない場合
+
+`NEXT_PUBLIC_FIREBASE_PROJECT_ID` と `NEXT_PUBLIC_FIREBASE_API_KEY` が未設定・空の場合はFirebaseの初期化を止め、ログイン画面とサーバーログに接続設定不足を表示します。認証失敗のポップアップは出しません。`NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` は任意で、未設定のためにリロード時の警告が出ることはありません。設定変更後は、開発サーバーを再起動するか、運用用コードを再ビルド・再起動してください。
 
 メール・パスワードでのログイン成功だけではモニター閲覧権限は付与されません。Firebaseコンソールでユーザーを作成した後、同じUIDの `_monitor-readers/{uid}` に `{ "enabled": true }` を設定してください。許可リストが未設定または無効の場合は、Firestoreのサーバー読み取りが拒否され、通常購読の開始前に停止します。
 

@@ -1,10 +1,4 @@
-import {
-	type FirebaseApp,
-	type FirebaseOptions,
-	getApp,
-	getApps,
-	initializeApp,
-} from 'firebase/app'
+import { type FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app'
 import type {
 	DocumentData,
 	FirestoreDataConverter,
@@ -12,31 +6,10 @@ import type {
 	SnapshotOptions,
 } from 'firebase/firestore'
 import type { Menu, Seat, SeatAppearance, WorkNameTrend } from '../types/api'
-import { validateString } from './common'
+import { getFirebaseConfig } from './firebase-config'
 import { seatAppearanceV2SchemaVersion } from './seat-appearance-schema'
 
-export const getFirebaseConfig = (): FirebaseOptions => {
-	if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)) {
-		alert(
-			'認証に失敗しました。ライブチャット、または緊急連絡フォームからご連絡ください。',
-		)
-	}
-	if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_API_KEY)) {
-		alert(
-			'認証に失敗しました。ライブチャット、または緊急連絡フォームからご連絡ください。',
-		)
-	}
-	if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN)) {
-		alert(
-			'認証に失敗しました。ライブチャット、または緊急連絡フォームからご連絡ください。',
-		)
-	}
-	return {
-		apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-		authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-		projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-	}
-}
+export { getFirebaseConfig } from './firebase-config'
 
 export const getFirebaseApp = (): FirebaseApp => {
 	return getApps().length === 0 ? initializeApp(getFirebaseConfig()) : getApp()

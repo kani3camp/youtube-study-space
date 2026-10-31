@@ -40,6 +40,25 @@ describe('MonitorAuthGate', () => {
 		expect(fetch).not.toHaveBeenCalled()
 	})
 
+	test('keeps missing configuration closed and reports it without calling alert', () => {
+		const alert = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+		render(<MonitorAuthGate>monitor data consumer</MonitorAuthGate>)
+		act(() => authMocks.observer?.({ status: 'configuration-error' }))
+		expect(screen.queryByText('monitor data consumer')).not.toBeInTheDocument()
+		expect(screen.getByText('配信画面を表示できません')).toBeInTheDocument()
+		expect(screen.queryByText('認証に失敗しました')).not.toBeInTheDocument()
+		expect(fetch).toHaveBeenCalledExactlyOnceWith(
+			'/api/monitor-auth-required',
+			{
+				method: 'POST',
+				headers: { 'X-Monitor-Auth-Required': 'firebase-config-missing' },
+				credentials: 'omit',
+			},
+		)
+		expect(alert).not.toHaveBeenCalled()
+		alert.mockRestore()
+	})
+
 	test.each(['signed-out'] as const)(
 		'notifies the server once when %s, without sending credentials',
 		(status) => {

@@ -28,7 +28,9 @@ const MonitorAuthGate: FC<MonitorAuthGateProps> = ({ children }) => {
 				? 'signed-out'
 				: authorization.status === 'denied'
 					? authorization.issue
-					: null
+					: authorization.status === 'configuration-error'
+						? 'firebase-config-missing'
+						: null
 		if (issue && lastLoginNotice.current !== issue) {
 			lastLoginNotice.current = issue
 			void reportMonitorAccessIssue(issue)
@@ -38,6 +40,13 @@ const MonitorAuthGate: FC<MonitorAuthGateProps> = ({ children }) => {
 	switch (authorization.status) {
 		case 'authorized':
 			return children
+		case 'configuration-error':
+			return (
+				<MonitorAccessStatus
+					title="配信画面を表示できません"
+					detail="ライブチャット、または緊急連絡フォームからご連絡ください。"
+				/>
+			)
 		case 'signed-out':
 		case 'denied':
 		case 'error':
