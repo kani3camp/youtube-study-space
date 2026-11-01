@@ -47,6 +47,14 @@ GoogleプロバイダーとFirebaseトークン発行はインターフェース
 
 一次資料: [Google OAuth server flow](https://developers.google.com/youtube/v3/guides/auth/server-side-web-apps)、[channels.list](https://developers.google.com/youtube/v3/docs/channels/list)。
 
+### DEVのOAuth失敗診断
+
+DEVサーバーのコールバック失敗は、`mypage_oauth_failure stage=<固定値> code=<許可済みAPIコード>`として記録する。productionでは接続しない。`stage`は用途読み取り・メンテナンス確認・入力確認・処理権確保・拒否・プロバイダー解決・コード有無・トークン交換・scope検証・token検証・チャンネルリクエスト構築/通信/status/decode・チャンネル選択・失敗状態保存・確認参照生成・検証結果保存を区別する。Googleのエラー理由の推測には使わず、たとえば`token_exchange`だけでは設定不備と通信失敗を区別しない。
+
+診断イベントには固定allowlistの段階と公開エラーコードだけを渡す。認可コード・state・cookie・トークン・クライアントシークレット・URL/query・プロバイダーの本文/生エラー・アカウント/チャンネル/文書の識別子・任意文字列をログへ渡さない。プロバイダーの生エラー破棄、既存の認証検証・10分期限・1回のコード交換・公開エラー/redirectを維持する。
+
+サーバーごとに最大32件の非ブロッキングキューを使い、単一のワーカーが出力する。満杯・受信先不在・終了時の診断は破棄でき、認証の成否は変更しない。成功イベントは出さない。完全な監査記録や失敗件数の正確な集計には使わない。ソースの統合だけでは実環境へ反映されず、診断を使うには承認済みのAPI配備が必要である。
+
 ### Firebaseの検証
 
 FirebaseBoundaryは、公式Admin SDKのVerifyIDToken/CustomTokenインターフェースを使う。署名検証済みのトークンについて、固定プロジェクトのissuer/audience、custom provider、テナントがないこと、チャンネル形式のUIDとsubjectの一致、期限・発行時刻・認証時刻を追加検証する。SDKやトークンのエラーを公開メッセージやログへ転記しない。発行処理には、サーバーが確認したチャンネルUIDだけを渡す。

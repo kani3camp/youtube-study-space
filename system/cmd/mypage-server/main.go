@@ -155,7 +155,13 @@ func runWith(ctx context.Context, get func(string) string, deps bootstrapDepende
 	if err != nil || bootstrapCtx.Err() != nil {
 		return errors.New("MyPage App Check bootstrap unavailable")
 	}
-	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Firestore: database, Firebase: sdk, AppCheck: appCheck, OAuth: provider, PublicMetadata: metadata, ReadObserver: readObserver})
+	diagnosticCtx, stopDiagnostics := context.WithCancel(ctx)
+	defer stopDiagnostics()
+	var oauthFailures chan<- mypage.OAuthFailureObservation
+	if config.server.Environment == "development" {
+		oauthFailures = oauthFailureDiagnostics(diagnosticCtx, log.Default())
+	}
+	handler, err := mypage.NewMyPageServer(config.server, mypage.ServerDependencies{Firestore: database, Firebase: sdk, AppCheck: appCheck, OAuth: provider, PublicMetadata: metadata, ReadObserver: readObserver, OAuthFailures: oauthFailures})
 	if err != nil || bootstrapCtx.Err() != nil {
 		return errors.New("MyPage handler unavailable")
 	}

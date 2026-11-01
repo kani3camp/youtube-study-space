@@ -107,6 +107,8 @@ type AuthService struct {
 	Policy      Policy
 	Support     *FirestoreSupportStore
 	Now         func() time.Time
+	// 任意の診断キュー。送信は非ブロッキングで、認証の成否に関与しない。
+	OAuthFailures chan<- OAuthFailureObservation
 }
 
 type StartRequest struct {
@@ -194,60 +196,64 @@ func (s *AuthService) Start(ctx context.Context, previousID string, request Star
 	return StartResponse{AuthorizationURL: s.Provider.AuthorizationURL(state), ExpiresAt: tx.ExpiresAt}, id, nil
 }
 
-func (s *AuthService) CallbackWithPurpose(ctx context.Context, id, state, code string, denied bool) (string, error) {
-	purpose := ""
+func (s *AuthService) CallbackWithPurpose(ctx context.Context, id, state, code string, denied bool) (purpose string, err error) {
+	defer func() { s.observeOAuthFailure(err) }()
 	if store, ok := s.Store.(interface {
 		ReadPurpose(context.Context, string) (string, error)
 	}); ok {
-		var err error
 		purpose, err = store.ReadPurpose(ctx, id)
 		if err != nil {
-			return purpose, fmt.Errorf("read OAuth purpose: %w", err)
+			return purpose, oauthFailure(oauthStagePurposeRead, fmt.Errorf("read OAuth purpose: %w", err))
 		}
 		if purpose == "login" && s.Maintenance != nil {
 			if err := s.Maintenance.Check(ctx); err != nil {
-				return purpose, fmt.Errorf("check maintenance before callback: %w", err)
+				return purpose, oauthFailure(oauthStageMaintenance, fmt.Errorf("check maintenance before callback: %w", err))
 			}
 		}
 	}
-	return purpose, s.Callback(ctx, id, state, code, denied)
+	return purpose, s.callback(ctx, id, state, code, denied)
 }
 
-func (s *AuthService) Callback(ctx context.Context, id, state, code string, denied bool) error {
+func (s *AuthService) Callback(ctx context.Context, id, state, code string, denied bool) (err error) {
+	defer func() { s.observeOAuthFailure(err) }()
+	return s.callback(ctx, id, state, code, denied)
+}
+
+func (s *AuthService) callback(ctx context.Context, id, state, code string, denied bool) error {
 	if id == "" || state == "" {
-		return apiError("OAUTH_TRANSACTION_REQUIRED")
+		return oauthFailure(oauthStageCallbackInput, apiError("OAUTH_TRANSACTION_REQUIRED"))
 	}
 	if err := s.Store.Claim(ctx, id, digest(state), s.Now().UTC()); err != nil {
-		return fmt.Errorf("claim OAuth callback: %w", err)
+		return oauthFailure(oauthStageClaim, fmt.Errorf("claim OAuth callback: %w", err))
 	}
 	if denied {
 		if err := s.Store.Fail(ctx, id); err != nil {
-			return fmt.Errorf("fail denied OAuth transaction: %w", err)
+			return oauthFailure(oauthStageFail, fmt.Errorf("fail denied OAuth transaction: %w", err))
 		}
-		return apiError("OAUTH_FAILED")
+		return oauthFailure(oauthStageDenied, apiError("OAUTH_FAILED"))
 	}
 	channels, err := s.Provider.Resolve(ctx, code)
 	if err != nil {
 		if failErr := s.Store.Fail(ctx, id); failErr != nil {
-			return fmt.Errorf("fail OAuth transaction: %w", failErr)
+			return oauthFailure(oauthStageFail, fmt.Errorf("fail OAuth transaction: %w", failErr))
 		}
-		return fmt.Errorf("resolve OAuth channel: %w", err)
+		return oauthFailure(oauthStageResolve, fmt.Errorf("resolve OAuth channel: %w", err))
 	}
 	if len(channels) != 1 || channels[0].ID == "" || channels[0].DisplayName == "" {
 		if err := s.Store.Fail(ctx, id); err != nil {
-			return fmt.Errorf("fail unavailable channel: %w", err)
+			return oauthFailure(oauthStageFail, fmt.Errorf("fail unavailable channel: %w", err))
 		}
 		if len(channels) > 1 {
-			return apiError("CHANNEL_AMBIGUOUS")
+			return oauthFailure(oauthStageChannelSelection, apiError("CHANNEL_AMBIGUOUS"))
 		}
-		return apiError("CHANNEL_UNAVAILABLE")
+		return oauthFailure(oauthStageChannelSelection, apiError("CHANNEL_UNAVAILABLE"))
 	}
 	confirmation, err := opaque()
 	if err != nil {
-		return err
+		return oauthFailure(oauthStageConfirmation, err)
 	}
 	if err := s.Store.Verify(ctx, id, channels[0], confirmation, s.Now().UTC()); err != nil {
-		return fmt.Errorf("verify OAuth transaction: %w", err)
+		return oauthFailure(oauthStageVerify, fmt.Errorf("verify OAuth transaction: %w", err))
 	}
 	return nil
 }

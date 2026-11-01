@@ -57,7 +57,7 @@ func (p *GoogleYouTubeOAuth) AuthorizationURL(state string) string {
 
 func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channel, error) {
 	if code == "" {
-		return nil, apiError("OAUTH_FAILED")
+		return nil, oauthFailure(oauthStageCode, apiError("OAUTH_FAILED"))
 	}
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
@@ -65,14 +65,14 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 	token, err := p.config.Exchange(ctx, code)
 	if err != nil {
 		// oauth2.RetrieveErrorとURLエラーには、認証情報やプロバイダー本文が含まれ得る。
-		return nil, apiError("OAUTH_FAILED")
+		return nil, oauthFailure(oauthStageExchange, apiError("OAUTH_FAILED"))
 	}
 	scope, ok := token.Extra("scope").(string)
 	if !ok || !slices.Contains(strings.Fields(scope), youtubeReadOnly) {
-		return nil, apiError("OAUTH_SCOPE_INSUFFICIENT")
+		return nil, oauthFailure(oauthStageScope, apiError("OAUTH_SCOPE_INSUFFICIENT"))
 	}
 	if token.AccessToken == "" || !strings.EqualFold(token.TokenType, "Bearer") || token.Expiry.IsZero() || !token.Valid() {
-		return nil, apiError("OAUTH_FAILED")
+		return nil, oauthFailure(oauthStageToken, apiError("OAUTH_FAILED"))
 	}
 	// 要求していないリフレッシュトークンも破棄する。
 	// OAuthクライアントを作らず、交換結果をプロバイダー・ストア・セッションに保持しない。
@@ -80,7 +80,7 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 	query := url.Values{"mine": {"true"}, "part": {"snippet"}, "maxResults": {"2"}, "fields": {"nextPageToken,items(id,snippet(title,customUrl,thumbnails(default(url))))"}}.Encode()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, youtubeChannelsURL+"?"+query, nil)
 	if err != nil {
-		return nil, apiError("TEMPORARY_UNAVAILABLE")
+		return nil, oauthFailure(oauthStageChannelRequest, apiError("TEMPORARY_UNAVAILABLE"))
 	}
 	request.Header.Set("Authorization", "Bearer "+token.AccessToken)
 	request.Header.Set("Accept", "application/json")
@@ -88,15 +88,15 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 	// 公開メタデータを処理する前に、ローカルの認証情報参照を消去する。
 	token.AccessToken = ""
 	if err != nil {
-		return nil, apiError("TEMPORARY_UNAVAILABLE")
+		return nil, oauthFailure(oauthStageChannelTransport, apiError("TEMPORARY_UNAVAILABLE"))
 	}
 	defer response.Body.Close() //nolint:errcheck // Closing a read-only response cannot change the proof; never log credential-bearing transport errors.
 	if response.StatusCode != http.StatusOK {
-		return nil, apiError("CHANNEL_UNAVAILABLE")
+		return nil, oauthFailure(oauthStageChannelStatus, apiError("CHANNEL_UNAVAILABLE"))
 	}
 	channel, err := decodePublicChannel(response.Body)
 	if err != nil {
-		return nil, err
+		return nil, oauthFailure(oauthStageChannelDecode, err)
 	}
 	return []Channel{channel}, nil
 }
