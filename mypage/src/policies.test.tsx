@@ -177,8 +177,26 @@ describe('public policy draft rendering', () => {
 		expect(html).not.toContain('supportChallenge')
 		expect(request).not.toHaveBeenCalled()
 	})
-	it('shows only allowlisted support OAuth failures on the public contact route', () => {
-		const renderContact = (entry: string) => {
+	it('preserves a support failure when the client router validates normalized search again', () => {
+		const runtime = new BrowserRuntime(
+			null,
+			{ privacy: 'synthetic-v1', terms: 'synthetic-v1' },
+			vi.fn<typeof fetch>(),
+			'LOGIN_UNAVAILABLE',
+		)
+		const router = createApp(runtime, createMemoryHistory())
+		const validate = router.routesById['/contact'].options.validateSearch
+		if (typeof validate !== 'function')
+			throw new Error('Contact search missing')
+		const normalized = validate({ supportError: 'oauth_denied' })
+		expect(normalized).toEqual({ supportError: true })
+		expect(validate(normalized)).toEqual(normalized)
+		expect(validate({ supportError: 'private-provider-detail' })).toEqual({
+			supportError: undefined,
+		})
+	})
+	it('shows only allowlisted support OAuth failures after contact route search normalization', async () => {
+		const renderContact = async (entry: string) => {
 			const runtime = new BrowserRuntime(
 				null,
 				{ privacy: 'synthetic-v1', terms: 'synthetic-v1' },
@@ -191,16 +209,17 @@ describe('public policy draft rendering', () => {
 			)
 			const Contact = router.routesById['/contact'].options.component
 			if (!Contact) throw new Error('Contact route missing')
+			await router.load()
 			return renderToStaticMarkup(
 				<RouterContextProvider router={router}>
 					<Contact />
 				</RouterContextProvider>,
 			)
 		}
-		const failure = renderContact('/contact?supportError=oauth_denied')
+		const failure = await renderContact('/contact?supportError=oauth_denied')
 		expect(failure).toContain('YouTubeでの本人確認を完了できませんでした。')
 		expect(failure).toContain('受付窓口からもう一度お手続きください。')
-		const untrusted = renderContact(
+		const untrusted = await renderContact(
 			'/contact?supportError=private-provider-detail',
 		)
 		expect(untrusted).not.toContain('本人確認を完了できませんでした。')

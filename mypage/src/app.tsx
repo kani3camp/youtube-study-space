@@ -18,6 +18,7 @@ import {
 	useSyncExternalStore,
 } from 'react'
 import { SiteHeader } from './components/site-header'
+import { ContactPage } from './contact'
 import {
 	RequestError,
 	type RestrictionCode,
@@ -31,7 +32,7 @@ import {
 } from './features/mypage/view'
 import { maintenanceDestination } from './maintenance'
 import { maintenanceAnnouncementURLForProject } from './maintenance-announcement'
-import { PrivacyPolicy, PublicPolicyContact, TermsOfUse } from './policies'
+import { PrivacyPolicy, TermsOfUse } from './policies'
 import { consentKey, createPrivacy } from './privacy'
 import type { BrowserRuntime, ChannelConfirmation } from './runtime'
 import { youtubeChannelURLsForProject } from './youtube-channel'
@@ -1002,37 +1003,7 @@ export function createApp(
 		})
 		const receipt = useContext(SupportReceipt)
 		return (
-			<main className="main-content public-page">
-				<section className="card policy-page">
-					<h1>お問い合わせ</h1>
-					{supportError && (
-						<p className="notice" role="alert">
-							YouTubeでの本人確認を完了できませんでした。依頼の参照番号をご確認のうえ、受付窓口からもう一度お手続きください。
-						</p>
-					)}
-					{receipt.proofRef && (
-						<section aria-labelledby="support-complete">
-							<h2 id="support-complete">依頼の本人確認が完了しました</h2>
-							<p>
-								受付窓口で依頼内容と照合して対応します。データの削除やログインの解除は、この画面では実行していません。
-							</p>
-							<p>確認結果の参照番号</p>
-							<p className="proof-reference">{receipt.proofRef}</p>
-							<p>
-								この番号は画面を離れたり、再読み込みすると表示されなくなります。確認結果は受付窓口からご案内します。
-							</p>
-						</section>
-					)}
-					<p>
-						保存データの削除、開示、全ログインの解除は、返信可能な窓口と本人確認を通じて受け付けます。
-					</p>
-					<PublicPolicyContact />
-					<p>
-						依頼受付後、同じチャンネルを新しいYouTubeの許可で確認します。通常のログインだけで依頼を実行しません。ログインや本人確認を利用できない場合も、窓口へお問い合わせください。
-					</p>
-					<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
-				</section>
-			</main>
+			<ContactPage supportError={supportError} proofRef={receipt.proofRef} />
 		)
 	}
 	function MaintenancePage() {
@@ -1121,8 +1092,9 @@ export function createApp(
 		component: Contact,
 		validateSearch: (raw: Record<string, unknown>): ContactSearch => ({
 			supportError:
-				typeof raw.supportError === 'string' &&
-				supportOAuthErrors.has(raw.supportError)
+				raw.supportError === true ||
+				(typeof raw.supportError === 'string' &&
+					supportOAuthErrors.has(raw.supportError))
 					? true
 					: undefined,
 		}),
