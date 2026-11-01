@@ -102,3 +102,27 @@ func TestOAuthFailureDiagnosticsWiredOnlyForDevelopment(t *testing.T) {
 		})
 	}
 }
+
+type panickingDiagnosticWriter struct{ entered chan struct{} }
+
+func (w panickingDiagnosticWriter) Write([]byte) (int, error) {
+	close(w.entered)
+	panic("DO_NOT_LOG diagnostic-writer-secret")
+}
+
+func TestOAuthFailureLogPanicCannotCrashAuthentication(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	writer := panickingDiagnosticWriter{entered: make(chan struct{})}
+	queue := oauthFailureDiagnostics(ctx, log.New(writer, "", 0))
+	queue <- inputFailureObservation(t)
+	select {
+	case <-writer.entered:
+	case <-time.After(time.Second):
+		t.Fatal("diagnostic sink was not called")
+	}
+	service := &mypage.AuthService{OAuthFailures: queue}
+	for range 64 {
+		require.Error(t, service.Callback(context.Background(), "", "state-secret", "code-secret", false))
+	}
+}

@@ -28,14 +28,17 @@ func (s *diagnosticStore) ReadPurpose(context.Context, string) (string, error) {
 	s.calls = append(s.calls, "read")
 	return s.purpose, s.readErr
 }
+
 func (s *diagnosticStore) Claim(context.Context, string, string, time.Time) error {
 	s.calls = append(s.calls, "claim")
 	return s.claimErr
 }
+
 func (s *diagnosticStore) Fail(context.Context, string) error {
 	s.calls = append(s.calls, "fail")
 	return s.failErr
 }
+
 func (s *diagnosticStore) Verify(context.Context, string, Channel, string, time.Time) error {
 	s.calls = append(s.calls, "verify")
 	return s.verifyErr
@@ -236,4 +239,17 @@ func TestOAuthDiagnosticsHTTPRedirectDoesNotIncludePrivateError(t *testing.T) {
 	require.Equal(t, "/login?error=oauth_failed", w.Header().Get("Location"))
 	require.NotContains(t, w.Body.String()+fmt.Sprint(w.Header()), "DO_NOT_LOG")
 	requireDiagnostic(t, queue, "transaction_claim", "INTERNAL_ERROR")
+}
+
+func TestOAuthDiagnosticsMissingCodeCannotContactProvider(t *testing.T) {
+	provider, err := NewGoogleYouTubeOAuth("synthetic-client", "synthetic-secret", "https://example.invalid", &http.Client{Transport: providerTransport(func(*http.Request) (*http.Response, error) {
+		t.Fatal("missing code reached provider transport")
+		return nil, errors.New(diagnosticSentinel)
+	})})
+	require.NoError(t, err)
+	s, _, _, queue := diagnosticFixture()
+	s.Provider = provider
+	err = s.Callback(context.Background(), diagnosticSentinel, diagnosticSentinel, "", false)
+	require.Equal(t, "OAUTH_FAILED", errorCode(err))
+	requireDiagnostic(t, queue, "code_required", "OAUTH_FAILED")
 }
