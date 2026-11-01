@@ -141,8 +141,8 @@ class ValidationSandboxTest(unittest.TestCase):
         entrypoint = (ROOT / '.github/ci-validation/validate.sh').read_text()
         self.assertLess(entrypoint.index('Source SHA mismatch'), entrypoint.index('case "$1"'))
         self.assertIn('cp -R /source/. /work/repository/', entrypoint)
-        self.assertIn('terraform fmt -check -recursive infra/gcp', entrypoint)
-        self.assertIn('terraform -chdir="infra/gcp/environments/$env" validate', entrypoint)
+        self.assertIn('terraform -chdir=/source fmt -check -recursive infra/gcp', entrypoint)
+        self.assertIn('terraform -chdir="/source/infra/gcp/environments/$env" validate', entrypoint)
         # Exercise the real SHA check with temporary paths instead of container
         # mount points. No target validation may start for a mismatched SHA.
         with tempfile.TemporaryDirectory() as directory:
@@ -170,11 +170,26 @@ class ValidationSandboxTest(unittest.TestCase):
         # writable copy, so a test could delete an invalid .tf and pass validation.
         static = self.entrypoint_kind('terraform-static')
         tests = self.entrypoint_kind('terraform-tests')
-        for command in ('terraform fmt -check -recursive infra/gcp',
-                        'terraform -chdir="infra/gcp/environments/$env" validate',
-                        'providers lock', 'git diff --exit-code', 'cmp infra/gcp/environments/dev/.terraform.lock.hcl'):
+        for command in ('terraform -chdir=/source fmt -check -recursive infra/gcp',
+                        'terraform -chdir="/source/infra/gcp/environments/$env" validate',
+                        'providers lock', 'git diff --exit-code', 'cmp /source/infra/gcp/environments/dev/.terraform.lock.hcl'):
             self.assertIn(command, static)
             self.assertNotIn(command, tests)
+        # Providers only from the HashiCorp registry namespace; no implied local mirror.
+        self.assertIn('include = ["registry.terraform.io/hashicorp/*"]', static)
+        self.assertIn('export TF_CLI_CONFIG_FILE=/work/terraformrc', static)
+        self.assertNotIn('filesystem_mirror', static)
+        # The only provider-starting step reads the read-only source and runs last.
+        self.assertLess(static.index('providers lock'), static.index(' init -backend=false'))
+        self.assertLess(static.index('cmp /source/'), static.index(' init -backend=false'))
+        self.assertEqual(sum(line.rstrip().endswith(' validate') for line in static.splitlines()), 1)
+        self.assertEqual(static.rstrip().splitlines()[-1].strip(), 'done')
+        for line in static.splitlines():
+            if ' init ' in line or line.rstrip().endswith(' validate'):
+                self.assertIn('-chdir="/source/infra/gcp/environments/$env"', line)
+                self.assertIn('TF_DATA_DIR="/work/', line)
+        # The tests container prepares its own provider mirror for the native suites.
+        self.assertIn('terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly', tests)
         for target_code in ('python', 'node', 'bash ', '.github/scripts', 'infra/gcp/tests', 'infra/gcp/scripts'):
             self.assertNotIn(target_code, static)
         run = load(ROOT / '.github/workflows/ci-gcp-terraform.yml')['jobs']['validate']['steps'][-1]['run']
@@ -198,7 +213,7 @@ class ValidationSandboxTest(unittest.TestCase):
             # is never reused: each kind copies the read-only source again.
             previous = root / 'work-tests/repository'
             previous.mkdir(parents=True)
-            script = entrypoint.replace('/source/', str(source) + '/').replace('/work/', str(root / 'work-static') + '/')
+            script = entrypoint.replace('/source', str(source)).replace('/work/', str(root / 'work-static') + '/')
             result = subprocess.run(['bash', '-s', '--', 'terraform-static'], input=script,
                 env=os.environ | {'HOME': str(root / 'home'), 'RUNNER_TEMP': str(root / 'tmp'), 'CI_SOURCE_SHA': sha,
                                   'CHECKPOINT_DISABLE': '1'},
