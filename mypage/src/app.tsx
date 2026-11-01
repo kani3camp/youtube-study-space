@@ -203,6 +203,23 @@ export function createApp(
 		const pathname = useRouterState({
 			select: (state) => state.location.pathname,
 		})
+		useLayoutEffect(
+			() =>
+				router.subscribe(
+					'onRendered',
+					({ fromLocation, pathChanged, toLocation }) => {
+						if (!fromLocation || !pathChanged || toLocation.hash) return
+						// フッターを共有する遷移でも、描画済みの本文から読み進められるようにする。
+						const target =
+							document.querySelector<HTMLElement>('main h1') ??
+							document.querySelector<HTMLElement>('main')
+						if (!target) return
+						target.tabIndex = -1
+						target.focus({ preventScroll: true })
+					},
+				),
+			[],
+		)
 		const myPageActive = useRouterState({
 			select: (state) =>
 				state.matches.some((match) => match.routeId === '/mypage') &&

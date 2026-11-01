@@ -32,9 +32,12 @@ pnpm dev --host 127.0.0.1
 python -m pip install -r visual-requirements.txt
 pnpm test
 python scripts/font-qa.py --output /tmp/mypage-font-qa
+python scripts/route-focus-qa.py
 ```
 
 外部リクエストを遮断し、撮影前にフォントの読み込みを待つ。実ユーザーデータを公開成果物に保存しない。合成テストデータの成功やプロトタイプとの比較を、実OAuth・Hosting・公開準備完了の証拠にしない。
+
+`route-focus-qa.py` は公開ルートのフッターをキーボードで遷移し、本文見出しへのフォーカス、本文内のTab順、戻る・進む、初回表示、Cookie設定を閉じた際のフォーカス復帰をデスクトップ・モバイルで検証する。ルート変更時は描画後の本文見出し（見出しがなければ`main`）へフォーカスを移し、同一ルートの検索条件・アンカー変更では移さない。アンカー付きの遷移は既存のアンカー動作を優先する。
 
 ## bfcache・利用制限の確認
 
