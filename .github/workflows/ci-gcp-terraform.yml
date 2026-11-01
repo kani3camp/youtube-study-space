@@ -41,15 +41,25 @@ jobs:
           # Do not expose runner tokens, command files or the Docker socket to target code.
           marker="$(openssl rand -hex 32)"
           echo "::stop-commands::${marker}"
-          set +e
-          docker run --rm --init --read-only \
-            --cap-drop=ALL --security-opt=no-new-privileges \
-            --pids-limit=256 --memory=6g --cpus=2 \
-            --tmpfs /tmp:rw,exec,mode=1777 \
-            --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
-            --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
-            --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
-            yss-ci-validation:local terraform
-          result=$?
+          result=0
+          # The fixed checks run first, each kind in its own container with a fresh
+          # writable copy of the read-only source: target tests can never change
+          # what terraform-static sees.
+          for kind in terraform-static terraform-tests; do
+            if docker run --rm --init --read-only \
+              --cap-drop=ALL --security-opt=no-new-privileges \
+              --pids-limit=256 --memory=6g --cpus=2 \
+              --tmpfs /tmp:rw,exec,mode=1777 \
+              --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
+              --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
+              --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
+              yss-ci-validation:local "$kind"; then
+              printf '%s: PASS\n' "$kind"
+            else
+              status=$?
+              printf '%s: FAIL (exit %s)\n' "$kind" "$status"
+              result=1
+            fi
+          done
           echo "::${marker}::"
           exit "$result"
