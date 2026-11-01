@@ -9,6 +9,7 @@ import unittest
 from test_ci_workflows import ROOT, load
 
 REPOSITORY_KINDS = ('base-image', 'node-policy', 'docs', 'contracts')
+TERRAFORM_KINDS = ('terraform-static', 'terraform-tests')
 
 
 class ValidationSandboxTest(unittest.TestCase):
@@ -85,7 +86,7 @@ class ValidationSandboxTest(unittest.TestCase):
                 self.assertNotIn('docker.sock', ' '.join(args))
                 self.assertNotIn('CANARY', ' '.join(args))
                 self.assertEqual(args[-2], 'yss-ci-validation:local')
-                if args[-1] != 'terraform':
+                if not args[-1].startswith('terraform-'):
                     self.assertIn('--network=none', args)
             # Model Actions' stop/resume protocol. Every stdout AND stderr line
             # from every container must stay inside the unpredictable envelope.
@@ -112,12 +113,12 @@ class ValidationSandboxTest(unittest.TestCase):
 
     def test_target_cannot_receive_runner_tokens_or_writable_host_mounts_and_failures_propagate(self):
         for job in self.jobs():
-            kinds = ('terraform',) if job['name'] == 'GCP Terraform Validate' else REPOSITORY_KINDS
+            kinds = TERRAFORM_KINDS if job['name'] == 'GCP Terraform Validate' else REPOSITORY_KINDS
             for failures in ((), kinds):
                 with self.subTest(job=job['name'], failures=failures):
                     result, calls = self.run_docker_step(job, failures)
                     self.assertEqual([args[-1] for args in calls], list(kinds))
-                    self.assertEqual(result.returncode, (17 if kinds == ('terraform',) else 1) if failures else 0)
+                    self.assertEqual(result.returncode, 1 if failures else 0)
 
     def test_each_repository_failure_runs_all_four_cases_and_fails_ci_gate(self):
         import test_ci_results
@@ -140,8 +141,8 @@ class ValidationSandboxTest(unittest.TestCase):
         entrypoint = (ROOT / '.github/ci-validation/validate.sh').read_text()
         self.assertLess(entrypoint.index('Source SHA mismatch'), entrypoint.index('case "$1"'))
         self.assertIn('cp -R /source/. /work/repository/', entrypoint)
-        self.assertIn('terraform fmt -check -recursive infra/gcp', entrypoint)
-        self.assertIn('terraform -chdir="infra/gcp/environments/$env" validate', entrypoint)
+        self.assertIn('terraform -chdir=/source fmt -check -recursive infra/gcp', entrypoint)
+        self.assertIn('terraform -chdir="/source/infra/gcp/environments/$env" validate', entrypoint)
         # Exercise the real SHA check with temporary paths instead of container
         # mount points. No target validation may start for a mismatched SHA.
         with tempfile.TemporaryDirectory() as directory:
@@ -151,13 +152,76 @@ class ValidationSandboxTest(unittest.TestCase):
             subprocess.run(['git', 'init', '-q', str(source)], check=True)
             subprocess.run(['git', '-C', str(source), '-c', 'user.name=CI test',
                             '-c', 'user.email=ci-test@example.invalid', 'commit', '--allow-empty', '-qm', 'fixture'], check=True)
-            for kind in ('terraform', *REPOSITORY_KINDS):
+            for kind in (*TERRAFORM_KINDS, *REPOSITORY_KINDS):
                 script = entrypoint.replace('/source/', str(source) + '/').replace('/work/', str(work / kind) + '/')
                 result = subprocess.run(['bash', '-s', '--', kind], input=script,
                     env=os.environ | {'HOME': str(root / 'home'), 'RUNNER_TEMP': str(root / 'tmp'),
                                       'CI_SOURCE_SHA': '0' * 40}, capture_output=True, text=True, timeout=30)
                 self.assertEqual(result.returncode, 1)
                 self.assertIn('Source SHA mismatch', result.stderr)
+
+
+    def entrypoint_kind(self, kind):
+        entrypoint = (ROOT / '.github/ci-validation/validate.sh').read_text()
+        return entrypoint.split('\n  ' + kind + ')\n', 1)[1].split('\n    ;;', 1)[0]
+
+    def test_fixed_terraform_checks_run_first_in_their_own_container_and_execute_no_target_code(self):
+        # Regression: target tests used to run before fmt/validate in the same
+        # writable copy, so a test could delete an invalid .tf and pass validation.
+        static = self.entrypoint_kind('terraform-static')
+        tests = self.entrypoint_kind('terraform-tests')
+        for command in ('terraform -chdir=/source fmt -check -recursive infra/gcp',
+                        'terraform -chdir="/source/infra/gcp/environments/$env" validate',
+                        'providers lock', 'git diff --exit-code', 'cmp /source/infra/gcp/environments/dev/.terraform.lock.hcl'):
+            self.assertIn(command, static)
+            self.assertNotIn(command, tests)
+        # Providers only from the HashiCorp registry namespace; no implied local mirror.
+        self.assertIn('include = ["registry.terraform.io/hashicorp/*"]', static)
+        self.assertIn('export TF_CLI_CONFIG_FILE=/work/terraformrc', static)
+        self.assertNotIn('filesystem_mirror', static)
+        # The only provider-starting step reads the read-only source and runs last.
+        self.assertLess(static.index('providers lock'), static.index(' init -backend=false'))
+        self.assertLess(static.index('cmp /source/'), static.index(' init -backend=false'))
+        self.assertEqual(sum(line.rstrip().endswith(' validate') for line in static.splitlines()), 1)
+        self.assertEqual(static.rstrip().splitlines()[-1].strip(), 'done')
+        for line in static.splitlines():
+            if ' init ' in line or line.rstrip().endswith(' validate'):
+                self.assertIn('-chdir="/source/infra/gcp/environments/$env"', line)
+                self.assertIn('TF_DATA_DIR="/work/', line)
+        # The tests container prepares its own provider mirror for the native suites.
+        self.assertIn('terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly', tests)
+        for target_code in ('python', 'node', 'bash ', '.github/scripts', 'infra/gcp/tests', 'infra/gcp/scripts'):
+            self.assertNotIn(target_code, static)
+        run = load(ROOT / '.github/workflows/ci-gcp-terraform.yml')['jobs']['validate']['steps'][-1]['run']
+        self.assertIn('for kind in terraform-static terraform-tests; do', run)
+        self.assertEqual(run.count('docker run '), 1)
+
+    def test_fresh_container_static_checks_reject_invalid_hcl_regardless_of_a_previous_test_run(self):
+        entrypoint = (ROOT / '.github/ci-validation/validate.sh').read_text()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source'
+            (source / 'infra/gcp').mkdir(parents=True)
+            (source / 'infra/gcp/invalid.tf').write_text('resource "terraform_data" "x" {\n  input =\n}\n')
+            subprocess.run(['git', 'init', '-q', str(source)], check=True)
+            subprocess.run(['git', '-C', str(source), 'add', '.'], check=True)
+            subprocess.run(['git', '-C', str(source), '-c', 'user.name=CI test', '-c', 'user.email=ci-test@example.invalid',
+                            'commit', '-qm', 'invalid HCL'], check=True)
+            sha = subprocess.run(['git', '-C', str(source), 'rev-parse', 'HEAD'], check=True,
+                                 capture_output=True, text=True).stdout.strip()
+            # A previous container's writable copy (where a test removed the file)
+            # is never reused: each kind copies the read-only source again.
+            previous = root / 'work-tests/repository'
+            previous.mkdir(parents=True)
+            script = entrypoint.replace('/source', str(source)).replace('/work/', str(root / 'work-static') + '/')
+            result = subprocess.run(['bash', '-s', '--', 'terraform-static'], input=script,
+                env=os.environ | {'HOME': str(root / 'home'), 'RUNNER_TEMP': str(root / 'tmp'), 'CI_SOURCE_SHA': sha,
+                                  'CHECKPOINT_DISABLE': '1'},
+                capture_output=True, text=True, timeout=60)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn('Source SHA mismatch', result.stderr)
+            self.assertIn('Invalid expression', result.stdout + result.stderr)
+            self.assertTrue((root / 'work-static/repository/infra/gcp/invalid.tf').exists())
 
 
 if __name__ == '__main__':
