@@ -85,6 +85,10 @@ classify_path() {
 	fi
 
 	case "$path" in
+		.github/scripts/check-doc-references.py|.github/scripts/test_check_doc_references.py)
+			# These known helpers are covered by the always-running Repository docs check.
+			matched=true
+			;;
 		system/*)
 			system=true
 			firestore_integration=true
@@ -281,12 +285,12 @@ write_summary() {
 		printf '<summary>変更ファイル: %s件 / グループ未対応: %s件</summary>\n\n' "${#changed_paths[@]}" "${#unmatched_paths[@]}"
 		echo '**変更ファイル**'
 		echo
-		printf '%s\n' "${changed_paths[@]}" | summary_paths
+		summary_paths "${changed_paths[@]}"
 		if ((${#unmatched_paths[@]} > 0)); then
 			echo
 			echo '**グループ未対応のファイル**'
 			echo
-			printf '%s\n' "${unmatched_paths[@]}" | summary_paths
+			summary_paths "${unmatched_paths[@]}"
 		fi
 		echo
 		echo '</details>'
@@ -295,8 +299,16 @@ write_summary() {
 
 summary_paths() {
 	# パス中のHTMLで折りたたみを閉じたり、表示内容を書き換えたりしない。
-	sed -e 's/\&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' \
-		-e 's|^|- <code>|' -e 's|$|</code>|'
+	# 改行等は表示用にエスケープし、1パスを1行で表示する。
+	local path
+	for path in "$@"; do
+		path="${path//\\/\\\\}"
+		path="${path//$'\n'/\\n}"
+		path="${path//$'\r'/\\r}"
+		path="${path//$'\t'/\\t}"
+		printf '%s\n' "$path" | sed -e 's/\&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' \
+			-e 's|^|- <code>|' -e 's|$|</code>|'
+	done
 }
 
 resolve_changed_paths "$@"

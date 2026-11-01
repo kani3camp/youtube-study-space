@@ -38,6 +38,7 @@ jobs:
           marker="$(openssl rand -hex 32)"
           echo "::stop-commands::${marker}"
           result=0
+          summary_rows=''
           for kind in base-image node-policy docs contracts; do
             # Each invocation gets fresh writable tmpfs; only the source is shared read-only.
             if docker run --rm --init --read-only --network=none \
@@ -48,12 +49,25 @@ jobs:
               --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
               --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
               yss-ci-validation:local "$kind"; then
+              status=0
               printf '%s: PASS\n' "$kind"
             else
               status=$?
               printf '%s: FAIL (exit %s)\n' "$kind" "$status"
               result=1
             fi
+            # Only fixed host-side labels and Docker exit status reach the summary.
+            if [[ "$status" -eq 0 ]]; then
+              summary_rows+="| ${kind} | PASS |"$'\n'
+            else
+              summary_rows+="| ${kind} | FAIL (exit ${status}) |"$'\n'
+            fi
           done
           echo "::${marker}::"
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            {
+              printf '### Repository validation\n\n| Validation | Result |\n| --- | --- |\n'
+              printf '%s' "$summary_rows"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
           exit "$result"

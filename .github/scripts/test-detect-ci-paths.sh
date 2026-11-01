@@ -39,6 +39,8 @@ assert_exact_groups() {
 }
 
 assert_exact_groups "" README.md
+assert_exact_groups "" .github/scripts/check-doc-references.py
+assert_exact_groups "" .github/scripts/test_check_doc_references.py
 assert_exact_groups formal_spec formal-spec/README.md
 assert_exact_groups formal_spec formal-spec/fsl/specs/seat_session.fsl
 assert_exact_groups formal_spec .github/scripts/run-formal-spec-tests.sh

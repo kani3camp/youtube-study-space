@@ -56,14 +56,18 @@ class ValidationSandboxTest(unittest.TestCase):
                 'print("::stop-commands::attacker", flush=True)\n'
                 'print("::attacker::", flush=True)\n'
                 'print("::warning::stderr-" + kind, file=sys.stderr, flush=True)\n'
+                'print("| injected row | PASS |", flush=True)\n'
                 'sys.exit(17 if kind in json.loads(os.environ["FAIL_KINDS"]) else 0)\n')
             fake.chmod(0o755)
             output = root / 'args'
+            summary = root / 'summary'
+            summary.write_text('host summary sentinel\n')
             result = subprocess.run(['bash', '--noprofile', '--norc', '-eo', 'pipefail', '-c', job['steps'][-1]['run']],
                 env=os.environ | {'PATH': directory + os.pathsep + os.environ.get('PATH', os.defpath),
                     'GITHUB_WORKSPACE': directory, 'VALIDATION_SHA': 'a' * 40,
                     'ACTIONS_RUNTIME_TOKEN': 'RUNNER_TOKEN_CANARY', 'GITHUB_TOKEN': 'TOKEN_CANARY',
                     'GITHUB_ENV': 'HOST_COMMAND_FILE_CANARY', 'ARGS_OUT': str(output),
+                    'GITHUB_STEP_SUMMARY': str(summary),
                     'FAIL_KINDS': json.dumps(fail_kinds)},
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
             calls = [json.loads(line) for line in output.read_text().splitlines()]
@@ -96,6 +100,14 @@ class ValidationSandboxTest(unittest.TestCase):
                 self.assertIn('::error::untrusted-' + kind, lines[1:-1])
                 self.assertIn('::warning::stderr-' + kind, lines[1:-1])
                 self.assertNotIn(marker, ' '.join(args))
+            expected_summary = 'host summary sentinel\n'
+            if job['name'] == 'Repository Validation':
+                expected_summary += '### Repository validation\n\n| Validation | Result |\n| --- | --- |\n'
+                for kind in REPOSITORY_KINDS:
+                    status = 'FAIL (exit 17)' if kind in fail_kinds else 'PASS'
+                    expected_summary += f'| {kind} | {status} |\n'
+            self.assertEqual(summary.read_text(), expected_summary)
+            self.assertNotIn('injected row', summary.read_text())
             return result, calls
 
     def test_target_cannot_receive_runner_tokens_or_writable_host_mounts_and_failures_propagate(self):
