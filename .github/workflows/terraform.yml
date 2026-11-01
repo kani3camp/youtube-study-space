@@ -171,7 +171,7 @@ jobs:
   core-plan:
     name: Core Plan
     needs: [select, validate]
-    if: ${{ (inputs.component == 'all' || inputs.component == 'core') }}
+    if: ${{ inputs.operation == 'plan' && (inputs.component == 'all' || inputs.component == 'core') }}
     permissions:
       contents: read
       id-token: write
@@ -213,12 +213,13 @@ jobs:
       MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
       MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
 
-  # Both selected Plans must succeed before any Apply starts. !cancelled() (not
-  # always()) so that cancelling the run after the Plans never starts an Apply.
+  # normal-apply contains its own Plan and independent Apply-side Plan.
+  # Keep the MyPage preflight Plan before Core Apply when MyPage is selected.
+  # !cancelled() prevents cancellation from starting an Apply.
   core-apply:
     name: Core Apply
-    needs: [select, core-plan, mypage-plan]
-    if: ${{ !cancelled() && inputs.operation == 'apply' && (inputs.component == 'all' || inputs.component == 'core') && needs.core-plan.result == 'success' && (needs.mypage-plan.result == 'success' || needs.mypage-plan.result == 'skipped') }}
+    needs: [select, validate, mypage-plan]
+    if: ${{ !cancelled() && inputs.operation == 'apply' && (inputs.component == 'all' || inputs.component == 'core') && needs.validate.result == 'success' && (needs.mypage-plan.result == 'success' || needs.mypage-plan.result == 'skipped') }}
     permissions:
       contents: read
       id-token: write
@@ -299,7 +300,8 @@ jobs:
               [[ "$3" == "skipped" ]] || fail "$1 must not run"
             fi
           }
-          expect "Core Plan" "${core}" "${CORE_PLAN_RESULT}"
+          if [[ "${core}" == true && "${apply}" == false ]]; then core_plan=true; else core_plan=false; fi
+          expect "Core Plan" "${core_plan}" "${CORE_PLAN_RESULT}"
           expect "MyPage Plan" "${mypage}" "${MYPAGE_PLAN_RESULT}"
           if [[ "${core}" == true && "${apply}" == true ]]; then core_apply=true; else core_apply=false; fi
           if [[ "${mypage}" == true && "${apply}" == true ]]; then mypage_apply=true; else mypage_apply=false; fi
