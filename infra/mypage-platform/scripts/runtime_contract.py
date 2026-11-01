@@ -31,12 +31,14 @@ MAINTENANCE_PROVIDER = "module.platform[0].google_iam_workload_identity_pool_pro
 MAINTENANCE_WIF = "module.platform[0].google_service_account_iam_member.maintenance_workload_identity[0]"
 MAINTENANCE_JOB = "module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]"
 MAINTENANCE_JOB_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_invoker[0]"
+MAINTENANCE_READ_ROLE = "module.platform[0].google_project_iam_custom_role.maintenance_execution_read[0]"
+MAINTENANCE_JOB_READER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_reader[0]"
 MAINTENANCE_IMAGE_ROLE = "module.platform[0].google_project_iam_custom_role.maintenance_image_release[0]"
 MAINTENANCE_IMAGE_BINDING = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_image_release[0]"
 MAINTENANCE_IMAGE_ACT_AS = "module.platform[0].google_service_account_iam_member.maintenance_image_release_act_as[0]"
 OPERATOR_IMAGE_BINDING = "module.platform[0].google_cloud_run_v2_job_iam_member.operator_image_release[0]"
 OPERATOR_IMAGE_ACT_AS = "module.platform[0].google_service_account_iam_member.operator_image_release_act_as[0]"
-MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, OPERATOR_IMAGE_BINDING, OPERATOR_IMAGE_ACT_AS}
+MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, MAINTENANCE_JOB_READER, OPERATOR_IMAGE_BINDING, OPERATOR_IMAGE_ACT_AS}
 MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-operator-apply": "maintenance_operator",
          "maintenance-upgrade-plan": "maintenance_upgrade", "maintenance-upgrade-apply": "maintenance_upgrade",
          "runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
@@ -203,6 +205,14 @@ def maintenance_resource_contract(value=None):
         MAINTENANCE_JOB: {"project": c.PROJECT, "name": "mypage-maintenance-operator", "location": c.REGION,
                           "deletion_policy": "PREVENT", "deletion_protection": True, "launch_stage": "GA"},
         MAINTENANCE_JOB_INVOKER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator", "role": "roles/run.jobsExecutorWithOverrides", "member": "serviceAccount:" + invoker_email},
+        MAINTENANCE_READ_ROLE: {"project": c.PROJECT, "role_id": "mypageMaintenanceExecutionRead",
+                                "title": "MyPage maintenance execution reader",
+                                "description": "Allows the maintenance invoker to read the fixed Job and wait for its execution.",
+                                "stage": "GA", "deletion_policy": "PREVENT",
+                                "permissions": ["run.executions.get", "run.jobs.get"]},
+        MAINTENANCE_JOB_READER: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator",
+                                 "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceExecutionRead",
+                                 "member": "serviceAccount:" + invoker_email},
     }
     # The backend image deployer is intentionally DEV-only until a separate
     # Production release identity is approved. Never create a dangling prod
@@ -321,7 +331,7 @@ def validate_maintenance_resource(address, after, unknown, value, actions, boots
         c.need(after.get("disabled") is False and after.get("deletion_policy") == "PREVENT",
                "maintenance-service-account-disabled")
         return
-    if address in {MAINTENANCE_ROLE, MAINTENANCE_IMAGE_ROLE}:
+    if address in {MAINTENANCE_ROLE, MAINTENANCE_IMAGE_ROLE, MAINTENANCE_READ_ROLE}:
         # deletedはプロバイダーの計算値なので、作成時だけunknownになる。
         # 既存ロールのno-opでは、毎回既知のfalseでなければならない。
         c.need(after.get("deletion_policy") == "PREVENT" and
@@ -663,7 +673,7 @@ def validate_initial_plan(plan, stage):
                 continue
             if address == INVOKER and key == "name":
                 valid = after.get(key) in {expected_value, PUBLIC_INVOKER_NAME}
-            elif address in {MAINTENANCE_JOB_INVOKER, OPERATOR_IMAGE_BINDING} and key == "name":
+            elif address in {MAINTENANCE_JOB_INVOKER, MAINTENANCE_JOB_READER, OPERATOR_IMAGE_BINDING} and key == "name":
                 valid = after.get(key) in {expected_value, MAINTENANCE_JOB_FULL_NAME}
             else:
                 valid = after.get(key) == expected_value

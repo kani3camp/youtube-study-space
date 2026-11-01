@@ -576,6 +576,38 @@ resource "google_cloud_run_v2_job_iam_member" "operator_image_release" {
   ]
 }
 
+# gcloud validates argument overrides by reading the Job, then polls the
+# Execution for --wait. jobsExecutorWithOverrides does not include these reads.
+resource "google_project_iam_custom_role" "maintenance_execution_read" {
+  count           = local.maintenance_operator ? 1 : 0
+  project         = var.project_id
+  role_id         = "mypageMaintenanceExecutionRead"
+  title           = "MyPage maintenance execution reader"
+  description     = "Allows the maintenance invoker to read the fixed Job and wait for its execution."
+  deletion_policy = "PREVENT"
+  permissions     = ["run.executions.get", "run.jobs.get"]
+  stage           = "GA"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_cloud_run_v2_job_iam_member" "maintenance_reader" {
+  count    = local.maintenance_operator ? 1 : 0
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_job.maintenance_operator[0].name
+  role     = "projects/${var.project_id}/roles/mypageMaintenanceExecutionRead"
+  member   = "serviceAccount:${local.maintenance_invoker_email}"
+
+  depends_on = [
+    google_project_iam_custom_role.maintenance_execution_read,
+    google_service_account.maintenance_invoker,
+    google_cloud_run_v2_job.maintenance_operator,
+  ]
+}
+
 resource "google_cloud_run_v2_job_iam_member" "maintenance_invoker" {
   count    = local.maintenance_operator ? 1 : 0
   project  = var.project_id
