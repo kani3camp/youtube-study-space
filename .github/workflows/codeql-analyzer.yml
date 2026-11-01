@@ -11,7 +11,7 @@ jobs:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    # Probe ordinary CodeQL authentication without an Environment or OIDC grant.
+    # CodeQL uses GITHUB_TOKEN without an Environment or OIDC grant.
     permissions:
       contents: read
       security-events: write
