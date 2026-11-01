@@ -18,18 +18,20 @@ Environmentのブランチ制限は、クラウド認証とは独立したSecret
 2. 非秘密入力は対象ブランチの`normal.tfvars.json`へ追加します。既存Environmentのprivate tfvarsへ重ねるため、既存リソースの選択やprivate inventoryを落としません。秘密値はコミットせず、新しいprivate入力は両DEV Environmentで一致させます。
 3. delete/replaceが必要なら、対象ブランチの`normal-operations.json`に正確なaddressとactionsを記載します。create/updateにリソース別manifestやtype登録は要求しません。
 4. 対象ソースのCIとレビューを確認します。ブランチだけを指定すると、Environment Secretを使わないpreflightで同一repositoryのHEADを一度だけ取得し、その40桁SHAを後続の全jobで固定します。特定コミットはSHAだけでも選べます。この場合も通常ブランチ（`refs/heads/*`）の履歴から到達できることを要求し、PR専用refやタグだけに残るコミット、forkだけにあるコミットは対象ソースとして使いません。branch/SHAの両方を指定した場合はHEADとの一致を要求します。
-5. 実行元にある正規の入口を選びます。以下はActions → CI → Run workflowの入力例です。
+5. 実行元にある正規の入口 **Terraform**（[`terraform.yml`](../../.github/workflows/terraform.yml)）を、Actions → Terraform → Run workflowから起動します。CI（`ci.yml`）は資格情報を持たない検査だけで、Plan／Applyは行いません。
 
-   マイページ統合ブランチの現行入口はActions → **Terraform**です。Use workflow fromに`integration/mypage-canon-20261006`、environmentに`development`、operationに`plan`／`apply`、componentに`core`／`mypage`／`all`を指定します。この入口では実行元自身のHCLを使い、そのSHAを自動的に固定します。入力項目は当該ブランチのworkflowを正本とします。
+   `Terraform`は最初に対象ブランチ・SHAから対象SHAを1つ確定し、そのコミットのGCP Terraform検査（[`ci-gcp-terraform.yml`](../../.github/workflows/ci-gcp-terraform.yml)。fmt・validate・テスト・native fixtureを含む）を資格情報なしで実行します。検査が成功した後だけ、同じ確定SHAを認証付きPlan／Applyへ渡します。検査中に対象ブランチが更新されても、別のコミットへ切り替わりません。`operation=apply`は同じrunでPlanの成功後にApplyします。このブランチにはMyPageのrootがないため、`component=all`はCoreだけを操作し、`component=mypage`は拒否します。
+
+   マイページ統合ブランチ（`integration/mypage-canon-20261006`）の`Terraform`は、同じ入力にMyPageのrootとPR Planを加えたものです。入力項目は実行元ブランチのworkflowを正本とします。
 
    | 項目 | DEV Plan | DEV Apply |
    | --- | --- | --- |
-   | Use workflow from | Environmentで許可した実行元 | 同じ実行元 |
-   | Authenticated Terraform | 有効 | 有効 |
-   | Terraform target environment | `dev` | `dev` |
-   | Terraform operation | `normal-plan` | `normal-apply` |
-   | DEVの対象ブランチ | レビュー済みの対象ブランチ | 空欄 |
-   | DEVの対象SHA | 空欄 | PlanのSummaryにある40桁SHA |
+   | Use workflow from | 信頼済みの実行元 | 同じ実行元 |
+   | environment | `development` | `development` |
+   | operation | `plan` | `apply` |
+   | component | `all`または`core` | `all`または`core` |
+   | source_branch（DEVの対象ブランチ） | レビュー済みの対象ブランチ | 空欄 |
+   | source_sha（DEVの対象SHA） | 空欄 | PlanのSummaryにある40桁SHA |
 
    DEVの対象ソースの選び方は以下のとおりです。SHAを指定する場合は省略のない40桁の小文字16進数を使います。
 
@@ -42,7 +44,7 @@ Environmentのブランチ制限は、クラウド認証とは独立したSecret
 
    SHA単独指定はpreflightで通常ブランチの履歴を一時取得して検証します。選択後にbranchを削除・force-pushし、どの通常ブランチからも到達できなくなったSHAは、別のApply実行では拒否されます。実行元自身のSHAは、本人dispatchのbranch contextで由来が確定しているため、この追加取得は不要です。
 
-   確定した対象SHAはActionsのSummaryに表示します。別のソースを選んでも、workflowのrefは信頼済み実行元のままです。本番は従来どおり`main`の実行元SHA指定が必須です。
+   確定した対象SHAはActionsのSummaryに表示します。資格情報なしの検査job（`ci-gcp-terraform.yml`）は対象コミットのソースとテストをcheckoutし、実行元から用意した隔離コンテナ内で実行します。対象コードにはrunnerの環境変数・Actionsのキャッシュ用トークン・コマンドファイル・Dockerソケットを渡さず、ソースは読み取り専用でマウントします。共通検査は通信禁止、Terraform検査はprovider取得用の通信を許可します。検査を指示するworkflow、対象SHAを確定する処理（[`terraform_source_pin.py`](../../.github/scripts/terraform_source_pin.py)）、資格情報付きのPlan／Apply実行器は信頼済み実行元のコミットを使います。検査jobにはEnvironment SecretやOIDC権限を渡さず、checkoutの認証情報も永続化しません。本番は`main`の実行元コミットだけを使い、対象ブランチ・SHAは指定できません。
 6. Planの操作種別・件数・Summaryの対象SHAを確認してから、Applyを新しくdispatchします。確認済みの同じコミットを使う場合は、対象ブランチを空欄にし、対象SHAにSummaryの値を指定します。**Applyでもブランチだけを指定すると、その新しい実行のpreflight時点でHEADを再取得します。** Applyは同じrunで独立Planを作り、control planeのSHA、対象sourceのrepository/branch/SHA、入力・レビュー指定・State・全Plan JSONをHMACで照合して保存Planを適用します。HMAC値をstep envやcommandへ渡しません。
 7. `GCP_NORMAL: PASS; role=apply`と事後full-root no-opを確認します。更新されたブランチHEADを使いたい場合は、新しいSHAでPlanからやり直します。失敗runのRe-runは拒否されます。`dev`へのマージは本人だけが行います。
 
@@ -128,12 +130,12 @@ Productionの通常Plan/Applyは既存DEVと同じ `normal-plan` / `normal-apply
 1. `infra/gcp/environments/prod/` のHCLをレビュー対象とし、先にDEVで相当する変更を検証します。既存PRODリソースの宣言とprivate inventoryを落としてはなりません。DEVのRoot/StateをPRODへコピーしません。
 2. 非秘密の差分だけを `normal.tfvars.json` に記載します。既存30資源の選択情報・private metadataは `terraform-prod-plan` / `terraform-prod-apply` Environmentのmanaged入力を引き続き使います。両者の入力内容はPlan/Applyで論理的に一致させます。
 3. delete/replaceはPRODの `normal-operations.json` の `destructive_changes` に正確なresource addressとnative actionsの順序を明示します。create/updateに型別allowlistはありませんが、GCP IAMの明示権限外の操作は拒否されます。
-4. 保護された `main` にレビュー済みリリースを取り込んだ後、本人が初回 `workflow_dispatch` で `terraform_target=prod`、`terraform_mode=normal-plan`、`terraform_expected_sha=<mainの40桁SHA>` を指定します。公開ログではresource type/操作/件数だけを確認します。
-5. Applyが必要な場合は同一SHAの `normal-apply` を新たに実行します。同runの独立Plan/Apply jobのHMAC/State/SHA/期限が一致したsaved planだけを適用します。事後のfull-root no-opとlock解放を確認します。
+4. 保護された `main` にレビュー済みリリースを取り込んだ後、本人が初回 `workflow_dispatch` で `Terraform` を `environment=production`、`operation=plan` で実行します。実行SHAは選択refの `github.sha` をそのまま固定し、手入力させません。公開ログではresource type/操作/件数だけを確認します。
+5. Applyが必要な場合は同一main HEADから `operation=apply`、`environment=production` を新たに実行します。同runの独立Plan/Apply jobのHMAC/State/SHA/期限が一致したsaved planだけを適用します。事後のfull-root no-opとlock解放を確認します。
 
 ### 一度限りの本番設定と有効化条件
 
-**コードをdevへマージするだけではPRODの認証付きPlan/Applyは有効になりません。** 既存PROD移行用AWS S3 backend Roleを再利用し、通常専用のGCP Plan/Apply SA・カスタムロール・WIF pool/provider・runtime SAを追加します。移行用GCP WIF/SA、S3 State、既存workloadは変更しません。
+**コードをdevへマージするだけではPRODの認証付きPlan/Applyは有効になりません。** PRODのcallerは `terraform.yml` です。callerを切り替えるリリースでは、PRODのPlan/Applyが使えない時間を作らないよう、次の順で行います。(1) `main` へ取り込む前に、PRODのGCP WIF conditionとAWS trust policy（Plan/Apply role）を、`ci.yml` と `terraform.yml` の両方を許可する値にする。(2) `main` へ取り込む。(3) `main` から `Terraform`（`environment=production`、`operation=plan`）を実行し、認証とPlanを確認する。(4) callerを `terraform.yml` だけへ限定する。GCPは [`bootstrap_production_normal_ops.py`](scripts/bootstrap_production_normal_ops.py) のconditionと一致させる。AWSは既存のtrust policyの条件（`aud`・本人の `actor_id=54093651` など）を保持したまま、`sub` のcallerだけを変える。[`production_backend_packet.py`](scripts/production_backend_packet.py) が生成するtrust policyには `actor_id` が含まれないため、そのまま適用しない。`terraform.yml` を許可しないPROD trustでは、PRODの認証は拒否されます。 既存PROD移行用AWS S3 backend Roleを再利用し、通常専用のGCP Plan/Apply SA・カスタムロール・WIF pool/provider・runtime SAを追加します。移行用GCP WIF/SA、S3 State、既存workloadは変更しません。
 
 - PROD用の通常Apply権限はDEVのカタログを基礎としつつ、資源別IAMの付与による自己昇格を防ぐため `*.setIamPolicy` はデフォルトで除外します。Bucket/Secret/Cloud Run等の公開・他主体へのgrantは別途IAMレビューの対象です。
 - PROD AWSの既存Plan/Apply Roleは、repository-wide GitHub OIDCの7 claims（`terraform-prod-plan/apply`、`ref=refs/heads/main`、固定caller/reusable）に加え、native `actor_id=54093651` が必要です。予期しないAllow、旧integration branch trust、wildcardが残ればSTOPします。AWSのtrust調整は管理者が差分を独立レビューしてから実施し、このbootstrapではAWSを変更しません。
@@ -187,7 +189,8 @@ python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply --enable-ap
 | `scripts/`、`tests/` | 現行の設定検証、offline準備、negative / native fixtureテスト |
 | `docs/` | 復旧・運用・準備判定の既存runbook。現行の判断入口は以下のリンク |
 | `scripts/terraform_normal_ops.py`、`terraform_runtime.py` | 通常Plan/Applyとprivate入力・State・plan shapeの共通検査 |
-| `.github/workflows/ci.yml`、`gcp-terraform-authenticated.yml` | credentialless PR CIと保護された本人起動の運用経路 |
+| `.github/workflows/ci.yml`、`ci-gcp-terraform.yml` | credentialless PR CIとTerraform検査 |
+| `.github/workflows/terraform.yml`、`gcp-terraform-authenticated.yml` | 保護された本人起動のPlan/Apply経路 |
 
 ## Version policy
 

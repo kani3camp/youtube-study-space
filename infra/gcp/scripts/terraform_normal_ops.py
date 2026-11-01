@@ -27,8 +27,8 @@ REPO = Path(__file__).resolve().parents[3]
 PROJECT = 'test-youtube-study-space'  # Backwards-compatible DEV test fixture
 PROJECTS = {'dev': PROJECT, 'prod': 'youtube-study-space'}
 BRANCH_REF = re.compile(r'refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*')
-CALLER = 'kani3camp/youtube-study-space/.github/workflows/ci.yml@'
-DEV_CALLERS = (CALLER, 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@')
+# terraform.yml is the only Terraform caller for both DEV and PROD (#1500).
+CALLER = 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@'
 REUSABLE = 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@'
 DIAGNOSTIC_SECTIONS = ('source_run_mode', 'inputs', 'review', 'state', 'resource_changes',
                        'planned_values', 'prior_state', 'checks', 'relevant_attributes', 'other_plan_fields')
@@ -102,8 +102,7 @@ def context(env, role=None):
         need(env.get('GITHUB_REF') == ref)
         need(not env.get('NORMAL_SOURCE_BRANCH'))
         need(not env.get('NORMAL_SOURCE_SHA'))
-    callers = DEV_CALLERS if target == 'dev' else (CALLER,)
-    need(env.get('GITHUB_WORKFLOW_REF') in {caller + ref for caller in callers})
+    need(env.get('GITHUB_WORKFLOW_REF') == CALLER + ref)
     need(re.fullmatch('[0-9a-f]{40}', env.get('GITHUB_SHA', '')) is not None)
     if target == 'prod':
         need(env.get('NORMAL_EXPECTED_SHA') == env['GITHUB_SHA'])
@@ -566,7 +565,7 @@ def oidc(env):
     expected = {
         'repository_id': '340900071', 'repository_owner_id': '54093651',
         'environment': 'terraform-' + target + '-' + env['NORMAL_ROLE'], 'ref': ref,
-        'workflow_ref': env['GITHUB_WORKFLOW_REF'] if target == 'dev' else CALLER + ref,
+        'workflow_ref': CALLER + ref,
         'job_workflow_ref': REUSABLE + ref,
         'event_name': 'workflow_dispatch',
     }

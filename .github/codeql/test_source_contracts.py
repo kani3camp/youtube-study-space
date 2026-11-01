@@ -70,17 +70,17 @@ class SourceContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "direct trigger"):
             self.validate()
 
-    def test_oidc_environment_cannot_be_omitted_or_replaced(self):
+    def test_analyzer_runs_without_an_environment_and_rejects_environment_requests(self):
         job = self.callee["jobs"]["analyze"]
-        for environment in (None, "terraform-dev-plan", "other-environment"):
+        self.assertNotIn("environment", job)
+        self.validate()
+        for environment in (None, "codeql-analysis", "terraform-dev-plan", "other-environment",
+                            {"name": "codeql-analysis"}):
             with self.subTest(environment=environment):
-                if environment is None:
-                    job.pop("environment", None)
-                else:
-                    job["environment"] = environment
-                with self.assertRaisesRegex(ValueError, "dedicated Environment"):
+                job["environment"] = environment
+                with self.assertRaisesRegex(ValueError, "must not request an Environment"):
                     self.validate()
-        job["environment"] = "codeql-analysis"
+                del job["environment"]
         self.validate()
 
     def test_caller_or_callee_cannot_skip_events_or_languages_with_job_conditions(self):

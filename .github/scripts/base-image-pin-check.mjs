@@ -2,7 +2,11 @@
 
 import { pathToFileURL } from "node:url";
 
-import { parsePinnedImage } from "./base-image-update-report.mjs";
+import { isBaseImageDockerfile, parsePinnedImage } from "./base-image-update-report.mjs";
+
+export function selectPinCheckDockerfiles(changedFiles) {
+  return changedFiles.filter((file) => isBaseImageDockerfile(file.filename) && file.status !== "removed");
+}
 
 export function parseFromStages(content) {
   const stages = [];
@@ -113,9 +117,7 @@ async function main() {
   }
 
   const changedFiles = await paginatedGithubRequest(`/repos/${repository}/pulls/${pullNumber}/files`);
-  const dockerfiles = changedFiles.filter(
-    (file) => /^system\/Dockerfile[^/]*$/.test(file.filename) && file.status !== "removed",
-  );
+  const dockerfiles = selectPinCheckDockerfiles(changedFiles);
 
   const violations = [];
   for (const file of dockerfiles) {
@@ -126,7 +128,7 @@ async function main() {
   }
 
   if (violations.length === 0) {
-    console.log("All external base images in changed system Dockerfiles are digest pinned.");
+    console.log("All external base images in changed monitored Dockerfiles are digest pinned.");
     return;
   }
 

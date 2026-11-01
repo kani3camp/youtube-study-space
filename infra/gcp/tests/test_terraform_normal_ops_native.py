@@ -22,6 +22,28 @@ import test_terraform_source as source_fixture
 
 
 class NativeCRUD(unittest.TestCase):
+    def test_invalid_selected_hcl_is_rejected_even_when_controller_hcl_passes(self):
+        fixture = source_fixture.SourceBoundary()
+        with tempfile.TemporaryDirectory(prefix='selected-validation-') as temporary:
+            control, selected, env = fixture.fixture(temporary)
+            (selected / 'infra/gcp/environments/dev/main.tf').write_text(
+                'resource "terraform_data" "invalid" {\n  input =\n}\n')
+            fixture.git(selected, 'add', '.')
+            fixture.git(selected, '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid',
+                        '-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'invalid HCL')
+            sha = fixture.git(selected, 'rev-parse', 'HEAD')
+            validation = Path(temporary) / 'validation'
+            fixture.git(Path(temporary), 'clone', '--local', str(selected), str(validation))
+            fixture.git(validation, 'checkout', '--detach', sha)
+            clean = {'PATH': os.environ.get('PATH', os.defpath), 'CHECKPOINT_DISABLE': '1'}
+            command = ['terraform', 'fmt', '-check', '-recursive', 'infra/gcp']
+            controller = subprocess.run(command, cwd=control, env=clean, capture_output=True, timeout=30)
+            target = subprocess.run(command, cwd=validation, env=clean, capture_output=True, timeout=30)
+            self.assertEqual(controller.returncode, 0)
+            self.assertNotEqual(target.returncode, 0)
+            self.assertIn(b'Invalid expression', target.stderr)
+            self.assertEqual(fixture.git(validation, 'rev-parse', 'HEAD'), sha)
+
     def test_selected_source_is_used_by_native_terraform(self):
         with tempfile.TemporaryDirectory(prefix='selected-source-native-') as temporary:
             fixture = source_fixture.SourceBoundary()

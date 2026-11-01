@@ -59,11 +59,13 @@ class SourceBoundary(unittest.TestCase):
             with self.subTest(ref=ref), self.assertRaises(ValueError):
                 ops.context(e | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': ops.CALLER + ref}, 'plan')
         for control in ('dev', 'integration/mypage-canon-20261006', 'feature/trusted-controller'):
-            for caller in ops.DEV_CALLERS:
-                ref = 'refs/heads/' + control
-                context = e | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': caller + ref}
-                self.assertEqual(ops.context(context, 'plan'), 'dev')
-                self.assertEqual(selected.branch(context | {'NORMAL_SOURCE_BRANCH': ''}), '')
+            ref = 'refs/heads/' + control
+            context = e | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': ops.CALLER + ref}
+            self.assertEqual(ops.context(context, 'plan'), 'dev')
+            self.assertEqual(selected.branch(context | {'NORMAL_SOURCE_BRANCH': ''}), '')
+            # ci.yml no longer calls authenticated Terraform.
+            with self.assertRaises(ValueError):
+                ops.context(context | {'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref}, 'plan')
         for key, value in (('GITHUB_ACTOR', 'other'), ('GITHUB_ACTOR_ID', '0'),
                            ('GITHUB_TRIGGERING_ACTOR', 'other'), ('GITHUB_RUN_ATTEMPT', '2'),
                            ('GITHUB_EVENT_NAME', 'pull_request')):
@@ -221,7 +223,7 @@ class SourceBoundary(unittest.TestCase):
 
     def test_oidc_binds_allowed_control_ref_and_caller_not_source_ref(self):
         ref = 'refs/heads/integration/mypage-canon-20261006'
-        e = env() | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': ops.DEV_CALLERS[1] + ref,
+        e = env() | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': ops.CALLER + ref,
                      'NORMAL_SOURCE_BRANCH': 'feature/data', 'NORMAL_EXPECTED_SHA': 'b' * 40, 'NORMAL_SOURCE_SHA': 'b' * 40,
                      'ACTIONS_ID_TOKEN_REQUEST_URL': 'https://fixture.invalid/token?x=1',
                      'ACTIONS_ID_TOKEN_REQUEST_TOKEN': 'FAKE_REQUEST_TOKEN'}

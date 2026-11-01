@@ -34,7 +34,7 @@ CONDITION = " && ".join([
     "assertion.repository_owner_id == '54093651'",
     "assertion.ref == 'refs/heads/main'",
     "assertion.event_name == 'workflow_dispatch'",
-    "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/main'",
+    "assertion.workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@refs/heads/main'",
     "assertion.job_workflow_ref == 'kani3camp/youtube-study-space/.github/workflows/gcp-terraform-authenticated.yml@refs/heads/main'",
     "assertion.environment in ['terraform-prod-plan', 'terraform-prod-apply']",
     "assertion.actor_id == '54093651'",
@@ -67,7 +67,7 @@ def subject(role):
     values = {
         "repository_id": "340900071", "repository_owner_id": "54093651",
         "environment": "terraform-prod-" + role, "ref": ref,
-        "workflow_ref": REPO + "/.github/workflows/ci.yml@" + ref,
+        "workflow_ref": REPO + "/.github/workflows/terraform.yml@" + ref,
         "job_workflow_ref": REPO + "/.github/workflows/gcp-terraform-authenticated.yml@" + ref,
         "event_name": "workflow_dispatch",
     }
@@ -598,7 +598,7 @@ def verify_initial_noop(run_id):
     need(run.get("id") == int(run_id) and run.get("run_attempt") == 1
          and run.get("head_branch") == "main" and run.get("event") == "workflow_dispatch"
          and run.get("status") == "completed" and run.get("conclusion") == "success"
-         and run.get("path") == ".github/workflows/ci.yml"
+         and run.get("path") == ".github/workflows/terraform.yml"
          and run.get("repository", {}).get("id") == 340900071
          and run.get("head_repository", {}).get("id") == 340900071
          and all(run.get(key, {}).get("id") == 54093651 for key in ("actor", "triggering_actor")))
