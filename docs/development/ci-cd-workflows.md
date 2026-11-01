@@ -13,14 +13,16 @@ GitHub Actions を「人間が実行したいユースケース」単位で整�
 現行の資格情報付き経路は、すべて **OIDC token の `workflow_ref`（最上位workflow）と `job_workflow_ref`（reusable workflow）** に固定されている。
 workflowファイルの改名・新設は、コードだけでは完結せず、対応するクラウド側trustの更新を伴う。
 
+2026-11-01 時点の値（DEV・本番とも `ci.yml` の caller は削除済み）。
+
 | 境界 | 現行の固定値 | 定義場所 |
 | --- | --- | --- |
 | Repository OIDC `sub` テンプレート | `repository_id`, `repository_owner_id`, `environment`, `ref`, `workflow_ref`, `job_workflow_ref`, `event_name`（repository単位設定） | GitHub `actions/oidc/customization/sub` |
-| Core Terraform GCP WIF | `workflow_ref == ci.yml@ref`、`job_workflow_ref == gcp-terraform-authenticated.yml@ref`、`workflow_dispatch`、owner actor、`run_attempt == 1` | [`bootstrap_normal_ops.py`](../../infra/gcp/scripts/bootstrap_normal_ops.py)、[`terraform_normal_ops.py`](../../infra/gcp/scripts/terraform_normal_ops.py) |
+| Core Terraform GCP WIF | `workflow_ref == terraform.yml@ref`、`job_workflow_ref == gcp-terraform-authenticated.yml@ref`、`workflow_dispatch`（DEV は owner の PR Plan も）、owner actor、`run_attempt == 1` | [`bootstrap_normal_ops.py`](../../infra/gcp/scripts/bootstrap_normal_ops.py)、[`terraform_normal_ops.py`](../../infra/gcp/scripts/terraform_normal_ops.py) |
 | Core Terraform AWS State role | 上記 `sub` の完全一致 | [`terraform-authentication-boundary.md`](../../infra/gcp/docs/terraform-authentication-boundary.md) |
-| MyPage foundation GCP WIF / AWS State role | `ci.yml@integration ref` + `mypage-foundation-authenticated.yml@integration ref`。AWS State は `workflow_dispatch` のみ、GCP image-build は `push` も許可 | [`foundation_contract.py`](../../infra/mypage-platform/scripts/foundation_contract.py) |
-| MyPage Backend deployer WIF | `ci.yml` + `mypage-backend-authenticated.yml`、`workflow_dispatch` または `push`、Environment `mypage-dev-backend` | [`backend_identity.py`](../../infra/mypage-platform/scripts/backend_identity.py) |
-| MyPage Hosting deployer WIF | `ci.yml` + `mypage-hosting-authenticated.yml`、Environment `mypage-dev-hosting` | [MyPage配備手順](../mypage/release/README.md) |
+| MyPage foundation GCP WIF / AWS State role | `terraform.yml@integration ref`（image-build は `deploy-mypage-api.yml` / `deploy-mypage-maintenance.yml`）+ `mypage-foundation-authenticated.yml@integration ref`、`workflow_dispatch`（DEV Plan は owner の PR Plan も） | [`foundation_contract.py`](../../infra/mypage-platform/scripts/foundation_contract.py) |
+| MyPage Backend deployer WIF | `deploy-mypage-api.yml` + `mypage-backend-authenticated.yml`、`workflow_dispatch`、Environment `mypage-dev-backend` | [`backend_identity.py`](../../infra/mypage-platform/scripts/backend_identity.py) |
+| MyPage Hosting deployer WIF | `deploy-mypage-frontend.yml` + `mypage-hosting-authenticated.yml`、`workflow_dispatch`、Environment `mypage-dev-hosting` | [MyPage配備手順](../mypage/release/README.md) |
 | Maintenance invoker WIF | `workflow_ref == mypage-maintenance.yml@<env ref>`（最上位workflow直接）、Environment `mypage-maintenance-<env>` | [`modules/runtime/main.tf`](../../infra/mypage-platform/modules/runtime/main.tf) |
 
 したがって、新しい最上位workflowへ移すたびに、次の順序を守る。
@@ -249,7 +251,7 @@ PR Plan を DEV の手動 Plan に統合する PR（#1527）を取り込んだ�
 
 | 対象 | 方法 |
 | --- | --- |
-| Core DEV GCP WIF（`terraform-normal` pool） | condition を `bootstrap_normal_ops.condition(('ci.yml', 'terraform.yml'))`（移行中の2 caller + PR 節）へ `update-oidc` で置き換え、`enable_normal_integration.py --verify-gcp` で readback する |
+| Core DEV GCP WIF（`terraform-normal` pool） | condition を `bootstrap_normal_ops.CONDITION`（`terraform.yml` の dispatch 節 + PR 節）へ `update-oidc` で置き換え、`enable_normal_integration.py --verify-gcp` で readback する。当時は移行中の `ci.yml` を含む2 caller だったが、2026-11-01 に `ci.yml` を削除した（4.2）。監査も `ci.yml` を含む条件を拒否する |
 | Core DEV AWS State role（`youtube-study-space-terraform-dev-plan`） | trust の `StringLike` `sub` に PR 用 subject（`enable_normal_integration.custom_subject('plan', 'refs/pull/*/merge', event_name='pull_request')`）を追加し、`--verify-aws` で readback する。Apply role は変更しない |
 | MyPage DEV foundation GCP WIF（`mypage-foundation` / `github-actions`） | `foundation_contract.py provider-condition` の出力で condition を置き換える |
 | MyPage DEV AWS Plan role | `foundation_contract.py trust-policy <account> plan` の出力で trust を置き換える（PR 用の statement が加わる） |
