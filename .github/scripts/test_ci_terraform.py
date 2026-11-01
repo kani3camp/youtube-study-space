@@ -192,21 +192,22 @@ class TerraformWorkflowTest(unittest.TestCase):
                 self.assertEqual(job['permissions'], {'contents': 'read', 'id-token': 'write'})
                 self.assertNotIn('continue-on-error', job)
 
-    def test_credentialless_validation_and_every_selected_plan_precede_any_apply(self):
+    def test_validation_and_mypage_preflight_precede_apply_without_outer_core_plan(self):
         self.assertEqual(self.jobs['validate']['uses'], './.github/workflows/ci-gcp-terraform.yml')
         self.assertEqual(self.jobs['validate']['with'], {'source_sha': '${{ needs.select.outputs.validation_sha }}'})
         for name in ('core-plan', 'mypage-plan'):
             self.assertEqual(self.jobs[name]['needs'], ['select', 'validate'])
             self.assertNotIn('always()', self.jobs[name]['if'])
         core, mypage = self.jobs['core-apply'], self.jobs['mypage-apply']
-        self.assertEqual(core['needs'], ['select', 'core-plan', 'mypage-plan'])
+        self.assertEqual(core['needs'], ['select', 'validate', 'mypage-plan'])
         self.assertEqual(mypage['needs'], ['select', 'core-plan', 'mypage-plan', 'core-apply'])
         for job in (core, mypage):
             # Cancelling the run after the Plans must never start an Apply.
             self.assertTrue(job['if'].startswith('${{ !cancelled() && '))
             self.assertIn("inputs.operation == 'apply'", job['if'])
-            self.assertIn("needs.core-plan.result == 'success'", job['if'])
             self.assertIn("needs.mypage-plan.result == 'success'", job['if'])
+        self.assertIn("needs.validate.result == 'success'", core['if'])
+        self.assertIn("needs.core-plan.result == 'success' || needs.core-plan.result == 'skipped'", mypage['if'])
         # MyPage applies after Core unless only MyPage was selected.
         self.assertIn("needs.core-apply.result == 'success' || (inputs.component == 'mypage' && needs.core-apply.result == 'skipped')", mypage['if'])
 
@@ -220,15 +221,21 @@ class TerraformWorkflowTest(unittest.TestCase):
                     'CORE_APPLY_RESULT': core_apply, 'MYPAGE_APPLY_RESULT': mypage_apply}
         passing = (
             ('plan', 'all', results('success', 'success', 'skipped', 'skipped'), ok),
-            ('apply', 'all', results('success', 'success', 'success', 'success'), ok),
-            ('apply', 'core', results('success', 'skipped', 'success', 'skipped'), ok),
+            ('plan', 'core', results('success', 'skipped', 'skipped', 'skipped'), ok),
+            ('plan', 'mypage', results('skipped', 'success', 'skipped', 'skipped'), ok),
+            ('apply', 'all', results('skipped', 'success', 'success', 'success'), ok),
+            ('apply', 'core', results('skipped', 'skipped', 'success', 'skipped'), ok),
             ('apply', 'mypage', results('skipped', 'success', 'skipped', 'success'), ok),
-            ('apply', 'all', results('success', 'skipped', 'success', 'skipped'), ok | {'MYPAGE_STAGE': 'disabled'}),
+            ('apply', 'all', results('skipped', 'skipped', 'success', 'skipped'), ok | {'MYPAGE_STAGE': 'disabled'}),
         )
         for operation, component, values, base in passing:
             with self.subTest(operation=operation, component=component, values=values):
                 self.assertEqual(self.run_step('gate', OPERATION=operation, COMPONENT=component, **base, **values), 0)
         failing = (
+            ('apply', 'all', results('success', 'success', 'success', 'success'), ok),
+            ('apply', 'core', results('success', 'skipped', 'success', 'skipped'), ok),
+            ('apply', 'all', results('skipped', 'failure', 'skipped', 'skipped'), ok),
+            ('apply', 'all', results('skipped', 'success', 'cancelled', 'skipped'), ok),
             ('apply', 'all', results('success', 'success', 'success', 'skipped'), ok),
             ('apply', 'all', results('success', 'failure', 'skipped', 'skipped'), ok),
             ('plan', 'all', results('success', 'success', 'success', 'skipped'), ok),

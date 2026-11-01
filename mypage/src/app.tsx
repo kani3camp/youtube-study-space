@@ -27,7 +27,6 @@ import {
 	AccountAvatar,
 	ExternalLink,
 	guideURL,
-	liveURL,
 	MyPageView,
 } from './features/mypage/view'
 import { maintenanceDestination } from './maintenance'
@@ -35,6 +34,7 @@ import { maintenanceAnnouncementURLForProject } from './maintenance-announcement
 import { PrivacyPolicy, PublicPolicyContact, TermsOfUse } from './policies'
 import { consentKey, createPrivacy } from './privacy'
 import type { BrowserRuntime, ChannelConfirmation } from './runtime'
+import { youtubeChannelURLsForProject } from './youtube-channel'
 
 type LoginSearch = {
 	error?: string
@@ -89,6 +89,9 @@ export function createApp(
 	maintenanceAnnouncementURL = maintenanceAnnouncementURLForProject(
 		import.meta.env.VITE_FIREBASE_PROJECT_ID,
 	),
+	liveURL = youtubeChannelURLsForProject(
+		import.meta.env.VITE_FIREBASE_PROJECT_ID,
+	)?.live ?? null,
 ) {
 	function useMemory() {
 		return useSyncExternalStore(
@@ -466,7 +469,9 @@ export function createApp(
 					<Link className="button primary" to="/login">
 						マイページへ
 					</Link>
-					<ExternalLink href={liveURL}>YouTubeライブを開く</ExternalLink>
+					{liveURL && (
+						<ExternalLink href={liveURL}>YouTubeライブを開く</ExternalLink>
+					)}
 					<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
 				</div>
 			</main>
@@ -926,6 +931,7 @@ export function createApp(
 				refresh={() => void runtime.memory.refresh(true)}
 				logout={() => void runtime.memory.logout()}
 				cookieSettings={openCookieSettings}
+				liveURL={liveURL}
 			/>
 		)
 	}
