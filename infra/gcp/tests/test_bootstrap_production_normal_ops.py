@@ -430,7 +430,7 @@ class ProductionBootstrap(unittest.TestCase):
     def test_main_noop_evidence_rejects_stale_rerun_migration_and_failed_runs(self):
         run = {"id": 123, "head_sha": "a" * 40, "run_attempt": 1, "head_branch": "main",
                "event": "workflow_dispatch", "status": "completed", "conclusion": "success",
-               "path": ".github/workflows/ci.yml", "repository": {"id": 340900071},
+               "path": ".github/workflows/terraform.yml", "repository": {"id": 340900071},
                "head_repository": {"id": 340900071}, "actor": {"id": 54093651},
                "triggering_actor": {"id": 54093651}}
         job = {"id": 456, "run_id": 123, "head_sha": "a" * 40,

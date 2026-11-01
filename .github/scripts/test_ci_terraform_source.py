@@ -1,4 +1,4 @@
-"""検査対象SHAとPlan/Apply対象SHAの一致、および資格情報の分離を検証する。"""
+"""terraform.ymlの検査対象SHAとPlan/Apply対象SHAの一致、および資格情報の分離を検証する。"""
 from contextlib import redirect_stdout
 import importlib.util
 import io
@@ -9,19 +9,21 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from test_ci_workflows import ROOT, TERRAFORM_MODE, load
+from test_ci_workflows import ROOT, load
+
+TERRAFORM_MODE = "${{ inputs.operation == 'apply' && 'normal-apply' || 'normal-plan' }}"
 
 sys.path.insert(0, str(ROOT / 'infra/gcp/tests'))
 import test_terraform_source as fixtures
 
-spec = importlib.util.spec_from_file_location('ci_terraform_source', ROOT / '.github/scripts/ci-terraform-source.py')
+spec = importlib.util.spec_from_file_location('terraform_source_pin', ROOT / '.github/scripts/terraform_source_pin.py')
 resolver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(resolver)
 
 
 class SelectedValidationSourceTest(unittest.TestCase):
     def environment(self, **changes):
-        env = fixtures.env() | {'CI_EXECUTION_MODE': '検査+plan', 'NORMAL_MODE': 'normal-plan',
+        env = fixtures.env() | {'NORMAL_MODE': 'normal-plan',
                                 'NORMAL_EXPECTED_SHA': '', 'GITHUB_TOKEN': 'FIXTURE_TOKEN'}
         env.pop('NORMAL_SOURCE_SHA')
         return env | changes
@@ -78,14 +80,15 @@ class SelectedValidationSourceTest(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 resolver.resolve(env | change)
 
-    def test_pr_and_validation_only_keep_controller_commit_and_ignore_terraform_selectors(self):
-        for event, mode in (('pull_request', ''), ('pull_request', '検査+apply'),
-                            ('workflow_dispatch', '全検査のみ')):
-            env = self.environment(GITHUB_EVENT_NAME=event, CI_EXECUTION_MODE=mode,
-                                   NORMAL_SOURCE_BRANCH='ignored', NORMAL_EXPECTED_SHA='ignored')
-            with patch.object(resolver.ops, 'context', side_effect=AssertionError('not authenticated')), \
-                    patch.object(resolver.source, 'resolve', side_effect=AssertionError('no target lookup')):
-                self.assertEqual(resolver.resolve(env), env['GITHUB_SHA'])
+    def test_every_request_is_an_owner_dispatch_of_terraform_yml(self):
+        for changes in ({'GITHUB_EVENT_NAME': 'pull_request'},
+                        {'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/dev'},
+                        {'GITHUB_RUN_ATTEMPT': '2'}):
+            env = self.environment(**changes)
+            with self.subTest(changes=changes), \
+                    patch.object(resolver.source, 'resolve', side_effect=AssertionError('no target lookup')), \
+                    self.assertRaises(ValueError):
+                resolver.resolve(env)
 
     def test_untrusted_context_and_selector_failure_publish_no_validation_sha(self):
         for changes in ({'GITHUB_ACTOR_ID': '0'}, {'NORMAL_EXPECTED_SHA': 'invalid'},
@@ -109,40 +112,49 @@ class SelectedValidationSourceTest(unittest.TestCase):
             self.assertEqual(outputs['validation_sha'], 'a' * 40)
 
     def test_workflow_checks_and_operations_share_sha_but_keep_separate_credentials(self):
-        ci = load(ROOT / '.github/workflows/ci.yml')
-        jobs = ci['jobs']
-        selection = next(step for step in jobs['changes']['steps'] if step.get('id') == 'source')
-        self.assertEqual(jobs['changes']['steps'][0]['with']['ref'], '${{ github.sha }}')
-        self.assertEqual(jobs['ci-gate']['steps'][0]['with'],
-                         {'ref': '${{ github.sha }}', 'persist-credentials': False})
-        self.assertEqual(selection['run'], 'python3 .github/scripts/ci-terraform-source.py')
+        workflow = load(ROOT / '.github/workflows/terraform.yml')
+        jobs = workflow['jobs']
+        self.assertEqual(set(workflow['on']), {'workflow_dispatch'})
+        self.assertEqual(jobs['select']['steps'][0]['with'],
+                         {'ref': '${{ github.sha }}', 'fetch-depth': 0, 'persist-credentials': False})
+        selection = next(step for step in jobs['select']['steps'] if step.get('id') == 'source')
+        self.assertEqual(selection['run'], 'python3 .github/scripts/terraform_source_pin.py')
         self.assertEqual(selection['env'], {
-            'CI_EXECUTION_MODE': '${{ inputs.execution_mode }}',
-            'NORMAL_TARGET': '${{ inputs.terraform_target }}', 'NORMAL_MODE': TERRAFORM_MODE,
-            'NORMAL_EXPECTED_SHA': '${{ inputs.terraform_expected_sha }}',
-            'NORMAL_SOURCE_BRANCH': '${{ inputs.terraform_source_branch }}', 'GITHUB_TOKEN': '${{ github.token }}'})
-        pinned = '${{ needs.changes.outputs.validation_sha }}'
-        checkout = jobs['gcp-terraform-validate']['steps'][2]
-        self.assertEqual(checkout['with'], {'ref': pinned, 'path': '.ci-source', 'persist-credentials': False})
-        self.assertEqual(jobs['repository']['with'], {'source_sha': pinned})
-        repository = load(ROOT / '.github/workflows/ci-repository.yml')
-        for job in repository['jobs'].values():
-            self.assertEqual(job['steps'][2]['with'],
-                             {'ref': '${{ inputs.source_sha }}', 'path': '.ci-source', 'persist-credentials': False})
-        for name in ('changes', 'gcp-terraform-validate', 'repository'):
-            self.assertNotIn('id-token', jobs[name].get('permissions', ci['permissions']))
+            'NORMAL_TARGET': '${{ steps.select.outputs.target }}', 'NORMAL_MODE': TERRAFORM_MODE,
+            'NORMAL_EXPECTED_SHA': "${{ inputs.environment == 'production' && github.sha || inputs.source_sha }}",
+            'NORMAL_SOURCE_BRANCH': '${{ inputs.source_branch }}', 'GITHUB_TOKEN': '${{ github.token }}'})
+        pinned = '${{ needs.select.outputs.validation_sha }}'
+        self.assertEqual(jobs['validate']['uses'], './.github/workflows/ci-gcp-terraform.yml')
+        self.assertEqual(jobs['validate']['with'], {'source_sha': pinned})
+        validation = load(ROOT / '.github/workflows/ci-gcp-terraform.yml')
+        checkout = validation['jobs']['validate']['steps'][2]
+        self.assertEqual(checkout['with'], {'ref': '${{ inputs.source_sha }}', 'path': '.ci-source', 'persist-credentials': False})
+        for name in ('select', 'validate'):
+            self.assertNotIn('id-token', jobs[name].get('permissions', workflow['permissions']))
             self.assertNotIn('environment', jobs[name])
             self.assertNotIn('secrets', jobs[name])
-        authenticated = jobs['gcp-terraform-authenticated']
-        self.assertEqual(authenticated['with']['expected_sha'], pinned)
-        self.assertEqual(authenticated['with']['source_branch'], '')
-        self.assertIn('ci-gate', authenticated['needs'])
+        for name, mode in (('core-plan', 'normal-plan'), ('core-apply', 'normal-apply')):
+            call = jobs[name]
+            self.assertEqual(call['uses'], './.github/workflows/gcp-terraform-authenticated.yml')
+            self.assertEqual(call['with'], {'target': '${{ needs.select.outputs.target }}', 'mode': mode,
+                                            'expected_sha': pinned, 'source_branch': ''})
+            self.assertEqual(call['permissions'], {'contents': 'read', 'id-token': 'write'})
+        self.assertIn('validate', jobs['core-plan']['needs'])
+        self.assertIn('core-plan', jobs['core-apply']['needs'])
+        self.assertTrue(jobs['core-apply']['if'].startswith('${{ !cancelled() && '))
+        self.assertNotIn('always()', jobs['core-apply']['if'])
         reusable = load(ROOT / '.github/workflows/gcp-terraform-authenticated.yml')
         for role in ('normal_plan', 'normal_apply'):
             steps = reusable['jobs'][role]['steps']
             self.assertEqual(steps[0]['with']['ref'], '${{ github.sha }}')
             self.assertEqual(steps[1]['with']['ref'], '${{ needs.preflight.outputs.source_sha }}')
 
+    def test_selection_refuses_mypage_and_production_source_inputs(self):
+        run = next(step for step in load(ROOT / '.github/workflows/terraform.yml')['jobs']['select']['steps']
+                   if step.get('id') == 'select')['run']
+        self.assertIn('plan:all|plan:core|apply:all|apply:core) ;;', run)
+        self.assertIn('*:mypage)', run)
+        self.assertIn('if [[ "${target}" == prod && ( -n "${SOURCE_BRANCH}" || -n "${SOURCE_SHA}" ) ]]; then', run)
 
 if __name__ == '__main__':
     unittest.main()

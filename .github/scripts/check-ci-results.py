@@ -2,7 +2,6 @@
 """Fail closed on missing detection, failed callees, or skipped selected CI."""
 import json
 import os
-import re
 import sys
 
 GROUPS = (
@@ -32,11 +31,8 @@ def validate(needs):
         if needs[name]['result'] != 'success':
             raise ValueError(f'{name}: must succeed')
     outputs = needs['changes'].get('outputs', {})
-    if (set(outputs) != set(GROUPS) | {'validation_sha'}
-            or any(outputs[group] not in ('true', 'false') for group in GROUPS)):
+    if set(outputs) != set(GROUPS) or any(value not in ('true', 'false') for value in outputs.values()):
         raise ValueError('Change detection outputs are missing or malformed')
-    if not isinstance(outputs['validation_sha'], str) or re.fullmatch('[0-9a-f]{40}', outputs['validation_sha']) is None:
-        raise ValueError('The validated source commit is missing or malformed')
     for name, groups in DOMAIN_GROUPS.items():
         selected = outputs['all'] == 'true' or any(outputs[group] == 'true' for group in groups)
         if selected and needs[name]['result'] != 'success':

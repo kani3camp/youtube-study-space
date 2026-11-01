@@ -2,40 +2,16 @@ name: CI
 
 on:
   pull_request:
+  # Manual runs re-validate every domain without credentials. Terraform
+  # Plan / Apply is the separate Terraform workflow (terraform.yml).
   workflow_dispatch:
-    inputs:
-      execution_mode:
-        description: 実行内容（plan/apply時の検査はTerraform関連＋Repository共通）
-        required: false
-        default: 全検査のみ
-        type: choice
-        options:
-          - 全検査のみ
-          - 検査+plan
-          - 検査+apply
-      terraform_target:
-        description: Terraform target environment
-        required: false
-        default: dev
-        type: choice
-        options:
-          - dev
-          - prod
-      terraform_expected_sha:
-        description: DEVの対象SHA（省略可）、PRODの実行元SHA（必須）
-        required: false
-        type: string
-      terraform_source_branch:
-        description: DEVの対象ブランチ（SHAのみも可。両方空欄は実行元自身）
-        required: false
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査+plan' || inputs.execution_mode == '検査+apply')) }}
+  cancel-in-progress: true
 
 jobs:
   changes:
@@ -56,7 +32,6 @@ jobs:
       firestore_integration: ${{ steps.detect.outputs.firestore_integration }}
       formal_spec: ${{ steps.detect.outputs.formal_spec }}
       all: ${{ steps.detect.outputs.all }}
-      validation_sha: ${{ steps.source.outputs.validation_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -64,17 +39,6 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-
-      - name: Pin the validation and Terraform source commit
-        id: source
-        env:
-          CI_EXECUTION_MODE: ${{ inputs.execution_mode }}
-          NORMAL_TARGET: ${{ inputs.terraform_target }}
-          NORMAL_MODE: ${{ inputs.execution_mode == '検査+apply' && 'normal-apply' || 'normal-plan' }}
-          NORMAL_EXPECTED_SHA: ${{ inputs.terraform_expected_sha }}
-          NORMAL_SOURCE_BRANCH: ${{ inputs.terraform_source_branch }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python3 .github/scripts/ci-terraform-source.py
 
       - name: Test CI path detector
         run: bash .github/scripts/test-detect-ci-paths.sh
@@ -84,7 +48,6 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CI_AUTHENTICATED_TERRAFORM_DISPATCH: ${{ github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査+plan' || inputs.execution_mode == '検査+apply') }}
         run: bash .github/scripts/detect-ci-paths.sh
 
   system:
@@ -128,70 +91,15 @@ jobs:
     needs: changes
     uses: ./.github/workflows/ci-repository.yml
     with:
-      source_sha: ${{ needs.changes.outputs.validation_sha }}
+      source_sha: ${{ github.sha }}
 
   gcp-terraform-validate:
-    name: GCP Terraform Validate
+    name: GCP Terraform
     needs: changes
     if: ${{ needs.changes.outputs.gcp_terraform == 'true' || needs.changes.outputs.all == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout trusted validation controller
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Prepare isolated validation tools
-        uses: ./.github/actions/prepare-ci-validation
-      - name: Checkout exact validation source
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.changes.outputs.validation_sha }}
-          path: .ci-source
-          persist-credentials: false
-      - name: Run isolated validation
-        env:
-          VALIDATION_SHA: ${{ needs.changes.outputs.validation_sha }}
-        run: |
-          # Do not expose runner tokens, command files or the Docker socket to target code.
-          marker="$(openssl rand -hex 32)"
-          echo "::stop-commands::${marker}"
-          set +e
-          docker run --rm --init --read-only \
-            --cap-drop=ALL --security-opt=no-new-privileges \
-            --pids-limit=256 --memory=6g --cpus=2 \
-            --tmpfs /tmp:rw,exec,mode=1777 \
-            --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
-            --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
-            --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
-            yss-ci-validation:local terraform
-          result=$?
-          echo "::${marker}::"
-          exit "$result"
-
-  gcp-terraform-authenticated:
-    name: GCP Terraform Authenticated
-    needs: [changes, ci-gate]
-    if: ${{ !cancelled() && needs.ci-gate.result == 'success' && github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査+plan' || inputs.execution_mode == '検査+apply') }}
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/gcp-terraform-authenticated.yml
-    secrets:
-      GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
-      GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
-      AWS_TERRAFORM_BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
-      AWS_TERRAFORM_BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
-      AWS_TERRAFORM_STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
-      AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
-      GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
+    uses: ./.github/workflows/ci-gcp-terraform.yml
     with:
-      target: ${{ inputs.terraform_target }}
-      mode: ${{ inputs.execution_mode == '検査+apply' && 'normal-apply' || 'normal-plan' }}
-      # Use the checked commit, never resolve a moving branch again after CI.
-      expected_sha: ${{ needs.changes.outputs.validation_sha }}
-      source_branch: ''
+      source_sha: ${{ github.sha }}
 
   ci-gate:
     name: CI Gate

@@ -11,7 +11,7 @@ from test_ci_workflows import ROOT, load
 
 class ValidationSandboxTest(unittest.TestCase):
     def jobs(self):
-        yield load(ROOT / '.github/workflows/ci.yml')['jobs']['gcp-terraform-validate']
+        yield load(ROOT / '.github/workflows/ci-gcp-terraform.yml')['jobs']['validate']
         yield from load(ROOT / '.github/workflows/ci-repository.yml')['jobs'].values()
 
     def test_only_isolated_docker_execution_follows_target_checkout(self):

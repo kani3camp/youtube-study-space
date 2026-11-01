@@ -1,4 +1,4 @@
-"""Contracts for modular PR validation and manual validation/Plan/Apply selection."""
+"""Contracts for credentialless modular PR/manual validation. Terraform Plan/Apply is terraform.yml."""
 import copy
 import importlib.util
 import itertools
@@ -34,11 +34,7 @@ GROUPS = ('system', 'room_image_prompt', 'menu_image_generator', 'video_maker_si
           'figma_plugin', 'youtube_monitor', 'docs_site', 'aws_cdk', 'gcp_terraform',
           'node_projects', 'firestore_integration', 'formal_spec', 'all')
 DEPENDENCIES = {'changes', *MODULES, 'gcp-terraform-validate'}
-AUTH_SECRETS = ('GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', 'GCP_TERRAFORM_NORMAL_WIF_PROVIDER', 'AWS_TERRAFORM_BACKEND_ROLE_ARN', 'AWS_TERRAFORM_BACKEND_ROLE_ID',
-                'AWS_TERRAFORM_STATE_BUCKET', 'AWS_TERRAFORM_STATE_ACCOUNT_ID',
-                'GCP_TERRAFORM_MANAGED_INPUTS_JSON')
-AUTH_DISPATCH = "github.event_name == 'workflow_dispatch' && (inputs.execution_mode == '検査+plan' || inputs.execution_mode == '検査+apply')"
-TERRAFORM_MODE = "${{ inputs.execution_mode == '検査+apply' && 'normal-apply' || 'normal-plan' }}"
+TERRAFORM_MODULE = './.github/workflows/ci-gcp-terraform.yml'
 
 
 def selected(expression, flags, inputs=None):
@@ -56,13 +52,14 @@ def selected(expression, flags, inputs=None):
     return any(terms)
 
 
-def validate(caller, modules):
+def validate(caller, modules, terraform):
     jobs = caller['jobs']
     require(caller['name'] == 'CI', 'CI workflow name is stable')
-    require(set(caller['on']) == {'pull_request', 'workflow_dispatch'} and caller['on']['pull_request'] is None,
-            'All pull requests use the orchestrator')
+    require(set(caller['on']) == {'pull_request', 'workflow_dispatch'} and caller['on']['pull_request'] is None
+            and caller['on']['workflow_dispatch'] is None,
+            'All pull requests use the orchestrator; manual runs take no operational input')
     require(caller['permissions'] == {'contents': 'read'}, 'Read-only default permissions')
-    require(set(jobs) == DEPENDENCIES | {'ci-gate', 'gcp-terraform-authenticated'}, 'Every caller job is accounted for')
+    require(set(jobs) == DEPENDENCIES | {'ci-gate'}, 'Every caller job is accounted for')
     gate = jobs['ci-gate']
     require(gate['name'] == 'CI Gate' and gate['if'] == 'always()', 'Stable always-running gate')
     require(set(gate['needs']) == DEPENDENCIES, 'Gate depends on every quality module and detection')
@@ -71,14 +68,21 @@ def validate(caller, modules):
             'Execute the tested result gate unconditionally')
     require(check['env'] == {'CI_NEEDS': '${{ toJSON(needs) }}'},
             'Gate receives real validation results')
-    require(jobs['gcp-terraform-validate']['name'] == 'GCP Terraform Validate'
-            and 'runs-on' in jobs['gcp-terraform-validate'] and 'uses' not in jobs['gcp-terraform-validate'],
-            'Terraform required check stays direct')
-    require(jobs['gcp-terraform-validate']['needs'] == 'changes', 'Terraform depends on detection')
-    require(jobs['changes']['outputs'] == {g: '${{ steps.detect.outputs.' + g + ' }}' for g in GROUPS}
-            | {'validation_sha': '${{ steps.source.outputs.validation_sha }}'},
+    call = jobs['gcp-terraform-validate']
+    require(set(call) == {'name', 'needs', 'if', 'uses', 'with'} and call['uses'] == TERRAFORM_MODULE
+            and call['needs'] == 'changes' and call['with'] == {'source_sha': '${{ github.sha }}'},
+            'Terraform validation is the shared credentialless module on this commit')
+    require(terraform['on'] == {'workflow_call': {'inputs': {'source_sha': {
+                'description': 'Exact commit to validate, pinned by the caller', 'required': True, 'type': 'string'}}}}
+            and terraform['permissions'] == {'contents': 'read'}
+            and set(terraform['jobs']) == {'validate'}
+            and terraform['jobs']['validate']['name'] == 'GCP Terraform Validate',
+            'Typed read-only Terraform validation module')
+    require(jobs['changes']['outputs'] == {g: '${{ steps.detect.outputs.' + g + ' }}' for g in GROUPS},
             'All detection outputs reach callers')
     require(jobs['changes']['steps'][-1]['run'] == 'bash .github/scripts/detect-ci-paths.sh', 'Use canonical detector')
+    require('CI_AUTHENTICATED_TERRAFORM_DISPATCH' not in jobs['changes']['steps'][-1].get('env', {}),
+            'Manual CI never narrows validation for an operation')
     for name, members in MODULES.items():
         call = jobs[name]
         expected_keys = {'name', 'uses', 'needs', 'with'} if name == 'repository' else {'name', 'uses', 'needs', 'if'}
@@ -86,7 +90,7 @@ def validate(caller, modules):
             expected_keys.add('with')
         require(set(call) == expected_keys, 'Bounded quality caller configuration')
         require(call['uses'] == f'./.github/workflows/ci-{name}.yml', 'Use same-tree quality modules')
-        require(call['needs'] == 'changes', 'Selected calls depend on detection and source resolution')
+        require(call['needs'] == 'changes', 'Selected calls depend on detection')
         module = modules[name]
         require(set(module) == {'name', 'on', 'permissions', 'jobs'}, 'No additional quality triggers/configuration')
         inputs = {} if name in ('repository', 'infra') else {
@@ -94,8 +98,8 @@ def validate(caller, modules):
         if name == 'repository':
             inputs = {'source_sha': {'description': 'Exact commit to validate, pinned by the CI controller',
                                      'required': True, 'type': 'string'}}
-            require(call['with'] == {'source_sha': '${{ needs.changes.outputs.validation_sha }}'},
-                    'Repository validation uses the pinned source')
+            require(call['with'] == {'source_sha': '${{ github.sha }}'},
+                    'Repository validation checks this commit')
         require(module['on'] == {'workflow_call': {'inputs': inputs} if inputs else None}, 'Typed call-only modules')
         require(module['permissions'] == {'contents': 'read'}, 'Quality modules are read-only')
         require(set(module['jobs']) == set(members), 'Every existing validation remains in its domain')
@@ -107,98 +111,45 @@ def validate(caller, modules):
                 require('if' not in leaf, 'Selected leaf cannot skip')
             else:
                 require(leaf.get('if') == '${{ inputs.' + group + ' }}', 'Leaf uses its typed domain selection')
+    for module in (*modules.values(), terraform):
         for key, value in yaml_source.walk(module):
             require(key not in ('secrets', 'environment', 'continue-on-error', 'permissions')
                     or (key == 'permissions' and value == {'contents': 'read'}), 'No elevated/ignored quality execution')
     for key, value in yaml_source.walk(caller):
-        require(key != 'continue-on-error', 'Caller failures cannot be ignored')
-    for name, secrets, arguments in (
-        ('gcp-terraform-authenticated', AUTH_SECRETS,
-         {'target': '${{ inputs.terraform_target }}', 'mode': TERRAFORM_MODE, 'expected_sha': '${{ needs.changes.outputs.validation_sha }}',
-          'source_branch': ''}),
-    ):
-        call = jobs[name]
-        require(set(call) == {'name', 'if', 'needs', 'permissions', 'uses', 'secrets', 'with'}, 'Operational caller stays direct')
-        require(call['needs'] == ['changes', 'ci-gate'], 'Validation must succeed before Plan or Apply using its pinned SHA')
-        require(call['if'] == "${{ !cancelled() && needs.ci-gate.result == 'success' && " + AUTH_DISPATCH + ' }}',
-                'Only successful validation followed by explicit manual Plan/Apply can authenticate')
-        require(call['permissions'] == {'contents': 'read', 'id-token': 'write'}, 'Only operational calls grant OIDC')
-        require(call['uses'] == './.github/workflows/' + name + '.yml', 'Operational workflow path stays fixed')
-        require(call['secrets'] == {s: '${{ secrets.' + s + ' }}' for s in secrets}, 'Explicit operational secrets')
-        require(call['with'] == arguments, 'Operational inputs stay fixed')
-    dispatch = caller['on']['workflow_dispatch']['inputs']
-    require(set(dispatch) == {'execution_mode', 'terraform_target', 'terraform_expected_sha', 'terraform_source_branch'},
-            'No retired operational mode/input returns')
-    for key, default, options in (('terraform_target', 'dev', ['dev', 'prod']),
-                                  ('execution_mode', '全検査のみ', ['全検査のみ', '検査+plan', '検査+apply'])):
-        require(dispatch[key]['type'] == 'choice' and dispatch[key]['default'] == default
-                and dispatch[key]['options'] == options and dispatch[key]['required'] is False, 'Dispatch choices stay fixed')
+        require(key not in ('continue-on-error', 'secrets', 'environment'), 'Caller failures cannot be ignored; no credentials')
+        require(key != 'permissions' or value == {'contents': 'read'}, 'CI never grants OIDC or write permissions')
+        require(not (isinstance(value, str) and 'gcp-terraform-authenticated.yml' in value),
+                'CI never calls authenticated Terraform')
     require(caller['concurrency'] == {
         'group': '${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}',
-        'cancel-in-progress': '${{ !(' + AUTH_DISPATCH + ') }}'},
-        'Authenticated execution cannot be auto-cancelled')
-    require(jobs['changes']['steps'][-1]['env']['CI_AUTHENTICATED_TERRAFORM_DISPATCH'] == '${{ ' + AUTH_DISPATCH + ' }}',
-            'Only authenticated manual operations narrow validation to Terraform')
+        'cancel-in-progress': True},
+        'Superseded validation runs are cancelled')
 
 
 class WorkflowContractsTest(unittest.TestCase):
     def setUp(self):
         self.caller = load(ROOT / '.github/workflows/ci.yml')
         self.modules = {name: load(ROOT / f'.github/workflows/ci-{name}.yml') for name in MODULES}
+        self.terraform = load(ROOT / '.github/workflows/ci-gcp-terraform.yml')
 
-    def test_workflow_structure_and_authentication_contract(self):
-        validate(self.caller, self.modules)
+    def test_workflow_structure_and_credentialless_contract(self):
+        validate(self.caller, self.modules, self.terraform)
 
-    def test_manual_choices_and_prs_select_scope_operation_and_cancellation(self):
+    def test_manual_runs_revalidate_every_domain(self):
         import os
         import subprocess
-        jobs = self.caller['jobs']
-        for event, mode, authenticated, operation in (
-            ('workflow_dispatch', '全検査のみ', False, None),
-            ('workflow_dispatch', '検査+plan', True, 'normal-plan'),
-            ('workflow_dispatch', '検査+apply', True, 'normal-apply'),
-            ('workflow_dispatch', 'unknown', False, None),
-            ('workflow_dispatch', '', False, None),
-            ('pull_request', '検査+apply', False, None),
-            ('pull_request', '', False, None),
-        ):
-            with self.subTest(event=event, mode=mode):
-                def evaluate(expression, gate_result='success', cancelled=False):
-                    # Evaluate this contract's small boolean/string expression subset.
-                    expression = expression.removeprefix('${{').removesuffix('}}').strip()
-                    expression = expression.replace('github.event_name', repr(event)).replace('inputs.execution_mode', repr(mode))
-                    expression = expression.replace('needs.ci-gate.result', repr(gate_result)).replace('cancelled()', repr(cancelled))
-                    expression = expression.replace('&&', ' and ').replace('||', ' or ').replace('!', ' not ')
-                    return eval(expression, {'__builtins__': {}})
-
-                admitted = evaluate(jobs['gcp-terraform-authenticated']['if'])
-                self.assertEqual(admitted, authenticated)
-                self.assertEqual(evaluate(self.caller['concurrency']['cancel-in-progress']), not authenticated)
-                marker = evaluate(jobs['changes']['steps'][-1]['env']['CI_AUTHENTICATED_TERRAFORM_DISPATCH'])
-                self.assertEqual(marker, authenticated)
-                if admitted:
-                    self.assertEqual(evaluate(jobs['gcp-terraform-authenticated']['with']['mode']), operation)
-                for gate_result in ('success', 'failure', 'cancelled', 'skipped'):
-                    for cancelled in (False, True):
-                        self.assertEqual(evaluate(jobs['gcp-terraform-authenticated']['if'], gate_result, cancelled),
-                                         authenticated and gate_result == 'success' and not cancelled)
-                # Execute actual routing: full validation vs Terraform validation only.
-                if event == 'workflow_dispatch':
-                    result = subprocess.run(['bash', '.github/scripts/detect-ci-paths.sh'], cwd=ROOT,
-                        env={'PATH': os.environ.get('PATH', os.defpath), 'GITHUB_EVENT_NAME': event,
-                             'CI_AUTHENTICATED_TERRAFORM_DISPATCH': str(marker).lower()},
-                        capture_output=True, text=True, check=True)
-                    outputs = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
-                    self.assertEqual(outputs['all'], str(not authenticated).lower())
-                    self.assertEqual(outputs['gcp_terraform'], 'true')
+        result = subprocess.run(['bash', '.github/scripts/detect-ci-paths.sh'], cwd=ROOT,
+            env={'PATH': os.environ.get('PATH', os.defpath), 'GITHUB_EVENT_NAME': 'workflow_dispatch'},
+            capture_output=True, text=True, check=True)
+        outputs = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+        self.assertEqual(outputs['all'], 'true')
 
     def test_all_8192_group_combinations_preserve_leaf_selection_and_gate_policy(self):
         import test_ci_results
         for values in itertools.product((False, True), repeat=len(GROUPS)):
             flags = dict(zip(GROUPS, values))
             needs = {name: {'result': 'skipped'} for name in DEPENDENCIES}
-            needs['changes'] = {'result': 'success', 'outputs': {g: str(v).lower() for g, v in flags.items()}
-                                | {'validation_sha': 'a' * 40}}
+            needs['changes'] = {'result': 'success', 'outputs': {g: str(v).lower() for g, v in flags.items()}}
             needs['repository']['result'] = 'success'
             for name, members in MODULES.items():
                 call = self.caller['jobs'][name]
@@ -235,22 +186,25 @@ class WorkflowContractsTest(unittest.TestCase):
 
     def test_rejects_regressions_in_gate_selection_permissions_and_operational_caller(self):
         mutations = [
-            lambda c, m: c['on']['workflow_dispatch']['inputs']['execution_mode'].update(default='検査+plan'),
-            lambda c, m: c['on']['workflow_dispatch']['inputs']['execution_mode'].update(default='検査+apply'),
-            lambda c, m: c['jobs']['gcp-terraform-authenticated'].pop('needs'),
-            lambda c, m: c['jobs']['gcp-terraform-authenticated'].update({'if': '${{ always() }}'}),
-            lambda c, m: c['jobs']['ci-gate']['needs'].remove('changes'),
-            lambda c, m: c['jobs']['ci-gate'].update({'if': 'success()'}),
-            lambda c, m: c['jobs']['system'].update(secrets='inherit'),
-            lambda c, m: m['system']['jobs']['go-lint'].update({'continue-on-error': True}),
-            lambda c, m: m['frontend']['jobs']['youtube-monitor-test'].update({'if': '${{ false }}'}),
-            lambda c, m: m['infra'].update(permissions={'contents': 'read', 'id-token': 'write'}),
-            lambda c, m: c['jobs']['gcp-terraform-validate'].update(uses='./.github/workflows/ci-infra.yml'),
-            lambda c, m: c['jobs']['gcp-terraform-authenticated'].update(uses='./.github/workflows/ci-infra.yml'),
-            lambda c, m: c['on']['workflow_dispatch']['inputs'].update(gcp_user_activity_schema_audit={'type': 'boolean', 'default': False, 'required': False}),
+            lambda c, m, t: c['on'].update(workflow_dispatch={'inputs': {'execution_mode': {'type': 'choice'}}}),
+            lambda c, m, t: c['jobs'].update({'gcp-terraform-authenticated': {'uses': './.github/workflows/gcp-terraform-authenticated.yml'}}),
+            lambda c, m, t: c['jobs']['gcp-terraform-validate'].update(permissions={'contents': 'read', 'id-token': 'write'}),
+            lambda c, m, t: c['jobs']['gcp-terraform-validate'].update(secrets='inherit'),
+            lambda c, m, t: c['jobs']['gcp-terraform-validate']['with'].update(source_sha='${{ inputs.sha }}'),
+            lambda c, m, t: c['jobs']['ci-gate']['needs'].remove('changes'),
+            lambda c, m, t: c['jobs']['ci-gate']['needs'].remove('gcp-terraform-validate'),
+            lambda c, m, t: c['jobs']['ci-gate'].update({'if': 'success()'}),
+            lambda c, m, t: c['jobs']['system'].update(secrets='inherit'),
+            lambda c, m, t: c.update(concurrency={'group': 'x', 'cancel-in-progress': False}),
+            lambda c, m, t: m['system']['jobs']['go-lint'].update({'continue-on-error': True}),
+            lambda c, m, t: m['frontend']['jobs']['youtube-monitor-test'].update({'if': '${{ false }}'}),
+            lambda c, m, t: m['infra'].update(permissions={'contents': 'read', 'id-token': 'write'}),
+            lambda c, m, t: t['jobs']['validate'].update(environment='terraform-dev-plan'),
+            lambda c, m, t: t.update(permissions={'contents': 'read', 'id-token': 'write'}),
+            lambda c, m, t: c['jobs']['gcp-terraform-validate'].update(uses='./.github/workflows/ci-infra.yml'),
         ]
         for mutate in mutations:
-            caller, modules = copy.deepcopy(self.caller), copy.deepcopy(self.modules)
-            mutate(caller, modules)
+            caller, modules, terraform = copy.deepcopy(self.caller), copy.deepcopy(self.modules), copy.deepcopy(self.terraform)
+            mutate(caller, modules, terraform)
             with self.subTest(mutation=mutate), self.assertRaises(ValueError):
-                validate(caller, modules)
+                validate(caller, modules, terraform)
