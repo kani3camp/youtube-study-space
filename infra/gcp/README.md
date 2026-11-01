@@ -120,7 +120,7 @@ python3 infra/gcp/scripts/enable_normal_integration.py --apply
 
 プレビューは読み取りだけです。`--apply`はGitHub本人認証を確認して、DEVの2 Environmentのbranch制限を外し（No restriction）、読み戻します。GitHub Settings → Environmentsで両Environmentの「Deployment branches and tags」を「No restriction」にしても同じです。既存Environmentがない場合や、想定外のreviewer・wait timerなどの保護がある場合は、作成・上書きせず停止します。
 
-既存のAWS 7-claim subjectとGCP WIFは、本人のimmutable actor ID、repository、Environment、正規caller/reusable等を検証します。DEVのcloud trustには移行中のため旧`ci.yml`と`terraform.yml`の2 callerが併存しており、管理スクリプトはこれを読み取り検証して維持し、書き換えません（入口は`terraform.yml`だけ。旧claimは検証後に削除する）。対象source branchをOIDCのworkflow refへ入れません。
+既存のAWS 7-claim subjectとGCP WIFは、本人のimmutable actor ID、repository、Environment、正規caller/reusable等を検証します。DEVのcloud trustのcallerは`terraform.yml`だけです（旧`ci.yml`のclaimは2026-11-01に削除済み）。管理スクリプトはこれを読み取り検証し、書き換えません。対象source branchをOIDCのworkflow refへ入れません。
 
 `--verify-aws` / `--verify-gcp`は読み取り監査です。`--apply`もAWS IAM・GCP WIF・Terraform State・業務資源・本番・Environment secrets/variablesを更新しません。失敗時は固定のphaseだけを表示し、資格情報やAPIエラー本文を出力しません。
 
