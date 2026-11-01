@@ -25,6 +25,7 @@ controllerは `infra/gcp/scripts/terraform_normal_ops.py`、運用入口と設�
 | Environment Secret | DEV Plan/Apply Environmentはbranchで制限しない（No restriction）。Secretは資格情報ではない設定値だけで、資格情報の境界はAWS/GCP trustの本人検査。forkのPRにはSecretが渡らない |
 | OIDC | 既存AWS 7-claim subjectとGCP WIFによる本人・repository・Environment・正規workflow等の検証を維持。OIDCのref/SHAはEnvironmentで許可したcontrol planeのrefとSHAであり、対象source branchに置き換えない |
 | ソース | 別checkoutの同一repo・固定SHAからDEV rootとmoduleのHCL・入力・配備データをコピー。source側のworkflow／実行器は使わない。別repo・dirty checkout・symlink・未追跡の入力を拒否 |
+| 事前検査 | `terraform.yml`のselect jobが資格情報なしで対象SHAを確定（DEV Coreだけ別ブランチ／SHAを選べる。MyPageと本番は実行元のcommit）。`ci-gcp-terraform.yml`はそのSHAのソースとテストをcheckoutし、実行元からビルドした非rootコンテナ内で実行。runner環境・Actionsトークン・コマンドファイル・Dockerソケットは渡さず、ホスト側ソースはread-only。Environment Secret/OIDCなし・checkout認証情報の永続化なし。成功後だけ同じSHAを認証付きreusableへ渡す。実行元のworkflow・resolver・認証付き実行器は置き換えない |
 | 入力 | private baselineへ選択source SHAの`normal.tfvars.json`を重ね、レビュー指定も同じsource SHAから取得。projectはDEV固定 |
 | Plan | refresh付きfull-root native saved plan。Coreのcomplete/errored/checksとdriftを検査。create/updateのcomputed unknownはTerraformに委ねる |
 | delete/replace | commit内`normal-operations.json`のaddress/actions完全一致が必須。未使用指定も拒否。忘却操作・importは通常経路では拒否 |

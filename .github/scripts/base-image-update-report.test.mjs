@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   detectUnpinnedExternalBaseImages,
   parseFromStages,
+  selectPinCheckDockerfiles,
 } from "./base-image-pin-check.mjs";
 import {
   COMMENT_MARKER,
@@ -71,9 +72,41 @@ test("selectModifiedDockerfiles skips added and removed files that do not exist 
       { filename: "system/Dockerfile.new", status: "added" },
       { filename: "system/Dockerfile.old", status: "removed" },
       { filename: "system/internal/app.go", status: "modified" },
+      { filename: ".github/ci-validation/Dockerfile", status: "modified" },
     ]),
-    ["system/Dockerfile.lambda"],
+    ["system/Dockerfile.lambda", ".github/ci-validation/Dockerfile"],
   );
+});
+
+test("pin guard covers added and modified CI validation Dockerfiles without reading removed files", () => {
+  for (const status of ["added", "modified", "renamed"]) {
+    const target = { filename: ".github/ci-validation/Dockerfile", status };
+    assert.deepEqual(selectPinCheckDockerfiles([target]), [target]);
+  }
+  assert.deepEqual(selectPinCheckDockerfiles([
+    { filename: ".github/ci-validation/Dockerfile", status: "removed" },
+    { filename: ".github/ci-validation/validate.sh", status: "modified" },
+    { filename: "system/nested/Dockerfile", status: "modified" },
+  ]), []);
+  const system = { filename: "system/Dockerfile.lambda", status: "modified" };
+  assert.deepEqual(selectPinCheckDockerfiles([system]), [system]);
+});
+
+test("CI validation bases are pinned and removing either digest violates the guard", () => {
+  const content = readFileSync(".github/ci-validation/Dockerfile", "utf8");
+  const stages = parseFromStages(content);
+  assert.equal(stages.length, 2);
+  assert.deepEqual(detectUnpinnedExternalBaseImages(content), []);
+  for (const stage of stages) {
+    const pinned = parsePinnedImage(stage.image);
+    assert.ok(pinned, stage.image);
+    assert.deepEqual(detectUnpinnedExternalBaseImages(content.replace(stage.image, pinned.taggedRef)), [
+      { stage: stage.stage, line: stage.line, ref: pinned.taggedRef },
+    ]);
+  }
+  const node = parsePinnedImage(stages[0].image);
+  assert.equal(node.image, "node");
+  assert.equal(node.tag.split("-")[0], readFileSync(".node-version", "utf8").trim().split(".")[0]);
 });
 
 test("parseFromStages preserves aliases for internal-stage detection", () => {

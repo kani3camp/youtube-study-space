@@ -10,13 +10,15 @@ YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをT
 
 ## 通常のGCP Infrastructure運用
 
-手動操作の入口は `Terraform`（[`terraform.yml`](../../.github/workflows/terraform.yml)）の `workflow_dispatch` です。利用者が選ぶのは次の3項目だけです。
+手動操作の入口は `Terraform`（[`terraform.yml`](../../.github/workflows/terraform.yml)）の `workflow_dispatch` です。利用者が選ぶのは次の3項目です。
 
 - `environment`: `development` または `production`
 - `operation`: `plan` または `apply`
 - `component`: `all`（既定）・`core`・`mypage`
 
-Core GCPとMyPageは別々のTerraform Stateのまま、同じ `Terraform` 実行で扱えます。`plan` は選んだStateのPlanを完了させ、`apply` は選んだPlanがすべて成功した後にCore→MyPageの順でApplyへ進みます。Applyの各jobは自分で再Planし、Plan jobとHMACが一致した自分のplan fileだけを適用します。Stateを物理的に統合してblast radiusを広げず、手動UIだけを統一します。同じrunの最初に、資格情報なしのTerraform検査（`ci-gcp-terraform.yml`）を通します。Production Applyは `terraform-prod-apply` Environmentの承認を必須とします（required reviewersはownerがGitHubで設定する）。
+DEVのCoreだけは、任意で `source_branch`（対象ブランチ）・`source_sha`（対象SHA、40桁）を指定し、実行元とは別のブランチ／コミットのHCLをPlan/Applyできます（下記）。両方空欄なら実行元自身のコミットです。
+
+Core GCPとMyPageは別々のTerraform Stateのまま、同じ `Terraform` 実行で扱えます。`plan` は選んだStateのPlanを完了させ、`apply` は選んだPlanがすべて成功した後にCore→MyPageの順でApplyへ進みます。Applyの各jobは自分で再Planし、Plan jobとHMACが一致した自分のplan fileだけを適用します。Stateを物理的に統合してblast radiusを広げず、手動UIだけを統一します。同じrunの最初に対象SHAを1つ確定し（[`terraform_source_pin.py`](../../.github/scripts/terraform_source_pin.py)）、そのコミットの資格情報なしのTerraform検査（`ci-gcp-terraform.yml`）を通してから、同じSHAでPlan/Applyします。検査中に対象ブランチが更新されても、別のコミットへ切り替わりません。Production Applyは `terraform-prod-apply` Environmentの承認を必須とします（required reviewersはownerがGitHubで設定する）。
 
 MyPageの通常経路は最終desired state（現在は `runtime_public` 相当）を常に対象とし、`foundation_metadata` / `foundation` / `registry` / `maintenance_*` / `runtime_private` を利用者が選択しません。これらのstageは初回bootstrapと既存の安全契約を維持する内部実装であり、通常workflowの操作面には露出させません。image build / releaseとmaintenance ON/OFFはTerraform Applyとは別操作です。
 
@@ -33,7 +35,16 @@ ownerが作成した同一repositoryのPRで `infra/gcp/**` などが変わる�
 
 DEVのEnvironment（`terraform-dev-plan` / `terraform-dev-apply`）はbranchで制限しません（No restriction）。DEV EnvironmentのSecretはrole ID・SA名・bucket・HMAC key・tfvarsなど資格情報ではない設定値だけで、write権限を持つ協力者のjobが読めても、クラウドの資格情報はactor検査で取得できません。forkのPRにはSecretもOIDCも渡りません。
 
-対象ソースの選択（実行元とは別のブランチ／SHAのHCLをPlan/Applyする機能、`gcp-terraform-authenticated.yml` の `source_branch` / `expected_sha`）はreusable workflowとcontrollerに実装済みです。ただし `Terraform` の手動入力にはまだ出していないため、現在は実行元ブランチ自身のHCLだけを対象にします。
+対象ソースの選択（実行元とは別のブランチ／SHAのHCLをPlan/Applyする機能）は、DEVのCore（`component=core`）だけで使えます。MyPageと本番は常に実行元のコミットを使い、対象ブランチ・SHAを指定すると選択の段階で拒否します。
+
+| source_branch | source_sha | 使用するソース |
+| --- | --- | --- |
+| 指定 | 空欄 | 選択時点のブランチHEADをSHAへ解決し固定 |
+| 空欄 | 指定 | 同一repositoryの通常ブランチ履歴から到達できる指定コミット |
+| 空欄 | 空欄 | 実行元自身のコミット |
+| 指定 | 指定 | ブランチHEADとSHAが一致する場合だけ実行 |
+
+確定した対象SHAはActionsのSummaryに表示します。Applyで確認済みの同じコミットを使う場合は、`source_branch`を空欄にし、`source_sha`にPlanのSummaryの値を指定します（ブランチだけを指定すると、新しい実行の時点でHEADを再取得します）。資格情報なしの検査（`ci-gcp-terraform.yml`）は対象コミットのソースとテストをcheckoutし、実行元からビルドした隔離コンテナ（[`validate.sh`](../../.github/ci-validation/validate.sh)）内で実行します。対象コードにはrunnerの環境変数・Actionsのキャッシュ用トークン・コマンドファイル・Dockerソケットを渡さず、ソースは読み取り専用でマウントします。検査を指示するworkflow、対象SHAを確定する処理、資格情報付きのPlan／Apply実行器は実行元のコミットを使います。対象ブランチの`.github/`・`infra/gcp/scripts/`・`infra/gcp/tests/`を実行器として使いません。HCLやmodule自体もprovider等による実行を伴うため、選択するソースは本人がレビューしたものを使います。
 
 1. 通常のHCL追加・修正は任意の作業/統合ブランチ向けPRで進める。ownerのPRにはDEVのPR Planが付く。Environmentへのbranch登録は不要。`dev`は運用可能な統合結果だけを最終PRで受け入れる。
 2. 新しい非秘密入力は `normal.tfvars.json` に追加する。既存Environmentのprivate tfvarsを読み、

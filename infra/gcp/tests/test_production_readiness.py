@@ -76,13 +76,21 @@ class ProductionReadinessTest(unittest.TestCase):
                           "terraform apply", "terraform import", "-backend-config"):
             self.assertNotIn(forbidden, source)
         for action in re.findall(r"(?m)^\s+uses: (\S+)", source):
-            self.assertRegex(action, r"@[0-9a-f]{40}$")
+            # Only the reviewed same-repository action may be unpinned; external actions are SHA-pinned.
+            if action.startswith("./"):
+                self.assertEqual(action, "./.github/actions/prepare-ci-validation")
+            else:
+                self.assertRegex(action, r"@[0-9a-f]{40}$")
+        # The checks run inside the isolated validation container.
+        self.assertIn("yss-ci-validation:local terraform", source)
+        isolated = (ROOT / ".github/ci-validation/validate.sh").read_text()
+        terraform = isolated.split("  terraform)\n", 1)[1].split("\n    ;;", 1)[0]
         for command in (
             "python3 infra/gcp/tests/test_production_readiness.py",
             "python3 infra/gcp/tests/test_production_backend_packet.py",
             "python3 infra/gcp/tests/test_production_execution_contract.py",
         ):
-            self.assertIn(command, source)
+            self.assertIn(command, terraform)
 
 
 class ProductionMockPlanTest(unittest.TestCase):

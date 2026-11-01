@@ -23,7 +23,8 @@ class TerraformWorkflowTest(unittest.TestCase):
         self.jobs = self.workflow['jobs']
 
     def run_step(self, job, **env):
-        command = self.jobs[job]['steps'][-1]['run']
+        steps = self.jobs[job]['steps']
+        command = next((step for step in steps if step.get('id') == job), steps[-1])['run']
         return subprocess.run(['bash', '-c', command], cwd=ROOT, capture_output=True, text=True,
                               env={'PATH': os.environ.get('PATH', os.defpath), **env,
                                    'GITHUB_OUTPUT': os.devnull}).returncode
@@ -108,11 +109,15 @@ class TerraformWorkflowTest(unittest.TestCase):
     def test_manual_only_with_environment_operation_and_component(self):
         self.assertEqual(set(self.workflow['on']), {'workflow_dispatch', 'pull_request'})
         inputs = self.workflow['on']['workflow_dispatch']['inputs']
-        self.assertEqual({key: value['options'] for key, value in inputs.items()}, {
+        self.assertEqual({key: value['options'] for key, value in inputs.items() if value['type'] == 'choice'}, {
             'environment': ['development', 'production'],
             'operation': ['plan', 'apply'],
             'component': ['all', 'core', 'mypage'],
         })
+        # Optional DEV Core source selectors; empty means the dispatched commit.
+        for key in ('source_branch', 'source_sha'):
+            self.assertEqual(inputs[key], inputs[key] | {'type': 'string', 'required': False, 'default': ''})
+        self.assertEqual(set(inputs), {'environment', 'operation', 'component', 'source_branch', 'source_sha'})
         self.assertEqual(self.workflow['permissions'], {'contents': 'read'})
         self.assertIn("(inputs.environment == 'development' && 'mypage-dev-cloud-run' || 'mypage-prod-cloud-run')",
                       self.workflow['concurrency']['group'])
@@ -126,6 +131,12 @@ class TerraformWorkflowTest(unittest.TestCase):
         # Production MyPage is disabled by its reviewed desired stage.
         self.assertEqual(self.run_step('select', **(valid | {'ENVIRONMENT': 'production'})), 0)
         self.assertNotEqual(self.run_step('select', **(valid | {'ENVIRONMENT': 'production', 'COMPONENT': 'mypage'})), 0)
+        # Only DEV Core may select another source branch/SHA.
+        for source in ({'SOURCE_BRANCH': 'feature/x'}, {'SOURCE_SHA': 'b' * 40}):
+            self.assertEqual(self.run_step('select', **(valid | {'COMPONENT': 'core'} | source)), 0)
+            for change in ({'COMPONENT': 'all'}, {'COMPONENT': 'mypage'}, {'ENVIRONMENT': 'production', 'COMPONENT': 'core'}):
+                with self.subTest(source=source, change=change):
+                    self.assertNotEqual(self.run_step('select', **(valid | source | change)), 0)
 
     def test_each_root_keeps_its_reusable_mode_and_secret_boundary(self):
         for name, uses, mode, secrets in (
@@ -138,7 +149,13 @@ class TerraformWorkflowTest(unittest.TestCase):
             with self.subTest(job=name):
                 self.assertEqual(job['uses'], './.github/workflows/' + uses)
                 self.assertEqual(job['with']['mode'], mode)
-                self.assertEqual(job['with']['expected_sha'], '${{ github.sha }}')
+                if name.startswith('core-'):
+                    # Core plans/applies exactly the commit that validate checked.
+                    self.assertEqual(job['with']['expected_sha'], '${{ needs.select.outputs.validation_sha }}')
+                    self.assertEqual(job['with']['source_branch'], '')
+                else:
+                    # MyPage has no source selection: the dispatched commit is the validated one.
+                    self.assertEqual(job['with']['expected_sha'], '${{ github.sha }}')
                 self.assertEqual(set(job['secrets']), secrets)
                 # A caller may pass only secrets the reusable workflow declares (workflow_call contract).
                 declared = load(ROOT / '.github/workflows' / uses)['on']['workflow_call']['secrets']
@@ -148,6 +165,7 @@ class TerraformWorkflowTest(unittest.TestCase):
 
     def test_credentialless_validation_and_every_selected_plan_precede_any_apply(self):
         self.assertEqual(self.jobs['validate']['uses'], './.github/workflows/ci-gcp-terraform.yml')
+        self.assertEqual(self.jobs['validate']['with'], {'source_sha': '${{ needs.select.outputs.validation_sha }}'})
         for name in ('core-plan', 'mypage-plan'):
             self.assertEqual(self.jobs[name]['needs'], ['select', 'validate'])
             self.assertNotIn('always()', self.jobs[name]['if'])

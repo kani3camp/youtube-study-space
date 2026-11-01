@@ -133,17 +133,23 @@ assert_exact_groups "system room_image_prompt menu_image_generator video_maker_s
 assert_exact_groups "system firestore_integration youtube_monitor" system/core/app.go youtube-monitor/src/app.ts
 
 all_groups="system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor mypage docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all"
+assert_exact_groups "$all_groups" .github/scripts/terraform_source_pin.py
+assert_exact_groups "$all_groups" .github/scripts/test_ci_terraform_source.py
+assert_exact_groups "$all_groups" .github/ci-validation/Dockerfile
+assert_exact_groups "$all_groups" .github/scripts/base-image-pin-check.mjs
+assert_exact_groups "$all_groups" .github/ci-validation/validate.sh
+assert_exact_groups "$all_groups" .github/actions/prepare-ci-validation/action.yml
 # Every repository script that the GCP Terraform CI executes must route to it,
 # so a change to that script alone still runs its own test.
-terraform_ci_scripts="$(grep -oE '\.github/scripts/[A-Za-z0-9_.-]+\.(py|sh|mjs)' "$script_dir/../workflows/ci-gcp-terraform.yml" | sort -u)"
+terraform_ci_scripts="$(grep -oE '\.github/scripts/[A-Za-z0-9_.-]+\.(py|sh|mjs)' "$script_dir/../ci-validation/validate.sh" | sort -u)"
 if [[ "$(printf '%s\n' "$terraform_ci_scripts" | grep -c .)" -lt 10 ]]; then
-	echo "Expected to read the scripts executed by ci-gcp-terraform.yml" >&2
+	echo "Expected to read the scripts executed by the isolated Terraform validation" >&2
 	exit 1
 fi
 while IFS= read -r script; do
 	routed="$("$detector" --paths "$script")"
 	if ! grep -Fxq 'gcp_terraform=true' <<< "$routed"; then
-		echo "Expected gcp_terraform=true for a script run by ci-gcp-terraform.yml: $script" >&2
+		echo "Expected gcp_terraform=true for a script run by the isolated Terraform validation: $script" >&2
 		exit 1
 	fi
 done <<< "$terraform_ci_scripts"

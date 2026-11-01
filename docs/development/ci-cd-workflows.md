@@ -256,7 +256,7 @@ PR Plan を DEV の手動 Plan に統合する PR（#1527）を取り込んだ�
 | --- | --- | --- |
 | UC1 CI | 実装済み。手動 operation なし（`workflow_dispatch` は再検査のみ） | `ci.yml` |
 | UC2 PR Plan | DEV で有効（run 41205098180 で MyPage 成功。Core は State と HCL のずれを #1532 で解消し、run 41226105756 で差分なし）。旧 PR Plan identity は撤去済み（4.4） | `terraform.yml`（`pull_request`）→ `gcp-terraform-authenticated.yml`（`pr-plan`）/ `mypage-foundation-authenticated.yml` |
-| UC2 手動 Plan / UC3 Apply | DEV で有効。手動 Plan は Core・MyPage とも成功（run 41226781485、差分なし）。MyPage の Apply は run 41260474728 で成功（#1533 の削除2件）。Core の Apply は未実施。PROD は未有効化（`main` への取り込み時の trust 更新、4.3）で、PROD Apply の reviewer は owner 設定待ち。旧 router 経路と orchestrator は撤去済み | `terraform.yml` |
+| UC2 手動 Plan / UC3 Apply | DEV で有効。対象 commit を1つ確定し、隔離コンテナで検査してから同じ SHA で Plan/Apply する（DEV Core だけ対象ブランチ・SHA を選べる。#1530 / #1534 を統合）。手動 Plan は Core・MyPage とも成功（run 41226781485、差分なし）。MyPage の Apply は run 41260474728 で成功（#1533 の削除2件）。Core の Apply は未実施。PROD は未有効化（`main` への取り込み時の trust 更新、4.3）で、PROD Apply の reviewer は owner 設定待ち。旧 router 経路と orchestrator は撤去済み | `terraform.yml` |
 | UC4 Frontend | 実装済み（未有効化）。旧 router 経路は撤去済み | `deploy-mypage-frontend.yml` |
 | UC5 API | 実装済み（未有効化）。Service のみ。旧 router 経路と push 自動CDは撤去済み | `deploy-mypage-api.yml` |
 | UC6 Operator | 実装済み。DEV で build・Job 更新・読み戻し・受領記録まで成功（run 41178451321） | `deploy-mypage-maintenance.yml` |
