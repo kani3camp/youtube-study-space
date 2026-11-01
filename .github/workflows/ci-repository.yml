@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  base-image-update-report-test:
-    name: Base Image Update Report Test
+  validate:
+    name: Repository Validation
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -30,136 +30,30 @@ jobs:
           ref: ${{ inputs.source_sha }}
           path: .ci-source
           persist-credentials: false
-      - name: Run isolated validation
+      - name: Run four isolated validations
         env:
           VALIDATION_SHA: ${{ inputs.source_sha }}
         run: |
           # Do not expose runner tokens, command files or the Docker socket to target code.
           marker="$(openssl rand -hex 32)"
           echo "::stop-commands::${marker}"
-          set +e
-          docker run --rm --init --read-only --network=none \
-            --cap-drop=ALL --security-opt=no-new-privileges \
-            --pids-limit=256 --memory=6g --cpus=2 \
-            --tmpfs /tmp:rw,exec,mode=1777 \
-            --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
-            --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
-            --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
-            yss-ci-validation:local base-image
-          result=$?
-          echo "::${marker}::"
-          exit "$result"
-
-  node-types-ignore-policy:
-    name: Node Types Ignore Policy
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout trusted validation controller
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Prepare isolated validation tools
-        uses: ./.github/actions/prepare-ci-validation
-      - name: Checkout exact validation source
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.source_sha }}
-          path: .ci-source
-          persist-credentials: false
-      - name: Run isolated validation
-        env:
-          VALIDATION_SHA: ${{ inputs.source_sha }}
-        run: |
-          # Do not expose runner tokens, command files or the Docker socket to target code.
-          marker="$(openssl rand -hex 32)"
-          echo "::stop-commands::${marker}"
-          set +e
-          docker run --rm --init --read-only --network=none \
-            --cap-drop=ALL --security-opt=no-new-privileges \
-            --pids-limit=256 --memory=6g --cpus=2 \
-            --tmpfs /tmp:rw,exec,mode=1777 \
-            --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
-            --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
-            --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
-            yss-ci-validation:local node-policy
-          result=$?
-          echo "::${marker}::"
-          exit "$result"
-
-  documentation-references:
-    name: Documentation References
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout trusted validation controller
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Prepare isolated validation tools
-        uses: ./.github/actions/prepare-ci-validation
-      - name: Checkout exact validation source
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.source_sha }}
-          path: .ci-source
-          persist-credentials: false
-      - name: Run isolated validation
-        env:
-          VALIDATION_SHA: ${{ inputs.source_sha }}
-        run: |
-          # Do not expose runner tokens, command files or the Docker socket to target code.
-          marker="$(openssl rand -hex 32)"
-          echo "::stop-commands::${marker}"
-          set +e
-          docker run --rm --init --read-only --network=none \
-            --cap-drop=ALL --security-opt=no-new-privileges \
-            --pids-limit=256 --memory=6g --cpus=2 \
-            --tmpfs /tmp:rw,exec,mode=1777 \
-            --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
-            --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
-            --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
-            yss-ci-validation:local docs
-          result=$?
-          echo "::${marker}::"
-          exit "$result"
-
-  ci-contracts:
-    name: CI Workflow Contracts
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout trusted validation controller
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Prepare isolated validation tools
-        uses: ./.github/actions/prepare-ci-validation
-      - name: Checkout exact validation source
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.source_sha }}
-          path: .ci-source
-          persist-credentials: false
-      - name: Run isolated validation
-        env:
-          VALIDATION_SHA: ${{ inputs.source_sha }}
-        run: |
-          # Do not expose runner tokens, command files or the Docker socket to target code.
-          marker="$(openssl rand -hex 32)"
-          echo "::stop-commands::${marker}"
-          set +e
-          docker run --rm --init --read-only --network=none \
-            --cap-drop=ALL --security-opt=no-new-privileges \
-            --pids-limit=256 --memory=6g --cpus=2 \
-            --tmpfs /tmp:rw,exec,mode=1777 \
-            --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
-            --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
-            --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
-            yss-ci-validation:local contracts
-          result=$?
+          result=0
+          for kind in base-image node-policy docs contracts; do
+            # Each invocation gets fresh writable tmpfs; only the source is shared read-only.
+            if docker run --rm --init --read-only --network=none \
+              --cap-drop=ALL --security-opt=no-new-privileges \
+              --pids-limit=256 --memory=6g --cpus=2 \
+              --tmpfs /tmp:rw,exec,mode=1777 \
+              --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
+              --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
+              --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
+              yss-ci-validation:local "$kind"; then
+              printf '%s: PASS\n' "$kind"
+            else
+              status=$?
+              printf '%s: FAIL (exit %s)\n' "$kind" "$status"
+              result=1
+            fi
+          done
           echo "::${marker}::"
           exit "$result"
