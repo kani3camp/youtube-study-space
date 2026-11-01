@@ -36,8 +36,7 @@ MAINTENANCE_IMAGE_BINDING = "module.platform[0].google_cloud_run_v2_job_iam_memb
 MAINTENANCE_IMAGE_ACT_AS = "module.platform[0].google_service_account_iam_member.maintenance_image_release_act_as[0]"
 OPERATOR_IMAGE_BINDING = "module.platform[0].google_cloud_run_v2_job_iam_member.operator_image_release[0]"
 OPERATOR_IMAGE_ACT_AS = "module.platform[0].google_service_account_iam_member.operator_image_release_act_as[0]"
-MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, MAINTENANCE_IMAGE_BINDING, MAINTENANCE_IMAGE_ACT_AS,
-                                 OPERATOR_IMAGE_BINDING, OPERATOR_IMAGE_ACT_AS}
+MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, OPERATOR_IMAGE_BINDING, OPERATOR_IMAGE_ACT_AS}
 MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-operator-apply": "maintenance_operator",
          "maintenance-upgrade-plan": "maintenance_upgrade", "maintenance-upgrade-apply": "maintenance_upgrade",
          "runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
@@ -107,6 +106,37 @@ def reviewed_provider_update(address, change):
             before.get("attribute_mapping") == maintenance_provider_mapping(legacy=True) and
             after.get("attribute_condition") == maintenance_provider_condition() and
             after.get("attribute_mapping") == maintenance_provider_mapping())
+
+
+# 旧Backend deployer（mypage-backend-deploy）のJob更新bindingとmaintenance runtime SAへのactAs。
+# 初回Operator配備でJobが専用packageへ移ったことを確認したため、DEVのStateから削除する。
+# 計画に現れてよいのは、この2資源の完全一致したbeforeからの削除だけ。
+def legacy_image_release():
+    if c.TARGET != "development":
+        return {}
+    backend = "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"
+    operator_email = "mypage-maintenance-job@" + c.PROJECT + ".iam.gserviceaccount.com"
+    return {
+        MAINTENANCE_IMAGE_BINDING: {"project": c.PROJECT, "location": c.REGION,
+                                    "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceImageRelease",
+                                    "member": backend},
+        MAINTENANCE_IMAGE_ACT_AS: {"service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + operator_email,
+                                   "role": "roles/iam.serviceAccountUser", "member": backend},
+    }
+
+
+def reviewed_legacy_delete(address, change):
+    """True only for deleting the exact legacy backend deployer Job binding or actAs."""
+    expected = legacy_image_release().get(address)
+    if (expected is None or change.get("actions") != ["delete"] or change.get("replace_paths")
+            or change.get("importing") or change.get("after") is not None):
+        return False
+    before = change.get("before")
+    if type(before) is not dict or before.get("condition"):
+        return False
+    if address == MAINTENANCE_IMAGE_BINDING and before.get("name") not in {"mypage-maintenance-operator", MAINTENANCE_JOB_FULL_NAME}:
+        return False
+    return all(before.get(key) == value for key, value in expected.items())
 
 
 def settings(value, stage=None):
@@ -184,14 +214,9 @@ def maintenance_resource_contract(value=None):
                                      "description": "Allows the existing backend deployer to read and update only the maintenance Cloud Run Job.",
                                      "stage": "GA", "deletion_policy": "PREVENT",
                                      "permissions": ["run.jobs.get", "run.jobs.update"]},
-            MAINTENANCE_IMAGE_BINDING: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator",
-                                        "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceImageRelease",
-                                        "member": "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"},
-            MAINTENANCE_IMAGE_ACT_AS: {"service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + operator_email,
-                                       "role": "roles/iam.serviceAccountUser",
-                                       "member": "serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"},
-            # 専用Operator deployer。旧Backend deployerの2 bindingは、初回Operator配備の確認後に
-            # 削除専用の遷移で外す（このcontractはcreate/no-opだけを許可するため）。
+            # 契約が宣言するJob imageの更新者は専用Operator deployerだけ。旧Backend deployerの
+            # 2 bindingは、初回Operator配備の確認後に削除専用の遷移（legacy_image_release）で外す。
+            # 旧deployerが権限を失うのは、その削除のApplyとIAMの読み戻しが済んだ後。
             OPERATOR_IMAGE_BINDING: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator",
                                      "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceImageRelease",
                                      "member": "serviceAccount:" + OPERATOR_DEPLOYER},
@@ -562,10 +587,16 @@ def validate_initial_plan(plan, stage):
     foundation["variables"]["stage"]["value"] = base_stage
     foundation["resource_changes"] = [item for item in changes if item.get("address") in base]
     foundation["resource_drift"] = []
-    c.validate_refresh(plan, expected, state_only_service_update)
+    legacy = {item.get("address") for item in changes
+              if reviewed_legacy_delete(item.get("address"), item.get("change", {}))}
+    # 削除する旧bindingのrefresh観測は、最終状態の比較対象にならない。
+    refreshed = deepcopy(plan)
+    refreshed["resource_drift"] = [item for item in plan.get("resource_drift", []) or []
+                                   if item.get("address") not in legacy]
+    c.validate_refresh(refreshed, expected, state_only_service_update)
     # Native refresh must remain a no-op. Only the CI/CD-owned Service/Job
     # images and provider-computed metadata may drift; never mask config changes.
-    for observation in plan.get("resource_drift", []) or []:
+    for observation in refreshed["resource_drift"]:
         change = observation.get("change", {})
         if observation.get("address") == SERVICE:
             c.need(change.get("actions") == ["update"] and
@@ -586,9 +617,14 @@ def validate_initial_plan(plan, stage):
     maintenance_bootstrap_image = (bootstrap_input or
                                    (service_image(service_after)
                                     if type(service_after) is dict else value["image_digest"]))
-    seen = set()
+    seen, deleted = set(), set()
     for item in changes:
         address = item.get("address")
+        if address in legacy:
+            c.need(address not in deleted and item.get("mode") == "managed" and
+                   item.get("provider_name") == "registry.terraform.io/hashicorp/google", "runtime-legacy-delete")
+            deleted.add(address)
+            continue
         c.need(address in expected and address not in seen, "runtime-resource-address")
         seen.add(address)
         if address in base:
@@ -627,7 +663,7 @@ def validate_initial_plan(plan, stage):
                 continue
             if address == INVOKER and key == "name":
                 valid = after.get(key) in {expected_value, PUBLIC_INVOKER_NAME}
-            elif address in {MAINTENANCE_JOB_INVOKER, MAINTENANCE_IMAGE_BINDING, OPERATOR_IMAGE_BINDING} and key == "name":
+            elif address in {MAINTENANCE_JOB_INVOKER, OPERATOR_IMAGE_BINDING} and key == "name":
                 valid = after.get(key) in {expected_value, MAINTENANCE_JOB_FULL_NAME}
             else:
                 valid = after.get(key) == expected_value
@@ -644,4 +680,7 @@ def validate_initial_plan(plan, stage):
             else:
                 validate_service(after, unknown, value, change.get("actions"))
     c.need(seen == set(expected), "runtime-resource-set")
-    return {"resources": len(seen), "creates": sum(item["change"]["actions"] == ["create"] for item in changes)}
+    result = {"resources": len(seen), "creates": sum(item["change"]["actions"] == ["create"] for item in changes)}
+    if deleted:
+        result["deletes"] = len(deleted)
+    return result

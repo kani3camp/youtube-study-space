@@ -216,6 +216,11 @@ def state_version(env):
     return {k: metadata[k] for k in ("VersionId", "ETag", "ContentLength")}
 
 
+def deletes(summary):
+    # 削除はレビュー済みの旧binding撤去だけが契約を通る。件数だけを表示する。
+    return ", " + str(summary["deletes"]) + " reviewed legacy deletes" if summary.get("deletes") else ""
+
+
 def reject_unowned_resources(env, plan):
     # このState外の同名資源を、新規作成で取り込まない。
     urls = {"module.platform[0].google_service_account.runtime":
@@ -466,7 +471,7 @@ def prepare(env):
         # No commitment, saved-plan record or timestamp leaves a PR Plan job;
         # only these value-free counts reach the log and the Job Summary.
         message = ("MyPage PR Plan (advisory) accepted by the plan contract: " + str(summary["resources"]) + " resources, " +
-                   str(summary["creates"]) + " creates. Nothing from this run can be applied.")
+                   str(summary["creates"]) + " creates" + deletes(summary) + ". Nothing from this run can be applied.")
         print(message)
         if env.get("GITHUB_STEP_SUMMARY"):
             with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
@@ -479,7 +484,7 @@ def prepare(env):
     with open(env["GITHUB_OUTPUT"], "a") as output:
         output.write("commitment=" + digest + "\nplan_time=" + str(time.time()) + "\n")
     print("Environment-bound foundation plan accepted: " + str(summary["resources"]) + " resources, " + str(summary["creates"]) +
-          " creates; accepted computed metadata refreshes: " + str(len(plan.get("resource_drift", []) or [])) + ". No apply.")
+          " creates" + deletes(summary) + "; accepted computed metadata refreshes: " + str(len(plan.get("resource_drift", []) or [])) + ". No apply.")
 
 
 def apply_saved(env):

@@ -91,9 +91,9 @@ class RuntimeTest(unittest.TestCase):
             (r.MAINTENANCE_JOB_INVOKER,
              lambda item: item["change"].update(after_unknown={"condition": True}),
              "maintenance-iam-unknown"),
-            (r.MAINTENANCE_IMAGE_BINDING,
+            (r.OPERATOR_IMAGE_BINDING,
              lambda item: item["change"]["after"].update(member="serviceAccount:other@" + c.PROJECT + ".iam.gserviceaccount.com"),
-             "runtime-resource-value-" + r.MAINTENANCE_IMAGE_BINDING + "-member"),
+             "runtime-resource-value-" + r.OPERATOR_IMAGE_BINDING + "-member"),
             (r.OPERATOR_IMAGE_BINDING,
              lambda item: item["change"]["after"].update(member="serviceAccount:mypage-backend-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"),
              "runtime-resource-value-" + r.OPERATOR_IMAGE_BINDING + "-member"),
@@ -183,7 +183,7 @@ class RuntimeTest(unittest.TestCase):
                 r.validate_cicd_job_image_refresh(before, moved, value)
 
     def test_job_iam_members_accept_the_provider_full_job_path_after_a_read(self):
-        bindings = (r.MAINTENANCE_JOB_INVOKER, r.MAINTENANCE_IMAGE_BINDING, r.OPERATOR_IMAGE_BINDING)
+        bindings = (r.MAINTENANCE_JOB_INVOKER, r.OPERATOR_IMAGE_BINDING)
         plan = fixture("runtime_public")
         for item in plan["resource_changes"]:
             item["change"]["actions"] = ["no-op"]
@@ -303,6 +303,89 @@ class RuntimeTest(unittest.TestCase):
         with self.assertRaisesRegex(c.ContractError, "^refresh-planned-state$"):
             c.validate_refresh(moved, resources, r.state_only_service_update)
 
+    def legacy_delete(self, address):
+        before = dict(r.legacy_image_release()[address])
+        if address == r.MAINTENANCE_IMAGE_BINDING:
+            before["name"] = r.MAINTENANCE_JOB_FULL_NAME
+        before["condition"] = []
+        before["etag"] = "BwYexample="
+        return {"address": address, "mode": "managed", "provider_name": "registry.terraform.io/hashicorp/google",
+                "change": {"actions": ["delete"], "before": before, "after": None, "after_unknown": {}}}
+
+    def noop_plan(self, stage="runtime_public"):
+        plan = fixture(stage)
+        for item in plan["resource_changes"]:
+            item["change"]["actions"] = ["no-op"]
+        return plan
+
+    def test_legacy_backend_job_release_bindings_are_removed_from_the_contract(self):
+        resources = r.maintenance_resource_contract()
+        self.assertNotIn(r.MAINTENANCE_IMAGE_BINDING, resources)
+        self.assertNotIn(r.MAINTENANCE_IMAGE_ACT_AS, resources)
+        self.assertIn(r.MAINTENANCE_IMAGE_ROLE, resources)
+        self.assertIn(r.OPERATOR_IMAGE_BINDING, resources)
+        self.assertIn(r.OPERATOR_IMAGE_ACT_AS, resources)
+        text = (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text()
+        self.assertNotIn('"maintenance_image_release_act_as"', text)
+        self.assertNotIn('resource "google_cloud_run_v2_job_iam_member" "maintenance_image_release"', text)
+        self.assertNotIn("mypage-backend-deploy", text)
+
+    def test_only_the_exact_legacy_backend_job_release_bindings_may_be_deleted(self):
+        legacy = (r.MAINTENANCE_IMAGE_BINDING, r.MAINTENANCE_IMAGE_ACT_AS)
+        base = self.noop_plan()
+        size = len(base["resource_changes"])
+        plan = deepcopy(base)
+        plan["resource_changes"] += [self.legacy_delete(address) for address in legacy]
+        # A refresh observation of a binding that is being deleted is not compared to the final state.
+        plan["resource_drift"] = [{"address": r.MAINTENANCE_IMAGE_ACT_AS, "mode": "managed",
+                                   "provider_name": "registry.terraform.io/hashicorp/google",
+                                   "change": {"actions": ["update"], "before": {}, "after": {}}}]
+        self.assertEqual(r.validate_plan(plan, "runtime_public"), {"resources": size, "creates": 0, "deletes": 2})
+        single = deepcopy(base)
+        single["resource_changes"].append(self.legacy_delete(r.MAINTENANCE_IMAGE_BINDING))
+        self.assertEqual(r.validate_plan(single, "runtime_public"), {"resources": size, "creates": 0, "deletes": 1})
+        self.assertEqual(r.validate_plan(base, "runtime_public"), {"resources": size, "creates": 0})
+
+        mutations = (
+            lambda item: item["change"]["before"].update(member="serviceAccount:other@" + c.PROJECT + ".iam.gserviceaccount.com"),
+            lambda item: item["change"]["before"].update(role="roles/run.admin"),
+            lambda item: item["change"]["before"].update(condition=[{"expression": "true"}]),
+            lambda item: item["change"].update(actions=["delete", "create"]),
+            lambda item: item["change"].update(actions=["update"]),
+            lambda item: item["change"].update(after={}),
+            lambda item: item["change"].update(importing={"id": "x"}),
+            lambda item: item.update(provider_name="registry.terraform.io/other/google"),
+        )
+        for address in legacy:
+            for index, mutate in enumerate(mutations):
+                rejected = deepcopy(base)
+                item = self.legacy_delete(address)
+                mutate(item)
+                rejected["resource_changes"].append(item)
+                with self.subTest(address=address, mutation=index), self.assertRaises(c.ContractError):
+                    r.validate_plan(rejected, "runtime_public")
+        wrong_job = deepcopy(base)
+        item = self.legacy_delete(r.MAINTENANCE_IMAGE_BINDING)
+        item["change"]["before"]["name"] = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/jobs/other-job"
+        wrong_job["resource_changes"].append(item)
+        with self.assertRaisesRegex(c.ContractError, "runtime-resource-address"):
+            r.validate_plan(wrong_job, "runtime_public")
+        twice = deepcopy(base)
+        twice["resource_changes"] += [self.legacy_delete(r.MAINTENANCE_IMAGE_ACT_AS)] * 2
+        with self.assertRaisesRegex(c.ContractError, "runtime-legacy-delete"):
+            r.validate_plan(twice, "runtime_public")
+        # Every other resource, including the operator deployer, still cannot be deleted.
+        for address in (r.OPERATOR_IMAGE_BINDING, r.OPERATOR_IMAGE_ACT_AS, r.MAINTENANCE_IMAGE_ROLE):
+            rejected = deepcopy(base)
+            next(x for x in rejected["resource_changes"] if x["address"] == address)["change"]["actions"] = ["delete"]
+            with self.subTest(address=address), self.assertRaises(c.ContractError):
+                r.validate_plan(rejected, "runtime_public")
+
+    def test_legacy_backend_job_release_delete_is_development_only(self):
+        with patch.object(r.c, "TARGET", "production"):
+            self.assertEqual(r.legacy_image_release(), {})
+            self.assertFalse(r.reviewed_legacy_delete(r.MAINTENANCE_IMAGE_ACT_AS, {"actions": ["delete"], "before": {}, "after": None}))
+
     def test_backend_image_release_binding_is_dev_only(self):
         value = r.settings(json.loads((ROOT / "infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json").read_text()))
         with patch.object(r.c, "TARGET", "production"):
@@ -335,7 +418,7 @@ class RuntimeTest(unittest.TestCase):
 
         rejected = deepcopy(plan)
         binding = next(item for item in rejected["resource_changes"]
-                       if item["address"] == r.MAINTENANCE_IMAGE_BINDING)
+                       if item["address"] == r.OPERATOR_IMAGE_BINDING)
         binding["change"]["after"]["role"] = "roles/run.admin"
         with self.assertRaises(ValueError):
             r.validate_plan(rejected, "runtime_private")
