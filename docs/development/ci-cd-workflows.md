@@ -221,6 +221,8 @@ GitHub の Settings → Actions → Policies（workflow execution policy）で�
 5. 移行・検証済みの **DEV** identity の trust から旧 claim（`ci.yml` を caller とするもの、Backend の `push`）を削除する。PROD の Core Terraform は `main` への取り込みまで `ci.yml` 経路のままなので削除しない（4.3）。schema audit は #8 で撤去済み（クラウド側の trust は監査後に撤回済み）。
 6. Maintenance WIF provider（Terraform 管理）を、provider の更新だけを許す専用の契約遷移で修正する。`google.subject` を127バイト以内の値へ変える（必須。2.4 参照）ことと、condition へ `job_workflow_ref == mypage-maintenance-authenticated.yml@<ref>` を加える hardening を同時に行う。**コードは修正済み**。DEV への Apply（一時的な provider 更新権限が必要）が済むまで Set Maintenance Mode は認証できない。
 
+7. #1236 を `dev` に取り込んだ後、MyPage の固定 ref（`foundation_contract.py` の `development` の `ref`）と、それを使う MyPage identity の trust（foundation / backend / hosting / operator / maintenance の GCP WIF condition と AWS role）を `refs/heads/dev` へ移す。移すまでは、`dev` から `Terraform` を実行しても MyPage は認証できない。そのため `component=all` は MyPage を skip して Core だけを実行し、`component=mypage` は理由を表示して停止する（`select` が実行 ref と固定 ref を比べる）。MyPage の Deploy / Maintenance も、移すまでは統合ブランチからだけ実行できる。
+
 ### 4.3 Terraform の trust 更新（#4、owner）
 
 `terraform.yml` を caller にするため、次の trust の `workflow_ref`（と、それを含む `sub`）を `ci.yml` から `terraform.yml` へ置き換える。
