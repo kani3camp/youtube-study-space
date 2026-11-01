@@ -78,7 +78,11 @@ export function SiteHeader({
 }) {
 	return (
 		<header className="site-header">
-			<div className="brand-lockup">
+			<a
+				className="brand-lockup"
+				href="/"
+				aria-label="オンライン作業部屋 トップへ"
+			>
 				<span className="brand-mark" aria-hidden="true">
 					作
 				</span>
@@ -90,7 +94,7 @@ export function SiteHeader({
 						<p className="brand-page">マイページ</p>
 					)}
 				</div>
-			</div>
+			</a>
 			{children && <div className="header-actions">{children}</div>}
 		</header>
 	)
