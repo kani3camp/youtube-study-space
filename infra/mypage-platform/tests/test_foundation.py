@@ -73,6 +73,7 @@ class FoundationTest(unittest.TestCase):
             ops.runtime_contract.MAINTENANCE_OPERATOR_SA: f'https://iam.googleapis.com/v1/projects/{project}/serviceAccounts/mypage-maintenance-job@{project}.iam.gserviceaccount.com',
             ops.runtime_contract.MAINTENANCE_INVOKER_SA: f'https://iam.googleapis.com/v1/projects/{project}/serviceAccounts/mypage-maintenance-invoker@{project}.iam.gserviceaccount.com',
             ops.runtime_contract.MAINTENANCE_ROLE: f'https://iam.googleapis.com/v1/projects/{project}/roles/mypageMaintenanceOperator',
+            ops.runtime_contract.MAINTENANCE_READ_ROLE: f'https://iam.googleapis.com/v1/projects/{project}/roles/mypageMaintenanceExecutionRead',
             ops.runtime_contract.MAINTENANCE_POOL: f'https://iam.googleapis.com/v1/projects/{c.PROJECT_NUMBER}/locations/global/workloadIdentityPools/mypage-maintenance',
             ops.runtime_contract.MAINTENANCE_PROVIDER: f'https://iam.googleapis.com/v1/projects/{c.PROJECT_NUMBER}/locations/global/workloadIdentityPools/mypage-maintenance/providers/github',
             ops.runtime_contract.MAINTENANCE_JOB: f'https://run.googleapis.com/v2/projects/{project}/locations/asia-southeast2/jobs/mypage-maintenance-operator',

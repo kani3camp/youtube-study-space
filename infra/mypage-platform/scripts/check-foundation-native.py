@@ -28,6 +28,18 @@ for rendered, stage in zip(plans, ("foundation_metadata", "foundation", "registr
                          "resource_drift": rendered.get("resource_drift", []),
                          "deferred_changes": rendered.get("deferred_changes", [])}
     validator = runtime_contract.validate_plan if stage in set(runtime_contract.MODES.values()) else validate_plan
+    if stage in set(runtime_contract.MODES.values()):
+        # Check the actual Terraform Plan, independently of Python's fixtures:
+        # the invoker must be able to validate overrides and poll completion.
+        resources = {item["address"]: item["change"]["after"] for item in envelope["resource_changes"]}
+        reader_role = resources[runtime_contract.MAINTENANCE_READ_ROLE]
+        need(set(reader_role["permissions"]) == {"run.jobs.get", "run.executions.get"})
+        reader = resources[runtime_contract.MAINTENANCE_JOB_READER]
+        need(reader["project"] == reader_role["project"] and
+             reader["location"] == resources[runtime_contract.MAINTENANCE_JOB]["location"] and
+             reader["name"] == "mypage-maintenance-operator" and
+             reader["role"] == "projects/" + reader_role["project"] + "/roles/" + reader_role["role_id"] and
+             reader["member"] == resources[runtime_contract.MAINTENANCE_JOB_INVOKER]["member"])
     if stage == "runtime_private":
         # desired-state運用では、Stateに無いmaintenance境界もruntimeと同じexact Planで
         # 初回作成できる。個別bootstrap modeを手動選択する必要はない。

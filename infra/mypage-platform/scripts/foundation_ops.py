@@ -242,6 +242,8 @@ def reject_unowned_resources(env, plan):
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/roles/mypageMaintenanceOperator",
         runtime_contract.MAINTENANCE_IMAGE_ROLE:
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/roles/mypageMaintenanceImageRelease",
+        runtime_contract.MAINTENANCE_READ_ROLE:
+            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/roles/mypageMaintenanceExecutionRead",
         runtime_contract.MAINTENANCE_POOL:
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance",
         runtime_contract.MAINTENANCE_PROVIDER:

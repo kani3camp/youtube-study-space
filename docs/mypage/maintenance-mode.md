@@ -22,4 +22,8 @@
 
 GitHubのWIF本人情報は固定Jobを実行できますが、Firestoreへの直接アクセス権は持ちません。Job自体は専用Service Accountで動きます。Firestore IAMはコレクション単位ではないため、Jobの権限はプロジェクト内の他文書にも及びます。
 
+実行用の`mypage-maintenance-invoker`には、固定Job上の`roles/run.jobsExecutorWithOverrides`に加えて、`run.jobs.get`と`run.executions.get`だけを含むカスタムロール`mypageMaintenanceExecutionRead`を付与します。`gcloud`は引数の上書き検証でJob設定を読み、`--wait`で実行の完了を確認します。実行ロールだけではこの読み取りができません（[Cloud Runのロールと権限](https://docs.cloud.google.com/iam/docs/roles-permissions/run)）。
+
+`run.jobs.get`の`PERMISSION_DENIED`で停止した場合は、先に修正後のTerraformを対象環境へPlan/Applyします。既存構成が適用済みなら、追加差分はこのカスタムロールと固定JobへのIAM memberの2資源です。Job/APIの更新やプロジェクト全体への読取り権限付与を含まないことを確認します。適用後は`Set Maintenance Mode`を新しい手動実行として起動します。GitHubの「Re-run jobs」は`run_attempt=1`の制限により拒否されます。
+
 配備時はJobを用意し、初期状態の`enabled=false`を確認してからバックエンドとフロントエンドを配備します。旧形式の両者は新形式と互換ではないため、対応する両方を続けて配備します。切替中や古い画面を開いている利用者は状態を確認できず、再読み込みが必要になる場合があります。IaCの変更だけでは実環境への適用や初期化は行われません。

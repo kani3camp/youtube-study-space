@@ -48,6 +48,44 @@ def service(plan):
 
 
 class RuntimeTest(unittest.TestCase):
+    def test_maintenance_invoker_can_read_job_and_wait_without_deploy_or_firestore_access(self):
+        plan = fixture("runtime_public")
+        additions = {r.MAINTENANCE_READ_ROLE, r.MAINTENANCE_JOB_READER}
+        for item in plan["resource_changes"]:
+            item["change"]["actions"] = ["create"] if item["address"] in additions else ["no-op"]
+        resources = {item["address"]: item["change"]["after"] for item in plan["resource_changes"]}
+        self.assertEqual(set(resources[r.MAINTENANCE_READ_ROLE]["permissions"]),
+                         {"run.jobs.get", "run.executions.get"})
+        self.assertEqual(resources[r.MAINTENANCE_JOB_READER]["role"],
+                         "projects/" + c.PROJECT + "/roles/mypageMaintenanceExecutionRead")
+        self.assertEqual(resources[r.MAINTENANCE_JOB_READER]["member"],
+                         "serviceAccount:mypage-maintenance-invoker@" + c.PROJECT + ".iam.gserviceaccount.com")
+        self.assertEqual(resources[r.MAINTENANCE_JOB_INVOKER]["role"], "roles/run.jobsExecutorWithOverrides")
+        self.assertEqual(r.validate_plan(plan, "runtime_public"),
+                         {"resources": len(plan["resource_changes"]), "creates": 2})
+
+        for address, field, wrong in (
+            (r.MAINTENANCE_READ_ROLE, "permissions", ["run.jobs.get"]),
+            (r.MAINTENANCE_READ_ROLE, "permissions", ["run.executions.get"]),
+            (r.MAINTENANCE_READ_ROLE, "permissions", ["run.executions.get", "run.jobs.get", "run.jobs.update"]),
+            (r.MAINTENANCE_READ_ROLE, "permissions", ["datastore.entities.get", "run.executions.get", "run.jobs.get"]),
+            (r.MAINTENANCE_JOB_READER, "role", "roles/run.admin"),
+            (r.MAINTENANCE_JOB_READER, "member", "allUsers"),
+            (r.MAINTENANCE_JOB_READER, "member", "serviceAccount:other@" + c.PROJECT + ".iam.gserviceaccount.com"),
+            (r.MAINTENANCE_JOB_READER, "project", "other-project"),
+            (r.MAINTENANCE_JOB_READER, "location", "us-central1"),
+        ):
+            rejected = deepcopy(plan)
+            item = next(item for item in rejected["resource_changes"] if item["address"] == address)
+            item["change"]["after"][field] = wrong
+            with self.subTest(address=address, field=field, wrong=wrong), self.assertRaises(c.ContractError):
+                r.validate_plan(rejected, "runtime_public")
+        for address in additions:
+            rejected = deepcopy(plan)
+            rejected["resource_changes"] = [item for item in rejected["resource_changes"] if item["address"] != address]
+            with self.subTest(missing=address), self.assertRaises(c.ContractError):
+                r.validate_plan(rejected, "runtime_public")
+
     def test_maintenance_upgrade_preserves_existing_public_runtime_and_adds_only_maintenance(self):
         plan = fixture("maintenance_upgrade")
         maintenance = set(r.maintenance_resource_contract())
@@ -89,6 +127,9 @@ class RuntimeTest(unittest.TestCase):
              lambda item: item["change"]["after"].update(condition=[{"expression": "true"}]),
              "runtime-resource-after"),
             (r.MAINTENANCE_JOB_INVOKER,
+             lambda item: item["change"].update(after_unknown={"condition": True}),
+             "maintenance-iam-unknown"),
+            (r.MAINTENANCE_JOB_READER,
              lambda item: item["change"].update(after_unknown={"condition": True}),
              "maintenance-iam-unknown"),
             (r.OPERATOR_IMAGE_BINDING,
@@ -183,7 +224,7 @@ class RuntimeTest(unittest.TestCase):
                 r.validate_cicd_job_image_refresh(before, moved, value)
 
     def test_job_iam_members_accept_the_provider_full_job_path_after_a_read(self):
-        bindings = (r.MAINTENANCE_JOB_INVOKER, r.OPERATOR_IMAGE_BINDING)
+        bindings = (r.MAINTENANCE_JOB_INVOKER, r.MAINTENANCE_JOB_READER, r.OPERATOR_IMAGE_BINDING)
         plan = fixture("runtime_public")
         for item in plan["resource_changes"]:
             item["change"]["actions"] = ["no-op"]
