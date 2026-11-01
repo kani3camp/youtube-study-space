@@ -44,8 +44,7 @@ Usage:
 With --paths, PATH arguments are classified directly for local testing.
 Without --paths, the script resolves paths from the GitHub event:
   - pull_request: BASE_SHA...HEAD_SHA
-  - authenticated Terraform workflow_dispatch: GCP Terraform group only
-  - other workflow_dispatch or an unsupported/incomplete event: all groups
+  - workflow_dispatch or an unsupported/incomplete event: all groups
 EOF
 }
 
@@ -80,13 +79,6 @@ classify_path() {
 	local path="$1"
 	local matched=false
 
-	case "$path" in
-		.github/scripts/run_terraform_native_tests.py|.github/scripts/test_terraform_native_runner.py|.github/scripts/test_terraform_observation_native.py|.github/scripts/test_order_history.py|.github/scripts/test_user_activity_history_preparation.py)
-			gcp_terraform=true
-			matched=true
-			;;
-	esac
-
 	if path_is_ci_config "$path"; then
 		set_all_groups
 		matched=true
@@ -114,7 +106,9 @@ classify_path() {
 			formal_spec=true
 			matched=true
 			;;
-		.github/scripts/terraform_plan_summary.py|.github/scripts/test_terraform_plan_summary.py|.github/scripts/test_terraform_authenticated_workflow.py|.github/scripts/terraform_identity_diagnostics.py|.github/scripts/terraform_identity_smoke.py|.github/scripts/test_terraform_identity_smoke.py|.github/scripts/test_youtube_quota_alerts.py|.github/scripts/test_backup_bucket.py|.github/scripts/test_export_topic.py|.github/scripts/test_export_scheduler.py|.github/scripts/test_export_function.py|.github/scripts/terraform_export_scheduler_gate.py|.github/scripts/test_terraform_export_scheduler_gate.py|.github/scripts/terraform_export_topic_gate.py|.github/scripts/test_terraform_export_topic_gate.py|.github/scripts/test_notification_channels.py|.github/scripts/terraform_quota_refresh_gate.py|.github/scripts/test_terraform_quota_refresh_gate.py|.github/scripts/terraform_quota_create_gate.py|.github/scripts/test_terraform_quota_create_gate.py|.github/scripts/terraform_plan_diagnostic.py|.github/scripts/test_terraform_plan_diagnostic.py|.github/scripts/terraform_baseline_drift_fields.py|.github/scripts/terraform_baseline_drift_diagnostic.py|.github/scripts/test_terraform_baseline_drift_diagnostic.py|.github/scripts/terraform_protected_plan.py|.github/scripts/test_terraform_protected_plan.py|.github/scripts/terraform_email_adoption_gate.py|.github/scripts/test_terraform_email_adoption_gate.py)
+		# Terraform helpers/tests share naming conventions. Keep non-prefixed
+		# native/history/export witnesses explicit until their later relocation.
+		.github/scripts/terraform_*.py|.github/scripts/test_terraform_*.py|.github/scripts/run_terraform_native_tests.py|.github/scripts/test_order_history.py|.github/scripts/test_user_activity_history*.py|.github/scripts/test_export_*.py|.github/scripts/test_youtube_quota_alerts.py|.github/scripts/test_backup_bucket.py|.github/scripts/test_notification_channels.py)
 			gcp_terraform=true
 			matched=true
 			;;
@@ -161,7 +155,14 @@ classify_path() {
 	esac
 
 	if [[ "$matched" == false ]]; then
-		unmatched_paths+=("$path")
+		case "$path" in
+			.github/scripts/*)
+				# New or renamed CI helpers must never silently bypass validation.
+				# Ordinary documentation/application paths keep their narrow scope.
+				set_all_groups
+				;;
+			*) unmatched_paths+=("$path") ;;
+		esac
 	fi
 }
 
@@ -184,15 +185,8 @@ resolve_changed_paths() {
 
 	local event_name="${GITHUB_EVENT_NAME:-}"
 	if [[ "$event_name" == "workflow_dispatch" ]]; then
-		# Only the caller's exact typed input selects this operational scope.
-		# Authentication remains the reusable workflow's separate trust boundary.
-		if [[ "${CI_AUTHENTICATED_TERRAFORM_DISPATCH:-}" == "true" ]]; then
-			gcp_terraform=true
-			detection_reason='認証付きTerraformの手動実行'
-		else
-			set_all_groups
-			detection_reason='通常の手動実行のため全グループを選択'
-		fi
+		set_all_groups
+		detection_reason='手動実行のため全グループを選択'
 		return
 	fi
 
@@ -212,13 +206,13 @@ resolve_changed_paths() {
 
 	local diff_file
 	diff_file="$(mktemp)"
-	if ! git diff --no-renames --name-only "$base_sha...$head_sha" >"$diff_file"; then
+	if ! git diff --no-renames --name-only -z "$base_sha...$head_sha" >"$diff_file"; then
 		rm -f "$diff_file"
 		echo "::error::Failed to resolve changed paths from $base_sha...$head_sha" >&2
 		exit 1
 	fi
 	changed_paths=()
-	while IFS= read -r path; do
+	while IFS= read -r -d '' path; do
 		changed_paths+=("$path")
 	done <"$diff_file"
 	rm -f "$diff_file"

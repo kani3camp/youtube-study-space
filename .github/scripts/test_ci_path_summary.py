@@ -54,14 +54,11 @@ class PathSummaryTest(unittest.TestCase):
         self.assertIn('all=true\n', output)
 
     def test_manual_runs_explain_scope_without_empty_path_sections(self):
-        for authenticated, expected in (('true', '`gcp_terraform`'), ('false', '全グループ')):
-            with self.subTest(authenticated=authenticated):
-                summary, _ = self.run_detector(GITHUB_EVENT_NAME='workflow_dispatch',
-                    CI_AUTHENTICATED_TERRAFORM_DISPATCH=authenticated)
-                self.assertIn('**選択グループ:** ' + expected, summary)
-                self.assertIn('手動実行', summary)
-                self.assertNotIn('<details>', summary)
-                self.assertLessEqual(len(summary.splitlines()), 5)
+        summary, _ = self.run_detector(GITHUB_EVENT_NAME='workflow_dispatch')
+        self.assertIn('**選択グループ:** 全グループ', summary)
+        self.assertIn('手動実行', summary)
+        self.assertNotIn('<details>', summary)
+        self.assertLessEqual(len(summary.splitlines()), 5)
 
     def test_unmatched_and_empty_changes_explain_common_checks(self):
         for args in ((), ('README.md',)):

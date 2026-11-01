@@ -81,8 +81,6 @@ def validate(caller, modules, terraform):
     require(jobs['changes']['outputs'] == {g: '${{ steps.detect.outputs.' + g + ' }}' for g in GROUPS},
             'All detection outputs reach callers')
     require(jobs['changes']['steps'][-1]['run'] == 'bash .github/scripts/detect-ci-paths.sh', 'Use canonical detector')
-    require('CI_AUTHENTICATED_TERRAFORM_DISPATCH' not in jobs['changes']['steps'][-1].get('env', {}),
-            'Manual CI never narrows validation for an operation')
     for name, members in MODULES.items():
         call = jobs[name]
         expected_keys = {'name', 'uses', 'needs', 'with'} if name == 'repository' else {'name', 'uses', 'needs', 'if'}

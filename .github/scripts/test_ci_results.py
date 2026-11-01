@@ -73,7 +73,7 @@ class GateResultsTest(unittest.TestCase):
                 with self.subTest(group=group, bad=bad), self.assertRaises(ValueError):
                     gate.validate(needs)
 
-    def test_authenticated_dispatch_only_requires_terraform_and_repository(self):
+    def test_terraform_only_selection_requires_terraform_and_repository(self):
         needs = self.fixture(gcp_terraform='true')
         needs['gcp-terraform-validate']['result'] = 'success'
         gate.validate(needs)
