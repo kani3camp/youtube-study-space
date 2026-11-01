@@ -1,4 +1,4 @@
-# Fixed reusable analyzer: no caller-selectable Environment, secrets, or cloud identity.
+# Fixed reusable analyzer: no Environment, secrets, or cloud identity.
 name: CodeQL Analyzer
 
 on:
@@ -11,8 +11,7 @@ jobs:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    # Fixed, dedicated, secretless Environment. No caller input can select another.
-    environment: codeql-analysis
+    # Probe ordinary CodeQL authentication without an Environment or OIDC grant.
     permissions:
       contents: read
       security-events: write

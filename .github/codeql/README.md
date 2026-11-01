@@ -1,6 +1,19 @@
 # CodeQL advanced setup
 
-## 現行sourceと切替（2026-10-17）
+## EnvironmentなしのAdvanced解析の検証（2026-11-01、未マージの検証用ブランチ）
+
+この検証では、同じcaller → reusable analyzerの構成から `environment: codeql-analysis` だけを外します。
+caller/calleeの `id-token: none`、3言語、default queries / remote sources、Goのcompile-only build、
+language category、SARIF processing待機、secret非継承を維持します。
+source validatorは検証対象のEnvironmentなし構成を受理し、Environment追加や権限拡大は拒否します。
+
+devをbaseとするDraft PRの `pull_request` 実行で、全3言語のinit・Go compile・analyze・SARIF処理を確認します。
+source SHA・merge snapshot・run URL・実結果は検証PRへ記録し、ローカルの静的検証を実解析の成功と扱いません。
+共有OIDC subject、Default setup、AWS/GCP trust、Terraform Environment、既存 `codeql-analysis` Environmentは変更しません。
+この実験では、Default setupの内部OIDC経路や `environment` → `context` の置換は検証できません。
+検証PRをdev/mainへマージしません。以下は導入時の履歴であり、この検証ブランチのEnvironment要件ではありません。
+
+## 導入時のsourceと切替の記録（2026-10-17）
 
 repository OIDC subjectの既存7 claimsには `environment` と `job_workflow_ref` が必須です。managed default setupはEnvironmentを持たず、最終PR #1251の3言語が同じclaim欠損で失敗したため、既存のsame-tree caller → reusable analyzerを有効にします。固定 `codeql-analysis` Environmentを使用し、global OIDC設定、Terraformの4 Environment、AWS/GCP trustは変更しません。GitHub公式仕様でも、[environment claimを要求するjobにはEnvironmentが必要](https://docs.github.com/en/actions/reference/security/oidc#custom-claims-provided-by-github)です。
 
