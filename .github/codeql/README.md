@@ -15,6 +15,10 @@
 push対象は `dev`、`main`、`feature/gcp-terraform-iac`、`integration/mypage-canon-20261006` です。
 scheduleはdefault branchで実行されます。PRにはbase・pathによる絞り込みを設けません。
 
+Environmentの廃止に伴い、Environmentのbranch policyによる解析・SARIF upload対象refの制限も廃止します。
+`workflow_dispatch` はリポジトリへのwrite権限を持つ利用者が任意のブランチを選択して実行できる構成とし、
+push対象4ブランチの制限は維持します。
+
 ## 維持する契約
 
 - caller/calleeのworkflow-wide permissionsは `{}`。解析jobには `contents: read`、`security-events: write`、`id-token: none` のみを指定する。
@@ -47,12 +51,9 @@ sourceの変更とGitHub設定の削除は別操作です。このtreeにEnviron
 
 ## 実解析の証拠と履歴
 
-2026-11-01、[PR #1537](https://github.com/kani3camp/youtube-study-space/pull/1537) のEnvironmentなしの同一リポジトリPRで、
-[CodeQL Advanced run 41276390860](https://github.com/kani3camp/youtube-study-space/actions/runs/41276390860) が成功しました。
-Actions・Go・JavaScript/TypeScriptの全jobでinit・解析・SARIF upload・GitHub側processing完了を確認しています。
-Goは全tracked moduleのcompileも成功しました。source headは `98bc4b9b44ac8001e4dda25cd73a3250c19b574d`、
-解析対象のPR merge snapshotは `78bee31ce903d8b1ea7f5801a0ff839163b75016` です。これはdevへのマージではありません。
-詳細なjob・権限・checkout SHA・静的検証・CI結果はPRへ記録しています。
+[PR #1537](https://github.com/kani3camp/youtube-study-space/pull/1537) で、Environmentなしの同一リポジトリPRにおける
+Actions・Go・JavaScript/TypeScriptの解析・SARIF upload・GitHub側processing完了と、Goの全tracked moduleのcompile成功を確認しました。
+実行run・対象SHA・権限・静的検証・CI結果の詳細はPRに記録しています。
 この結果はDefault setupの内部OIDC処理やpush/schedule/fork/Dependabotの実行成功を証明するものではありません。
 
 導入時にはDefault setupの起動前に `environment` claim欠損エラーがあり、専用Environment付きAdvanced setupを採用しました。
