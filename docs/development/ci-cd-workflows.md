@@ -111,9 +111,8 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 
 **PR Plan（UC2 自動）**
 
-- 専用identity・Environment secretの構築後、repository variable `TERRAFORM_PR_PLAN_ENABLED=true` を設定して有効化する。Core DEV/PRODとMyPage DEVの準備が完了するまでは未設定または`false`にする。この状態では認証jobとPR Plan Gateをスキップし、Summaryに未有効化とnative Plan未実行を明示する。credentialless CIは継続する。その他の値は設定誤りとして失敗し、有効化後の認証不備・Plan失敗を自動でスキップへ切り替えない。
 - `pull_request` で起動し、変更パスから component を判定する（`infra/gcp/**` → core、`infra/mypage-platform/**` → mypage、共有の CI script / workflow 変更 → 両方）。dev / prod の両方を plan する。
-- 有効化後もfork由来PRでは資格情報を取得しない。`pull_request` は fork に OIDC / secret を渡さないことに加え、job条件で `head.repo.full_name == github.repository` を要求し、満たさない場合は **失敗として** 理由を表示する（false-green skip にしない）。
+- fork 由来PRでは資格情報を取得しない。`pull_request` は fork に OIDC / secret を渡さないことに加え、job条件で `head.repo.full_name == github.repository` を要求し、満たさない場合は **失敗として** 理由を表示する（false-green skip にしない）。
 - PR Plan identity は、Apply identity とも、手動 Plan の identity とも分離して新設する。手動 Plan の identity は owner が dispatch した既知のコードだけを実行する前提で権限（state lock の書き込みなど）を持つ。PR Plan は PR 作成者が変更できるコードを実行するため、同じ identity を共有しない。
   - GCP: 環境ごとの read-only SA（`get` / `list` / `getIamPolicy` 系のみ。既存 [`bootstrap_normal_ops.py`](../../infra/gcp/scripts/bootstrap_normal_ops.py) の READ 集合を基準にする）。
   - AWS State: state object の `GetObject` と bucket の対象prefix `ListBucket` のみ。lock file への書き込み権限は与えず、PR Plan は `-lock=false` で実行する（PR Plan は助言であり、Apply は必ず fresh plan を作るため）。
@@ -200,7 +199,6 @@ GitHub Actions の concurrency group は job ごとに1つしか持てないた�
 
 1. 取り込み前に、旧 concurrency group（`mypage-dev-runtime-change`、`mypage-dev-hosting-release`、`gcp-infrastructure-production`）に実行中・待機中の run がないことを確認する。
 2. 各PRの「必要なowner作業」を実施し、新しい `workflow_ref` / `job_workflow_ref` を trust に追加する。
-   - 自動PR PlanはCore DEV/PROD・MyPage DEVの専用read-only identityと各Environmentのsecretを準備後、repository variable `TERRAFORM_PR_PLAN_ENABLED=true` を設定する。最初のowner PR runで認証・native Plan成功を確認する。手動Plan/Applyのidentityは流用しない。
 3. 新経路を実runで1回ずつ検証する（Terraform 手動 Plan → API deploy → Frontend deploy → Operator deploy → Maintenance mode `enabled=false`）。
 4. 初回 Operator deploy で Job が `mypage-maintenance-operator` package へ移ったことを確認してから、次を1つのPRで行う。
    - Terraform 契約・Operator 配備スクリプトから旧 `mypage-api` package の許容を外す。

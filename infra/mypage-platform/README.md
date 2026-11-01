@@ -28,8 +28,6 @@ Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-
 
 ownerの同一repository PRでMyPage rootが変わると、`Terraform` がDEVのdesired stateを **PR Plan** する（[`terraform-pr-plan.yml`](../../.github/workflows/terraform-pr-plan.yml)）。PR Plan identityは手動Plan / Applyと別で、`mypage-foundation-pr-plan` SA（`mypage-foundation-plan`と同じ読み取り権限）、`mypage-foundation` poolの`github-pr-plan` provider（conditionは`python3 infra/mypage-platform/scripts/foundation_contract.py pr-plan-provider-condition`）、State読み取りだけのAWS role（`pr-plan-aws-policies <account> <bucket>`）、Environment `mypage-dev-pr-plan`（手動と別の`MYPAGE_PLAN_HMAC_KEY`）を使う。`-lock=false`で実行し、plan contractの判定だけを表示してcommitmentを残さない。
 
-自動PR PlanはCoreのDEV/PRODとMyPage DEVの専用identity・Environment secretを準備してから、repository variable `TERRAFORM_PR_PLAN_ENABLED=true` で一括有効化する。未設定または`false`では認証jobとPR Plan Gateをスキップし、Summaryに未有効化とnative Plan未実行を明示する。credentialless CIは継続する。有効化後の認証不備・Plan失敗は失敗のままとし、手動Plan/Apply用identityへフォールバックしない。
-
 以下のstageは初回構築と既存の拒否条件を維持するための内部実装であり、通常の手動UIには出さない。ソースの`stage = "disabled"`は未構築ルートの既定値で、Module count=0・新GCP資源=0を意味する。初回構築時だけ段階を明示し、既定値を実Stateの状態と混同しない。
 
 通常経路が使うstageは、`environments/{dev,prod}/desired-stage.txt`をレビューして決める。現在はDEV=`runtime_public`、本番=`disabled`である。本番が`disabled`の間はMyPageのクラウド認証情報を求めず、Core GCPだけを通常運用できる。本番のMyPage公開準備を進める場合は、この変更自体をPRでレビューし、必要なEnvironment・IAM・Stateの準備と同じ変更単位で扱う。
@@ -129,6 +127,6 @@ filterはtest projectのmypage-apiの標準request logのうちcallback URLま�
 
 ### 手動TerraformのPlan回数とSummary
 
-`operation=plan`は選択したrootごとにPlanを1回実行する。`operation=apply`は外側のPlanをスキップし、認証なしの検証後、各rootのreusable workflow内でPlan権限によるPlanとApply権限による独立Planを生成する。一致した場合だけApply job内の保存Planを適用する（各rootの適用前Planは計2回）。Coreには適用後のno-op検証Planもあるため、成功時のPlan総実行回数は従来4回から3回になる。`component=all`ではCore Applyが成功してからMyPageの内部Plan/Applyを開始するため、MyPageが失敗しても成功済みのCore変更は残る。root間の一括ロールバックはない。
+`operation=plan`は選択したrootごとにPlanを1回実行する。`operation=apply`は外側のPlanをスキップし、認証なしの検証後、各rootのreusable workflow内でPlan権限によるPlanとApply権限による独立Planを生成する。一致した場合だけApply job内の保存Planを適用する（各root計2回）。`component=all`ではCore Applyが成功してからMyPageの内部Plan/Applyを開始するため、MyPageが失敗しても成功済みのCore変更は残る。root間の一括ロールバックはない。
 
 MyPageの通常Plan（Apply内のPlan権限jobを含む）はPlan契約・所有権・State versionの検証成功後、Job Summaryに操作別件数と資源種別・操作別件数を出す。Coreと同じ`Resource type / Actions / Count`形式を使い、名前・ID・設定値・outputs・commitmentは公開しない。`drift`は観測件数で、適用予定の変更件数ではない。拒否されたPlanの値や診断は引き続き非公開とする。

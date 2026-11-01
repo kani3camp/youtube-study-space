@@ -29,7 +29,7 @@ class TerraformWorkflowTest(unittest.TestCase):
                               env={'PATH': os.environ.get('PATH', os.defpath), **env,
                                    'GITHUB_OUTPUT': os.devnull}).returncode
 
-    def run_pr_select(self, changed, *, git_status=0, include_summary=False, **env):
+    def run_pr_select(self, changed, *, git_status=0, **env):
         """Run the real selection shell with a fake git that lists `changed`."""
         with tempfile.TemporaryDirectory() as directory:
             git = Path(directory) / 'git'
@@ -39,54 +39,15 @@ class TerraformWorkflowTest(unittest.TestCase):
                            f'exit {git_status}\n')
             git.chmod(0o755)
             output = Path(directory) / 'output'
-            summary = Path(directory) / 'summary'
             values = {'GITHUB_REPOSITORY': 'kani3camp/youtube-study-space', 'HEAD_REPOSITORY': 'kani3camp/youtube-study-space',
                       'GITHUB_ACTOR_ID': '54093651', 'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1',
-                      'BASE_SHA': 'a' * 40, 'HEAD_SHA': 'b' * 40, 'PR_PLAN_ENABLED': 'true'} | env
+                      'BASE_SHA': 'a' * 40, 'HEAD_SHA': 'b' * 40} | env
             result = subprocess.run(['bash', '-c', self.jobs['pr-select']['steps'][-1]['run']], cwd=ROOT,
                                     capture_output=True, text=True,
                                     env={'PATH': directory + os.pathsep + os.environ.get('PATH', os.defpath),
-                                         **values, 'GITHUB_OUTPUT': str(output), 'GITHUB_STEP_SUMMARY': str(summary)})
+                                         **values, 'GITHUB_OUTPUT': str(output)})
             outputs = dict(line.split('=', 1) for line in output.read_text().splitlines()) if output.exists() else {}
-            if include_summary:
-                return result.returncode, outputs, summary.read_text() if summary.exists() else ''
             return result.returncode, outputs
-
-    def test_pr_plan_bootstrap_is_explicit_and_never_reports_an_unrun_plan_as_passed(self):
-        step = self.jobs['pr-select']['steps'][-1]
-        self.assertEqual(step['env']['PR_PLAN_ENABLED'], '${{ vars.TERRAFORM_PR_PLAN_ENABLED }}')
-        # No diff or identity is needed before activation, including on a fork.
-        for enabled in ('', 'false'):
-            code, outputs, summary = self.run_pr_select(
-                ['infra/gcp/main.tf'], git_status=128, include_summary=True,
-                PR_PLAN_ENABLED=enabled, HEAD_REPOSITORY='fork/repository', GITHUB_ACTOR_ID='1')
-            self.assertEqual(code, 0)
-            self.assertEqual(outputs, {'enabled': 'false', 'core': 'false', 'mypage': 'false'})
-            self.assertIn('not enabled', summary)
-            self.assertIn('**not run**', summary)
-            self.assertNotIn('PASS', summary)
-        for enabled in ('TRUE', '1', 'true ', 'unexpected'):
-            code, outputs = self.run_pr_select(['infra/gcp/main.tf'], PR_PLAN_ENABLED=enabled)
-            self.assertNotEqual(code, 0)
-            self.assertEqual(outputs, {})
-
-    def test_pr_plan_gate_skips_only_explicitly_disabled_and_still_rejects_failures(self):
-        expression = self.jobs['pr-gate']['if']
-        for result in ('success', 'failure', 'skipped', 'cancelled'):
-            for enabled in ('false', 'true', ''):
-                observed = expression.removeprefix('${{').removesuffix('}}').strip()
-                observed = observed.replace('always()', 'True').replace('github.event_name', repr('pull_request'))
-                observed = observed.replace('needs.pr-select.outputs.enabled', repr(enabled))
-                observed = observed.replace('needs.pr-select.result', repr(result))
-                observed = observed.replace('&&', ' and ').replace('||', ' or ')
-                self.assertEqual(eval(observed, {'__builtins__': {}}, {}),
-                                 result != 'success' or enabled != 'false')
-        valid = {'SELECT_RESULT': 'success', 'CORE': 'true', 'MYPAGE': 'true',
-                 'CORE_RESULT': 'success', 'MYPAGE_RESULT': 'success'}
-        self.assertEqual(self.run_step('pr-gate', **valid), 0)
-        for key in ('SELECT_RESULT', 'CORE_RESULT', 'MYPAGE_RESULT'):
-            for result in ('failure', 'skipped', 'cancelled'):
-                self.assertNotEqual(self.run_step('pr-gate', **(valid | {key: result})), 0)
 
     def test_pr_plan_selects_changed_roots_and_fails_visibly_for_forks_and_other_actors(self):
         for changed, core, mypage in (
@@ -97,10 +58,10 @@ class TerraformWorkflowTest(unittest.TestCase):
             (['docs/README.md'], 'false', 'false'),
         ):
             with self.subTest(changed=changed):
-                self.assertEqual(self.run_pr_select(changed), (0, {'enabled': 'true', 'core': core, 'mypage': mypage}))
+                self.assertEqual(self.run_pr_select(changed), (0, {'core': core, 'mypage': mypage}))
         # A moved file is listed under both paths, so a root it leaves is still planned.
         self.assertEqual(self.run_pr_select(['infra/gcp/environments/dev/example.tf', 'docs/example.tf']),
-                         (0, {'enabled': 'true', 'core': 'true', 'mypage': 'false'}))
+                         (0, {'core': 'true', 'mypage': 'false'}))
         # A failed diff fails the job instead of selecting nothing.
         code, outputs = self.run_pr_select(['infra/gcp/environments/dev/main.tf'], git_status=128)
         self.assertNotEqual(code, 0)

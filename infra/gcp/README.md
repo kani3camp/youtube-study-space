@@ -20,8 +20,6 @@ MyPageの通常経路は最終desired state（現在は `runtime_public` 相当�
 
 ownerが作成した同一repositoryのPRで `infra/gcp/**` などが変わると、`Terraform` の `pull_request` 経路がDEV / PRODのCore（MyPageはDEVのみ）を **PR Plan** します。
 
-自動PR Planは、専用identityと各Environmentのsecretを構築した後、repository variable `TERRAFORM_PR_PLAN_ENABLED=true` を設定して有効化する。未設定または`false`では認証jobとPR Plan Gateをスキップし、Summaryに「未有効化・native Plan未実行」を表示する。credentialless CIは継続する。その他の値は設定誤りとして失敗する。有効化後の認証不備・Plan失敗はスキップへ切り替えず、そのまま失敗する。
-
 - 専用の [`terraform-pr-plan.yml`](../../.github/workflows/terraform-pr-plan.yml) と、手動Plan・Applyとは別のPR Plan identity（`terraform-<env>-normal-pr-plan` SA、`terraform-pr-plan` WIF pool、State読み取りだけのAWS role、Environment `terraform-<env>-pr-plan`）を使う。
 - `-lock=false` で実行し、HMAC・saved plan・job outputを残さない。結果はJob Summaryの値なし要約だけで、PRコメントは投稿しない。Applyは必ず手動 `Terraform` で再Planする。
 - fork由来PR、owner以外のactor、再実行は資格情報を取得する前に**失敗として**停止する（green skipにしない）。その場合はownerが手動 `Terraform` の `operation=plan` を実行する。

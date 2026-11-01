@@ -259,7 +259,6 @@ jobs:
     permissions:
       contents: read
     outputs:
-      enabled: ${{ steps.select.outputs.enabled }}
       core: ${{ steps.select.outputs.core }}
       mypage: ${{ steps.select.outputs.mypage }}
     steps:
@@ -269,37 +268,16 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      # Bootstrap is an explicit rollout step. Once enabled, admission or Plan
-      # failures must stay failures; missing credentials never disable the feature.
+      # Fail visibly (never a green skip) when the PR cannot get a PR Plan.
       - name: Require the owner's same-repository PR and select the changed roots
         id: select
         env:
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_PLAN_ENABLED: ${{ vars.TERRAFORM_PR_PLAN_ENABLED }}
         run: |
           set -euo pipefail
           fail() { echo "::error::$1"; exit 1; }
-          case "${PR_PLAN_ENABLED}" in
-            true) ;;
-            ''|false)
-              {
-                echo "enabled=false"
-                echo "core=false"
-                echo "mypage=false"
-              } >> "$GITHUB_OUTPUT"
-              echo "::notice::Terraform PR Plan is not enabled. Native Plan was not run."
-              cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
-          ### Terraform PR Plan: not enabled
-
-          Native Terraform Plan was **not run**. Credentialless CI validation runs separately.
-          After configuring the dedicated read-only identities and Environment secrets,
-          set repository variable `TERRAFORM_PR_PLAN_ENABLED` to `true` to enable PR Plans.
-          SUMMARY
-              exit 0 ;;
-            *) fail "TERRAFORM_PR_PLAN_ENABLED must be unset, false or true" ;;
-          esac
           [[ "${HEAD_REPOSITORY}" == "${GITHUB_REPOSITORY}" ]] ||
             fail "Fork PRs never receive Terraform credentials. The owner runs the manual Terraform Plan."
           [[ "${GITHUB_ACTOR_ID}" == "54093651" && "${GITHUB_TRIGGERING_ACTOR}" == "kani3camp" && "${GITHUB_RUN_ATTEMPT}" == "1" ]] ||
@@ -319,7 +297,6 @@ jobs:
             esac
           done < "${changed}"
           {
-            echo "enabled=true"
             echo "core=${core}"
             echo "mypage=${mypage}"
           } >> "$GITHUB_OUTPUT"
@@ -379,9 +356,7 @@ jobs:
 
   pr-gate:
     name: Terraform PR Plan Gate
-    # Skip only a successful explicit disabled state; selection failures must
-    # still reach the failing Gate, even if an output was written before failing.
-    if: ${{ always() && github.event_name == 'pull_request' && (needs.pr-select.result != 'success' || needs.pr-select.outputs.enabled != 'false') }}
+    if: ${{ always() && github.event_name == 'pull_request' }}
     needs: [pr-select, pr-plan-core, pr-plan-mypage]
     runs-on: ubuntu-latest
     timeout-minutes: 5
