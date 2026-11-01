@@ -7,6 +7,7 @@ import recordedFixture from '../../docs/mypage/fixtures/recorded-history.json'
 import type { MyPage } from './features/mypage/contract'
 import { type MemoryState, mergeResponse } from './features/mypage/memory'
 import { MyPageView } from './features/mypage/view'
+import { youtubeChannelURLsForProject } from './youtube-channel'
 import './style.css'
 
 function VisualApp({ initial }: { initial: MemoryState }) {
@@ -17,6 +18,10 @@ function VisualApp({ initial }: { initial: MemoryState }) {
 			refresh={() => {}}
 			logout={() => setState({ ...state, phase: 'anonymous', data: null })}
 			cookieSettings={() => {}}
+			liveURL={
+				youtubeChannelURLsForProject(import.meta.env.VITE_FIREBASE_PROJECT_ID)
+					?.live ?? null
+			}
 		/>
 	)
 }

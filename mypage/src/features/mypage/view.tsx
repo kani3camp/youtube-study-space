@@ -6,8 +6,6 @@ import type { MemoryState, Retained, ViewData } from './memory'
 
 export const guideURL =
 	'https://kani3camp.github.io/youtube-study-space/docs/essential'
-export const liveURL =
-	'https://www.youtube.com/channel/UCXuD2XmPTdpVy7zmwbFVZWg/live'
 
 const dateTime = new Intl.DateTimeFormat('ja-JP', {
 	timeZone: 'Asia/Tokyo',
@@ -202,10 +200,12 @@ function CurrentCard({
 	value,
 	busy,
 	retry,
+	liveURL,
 }: {
 	value?: Retained<Current>
 	busy: boolean
 	retry: () => void
+	liveURL: string | null
 }) {
 	const current = value?.data
 	if (!current)
@@ -356,9 +356,11 @@ function CurrentCard({
 				{active && (
 					<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
 				)}
-				<ExternalLink href={liveURL} primary={!active}>
-					YouTubeライブを開く
-				</ExternalLink>
+				{liveURL && (
+					<ExternalLink href={liveURL} primary={!active}>
+						YouTubeライブを開く
+					</ExternalLink>
+				)}
 				{!active && (
 					<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
 				)}
@@ -599,11 +601,13 @@ export function MyPageView({
 	refresh,
 	logout,
 	cookieSettings,
+	liveURL,
 }: {
 	state: MemoryState
 	refresh: () => void
 	logout: () => void
 	cookieSettings: () => void
+	liveURL: string | null
 }) {
 	const [panelOpen, setPanelOpen] = useState(false)
 	const avatar = useRef<HTMLButtonElement>(null)
@@ -676,6 +680,7 @@ export function MyPageView({
 								value={data?.current}
 								busy={state.busy}
 								retry={refresh}
+								liveURL={liveURL}
 							/>
 							{!initialFailure && (
 								<>

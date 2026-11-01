@@ -2,17 +2,19 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import fixture from '../../../../docs/mypage/fixtures/available.json'
 import recorded from '../../../../docs/mypage/fixtures/recorded-history.json'
+import { youtubeChannelURLsForProject } from '../../youtube-channel'
 import type { MyPage } from './contract'
 import { type MemoryState, mergeResponse } from './memory'
 import { MyPageView } from './view'
 
-function markup(state: MemoryState) {
+function markup(state: MemoryState, liveURL: string | null = null) {
 	return renderToStaticMarkup(
 		<MyPageView
 			state={state}
 			refresh={() => {}}
 			logout={() => {}}
 			cookieSettings={() => {}}
+			liveURL={liveURL}
 		/>,
 	)
 }
@@ -27,6 +29,36 @@ function state(): MemoryState {
 }
 
 describe('MyPage observable display', () => {
+	it.each([
+		['test-youtube-study-space', 'UChBj4xZePvWyGmTKct5FBcg'],
+		['youtube-study-space', 'UCXuD2XmPTdpVy7zmwbFVZWg'],
+		['other-project', null],
+		[undefined, null],
+	])('uses the selected live link across work states for %s', (projectID, channelID) => {
+		for (const currentState of [
+			'work',
+			'break',
+			'not_seated',
+			'unregistered',
+		] as const) {
+			const s = state()
+			if (!s.data?.current.data) throw new Error('synthetic current missing')
+			s.data.current.data.state = currentState
+			const html = markup(
+				s,
+				youtubeChannelURLsForProject(projectID)?.live ?? null,
+			)
+			if (channelID) {
+				expect(html).toContain(
+					`href="https://www.youtube.com/channel/${channelID}/live" target="_blank" rel="noopener noreferrer"`,
+				)
+				expect(html.match(/\/live"/g)).toHaveLength(1)
+			} else {
+				expect(html).not.toContain('YouTubeライブを開く')
+				expect(html).not.toContain('/live')
+			}
+		}
+	})
 	it('graphs recorded positive work with a tentative label while unknown days remain unavailable', () => {
 		const s = state()
 		s.data = mergeResponse(null, recorded as MyPage)
