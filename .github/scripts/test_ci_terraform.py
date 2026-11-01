@@ -138,6 +138,35 @@ class TerraformWorkflowTest(unittest.TestCase):
                 with self.subTest(source=source, change=change):
                     self.assertNotEqual(self.run_step('select', **(valid | source | change)), 0)
 
+    def select_outputs(self, **env):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'output'
+            steps = self.jobs['select']['steps']
+            command = next(step for step in steps if step.get('id') == 'select')['run']
+            result = subprocess.run(['bash', '-c', command], cwd=ROOT, capture_output=True, text=True,
+                                    env={'PATH': os.environ.get('PATH', os.defpath), **env,
+                                         'GITHUB_OUTPUT': str(output)})
+            outputs = dict(line.split('=', 1) for line in output.read_text().splitlines()) if output.exists() else {}
+            return result.returncode, outputs, result.stdout
+
+    def test_mypage_runs_only_from_the_ref_its_cloud_trust_pins(self):
+        pinned = 'refs/heads/integration/mypage-canon-20261006'
+        stage = (ROOT / 'infra/mypage-platform/environments/dev/desired-stage.txt').read_text().strip()
+        self.assertNotEqual(stage, 'disabled')
+        base = {'ENVIRONMENT': 'development', 'OPERATION': 'plan'}
+        code, outputs, _ = self.select_outputs(**base, COMPONENT='all', GITHUB_REF=pinned)
+        self.assertEqual((code, outputs.get('mypage_stage')), (0, stage))
+        # From another ref (for example dev before the trust moves) Core still runs and MyPage is skipped.
+        for ref in ('refs/heads/dev', 'refs/heads/feature/x', ''):
+            code, outputs, log = self.select_outputs(**base, COMPONENT='all', GITHUB_REF=ref)
+            self.assertEqual((code, outputs.get('mypage_stage')), (0, 'disabled'), ref)
+            self.assertIn('MyPage is skipped', log)
+            code, _, log = self.select_outputs(**base, COMPONENT='mypage', GITHUB_REF=ref)
+            self.assertNotEqual(code, 0)
+            self.assertIn('MyPage can only be operated from ' + pinned, log)
+            code, outputs, _ = self.select_outputs(**base, COMPONENT='core', GITHUB_REF=ref)
+            self.assertEqual(code, 0)
+
     def test_each_root_keeps_its_reusable_mode_and_secret_boundary(self):
         for name, uses, mode, secrets in (
             ('core-plan', 'gcp-terraform-authenticated.yml', 'normal-plan', CORE_SECRETS),

@@ -112,6 +112,20 @@ jobs:
             disabled|foundation_metadata|foundation|registry|maintenance_operator|maintenance_upgrade|runtime_private|runtime_public) ;;
             *) echo "::error::Invalid reviewed MyPage desired stage"; exit 1 ;;
           esac
+          # The MyPage cloud trust admits only its pinned ref (foundation_contract.REF).
+          # From any other ref MyPage cannot authenticate: skip it for component=all
+          # so Core still runs, and refuse component=mypage with the reason.
+          if [[ "${stage}" != "disabled" ]]; then
+            mypage_ref="$(MYPAGE_TARGET="${ENVIRONMENT}" python3 -c 'import sys; sys.path.insert(0, "infra/mypage-platform/scripts"); import foundation_contract as c; print(c.REF)')"
+            if [[ "${GITHUB_REF:-}" != "${mypage_ref}" ]]; then
+              if [[ "${COMPONENT}" == "mypage" ]]; then
+                echo "::error::MyPage can only be operated from ${mypage_ref} (its cloud trust is pinned to that ref)."
+                exit 1
+              fi
+              echo "::notice::MyPage is skipped: its cloud trust is pinned to ${mypage_ref}. Core runs as selected."
+              stage=disabled
+            fi
+          fi
           if [[ "${COMPONENT}" == "mypage" && "${stage}" == "disabled" ]]; then
             echo "::error::MyPage is disabled for this environment; nothing to operate on."
             exit 1

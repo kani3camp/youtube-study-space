@@ -79,11 +79,9 @@ updates:
           - minor
           - patch
 
-  # MyPageは#1236がdevに入るまで統合ブランチで開発する。
-  # 既定ブランチ向けの更新は、このフロントエンドとDockerfileをまだ対象にしない。
+  # MyPageフロントエンド（#1236でdevへ統合済み）
   - package-ecosystem: npm
     directory: /mypage
-    target-branch: integration/mypage-canon-20261006
     schedule:
       interval: daily
       time: "09:00"
@@ -97,32 +95,6 @@ updates:
           - ">=25.0.0"
     groups:
       mypage-minor-and-patch:
-        patterns: ["*"]
-        update-types: [minor, patch]
-
-  - package-ecosystem: docker
-    directory: /system
-    target-branch: integration/mypage-canon-20261006
-    schedule:
-      interval: daily
-      time: "09:00"
-      timezone: Asia/Tokyo
-    commit-message:
-      prefix: build(deps)
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: gomod
-    directory: /system
-    target-branch: integration/mypage-canon-20261006
-    schedule:
-      interval: daily
-      time: "09:00"
-      timezone: Asia/Tokyo
-    commit-message:
-      prefix: build(deps)
-    open-pull-requests-limit: 10
-    groups:
-      mypage-go-minor-and-patch:
         patterns: ["*"]
         update-types: [minor, patch]
 
