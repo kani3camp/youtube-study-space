@@ -1,0 +1,55 @@
+name: CI GCP Terraform
+
+# Credentialless validation of the GCP Terraform roots. ci.yml validates its own
+# commit; terraform.yml validates the exact commit it will then plan or apply.
+# Target code runs only inside the isolated validation container: runner
+# environment, Actions tokens, command files and the Docker socket are withheld.
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact commit to validate, pinned by the caller
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: GCP Terraform Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted validation controller
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare isolated validation tools
+        uses: ./.github/actions/prepare-ci-validation
+      - name: Checkout exact validation source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: .ci-source
+          persist-credentials: false
+      - name: Run isolated validation
+        env:
+          VALIDATION_SHA: ${{ inputs.source_sha }}
+        run: |
+          # Do not expose runner tokens, command files or the Docker socket to target code.
+          marker="$(openssl rand -hex 32)"
+          echo "::stop-commands::${marker}"
+          set +e
+          docker run --rm --init --read-only \
+            --cap-drop=ALL --security-opt=no-new-privileges \
+            --pids-limit=256 --memory=6g --cpus=2 \
+            --tmpfs /tmp:rw,exec,mode=1777 \
+            --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
+            --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
+            --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
+            yss-ci-validation:local terraform
+          result=$?
+          echo "::${marker}::"
+          exit "$result"

@@ -36,7 +36,7 @@ class ProductionReadinessTest(unittest.TestCase):
         guard.text = WORKFLOW.read_text()
         result = guard.run_preflight(**({
             "TARGET": "prod", "MODE": mode, "GITHUB_REF": "refs/heads/main",
-            "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/ci.yml@refs/heads/main",
+            "GITHUB_WORKFLOW_REF": "kani3camp/youtube-study-space/.github/workflows/terraform.yml@refs/heads/main",
         } | overrides))
         return result, dict(line.split("=", 1) for line in result.outputs.splitlines())
 

@@ -1,7 +1,7 @@
 # Terraform認証・実行境界
 
-認証付き実行の入口は `ci.yml` の本人による初回 `workflow_dispatch` と、同SHAの
-`gcp-terraform-authenticated.yml` です。運用手順は[README](../README.md#通常のdev-terraform開発)、
+認証付き実行の入口は `terraform.yml` の本人による初回 `workflow_dispatch` と、同SHAの
+`gcp-terraform-authenticated.yml` です。`ci.yml` は資格情報を持たない検査だけです。運用手順は[README](../README.md#通常のdev-terraform開発)、
 実際の認証・State・Plan検査はworkflowとcontrollerを正本とします。
 
 ## 共通の信頼境界
@@ -25,7 +25,7 @@ controllerは `infra/gcp/scripts/terraform_normal_ops.py`、運用入口と設�
 | Environment Secret | DEV Plan/Apply EnvironmentはSelected branchesで信頼済み実行元をBranchとして明示許可。No restrictionにしない。同じEnvironmentを指定する別workflow jobにも適用されるSecretアクセス境界であり、AWS/GCPの本人検証とは独立 |
 | OIDC | 既存AWS 7-claim subjectとGCP WIFによる本人・repository・Environment・正規workflow等の検証を維持。OIDCのref/SHAはEnvironmentで許可したcontrol planeのrefとSHAであり、対象source branchに置き換えない |
 | ソース | 別checkoutの同一repo・固定SHAからDEV rootとmoduleのHCL・入力・配備データをコピー。source側のworkflow／実行器は使わない。別repo・dirty checkout・symlink・未追跡の入力を拒否 |
-| CI検査 | `ci.yml`のchanges jobが資格情報なしで対象SHAを確定。GCP Terraform・Repository共通検査はそのSHAのソースとテストをcheckoutし、実行元からビルドした非rootコンテナ内で実行。runner環境・Actionsトークン・コマンドファイル・Dockerソケットは渡さず、ホスト側ソースはread-only。Environment Secret/OIDCなし・checkout認証情報の永続化なし。成功後だけ同じSHAを認証付きreusableへ渡す。実行元のworkflow・resolver・CI Gate・認証付き実行器は置き換えない |
+| 事前検査 | `terraform.yml`のselect jobが資格情報なしで対象SHAを確定。GCP Terraform検査（`ci-gcp-terraform.yml`）はそのSHAのソースとテストをcheckoutし、実行元からビルドした非rootコンテナ内で実行。runner環境・Actionsトークン・コマンドファイル・Dockerソケットは渡さず、ホスト側ソースはread-only。Environment Secret/OIDCなし・checkout認証情報の永続化なし。成功後だけ同じSHAを認証付きreusableへ渡す。実行元のworkflow・resolver・認証付き実行器は置き換えない |
 | 入力 | private baselineへ選択source SHAの`normal.tfvars.json`を重ね、レビュー指定も同じsource SHAから取得。projectはDEV固定 |
 | Plan | refresh付きfull-root native saved plan。Coreのcomplete/errored/checksとdriftを検査。create/updateのcomputed unknownはTerraformに委ねる |
 | delete/replace | commit内`normal-operations.json`のaddress/actions完全一致が必須。未使用指定も拒否。忘却操作・importは通常経路では拒否 |

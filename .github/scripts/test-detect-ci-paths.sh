@@ -121,7 +121,7 @@ assert_exact_groups "system room_image_prompt menu_image_generator video_maker_s
 assert_exact_groups "system firestore_integration youtube_monitor" system/core/app.go youtube-monitor/src/app.ts
 
 all_groups="system room_image_prompt menu_image_generator video_maker_simulator figma_plugin youtube_monitor docs_site aws_cdk gcp_terraform node_projects firestore_integration formal_spec all"
-assert_exact_groups "$all_groups" .github/scripts/ci-terraform-source.py
+assert_exact_groups "$all_groups" .github/scripts/terraform_source_pin.py
 assert_exact_groups "$all_groups" .github/scripts/test_ci_terraform_source.py
 assert_exact_groups "$all_groups" .github/ci-validation/Dockerfile
 assert_exact_groups "$all_groups" .github/scripts/base-image-pin-check.mjs

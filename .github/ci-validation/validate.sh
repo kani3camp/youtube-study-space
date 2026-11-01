@@ -77,7 +77,7 @@ case "$1" in
     # Test CI selection, required checks and authentication boundary
     python -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v
     # Lint CI and operational workflow calls
-    /opt/ci-tools/actionlint -shellcheck= -pyflakes= .github/workflows/ci.yml .github/workflows/ci-*.yml .github/workflows/gcp-terraform-authenticated.yml
+    /opt/ci-tools/actionlint -shellcheck= -pyflakes= .github/workflows/ci.yml .github/workflows/ci-*.yml .github/workflows/gcp-terraform-authenticated.yml .github/workflows/terraform.yml
     ;;
   *) echo "Unknown validation kind" >&2; exit 2 ;;
 esac
