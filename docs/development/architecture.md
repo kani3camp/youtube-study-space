@@ -119,6 +119,8 @@ MyPageのアプリケーション配備は、ユースケースごとの最上�
 
 ユースケース単位のworkflowへの移行計画と、各workflowの資格情報・Environment・排他の棚卸しは[CI / Terraform / Deploy / Operation workflow](ci-cd-workflows.md)を参照する。
 
+手動の`operation=plan`では選択したCore / MyPageの外側のPlanを実行します。`operation=apply`では外側のCore Planをスキップし、認証なしの検証に成功してから`normal-apply`を呼びます。内部のPlan権限jobとApply権限jobがそれぞれ独立にPlanを生成し、一致検証に成功した場合だけApply job内の保存Planを適用します（Coreの適用前Planは計2回。適用後のno-op検証Planは別途維持します）。MyPageを含む場合は既存のMyPage事前Planを維持し、`component=all`ではその成功後にCoreを適用し、続いてMyPageを適用します。
+
 Terraformの呼び出し元パス（`terraform.yml`）はクラウドのtrust契約の一部です。DEVのtrustは対応済みです。PRODのtrustは、`main`へ反映する前に`ci.yml`と`terraform.yml`の両方を許可し、`main`から`terraform.yml`経由の本番Planが成功した後に`terraform.yml`だけへ限定します（[GCP Terraform](../../infra/gcp/README.md)を参照）。既存のCodeQL、GCP Production Readiness、GCP Runtime Ownership Contractsは、それぞれ独立した責務を維持します。
 
 ローカル検証（`.github/codeql/requirements.txt`で固定したパーサーをインストールした環境）：
