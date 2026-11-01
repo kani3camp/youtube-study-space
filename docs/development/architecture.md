@@ -92,34 +92,40 @@ Changes to storage, forwarding, archival, or deletion must also be checked again
 
 **Design direction:** prefer moving control decisions out of the presentation client so the monitor can eventually become a read/render-only component. This is a target boundary, not a statement that migration is complete. Until code changes remove the request path, reviews and tests must assume the current control loop exists.
 
-## CI validation boundaries
+## CIの検証境界
 
-[CI](../../.github/workflows/ci.yml) is the pull-request orchestrator: it detects changed paths, calls same-tree reusable validation workflows, and publishes the required checks. The validation commands remain in independent jobs so their parallelism and per-job timeouts are preserved.
+[CI](../../.github/workflows/ci.yml) はPRの変更パスを検出し、同じtreeの再利用可能な検証Workflowを呼び出して、必須checkを報告します。各ドメインの検証は独立したジョブで実行します。常時実行のRepository検証は1ジョブにまとめ、4つの検証を独立したコンテナで順次実行します。
 
-| Reusable workflow | Responsibility |
+| 再利用可能Workflow | 責務 |
 | --- | --- |
-| [ci-system.yml](../../.github/workflows/ci-system.yml) | Go lint/tests, generated files, Firestore Emulator |
-| [ci-frontend.yml](../../.github/workflows/ci-frontend.yml) | YouTube Monitor and Docs Site checks/builds |
-| [ci-tools.yml](../../.github/workflows/ci-tools.yml) | Room Image Prompt, Menu Image Generator, Video Maker Simulator, Figma plugin, Formal Spec |
-| [ci-infra.yml](../../.github/workflows/ci-infra.yml) | AWS CDK tests and synth; no deployment |
-| [ci-repository.yml](../../.github/workflows/ci-repository.yml) | Base-image report tests, Node runtime/`@types/node` policy, documentation links, CI workflow contracts/actionlint |
+| [ci-system.yml](../../.github/workflows/ci-system.yml) | Go lint・テスト、生成ファイル、Firestore Emulator |
+| [ci-frontend.yml](../../.github/workflows/ci-frontend.yml) | YouTube MonitorとDocs Siteの検査・ビルド |
+| [ci-tools.yml](../../.github/workflows/ci-tools.yml) | Room Image Prompt、Menu Image Generator、Video Maker Simulator、Figma plugin、Formal Spec |
+| [ci-infra.yml](../../.github/workflows/ci-infra.yml) | AWS CDKのテストとsynth（デプロイなし） |
+| [ci-repository.yml](../../.github/workflows/ci-repository.yml) | ベースイメージ報告のテスト、Node型定義のignore policy、文書リンク、CI契約・actionlint |
 | [ci-gcp-terraform.yml](../../.github/workflows/ci-gcp-terraform.yml) | Core GCP Terraform、MyPage platform、MyPage OAuth TTL、Production readiness / runtime ownership のcredentialless IaC検証。`ci.yml`は自分のcommit、`terraform.yml`はPlan/Applyする固定commitを渡す |
 
-The modules accept only typed selection flags, use read-only repository permissions, and receive no operational secrets or Environments. [Path detection](../../.github/scripts/detect-ci-paths.sh) selects the same validation domains as before; changes to workflows, shared CI actions, or CI selection/result contracts select the full suite. Unchanged domains can skip. Repository checks always run, including during authenticated Terraform dispatches.
+各Workflowは型付きの選択フラグを受け取り、RepositoryとTerraformの検証には対象ソースのSHAも渡します。リポジトリ権限は読み取り専用とし、運用用のSecretやEnvironmentは受け取りません。[変更検知](../../.github/scripts/detect-ci-paths.sh) は変更したドメインを選択し、Workflow・共有CI action・選択結果の契約・未分類のCIスクリプトの変更は全グループを選択します。既知の文書チェッカー2本は常時実行のRepository検証で網羅するため、追加グループを選択しません。変更のないドメインはスキップできます。Repository検証は変更検知後に常に実行します。手動CIは入力なしで全ドメインを再検証し、`ci.yml`ではクラウド認証しません。
 
-Repository Ruleset が要求するCI statusは `CI Gate` だけです。`GCP Terraform Validate` は `CI Gate` 配下の安定した内部check名として維持し、Rulesetを個別job構造へ結合しません。Other validation check names acquire their caller prefix (for example, `System / Go Lint`); they are covered by `CI Gate`. The [gate result policy](../../.github/scripts/check-ci-results.py) rejects failed/cancelled reusable calls, missing or malformed detection outputs, unsuccessful detection/repository checks, and skipped selected modules. MyPage platform / OAuth TTL / Production readiness / runtime ownership を含むGCP IaC検証は `CI GCP Terraform` に集約されています。
+Repository検証は1ジョブで隔離用イメージを1回ビルドし、`base-image`、`node-policy`、`docs`、`contracts` をそれぞれ独立したコンテナで実行します。各コンテナは同じSHAのソースを読み取り専用で受け取り、書き込み領域を共有しません。4件すべての結果をログとホスト側のStep Summaryに記録し、1件でも失敗すればジョブとCI Gateは失敗します。コンテナ出力は結果表へ取り込みません。Terraform関連スクリプトは用途別の名前規則で分類します。
+
+Repository Rulesetの必須checkは`CI Gate`です。ほかのcheck名には呼び出し元のprefixが付き（例：`System / Go Lint`、`GCP Terraform / GCP Terraform Validate`）、その結果を`CI Gate`が検証します。[Gateの判定](../../.github/scripts/check-ci-results.py)は、呼び出し先の失敗・キャンセル、変更検知outputsの欠損・不正、変更検知またはRepository検証の未成功、選択したモジュールのスキップを拒否します。
+
+Terraform Plan / Applyは別の[Terraform](../../.github/workflows/terraform.yml) Workflowで実行します（ownerによる`workflow_dispatch`のみ）。[ソース解決器](../../.github/scripts/terraform_source_pin.py)は既存のowner・ref・caller・source検査で検証対象のコミットを固定します。`ci-gcp-terraform.yml`はテストを含めてこのSHAをcheckoutし、読み取り専用権限で検証します。EnvironmentのSecretやOIDCは使用せず、checkout認証情報も保持しません。認証付きの再利用可能WorkflowにはこのSHAを`expected_sha`として渡し、`source_branch`は空にするため、検証後に新しいブランチHEADへ解決し直すことはありません。DEVのコミット到達性を再検証し、PlanとApplyに同じSHAを使用します。解決器・Workflow定義・認証付き実行器はcontrollerのコミットに固定し、PRODではcontrollerの`main` SHAを使います。PRとCIは`github.sha`を検証します。
+
+検査ツールと[コンテナの実行スクリプト](../../.github/ci-validation/validate.sh)は、対象ソースを取得する前に実行元のcheckoutからビルドします。対象コードは非rootのDockerコンテナ内だけで実行し、ソースを読み取り専用でマウントして使い捨てのメモリ上の作業領域へコピーします。runnerの環境変数、Actionsのキャッシュ・runtimeトークン、コマンドファイル、Dockerソケットは渡しません。Repository共通検査は通信も禁止し、Terraform検査は公開providerの取得と資格情報なしのnative fixture用の通信を維持します。コンテナの出力によるrunnerコマンドの実行を停止し、コンテナの失敗はjobの失敗へ伝播します。Terraform検査は、固定の検査（fmt・validate・provider lock、`terraform-static`）を、対象コミットのテスト（`terraform-tests`）より先に別のコンテナで実行します。各コンテナは読み取り専用のソースを新しくコピーするため、対象のテストがHCLを書き換えても固定の検査には影響しません。`terraform-static`はproviderの取得元を`registry.terraform.io/hashicorp/*`に限り（リポジトリ内の`terraform.d/plugins`などの暗黙のmirrorは使わない）、providerを起動するinit・validateは読み取り専用の`/source`に対して最後に実行します。`workflow_dispatch`では、`GITHUB_TOKEN`をread-onlyにするだけではActionsのキャッシュ用トークンへのアクセスを防げません。
 
 MyPageのアプリケーション配備は、ユースケースごとの最上位workflow（`Deploy MyPage API` / `Deploy MyPage Frontend` / `Deploy Maintenance Operator`）が扱い、`ci.yml`からは呼ばない。各Deploy workflowは配備するdomainのcredentialless検査を同じrunで、資格情報の取得前に通す。Terraformの手動Plan / Applyは`Terraform`（`terraform.yml`）が扱う。`ci.yml`は資格情報を持たない検査だけを行い、手動実行（入力なし）も全domainの再検査にとどまる。移行状況は[CI / Terraform / Deploy / Operation workflow](ci-cd-workflows.md)を正とする。最上位workflowを新設・改名するときは、実AWS/GCPの信頼設定（`workflow_ref`）を段階変更する必要がある。CodeQLは独立したセキュリティ解析ワークフローのままとする。
 
-`terraform.yml`は最初に対象commitを1つ確定し（[source resolver](../../.github/scripts/terraform_source_pin.py)。DEV Coreだけ別ブランチ／SHAを選べる）、`ci-gcp-terraform.yml`でそのcommitを検査してから、同じSHAをPlan/Applyへ渡す。検査ツールと[コンテナの実行スクリプト](../../.github/ci-validation/validate.sh)は、対象ソースを取得する前に実行元のcheckoutからビルドする。対象コードは非rootのDockerコンテナ内だけで実行し、ソースを読み取り専用でマウントして使い捨てのメモリ上の作業領域へコピーする。runnerの環境変数、Actionsのキャッシュ・runtimeトークン、コマンドファイル、Dockerソケットは渡さない。コンテナの出力によるrunnerコマンドの実行を停止し、コンテナの失敗はjobの失敗へ伝播する。`workflow_dispatch`では、`GITHUB_TOKEN`をread-onlyにするだけではActionsのキャッシュ用トークンへのアクセスを防げない。
-
 ユースケース単位のworkflowへの移行計画と、各workflowの資格情報・Environment・排他の棚卸しは[CI / Terraform / Deploy / Operation workflow](ci-cd-workflows.md)を参照する。
 
-Local source verification (with the pinned parser from `.github/codeql/requirements.txt` installed):
+Terraformの呼び出し元パス（`terraform.yml`）はクラウドのtrust契約の一部です。DEVのtrustは対応済みですが、`main`へ反映する前にPRODのtrustを`ci.yml`から`terraform.yml`へ切り替える必要があります（[GCP Terraform](../../infra/gcp/README.md)を参照）。既存のCodeQL、GCP Production Readiness、GCP Runtime Ownership Contractsは、それぞれ独立した責務を維持します。
+
+ローカル検証（`.github/codeql/requirements.txt`で固定したパーサーをインストールした環境）：
 
 ```sh
 python3 -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v
 bash .github/scripts/test-detect-ci-paths.sh
 ```
 
-CIは固定バージョンのactionlintで、統括ワークフロー、全再利用検証モジュール、運用用の再利用ワークフローも検査する。選択の仕様テストは全検出フラグの組み合わせを調べ、結果の仕様テストは失敗・キャンセル・選択済みモジュールのスキップ・不完全な検出を検証する。独立したCodeQLソース仕様ワークフローは、自身のソースとactionlint対象を引き続き検証する。
+CIでは固定したactionlintで、呼び出し元・CIモジュール・Terraform運用Workflowも検証します。選択契約は検出フラグの全8,192組合せを網羅し、結果の契約は失敗・キャンセル・選択したモジュールのスキップ・変更検知の欠損を検証します。独立したCodeQL Source Contracts Workflowは、自身のソース契約とactionlintの対象範囲を引き続き検証します。

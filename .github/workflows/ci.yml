@@ -91,7 +91,10 @@ jobs:
 
   repository:
     name: Repository
+    needs: changes
     uses: ./.github/workflows/ci-repository.yml
+    with:
+      source_sha: ${{ github.sha }}
 
   gcp-terraform-validate:
     name: GCP Terraform

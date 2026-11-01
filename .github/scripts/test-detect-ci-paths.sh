@@ -39,6 +39,8 @@ assert_exact_groups() {
 }
 
 assert_exact_groups "" README.md
+assert_exact_groups "" .github/scripts/check-doc-references.py
+assert_exact_groups "" .github/scripts/test_check_doc_references.py
 assert_exact_groups formal_spec formal-spec/README.md
 assert_exact_groups formal_spec formal-spec/fsl/specs/seat_session.fsl
 assert_exact_groups formal_spec .github/scripts/run-formal-spec-tests.sh
@@ -141,7 +143,8 @@ assert_exact_groups "$all_groups" .github/ci-validation/validate.sh
 assert_exact_groups "$all_groups" .github/actions/prepare-ci-validation/action.yml
 # Every repository script that the GCP Terraform CI executes must route to it,
 # so a change to that script alone still runs its own test.
-terraform_ci_scripts="$(grep -oE '\.github/scripts/[A-Za-z0-9_.-]+\.(py|sh|mjs)' "$script_dir/../ci-validation/validate.sh" | sort -u)"
+# Only the Terraform kinds of the isolated validation; the repository kinds run on every CI.
+terraform_ci_scripts="$(awk '/^  terraform-(static|tests)\)$/{p=1; next} /^  [a-z-]+\)$/{p=0} p' "$script_dir/../ci-validation/validate.sh" | grep -oE '\.github/scripts/[A-Za-z0-9_.-]+\.(py|sh|mjs)' | sort -u)"
 if [[ "$(printf '%s\n' "$terraform_ci_scripts" | grep -c .)" -lt 10 ]]; then
 	echo "Expected to read the scripts executed by the isolated Terraform validation" >&2
 	exit 1
@@ -199,5 +202,63 @@ assert_exact_groups gcp_terraform infra/gcp/tests/test_runtime_plan_contract.py
 for ci_path in .github/dependabot.yml .github/scripts/test_ci_security.py .github/workflows/ci-{system,frontend,tools,infra,repository,gcp-terraform}.yml .github/scripts/check-ci-results.py .github/scripts/install-ci-source-tools.sh .github/scripts/test_ci_workflows.py .github/scripts/test_ci_results.py .github/scripts/test_ci_path_summary.py .github/scripts/test_ci_gcp_terraform.py; do
 	assert_exact_groups "$all_groups" "$ci_path"
 done
+
+# Known omissions and future convention-matching additions each select Terraform.
+for path in terraform_export_function_gate.py test_terraform_export_function_gate.py test_user_activity_history.py terraform_history_table_metadata.py terraform_future_gate.py test_terraform_future_gate.py test_export_future.py; do
+	assert_exact_groups gcp_terraform ".github/scripts/$path"
+done
+for path in new_helper.py renamed_helper.py nested/helper.py new_helper.sh; do
+	assert_exact_groups "$all_groups" ".github/scripts/$path"
+done
+assert_exact_groups "" docs/development/unrelated.md
+assert_exact_groups youtube_monitor youtube-monitor/src/unrelated.tsx
+
+# Exercise the actual PR three-dot diff, including deletion and both sides of
+# renames. No-renames preserves the old domain when moving to unrelated paths.
+(
+	cd "$test_dir"
+	git init -q
+	git config user.name 'CI routing test'
+	git config user.email 'ci-test@example.invalid'
+	mkdir -p .github/scripts system docs
+	touch .github/scripts/terraform_deleted.py .github/scripts/terraform_renamed.py system/removed.go
+	git add .
+	git commit -qm base
+	base_sha="$(git rev-parse HEAD)"
+	rm .github/scripts/terraform_deleted.py system/removed.go
+	git mv .github/scripts/terraform_renamed.py docs/moved.md
+	git add .
+	git commit -qm 'delete and rename'
+	output="$(GITHUB_EVENT_NAME=pull_request BASE_SHA="$base_sha" HEAD_SHA=HEAD "$detector")"
+	assert_output_groups "system firestore_integration gcp_terraform" "$output" "PR deletion and rename out of Terraform"
+
+	git mv docs/moved.md .github/scripts/unknown_renamed.py
+	touch .github/scripts/unknown_added.py
+	git add .
+	git commit -qm 'unknown CI addition and rename'
+	output="$(GITHUB_EVENT_NAME=pull_request BASE_SHA=HEAD^ HEAD_SHA=HEAD "$detector")"
+	assert_output_groups "$all_groups" "$output" "PR unknown CI addition and rename"
+
+	git rm -q .github/scripts/unknown_renamed.py .github/scripts/unknown_added.py
+	git commit -qm 'unknown CI deletion'
+	output="$(GITHUB_EVENT_NAME=pull_request BASE_SHA=HEAD^ HEAD_SHA=HEAD "$detector")"
+	assert_output_groups "$all_groups" "$output" "PR unknown CI deletion"
+
+	# Shared configuration is full-suite even when discovered via a PR diff.
+	mkdir -p .github/actions/new-action
+	touch .github/actions/new-action/action.yml
+	git add .
+	git commit -qm 'shared CI addition'
+	output="$(GITHUB_EVENT_NAME=pull_request BASE_SHA=HEAD^ HEAD_SHA=HEAD "$detector")"
+	assert_output_groups "$all_groups" "$output" "PR shared CI addition"
+
+	# Quoted/newline filenames must not evade the CI-script fallback.
+	mkdir -p .github/scripts
+	touch $'.github/scripts/odd\nname.py'
+	git add .
+	git commit -qm 'unusual CI filename'
+	output="$(GITHUB_EVENT_NAME=pull_request BASE_SHA=HEAD^ HEAD_SHA=HEAD "$detector")"
+	assert_output_groups "$all_groups" "$output" "NUL-delimited PR paths"
+)
 
 echo "detect-ci-paths.sh tests passed"

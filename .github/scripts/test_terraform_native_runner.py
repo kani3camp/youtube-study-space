@@ -413,7 +413,8 @@ class NativeRunnerTest(unittest.TestCase):
         self.assertIn("python3 -B .github/scripts/run_terraform_native_tests.py --workers 2", text)
         self.assertNotIn("|| true", text)
         workflow = (runner.ROOT / ".github/workflows/ci-gcp-terraform.yml").read_text()
-        self.assertIn("yss-ci-validation:local terraform", workflow)
+        self.assertIn("for kind in terraform-static terraform-tests; do", workflow)
+        self.assertIn('yss-ci-validation:local "$kind"', workflow)
         self.assertNotIn("continue-on-error", workflow)
 
 

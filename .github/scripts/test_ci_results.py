@@ -76,6 +76,10 @@ class GateResultsTest(unittest.TestCase):
                 with self.subTest(group=group, bad=bad), self.assertRaises(ValueError):
                     gate.validate(needs)
 
+    def test_terraform_only_selection_requires_terraform_and_repository(self):
+        needs = self.fixture(gcp_terraform='true')
+        needs['gcp-terraform-validate']['result'] = 'success'
+        gate.validate(needs)
 
     def test_real_gate_entrypoint_returns_nonzero_on_bad_or_missing_json(self):
         for payload, expected in ((json.dumps(self.fixture()), 0), ('{}', 1), ('not-json', 1), ('[]', 1)):

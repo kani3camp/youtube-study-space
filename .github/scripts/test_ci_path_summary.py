@@ -54,16 +54,11 @@ class PathSummaryTest(unittest.TestCase):
         self.assertIn('all=true\n', output)
 
     def test_manual_runs_explain_scope_without_empty_path_sections(self):
-        # CI no longer dispatches Terraform (#1500): every manual run selects all groups,
-        # and the retired authenticated-dispatch flag cannot narrow the scope.
-        for authenticated in ('true', 'false', ''):
-            with self.subTest(authenticated=authenticated):
-                summary, _ = self.run_detector(GITHUB_EVENT_NAME='workflow_dispatch',
-                    CI_AUTHENTICATED_TERRAFORM_DISPATCH=authenticated)
-                self.assertIn('**選択グループ:** 全グループ', summary)
-                self.assertIn('手動実行', summary)
-                self.assertNotIn('<details>', summary)
-                self.assertLessEqual(len(summary.splitlines()), 5)
+        summary, _ = self.run_detector(GITHUB_EVENT_NAME='workflow_dispatch')
+        self.assertIn('**選択グループ:** 全グループ', summary)
+        self.assertIn('手動実行', summary)
+        self.assertNotIn('<details>', summary)
+        self.assertLessEqual(len(summary.splitlines()), 5)
 
     def test_unmatched_and_empty_changes_explain_common_checks(self):
         for args in ((), ('README.md',)):
@@ -78,6 +73,23 @@ class PathSummaryTest(unittest.TestCase):
         self.assertEqual(summary.count('</details>'), 1)
         self.assertNotIn('<script>', summary)
         self.assertIn('docs/&lt;/details&gt;&lt;script&gt;&amp;unsafe`.md', summary)
+
+    def test_control_characters_are_visible_without_splitting_path_rows(self):
+        summary, _ = self.run_detector('--paths', 'docs/a\nb\r\t.md', r'docs/a\n.md')
+        visible, details = summary.split('**変更ファイル**', 1)
+        changed, _ = details.split('**グループ未対応のファイル**', 1)
+        self.assertIn('変更ファイル: 2件 / グループ未対応: 2件', visible)
+        self.assertEqual(changed.count('- <code>'), 2)
+        self.assertIn(r'<code>docs/a\nb\r\t.md</code>', changed)
+        self.assertIn(r'<code>docs/a\\n.md</code>', changed)
+
+    def test_known_document_checkers_are_matched_without_extra_groups(self):
+        summary, output = self.run_detector('--paths', '.github/scripts/check-doc-references.py',
+                                          '.github/scripts/test_check_doc_references.py')
+        self.assertIn('追加チェックなし', summary)
+        self.assertIn('グループ未対応: 0件', summary)
+        self.assertIn('all=false\n', output)
+        self.assertIn('gcp_terraform=false\n', output)
 
 
 if __name__ == '__main__':
