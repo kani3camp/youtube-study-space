@@ -239,7 +239,7 @@ GitHub の Settings → Actions → Policies（workflow execution policy）で�
 | Core DEV AWS State role（`youtube-study-space-terraform-dev-plan` / `-apply`） | trust policy の `StringLike` `sub` の `workflow_ref` を置き換える（このリポジトリは AWS trust を変更しない）。[`enable_normal_integration.py`](../../infra/gcp/scripts/enable_normal_integration.py) `--verify-aws` で readback する |
 | MyPage DEV foundation GCP WIF（`mypage-foundation` pool） | `foundation_contract.py provider-condition` の出力で condition を置き換える（#3 と同じ手順。出力は Terraform caller を `terraform.yml` にした値になる） |
 | MyPage DEV AWS State role | `foundation_contract.trust_policy()` の出力（`sub` の caller が `terraform.yml`）で置き換える |
-| Core PROD（`main` に取り込むとき） | 本番の Plan/Apply が使えない時間を作らない順で行う。(1) 取り込む前に、GCP WIF condition と AWS trust policy（Plan/Apply role）を `ci.yml` と `terraform.yml` の両方を許可する値にする。(2) `main` へ取り込む。(3) `main` から `Terraform` の本番 Plan を確認する。(4) [`bootstrap_production_normal_ops.py`](../../infra/gcp/scripts/bootstrap_production_normal_ops.py) の GCP condition と [`production_backend_packet.py`](../../infra/gcp/scripts/production_backend_packet.py) の AWS trust policy（`terraform.yml` だけ）へ限定する。v4.34.0（#1541）で実施中 |
+| Core PROD（`main` に取り込むとき） | 本番の Plan/Apply が使えない時間を作らない順で行う。(1) 取り込む前に、GCP WIF condition と AWS trust policy（Plan/Apply role）を `ci.yml` と `terraform.yml` の両方を許可する値にする。(2) `main` へ取り込む。(3) `main` から `Terraform` の本番 Plan を確認する。(4) [`bootstrap_production_normal_ops.py`](../../infra/gcp/scripts/bootstrap_production_normal_ops.py) の GCP condition と [`production_backend_packet.py`](../../infra/gcp/scripts/production_backend_packet.py) の AWS trust policy（`terraform.yml` だけ）へ限定する。v4.34.0（#1545）で実施済み（2026-11-01。dual で [run 41283573872](https://github.com/kani3camp/youtube-study-space/actions/runs/41283573872)、`terraform.yml` だけへ限定した後の [run 41283884680](https://github.com/kani3camp/youtube-study-space/actions/runs/41283884680) の本番 Plan がどちらも差分なしで成功。AWS の `aud`・`actor_id` は保持） |
 
 ### 4.4 PR Plan の統合（owner）
 
@@ -264,7 +264,7 @@ PR Plan を DEV の手動 Plan に統合する PR（#1527）を取り込んだ�
 | --- | --- | --- |
 | UC1 CI | 実装済み。手動 operation なし（`workflow_dispatch` は再検査のみ） | `ci.yml` |
 | UC2 PR Plan | DEV で有効（run 41205098180 で MyPage 成功。Core は State と HCL のずれを #1532 で解消し、run 41226105756 で差分なし）。旧 PR Plan identity は撤去済み（4.4） | `terraform.yml`（`pull_request`）→ `gcp-terraform-authenticated.yml`（`pr-plan`）/ `mypage-foundation-authenticated.yml` |
-| UC2 手動 Plan / UC3 Apply | DEV で有効。対象 commit を1つ確定し、隔離コンテナで検査してから同じ SHA で Plan/Apply する（DEV Core だけ対象ブランチ・SHA を選べる。#1530 / #1534 を統合）。手動 Plan は Core・MyPage とも成功（run 41226781485、差分なし）。MyPage の Apply は run 41260474728 で成功（#1533 の削除2件）。Core の Apply は未実施。PROD は未有効化（`main` への取り込み時の trust 更新、4.3）で、PROD Apply の reviewer は owner 設定待ち。旧 router 経路と orchestrator は撤去済み | `terraform.yml` |
+| UC2 手動 Plan / UC3 Apply | DEV で有効。対象 commit を1つ確定し、隔離コンテナで検査してから同じ SHA で Plan/Apply する（DEV Core だけ対象ブランチ・SHA を選べる。#1530 / #1534 を統合）。手動 Plan は Core・MyPage とも成功（run 41226781485、差分なし）。MyPage の Apply は run 41260474728 で成功（#1533 の削除2件）。Core の Apply は未実施。PROD の Core は v4.34.0（`main`）で有効（本番 Plan は差分なしで成功。trust は `terraform.yml` だけ、4.3）。PROD Apply の reviewer は owner 設定待ち。旧 router 経路と orchestrator は撤去済み | `terraform.yml` |
 | UC4 Frontend | 実装済み（未有効化）。旧 router 経路は撤去済み | `deploy-mypage-frontend.yml` |
 | UC5 API | 実装済み（未有効化）。Service のみ。旧 router 経路と push 自動CDは撤去済み | `deploy-mypage-api.yml` |
 | UC6 Operator | 実装済み。DEV で build・Job 更新・読み戻し・受領記録まで成功（run 41178451321） | `deploy-mypage-maintenance.yml` |

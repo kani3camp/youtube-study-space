@@ -82,9 +82,9 @@ class ProductionReadinessTest(unittest.TestCase):
             else:
                 self.assertRegex(action, r"@[0-9a-f]{40}$")
         # The checks run inside the isolated validation container.
-        self.assertIn("yss-ci-validation:local terraform", source)
+        self.assertIn("for kind in terraform-static terraform-tests; do", source)
         isolated = (ROOT / ".github/ci-validation/validate.sh").read_text()
-        terraform = isolated.split("  terraform)\n", 1)[1].split("\n    ;;", 1)[0]
+        terraform = isolated.split("  terraform-tests)\n", 1)[1].split("\n    ;;", 1)[0]
         for command in (
             "python3 infra/gcp/tests/test_production_readiness.py",
             "python3 infra/gcp/tests/test_production_backend_packet.py",
