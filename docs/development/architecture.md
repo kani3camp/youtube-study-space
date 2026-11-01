@@ -107,7 +107,7 @@ Terraform Plan / Apply is the separate [Terraform](../../.github/workflows/terra
 
 検査ツールと[コンテナの実行スクリプト](../../.github/ci-validation/validate.sh)は、対象ソースを取得する前に実行元のcheckoutからビルドします。対象コードは非rootのDockerコンテナ内だけで実行し、ソースを読み取り専用でマウントして使い捨てのメモリ上の作業領域へコピーします。runnerの環境変数、Actionsのキャッシュ・runtimeトークン、コマンドファイル、Dockerソケットは渡しません。Repository共通検査は通信も禁止し、Terraform検査は公開providerの取得と資格情報なしのnative fixture用の通信を維持します。コンテナの出力によるrunnerコマンドの実行を停止し、コンテナの失敗はjobの失敗へ伝播します。`workflow_dispatch`では、`GITHUB_TOKEN`をread-onlyにするだけではActionsのキャッシュ用トークンへのアクセスを防げません。
 
-The Terraform caller path (`terraform.yml`) is part of the cloud trust contract. DEV trust already admits it; PROD trust must be switched from `ci.yml` to `terraform.yml` before this reaches `main` (see [GCP Terraform](../../infra/gcp/README.md)). Existing CodeQL, GCP Production Readiness and GCP Runtime Ownership Contracts workflows retain their separate responsibilities.
+The Terraform caller path (`terraform.yml`) is part of the cloud trust contract. DEV trust already admits it; PROD trust first admits both `ci.yml` and `terraform.yml` before this reaches `main`, and is narrowed to `terraform.yml` after a `main` Plan through `terraform.yml` succeeds (see [GCP Terraform](../../infra/gcp/README.md)). Existing CodeQL, GCP Production Readiness and GCP Runtime Ownership Contracts workflows retain their separate responsibilities.
 
 Local source verification (with the pinned parser from `.github/codeql/requirements.txt` installed):
 
