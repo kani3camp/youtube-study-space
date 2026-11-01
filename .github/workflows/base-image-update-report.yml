@@ -33,7 +33,7 @@ jobs:
           persist-credentials: false
 
       # Digest pinning is a reproducibility/supply-chain invariant. This guard reads
-      # changed system/Dockerfile* files from the PR head through the GitHub API and
+      # changed system/Dockerfile* and .github/ci-validation/Dockerfile through the API and
       # rejects any external base image that is not sha256-pinned. Internal stage
       # aliases and scratch are allowed. The PR head is never checked out or executed.
       - name: Reject unpinned base image changes
@@ -44,7 +44,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node .github/scripts/base-image-pin-check.mjs
 
-      # The report checks the PR changed-files list first. If no system/Dockerfile*
+      # The report checks the PR changed-files list first. If no monitored Dockerfile
       # remains in the final PR diff, it removes any stale report comment and exits
       # before invoking Docker Buildx. Registry freshness verification stays advisory.
       - name: Generate or update PR report

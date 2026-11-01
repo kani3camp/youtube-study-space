@@ -39,6 +39,10 @@ class WorkflowSafetyTest(unittest.TestCase):
                 expected = flags['all'] or any(flags[g] for g in groups)
                 with self.subTest(flags=enabled, domain=name):
                     self.assertEqual(selected(call['if'], flags), expected)
+                    if name == 'gcp-terraform-validate':
+                        # Terraform validation is not split into leaf domains; CI checks its own commit.
+                        self.assertEqual(call['with'], {'source_sha': '${{ github.sha }}'})
+                        continue
                     for key, expression in call.get('with', {}).items():
                         node = key in {'youtube_monitor', 'mypage', 'docs_site',
                                        'menu_image_generator', 'video_maker_simulator', 'figma_plugin'}

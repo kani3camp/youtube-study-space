@@ -5,6 +5,8 @@ name: CI
 # workflow_dispatch re-runs the full validation; it has no inputs and no credentials.
 on:
   pull_request:
+  # Manual runs re-validate every domain without credentials. Terraform
+  # Plan / Apply is the separate Terraform workflow (terraform.yml).
   workflow_dispatch:
 
 permissions:
@@ -96,6 +98,8 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.gcp_terraform == 'true' || needs.changes.outputs.all == 'true' }}
     uses: ./.github/workflows/ci-gcp-terraform.yml
+    with:
+      source_sha: ${{ github.sha }}
 
   ci-gate:
     name: CI Gate

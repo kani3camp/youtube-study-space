@@ -1,7 +1,16 @@
 name: CI GCP Terraform
 
+# Credentialless validation of the GCP Terraform roots. ci.yml validates its own
+# commit; terraform.yml validates the exact commit it will then plan or apply.
+# Target code runs only inside the isolated validation container: runner
+# environment, Actions tokens, command files and the Docker socket are withheld.
 on:
   workflow_call:
+    inputs:
+      source_sha:
+        description: Exact commit to validate, pinned by the caller
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -12,91 +21,35 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Python for GCP contract tests
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      - name: Checkout trusted validation controller
+        uses: actions/checkout@v7
         with:
-          python-version: '3.12'
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Prepare isolated validation tools
+        uses: ./.github/actions/prepare-ci-validation
+      - name: Checkout exact validation source
+        uses: actions/checkout@v7
         with:
-          terraform_version: "1.16.4"
-          terraform_wrapper: false
-
-      - name: Test authenticated Terraform CI guardrails
+          ref: ${{ inputs.source_sha }}
+          path: .ci-source
+          persist-credentials: false
+      - name: Run isolated validation
+        env:
+          VALIDATION_SHA: ${{ inputs.source_sha }}
         run: |
-          python3 .github/scripts/test_terraform_native_runner.py
-          python3 -B infra/gcp/tests/test_terraform_runtime.py
-          python3 .github/scripts/test_terraform_plan_summary.py
-          python3 .github/scripts/test_terraform_authenticated_workflow.py
-          python3 .github/scripts/test_terraform_identity_smoke.py
-          python3 .github/scripts/test_terraform_email_adoption_gate.py
-          python3 .github/scripts/test_terraform_protected_plan.py
-          python3 .github/scripts/test_terraform_plan_diagnostic.py
-          python3 .github/scripts/test_terraform_baseline_drift_diagnostic.py
-          python3 infra/gcp/tests/test_runtime_plan_contract.py
-          python3 infra/gcp/tests/test_runtime_ownership.py
-          python3 infra/gcp/tests/test_production_readiness.py
-          python3 infra/gcp/tests/test_production_backend_packet.py
-          python3 infra/gcp/tests/test_production_execution_contract.py
-          python3 -B infra/gcp/tests/test_terraform_normal_ops.py
-          python3 -B infra/gcp/tests/test_terraform_source.py
-          python3 -B infra/gcp/tests/test_enable_normal_integration.py
-          python3 -B infra/gcp/tests/test_production_normal_ops.py
-          python3 -B infra/gcp/tests/test_bootstrap_production_normal_ops.py
-          python3 .github/scripts/test_terraform_quota_create_gate.py
-          python3 .github/scripts/test_terraform_quota_refresh_gate.py
-          python3 .github/scripts/test_terraform_export_topic_gate.py
-          python3 .github/scripts/test_terraform_export_scheduler_gate.py
-          python3 .github/scripts/test_terraform_export_function_gate.py
-          python3 .github/scripts/test_user_activity_history_preparation.py
-
-      - name: Test email/password Auth ownership and Terraform contract
-        run: |
-          python3 -B infra/gcp/tests/test_monitor_auth.py
-          python3 -B infra/gcp/scripts/test_monitor_auth_terraform.py
-
-      - name: Check formatting
-        run: terraform fmt -check -recursive infra/gcp
-
-      - name: Initialize and validate roots
-        run: |
-          set -euo pipefail
-          for env in dev prod; do
-            terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly
-            terraform -chdir="infra/gcp/environments/$env" validate
-          done
-
-      - name: Test Pool import fidelity with credentialless mocks
-        run: python3 -B infra/gcp/tests/test_runtime_pool_import_fidelity.py
-
-      - name: Test quota alert mock plans and import-only boundary
-        run: python3 -B .github/scripts/run_terraform_native_tests.py --workers 2
-
-      - name: Test Terraform create/update/delete/replace
-        run: python3 -B infra/gcp/tests/test_terraform_normal_ops_native.py
-
-      - name: Verify multi-platform provider locks are complete
-        run: |
-          set -euo pipefail
-          for env in dev prod; do
-            terraform -chdir="infra/gcp/environments/$env" providers lock \
-              -platform=linux_amd64 \
-              -platform=darwin_arm64
-          done
-
-          git diff --exit-code -- \
-            infra/gcp/environments/dev/.terraform.lock.hcl \
-            infra/gcp/environments/prod/.terraform.lock.hcl
-
-      - name: Verify provider locks match
-        run: cmp infra/gcp/environments/dev/.terraform.lock.hcl infra/gcp/environments/prod/.terraform.lock.hcl
-
-      - name: Validate MyPage platform desired state
-        run: bash infra/mypage-platform/scripts/check-local.sh
-
-      - name: Validate MyPage OAuth TTL Terraform
-        run: bash infra/mypage-oauth-ttl/scripts/check-local.sh
+          # Do not expose runner tokens, command files or the Docker socket to target code.
+          marker="$(openssl rand -hex 32)"
+          echo "::stop-commands::${marker}"
+          set +e
+          docker run --rm --init --read-only \
+            --cap-drop=ALL --security-opt=no-new-privileges \
+            --pids-limit=256 --memory=6g --cpus=2 \
+            --tmpfs /tmp:rw,exec,mode=1777 \
+            --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
+            --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
+            --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
+            yss-ci-validation:local terraform
+          result=$?
+          echo "::${marker}::"
+          exit "$result"

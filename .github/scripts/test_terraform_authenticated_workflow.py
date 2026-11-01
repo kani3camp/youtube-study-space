@@ -207,9 +207,11 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertLess(block.index('ref: ${{ github.sha }}'), block.index('path: .terraform-source'))
             self.assertNotRegex(block, r'run:.*\.terraform-source')
             self.assertNotIn('working-directory: .terraform-source', block)
-        # terraform.yml does not expose source selection yet: it always targets its own commit.
-        self.assertNotIn('source_branch:', self.caller)
-        self.assertIn('expected_sha: ${{ github.sha }}', self.caller)
+        # terraform.yml pins one validated commit for Core and never lets the
+        # reusable resolve a branch HEAD again.
+        self.assertIn('NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}', self.caller)
+        self.assertEqual(self.caller.count('expected_sha: ${{ needs.select.outputs.validation_sha }}'), 2)
+        self.assertEqual(self.caller.count("source_branch: ''"), 2)
 
     def test_dev_sha_can_be_omitted_and_production_sha_remains_required(self):
         for mode in ('normal-plan', 'normal-apply'):

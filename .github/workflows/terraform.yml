@@ -1,8 +1,11 @@
 name: Terraform
 
 # Manual Plan / Apply of the Core GCP root and the MyPage root. Each root keeps
-# its own State, identity and saved-plan verification. Apply always re-plans in
-# its own job and applies that job's plan only when it matches the Plan job.
+# its own State, identity and saved-plan verification. The run pins one source
+# commit, validates exactly that commit without credentials, and only then plans
+# or applies the same commit. Apply always re-plans in its own job and applies
+# that job's plan only when it matches the Plan job. DEV Core may select another
+# branch/SHA as its source; MyPage and Production use the dispatched commit.
 # Production Apply requires the GitHub Environment approval of
 # terraform-prod-apply (and mypage-prod-apply when MyPage production exists).
 # A same-repository PR by the owner additionally gets an advisory DEV PR Plan
@@ -44,6 +47,16 @@ on:
           - all
           - core
           - mypage
+      source_branch:
+        description: DEV Coreの対象ブランチ（省略可。対象SHAのみの指定も可。両方空欄は実行元自身）
+        required: false
+        default: ""
+        type: string
+      source_sha:
+        description: DEV Coreの対象SHA（省略可、40桁）。Applyでは確認済みPlanのSHAを指定
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -65,11 +78,13 @@ jobs:
     outputs:
       target: ${{ steps.select.outputs.target }}
       mypage_stage: ${{ steps.select.outputs.mypage_stage }}
+      validation_sha: ${{ steps.source.outputs.validation_sha }}
     steps:
-      - name: Checkout
+      - name: Checkout trusted controller
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - name: Require a supported selection and resolve the reviewed MyPage stage
         id: select
@@ -77,6 +92,8 @@ jobs:
           ENVIRONMENT: ${{ inputs.environment }}
           OPERATION: ${{ inputs.operation }}
           COMPONENT: ${{ inputs.component }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           set -euo pipefail
           case "${ENVIRONMENT}" in
@@ -99,17 +116,43 @@ jobs:
             echo "::error::MyPage is disabled for this environment; nothing to operate on."
             exit 1
           fi
+          # Only DEV Core can select another source. MyPage and Production
+          # always use the dispatched commit, which is what gets validated.
+          if [[ -n "${SOURCE_BRANCH:-}" || -n "${SOURCE_SHA:-}" ]]; then
+            [[ "${target}" == dev ]] || {
+              echo "::error::Production always uses the dispatched main commit; leave the source inputs empty."
+              exit 1
+            }
+            [[ "${COMPONENT}" == core ]] || {
+              echo "::error::A source branch/SHA can only be selected for component=core."
+              exit 1
+            }
+          fi
           {
             echo "target=${target}"
             echo "mypage_stage=${stage}"
           } >> "$GITHUB_OUTPUT"
+      # The controller checkout supplies the resolver; target code is never
+      # imported or executed here. Owner/ref/caller/selector checks run before
+      # any target checkout or credentials.
+      - name: Pin the validation and Terraform source commit
+        id: source
+        env:
+          NORMAL_TARGET: ${{ steps.select.outputs.target }}
+          NORMAL_MODE: ${{ inputs.operation == 'apply' && 'normal-apply' || 'normal-plan' }}
+          NORMAL_EXPECTED_SHA: ${{ inputs.environment == 'production' && github.sha || inputs.source_sha }}
+          NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/terraform_source_pin.py
 
   validate:
     name: Credentialless Terraform Validation
     needs: select
-    # The integration ruleset requires CI Gate on each PR but not on the exact
-    # merged tree; re-run the Terraform checks for this commit first.
+    # Validate exactly the pinned commit before any Plan or Apply. The rulesets
+    # require CI Gate on each PR but not on the exact merged or selected tree.
     uses: ./.github/workflows/ci-gcp-terraform.yml
+    with:
+      source_sha: ${{ needs.select.outputs.validation_sha }}
 
   core-plan:
     name: Core Plan
@@ -122,7 +165,9 @@ jobs:
     with:
       target: ${{ needs.select.outputs.target }}
       mode: normal-plan
-      expected_sha: ${{ github.sha }}
+      # Use the validated commit; never resolve a moving branch again.
+      expected_sha: ${{ needs.select.outputs.validation_sha }}
+      source_branch: ''
     secrets:
       GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
       GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
@@ -167,7 +212,9 @@ jobs:
     with:
       target: ${{ needs.select.outputs.target }}
       mode: normal-apply
-      expected_sha: ${{ github.sha }}
+      # Use the validated commit; never resolve a moving branch again.
+      expected_sha: ${{ needs.select.outputs.validation_sha }}
+      source_branch: ''
     secrets:
       GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
       GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
