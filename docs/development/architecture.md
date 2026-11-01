@@ -109,7 +109,7 @@ Terraform Plan / Applyは別の[Terraform](../../.github/workflows/terraform.yml
 
 検査ツールと[コンテナの実行スクリプト](../../.github/ci-validation/validate.sh)は、対象ソースを取得する前に実行元のcheckoutからビルドします。対象コードは非rootのDockerコンテナ内だけで実行し、ソースを読み取り専用でマウントして使い捨てのメモリ上の作業領域へコピーします。runnerの環境変数、Actionsのキャッシュ・runtimeトークン、コマンドファイル、Dockerソケットは渡しません。Repository共通検査は通信も禁止し、Terraform検査は公開providerの取得と資格情報なしのnative fixture用の通信を維持します。コンテナの出力によるrunnerコマンドの実行を停止し、コンテナの失敗はjobの失敗へ伝播します。Terraform検査は、固定の検査（fmt・validate・provider lock、`terraform-static`）を、対象コミットのテスト（`terraform-tests`）より先に別のコンテナで実行します。各コンテナは読み取り専用のソースを新しくコピーするため、対象のテストがHCLを書き換えても固定の検査には影響しません。`terraform-static`はproviderの取得元を`registry.terraform.io/hashicorp/*`に限り（リポジトリ内の`terraform.d/plugins`などの暗黙のmirrorは使わない）、providerを起動するinit・validateは読み取り専用の`/source`に対して最後に実行します。`workflow_dispatch`では、`GITHUB_TOKEN`をread-onlyにするだけではActionsのキャッシュ用トークンへのアクセスを防げません。
 
-Terraformの呼び出し元パス（`terraform.yml`）はクラウドのtrust契約の一部です。DEVのtrustは対応済みですが、`main`へ反映する前にPRODのtrustを`ci.yml`から`terraform.yml`へ切り替える必要があります（[GCP Terraform](../../infra/gcp/README.md)を参照）。既存のCodeQL、GCP Production Readiness、GCP Runtime Ownership Contractsは、それぞれ独立した責務を維持します。
+Terraformの呼び出し元パス（`terraform.yml`）はクラウドのtrust契約の一部です。DEVのtrustは対応済みです。PRODのtrustは、`main`へ反映する前に`ci.yml`と`terraform.yml`の両方を許可し、`main`から`terraform.yml`経由の本番Planが成功した後に`terraform.yml`だけへ限定します（[GCP Terraform](../../infra/gcp/README.md)を参照）。既存のCodeQL、GCP Production Readiness、GCP Runtime Ownership Contractsは、それぞれ独立した責務を維持します。
 
 ローカル検証（`.github/codeql/requirements.txt`で固定したパーサーをインストールした環境）：
 
