@@ -104,7 +104,8 @@ type ServerDependencies struct {
 	AppCheck       FirebaseAppCheckClient
 	Now            func() time.Time
 	// DEV専用で本人情報を含まない、任意の原価観測フック。
-	ReadObserver func(SnapshotReadObservation)
+	ReadObserver  func(SnapshotReadObservation)
+	OAuthFailures chan<- OAuthFailureObservation
 }
 
 // NewMyPageServerはハンドラーを構築するだけで、初期化時の入出力、
@@ -133,7 +134,7 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 	handler := &HTTPHandler{
 		PublicOrigin: config.PublicOrigin, HostingBackendHost: config.HostingBackendHost, Verifier: boundary,
 		Maintenance: maintenance,
-		Auth:        &AuthService{Access: access, Store: store, Maintenance: maintenance, Provider: deps.OAuth, Minter: boundary, Policy: config.Policy, Now: now, Support: &FirestoreSupportStore{Client: deps.Firestore, Environment: config.Environment}},
+		Auth:        &AuthService{Access: access, Store: store, Maintenance: maintenance, Provider: deps.OAuth, Minter: boundary, Policy: config.Policy, Now: now, Support: &FirestoreSupportStore{Client: deps.Firestore, Environment: config.Environment}, OAuthFailures: deps.OAuthFailures},
 		BFF:         &BFF{Access: access, Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Coverage: append([]Interval(nil), config.Coverage...), Observe: deps.ReadObserver}, Environment: config.Environment, Now: now, Metadata: metadata},
 	}
 	return handler, nil
