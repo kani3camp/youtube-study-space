@@ -215,7 +215,7 @@ def maintenance_resource_contract(value=None):
                                      "stage": "GA", "deletion_policy": "PREVENT",
                                      "permissions": ["run.jobs.get", "run.jobs.update"]},
             # Job imageを更新できるのは専用Operator deployerだけ。旧Backend deployerの
-            # 2 bindingは、初回Operator配備の確認後に削除専用の遷移（LEGACY_IMAGE_RELEASE）で外した。
+            # 2 bindingは、初回Operator配備の確認後に削除専用の遷移（legacy_image_release）で外す。
             OPERATOR_IMAGE_BINDING: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator",
                                      "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceImageRelease",
                                      "member": "serviceAccount:" + OPERATOR_DEPLOYER},

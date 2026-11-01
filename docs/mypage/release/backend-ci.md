@@ -98,7 +98,7 @@ Serviceは1回のresourceVersion付きPUTで更新し、自動再試行・自動
 `mypage-backend-deploy` SA/WIFを使用する。
 対象は`mypage-api` serviceの`run.services.get`/`run.services.update`とAPI runtime SAへのresource-level `roles/iam.serviceAccountUser`（actAs）。
 Terraformが過去に付与した固定`mypage-maintenance-operator` Jobの`run.jobs.get`/`run.jobs.update`とmaintenance Job runtime SAへのactAsは、
-初回のMaintenance Operator配備でJobが専用packageへ移ったことを確認した後、削除専用のTerraform遷移で外した。
+初回のMaintenance Operator配備でJobが専用packageへ移ったことを確認した後、削除専用のTerraform遷移で外す（DEVのApplyとIAMの読み戻しで完了とする）。
 runtime契約が許す削除は、この2 bindingの完全一致した削除だけである（`runtime_contract.legacy_image_release`）。
 DEV Artifact Registryのreader、Hosting viewerとquotaの必要最小権限。
 GitHub Environment `mypage-dev-backend` とcallerの完全一致を維持する。
@@ -135,7 +135,7 @@ tagとdigestの一致、source SHAが現在の統合HEADの祖先であること
 
 Jobの現在値は、旧API同梱image（`mypage/mypage-api`）でもよい。Terraform契約と配備スクリプトは両packageを現在値として受け入れ、
 配備先は専用packageに限る。新しい環境ではJobを固定の旧API image（`maintenance_bootstrap_image_digest`）で初回作成するため、
-最初のOperator配備までの現在値として旧packageの許容を残す。旧Backend deployerのJob権限は、DEVの初回配備を確認した後に外した。
+最初のOperator配備までの現在値として旧packageの許容を残す。旧Backend deployerのJob権限は、DEVの初回配備を確認した後に削除専用の遷移で外す。
 
 初回有効化（owner作業、リポジトリ外）:
 
