@@ -146,7 +146,7 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
   2. Terraform 契約（配備済み Job image の検査）と Operator 配備スクリプトで、現在の Job image として `mypage-api` と `mypage-maintenance-operator` の両 package を受け入れる。初回作成用の `maintenance_bootstrap_image_digest` は固定の旧 API image のまま（`mypage-api` のみ許可）。
   そのうえで最初の Operator deploy を行い、切り替わったことを確認した。旧 package の現在値としての許容は残す。新しい環境では Job を固定の旧 API image で初回作成するため、外すと最初の Operator deploy が拒否される。
 - #2 で上の1と2を実施した。API image から operator binary を外しても、Job は配備済みの旧 digest（operator binary 入り）を参照し続けるため安全であり、同じ #2 で分離した。
-- MyPage runtime の Terraform 契約は create / no-op だけを許可する。そのため #2 は `mypage-operator-deploy` の binding を **追加** するだけにした。旧 `mypage-backend-deploy` の Job binding と actAs は、初回 Operator deploy の確認後に削除専用の遷移で外す（4.2）。契約が許す削除は、この2 bindingの完全一致した削除だけ（`runtime_contract.legacy_image_release`）。
+- MyPage runtime の Terraform 契約は create / no-op だけを許可する。そのため #2 は `mypage-operator-deploy` の binding を **追加** するだけにした。旧 `mypage-backend-deploy` の Job binding と actAs は、初回 Operator deploy の確認後に削除専用の遷移で外した（4.2）。契約が許す削除は、この2 bindingの完全一致した削除だけ（`runtime_contract.legacy_image_release`）。
 
 ### 3.4 Rollback
 
@@ -215,7 +215,8 @@ GitHub の Settings → Actions → Policies（workflow execution policy）で�
 1. 取り込み前に、旧 concurrency group（`mypage-dev-runtime-change`、`mypage-dev-hosting-release`、`gcp-infrastructure-production`）に実行中・待機中の run がないことを確認する。
 2. 各PRの「必要なowner作業」を実施し、新しい `workflow_ref` / `job_workflow_ref` を trust に追加する。
 3. 新経路を実runで1回ずつ検証する（Terraform 手動 Plan → API deploy → Frontend deploy → Operator deploy → Maintenance mode `enabled=false`）。
-4. 初回 Operator deploy で Job が `mypage-maintenance-operator` package へ移ったことを確認してから、旧 `mypage-backend-deploy` の Job binding と maintenance runtime SA actAs を削除する（削除専用の契約遷移）。DEV は 2026-11-01 に Job が operator package の digest を参照していることを確認した。権限の撤去は、削除専用の遷移を取り込んだ後の Terraform Apply と IAM の読み戻しで完了とする。
+4. 初回 Operator deploy で Job が `mypage-maintenance-operator` package へ移ったことを確認してから、旧 `mypage-backend-deploy` の Job binding と maintenance runtime SA actAs を削除する（削除専用の契約遷移）。**DEV は 2026-11-01 に実施済み**（#1533）。Job が operator package の digest を参照していることを確認し、[run 41260474728](https://github.com/kani3camp/youtube-study-space/actions/runs/41260474728) で2 bindingを削除した。読み戻しで、Job の `mypageMaintenanceImageRelease` と maintenance runtime SA の `roles/iam.serviceAccountUser` のメンバーが、どちらも `mypage-operator-deploy` だけであることを確認した（Job 実行用の `mypage-maintenance-invoker` の binding は別に残る）。
+   - MyPage の Apply SA はふだん読み取り権限だけなので、この Apply の間だけ owner が1時間で切れる一時 custom role（Job と SA の `getIamPolicy` / `setIamPolicy`）を Apply SA に付け、Apply 後に binding とロールを削除して0件を読み戻した。
    - 旧 `mypage-api` package の現在値としての許容は残す。新しい環境では Job を固定の旧 API image で初回作成するため（3.3）。
 5. 移行・検証済みの **DEV** identity の trust から旧 claim（`ci.yml` を caller とするもの、Backend の `push`）を削除する。PROD の Core Terraform は `main` への取り込みまで `ci.yml` 経路のままなので削除しない（4.3）。schema audit は #8 で撤去済み（クラウド側の trust は監査後に撤回済み）。
 6. Maintenance WIF provider（Terraform 管理）を、provider の更新だけを許す専用の契約遷移で修正する。`google.subject` を127バイト以内の値へ変える（必須。2.4 参照）ことと、condition へ `job_workflow_ref == mypage-maintenance-authenticated.yml@<ref>` を加える hardening を同時に行う。**コードは修正済み**。DEV への Apply（一時的な provider 更新権限が必要）が済むまで Set Maintenance Mode は認証できない。
@@ -254,8 +255,8 @@ PR Plan を DEV の手動 Plan に統合する PR（#1527）を取り込んだ�
 | UC | 状態 | 経路 |
 | --- | --- | --- |
 | UC1 CI | 実装済み。手動 operation なし（`workflow_dispatch` は再検査のみ） | `ci.yml` |
-| UC2 PR Plan | DEV で有効（run 41205098180。MyPage 成功、Core は State と HCL のずれで plan-validation 停止）。旧 PR Plan identity は撤去済み（4.4） | `terraform.yml`（`pull_request`）→ `gcp-terraform-authenticated.yml`（`pr-plan`）/ `mypage-foundation-authenticated.yml` |
-| UC2 手動 Plan / UC3 Apply | 実装済み（未有効化）。旧 router 経路と orchestrator は撤去済み。PROD Apply の reviewer は owner 設定待ち | `terraform.yml` |
+| UC2 PR Plan | DEV で有効（run 41205098180 で MyPage 成功。Core は State と HCL のずれを #1532 で解消し、run 41226105756 で差分なし）。旧 PR Plan identity は撤去済み（4.4） | `terraform.yml`（`pull_request`）→ `gcp-terraform-authenticated.yml`（`pr-plan`）/ `mypage-foundation-authenticated.yml` |
+| UC2 手動 Plan / UC3 Apply | DEV で有効。手動 Plan は Core・MyPage とも成功（run 41226781485、差分なし）。MyPage の Apply は run 41260474728 で成功（#1533 の削除2件）。Core の Apply は未実施。PROD は未有効化（`main` への取り込み時の trust 更新、4.3）で、PROD Apply の reviewer は owner 設定待ち。旧 router 経路と orchestrator は撤去済み | `terraform.yml` |
 | UC4 Frontend | 実装済み（未有効化）。旧 router 経路は撤去済み | `deploy-mypage-frontend.yml` |
 | UC5 API | 実装済み（未有効化）。Service のみ。旧 router 経路と push 自動CDは撤去済み | `deploy-mypage-api.yml` |
 | UC6 Operator | 実装済み。DEV で build・Job 更新・読み戻し・受領記録まで成功（run 41178451321） | `deploy-mypage-maintenance.yml` |
