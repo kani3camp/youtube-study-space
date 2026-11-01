@@ -104,6 +104,8 @@ Go変更の必須検査は[AGENTS.md](../../../AGENTS.md)に従い、生成後�
 
 ### DEV HostingをCIで配備する
 
+Google OAuthの同意画面に登録済みの`/privacy_policy`は、SPAルーターで`/privacy`へ履歴を置換して移動する互換入口とする。Firebase Hostingの`web.app`・`firebaseapp.com`両ドメインで、匿名のまま同じ既存本文へ到達できる。検索パラメーター・フラグメントは引き継がず、正規の公開URLは引き続き`/privacy`・`/terms`・`/contact`を使う。HTTPリダイレクト設定やOAuthコンソールの登録は変更せず、この互換入口の反映にもフロントエンドの再配備が必要である。
+
 基盤のTerraform Applyとページ配備は別操作である。DEVページの更新は`Deploy MyPage Frontend`（[`deploy-mypage-frontend.yml`](../../../.github/workflows/deploy-mypage-frontend.yml)）の手動実行で行う。`integration/mypage-canon-20261006`を選んで実行する（入力なし、DEVのみ）。実行SHAは選択refの`github.sha`を使い、手入力しない。PR実行・main・他ブランチ・別所有者・再実行・SHA不一致は拒否する。失敗時に同じRunを再実行して継続せず、現在状態を確認して新しく実行する。
 
 1. 同じrunで、まずMyPageのcredentialless CI（`ci-frontend.yml`の`mypage`: audit・cost model・フォント整合性・check・test・build）を通す。続くクラウド認証情報のないBuildジョブで、固定依存の検査（`pnpm audit`）・check・typecheck・テスト・DEV公開設定検査・ビルドを行う。

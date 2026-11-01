@@ -6,6 +6,7 @@ import {
 	Navigate,
 	Outlet,
 	type RouterHistory,
+	redirect,
 	useRouterState,
 } from '@tanstack/react-router'
 import {
@@ -1165,6 +1166,14 @@ export function createApp(
 			getParentRoute: () => root,
 			path: '/mypage/account',
 			component: AccountManage,
+		}),
+		createRoute({
+			getParentRoute: () => root,
+			// Google OAuthの同意画面から公開済みの旧URL。本文は正規ページへ集約する。
+			path: '/privacy_policy',
+			beforeLoad: () => {
+				throw redirect({ to: '/privacy', replace: true })
+			},
 		}),
 		createRoute({
 			getParentRoute: () => root,

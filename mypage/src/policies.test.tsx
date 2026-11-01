@@ -33,6 +33,76 @@ const publicValues = {
 }
 
 describe('public policy draft rendering', () => {
+	it.each([
+		['/privacy_policy', false],
+		['/privacy_policy', true],
+		[
+			'/privacy_policy?next=https://example.invalid&code=synthetic#synthetic',
+			false,
+		],
+		[
+			'/privacy_policy?next=https://example.invalid&code=synthetic#synthetic',
+			true,
+		],
+	] as const)('replaces the published OAuth policy URL %s with the public privacy route (maintenance=%s)', async (entry, maintenance) => {
+		const request = vi.fn<typeof fetch>()
+		const runtime = new BrowserRuntime(
+			null,
+			{ privacy: 'synthetic-v1', terms: 'synthetic-v1' },
+			request,
+			'LOGIN_UNAVAILABLE',
+		)
+		if (maintenance) runtime.maintenance.markActive()
+		const history = createMemoryHistory({ initialEntries: ['/', entry] })
+		const router = createApp(runtime, history)
+		router.update({ isServer: false, origin: 'https://example.invalid' })
+		await router.load()
+		expect(router.state.location.href).toBe('/privacy')
+		expect(history.length).toBe(2)
+		expect(router.state.matches.at(-1)?.routeId).toBe('/privacy')
+		const Policy = router.routesById['/privacy'].options.component
+		if (!Policy) throw new Error('Privacy route missing')
+		expect(markup(<Policy />)).toContain('<h1>プライバシーポリシー</h1>')
+		expect(request).not.toHaveBeenCalled()
+	})
+	it.each([
+		'/privacy',
+		'/terms',
+		'/contact',
+	])('keeps the canonical public policy route available without login: %s', async (entry) => {
+		const request = vi.fn<typeof fetch>()
+		const runtime = new BrowserRuntime(
+			null,
+			{ privacy: 'synthetic-v1', terms: 'synthetic-v1' },
+			request,
+			'LOGIN_UNAVAILABLE',
+		)
+		const router = createApp(
+			runtime,
+			createMemoryHistory({ initialEntries: [entry] }),
+		)
+		await router.load()
+		expect(router.state.location.href).toBe(entry)
+		expect(router.state.matches.at(-1)?.routeId).toBe(entry)
+		expect(request).not.toHaveBeenCalled()
+	})
+	it('keeps unknown public paths as not found', async () => {
+		const runtime = new BrowserRuntime(
+			null,
+			{ privacy: 'synthetic-v1', terms: 'synthetic-v1' },
+			vi.fn<typeof fetch>(),
+			'LOGIN_UNAVAILABLE',
+		)
+		const router = createApp(
+			runtime,
+			createMemoryHistory({ initialEntries: ['/unknown-policy'] }),
+		)
+		await router.load()
+		expect(router.state.location.href).toBe('/unknown-policy')
+		expect(router.state.matches.some((match) => match.globalNotFound)).toBe(
+			true,
+		)
+	})
 	it('keeps both full drafts and pending values available without a login', () => {
 		const privacy = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
 		const terms = markup(<TermsOfUse publicPolicyInputs={{}} />)
