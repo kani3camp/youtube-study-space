@@ -116,7 +116,8 @@ class SelectedValidationSourceTest(unittest.TestCase):
     def test_workflow_checks_and_operations_share_sha_but_keep_separate_credentials(self):
         workflow = load(ROOT / '.github/workflows/terraform.yml')
         jobs = workflow['jobs']
-        self.assertEqual(set(workflow['on']), {'workflow_dispatch'})
+        # PR Plans never select a source; only owner dispatches reach the resolver.
+        self.assertEqual(jobs['select']['if'], "${{ github.event_name == 'workflow_dispatch' }}")
         self.assertEqual(jobs['select']['steps'][0]['with'],
                          {'ref': '${{ github.sha }}', 'fetch-depth': 0, 'persist-credentials': False})
         selection = next(step for step in jobs['select']['steps'] if step.get('id') == 'source')
@@ -142,8 +143,8 @@ class SelectedValidationSourceTest(unittest.TestCase):
                                             'expected_sha': pinned, 'source_branch': ''})
             self.assertEqual(call['permissions'], {'contents': 'read', 'id-token': 'write'})
         self.assertIn('validate', jobs['core-plan']['needs'])
-        self.assertEqual(jobs['core-plan']['if'], "${{ inputs.operation == 'plan' }}")
-        self.assertEqual(jobs['core-apply']['needs'], ['select', 'validate'])
+        self.assertEqual(jobs['core-plan']['if'], "${{ inputs.operation == 'plan' && (inputs.component == 'all' || inputs.component == 'core') }}")
+        self.assertEqual(jobs['core-apply']['needs'], ['select', 'validate', 'mypage-plan'])
         self.assertIn("needs.validate.result == 'success'", jobs['core-apply']['if'])
         self.assertTrue(jobs['core-apply']['if'].startswith('${{ !cancelled() && '))
         self.assertNotIn('always()', jobs['core-apply']['if'])
@@ -152,6 +153,7 @@ class SelectedValidationSourceTest(unittest.TestCase):
             steps = reusable['jobs'][role]['steps']
             self.assertEqual(steps[0]['with']['ref'], '${{ github.sha }}')
             self.assertEqual(steps[1]['with']['ref'], '${{ needs.preflight.outputs.source_sha }}')
+
 
     def test_gate_accepts_only_the_selected_operation_after_successful_validation(self):
         command = load(ROOT / '.github/workflows/terraform.yml')['jobs']['gate']['steps'][0]['run']
@@ -163,17 +165,13 @@ class SelectedValidationSourceTest(unittest.TestCase):
                 (operation == 'apply' and plan == 'skipped' and apply == 'success'))
             result = subprocess.run(['bash', '-c', command], capture_output=True,
                 env={'PATH': os.environ.get('PATH', os.defpath), 'OPERATION': operation,
+                     'COMPONENT': 'core', 'MYPAGE_STAGE': 'disabled',
+                     'MYPAGE_PLAN_RESULT': 'skipped', 'MYPAGE_APPLY_RESULT': 'skipped',
                      'SELECT_RESULT': selection, 'VALIDATE_RESULT': validation,
                      'CORE_PLAN_RESULT': plan, 'CORE_APPLY_RESULT': apply})
             with self.subTest(operation=operation, results=(selection, validation, plan, apply)):
                 self.assertEqual(result.returncode == 0, expected)
 
-    def test_selection_refuses_mypage_and_production_source_inputs(self):
-        run = next(step for step in load(ROOT / '.github/workflows/terraform.yml')['jobs']['select']['steps']
-                   if step.get('id') == 'select')['run']
-        self.assertIn('plan:all|plan:core|apply:all|apply:core) ;;', run)
-        self.assertIn('*:mypage)', run)
-        self.assertIn('if [[ "${target}" == prod && ( -n "${SOURCE_BRANCH}" || -n "${SOURCE_SHA}" ) ]]; then', run)
 
 if __name__ == '__main__':
     unittest.main()

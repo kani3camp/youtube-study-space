@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""DEVの本人起動を維持し、信頼する実行元をEnvironmentへ明示追加する。
+"""DEV両Environmentのbranch制限を外し、境界をクラウドtrustの本人検査に一本化する。
 
-GitHubの本人認証で既存DEV両EnvironmentのSelected branchesを管理する。
+DEVはownerの任意の非main branchの手動実行と、ownerの同一repository PRのPR Planを許可する。
+Environmentの値は資格情報ではなく、GCP/AWS trustがactor・repository・初回実行を検査する。
 AWS/GCP trustの監査は読み取り専用の任意操作で、本番は扱わない。
 """
 from __future__ import annotations
@@ -16,14 +17,15 @@ import bootstrap_normal_ops as config
 
 REPO = "kani3camp/youtube-study-space"
 PROJECT = "test-youtube-study-space"
-DEFAULT_BRANCH = "dev"
 ISSUER = "token.actions.githubusercontent.com"
 STATE_REGION = "ap-northeast-1"
 LEGACY_AWS_REF = "refs/heads/*"
+PR_AWS_REF = "refs/pull/*/merge"
 CLAIM_KEYS = ("repository_id", "repository_owner_id", "environment", "ref",
               "workflow_ref", "job_workflow_ref", "event_name")
-CALLERS = ('ci.yml', 'terraform.yml')
-BRANCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
+# terraform.yml is the only caller (#1500); DEV trust may still list ci.yml until the old claims are removed.
+# The retired ci.yml caller was removed from the DEV trust on 2026-11-01.
+CALLERS = ('terraform.yml',)
 PHASE = "start"
 
 
@@ -36,15 +38,11 @@ def need(value: bool) -> None:
         raise Stop("branch authorization precondition not met")
 
 
-def branch_name(value: str) -> str:
-    need(type(value) is str and BRANCH.fullmatch(value) is not None
-         and value != "main" and not value.startswith("-")
-         and not value.startswith("refs/"))
-    return value
-
-
-def custom_subject(role: str, ref: str, caller: str = 'ci.yml') -> str:
-    need(caller in CALLERS)
+def custom_subject(role: str, ref: str, caller: str = 'terraform.yml',
+                   event_name: str = "workflow_dispatch") -> str:
+    need(caller in CALLERS and event_name in ("workflow_dispatch", "pull_request"))
+    # ownerのPR Planは手動PlanのEnvironment/identityを使い、terraform.ymlからだけ呼ぶ。
+    need(event_name == "workflow_dispatch" or (role == "plan" and caller == "terraform.yml"))
     claims = {
         "repository_id": "340900071",
         "repository_owner_id": "54093651",
@@ -53,7 +51,7 @@ def custom_subject(role: str, ref: str, caller: str = 'ci.yml') -> str:
         "workflow_ref": REPO + "/.github/workflows/" + caller + "@" + ref,
         "job_workflow_ref":
             REPO + "/.github/workflows/gcp-terraform-authenticated.yml@" + ref,
-        "event_name": "workflow_dispatch",
+        "event_name": event_name,
     }
     return ":".join(f"{key}:{claims[key].replace(':', '%3A')}"
                     for key in CLAIM_KEYS)
@@ -131,6 +129,8 @@ def audit_aws_role(document: dict, role: str) -> None:
     subjects = likes.get(ISSUER + ':sub')
     subjects = [subjects] if isinstance(subjects, str) else subjects
     allowed = {custom_subject(role, LEGACY_AWS_REF, caller) for caller in CALLERS}
+    if role == "plan":
+        allowed.add(custom_subject(role, PR_AWS_REF, event_name="pull_request"))
     need(isinstance(subjects, list) and all(isinstance(s, str) for s in subjects)
          and len(subjects) == len(set(subjects)) and set(subjects) <= allowed
          and custom_subject(role, LEGACY_AWS_REF) in subjects)
@@ -164,12 +164,9 @@ def check_provider(value: dict) -> None:
     need(value.get("oidc", {}).get("issuerUri")
          == "https://token.actions.githubusercontent.com")
     need(value.get("attributeMapping") == config.MAPPING)
-    # 本人起動・非mainのbranch ref・同ref/SHAのworkflowをWIF自身が検証する。
-    # 既存のTerraform専用入口が併存するDEVも、他の条件は完全一致のまま読み取る。
-    caller = "assertion.workflow_ref == '" + REPO + "/.github/workflows/ci.yml@' + assertion.ref"
-    callers = 'assertion.workflow_ref in [' + ', '.join(
-        "'" + REPO + '/.github/workflows/' + name + "@' + assertion.ref" for name in CALLERS) + ']'
-    need(value.get('attributeCondition') in (config.CONDITION, config.CONDITION.replace(callers, caller)))
+    # 本人起動・非mainのbranch ref・同ref/SHAのworkflow、または本人のPR PlanをWIF自身が検証する。
+    # 旧ci.yml入口が併存するDEVも、他の条件は完全一致のまま読み取る。
+    need(value.get('attributeCondition') == config.CONDITION)
     condition = value["attributeCondition"]
     need("refs/heads/dev" not in condition
          and "integration/gcp-terraform-normal-ops" not in condition)
@@ -211,50 +208,30 @@ def dev_environment(role: str) -> tuple[str, dict]:
     return endpoint, environment
 
 
-def authorize_control_branch(endpoint: str, current: dict, target: str) -> None:
+def open_environment(endpoint: str, current: dict) -> None:
+    """branch制限だけを外す。reviewer/timer等はdev_environmentが存在を拒否済み。"""
     need(endpoint in {f'repos/{REPO}/environments/terraform-dev-{role}' for role in ('plan', 'apply')})
-    branch_name(target)
-    policy = {'protected_branches': False, 'custom_branch_policies': True}
-    if current['deployment_branch_policy'] is None:
-        # No restriction時は一覧APIが404になる。先に制限を復旧し、アクセスを閉じる。
-        gh('-X', 'PUT', endpoint, '--input', '-', data={'deployment_branch_policy': policy})
-    path = endpoint + '/deployment-branch-policies'
-    values = gh(path + '?per_page=100')
-    need(type(values.get('total_count')) is int and values['total_count'] <= 100
-         and isinstance(values.get('branch_policies'), list))
-    rules = values['branch_policies']
-    need(all(type(r.get('id')) is int and type(r.get('name')) is str for r in rules))
-    need(all(rule.get('type', 'branch') == 'branch' for rule in rules))
-    previous = {branch_name(rule['name']) for rule in rules}
-    if target not in previous:
-        gh('-X', 'POST', path, '--input', '-', data={'name': target, 'type': 'branch'})
-    latest = gh(path + '?per_page=100')
-    latest_rules = latest['branch_policies']
-    need(latest['total_count'] == len(previous | {target}) == len(latest_rules)
-         and all(rule.get('type', 'branch') == 'branch' for rule in latest_rules)
-         and {branch_name(rule['name']) for rule in latest_rules} == previous | {target})
+    if current['deployment_branch_policy'] is not None:
+        gh('-X', 'PUT', endpoint, '--input', '-', data={'deployment_branch_policy': None})
 
 
 def main() -> None:
     global PHASE
     PHASE = "arguments"
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--branch", default=DEFAULT_BRANCH,
-                        help="Environmentへ明示追加する信頼済みの実行元ブランチ")
     parser.add_argument("--apply", action="store_true",
-                        help="DEV両Environmentの既存許可を残して--branchを明示追加します")
+                        help="DEV両Environmentのbranch制限を外します（No restriction）")
     parser.add_argument("--verify-aws", action="store_true",
                         help="任意でDEV AWS OIDC trustを読み取り監査します")
     parser.add_argument("--verify-gcp", action="store_true",
                         help="任意でDEV GCP WIFを読み取り監査します")
     flags = parser.parse_args()
-    target = branch_name(flags.branch)
 
     PHASE = 'github_operator'
     verify_operator()
     PHASE = 'github_oidc_template'
     verify_oidc_template()
-    # Secretのref制限と、クラウド側の本人制限を別々の境界として維持する。
+    # 資格情報の境界はクラウド側の本人制限。Environmentはbranchで制限しない。
     if flags.verify_aws:
         verify_aws()
     if flags.verify_gcp:
@@ -263,17 +240,17 @@ def main() -> None:
     current = {role: dev_environment(role) for role in ("plan", "apply")}
 
     print("NORMAL_BRANCH_ACCESS: PASS; phase=preflight; scope=dev;"
-          " desired_selected_branches_only=true; cloud_mutation=0")
+          " desired_branch_restriction=none; cloud_mutation=0")
     if flags.apply:
         PHASE = "github_environment_update"
         for role in ("plan", "apply"):
             endpoint, previous = current[role]
-            authorize_control_branch(endpoint, previous, target)
+            open_environment(endpoint, previous)
             _, updated = dev_environment(role)
-            need(updated['deployment_branch_policy'] == {'protected_branches': False, 'custom_branch_policies': True}
+            need(updated['deployment_branch_policy'] is None and updated['protection_rules'] == []
                  and updated['id'] == previous['id']
                  and updated.get('can_admins_bypass') == previous.get('can_admins_bypass'))
-        print("NORMAL_BRANCH_ACCESS: PASS; trusted DEV control branch authorized;"
+        print("NORMAL_BRANCH_ACCESS: PASS; DEV Environments have no branch restriction;"
               " AWS/GCP mutation=0")
 
 

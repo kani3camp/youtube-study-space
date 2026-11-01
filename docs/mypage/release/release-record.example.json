@@ -1,0 +1,31 @@
+{
+  "templateOnly": true,
+  "environment": "development",
+  "projectReference": "pending-private-inventory",
+  "publicOriginReference": "pending-owner-selection",
+  "frontend": {"commit": "pending", "hostingRelease": "pending"},
+  "backend": {"imageDigest": "pending", "cloudRunRevision": "pending"},
+  "rewriteReference": "pending",
+  "pinTag": false,
+  "schemaReference": "docs/mypage/openapi.yaml",
+  "privacyVersion": "pending",
+  "termsVersion": "pending",
+  "ownerExecutionApprovalReference": "pending",
+  "gates": {
+    "infrastructure": "pending",
+    "serverBootstrapAndHostingRewrite": "pending",
+    "S01DevIPAnd429": "pending",
+    "S04DevPlatformAndAppLogs": "pending",
+    "D01Implementation": "pending",
+    "D02Design": "decided-2026-10-09",
+    "D02BothRevocationPathsCompliance": "pending",
+    "D03PublicValues": "pending",
+    "humanPrivacyContactAndSLA": "pending",
+    "deletionLiveAdaptersAndCompletion": "pending",
+    "liveE2E": "pending",
+    "oauthVerification": "pending"
+  },
+  "checks": [],
+  "rollbackPairReference": "pending",
+  "releaseReady": false
+}

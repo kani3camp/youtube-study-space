@@ -25,4 +25,4 @@ firebase emulators:exec \
 	--project "$project_id" \
 	--only firestore \
 	--log-verbosity INFO \
-	"npm --prefix firebase test && cd system && go test -tags=integration -shuffle=on -count=1 -p=1 -v ./core/repository/... ./core/workspaceapp/..."
+	"npm --prefix firebase test && cd system && go test -tags=integration -shuffle=on -count=1 -p=1 -v ./core/repository/... ./core/workspaceapp/... ./core/mypage/... ./core/serviceaccess/... ./core/supportdelete/... ./cmd/mypage-operator-dryrun/... ./cmd/service-access-control/... ./cmd/mypage-support-delete/... ./cmd/mypage-support-operator/... ./cmd/mypage-history-rebuild/..."

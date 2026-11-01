@@ -1,15 +1,25 @@
 name: Terraform
 
-# Manual Plan / Apply of the Core GCP root. The run pins one source commit,
-# validates exactly that commit without credentials, and only then plans or
-# applies the same commit. Apply always re-plans in its own job and applies that
-# job's plan only when it matches the Plan job. Production is main-only and uses
-# the dispatched main commit itself.
-#
-# This branch has no MyPage root: component=mypage is refused and component=all
-# operates on Core only. The integration branch adds MyPage and the PR Plan to
-# this same file (Issue #1500). Keep the shared inputs identical to that file.
+# Manual Plan / Apply of the Core GCP root and the MyPage root. Each root keeps
+# its own State, identity and saved-plan verification. The run pins one source
+# commit, validates exactly that commit without credentials, and only then plans
+# or applies the same commit. Apply always re-plans in its own job and applies
+# that job's plan only when it matches the Plan job. DEV Core may select another
+# branch/SHA as its source; MyPage and Production use the dispatched commit.
+# Production Apply requires the GitHub Environment approval of
+# terraform-prod-apply (and mypage-prod-apply when MyPage production exists).
+# A same-repository PR by the owner additionally gets an advisory DEV PR Plan
+# with the manual DEV Plan Environment and identity: lock-free, no commitment,
+# and it can never Apply (the cloud trust admits a PR to the Plan Environment only).
 on:
+  pull_request:
+    paths:
+      - infra/gcp/**
+      - infra/mypage-platform/**
+      - .github/workflows/terraform.yml
+      - .github/workflows/gcp-terraform-authenticated.yml
+      - .github/workflows/mypage-foundation-authenticated.yml
+      - .github/scripts/terraform_*.py
   workflow_dispatch:
     inputs:
       environment:
@@ -38,12 +48,12 @@ on:
           - core
           - mypage
       source_branch:
-        description: DEVの対象ブランチ（省略可。対象SHAのみの指定も可。両方空欄は実行元自身）
+        description: DEV Coreの対象ブランチ（省略可。対象SHAのみの指定も可。両方空欄は実行元自身）
         required: false
         default: ""
         type: string
       source_sha:
-        description: DEVの対象SHA（省略可、40桁）。Applyでは確認済みPlanのSHAを指定
+        description: DEV Coreの対象SHA（省略可、40桁）。Applyでは確認済みPlanのSHAを指定
         required: false
         default: ""
         type: string
@@ -51,17 +61,23 @@ on:
 permissions:
   contents: read
 
+# A manual run serializes with every Cloud Run change of its environment
+# (MyPage Terraform, API deploy, Operator deploy): Terraform refreshes and
+# PATCHes whole Cloud Run resources (docs/development/ci-cd-workflows.md 3.5).
+# PR Plans are read-only, run with -lock=false and never wait for or block it.
 concurrency:
-  group: terraform-${{ inputs.environment }}
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('terraform-pr-plan-{0}', github.event.pull_request.number) || (inputs.environment == 'development' && 'mypage-dev-cloud-run' || 'mypage-prod-cloud-run') }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   select:
     name: Validate Terraform Request
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       target: ${{ steps.select.outputs.target }}
+      mypage_stage: ${{ steps.select.outputs.mypage_stage }}
       validation_sha: ${{ steps.source.outputs.validation_sha }}
     steps:
       - name: Checkout trusted controller
@@ -70,7 +86,7 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Require a supported selection
+      - name: Require a supported selection and resolve the reviewed MyPage stage
         id: select
         env:
           ENVIRONMENT: ${{ inputs.environment }}
@@ -86,15 +102,50 @@ jobs:
             *) echo "::error::Unsupported environment"; exit 1 ;;
           esac
           case "${OPERATION}:${COMPONENT}" in
-            plan:all|plan:core|apply:all|apply:core) ;;
-            *:mypage) echo "::error::MyPage is not available on this branch; run it from the integration branch."; exit 1 ;;
+            plan:all|plan:core|plan:mypage|apply:all|apply:core|apply:mypage) ;;
             *) echo "::error::Unsupported operation or component"; exit 1 ;;
           esac
-          if [[ "${target}" == prod && ( -n "${SOURCE_BRANCH}" || -n "${SOURCE_SHA}" ) ]]; then
-            echo "::error::Production always uses the dispatched main commit; leave the DEV source inputs empty."
+          file="infra/mypage-platform/environments/${target}/desired-stage.txt"
+          [[ -f "${file}" && ! -L "${file}" ]] || { echo "::error::Missing reviewed MyPage desired stage"; exit 1; }
+          stage="$(tr -d '[:space:]' < "${file}")"
+          case "${stage}" in
+            disabled|foundation_metadata|foundation|registry|maintenance_operator|maintenance_upgrade|runtime_private|runtime_public) ;;
+            *) echo "::error::Invalid reviewed MyPage desired stage"; exit 1 ;;
+          esac
+          # The MyPage cloud trust admits only its pinned ref (foundation_contract.REF).
+          # From any other ref MyPage cannot authenticate: skip it for component=all
+          # so Core still runs, and refuse component=mypage with the reason.
+          if [[ "${stage}" != "disabled" ]]; then
+            mypage_ref="$(MYPAGE_TARGET="${ENVIRONMENT}" python3 -c 'import sys; sys.path.insert(0, "infra/mypage-platform/scripts"); import foundation_contract as c; print(c.REF)')"
+            if [[ "${GITHUB_REF:-}" != "${mypage_ref}" ]]; then
+              if [[ "${COMPONENT}" == "mypage" ]]; then
+                echo "::error::MyPage can only be operated from ${mypage_ref} (its cloud trust is pinned to that ref)."
+                exit 1
+              fi
+              echo "::notice::MyPage is skipped: its cloud trust is pinned to ${mypage_ref}. Core runs as selected."
+              stage=disabled
+            fi
+          fi
+          if [[ "${COMPONENT}" == "mypage" && "${stage}" == "disabled" ]]; then
+            echo "::error::MyPage is disabled for this environment; nothing to operate on."
             exit 1
           fi
-          echo "target=${target}" >> "$GITHUB_OUTPUT"
+          # Only DEV Core can select another source. MyPage and Production
+          # always use the dispatched commit, which is what gets validated.
+          if [[ -n "${SOURCE_BRANCH:-}" || -n "${SOURCE_SHA:-}" ]]; then
+            [[ "${target}" == dev ]] || {
+              echo "::error::Production always uses the dispatched main commit; leave the source inputs empty."
+              exit 1
+            }
+            [[ "${COMPONENT}" == core ]] || {
+              echo "::error::A source branch/SHA can only be selected for component=core."
+              exit 1
+            }
+          fi
+          {
+            echo "target=${target}"
+            echo "mypage_stage=${stage}"
+          } >> "$GITHUB_OUTPUT"
       # The controller checkout supplies the resolver; target code is never
       # imported or executed here. Owner/ref/caller/selector checks run before
       # any target checkout or credentials.
@@ -111,6 +162,8 @@ jobs:
   validate:
     name: Credentialless Terraform Validation
     needs: select
+    # Validate exactly the pinned commit before any Plan or Apply. The rulesets
+    # require CI Gate on each PR but not on the exact merged or selected tree.
     uses: ./.github/workflows/ci-gcp-terraform.yml
     with:
       source_sha: ${{ needs.select.outputs.validation_sha }}
@@ -118,7 +171,7 @@ jobs:
   core-plan:
     name: Core Plan
     needs: [select, validate]
-    if: ${{ inputs.operation == 'plan' }}
+    if: ${{ inputs.operation == 'plan' && (inputs.component == 'all' || inputs.component == 'core') }}
     permissions:
       contents: read
       id-token: write
@@ -138,12 +191,35 @@ jobs:
       AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
       GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
 
+  mypage-plan:
+    name: MyPage Plan
+    needs: [select, validate]
+    if: ${{ (inputs.component == 'all' || inputs.component == 'mypage') && needs.select.outputs.mypage_stage != 'disabled' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-foundation-authenticated.yml
+    with:
+      target: ${{ inputs.environment }}
+      mode: desired-plan
+      expected_sha: ${{ github.sha }}
+    secrets:
+      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
+      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
+      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
+      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
+
   # normal-apply contains its own Plan and independent Apply-side Plan.
-  # Only credentialless validation is needed here; cancellation never starts Apply.
+  # Keep the MyPage preflight Plan before Core Apply when MyPage is selected.
+  # !cancelled() prevents cancellation from starting an Apply.
   core-apply:
     name: Core Apply
-    needs: [select, validate]
-    if: ${{ !cancelled() && inputs.operation == 'apply' && needs.validate.result == 'success' }}
+    needs: [select, validate, mypage-plan]
+    if: ${{ !cancelled() && inputs.operation == 'apply' && (inputs.component == 'all' || inputs.component == 'core') && needs.validate.result == 'success' && (needs.mypage-plan.result == 'success' || needs.mypage-plan.result == 'skipped') }}
     permissions:
       contents: read
       id-token: write
@@ -151,6 +227,7 @@ jobs:
     with:
       target: ${{ needs.select.outputs.target }}
       mode: normal-apply
+      # Use the validated commit; never resolve a moving branch again.
       expected_sha: ${{ needs.select.outputs.validation_sha }}
       source_branch: ''
     secrets:
@@ -162,18 +239,44 @@ jobs:
       AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
       GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
 
+  mypage-apply:
+    name: MyPage Apply
+    needs: [select, core-plan, mypage-plan, core-apply]
+    if: ${{ !cancelled() && inputs.operation == 'apply' && (inputs.component == 'all' || inputs.component == 'mypage') && needs.mypage-plan.result == 'success' && (needs.core-plan.result == 'success' || needs.core-plan.result == 'skipped') && (needs.core-apply.result == 'success' || (inputs.component == 'mypage' && needs.core-apply.result == 'skipped')) }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-foundation-authenticated.yml
+    with:
+      target: ${{ inputs.environment }}
+      mode: desired-apply
+      expected_sha: ${{ github.sha }}
+    secrets:
+      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
+      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
+      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
+      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
+
   gate:
     name: Terraform Gate
-    if: ${{ always() }}
-    needs: [select, validate, core-plan, core-apply]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' }}
+    needs: [select, validate, core-plan, mypage-plan, core-apply, mypage-apply]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       OPERATION: ${{ inputs.operation }}
+      COMPONENT: ${{ inputs.component }}
+      MYPAGE_STAGE: ${{ needs.select.outputs.mypage_stage }}
       SELECT_RESULT: ${{ needs.select.result }}
       VALIDATE_RESULT: ${{ needs.validate.result }}
       CORE_PLAN_RESULT: ${{ needs.core-plan.result }}
+      MYPAGE_PLAN_RESULT: ${{ needs.mypage-plan.result }}
       CORE_APPLY_RESULT: ${{ needs.core-apply.result }}
+      MYPAGE_APPLY_RESULT: ${{ needs.mypage-apply.result }}
     steps:
       - name: Require every selected Plan and Apply to succeed
         run: |
@@ -181,11 +284,153 @@ jobs:
           fail() { echo "::error::$1"; exit 1; }
           [[ "${SELECT_RESULT}" == "success" && "${VALIDATE_RESULT}" == "success" ]] || fail "Selection or credentialless validation did not succeed"
           case "${OPERATION}" in
-            apply)
-              [[ "${CORE_PLAN_RESULT}" == "skipped" ]] || fail "Outer Core Plan must not run for Apply"
-              [[ "${CORE_APPLY_RESULT}" == "success" ]] || fail "Core Apply must succeed" ;;
-            plan)
-              [[ "${CORE_PLAN_RESULT}" == "success" ]] || fail "Core Plan must succeed"
-              [[ "${CORE_APPLY_RESULT}" == "skipped" ]] || fail "Core Apply must not run" ;;
+            apply) apply=true ;;
+            plan) apply=false ;;
             *) fail "Unsupported operation" ;;
           esac
+          core=false
+          mypage=false
+          if [[ "${COMPONENT}" == "all" || "${COMPONENT}" == "core" ]]; then core=true; fi
+          if [[ ( "${COMPONENT}" == "all" || "${COMPONENT}" == "mypage" ) && "${MYPAGE_STAGE}" != "disabled" ]]; then mypage=true; fi
+          # expect <name> <selected> <result>: selected jobs must succeed, others must skip.
+          expect() {
+            if [[ "$2" == "true" ]]; then
+              [[ "$3" == "success" ]] || fail "$1 must succeed"
+            else
+              [[ "$3" == "skipped" ]] || fail "$1 must not run"
+            fi
+          }
+          if [[ "${core}" == true && "${apply}" == false ]]; then core_plan=true; else core_plan=false; fi
+          expect "Core Plan" "${core_plan}" "${CORE_PLAN_RESULT}"
+          expect "MyPage Plan" "${mypage}" "${MYPAGE_PLAN_RESULT}"
+          if [[ "${core}" == true && "${apply}" == true ]]; then core_apply=true; else core_apply=false; fi
+          if [[ "${mypage}" == true && "${apply}" == true ]]; then mypage_apply=true; else mypage_apply=false; fi
+          expect "Core Apply" "${core_apply}" "${CORE_APPLY_RESULT}"
+          expect "MyPage Apply" "${mypage_apply}" "${MYPAGE_APPLY_RESULT}"
+
+  pr-select:
+    name: Select PR Plan
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      core: ${{ steps.select.outputs.core }}
+      mypage: ${{ steps.select.outputs.mypage }}
+    steps:
+      - name: Checkout PR merge source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      # Fail visibly (never a green skip) when the PR cannot get a PR Plan.
+      - name: Require the owner's same-repository PR and select the changed roots
+        id: select
+        env:
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "${HEAD_REPOSITORY}" == "${GITHUB_REPOSITORY}" ]] ||
+            fail "Fork PRs never receive Terraform credentials. The owner runs the manual Terraform Plan."
+          [[ "${GITHUB_ACTOR_ID}" == "54093651" && "${GITHUB_TRIGGERING_ACTOR}" == "kani3camp" && "${GITHUB_RUN_ATTEMPT}" == "1" ]] ||
+            fail "PR Plan is limited to the owner's first run. The owner runs the manual Terraform Plan."
+          # Read the diff first: a failed diff must fail the job, never select nothing.
+          # --no-renames lists both the old and the new path of a moved file.
+          changed="$(mktemp)"
+          git diff --no-renames --name-only "${BASE_SHA}...${HEAD_SHA}" > "${changed}" ||
+            fail "Could not read the PR diff; no PR Plan was selected."
+          core=false
+          mypage=false
+          while IFS= read -r path; do
+            case "${path}" in
+              infra/gcp/*|.github/workflows/gcp-terraform-authenticated.yml|.github/scripts/terraform_*.py) core=true ;;
+              infra/mypage-platform/*|.github/workflows/mypage-foundation-authenticated.yml) mypage=true ;;
+              .github/workflows/terraform.yml) core=true; mypage=true ;;
+            esac
+          done < "${changed}"
+          {
+            echo "core=${core}"
+            echo "mypage=${mypage}"
+          } >> "$GITHUB_OUTPUT"
+          echo "PR Plan roots: core=${core} mypage=${mypage}"
+
+  # Production Environments stay main-only, so a PR plans DEV only.
+  pr-plan-core:
+    name: PR Plan Core
+    needs: pr-select
+    if: ${{ needs.pr-select.outputs.core == 'true' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/gcp-terraform-authenticated.yml
+    with:
+      target: dev
+      mode: pr-plan
+      expected_sha: ${{ github.sha }}
+      pr_number: ${{ format('{0}', github.event.pull_request.number) }}
+      head_repository: ${{ github.event.pull_request.head.repo.full_name }}
+    secrets:
+      GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
+      GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
+      AWS_TERRAFORM_BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+      AWS_TERRAFORM_BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+      AWS_TERRAFORM_STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
+
+  pr-plan-mypage:
+    name: PR Plan MyPage
+    needs: pr-select
+    if: ${{ needs.pr-select.outputs.mypage == 'true' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-foundation-authenticated.yml
+    with:
+      target: development
+      mode: desired-plan
+      expected_sha: ${{ github.sha }}
+      pr_number: ${{ format('{0}', github.event.pull_request.number) }}
+      head_repository: ${{ github.event.pull_request.head.repo.full_name }}
+    secrets:
+      MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
+      MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
+      MYPAGE_BACKEND_ROLE_ARN: ${{ secrets.MYPAGE_BACKEND_ROLE_ARN }}
+      MYPAGE_BACKEND_ROLE_ID: ${{ secrets.MYPAGE_BACKEND_ROLE_ID }}
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+      MYPAGE_PLAN_HMAC_KEY: ${{ secrets.MYPAGE_PLAN_HMAC_KEY }}
+      MYPAGE_RUNTIME_SETTINGS_JSON: ${{ secrets.MYPAGE_RUNTIME_SETTINGS_JSON }}
+
+  pr-gate:
+    name: Terraform PR Plan Gate
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs: [pr-select, pr-plan-core, pr-plan-mypage]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SELECT_RESULT: ${{ needs.pr-select.result }}
+      CORE: ${{ needs.pr-select.outputs.core }}
+      MYPAGE: ${{ needs.pr-select.outputs.mypage }}
+      CORE_RESULT: ${{ needs.pr-plan-core.result }}
+      MYPAGE_RESULT: ${{ needs.pr-plan-mypage.result }}
+    steps:
+      - name: Require every selected PR Plan to succeed
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "${SELECT_RESULT}" == "success" ]] || fail "PR Plan selection did not succeed"
+          expect() {
+            if [[ "$2" == "true" ]]; then
+              [[ "$3" == "success" ]] || fail "$1 must succeed"
+            else
+              [[ "$3" == "skipped" ]] || fail "$1 must not run"
+            fi
+          }
+          expect "Core PR Plan" "${CORE}" "${CORE_RESULT}"
+          expect "MyPage PR Plan" "${MYPAGE}" "${MYPAGE_RESULT}"

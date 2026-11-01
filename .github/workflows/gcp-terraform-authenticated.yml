@@ -19,6 +19,14 @@ on:
         description: DEVの対象ブランチ。SHAのみも可、両方空欄は実行元自身
         required: false
         type: string
+      pr_number:
+        description: pr-plan modeのPR番号（terraform.ymlのpull_requestだけが渡す）
+        required: false
+        type: string
+      head_repository:
+        description: pr-plan modeのPR head repository
+        required: false
+        type: string
     # Explicit names allow Environment secret resolution in called jobs without
     # inheriting unrelated repository secrets. Values come from each job's gate.
     secrets:
@@ -39,8 +47,9 @@ on:
 
 permissions: {}
 
+# PR Plan is lock-free and advisory, so it never queues behind a manual Plan or Apply.
 concurrency:
-  group: gcp-terraform-authenticated-${{ inputs.target }}
+  group: ${{ inputs.mode == 'pr-plan' && format('gcp-terraform-pr-plan-{0}', inputs.pr_number) || format('gcp-terraform-authenticated-{0}', inputs.target) }}
   cancel-in-progress: false
 
 env:
@@ -59,7 +68,7 @@ jobs:
       source_branch: ${{ steps.guard.outputs.source_branch }}
     steps:
       - name: Checkout trusted Terraform preflight source
-        if: ${{ (inputs.mode == 'normal-plan' || inputs.mode == 'normal-apply') && github.event_name == 'workflow_dispatch' && github.repository == 'kani3camp/youtube-study-space' && ((inputs.target == 'dev' && startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main') || (inputs.target == 'prod' && github.ref == 'refs/heads/main')) }}
+        if: ${{ github.repository == 'kani3camp/youtube-study-space' && (((inputs.mode == 'normal-plan' || inputs.mode == 'normal-apply') && github.event_name == 'workflow_dispatch' && ((inputs.target == 'dev' && startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main') || (inputs.target == 'prod' && github.ref == 'refs/heads/main'))) || (inputs.mode == 'pr-plan' && github.event_name == 'pull_request' && inputs.target == 'dev' && startsWith(github.ref, 'refs/pull/'))) }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -74,14 +83,21 @@ jobs:
           NORMAL_TARGET: ${{ inputs.target }}
           NORMAL_EXPECTED_SHA: ${{ inputs.expected_sha }}
           NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}
+          NORMAL_PR_NUMBER: ${{ inputs.pr_number }}
+          NORMAL_PR_HEAD_REPOSITORY: ${{ inputs.head_repository }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] || {
-            echo "::error::Authenticated Terraform only supports workflow_dispatch."
-            exit 1
-          }
+          # The owner's same-repository PR plans DEV with the manual Plan identity;
+          # every other credentialed operation is the owner's manual dispatch.
+          case "${MODE}:${GITHUB_EVENT_NAME}" in
+            normal-plan:workflow_dispatch|normal-apply:workflow_dispatch|pr-plan:pull_request) ;;
+            *)
+              echo "::error::Authenticated Terraform only supports workflow_dispatch, or pull_request for PR Plan."
+              exit 1
+              ;;
+          esac
           [[ "${GITHUB_REPOSITORY}" == "kani3camp/youtube-study-space" ]] || {
             echo "::error::Unexpected repository."
             exit 1
@@ -101,11 +117,22 @@ jobs:
             echo "::error::Authenticated Terraform only allows initial dispatches by the approved GitHub owner."
             exit 1
           }
-          # 信頼するDEV実行元の一覧はEnvironmentのSelected branchesで管理する。
+          # DEVはownerの任意の非main branch（Environmentはbranchで制限しない）。
           # source branchのcheckoutでworkflowの実行refを変更しない。
           # Prod remains main-only; deny tags, PR refs and the retired branch.
-          case "${TARGET}" in
-            dev)
+          case "${MODE}:${TARGET}" in
+            pr-plan:dev)
+              [[ "${GITHUB_REF:-}" =~ ^refs/pull/[1-9][0-9]{0,8}/merge$ ]] || {
+                echo "::error::PR Plan requires the PR merge ref."
+                exit 1
+              }
+              expected_ref="${GITHUB_REF}"
+              ;;
+            pr-plan:*)
+              echo "::error::PR Plan targets DEV only; Production Environments stay main-only."
+              exit 1
+              ;;
+            *:dev)
               [[ "${GITHUB_REF:-}" =~ ^refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*$ &&
                  "${GITHUB_REF}" != "refs/heads/main" ]] || {
                 echo "::error::Development requires a valid non-production branch ref."
@@ -113,7 +140,7 @@ jobs:
               }
               expected_ref="${GITHUB_REF}"
               ;;
-            prod) expected_ref="refs/heads/main" ;;
+            *:prod) expected_ref="refs/heads/main" ;;
             *)
               echo "::error::Unknown Terraform target."
               exit 1
@@ -132,7 +159,7 @@ jobs:
             exit 1
           }
           case "${MODE}" in
-            normal-plan|normal-apply)
+            normal-plan|normal-apply|pr-plan)
               python3 infra/gcp/scripts/terraform_normal_ops.py preflight
               exit 0
               ;;
@@ -142,7 +169,7 @@ jobs:
   normal_plan:
     name: "Terraform Plan (${{ inputs.target }})"
     needs: preflight
-    if: ${{ inputs.mode == 'normal-plan' || inputs.mode == 'normal-apply' }}
+    if: ${{ inputs.mode == 'normal-plan' || inputs.mode == 'normal-apply' || inputs.mode == 'pr-plan' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: terraform-${{ inputs.target }}-plan
@@ -158,6 +185,8 @@ jobs:
       NORMAL_MODE: ${{ inputs.mode }}
       NORMAL_ROLE: plan
       NORMAL_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      NORMAL_PR_NUMBER: ${{ inputs.pr_number }}
+      NORMAL_PR_HEAD_REPOSITORY: ${{ inputs.head_repository }}
       NORMAL_SOURCE_BRANCH: ${{ inputs.target == 'dev' && needs.preflight.outputs.source_branch || inputs.source_branch }}
       NORMAL_SOURCE_SHA: ${{ inputs.target == 'dev' && needs.preflight.outputs.source_sha || '' }}
       TF_WORKSPACE: default
@@ -174,8 +203,9 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      # A PR plans its own merge commit (checked out above); no separate source.
       - name: Checkout exact DEV Terraform data
-        if: ${{ inputs.target == 'dev' }}
+        if: ${{ inputs.target == 'dev' && inputs.mode != 'pr-plan' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: kani3camp/youtube-study-space

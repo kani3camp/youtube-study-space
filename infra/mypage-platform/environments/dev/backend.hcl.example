@@ -1,0 +1,6 @@
+# Private backend.hcl must not be committed. A NEW exact S3 key/IAM scope.
+bucket       = "REPLACE_WITH_PRIVATE_STATE_BUCKET"
+key          = "youtube-study-space/mypage-platform/dev/terraform.tfstate"
+region       = "ap-northeast-1"
+encrypt      = true
+use_lockfile = true

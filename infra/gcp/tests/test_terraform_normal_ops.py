@@ -2,6 +2,7 @@
 """Native-operation contracts, trust negatives and fail-closed controller faults."""
 from contextlib import redirect_stdout
 from copy import deepcopy
+import base64
 import io
 import json
 import os
@@ -229,6 +230,90 @@ class Contracts(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ops.context(v, "plan")
 
+
+    def pr_env(self, target='dev'):
+        ref = 'refs/pull/42/merge'
+        value = env('plan') | {'GITHUB_EVENT_NAME': 'pull_request', 'GITHUB_REF': ref,
+                               'GITHUB_WORKFLOW_REF': ops.CALLER + ref, 'NORMAL_TARGET': target,
+                               'NORMAL_MODE': 'pr-plan', 'NORMAL_PR_NUMBER': '42',
+                               'NORMAL_PR_HEAD_REPOSITORY': 'kani3camp/youtube-study-space'}
+        del value['NORMAL_SOURCE_SHA']
+        return value
+
+    def test_pr_plan_admits_only_the_owners_same_repository_first_run(self):
+        self.assertEqual(ops.context(self.pr_env(), 'plan'), 'dev')
+        self.assertEqual(ops.context(self.pr_env()), 'dev')
+        for key, bad in (('GITHUB_ACTOR_ID', '0'), ('GITHUB_TRIGGERING_ACTOR', 'other'),
+                         ('GITHUB_RUN_ATTEMPT', '2'), ('NORMAL_PR_HEAD_REPOSITORY', 'fork/youtube-study-space'),
+                         ('NORMAL_PR_NUMBER', '43'), ('GITHUB_REF', 'refs/heads/dev'),
+                         ('GITHUB_REF', 'refs/pull/42/head'), ('GITHUB_EVENT_NAME', 'workflow_dispatch'),
+                         ('GITHUB_EVENT_NAME', 'pull_request_target'),
+                         ('GITHUB_WORKFLOW_REF', ops.CALLER.replace('terraform.yml', 'ci.yml') + 'refs/pull/42/merge'),
+                         ('GITHUB_JOB', 'core'), ('NORMAL_EXPECTED_SHA', 'b' * 40),
+                         # Production Environments stay main-only; a PR never selects another source.
+                         ('NORMAL_TARGET', 'prod'), ('NORMAL_SOURCE_SHA', 'a' * 40),
+                         ('NORMAL_SOURCE_BRANCH', 'dev')):
+            with self.subTest(key=key, bad=bad), self.assertRaises(ValueError):
+                ops.context(self.pr_env() | {key: bad}, 'plan')
+        # A PR context uses the manual Plan identity only and can never authorize Apply.
+        for role in ('apply', 'pr-plan'):
+            with self.assertRaises(ValueError):
+                ops.context(self.pr_env() | {'NORMAL_ROLE': role, 'GITHUB_JOB': 'normal_' + role}, role)
+        with self.assertRaises(ValueError):
+            ops.context(env('plan') | {'NORMAL_MODE': 'normal-plan'}, 'pr-plan')
+
+    def test_pr_plan_oidc_expects_the_manual_plan_environment_and_reusable(self):
+        ref = 'refs/pull/42/merge'
+        expected = {'repository_id': '340900071', 'repository_owner_id': '54093651',
+                    'environment': 'terraform-dev-plan', 'ref': ref, 'workflow_ref': ops.CALLER + ref,
+                    'job_workflow_ref': ops.REUSABLE + ref, 'event_name': 'pull_request'}
+        claims = expected | {'sub': ':'.join(k + ':' + v.replace(':', '%3A') for k, v in expected.items()),
+                             'actor_id': '54093651', 'actor': 'kani3camp', 'run_attempt': '1',
+                             'run_id': '1234', 'workflow_sha': 'a' * 40, 'job_workflow_sha': 'a' * 40}
+        def token(value):
+            body = base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip('=')
+            response = Mock()
+            response.__enter__ = Mock(return_value=response)
+            response.__exit__ = Mock(return_value=False)
+            response.read = Mock(return_value=json.dumps({'value': 'h.' + body + '.s'}).encode())
+            return response
+        e = self.pr_env() | {'ACTIONS_ID_TOKEN_REQUEST_URL': 'https://example.invalid/?x=1',
+                             'ACTIONS_ID_TOKEN_REQUEST_TOKEN': 't'}
+        with patch.object(ops.common.urllib.request, 'urlopen', return_value=token(claims)):
+            ops.oidc(e)
+        for key, bad in (('environment', 'terraform-dev-pr-plan'),
+                         ('job_workflow_ref', ops.REUSABLE.replace('gcp-terraform-authenticated', 'terraform-pr-plan') + ref)):
+            with self.subTest(key=key), patch.object(ops.common.urllib.request, 'urlopen',
+                                                     return_value=token(claims | {key: bad})), \
+                    self.assertRaises(ValueError):
+                ops.oidc(e)
+
+    def test_pr_plan_never_locks_and_emits_no_commitment(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            e = self.pr_env() | {'RUNNER_TEMP': temporary, 'GITHUB_OUTPUT': str(Path(temporary) / 'out')}
+            root = ops.private(e); root.mkdir(mode=0o700)
+            calls = []
+            def terraform(_env, _root, _tfroot, name, args, codes=(0,)):
+                calls.append(args)
+                for arg in args:
+                    if arg.startswith('-out='):
+                        Path(arg.removeprefix('-out=')).write_bytes(b'synthetic-plan')
+                return Mock(returncode=0, stdout=json.dumps(plan(('no-op',))).encode())
+            with patch.object(ops, 'inputs', return_value=({'project_id': ops.PROJECT}, b'b' * 32)), \
+                 patch.object(ops, 'identity'), patch.object(ops, 'snapshot', return_value={'state': {'resources': []}}), \
+                 patch.object(ops, 'setup', return_value=root), patch.object(ops, 'review', return_value={}), \
+                 patch.object(ops, 'report_plan'), patch.object(ops, 'verify_storage_ownership'), \
+                 patch.object(ops.common, 'terraform', side_effect=terraform), \
+                 patch.object(ops, 'output_commitments') as commitments, redirect_stdout(io.StringIO()) as output:
+                ops.execute(e)
+            commitments.assert_not_called()
+            self.assertFalse((root / 'normal-prepared.json').exists())
+            self.assertFalse(Path(e['GITHUB_OUTPUT']).exists())
+            plans = [args for args in calls if args[0] == 'plan']
+            self.assertEqual(len(plans), 1)
+            self.assertIn('-lock=false', plans[0])
+            self.assertFalse(any(arg.startswith('-lock-timeout') for arg in plans[0]))
+            self.assertIn('mode=pr-plan; advisory only', output.getvalue())
 
     def test_apply_is_not_authorized_by_plan_mode(self):
         with self.assertRaises(ValueError):

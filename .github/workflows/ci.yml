@@ -1,5 +1,8 @@
 name: CI
 
+# UC1: credentialless validation only. Terraform, application deploys and
+# maintenance mode have their own workflows (docs/development/ci-cd-workflows.md).
+# workflow_dispatch re-runs the full validation; it has no inputs and no credentials.
 on:
   pull_request:
   # Manual runs re-validate every domain without credentials. Terraform
@@ -25,6 +28,7 @@ jobs:
       video_maker_simulator: ${{ steps.detect.outputs.video_maker_simulator }}
       figma_plugin: ${{ steps.detect.outputs.figma_plugin }}
       youtube_monitor: ${{ steps.detect.outputs.youtube_monitor }}
+      mypage: ${{ steps.detect.outputs.mypage }}
       docs_site: ${{ steps.detect.outputs.docs_site }}
       aws_cdk: ${{ steps.detect.outputs.aws_cdk }}
       gcp_terraform: ${{ steps.detect.outputs.gcp_terraform }}
@@ -36,9 +40,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
           fetch-depth: 0
-          persist-credentials: false
 
       - name: Test CI path detector
         run: bash .github/scripts/test-detect-ci-paths.sh
@@ -62,11 +64,12 @@ jobs:
   frontend:
     name: Frontend
     needs: changes
-    if: ${{ needs.changes.outputs.youtube_monitor == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' || needs.changes.outputs.docs_site == 'true' }}
+    if: ${{ needs.changes.outputs.youtube_monitor == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' || needs.changes.outputs.docs_site == 'true' || needs.changes.outputs.mypage == 'true' }}
     uses: ./.github/workflows/ci-frontend.yml
     with:
       youtube_monitor: ${{ needs.changes.outputs.youtube_monitor == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
       docs_site: ${{ needs.changes.outputs.docs_site == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
+      mypage: ${{ needs.changes.outputs.mypage == 'true' || needs.changes.outputs.node_projects == 'true' || needs.changes.outputs.all == 'true' }}
 
   tools:
     name: Tools
@@ -117,9 +120,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
       - name: Require successful selected validations
         env:
           CI_NEEDS: ${{ toJSON(needs) }}

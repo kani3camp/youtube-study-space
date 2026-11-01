@@ -1,7 +1,7 @@
 # Terraform認証・実行境界
 
-認証付き実行の入口は `terraform.yml` の本人による初回 `workflow_dispatch` と、同SHAの
-`gcp-terraform-authenticated.yml` です。`ci.yml` は資格情報を持たない検査だけです。運用手順は[README](../README.md#通常のdev-terraform開発)、
+認証付き実行の入口は `terraform.yml`（`Terraform`）の本人による初回 `workflow_dispatch` と、同SHAの
+`gcp-terraform-authenticated.yml` です（2026-10-30 の #1500 で `ci.yml` から移行。trust の `workflow_ref` もこのpathへ更新する）。運用手順は[README](../README.md#通常のdev-terraform開発)、
 実際の認証・State・Plan検査はworkflowとcontrollerを正本とします。
 
 ## 共通の信頼境界
@@ -21,11 +21,11 @@ controllerは `infra/gcp/scripts/terraform_normal_ops.py`、運用入口と設�
 
 | 境界 | 実装 |
 | --- | --- |
-| PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・有効な非mainのcontrol ref・同ref/SHAのcaller/reusableをcredentials前に検査。DEVの対象sourceはbranchだけ、SHAだけ、両方省略で選択でき、preflightで確定したSHAを全jobへ固定。両方指定時はbranch HEADとの一致が必須 |
-| Environment Secret | DEV Plan/Apply EnvironmentはSelected branchesで信頼済み実行元をBranchとして明示許可。No restrictionにしない。同じEnvironmentを指定する別workflow jobにも適用されるSecretアクセス境界であり、AWS/GCPの本人検証とは独立 |
+| PR/fork/actor/branch/SHA | owner immutable ID・初回本人dispatch・有効な非mainのcontrol ref・同ref/SHAのcaller/reusableをcredentials前に検査。ownerの同一repository PRはDEVのPR Plan（Plan Environment・lockなし・commitmentなし）だけを許可。DEVの対象sourceはbranchだけ、SHAだけ、両方省略で選択でき、preflightで確定したSHAを全jobへ固定。両方指定時はbranch HEADとの一致が必須 |
+| Environment Secret | DEV Plan/Apply Environmentはbranchで制限しない（No restriction）。Secretは資格情報ではない設定値だけで、資格情報の境界はAWS/GCP trustの本人検査。forkのPRにはSecretが渡らない |
 | OIDC | 既存AWS 7-claim subjectとGCP WIFによる本人・repository・Environment・正規workflow等の検証を維持。OIDCのref/SHAはEnvironmentで許可したcontrol planeのrefとSHAであり、対象source branchに置き換えない |
 | ソース | 別checkoutの同一repo・固定SHAからDEV rootとmoduleのHCL・入力・配備データをコピー。source側のworkflow／実行器は使わない。別repo・dirty checkout・symlink・未追跡の入力を拒否 |
-| 事前検査 | `terraform.yml`のselect jobが資格情報なしで対象SHAを確定。GCP Terraform検査（`ci-gcp-terraform.yml`）はそのSHAのソースとテストをcheckoutし、実行元からビルドした非rootコンテナ内で実行。runner環境・Actionsトークン・コマンドファイル・Dockerソケットは渡さず、ホスト側ソースはread-only。Environment Secret/OIDCなし・checkout認証情報の永続化なし。成功後だけ同じSHAを認証付きreusableへ渡す。実行元のworkflow・resolver・認証付き実行器は置き換えない |
+| 事前検査 | `terraform.yml`のselect jobが資格情報なしで対象SHAを確定（DEV Coreだけ別ブランチ／SHAを選べる。MyPageと本番は実行元のcommit）。`ci-gcp-terraform.yml`はそのSHAのソースとテストをcheckoutし、実行元からビルドした非rootコンテナ内で実行。runner環境・Actionsトークン・コマンドファイル・Dockerソケットは渡さず、ホスト側ソースはread-only。Environment Secret/OIDCなし・checkout認証情報の永続化なし。成功後だけ同じSHAを認証付きreusableへ渡す。実行元のworkflow・resolver・認証付き実行器は置き換えない |
 | 入力 | private baselineへ選択source SHAの`normal.tfvars.json`を重ね、レビュー指定も同じsource SHAから取得。projectはDEV固定 |
 | Plan | refresh付きfull-root native saved plan。Coreのcomplete/errored/checksとdriftを検査。create/updateのcomputed unknownはTerraformに委ねる |
 | delete/replace | commit内`normal-operations.json`のaddress/actions完全一致が必須。未使用指定も拒否。忘却操作・importは通常経路では拒否 |
@@ -69,14 +69,14 @@ duplicate key・nonfinite・overflow・入れ子wrapper拒否を検査します�
 
 | 経路 | 許可するref |
 | --- | --- |
-| DEV通常操作 | workflowの実行元はEnvironmentで明示許可した信頼済みbranch。対象sourceは同一repoの任意branchまたは40桁SHAで選択。データとして選ぶだけのbranchは登録しない |
+| DEV通常操作 | workflowの実行元はownerの任意の非main branch（PR PlanはownerのPR）。対象sourceは同一repoの任意branchまたは40桁SHAで選択。データとして選ぶだけのbranchは登録しない |
 | Production通常操作 | **`main`固定**。GCP通常専用WIF/SA、PROD backend role・GitHub 2 Environmentの独立保護と実Plan/Apply認証が必要 |
 
-DEVは本人起動と、Environmentの明示的なSelected branches policyの両方を要求します。Productionのmain-only branch policyは維持します。
+DEVは本人起動をクラウドtrustで要求し、Environmentはbranchで制限しません。Productionのmain-only branch policyは維持します。
 DEVの対象branchだけを指定した場合、Environmentもクラウド資格情報も使わないpreflightでHEADを一度だけ解決し、job outputのSHAで後続のcheckoutを固定します。SHAだけの場合は、固定repoの`refs/heads/*`だけを新しい一時bare repositoryへfetchし、通常ブランチ履歴からの到達性を検証します。取得は深さを制限せず、blob本文・tag・PR専用refは対象にしません。元checkoutのshallow境界や古いref、commit APIで取得できるという理由だけでは許可せず、検証失敗・取得失敗時は停止します。本人dispatchのbranch contextで既知の実行元SHAは追加fetch不要です。両方省略ならworkflow起動時の実行元SHA、両方指定ならHEADとの一致を確認します。Plan/Apply jobは確定SHAの欠落・不正値・明示指定SHAとの不一致を拒否し、branchを再解決しません。
 確定SHAはSummaryへ出力します。別のApply実行で確認済みPlanと同じコミットを使うには、branchを空欄にし、SHAだけを指定します。別runでbranchだけを指定するとHEADを新しく解決するため、前のPlanと同じSHAになる保証はありません。Productionは対象sourceの指定を受け付けません（`source_branch`・`source_sha`は空欄にする。指定すると`Terraform`の選択段階で拒否）。実行元`main`の`github.sha`を自動で固定し、手入力させません。
 Environmentのbranch policy・required reviewers・admin bypass等の実設定は、管理APIで確認してください。
-`enable_normal_integration.py --apply`はGitHub本人認証を確認してから、既存DEV両EnvironmentのSelected branchesへ`--branch`を明示追加し、既存の許可は残します。ブランチ名の許可一覧はEnvironmentだけが保持します。AWS/GCP trust、Environmentのsecrets/variables、Productionは変更しません。未知の保護設定があれば停止します。`--verify-aws` / `--verify-gcp`による読み取り監査も可能です。
+`enable_normal_integration.py --apply`はGitHub本人認証を確認してから、既存DEV両Environmentのbranch制限を外します（No restriction）。AWS/GCP trust、Environmentのsecrets/variables、Productionは変更しません。未知の保護設定があれば停止します。`--verify-aws` / `--verify-gcp`による読み取り監査も可能です。
 
 control planeのworkflowと実行器は許可された信頼済み実行元へのレビューを通して更新します。対象sourceのHCL・module・入力も本人が起動前にレビューと必須CIで確認します。HCL自体の実行をsandbox化する構成ではありません。
 同SHAのcaller/reusableであることは、内容が安全にレビュー済みであることまで保証しません。

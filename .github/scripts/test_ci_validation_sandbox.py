@@ -14,8 +14,9 @@ TERRAFORM_KINDS = ('terraform-static', 'terraform-tests')
 
 class ValidationSandboxTest(unittest.TestCase):
     def jobs(self):
+        # Only Terraform validation checks out a selected commit (terraform.yml).
+        # Repository checks always validate the CI run's own commit on the runner.
         yield load(ROOT / '.github/workflows/ci-gcp-terraform.yml')['jobs']['validate']
-        yield from load(ROOT / '.github/workflows/ci-repository.yml')['jobs'].values()
 
     def repository_job(self):
         jobs = load(ROOT / '.github/workflows/ci-repository.yml')['jobs']
@@ -182,11 +183,13 @@ class ValidationSandboxTest(unittest.TestCase):
         # The only provider-starting step reads the read-only source and runs last.
         self.assertLess(static.index('providers lock'), static.index(' init -backend=false'))
         self.assertLess(static.index('cmp /source/'), static.index(' init -backend=false'))
-        self.assertEqual(sum(line.rstrip().endswith(' validate') for line in static.splitlines()), 1)
+        self.assertEqual(sum(line.rstrip().endswith(' validate') for line in static.splitlines()), 2)  # Core and MyPage roots
         self.assertEqual(static.rstrip().splitlines()[-1].strip(), 'done')
+        # MyPage fixed checks also run on the read-only source after the lock checks.
+        self.assertIn('terraform -chdir=/source fmt -check -recursive "infra/$layer"', static)
         for line in static.splitlines():
             if ' init ' in line or line.rstrip().endswith(' validate'):
-                self.assertIn('-chdir="/source/infra/gcp/environments/$env"', line)
+                self.assertRegex(line, r'-chdir="/source/infra/(gcp|\$layer)/environments/\$env"')
                 self.assertIn('TF_DATA_DIR="/work/', line)
         # The tests container prepares its own provider mirror for the native suites.
         self.assertIn('terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly', tests)

@@ -1,0 +1,494 @@
+import type {
+	Account,
+	Current,
+	Metric,
+	MyPage,
+	ReasonCode,
+	Section,
+} from './contract'
+
+export type Retained<T> = {
+	data: T | null
+	asOf: string | null
+	stale: boolean
+	reason: ReasonCode | null
+	recorded?: { data: T; asOf: string }
+}
+export type ViewData = {
+	current: Retained<Current>
+	account: Retained<Account>
+	summary: Record<'today' | 'week' | 'lifetime', Retained<number>>
+	recent: (Retained<number> & { date: string })[]
+	generatedAt: string
+}
+export type MemoryState = {
+	phase:
+		| 'bootstrapping'
+		| 'anonymous'
+		| 'authenticated'
+		| 'signing-out'
+		| 'restricted'
+		| 'maintenance'
+	data: ViewData | null
+	busy: boolean
+	error: string | null
+	receivedAt: number | null
+}
+
+export class RequestError extends Error {
+	readonly status: number
+	readonly code: string
+	readonly retryAfter: number
+	constructor(status: number, code: string, retryAfter = 0) {
+		super('MyPage request failed')
+		this.status = status
+		this.code = code
+		this.retryAfter = retryAfter
+	}
+}
+
+export type RestrictionCode =
+	| 'SERVICE_ACCESS_RESTRICTED'
+	| 'DATA_DELETION_IN_PROGRESS'
+
+export function restrictionFrom(error: unknown): RestrictionCode | null {
+	return error instanceof RequestError &&
+		error.status === 403 &&
+		(error.code === 'SERVICE_ACCESS_RESTRICTED' ||
+			error.code === 'DATA_DELETION_IN_PROGRESS')
+		? error.code
+		: null
+}
+
+export type Loader = (
+	uid: string,
+	signal: AbortSignal,
+	forceToken: boolean,
+	forceAppCheck: boolean,
+) => Promise<MyPage>
+
+function retain<T>(
+	previous: Retained<T> | undefined,
+	section: Section<T>,
+	asOf: string,
+): Retained<T> {
+	if (section.data !== null)
+		return {
+			data: section.data,
+			asOf,
+			stale: section.availability !== 'available',
+			reason: section.reasonCode,
+		}
+	return {
+		data: previous?.data ?? null,
+		asOf: previous?.asOf ?? null,
+		stale: true,
+		reason: section.reasonCode,
+	}
+}
+
+function retainMetric(
+	previous: Retained<number> | undefined,
+	metric: Metric | undefined,
+	asOf: string,
+): Retained<number> {
+	if (metric?.availability === 'available')
+		return { data: metric.workSec, asOf, stale: false, reason: null }
+	return {
+		data: previous?.data ?? null,
+		asOf: previous?.asOf ?? null,
+		stale: true,
+		reason: metric?.reasonCode ?? 'SOURCE_UNAVAILABLE',
+		...(metric?.availability === 'unavailable' &&
+		metric.reasonCode === 'HISTORY_INCOMPLETE' &&
+		metric.recordedWorkSec !== undefined
+			? { recorded: { data: metric.recordedWorkSec, asOf } }
+			: {}),
+	}
+}
+
+export function mergeResponse(
+	previous: ViewData | null,
+	next: MyPage,
+): ViewData {
+	return {
+		current: retain(previous?.current, next.current, next.generatedAt),
+		account: retain(
+			next.account.reasonCode === 'METADATA_TOO_OLD'
+				? undefined
+				: previous?.account,
+			next.account,
+			next.generatedAt,
+		),
+		summary: {
+			today: retainMetric(
+				previous?.summary.today,
+				next.summary.data?.today,
+				next.generatedAt,
+			),
+			week: retainMetric(
+				previous?.summary.week,
+				next.summary.data?.week,
+				next.generatedAt,
+			),
+			lifetime: retainMetric(
+				previous?.summary.lifetime,
+				next.summary.data?.lifetime,
+				next.generatedAt,
+			),
+		},
+		recent: next.recent7Days.data.map((day) => ({
+			date: day.date,
+			...retainMetric(
+				previous?.recent.find((item) => item.date === day.date),
+				day,
+				next.generatedAt,
+			),
+		})),
+		generatedAt: next.generatedAt,
+	}
+}
+
+// 個人データはこのインスタンス内だけに置く。世代を変更することで、
+// fetch実装がAbortSignalを無視しても遅延レスポンスを無効にする。
+// 初回取得や手動更新を遅らせず、定期更新の費用を抑える。
+const VISIBLE_POLL_INTERVAL_MS = 5 * 60_000
+
+export class MyPageMemory {
+	private state: MemoryState = {
+		phase: 'bootstrapping',
+		data: null,
+		busy: false,
+		error: null,
+		receivedAt: null,
+	}
+	private uid: string | null = null
+	private epoch = 0
+	private listeners = new Set<() => void>()
+	private controller: AbortController | null = null
+	private timer: ReturnType<typeof setTimeout> | null = null
+	private visible = true
+	private routeActive = true
+	private online = true
+	private failures = 0
+	private ignoreAuthUntilSignedOut = false
+	private lastManual = Number.NEGATIVE_INFINITY
+	private retryAt = 0
+	private automaticRetryAt = 0
+	private retryUID: string | null = null
+
+	private load: Loader
+	private signOut: () => Promise<void>
+	private now: () => number
+	private onMaintenance: () => void
+	constructor(
+		load: Loader,
+		signOut: () => Promise<void>,
+		now = Date.now,
+		onMaintenance: () => void = () => {},
+	) {
+		this.load = load
+		this.signOut = signOut
+		this.now = now
+		this.onMaintenance = onMaintenance
+	}
+
+	getSnapshot = () => this.state
+	get generation() {
+		return this.epoch
+	}
+	subscribe = (listener: () => void) => {
+		this.listeners.add(listener)
+		return () => this.listeners.delete(listener)
+	}
+
+	private publish(state: MemoryState) {
+		this.state = state
+		for (const listener of this.listeners) listener()
+	}
+	private stop() {
+		if (this.timer !== null) clearTimeout(this.timer)
+		this.timer = null
+		this.controller?.abort()
+		this.controller = null
+	}
+	private clear(phase: MemoryState['phase'], error: string | null = null) {
+		this.epoch++
+		this.stop()
+		this.publish({
+			phase,
+			data: null,
+			busy: false,
+			error,
+			receivedAt: null,
+		})
+	}
+
+	setIdentity(uid: string | null, freshLogin = false) {
+		if (this.ignoreAuthUntilSignedOut && uid !== null) return
+		if (uid === null) this.ignoreAuthUntilSignedOut = false
+		if (
+			uid === this.uid &&
+			this.state.phase !== 'bootstrapping' &&
+			!(freshLogin && this.state.phase === 'restricted')
+		)
+			return
+		if (uid !== null && uid !== this.retryUID) {
+			this.retryUID = uid
+			this.failures = 0
+			this.retryAt = 0
+			this.automaticRetryAt = 0
+			this.lastManual = Number.NEGATIVE_INFINITY
+		}
+		this.uid = uid
+		this.clear(uid === null ? 'anonymous' : 'authenticated')
+		if (uid !== null) void this.refresh()
+	}
+
+	isRestricted(uid: string | null) {
+		return this.state.phase === 'restricted' && uid === this.uid
+	}
+
+	// 確定した拒否は、新たにログインするまで同じ本人に対して維持する。
+	// 消去時は通知前に世代を進め、遅延レスポンスを拒否する。
+	restrict(code: RestrictionCode, uid = this.uid) {
+		this.uid = uid
+		this.clear('restricted', code)
+	}
+
+	enterMaintenance(error = 'MAINTENANCE_ACTIVE') {
+		if (this.state.phase === 'maintenance' && this.state.error === error) return
+		this.clear('maintenance', error)
+		if (error === 'MAINTENANCE_ACTIVE') this.onMaintenance()
+	}
+
+	resumeAfterMaintenance() {
+		if (this.state.phase !== 'maintenance') return
+		this.clear(this.uid === null ? 'anonymous' : 'authenticated')
+		if (this.uid !== null) void this.refresh()
+	}
+
+	setVisible(visible: boolean) {
+		if (visible === this.visible) return
+		this.visible = visible
+		this.resumeFetching()
+	}
+
+	setRouteActive(active: boolean) {
+		if (active === this.routeActive) return
+		this.routeActive = active
+		this.resumeFetching()
+	}
+
+	setOnline(online: boolean) {
+		if (online === this.online) return
+		this.online = online
+		this.resumeFetching()
+	}
+
+	private canFetch() {
+		return this.visible && this.routeActive && this.online
+	}
+
+	private resumeFetching() {
+		if (!this.canFetch()) {
+			if (this.timer !== null) clearTimeout(this.timer)
+			this.timer = null
+		} else {
+			// 短いタブ切替で、費用の大きい同じ履歴読み取りを再開しない。
+			// エラー時は既存の待機時間とRetry-Afterの規則に従って再試行する。
+			const elapsed =
+				this.state.receivedAt === null
+					? Number.POSITIVE_INFINITY
+					: this.now() - this.state.receivedAt
+			if (
+				this.state.error === null &&
+				elapsed >= 0 &&
+				elapsed < VISIBLE_POLL_INTERVAL_MS
+			)
+				this.schedule(VISIBLE_POLL_INTERVAL_MS - elapsed)
+			else void this.refresh()
+		}
+	}
+
+	// pagehideでは、bfcacheの保存前に画面表示とキャッシュ内の個人データを消去する。
+	suspend(freshLogin = false) {
+		if (this.state.phase === 'restricted' && !freshLogin) {
+			this.clear('restricted', this.state.error)
+			return
+		}
+		this.uid = null
+		this.clear('bootstrapping')
+	}
+
+	async logout() {
+		this.ignoreAuthUntilSignedOut = true
+		this.uid = null
+		this.clear('signing-out')
+		const epoch = this.epoch
+		try {
+			await this.signOut()
+			if (epoch !== this.epoch) return
+			this.ignoreAuthUntilSignedOut = false
+			this.publish({ ...this.state, phase: 'anonymous' })
+		} catch {
+			if (epoch !== this.epoch) return
+			this.publish({
+				...this.state,
+				phase: 'anonymous',
+				error: 'LOGOUT_FAILED',
+			})
+		}
+	}
+
+	private schedule(delay: number) {
+		if (
+			!this.canFetch() ||
+			this.uid === null ||
+			this.state.phase === 'restricted' ||
+			this.state.phase === 'maintenance'
+		)
+			return
+		if (this.timer !== null) clearTimeout(this.timer)
+		this.timer = setTimeout(
+			() => {
+				this.timer = null
+				void this.refresh()
+			},
+			Math.max(delay, this.retryAt - this.now()),
+		)
+	}
+
+	async refresh(manual = false) {
+		if (
+			!this.canFetch() ||
+			this.uid === null ||
+			this.state.busy ||
+			this.state.phase === 'restricted' ||
+			this.state.phase === 'maintenance'
+		)
+			return
+		// 明示的な手動再試行は通常の通信待機を省略できる。
+		// 表示・ルート・ネットワークのイベントでは、その絶対期限を維持する。
+		const remaining =
+			Math.max(this.retryAt, manual ? 0 : this.automaticRetryAt) - this.now()
+		if (remaining > 0) {
+			this.schedule(remaining)
+			return
+		}
+		if (manual && this.now() - this.lastManual < 2000) return
+		if (manual) this.lastManual = this.now()
+		if (this.timer !== null) clearTimeout(this.timer)
+		this.timer = null
+		const uid = this.uid
+		const epoch = this.epoch
+		const controller = new AbortController()
+		this.controller = controller
+		this.publish({ ...this.state, busy: true, error: null })
+		let delay = VISIBLE_POLL_INTERVAL_MS
+		try {
+			let forceToken = false
+			let forceAppCheck = false
+			let response: MyPage
+			for (;;) {
+				if (!this.canFetch()) return
+				try {
+					response = await this.load(
+						uid,
+						controller.signal,
+						forceToken,
+						forceAppCheck,
+					)
+					break
+				} catch (error) {
+					if (epoch !== this.epoch) return
+					if (
+						error instanceof RequestError &&
+						error.status === 401 &&
+						!forceToken
+					) {
+						// トークンを強制更新する前に値を消去する。
+						this.publish({ ...this.state, data: null, receivedAt: null })
+						forceToken = true
+						continue
+					}
+					if (
+						error instanceof RequestError &&
+						error.code === 'APP_CHECK_REQUIRED' &&
+						!forceAppCheck
+					) {
+						forceAppCheck = true
+						continue
+					}
+					throw error
+				}
+			}
+			if (epoch !== this.epoch || uid !== this.uid) return
+			this.failures = 0
+			this.automaticRetryAt = 0
+			this.publish({
+				...this.state,
+				data: mergeResponse(this.state.data, response),
+				receivedAt: this.now(),
+			})
+		} catch (error) {
+			if (epoch !== this.epoch) return
+			if (
+				error instanceof RequestError &&
+				error.code === 'MAINTENANCE_ACTIVE'
+			) {
+				this.enterMaintenance()
+				return
+			}
+			const restriction = restrictionFrom(error)
+			if (restriction) {
+				this.restrict(restriction, uid)
+				return
+			}
+			if (
+				error instanceof RequestError &&
+				(error.status === 401 ||
+					error.code === 'PRIVACY_RECONSENT_REQUIRED' ||
+					error.code === 'WEB_ACCOUNT_REQUIRED')
+			) {
+				const code = error.code
+				await this.logout()
+				if (
+					this.state.phase === 'anonymous' &&
+					this.state.error !== 'LOGOUT_FAILED'
+				)
+					this.publish({ ...this.state, error: code })
+				return
+			}
+			this.failures++
+			delay = Math.min(300_000, 60_000 * 2 ** Math.min(this.failures - 1, 3))
+			if (
+				error instanceof RequestError &&
+				error.status === 429 &&
+				Number.isFinite(error.retryAfter)
+			) {
+				const cooldown = Math.min(3600, Math.max(0, error.retryAfter)) * 1000
+				this.retryAt = Math.max(this.retryAt, this.now() + cooldown)
+				delay = Math.max(delay, cooldown)
+			}
+			this.automaticRetryAt = this.now() + delay
+			this.publish({
+				...this.state,
+				error:
+					error instanceof RequestError ? error.code : 'TEMPORARY_UNAVAILABLE',
+			})
+		} finally {
+			if (epoch === this.epoch) {
+				this.controller = null
+				this.publish({ ...this.state, busy: false })
+				this.schedule(delay)
+			}
+		}
+	}
+
+	dispose() {
+		this.uid = null
+		this.clear('anonymous')
+		this.listeners.clear()
+	}
+}

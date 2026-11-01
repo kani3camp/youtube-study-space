@@ -21,8 +21,11 @@ class GateResultsTest(unittest.TestCase):
         needs['repository']['result'] = 'success'
         return needs
 
-    def test_unselected_domains_can_skip(self):
+    def test_unselected_domains_can_skip_and_no_operation_dependency_exists(self):
         gate.validate(self.fixture())
+        # CI has no credentialed operation left; an extra dependency is rejected.
+        with self.assertRaises(ValueError):
+            gate.validate(self.fixture() | {'operations': {'result': 'skipped'}})
 
     def test_all_selected_domains_must_succeed(self):
         needs = self.fixture(all='true')
