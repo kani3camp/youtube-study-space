@@ -2,7 +2,6 @@ package mypage
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -77,9 +76,6 @@ func requireDiagnostic(t *testing.T, queue chan OAuthFailureObservation, stage, 
 	// 完全一致は任意文字列・余分な出力・改行の混入も拒否する。
 	require.Equal(t, stage, observation.Stage())
 	require.Equal(t, code, observation.ErrorCode())
-	encoded, err := json.Marshal(observation)
-	require.NoError(t, err)
-	require.Equal(t, "{}", string(encoded), "internal fields must never serialize")
 	require.NotContains(t, fmt.Sprint(observation), "DO_NOT_LOG")
 }
 

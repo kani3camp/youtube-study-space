@@ -13,7 +13,11 @@ func oauthFailureDiagnostics(ctx context.Context, logger *log.Logger) chan<- myp
 	queue := make(chan mypage.OAuthFailureObservation, 32)
 	go func() {
 		// 診断先のpanicもサービスへ伝播させず、値は出力しない。
-		defer func() { _ = recover() }()
+		defer func() {
+			if recover() != nil {
+				return
+			}
+		}()
 		for {
 			select {
 			case <-ctx.Done():

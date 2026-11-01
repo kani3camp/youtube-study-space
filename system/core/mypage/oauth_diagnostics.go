@@ -108,8 +108,12 @@ func (s *AuthService) observeOAuthFailure(err error) {
 		stage = marked.stage
 	}
 	observation := OAuthFailureObservation{stage: stage, code: errorCode(err)}
-	// 終了済み受信先も認証結果に影響させない。panicの値は参照・出力しない。
-	defer func() { _ = recover() }()
+	// 終了済み受信先も認証結果に影響させない。panicの内容は保持・出力しない。
+	defer func() {
+		if recover() != nil {
+			return
+		}
+	}()
 	// 診断先の遅延・不在・満杯は捨てる。認証中にログI/Oやgoroutine生成をしない。
 	select {
 	case s.OAuthFailures <- observation:
