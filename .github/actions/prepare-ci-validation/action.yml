@@ -1,0 +1,12 @@
+name: Prepare isolated CI validation
+description: Build reviewed validation tools before checking out target code
+runs:
+  using: composite
+  steps:
+    - name: Build trusted validation image
+      shell: bash
+      run: |
+        docker build --platform linux/amd64 \
+          --build-arg "TERRAFORM_VERSION=$(cat infra/gcp/.terraform-version)" \
+          --file .github/ci-validation/Dockerfile \
+          --tag yss-ci-validation:local .github

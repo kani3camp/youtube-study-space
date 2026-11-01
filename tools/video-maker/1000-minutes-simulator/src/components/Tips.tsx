@@ -1,4 +1,4 @@
-import { useTranslation } from 'next-i18next'
+import { useTranslation } from 'next-i18next/pages'
 import type { FC } from 'react'
 import { MdTipsAndUpdates } from 'react-icons/md'
 import tipsENJson from '../assets/tips.en.json'

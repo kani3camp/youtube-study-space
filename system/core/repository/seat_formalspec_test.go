@@ -202,7 +202,7 @@ func applySeatConformanceAction(seat *SeatDoc, logicalNow *int, action seatConfo
 		if err != nil {
 			return err
 		}
-		return seat.StartBreak(now, "formalspec-break", duration)
+		return seat.StartBreak(now, duration)
 	case "resume_work":
 		return seat.ResumeWork(now, "formalspec-work")
 	case "set_work_duration":

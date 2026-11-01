@@ -173,7 +173,7 @@ func TestRealTimeDailyTotalStudyDurationOfSeat(t *testing.T) {
 			seat: repository.SeatDoc{
 				State:                  repository.WorkState,
 				CurrentStateStartedAt:  time.Date(2021, 1, 1, 12, 0, 0, 0, timeutil.JapanLocation()),
-				DailyCumulativeWorkSec: int((time.Hour).Seconds()),
+				DailyCumulativeWorkSec: int(time.Hour.Seconds()),
 			},
 			now:              time.Date(2021, 1, 1, 12, 30, 0, 0, timeutil.JapanLocation()),
 			expectedDuration: 1*time.Hour + 30*time.Minute,

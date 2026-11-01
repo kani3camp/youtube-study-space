@@ -1,0 +1,12 @@
+- make the entire rendering unmistakably a clean 2D digital environment illustration, not a physically rendered 3D scene
+- build furniture, architecture, plants, props and distant scenery from designed shapes and smooth matte color planes rather than realistic materials
+- keep each object to roughly 3〜4 value levels, organizing light, midtone and shadow into broad readable groups instead of many small tonal variations
+- use soft controlled shading, but avoid continuous airbrushed gradients; use gentle gradients only sparingly to support form
+- keep edges crisp and object separation clear; define forms primarily through shape, color and value rather than heavy outlines
+- simplify materials aggressively: suggest wood, fabric, glass, metal and foliage through local color, value and a few controlled highlights; omit micro-texture
+- omit wood grain or reduce it to only a few graphic lines; do not render fabric weave, stone roughness or physically accurate reflections
+- if rain, wet surfaces or reflected light are present, reduce reflections to a small number of simplified color shapes rather than realistic optical reflections
+- simplify plants, books and small props into tidy illustrated forms while keeping enough variation and detail for the room to feel visually rich
+- use clear, harmonious color separation with a pleasant warm / cool balance; avoid dull, muddy or washed-out color
+- preserve the requested time of day, weather and lighting condition, but stylize them with the same simplified 2D rendering language
+- no photorealism, architectural visualization, PBR look, painterly texture, watercolor, paper grain, haze, bloom, soft-focus, thick outlines or strong anime cel-shading

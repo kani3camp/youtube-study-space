@@ -132,6 +132,103 @@ describe('AwsCdkStack', () => {
 		t.hasParameter('AlarmEmail', { Type: 'String', Default: '' })
 	})
 
+	test('defines WIF parameters and propagates them to Google Cloud workloads', () => {
+		const t = createTemplate()
+		t.hasParameter('GoogleCloudProject', { Type: 'String', Default: '' })
+		t.hasParameter('GcpWifAudience', { Type: 'String', Default: '' })
+		t.hasParameter('GcpWifServiceAccountEmail', {
+			Type: 'String',
+			Default: '',
+		})
+
+		const json = t.toJSON() as {
+			Resources?: Record<
+				string,
+				{
+					Type?: string
+					Properties?: {
+						FunctionName?: string
+						Environment?: {
+							Variables?: Record<string, unknown>
+						}
+					}
+				}
+			>
+		}
+		const credentialUsingLambdas = new Set([
+			'sns_notify_discord',
+			'set_desired_max_seats',
+			'youtube_organize_database',
+			'check_live_stream_status',
+			'update_work_name_trend',
+			'error_log_notify_discord',
+		])
+		const lambdaResources = Object.values(json.Resources ?? {}).filter(
+			(resource) =>
+				resource.Type === 'AWS::Lambda::Function' &&
+				credentialUsingLambdas.has(resource.Properties?.FunctionName ?? ''),
+		)
+		expect(lambdaResources).toHaveLength(credentialUsingLambdas.size)
+		for (const resource of lambdaResources) {
+			expect(resource.Properties?.Environment?.Variables).toEqual(
+				expect.objectContaining({
+					GOOGLE_CLOUD_PROJECT: { Ref: 'GoogleCloudProject' },
+					GCP_WIF_AUDIENCE: { Ref: 'GcpWifAudience' },
+					GCP_WIF_SERVICE_ACCOUNT_EMAIL: {
+						Ref: 'GcpWifServiceAccountEmail',
+					},
+				}),
+			)
+		}
+
+		t.hasResourceProperties('AWS::ECS::TaskDefinition', {
+			ContainerDefinitions: Match.arrayWith([
+				Match.objectLike({
+					Environment: Match.arrayWith([
+						{
+							Name: 'GOOGLE_CLOUD_PROJECT',
+							Value: { Ref: 'GoogleCloudProject' },
+						},
+						{
+							Name: 'GCP_WIF_AUDIENCE',
+							Value: { Ref: 'GcpWifAudience' },
+						},
+						{
+							Name: 'GCP_WIF_SERVICE_ACCOUNT_EMAIL',
+							Value: { Ref: 'GcpWifServiceAccountEmail' },
+						},
+					]),
+				}),
+			]),
+		})
+	})
+
+	test('removes legacy DynamoDB credential reads and gateway endpoint', () => {
+		const json = createTemplate().toJSON() as {
+			Resources?: Record<
+				string,
+				{
+					Type?: string
+					Properties?: {
+						ServiceName?: unknown
+					}
+				}
+			>
+		}
+		const resources = json.Resources ?? {}
+		const serialized = JSON.stringify(resources)
+
+		expect(serialized).not.toContain('dynamodb:GetItem')
+		expect(serialized).not.toContain('arn:aws:dynamodb:*:*:table/secrets')
+
+		const dynamodbGatewayEndpoints = Object.values(resources).filter(
+			(resource) =>
+				resource.Type === 'AWS::EC2::VPCEndpoint' &&
+				JSON.stringify(resource.Properties?.ServiceName).includes('dynamodb'),
+		)
+		expect(dynamodbGatewayEndpoints).toHaveLength(0)
+	})
+
 	test('subscribes AlarmsTopic to email and Lambda notifier', () => {
 		const t = createTemplate()
 		const json = t.toJSON() as {

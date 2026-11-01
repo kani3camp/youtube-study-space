@@ -1,5 +1,5 @@
 import { css } from '@emotion/react'
-import { useTranslation } from 'next-i18next'
+import { useTranslation } from 'next-i18next/pages'
 import { type FC, useEffect, useState } from 'react'
 import {
 	CircularProgressbarWithChildren,
@@ -22,6 +22,11 @@ const AUDIO_FILES = {
 	CHIME2: '/audio/chime/chime2.mp3',
 } as const
 
+const CHIME_ELEMENT_IDS = {
+	CHIME1: 'chime1',
+	CHIME2: 'chime2',
+} as const
+
 type Props = {
 	elapsedSeconds: number
 }
@@ -29,8 +34,6 @@ type Props = {
 const Timer: FC<Props> = (props) => {
 	const { t } = useTranslation()
 
-	const chime1DivId = 'chime1'
-	const chime2DivId = 'chime2'
 
 	const [isStudyingState, setIsStudyingState] = useState<boolean>(false)
 
@@ -70,11 +73,12 @@ const Timer: FC<Props> = (props) => {
 	)
 
 	useEffect(() => {
-		if (isStudyingState) {
-			chime1Play()
-		} else {
-			chime2Play()
-		}
+		const chimeElementId = isStudyingState
+			? CHIME_ELEMENT_IDS.CHIME1
+			: CHIME_ELEMENT_IDS.CHIME2
+		const chime = document.getElementById(chimeElementId) as HTMLAudioElement
+		chime.volume = 0.8
+		void chime.play()
 	}, [isStudyingState])
 
 	useEffect(() => {
@@ -98,19 +102,6 @@ const Timer: FC<Props> = (props) => {
 		checkFile()
 	}, [])
 
-	const chime1Play = () => {
-		console.log(chime1Play.name)
-		const chime1 = document.getElementById(chime1DivId) as HTMLAudioElement
-		chime1.volume = 0.8
-		chime1.play()
-	}
-
-	const chime2Play = () => {
-		console.log(chime2Play.name)
-		const chime2 = document.getElementById(chime2DivId) as HTMLAudioElement
-		chime2.volume = 0.8
-		chime2.play()
-	}
 
 	return (
 		<div css={styles.timer}>
@@ -157,8 +148,8 @@ const Timer: FC<Props> = (props) => {
 				</div>
 			</div>
 
-			<audio id={chime1DivId} src={AUDIO_FILES.CHIME1} />
-			<audio id={chime2DivId} src={AUDIO_FILES.CHIME2} />
+			<audio id={CHIME_ELEMENT_IDS.CHIME1} src={AUDIO_FILES.CHIME1} />
+			<audio id={CHIME_ELEMENT_IDS.CHIME2} src={AUDIO_FILES.CHIME2} />
 		</div>
 	)
 }

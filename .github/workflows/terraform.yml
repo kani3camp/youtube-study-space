@@ -1,0 +1,187 @@
+name: Terraform
+
+# Manual Plan / Apply of the Core GCP root. The run pins one source commit,
+# validates exactly that commit without credentials, and only then plans or
+# applies the same commit. Apply always re-plans in its own job and applies that
+# job's plan only when it matches the Plan job. Production is main-only and uses
+# the dispatched main commit itself.
+#
+# This branch has no MyPage root: component=mypage is refused and component=all
+# operates on Core only. The integration branch adds MyPage and the PR Plan to
+# this same file (Issue #1500). Keep the shared inputs identical to that file.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
+      operation:
+        description: plan only, or plan then apply
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+      component:
+        description: Terraform roots to operate on
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - core
+          - mypage
+      source_branch:
+        description: DEVの対象ブランチ（省略可。対象SHAのみの指定も可。両方空欄は実行元自身）
+        required: false
+        default: ""
+        type: string
+      source_sha:
+        description: DEVの対象SHA（省略可、40桁）。Applyでは確認済みPlanのSHAを指定
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  select:
+    name: Validate Terraform Request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      target: ${{ steps.select.outputs.target }}
+      validation_sha: ${{ steps.source.outputs.validation_sha }}
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require a supported selection
+        id: select
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          OPERATION: ${{ inputs.operation }}
+          COMPONENT: ${{ inputs.component }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          case "${ENVIRONMENT}" in
+            development) target=dev ;;
+            production) target=prod ;;
+            *) echo "::error::Unsupported environment"; exit 1 ;;
+          esac
+          case "${OPERATION}:${COMPONENT}" in
+            plan:all|plan:core|apply:all|apply:core) ;;
+            *:mypage) echo "::error::MyPage is not available on this branch; run it from the integration branch."; exit 1 ;;
+            *) echo "::error::Unsupported operation or component"; exit 1 ;;
+          esac
+          if [[ "${target}" == prod && ( -n "${SOURCE_BRANCH}" || -n "${SOURCE_SHA}" ) ]]; then
+            echo "::error::Production always uses the dispatched main commit; leave the DEV source inputs empty."
+            exit 1
+          fi
+          echo "target=${target}" >> "$GITHUB_OUTPUT"
+      # The controller checkout supplies the resolver; target code is never
+      # imported or executed here. Owner/ref/caller/selector checks run before
+      # any target checkout or credentials.
+      - name: Pin the validation and Terraform source commit
+        id: source
+        env:
+          NORMAL_TARGET: ${{ steps.select.outputs.target }}
+          NORMAL_MODE: ${{ inputs.operation == 'apply' && 'normal-apply' || 'normal-plan' }}
+          NORMAL_EXPECTED_SHA: ${{ inputs.environment == 'production' && github.sha || inputs.source_sha }}
+          NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/terraform_source_pin.py
+
+  validate:
+    name: Credentialless Terraform Validation
+    needs: select
+    uses: ./.github/workflows/ci-gcp-terraform.yml
+    with:
+      source_sha: ${{ needs.select.outputs.validation_sha }}
+
+  core-plan:
+    name: Core Plan
+    needs: [select, validate]
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/gcp-terraform-authenticated.yml
+    with:
+      target: ${{ needs.select.outputs.target }}
+      mode: normal-plan
+      # Use the validated commit; never resolve a moving branch again.
+      expected_sha: ${{ needs.select.outputs.validation_sha }}
+      source_branch: ''
+    secrets:
+      GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
+      GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
+      AWS_TERRAFORM_BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+      AWS_TERRAFORM_BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+      AWS_TERRAFORM_STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
+
+  # The Plan must succeed before Apply starts. !cancelled() (not always()) so
+  # that cancelling the run after the Plan never starts an Apply.
+  core-apply:
+    name: Core Apply
+    needs: [select, core-plan]
+    if: ${{ !cancelled() && inputs.operation == 'apply' && needs.core-plan.result == 'success' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/gcp-terraform-authenticated.yml
+    with:
+      target: ${{ needs.select.outputs.target }}
+      mode: normal-apply
+      expected_sha: ${{ needs.select.outputs.validation_sha }}
+      source_branch: ''
+    secrets:
+      GCP_TERRAFORM_NORMAL_WIF_PROVIDER: ${{ secrets.GCP_TERRAFORM_NORMAL_WIF_PROVIDER }}
+      GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT: ${{ secrets.GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT }}
+      AWS_TERRAFORM_BACKEND_ROLE_ARN: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ARN }}
+      AWS_TERRAFORM_BACKEND_ROLE_ID: ${{ secrets.AWS_TERRAFORM_BACKEND_ROLE_ID }}
+      AWS_TERRAFORM_STATE_BUCKET: ${{ secrets.AWS_TERRAFORM_STATE_BUCKET }}
+      AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
+      GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
+
+  gate:
+    name: Terraform Gate
+    if: ${{ always() }}
+    needs: [select, validate, core-plan, core-apply]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OPERATION: ${{ inputs.operation }}
+      SELECT_RESULT: ${{ needs.select.result }}
+      VALIDATE_RESULT: ${{ needs.validate.result }}
+      CORE_PLAN_RESULT: ${{ needs.core-plan.result }}
+      CORE_APPLY_RESULT: ${{ needs.core-apply.result }}
+    steps:
+      - name: Require every selected Plan and Apply to succeed
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "${SELECT_RESULT}" == "success" && "${VALIDATE_RESULT}" == "success" ]] || fail "Selection or credentialless validation did not succeed"
+          [[ "${CORE_PLAN_RESULT}" == "success" ]] || fail "Core Plan must succeed"
+          case "${OPERATION}" in
+            apply) [[ "${CORE_APPLY_RESULT}" == "success" ]] || fail "Core Apply must succeed" ;;
+            plan) [[ "${CORE_APPLY_RESULT}" == "skipped" ]] || fail "Core Apply must not run" ;;
+            *) fail "Unsupported operation" ;;
+          esac

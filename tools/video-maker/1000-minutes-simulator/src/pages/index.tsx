@@ -1,6 +1,6 @@
 import { css } from '@emotion/react'
 import type { GetServerSideProps, NextPage } from 'next'
-import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
+import { serverSideTranslations } from 'next-i18next/pages/serverSideTranslations'
 import { useEffect, useRef, useState } from 'react'
 import BGMPlayer from '../components/BGMPlayer'
 import CurrentColor from '../components/CurrentColor'

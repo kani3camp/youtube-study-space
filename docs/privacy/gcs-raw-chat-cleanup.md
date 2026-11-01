@@ -116,4 +116,56 @@ Do not assume the production bucket has the same current policy. The production 
 
 ## Follow-up
 
+### 2026-10-14 IaC migration preparation (#983)
+
+The current migration authorization permits read-only inventory and deletion
+preparation. It **does not authorize deleting any historical mixed GCS snapshot**.
+A `ready_to_apply=true` preview or a confirmation token is a tool condition, not
+human authorization. Keep apply disabled for this workstream.
+
+The [2026-10-06 Issue #983 update](https://github.com/kani3camp/youtube-study-space/issues/983#issuecomment-6006495416)
+records a production natural export containing exactly `users`, `user-activities`
+and `order-history`, with the downstream retained-history transfer successful.
+This is dated evidence, not proof of the currently deployed writer or current
+cleanup eligibility. Earlier issue comments called the development bucket a
+production observation; use the explicit environment/project/bucket binding above
+and authenticated fresh metadata rather than those historical labels.
+
+Before presenting deletion candidates for a separate decision, collect privately:
+
+- the deployed producer/export source and natural-run collection groups, confirming
+  no `live-chat-history` re-entry and no unexpected redeploy;
+- a fresh Firestore drain count, target-bound GCS preview, all candidate object
+  generations, bytes, complete top-level prefixes and retained collections;
+- bucket location/storage class/versioning/soft delete, retention policy and lock;
+- each candidate object's retention expiration, temporary/event-based hold and
+  object-retention settings; a prefix is eligible only if **every object** is eligible;
+- at least seven newer clean generations and latest export age at most 72 hours,
+  confirming natural export success and a usable retained-data recovery set;
+- the loss of older `users`/`user-activities`/`order-history` backups, retained clean
+  backup coverage, private rollback/recovery path and hard-delete window;
+- request, soft-delete storage and COLDLINE early-deletion fees within the allowed
+  budget. Do not assume retention expiry alone eliminates storage-class charges.
+
+The current `privacy-gcs-admin` reads versioning and soft-delete policy and counts
+prefixes from object names. It does **not** inspect bucket retention, individual
+object retention/holds, or prove snapshot completeness/restorability. Its candidate
+set includes every live raw-containing prefix; it cannot select an eligible-only
+retention wave. Therefore its `ready_to_apply` result is insufficient for a
+production retention decision. Do not run the current all-prefix apply against a
+partly eligible inventory, remove retention/holds, or turn partial deletion into
+a retry loop. Retention-aware wave support and review are required before any
+later separately authorized deletion.
+
+Production's recorded COLDLINE / 93-day retention is intentional and must remain.
+Fresh metadata may show a different effective eligibility time per object. Compute
+eligibility from object metadata, not the prefix name or a dev-derived date.
+Preserve complete clean snapshots and the shared bucket/export infrastructure.
+
+The approval packet should contain only sanitized aggregate counts/bytes,
+eligibility ranges, retained backup coverage, expected fees and a private manifest
+reference. Keep raw object names, configuration, confirmation tokens and business
+data out of public logs/artifacts. If no raw prefixes remain, record that fresh
+result and avoid repeating a completed deletion.
+
 After the raw archive migration is complete in both environments, remove the one-shot deletion capability from the repository. Keep useful read-only audits. The general backup retention policy for Study Space-owned data remains independent from raw live-chat retirement.

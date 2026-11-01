@@ -39,10 +39,11 @@ func TestEnterRoom(t *testing.T) {
 		IsMemberSeat: false,
 	}
 	seatAppearance := repository.SeatAppearance{
-		ColorCode1:           "#000000",
-		ColorCode2:           "#000000",
-		NumStars:             3,
-		ColorGradientEnabled: true,
+		SchemaVersion: 2,
+		TopBarColor:   "#000000",
+		Rank:          3,
+		RankVisible:   true,
+		NumStars:      3,
 	}
 	expectedUntilExitMin := 30
 	enteredAt := time.Date(2021, 10, 1, 0, 0, 0, 0, timeutil.JapanLocation())
@@ -73,7 +74,6 @@ func TestEnterRoom(t *testing.T) {
 			inOption.SeatID,
 			inOption.IsMemberSeat,
 			inOption.MinWorkOrderOption.WorkName,
-			"",
 			inOption.MinWorkOrderOption.DurationMin,
 			seatAppearance,
 			"",
@@ -105,7 +105,6 @@ func TestEnterRoom(t *testing.T) {
 		SessionID:               seat.SessionID,
 		UserDisplayName:         userDisplayName,
 		WorkName:                inOption.MinWorkOrderOption.WorkName,
-		BreakWorkName:           "",
 		EnteredAt:               enteredAt.UTC(),
 		Until:                   expectedUntil.UTC(),
 		Appearance:              seatAppearance,

@@ -1,31 +1,15 @@
-import {
-	type FirebaseApp,
-	type FirebaseOptions,
-	getApp,
-	getApps,
-	initializeApp,
-} from 'firebase/app'
+import { type FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app'
 import type {
 	DocumentData,
 	FirestoreDataConverter,
 	QueryDocumentSnapshot,
 	SnapshotOptions,
 } from 'firebase/firestore'
-import type { Menu, Seat, WorkNameTrend } from '../types/api'
-import { validateString } from './common'
+import type { Menu, Seat, SeatAppearance, WorkNameTrend } from '../types/api'
+import { getFirebaseConfig } from './firebase-config'
+import { seatAppearanceV2SchemaVersion } from './seat-appearance-schema'
 
-export const getFirebaseConfig = (): FirebaseOptions => {
-	if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)) {
-		alert('NEXT_PUBLIC_FIREBASE_PROJECT_ID is not valid.')
-	}
-	if (!validateString(process.env.NEXT_PUBLIC_FIREBASE_API_KEY)) {
-		alert('NEXT_PUBLIC_FIREBASE_API_KEY is not valid.')
-	}
-	return {
-		apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-		projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-	}
-}
+export { getFirebaseConfig } from './firebase-config'
 
 export const getFirebaseApp = (): FirebaseApp => {
 	return getApps().length === 0 ? initializeApp(getFirebaseConfig()) : getApp()
@@ -65,20 +49,62 @@ export const firestoreConstantsConverter: FirestoreDataConverter<SystemConstants
 		},
 	}
 
+function readSeatAppearanceV2(
+	appearance: DocumentData | undefined,
+	seatId: unknown,
+): SeatAppearance {
+	const schemaVersion = appearance?.['schema-version']
+	if (
+		appearance === undefined ||
+		schemaVersion !== seatAppearanceV2SchemaVersion
+	) {
+		throw new Error(
+			`Unsupported SeatAppearance schema-version ${String(schemaVersion)} for seat ${String(seatId)}; expected schema-version ${seatAppearanceV2SchemaVersion.toString()}`,
+		)
+	}
+
+	const topBarColor = appearance['top-bar-color']
+	const rank = appearance.rank
+	const rankVisible = appearance['rank-visible']
+	const numStars = appearance['num-stars']
+	if (
+		typeof topBarColor !== 'string' ||
+		topBarColor.length === 0 ||
+		!Number.isInteger(rank) ||
+		rank < 1 ||
+		rank > 10 ||
+		typeof rankVisible !== 'boolean' ||
+		!Number.isInteger(numStars) ||
+		numStars < 0
+	) {
+		throw new Error(`Malformed SeatAppearance V2 for seat ${String(seatId)}`)
+	}
+
+	return {
+		schema_version: seatAppearanceV2SchemaVersion,
+		top_bar_color: topBarColor,
+		rank,
+		rank_visible: rankVisible,
+		num_stars: numStars,
+	}
+}
+
 export const firestoreSeatConverter: FirestoreDataConverter<Seat> = {
 	toFirestore(seat: Seat): DocumentData {
+		const appearance = seat.appearance
 		return {
 			'seat-id': seat.seat_id,
 			'user-id': seat.user_id,
 			'user-display-name': seat.user_display_name,
 			'work-name': seat.work_name,
-			'break-work-name': seat.break_work_name,
 			'entered-at': seat.entered_at,
 			until: seat.until,
 			appearance: {
-				'color-code': seat.appearance.color_code1,
-				'num-stars': seat.appearance.num_stars,
-				'glow-animation': seat.appearance.color_gradient_enabled,
+				'schema-version': seatAppearanceV2SchemaVersion,
+				'top-bar-color': appearance.top_bar_color,
+				rank: appearance.rank,
+				'rank-visible': appearance.rank_visible,
+				'num-stars': appearance.num_stars,
 			},
 			'menu-code': seat.menu_code,
 			state: seat.state,
@@ -98,15 +124,9 @@ export const firestoreSeatConverter: FirestoreDataConverter<Seat> = {
 			user_id: data['user-id'],
 			user_display_name: data['user-display-name'],
 			work_name: data['work-name'],
-			break_work_name: data['break-work-name'],
 			entered_at: data['entered-at'],
 			until: data.until,
-			appearance: {
-				color_code1: data.appearance['color-code1'],
-				color_code2: data.appearance['color-code2'],
-				num_stars: data.appearance['num-stars'],
-				color_gradient_enabled: data.appearance['color-gradient-enabled'],
-			},
+			appearance: readSeatAppearanceV2(data.appearance, data['seat-id']),
 			menu_code: data['menu-code'],
 			state: data.state,
 			current_state_started_at: data['current-state-started-at'],

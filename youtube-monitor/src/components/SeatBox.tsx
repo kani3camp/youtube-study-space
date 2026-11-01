@@ -1,5 +1,5 @@
 /** @jsxImportSource @emotion/react */
-import { css, keyframes } from '@emotion/react'
+import { css } from '@emotion/react'
 import Image from 'next/image'
 import { type FC, type SyntheticEvent, useEffect, useState } from 'react'
 import { fontFamily, validateString } from '../lib/common'
@@ -14,6 +14,7 @@ import {
 	seatBorderWidthPx,
 } from '../styles/seatBoxMetrics'
 import type { Seat } from '../types/api'
+import RankBadge from './RankBadge'
 import { SeatState } from './SeatsPage'
 
 export type SeatProps = {
@@ -25,7 +26,7 @@ export type SeatProps = {
 	hoursElapsed: number
 	minutesElapsed: number
 	seatFontSizePx: number
-	processingSeat: Seat
+	processingSeat: Seat | undefined
 	seatPosition: {
 		x: number
 		y: number
@@ -41,12 +42,6 @@ export type SeatProps = {
 	}
 	menuImageMap: Map<string, string>
 }
-
-const colorGradientKeyframes = keyframes`
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-`
 
 let measureTextContext: CanvasRenderingContext2D | null | undefined
 
@@ -197,25 +192,32 @@ function useFittedGeneralSeatLineFontSizePx({
 }
 
 const SeatBox: FC<SeatProps> = (props) => {
-	const workName = props.isUsed ? props.processingSeat.work_name : ''
-	const breakWorkName = props.isUsed ? props.processingSeat.break_work_name : ''
-	const isBreak = props.isUsed && props.processingSeat.state === SeatState.Break
-	const displayName = props.isUsed ? props.processingSeat.user_display_name : ''
-	const menuCode = props.isUsed ? props.processingSeat.menu_code : ''
-	const numStars = props.isUsed ? props.processingSeat.appearance.num_stars : 0
-	const profileImageUrl = props.isUsed
-		? props.processingSeat.user_profile_image_url
-		: ''
-	const currentWorkName =
-		isBreak && validateString(breakWorkName) ? breakWorkName : workName
+	const processingSeat = props.isUsed ? props.processingSeat : undefined
+	if (props.isUsed && processingSeat === undefined) {
+		throw new Error(
+			`Seat ${props.globalSeatId.toString()} is marked used without processingSeat`,
+		)
+	}
+
+	const workName = processingSeat?.work_name ?? ''
+	const isBreak = processingSeat?.state === SeatState.Break
+	const displayName = processingSeat?.user_display_name ?? ''
+	const menuCode = processingSeat?.menu_code ?? ''
+	const appearance = processingSeat?.appearance
+	const numStars = appearance?.num_stars ?? 0
+	const showRankBadge = appearance?.rank_visible ?? false
+	const profileImageUrl = processingSeat?.user_profile_image_url ?? ''
+	const currentWorkName = workName
 	const hasWorkName = currentWorkName !== ''
 	const hasMemberWorkName = props.memberOnly && validateString(currentWorkName)
 	const menuImageSrc =
-		props.isUsed && !isBreak && validateString(menuCode)
+		processingSeat && !isBreak && validateString(menuCode)
 			? props.menuImageMap.get(menuCode)
 			: undefined
 	const hasProfileImage =
-		props.isUsed && props.memberOnly && validateString(profileImageUrl)
+		processingSeat !== undefined &&
+		props.memberOnly &&
+		validateString(profileImageUrl)
 	const profileImageSize = hasMemberWorkName
 		? Constants.memberSmallIconSize
 		: Constants.memberBigIconSize
@@ -236,30 +238,15 @@ const SeatBox: FC<SeatProps> = (props) => {
 		props.hoursElapsed > 0
 			? `${props.hoursElapsed}h ${props.minutesElapsed % 60}m`
 			: `${Math.max(props.minutesElapsed, 0)}m`
-	const accentBarStyle = props.isUsed
-		? props.processingSeat.appearance.color_gradient_enabled
-			? css`
-              background-image: linear-gradient(
-                  90deg,
-                  ${props.processingSeat.appearance.color_code1},
-                  ${props.processingSeat.appearance.color_code2}
-              );
-              background-size: 300% 300%;
-              animation: ${colorGradientKeyframes} 4s linear infinite;
-              mask-image: linear-gradient(
-                  rgba(0, 0, 0, 1) 0%,
-                  rgba(0, 0, 0, 0.75) 35%,
-                  rgba(0, 0, 0, 0) 100%
-              );
-          `
-			: css`
-              background-color: ${props.processingSeat.appearance.color_code1};
-              mask-image: linear-gradient(
-                  rgba(0, 0, 0, 1) 0%,
-                  rgba(0, 0, 0, 0.5) 30%,
-                  rgba(0, 0, 0, 0) 100%
-              );
-          `
+	const accentBarStyle = appearance
+		? css`
+				background-color: ${appearance.top_bar_color};
+				mask-image: linear-gradient(
+					rgba(0, 0, 0, 1) 0%,
+					rgba(0, 0, 0, 0.5) 30%,
+					rgba(0, 0, 0, 0) 100%
+				);
+			`
 		: css`
 				background-color: rgba(0, 0, 0, 0);
 			`
@@ -276,7 +263,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 	)
 	const generalSeatCanAutoFit = props.isUsed && !props.memberOnly
 
-	// 文字幅に応じて作業名または休憩中の作業名のフォントサイズを調整。
+	// 文字幅に応じて作業名のフォントサイズを調整。
 	// 下限は同席のユーザー名と同じ 0.63 em に揃える（これ以上は縮めず ellipsis に任せる）。
 	const generalWorkNameFontSizePx = useFittedGeneralSeatLineFontSizePx({
 		enabled: generalSeatCanAutoFit && hasWorkName,
@@ -321,8 +308,10 @@ const SeatBox: FC<SeatProps> = (props) => {
 			}}
 		>
 			{/* Accent Bar */}
-			{props.isUsed && (
+			{appearance && (
 				<div
+					data-testid="seat-accent-bar"
+					data-schema-version={appearance.schema_version}
 					css={[styles.accentBar, accentBarStyle]}
 					style={{
 						height: `${Math.max(
@@ -334,7 +323,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 			)}
 
 			{/* ★Mark */}
-			{numStars > 0 && (
+			{!showRankBadge && numStars > 0 && (
 				<div
 					css={styles.starsBadge}
 					style={{
@@ -380,6 +369,15 @@ const SeatBox: FC<SeatProps> = (props) => {
 								/>
 							)}
 						</div>
+
+						{showRankBadge && appearance && (
+							<RankBadge
+								rank={appearance.rank}
+								fontSizePx={
+									props.seatFontSizePx * (props.memberOnly ? 0.68 : 0.6)
+								}
+							/>
+						)}
 					</div>
 				)}
 

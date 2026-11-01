@@ -7,7 +7,7 @@
 		"streetsidesoftware.code-spell-checker",
 		"antiantisepticeye.vscode-color-picker",
 		"styled-components.vscode-styled-components",
-		"firsttris.vscode-jest-runner",
+		"vitest.explorer",
 		"biomejs.biome",
 		"wakatime.vscode-wakatime",
 		"pkief.material-icon-theme"

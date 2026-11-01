@@ -66,6 +66,8 @@ func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
 	}
 	defer app.CloseFirestoreClient()
 
+	utils.LogSeatAppearanceWriterCapability(gracefulCtx)
+
 	if timedOut := runOrganizeDBRoom(ctx, gracefulCtx, app, true, "member room"); timedOut {
 		return okResponse(), nil
 	}

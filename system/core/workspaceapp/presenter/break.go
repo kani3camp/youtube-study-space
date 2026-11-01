@@ -19,7 +19,7 @@ func BuildBreakMessage(res usecase.Result, displayName string) string {
 			msg += i18nmsg.CommandBreakWarn(displayName, e.MinBreakIntervalMin, e.CurrentWorkedMin)
 		case usecase.BreakStarted:
 			seat := SeatIDStr(e.SeatID, e.IsMemberSeat)
-			msg += i18nmsg.CommandBreakBreak(displayName, e.WorkName, e.DurationMin, seat)
+			msg += i18nmsg.CommandBreakBreak(displayName, e.DurationMin, seat)
 		}
 	}
 	return msg

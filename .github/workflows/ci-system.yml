@@ -1,0 +1,149 @@
+name: CI System
+
+on:
+  workflow_call:
+    inputs:
+      system:
+        required: true
+        type: boolean
+      firestore_integration:
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  check-i18n-generate:
+    name: Generated Files Up-to-Date
+    if: ${{ inputs.system }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: system
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: system/go.mod
+          cache: true
+          cache-dependency-path: |
+            system/go.sum
+            system/go.mod
+
+      - name: Download deps
+        run: go mod download
+
+      - name: Run go generate
+        run: go generate ./...
+        env:
+          I18N_BASELINE: ja
+
+      - name: Verify no diff
+        working-directory: ${{ github.workspace }}
+        run: |
+          git update-index -q --refresh
+          if ! git diff --quiet --exit-code; then
+            echo "::error::Generated files are outdated. Please run 'go generate ./...' and commit the changes."
+            git diff --name-only
+            exit 1
+          fi
+
+  go-lint:
+    name: Go Lint
+    if: ${{ inputs.system }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: system/go.mod
+          cache: true
+          cache-dependency-path: |
+            system/go.sum
+            system/go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.2
+          working-directory: system
+          args: --timeout=5m --config=.golangci.yml
+
+  system-go-test:
+    name: System Go Test
+    if: ${{ inputs.system }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: system
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: system/go.mod
+          cache: true
+          cache-dependency-path: |
+            system/go.sum
+            system/go.mod
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -shuffle=on -v ./...
+
+  system-firestore-emulator-test:
+    name: System Firestore Emulator Test
+    if: ${{ inputs.firestore_integration }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: system/go.mod
+          cache: true
+          cache-dependency-path: |
+            system/go.sum
+            system/go.mod
+
+      - name: Download Go dependencies
+        working-directory: system
+        run: go mod download
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.25.1
+
+      - name: Cache Firestore Emulator
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/firebase/emulators
+          key: ${{ runner.os }}-firestore-emulator-firebase-tools-15.25.1
+
+      - name: Run Firestore Emulator integration tests
+        run: bash .github/scripts/run-firestore-integration-tests.sh

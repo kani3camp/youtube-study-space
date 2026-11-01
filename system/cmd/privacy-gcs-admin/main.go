@@ -394,22 +394,53 @@ func apply(
 		return errors.New("confirmation token does not match current preview")
 	}
 
-	deletedObjects := int64(0)
-	for _, prefix := range inventory.Prefixes {
-		if !prefix.ContainsRawChat {
-			continue
-		}
-		for _, object := range deletionOrder(prefix.Objects) {
-			objectHandle := bucket.Object(object.Name)
-			if object.Generation != 0 {
-				objectHandle = objectHandle.Generation(object.Generation)
-			}
-			if err := objectHandle.Delete(ctx); err != nil && !errors.Is(err, storage.ErrObjectNotExist) {
-				return fmt.Errorf("delete GCS object %q: %w", object.Name, err)
-			}
-			deletedObjects++
-		}
+	nonRawObjects, rawMarkerObjects := splitDeletionPhases(inventory)
+	phaseObjectCount := int64(len(nonRawObjects) + len(rawMarkerObjects))
+	if phaseObjectCount != preview.CandidateObjectCount {
+		return fmt.Errorf(
+			"internal candidate object mismatch: preview=%d deletion_phases=%d; refusing deletion",
+			preview.CandidateObjectCount,
+			phaseObjectCount,
+		)
 	}
+
+	deleteObject := func(ctx context.Context, object objectRef) error {
+		objectHandle := bucket.Object(object.Name)
+		if object.Generation != 0 {
+			objectHandle = objectHandle.Generation(object.Generation)
+		}
+		if err := objectHandle.Delete(ctx); err != nil && !errors.Is(err, storage.ErrObjectNotExist) {
+			return fmt.Errorf("delete GCS object %q: %w", object.Name, err)
+		}
+		return nil
+	}
+
+	nonRawSummary, err := deleteObjectsBounded(
+		ctx,
+		"non-raw",
+		nonRawObjects,
+		defaultDeleteConcurrency,
+		deleteProgressInterval,
+		os.Stderr,
+		deleteObject,
+	)
+	if err != nil {
+		return err
+	}
+
+	rawSummary, err := deleteObjectsBounded(
+		ctx,
+		"raw-marker",
+		rawMarkerObjects,
+		defaultDeleteConcurrency,
+		deleteProgressInterval,
+		os.Stderr,
+		deleteObject,
+	)
+	if err != nil {
+		return err
+	}
+	deletedObjects := nonRawSummary.Deleted + rawSummary.Deleted
 
 	postInventory, err := inspectBucket(ctx, bucket)
 	if err != nil {

@@ -1,0 +1,13 @@
+- unmistakably 2D full-scene anime animation still or key visual; the entire scene must look drawn and cel-rendered from the first glance, never like softened 3D CG
+- every object, building, plant, sky and distant element rendered in one consistent 2D anime illustration language
+- use clean digital anime linework with selective medium-thin contour and structural lines, with confident omission where lines are unnecessary
+- use 2-to-3-step cel shading with large deliberately designed light, midtone and shadow groups; avoid continuous physically realistic gradients on objects
+- simplify material cues into flat color, cel shadow and small controlled highlights; suggest wood, stone, glass and foliage without PBR texture
+- foliage should read as stylized anime foliage masses rather than photographic vegetation
+- architecture should be illustrated through shape, line and flat color rather than physically based rendering
+- create spatial depth through layered color, atmospheric perspective and drawn perspective, not through 3D gloss or realistic material response
+- use fresh, deliberate anime color scripting with clear warm/cool separation and a bright daytime palette when the theme specifies daylight
+- respect the specified time of day, weather and light direction exactly; anime styling must not silently substitute a different time or weather
+- keep the result sophisticated and modern, not chibi, not family-cartoon and not children's animation
+- explicitly avoid realistic material roughness, ray-traced reflection look, 3D-render gloss, physically based glass or metal response, miniature-diorama look, architectural visualization, real-estate render, concept-render paintover and generic pastel-block diagram style
+- no paper texture, watercolor wash, film grain or aged cel texture

@@ -1,0 +1,9 @@
+## Look profile: Coral Aqua Glow
+
+- build the color relationship around warm coral, peach, soft amber and rose contrasted with clear aqua, turquoise, cyan and blue-green
+- make the warm/cool contrast feel luminous and inviting, with warm architectural or sky-side accents balanced by cool waterlike or reflected-light accents
+- when water is present, emphasize clarity, depth and clean aqua-to-cyan color separation so the water feels especially fresh and visually important
+- use reflected light selectively to connect warm and cool regions without covering surfaces in physically realistic mirror reflections
+- keep shadows colorful and transparent-looking rather than brown or gray; avoid muddy transitions between coral and aqua regions
+- preserve the requested time of day and weather; this palette may become sunset-like when the chosen time supports it, but must not override a different requested time
+- keep the active Direction's rendering language intact; this Look controls palette, lighting mood and material emphasis, not the underlying illustration / anime / CG grammar

@@ -77,6 +77,7 @@ You can set your [favorite color](https://youtube-study-space.notion.site/3fc22e
 
 Enter break mode while in the room.
 This cannot be used if you're not in the room.
+Your work name is kept unchanged while you're in break mode.
 
 :::warning
 You cannot enter break mode during the first few minutes after entering the room or during the first few minutes after ending a break.
@@ -94,16 +95,9 @@ The Pomodoro timer on the screen may also display "Break", but this is not relat
 `!rest` and `!chill` can also be used as commands with the same meaning as `!break`. Use whichever you prefer.
 :::
 
-### Additional options `work` `min`
+### Additional option `min`
 
-You can specify break content with the `work` option.
-You can also specify break time in minutes with the `min` option.
-
-The break content will be deleted when the break ends, and your original work name will be restored.
-
-```text title="Example: Take a 30-minute break with the break content set to 'Short break'."
-!break work Short break min 30
-```
+You can specify break time in minutes with the `min` option.
 
 ```text title="Example: Take a 20-minute break. After 20 minutes, break mode will automatically end and work will resume."
 !break min 20

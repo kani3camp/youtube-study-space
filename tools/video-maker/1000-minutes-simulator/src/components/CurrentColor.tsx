@@ -1,5 +1,5 @@
 import { css } from '@emotion/react'
-import { useTranslation } from 'next-i18next'
+import { useTranslation } from 'next-i18next/pages'
 import type { FC } from 'react'
 import { MdInvertColors } from 'react-icons/md'
 import { type Rank, ranks } from '../lib/ranks'

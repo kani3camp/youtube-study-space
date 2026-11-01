@@ -16,9 +16,6 @@ func BuildClearMessage(res usecase.Result, displayName string) string {
 		case usecase.ClearWork:
 			seat := SeatIDStr(e.SeatID, e.IsMemberSeat)
 			msg += i18nmsg.OthersClearWork(displayName, seat)
-		case usecase.ClearBreak:
-			seat := SeatIDStr(e.SeatID, e.IsMemberSeat)
-			msg += i18nmsg.OthersClearBreak(displayName, seat)
 		}
 	}
 	return msg

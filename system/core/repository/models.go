@@ -93,10 +93,11 @@ const (
 )
 
 type SeatAppearance struct {
-	ColorCode1           string `json:"color_code1" firestore:"color-code1"`
-	ColorCode2           string `json:"color_code2" firestore:"color-code2"`
-	NumStars             int    `json:"num_stars" firestore:"num-stars"`
-	ColorGradientEnabled bool   `json:"color_gradient_enabled" firestore:"color-gradient-enabled"`
+	SchemaVersion int    `json:"schema_version" firestore:"schema-version"`
+	TopBarColor   string `json:"top_bar_color" firestore:"top-bar-color"`
+	Rank          int    `json:"rank" firestore:"rank"`
+	RankVisible   bool   `json:"rank_visible" firestore:"rank-visible"`
+	NumStars      int    `json:"num_stars" firestore:"num-stars"`
 }
 
 type SeatDoc struct {
@@ -104,12 +105,11 @@ type SeatDoc struct {
 	UserID                  string         `json:"user_id" firestore:"user-id"`
 	SessionID               string         `json:"session_id" firestore:"session-id"`
 	UserDisplayName         string         `json:"user_display_name" firestore:"user-display-name"`
-	WorkName                string         `json:"work_name" firestore:"work-name"`             // 作業名
-	BreakWorkName           string         `json:"break_work_name" firestore:"break-work-name"` // 休憩中の作業名
-	EnteredAt               time.Time      `json:"entered_at" firestore:"entered-at"`           // 入室日時
-	Until                   time.Time      `json:"until" firestore:"until"`                     // 自動退室予定時刻
-	Appearance              SeatAppearance `json:"appearance" firestore:"appearance"`           // 席の見え方
-	MenuCode                string         `json:"menu_code" firestore:"menu-code"`             // メニューコード
+	WorkName                string         `json:"work_name" firestore:"work-name"`   // 作業名
+	EnteredAt               time.Time      `json:"entered_at" firestore:"entered-at"` // 入室日時
+	Until                   time.Time      `json:"until" firestore:"until"`           // 自動退室予定時刻
+	Appearance              SeatAppearance `json:"appearance" firestore:"appearance"` // 席の見え方
+	MenuCode                string         `json:"menu_code" firestore:"menu-code"`   // メニューコード
 	State                   SeatState      `json:"state" firestore:"state"`
 	CurrentStateStartedAt   time.Time      `json:"current_state_started_at" firestore:"current-state-started-at"`
 	CurrentStateUntil       time.Time      `json:"current_state_until" firestore:"current-state-until"`

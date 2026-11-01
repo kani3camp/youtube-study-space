@@ -1,16 +1,26 @@
 package utils
 
 import (
+	"context"
 	"errors"
-	"reflect"
+	"log/slog"
 	"strconv"
 
 	"app.modules/core/repository"
 	"app.modules/core/timeutil"
 )
 
+// LogSeatAppearanceWriterCapability は、Seat を書き込む process が
+// SeatAppearance V2 canonical write に対応済みであることを起動ログに残す。
+func LogSeatAppearanceWriterCapability(ctx context.Context) {
+	slog.InfoContext(ctx, "seat appearance writer capability",
+		"seat-appearance-schema-write", SeatAppearanceSchemaVersion,
+	)
+}
+
 const (
 	FavoriteColorAvailableThresholdHours = 1000
+	SeatAppearanceSchemaVersion          = 2
 
 	ColorHours0To5      = "#FFF"
 	ColorHours5To10     = "#FFD4CC"
@@ -43,43 +53,38 @@ const (
 	ColorName500To700  = "青紫"
 	ColorName700To1000 = "紫"
 	ColorNameFrom1000  = "ピンク"
-
-	ColorRank1         = "#D8D8D8"
-	ColorRank2         = "#93FF66"
-	ColorRank3         = "#FFFF66"
-	ColorRank4         = "#FFC666"
-	ColorRank5         = "#FF6666"
-	ColorRank6         = "#00FFFF"
-	ColorRank7         = "#95ABED"
-	ColorRank8         = "#BDB7E5"
-	ColorRank9         = "#BF80DF"
-	ColorRank10        = "#FF66FF"
-	ColorRank10andMore = "#FF5252"
 )
 
 func GetSeatAppearance(totalStudySec int, rankVisible bool, rp int, favoriteColor string) (repository.SeatAppearance, error) {
-	var colorCode1 string
-	var colorCode2 string
-	if rankVisible {
-		colorCode1, colorCode2 = RankPointToColorCodePair(rp)
-	} else {
-		if CanUseFavoriteColor(totalStudySec) && !reflect.ValueOf(favoriteColor).IsZero() {
-			colorCode1 = favoriteColor
-		} else {
-			var err error
-			colorCode1, err = TotalStudySecToColorCode(totalStudySec)
-			if err != nil {
-				return repository.SeatAppearance{}, err
-			}
-		}
+	// totalStudySec must be non-negative even when rank is visible because V2 always
+	// derives its canonical top bar from cumulative study time.
+	topBarColor, err := TotalStudySecToColorCode(totalStudySec)
+	if err != nil {
+		return repository.SeatAppearance{}, err
+	}
+	if CanUseFavoriteColor(totalStudySec) && favoriteColor != "" {
+		topBarColor = favoriteColor
 	}
 
 	return repository.SeatAppearance{
-		ColorCode1:           colorCode1,
-		ColorCode2:           colorCode2,
-		NumStars:             TotalStudySecToNumStars(totalStudySec),
-		ColorGradientEnabled: rankVisible,
+		SchemaVersion: SeatAppearanceSchemaVersion,
+		TopBarColor:   topBarColor,
+		Rank:          RankByRP(rp),
+		RankVisible:   rankVisible,
+		NumStars:      TotalStudySecToNumStars(totalStudySec),
 	}, nil
+}
+
+// RankByRP converts the existing 10,000-point RP bands to R1-R10.
+// Callers must provide normalized RP in [0, 99999]; behavior outside that range is not contracted.
+func RankByRP(rp int) int {
+	if rp < 1e4 {
+		return 1
+	}
+	if rp >= 9e4 {
+		return 10
+	}
+	return rp/1e4 + 1
 }
 
 func CanUseFavoriteColor(totalStudySec int) bool {
@@ -212,29 +217,5 @@ func ColorCodeToColorName(colorCode string) string {
 		return ColorNameFrom1000
 	default:
 		return "不明"
-	}
-}
-
-func RankPointToColorCodePair(rp int) (string, string) {
-	if rp < 1e4 {
-		return ColorRank1, ColorRank2
-	} else if rp < 2e4 {
-		return ColorRank2, ColorRank3
-	} else if rp < 3e4 {
-		return ColorRank3, ColorRank4
-	} else if rp < 4e4 {
-		return ColorRank4, ColorRank5
-	} else if rp < 5e4 {
-		return ColorRank5, ColorRank6
-	} else if rp < 6e4 {
-		return ColorRank6, ColorRank7
-	} else if rp < 7e4 {
-		return ColorRank7, ColorRank8
-	} else if rp < 8e4 {
-		return ColorRank8, ColorRank9
-	} else if rp < 9e4 {
-		return ColorRank9, ColorRank10
-	} else {
-		return ColorRank10, ColorRank10andMore
 	}
 }

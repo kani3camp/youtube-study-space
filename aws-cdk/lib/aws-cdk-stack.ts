@@ -59,6 +59,41 @@ export class AwsCdkStack extends cdk.Stack {
 		})
 
 		// =========================
+		// Google Cloud authentication migration
+		// =========================
+		const googleCloudProject = new cdk.CfnParameter(
+			this,
+			'GoogleCloudProject',
+			{
+				type: 'String',
+				default: '',
+				description:
+					'Google Cloud project ID used by AWS workloads authenticated through WIF.',
+			},
+		)
+		const gcpWifAudience = new cdk.CfnParameter(this, 'GcpWifAudience', {
+			type: 'String',
+			default: '',
+			description:
+				'Full Workload Identity Federation provider audience.',
+		})
+		const gcpWifServiceAccountEmail = new cdk.CfnParameter(
+			this,
+			'GcpWifServiceAccountEmail',
+			{
+				type: 'String',
+				default: '',
+				description:
+					'Google service account email impersonated through WIF.',
+			},
+		)
+		const googleAuthEnvironment = {
+			GOOGLE_CLOUD_PROJECT: googleCloudProject.valueAsString,
+			GCP_WIF_AUDIENCE: gcpWifAudience.valueAsString,
+			GCP_WIF_SERVICE_ACCOUNT_EMAIL: gcpWifServiceAccountEmail.valueAsString,
+		}
+
+		// =========================
 		// Secrets Manager
 		// =========================
 		const openaiApiKeySecret = new secretsmanager.Secret(
@@ -69,13 +104,6 @@ export class AwsCdkStack extends cdk.Stack {
 				description: 'Youtube Study Space Secret',
 			},
 		)
-
-		// NOTE: 現状、DynamoDBのテーブルは別途作成しておく必要がある
-		const dynamoDBAccessPolicy = new iam.PolicyStatement({
-			actions: ['dynamodb:GetItem'],
-			effect: iam.Effect.ALLOW,
-			resources: ['arn:aws:dynamodb:*:*:table/secrets'],
-		})
 
 		// =========================
 		// ECS/Fargate: Daily Batch
@@ -89,15 +117,6 @@ export class AwsCdkStack extends cdk.Stack {
 					subnetType: ec2.SubnetType.PUBLIC,
 				},
 			],
-		})
-
-		// DynamoDB Gateway VPC Endpoint for secure, cost-effective access
-		// Note: This VPC uses only Public Subnets (no NAT). Gateway endpoint attaches to route tables
-		// in these public subnets and enables private DynamoDB access without NAT egress.
-		vpc.addGatewayEndpoint('DynamoDbEndpoint', {
-			service: ec2.GatewayVpcEndpointAwsService.DYNAMODB,
-			// public subnets are fine; gateway endpoints are attached to the route tables
-			// associatedRoutes can be left default to all route tables in the VPC
 		})
 
 		// 最小限のegressのみ許可するSG
@@ -162,9 +181,6 @@ export class AwsCdkStack extends cdk.Stack {
 				},
 			},
 		)
-		// DynamoDB secrets テーブルへのアクセス付与
-		taskDefinition.taskRole.addToPrincipalPolicy(dynamoDBAccessPolicy)
-
 		const batchContainer = taskDefinition.addContainer('daily-batch', {
 			image: ecs.ContainerImage.fromDockerImageAsset(batchImageAsset),
 			logging: ecs.LogDrivers.awsLogs({
@@ -172,6 +188,7 @@ export class AwsCdkStack extends cdk.Stack {
 				streamPrefix: 'daily-batch',
 			}),
 			environment: {
+				...googleAuthEnvironment,
 				// ECS/Fargate でも AWS_REGION は基本入るが、念のため DEFAULT もセット
 				AWS_REGION: cdk.Stack.of(this).region,
 				AWS_DEFAULT_REGION: cdk.Stack.of(this).region,
@@ -191,10 +208,8 @@ export class AwsCdkStack extends cdk.Stack {
 				code: createLambdaImageCode(systemDir, 'sns_notify_discord'),
 				timeout: cdk.Duration.seconds(30),
 				reservedConcurrentExecutions: 1,
+				environment: googleAuthEnvironment,
 			},
-		)
-		;(snsNotifyDiscordFunction.role as iam.Role).addToPolicy(
-			dynamoDBAccessPolicy,
 		)
 		alarmsTopic.addSubscription(
 			new subs.LambdaSubscription(snsNotifyDiscordFunction),
@@ -610,10 +625,8 @@ export class AwsCdkStack extends cdk.Stack {
 				code: createLambdaImageCode(systemDir, 'set_desired_max_seats'),
 				timeout: cdk.Duration.seconds(20),
 				reservedConcurrentExecutions: undefined,
+				environment: googleAuthEnvironment,
 			},
-		)
-		;(setDesiredMaxSeatsFunction.role as iam.Role).addToPolicy(
-			dynamoDBAccessPolicy,
 		)
 		createLambdaErrorAlarm(
 			setDesiredMaxSeatsFunction,
@@ -629,10 +642,8 @@ export class AwsCdkStack extends cdk.Stack {
 				code: createLambdaImageCode(systemDir, 'youtube_organize_database'),
 				timeout: cdk.Duration.seconds(50),
 				reservedConcurrentExecutions: 1,
+				environment: googleAuthEnvironment,
 			},
-		)
-		;(youtubeOrganizeDatabaseFunction.role as iam.Role).addToPolicy(
-			dynamoDBAccessPolicy,
 		)
 		createLambdaErrorAlarm(
 			youtubeOrganizeDatabaseFunction,
@@ -648,10 +659,8 @@ export class AwsCdkStack extends cdk.Stack {
 				code: createLambdaImageCode(systemDir, 'check_live_stream_status'),
 				timeout: cdk.Duration.seconds(20),
 				reservedConcurrentExecutions: undefined,
+				environment: googleAuthEnvironment,
 			},
-		)
-		;(checkLiveStreamStatusFunction.role as iam.Role).addToPolicy(
-			dynamoDBAccessPolicy,
 		)
 		createLambdaErrorAlarm(
 			checkLiveStreamStatusFunction,
@@ -668,14 +677,12 @@ export class AwsCdkStack extends cdk.Stack {
 				timeout: cdk.Duration.minutes(5),
 				reservedConcurrentExecutions: 1,
 				environment: {
+					...googleAuthEnvironment,
 					SECRET_NAME: openaiApiKeySecret.secretName,
 				},
 			},
 		)
 		openaiApiKeySecret.grantRead(updateWorkNameTrendFunction)
-		;(updateWorkNameTrendFunction.role as iam.Role).addToPolicy(
-			dynamoDBAccessPolicy,
-		)
 		createLambdaErrorAlarm(
 			updateWorkNameTrendFunction,
 			'UpdateWorkNameTrendErrorsAlarm',
@@ -689,10 +696,8 @@ export class AwsCdkStack extends cdk.Stack {
 				functionName: 'error_log_notify_discord',
 				code: createLambdaImageCode(systemDir, 'error_log_notify_discord'),
 				timeout: cdk.Duration.seconds(30),
+				environment: googleAuthEnvironment,
 			},
-		)
-		;(errorLogNotifyDiscordFunction.role as iam.Role).addToPolicy(
-			dynamoDBAccessPolicy,
 		)
 		createLambdaErrorAlarm(
 			errorLogNotifyDiscordFunction,

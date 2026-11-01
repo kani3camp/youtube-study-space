@@ -4,7 +4,7 @@ import React from 'react'
 
 import SeatBox, { type SeatProps } from '../components/SeatBox'
 import { SeatState } from '../components/SeatsPage'
-import type { Seat } from '../types/api'
+import type { Seat, SeatAppearance } from '../types/api'
 
 const defaultMenuImageMap = new Map<string, string>([
 	['coffee', '/images/menu_default.svg'],
@@ -56,6 +56,17 @@ const memberSeatShape = {
 	heightPx: 150,
 }
 
+const createV2Appearance = (
+	overrides: Partial<SeatAppearance> = {},
+): SeatAppearance => ({
+	schema_version: 2,
+	top_bar_color: '#5BD27D',
+	rank: 5,
+	rank_visible: false,
+	num_stars: 0,
+	...overrides,
+})
+
 const createSeat = (overrides: Partial<Seat> = {}): Seat => {
 	const now = Timestamp.now()
 
@@ -64,15 +75,9 @@ const createSeat = (overrides: Partial<Seat> = {}): Seat => {
 		user_id: 'user1',
 		user_display_name: 'ユーザー名',
 		work_name: '作業内容',
-		break_work_name: '',
 		entered_at: now,
 		until: now,
-		appearance: {
-			color_code1: '#5BD27D',
-			color_code2: '#008CFF',
-			num_stars: 5,
-			color_gradient_enabled: false,
-		},
+		appearance: createV2Appearance({ num_stars: 5 }),
 		menu_code: '',
 		state: SeatState.Work,
 		current_state_started_at: now,
@@ -166,23 +171,62 @@ export const InUseInBreak: Story = {
 		isUsed: true,
 		processingSeat: createSeat({
 			work_name: '実装タスク',
-			break_work_name: 'コーヒー休憩',
 			state: SeatState.Break,
 		}),
 	}),
 }
 
-export const InUseWithRankGradient: Story = {
-	name: '一般席 ランク表示グラデーション',
+export const V2GeneralRankBadge: Story = {
+	name: 'V2 一般席 ランクバッジ',
 	args: createBaseArgs({
 		isUsed: true,
 		processingSeat: createSeat({
-			appearance: {
-				color_code1: '#5BD27D',
-				color_code2: '#008CFF',
-				num_stars: 5,
-				color_gradient_enabled: true,
-			},
+			appearance: createV2Appearance({ rank_visible: true }),
+		}),
+	}),
+}
+
+export const V2GeneralRankHiddenBelow1000Hours: Story = {
+	name: 'V2 一般席 Rank OFF・1000h未満',
+	args: createBaseArgs({
+		isUsed: true,
+		processingSeat: createSeat({
+			appearance: createV2Appearance({ rank_visible: false }),
+		}),
+	}),
+}
+
+export const V2GeneralRankVisibleFavoriteColor: Story = {
+	name: 'V2 一般席 Rank ON・1000h以上・FavoriteColor',
+	args: createBaseArgs({
+		isUsed: true,
+		processingSeat: createSeat({
+			appearance: createV2Appearance({
+				top_bar_color: '#243B6B',
+				rank: 10,
+				rank_visible: true,
+				num_stars: 2,
+			}),
+		}),
+	}),
+}
+
+export const V2GeneralRankHidden1000Hours: Story = {
+	name: 'V2 一般席 Rank OFF・1000h以上',
+	args: createBaseArgs({
+		isUsed: true,
+		processingSeat: createSeat({
+			appearance: createV2Appearance({ rank_visible: false, num_stars: 1 }),
+		}),
+	}),
+}
+
+export const V2GeneralRankHidden2000Hours: Story = {
+	name: 'V2 一般席 Rank OFF・2000h以上',
+	args: createBaseArgs({
+		isUsed: true,
+		processingSeat: createSeat({
+			appearance: createV2Appearance({ rank_visible: false, num_stars: 2 }),
 		}),
 	}),
 }
@@ -256,25 +300,75 @@ export const InUseMemberInBreak: Story = {
 		seatShape: memberSeatShape,
 		processingSeat: createSeat({
 			work_name: '実装タスク',
-			break_work_name: 'コーヒー休憩',
 			state: SeatState.Break,
 		}),
 	}),
 }
-export const InUseMemberWithRankGradient: Story = {
-	name: 'メンバー席 ランク表示グラデーション',
+
+export const V2MemberRankBadge: Story = {
+	name: 'V2 メンバー席 ランクバッジ',
 	args: createBaseArgs({
 		isUsed: true,
 		memberOnly: true,
 		seatFontSizePx: MEMBER_SEAT_FONT_SIZE,
 		seatShape: memberSeatShape,
 		processingSeat: createSeat({
-			appearance: {
-				color_code1: '#5BD27D',
-				color_code2: '#008CFF',
-				num_stars: 5,
-				color_gradient_enabled: true,
-			},
+			appearance: createV2Appearance({
+				rank: 10,
+				rank_visible: true,
+				top_bar_color: '#243B6B',
+			}),
 		}),
 	}),
+}
+
+const previewFrameStyle = (seatShape: SeatProps['seatShape']) => ({
+	position: 'relative' as const,
+	width: `${seatShape.widthPx}px`,
+	height: `${seatShape.heightPx}px`,
+})
+
+const rankGalleryArgs = Array.from({ length: 10 }, (_, index) => {
+	const rank = index + 1
+	const topBarColor = index % 2 === 0 ? '#F4C96B' : '#243B6B'
+	return createBaseArgs({
+		globalSeatId: rank,
+		isUsed: true,
+		processingSeat: createSeat({
+			seat_id: rank,
+			user_display_name: `R${rank.toString()} ユーザー`,
+			appearance: createV2Appearance({
+				rank,
+				rank_visible: true,
+				top_bar_color: topBarColor,
+			}),
+		}),
+		seatPosition: { x: 0, y: 0, rotate: 0 },
+	})
+})
+
+export const V2RankPalette: Story = {
+	name: 'V2 R1〜R10・明暗の上部バー',
+	args: createBaseArgs(),
+	render: () =>
+		React.createElement(
+			'div',
+			{
+				style: {
+					display: 'grid',
+					gridTemplateColumns: 'repeat(5, 140px)',
+					gap: '16px',
+				},
+			},
+			...rankGalleryArgs.map((args) =>
+				React.createElement(
+					'div',
+					{
+						key: args.globalSeatId,
+						style: previewFrameStyle(generalSeatShape),
+					},
+					React.createElement(SeatBoxStory, args),
+				),
+			),
+		),
 }

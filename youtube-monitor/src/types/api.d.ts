@@ -1,10 +1,11 @@
 import type { Timestamp } from 'firebase/firestore'
 
 export type SeatAppearance = {
-	color_code1: string
-	color_code2: string
+	schema_version: number
+	top_bar_color: string
+	rank: number
+	rank_visible: boolean
 	num_stars: number
-	color_gradient_enabled: boolean
 }
 
 export type Seat = {
@@ -12,7 +13,6 @@ export type Seat = {
 	user_id: string
 	user_display_name: string
 	work_name: string
-	break_work_name: string
 	entered_at: Timestamp
 	until: Timestamp
 	appearance: SeatAppearance

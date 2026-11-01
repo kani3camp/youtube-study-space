@@ -1,0 +1,10 @@
+# Terraform working data
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/crash.log
+**/crash.*.log
+**/*.tfplan
+
+# Backend config contains environment-specific bucket names and must be supplied locally/CI.
+**/backend.hcl

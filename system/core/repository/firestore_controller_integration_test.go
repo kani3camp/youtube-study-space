@@ -38,14 +38,14 @@ func newSeatDoc(seatID int, userID string, sessionID string) repository.SeatDoc 
 		SessionID:       sessionID,
 		UserDisplayName: "テストユーザー",
 		WorkName:        "初期作業",
-		BreakWorkName:   "初期休憩作業",
 		EnteredAt:       time.Date(2026, 8, 2, 9, 0, 0, 0, jst),
 		Until:           time.Date(2026, 8, 2, 18, 0, 0, 0, jst),
 		Appearance: repository.SeatAppearance{
-			ColorCode1:           "#112233",
-			ColorCode2:           "#445566",
-			NumStars:             4,
-			ColorGradientEnabled: true,
+			SchemaVersion: 2,
+			TopBarColor:   "#112233",
+			Rank:          4,
+			RankVisible:   true,
+			NumStars:      4,
 		},
 		MenuCode:                "menu-initial",
 		State:                   repository.WorkState,
@@ -74,7 +74,6 @@ func TestFirestoreRepository_SeatCreateAndRead(t *testing.T) {
 	assert.Equal(t, want.SessionID, got.SessionID)
 	assert.Equal(t, want.UserDisplayName, got.UserDisplayName)
 	assert.Equal(t, want.WorkName, got.WorkName)
-	assert.Equal(t, want.BreakWorkName, got.BreakWorkName)
 	assert.Equal(t, want.Appearance, got.Appearance)
 	assert.Equal(t, want.MenuCode, got.MenuCode)
 	assert.Equal(t, want.State, got.State)
@@ -88,13 +87,48 @@ func TestFirestoreRepository_SeatCreateAndRead(t *testing.T) {
 	assert.Equal(t, want.CurrentSegmentStartedAt.UTC(), got.CurrentSegmentStartedAt)
 }
 
+func TestFirestoreRepository_SeatAppearanceV2CanonicalWrite(t *testing.T) {
+	integrationtest.ResetFirestore(t)
+	controller := newTestRepository(t)
+	want := newSeatDoc(4, "seat-v2-user", "session-v2")
+	want.Appearance = repository.SeatAppearance{
+		SchemaVersion: 2,
+		TopBarColor:   "#ABCDEF",
+		Rank:          7,
+		RankVisible:   true,
+		NumStars:      3,
+	}
+
+	runTransaction(t, controller, func(_ context.Context, tx *firestore.Transaction) error {
+		return controller.CreateSeat(tx, want, false)
+	})
+
+	got, err := controller.ReadSeat(context.Background(), nil, want.SeatID, false)
+	require.NoError(t, err)
+	assert.Equal(t, want.Appearance, got.Appearance)
+
+	doc, err := controller.FirestoreClient().Collection(repository.SEATS).
+		Doc("4").Get(context.Background())
+	require.NoError(t, err)
+	rawAppearance, ok := doc.Data()["appearance"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, int64(2), rawAppearance["schema-version"])
+	assert.Equal(t, "#ABCDEF", rawAppearance["top-bar-color"])
+	assert.Equal(t, int64(7), rawAppearance["rank"])
+	assert.Equal(t, true, rawAppearance["rank-visible"])
+	assert.Equal(t, int64(3), rawAppearance["num-stars"])
+	assert.NotContains(t, rawAppearance, "color-code1")
+	assert.NotContains(t, rawAppearance, "color-code2")
+	assert.NotContains(t, rawAppearance, "color-gradient-enabled")
+}
+
 func TestFirestoreRepository_SeatCollectionsAreSeparated(t *testing.T) {
 	integrationtest.ResetFirestore(t)
 	controller := newTestRepository(t)
 	generalSeat := newSeatDoc(5, "general-user", "general-session")
 	memberSeat := newSeatDoc(5, "member-user", "member-session")
 	memberSeat.WorkName = "メンバー作業"
-	memberSeat.Appearance.ColorCode1 = "#abcdef"
+	memberSeat.Appearance.TopBarColor = "#abcdef"
 
 	runTransaction(t, controller, func(_ context.Context, tx *firestore.Transaction) error {
 		if err := controller.CreateSeat(tx, generalSeat, false); err != nil {
@@ -120,18 +154,26 @@ func TestFirestoreRepository_SeatCollectionsAreSeparated(t *testing.T) {
 	assert.NotEqual(t, gotGeneral.SessionID, gotMember.SessionID)
 }
 
-func TestFirestoreRepository_UpdateSeat(t *testing.T) {
+func TestFirestoreRepository_UpdateSeatRemovesLegacyFields(t *testing.T) {
 	integrationtest.ResetFirestore(t)
 	controller := newTestRepository(t)
 	original := newSeatDoc(7, "seat-update-user", "session-update")
+	ctx := context.Background()
 
 	runTransaction(t, controller, func(_ context.Context, tx *firestore.Transaction) error {
 		return controller.CreateSeat(tx, original, false)
 	})
 
+	_, err := controller.FirestoreClient().Collection(repository.SEATS).Doc("7").Update(ctx, []firestore.Update{
+		{Path: "appearance.color-code1", Value: "#111111"},
+		{Path: "appearance.color-code2", Value: "#222222"},
+		{Path: "appearance.color-gradient-enabled", Value: true},
+		{Path: "break-work-name", Value: "旧休憩内容"},
+	})
+	require.NoError(t, err)
+
 	updated := original
 	updated.WorkName = "更新後の作業"
-	updated.BreakWorkName = "更新後の休憩作業"
 	updated.State = repository.BreakState
 	updated.CurrentStateStartedAt = time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	updated.CurrentStateUntil = time.Date(2026, 8, 2, 12, 30, 0, 0, time.UTC)
@@ -144,10 +186,9 @@ func TestFirestoreRepository_UpdateSeat(t *testing.T) {
 		return controller.UpdateSeat(ctx, tx, updated, false)
 	})
 
-	got, err := controller.ReadSeat(context.Background(), nil, updated.SeatID, false)
+	got, err := controller.ReadSeat(ctx, nil, updated.SeatID, false)
 	require.NoError(t, err)
 	assert.Equal(t, updated.WorkName, got.WorkName)
-	assert.Equal(t, updated.BreakWorkName, got.BreakWorkName)
 	assert.Equal(t, updated.State, got.State)
 	assert.Equal(t, updated.CurrentStateStartedAt, got.CurrentStateStartedAt)
 	assert.Equal(t, updated.CurrentStateUntil, got.CurrentStateUntil)
@@ -162,7 +203,18 @@ func TestFirestoreRepository_UpdateSeat(t *testing.T) {
 	assert.Equal(t, original.EnteredAt.UTC(), got.EnteredAt)
 	assert.Equal(t, original.Until.UTC(), got.Until)
 	assert.Equal(t, original.Appearance, got.Appearance)
+	assert.Equal(t, 2, got.Appearance.SchemaVersion)
 	assert.Equal(t, original.UserProfileImageURL, got.UserProfileImageURL)
+
+	doc, err := controller.FirestoreClient().Collection(repository.SEATS).Doc("7").Get(ctx)
+	require.NoError(t, err)
+	rawData := doc.Data()
+	assert.NotContains(t, rawData, "break-work-name")
+	rawAppearance, ok := rawData["appearance"].(map[string]interface{})
+	require.True(t, ok)
+	assert.NotContains(t, rawAppearance, "color-code1")
+	assert.NotContains(t, rawAppearance, "color-code2")
+	assert.NotContains(t, rawAppearance, "color-gradient-enabled")
 }
 
 func TestFirestoreRepository_DeleteSeat(t *testing.T) {

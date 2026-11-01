@@ -1,0 +1,4 @@
+# Preserve the current default query suite and remote-only threat model.
+name: Default queries, remote sources
+disable-default-queries: false
+threat-models: remote

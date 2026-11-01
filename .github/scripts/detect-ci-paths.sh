@@ -6,9 +6,12 @@ readonly CI_GROUPS=(
 	system
 	room_image_prompt
 	menu_image_generator
+	video_maker_simulator
+	figma_plugin
 	youtube_monitor
 	docs_site
 	aws_cdk
+	gcp_terraform
 	node_projects
 	firestore_integration
 	formal_spec
@@ -18,9 +21,12 @@ readonly CI_GROUPS=(
 system=false
 room_image_prompt=false
 menu_image_generator=false
+video_maker_simulator=false
+figma_plugin=false
 youtube_monitor=false
 docs_site=false
 aws_cdk=false
+gcp_terraform=false
 node_projects=false
 firestore_integration=false
 formal_spec=false
@@ -28,6 +34,7 @@ all=false
 
 changed_paths=()
 unmatched_paths=()
+detection_reason='指定されたファイルパスで判定'
 
 usage() {
 	cat <<'EOF'
@@ -45,9 +52,12 @@ set_all_groups() {
 	system=true
 	room_image_prompt=true
 	menu_image_generator=true
+	video_maker_simulator=true
+	figma_plugin=true
 	youtube_monitor=true
 	docs_site=true
 	aws_cdk=true
+	gcp_terraform=true
 	node_projects=true
 	firestore_integration=true
 	formal_spec=true
@@ -56,7 +66,7 @@ set_all_groups() {
 
 path_is_ci_config() {
 	case "$1" in
-		.github/workflows/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/run-firestore-integration-tests.sh|.github/actions/*)
+		.github/workflows/*|.github/codeql/*|.github/ci-validation/*|.github/scripts/detect-ci-paths.sh|.github/scripts/test-detect-ci-paths.sh|.github/scripts/check-ci-results.py|.github/scripts/terraform_source_pin.py|.github/scripts/install-ci-source-tools.sh|.github/scripts/test_ci_*.py|.github/scripts/run-firestore-integration-tests.sh|.github/scripts/base-image-*.mjs|.github/actions/*)
 			return 0
 			;;
 		*)
@@ -75,6 +85,10 @@ classify_path() {
 	fi
 
 	case "$path" in
+		.github/scripts/check-doc-references.py|.github/scripts/test_check_doc_references.py)
+			# These known helpers are covered by the always-running Repository docs check.
+			matched=true
+			;;
 		system/*)
 			system=true
 			firestore_integration=true
@@ -96,12 +110,26 @@ classify_path() {
 			formal_spec=true
 			matched=true
 			;;
-		tools/room-image-prompt/*)
+		# Terraform helpers/tests share naming conventions. Keep non-prefixed
+		# native/history/export witnesses explicit until their later relocation.
+		.github/scripts/terraform_*.py|.github/scripts/test_terraform_*.py|.github/scripts/run_terraform_native_tests.py|.github/scripts/test_order_history.py|.github/scripts/test_user_activity_history*.py|.github/scripts/test_export_*.py|.github/scripts/test_youtube_quota_alerts.py|.github/scripts/test_backup_bucket.py|.github/scripts/test_notification_channels.py)
+			gcp_terraform=true
+			matched=true
+			;;
+		.agents/skills/room-art-direction/references/*|tools/room-image-prompt/*)
 			room_image_prompt=true
 			matched=true
 			;;
 		tools/menu-image-generator/*)
 			menu_image_generator=true
+			matched=true
+			;;
+		tools/video-maker/1000-minutes-simulator/*)
+			video_maker_simulator=true
+			matched=true
+			;;
+		tools/figma-plugin/room-layout-analyzer/*)
+			figma_plugin=true
 			matched=true
 			;;
 		youtube-monitor/*|biome.json)
@@ -120,6 +148,10 @@ classify_path() {
 			aws_cdk=true
 			matched=true
 			;;
+		infra/gcp/*)
+			gcp_terraform=true
+			matched=true
+			;;
 		.node-version|.nvmrc)
 			node_projects=true
 			matched=true
@@ -127,7 +159,14 @@ classify_path() {
 	esac
 
 	if [[ "$matched" == false ]]; then
-		unmatched_paths+=("$path")
+		case "$path" in
+			.github/scripts/*)
+				# New or renamed CI helpers must never silently bypass validation.
+				# Ordinary documentation/application paths keep their narrow scope.
+				set_all_groups
+				;;
+			*) unmatched_paths+=("$path") ;;
+		esac
 	fi
 }
 
@@ -151,11 +190,13 @@ resolve_changed_paths() {
 	local event_name="${GITHUB_EVENT_NAME:-}"
 	if [[ "$event_name" == "workflow_dispatch" ]]; then
 		set_all_groups
+		detection_reason='手動実行のため全グループを選択'
 		return
 	fi
 
 	if [[ "$event_name" != "pull_request" ]]; then
 		set_all_groups
+		detection_reason='変更差分を判定できないイベントのため全グループを選択'
 		return
 	fi
 
@@ -163,21 +204,23 @@ resolve_changed_paths() {
 	local head_sha="${HEAD_SHA:-}"
 	if [[ -z "$base_sha" || -z "$head_sha" ]]; then
 		set_all_groups
+		detection_reason='PRの比較SHAが不足しているため全グループを選択'
 		return
 	fi
 
 	local diff_file
 	diff_file="$(mktemp)"
-	if ! git diff --no-renames --name-only "$base_sha...$head_sha" >"$diff_file"; then
+	if ! git diff --no-renames --name-only -z "$base_sha...$head_sha" >"$diff_file"; then
 		rm -f "$diff_file"
 		echo "::error::Failed to resolve changed paths from $base_sha...$head_sha" >&2
 		exit 1
 	fi
 	changed_paths=()
-	while IFS= read -r path; do
+	while IFS= read -r -d '' path; do
 		changed_paths+=("$path")
 	done <"$diff_file"
 	rm -f "$diff_file"
+	detection_reason='PRの変更差分で判定'
 }
 
 group_value() {
@@ -185,9 +228,12 @@ group_value() {
 		system) printf '%s' "$system" ;;
 		room_image_prompt) printf '%s' "$room_image_prompt" ;;
 		menu_image_generator) printf '%s' "$menu_image_generator" ;;
+		video_maker_simulator) printf '%s' "$video_maker_simulator" ;;
+		figma_plugin) printf '%s' "$figma_plugin" ;;
 		youtube_monitor) printf '%s' "$youtube_monitor" ;;
 		docs_site) printf '%s' "$docs_site" ;;
 		aws_cdk) printf '%s' "$aws_cdk" ;;
+		gcp_terraform) printf '%s' "$gcp_terraform" ;;
 		node_projects) printf '%s' "$node_projects" ;;
 		firestore_integration) printf '%s' "$firestore_integration" ;;
 		formal_spec) printf '%s' "$formal_spec" ;;
@@ -213,29 +259,56 @@ write_output() {
 write_summary() {
 	local summary_file="${GITHUB_STEP_SUMMARY:-}"
 	[[ -n "$summary_file" ]] || return 0
+	local group selected_groups=''
+	for group in "${CI_GROUPS[@]}"; do
+		if [[ "$group" != all && "$(group_value "$group")" == true ]]; then
+			selected_groups+="${selected_groups:+、}\`$group\`"
+		fi
+	done
+	if [[ "$all" == true ]]; then
+		selected_groups='全グループ'
+		if ((${#changed_paths[@]} > 0)); then
+			detection_reason='CI設定の変更により全グループを選択'
+		fi
+	fi
 
 	{
-		echo "### Detect CI Changes"
+		echo "### CIの実行対象"
 		echo
-		echo "Changed paths:"
+		printf '**選択グループ:** %s\n\n' "${selected_groups:-追加チェックなし}"
+		printf '%s。共通のリポジトリチェックは常に実行します。\n' "$detection_reason"
 		if ((${#changed_paths[@]} == 0)); then
-			echo "- (none)"
-		else
-			printf '%s\n' "${changed_paths[@]}" | sed 's/^/- /'
+			return 0
 		fi
 		echo
-		echo "Selected groups:"
-		for group in "${CI_GROUPS[@]}"; do
-			printf -- '- %s: %s\n' "$group" "$(group_value "$group")"
-		done
+		echo '<details>'
+		printf '<summary>変更ファイル: %s件 / グループ未対応: %s件</summary>\n\n' "${#changed_paths[@]}" "${#unmatched_paths[@]}"
+		echo '**変更ファイル**'
 		echo
-		echo "Unmatched paths:"
-		if ((${#unmatched_paths[@]} == 0)); then
-			echo "- (none)"
-		else
-			printf '%s\n' "${unmatched_paths[@]}" | sed 's/^/- /'
+		summary_paths "${changed_paths[@]}"
+		if ((${#unmatched_paths[@]} > 0)); then
+			echo
+			echo '**グループ未対応のファイル**'
+			echo
+			summary_paths "${unmatched_paths[@]}"
 		fi
+		echo
+		echo '</details>'
 	} >>"$summary_file"
+}
+
+summary_paths() {
+	# パス中のHTMLで折りたたみを閉じたり、表示内容を書き換えたりしない。
+	# 改行等は表示用にエスケープし、1パスを1行で表示する。
+	local path
+	for path in "$@"; do
+		path="${path//\\/\\\\}"
+		path="${path//$'\n'/\\n}"
+		path="${path//$'\r'/\\r}"
+		path="${path//$'\t'/\\t}"
+		printf '%s\n' "$path" | sed -e 's/\&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' \
+			-e 's|^|- <code>|' -e 's|$|</code>|'
+	done
 }
 
 resolve_changed_paths "$@"
