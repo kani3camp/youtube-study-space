@@ -3,6 +3,8 @@ from contextlib import redirect_stdout
 import importlib.util
 import io
 import os
+import subprocess
+from itertools import product
 from pathlib import Path
 import sys
 import tempfile
@@ -140,7 +142,9 @@ class SelectedValidationSourceTest(unittest.TestCase):
                                             'expected_sha': pinned, 'source_branch': ''})
             self.assertEqual(call['permissions'], {'contents': 'read', 'id-token': 'write'})
         self.assertIn('validate', jobs['core-plan']['needs'])
-        self.assertIn('core-plan', jobs['core-apply']['needs'])
+        self.assertEqual(jobs['core-plan']['if'], "${{ inputs.operation == 'plan' }}")
+        self.assertEqual(jobs['core-apply']['needs'], ['select', 'validate'])
+        self.assertIn("needs.validate.result == 'success'", jobs['core-apply']['if'])
         self.assertTrue(jobs['core-apply']['if'].startswith('${{ !cancelled() && '))
         self.assertNotIn('always()', jobs['core-apply']['if'])
         reusable = load(ROOT / '.github/workflows/gcp-terraform-authenticated.yml')
@@ -148,6 +152,21 @@ class SelectedValidationSourceTest(unittest.TestCase):
             steps = reusable['jobs'][role]['steps']
             self.assertEqual(steps[0]['with']['ref'], '${{ github.sha }}')
             self.assertEqual(steps[1]['with']['ref'], '${{ needs.preflight.outputs.source_sha }}')
+
+    def test_gate_accepts_only_the_selected_operation_after_successful_validation(self):
+        command = load(ROOT / '.github/workflows/terraform.yml')['jobs']['gate']['steps'][0]['run']
+        statuses = ('success', 'skipped', 'failure', 'cancelled')
+        for operation, selection, validation, plan, apply in product(
+                ('plan', 'apply', 'destroy'), statuses, statuses, statuses, statuses):
+            expected = selection == validation == 'success' and (
+                (operation == 'plan' and plan == 'success' and apply == 'skipped') or
+                (operation == 'apply' and plan == 'skipped' and apply == 'success'))
+            result = subprocess.run(['bash', '-c', command], capture_output=True,
+                env={'PATH': os.environ.get('PATH', os.defpath), 'OPERATION': operation,
+                     'SELECT_RESULT': selection, 'VALIDATE_RESULT': validation,
+                     'CORE_PLAN_RESULT': plan, 'CORE_APPLY_RESULT': apply})
+            with self.subTest(operation=operation, results=(selection, validation, plan, apply)):
+                self.assertEqual(result.returncode == 0, expected)
 
     def test_selection_refuses_mypage_and_production_source_inputs(self):
         run = next(step for step in load(ROOT / '.github/workflows/terraform.yml')['jobs']['select']['steps']
