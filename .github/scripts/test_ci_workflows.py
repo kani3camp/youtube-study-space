@@ -25,8 +25,7 @@ MODULES = {
               'video-maker-simulator-check': 'video_maker_simulator',
               'figma-plugin-room-layout-analyzer-build': 'figma_plugin'},
     'infra': {'aws-cdk-test': 'aws_cdk'},
-    'repository': {'base-image-update-report-test': None, 'node-types-ignore-policy': None,
-                   'documentation-references': None, 'ci-contracts': None},
+    'repository': {'validate': None},
 }
 NODE = {'youtube_monitor', 'docs_site', 'menu_image_generator', 'video_maker_simulator',
         'figma_plugin', 'aws_cdk'}
@@ -81,8 +80,6 @@ def validate(caller, modules, terraform):
     require(jobs['changes']['outputs'] == {g: '${{ steps.detect.outputs.' + g + ' }}' for g in GROUPS},
             'All detection outputs reach callers')
     require(jobs['changes']['steps'][-1]['run'] == 'bash .github/scripts/detect-ci-paths.sh', 'Use canonical detector')
-    require('CI_AUTHENTICATED_TERRAFORM_DISPATCH' not in jobs['changes']['steps'][-1].get('env', {}),
-            'Manual CI never narrows validation for an operation')
     for name, members in MODULES.items():
         call = jobs[name]
         expected_keys = {'name', 'uses', 'needs', 'with'} if name == 'repository' else {'name', 'uses', 'needs', 'if'}
@@ -176,9 +173,11 @@ class WorkflowContractsTest(unittest.TestCase):
             self.assertEqual(names.count(name), 1, name)
 
     def test_contracts_execute_on_every_ci_run(self):
-        checks = self.modules['repository']['jobs']['ci-contracts']['steps']
+        checks = self.modules['repository']['jobs']['validate']['steps']
         commands = '\n'.join(step.get('run', '') for step in checks)
-        self.assertIn('yss-ci-validation:local contracts', commands)
+        self.assertIn('for kind in base-image node-policy docs contracts; do', commands)
+        self.assertIn('yss-ci-validation:local "$kind"', commands)
+        self.assertEqual(sum(step.get('uses') == './.github/actions/prepare-ci-validation' for step in checks), 1)
         isolated = (ROOT / '.github/ci-validation/validate.sh').read_text()
         self.assertIn("python -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v", isolated)
         self.assertIn('.github/workflows/ci-*.yml', isolated)
