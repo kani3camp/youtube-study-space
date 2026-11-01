@@ -70,7 +70,6 @@ locals {
   maintenance_invoker_email      = "mypage-maintenance-invoker@${var.project_id}.iam.gserviceaccount.com"
   foundation_plan_email          = "mypage-foundation-plan@${var.project_id}.iam.gserviceaccount.com"
   foundation_apply_email         = "mypage-foundation-apply@${var.project_id}.iam.gserviceaccount.com"
-  backend_deployer_email         = "mypage-backend-deploy@${var.project_id}.iam.gserviceaccount.com"
   operator_deployer_email        = "mypage-operator-deploy@${var.project_id}.iam.gserviceaccount.com"
 }
 
@@ -531,6 +530,9 @@ resource "google_cloud_run_v2_job" "maintenance_operator" {
   }
 }
 
+# The description predates the dedicated operator deployer. It is kept as-is
+# so the existing role is not updated in place (the runtime contract only
+# admits create/no-op for it).
 resource "google_project_iam_custom_role" "maintenance_image_release" {
   count           = local.maintenance_image_release ? 1 : 0
   project         = var.project_id
@@ -546,32 +548,10 @@ resource "google_project_iam_custom_role" "maintenance_image_release" {
   }
 }
 
-resource "google_service_account_iam_member" "maintenance_image_release_act_as" {
-  count              = local.maintenance_image_release ? 1 : 0
-  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.maintenance_operator_email}"
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${local.backend_deployer_email}"
-
-  depends_on = [google_service_account.maintenance_operator]
-}
-
-resource "google_cloud_run_v2_job_iam_member" "maintenance_image_release" {
-  count    = local.maintenance_image_release ? 1 : 0
-  project  = var.project_id
-  location = var.region
-  name     = google_cloud_run_v2_job.maintenance_operator[0].name
-  role     = "projects/${var.project_id}/roles/mypageMaintenanceImageRelease"
-  member   = "serviceAccount:${local.backend_deployer_email}"
-
-  depends_on = [
-    google_project_iam_custom_role.maintenance_image_release,
-    google_cloud_run_v2_job.maintenance_operator,
-  ]
-}
-
-# The dedicated operator deployer owns Job image releases. The legacy backend
-# deployer bindings above stay until the first operator release is verified;
-# their removal is a separately reviewed delete-only transition.
+# The legacy backend deployer's Job binding and maintenance SA actAs were
+# removed by a reviewed delete-only transition after the first verified
+# operator release (runtime_contract.LEGACY_IMAGE_RELEASE). The dedicated
+# operator deployer below is the only Job image releaser.
 resource "google_service_account_iam_member" "operator_image_release_act_as" {
   count              = local.maintenance_image_release ? 1 : 0
   service_account_id = "projects/${var.project_id}/serviceAccounts/${local.maintenance_operator_email}"

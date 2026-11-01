@@ -144,9 +144,9 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 - 現行の旧 Backend release（`backend_release.py` の `job_baseline`）と Terraform 契約（`runtime_contract.py` の maintenance Job image 検査）は、どちらも Job image が `mypage-api` package であることを要求する。そのため、Job を operator package へ切り替える前に、次の2つを済ませておく必要がある。
   1. Backend release から Job 同期をなくす（Service だけを更新する）。
   2. Terraform 契約（配備済み Job image の検査）と Operator 配備スクリプトで、現在の Job image として `mypage-api` と `mypage-maintenance-operator` の両 package を受け入れる。初回作成用の `maintenance_bootstrap_image_digest` は固定の旧 API image のまま（`mypage-api` のみ許可）。
-  そのうえで最初の Operator deploy を行い、切り替わったことを確認してから旧 package の許容を撤去する。
+  そのうえで最初の Operator deploy を行い、切り替わったことを確認した。旧 package の現在値としての許容は残す。新しい環境では Job を固定の旧 API image で初回作成するため、外すと最初の Operator deploy が拒否される。
 - #2 で上の1と2を実施した。API image から operator binary を外しても、Job は配備済みの旧 digest（operator binary 入り）を参照し続けるため安全であり、同じ #2 で分離した。
-- MyPage runtime の Terraform 契約は create / no-op だけを許可する。そのため #2 は `mypage-operator-deploy` の binding を **追加** するだけにし、旧 `mypage-backend-deploy` の Job binding と actAs の削除は、初回 Operator deploy の確認後に削除専用の遷移として別に行う（4.2）。
+- MyPage runtime の Terraform 契約は create / no-op だけを許可する。そのため #2 は `mypage-operator-deploy` の binding を **追加** するだけにした。旧 `mypage-backend-deploy` の Job binding と actAs は、初回 Operator deploy の確認後に削除専用の遷移で外した（4.2）。契約が許す削除は、この2 bindingの完全一致した削除だけ（`runtime_contract.legacy_image_release`）。
 
 ### 3.4 Rollback
 
@@ -215,9 +215,8 @@ GitHub の Settings → Actions → Policies（workflow execution policy）で�
 1. 取り込み前に、旧 concurrency group（`mypage-dev-runtime-change`、`mypage-dev-hosting-release`、`gcp-infrastructure-production`）に実行中・待機中の run がないことを確認する。
 2. 各PRの「必要なowner作業」を実施し、新しい `workflow_ref` / `job_workflow_ref` を trust に追加する。
 3. 新経路を実runで1回ずつ検証する（Terraform 手動 Plan → API deploy → Frontend deploy → Operator deploy → Maintenance mode `enabled=false`）。
-4. 初回 Operator deploy で Job が `mypage-maintenance-operator` package へ移ったことを確認してから、次を1つのPRで行う。
-   - Terraform 契約・Operator 配備スクリプトから旧 `mypage-api` package の許容を外す。
-   - 旧 `mypage-backend-deploy` の Job binding と maintenance runtime SA actAs を削除する（削除専用の契約遷移）。
+4. 初回 Operator deploy で Job が `mypage-maintenance-operator` package へ移ったことを確認してから、旧 `mypage-backend-deploy` の Job binding と maintenance runtime SA actAs を削除する（削除専用の契約遷移）。**DEV は 2026-11-01 に確認・実施**（Job は operator package の digest を参照していた）。
+   - 旧 `mypage-api` package の現在値としての許容は残す。新しい環境では Job を固定の旧 API image で初回作成するため（3.3）。
 5. 移行・検証済みの **DEV** identity の trust から旧 claim（`ci.yml` を caller とするもの、Backend の `push`）を削除する。PROD の Core Terraform は `main` への取り込みまで `ci.yml` 経路のままなので削除しない（4.3）。schema audit は #8 で撤去済み（クラウド側の trust は監査後に撤回済み）。
 6. Maintenance WIF provider（Terraform 管理）を、provider の更新だけを許す専用の契約遷移で修正する。`google.subject` を127バイト以内の値へ変える（必須。2.4 参照）ことと、condition へ `job_workflow_ref == mypage-maintenance-authenticated.yml@<ref>` を加える hardening を同時に行う。**コードは修正済み**。DEV への Apply（一時的な provider 更新権限が必要）が済むまで Set Maintenance Mode は認証できない。
 
