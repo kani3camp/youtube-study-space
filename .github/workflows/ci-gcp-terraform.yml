@@ -22,14 +22,14 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout trusted validation controller
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Prepare isolated validation tools
         uses: ./.github/actions/prepare-ci-validation
       - name: Checkout exact validation source
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.source_sha }}
           path: .ci-source
