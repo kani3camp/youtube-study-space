@@ -214,8 +214,9 @@ def maintenance_resource_contract(value=None):
                                      "description": "Allows the existing backend deployer to read and update only the maintenance Cloud Run Job.",
                                      "stage": "GA", "deletion_policy": "PREVENT",
                                      "permissions": ["run.jobs.get", "run.jobs.update"]},
-            # Job imageを更新できるのは専用Operator deployerだけ。旧Backend deployerの
+            # 契約が宣言するJob imageの更新者は専用Operator deployerだけ。旧Backend deployerの
             # 2 bindingは、初回Operator配備の確認後に削除専用の遷移（legacy_image_release）で外す。
+            # 旧deployerが権限を失うのは、その削除のApplyとIAMの読み戻しが済んだ後。
             OPERATOR_IMAGE_BINDING: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator",
                                      "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceImageRelease",
                                      "member": "serviceAccount:" + OPERATOR_DEPLOYER},
