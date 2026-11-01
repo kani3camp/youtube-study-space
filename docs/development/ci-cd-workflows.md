@@ -239,7 +239,7 @@ GitHub の Settings → Actions → Policies（workflow execution policy）で�
 | Core DEV AWS State role（`youtube-study-space-terraform-dev-plan` / `-apply`） | trust policy の `StringLike` `sub` の `workflow_ref` を置き換える（このリポジトリは AWS trust を変更しない）。[`enable_normal_integration.py`](../../infra/gcp/scripts/enable_normal_integration.py) `--verify-aws` で readback する |
 | MyPage DEV foundation GCP WIF（`mypage-foundation` pool） | `foundation_contract.py provider-condition` の出力で condition を置き換える（#3 と同じ手順。出力は Terraform caller を `terraform.yml` にした値になる） |
 | MyPage DEV AWS State role | `foundation_contract.trust_policy()` の出力（`sub` の caller が `terraform.yml`）で置き換える |
-| Core PROD（`main` に取り込むとき） | [`bootstrap_production_normal_ops.py`](../../infra/gcp/scripts/bootstrap_production_normal_ops.py) の GCP condition と、[`production_backend_packet.py`](../../infra/gcp/scripts/production_backend_packet.py) の AWS trust policy を適用する。`main` に入るまで本番の `ci.yml` 経路は変わらない |
+| Core PROD（`main` に取り込むとき） | 本番の Plan/Apply が使えない時間を作らない順で行う。(1) 取り込む前に、GCP WIF condition と AWS trust policy（Plan/Apply role）を `ci.yml` と `terraform.yml` の両方を許可する値にする。(2) `main` へ取り込む。(3) `main` から `Terraform` の本番 Plan を確認する。(4) [`bootstrap_production_normal_ops.py`](../../infra/gcp/scripts/bootstrap_production_normal_ops.py) の GCP condition と [`production_backend_packet.py`](../../infra/gcp/scripts/production_backend_packet.py) の AWS trust policy（`terraform.yml` だけ）へ限定する。v4.34.0（#1541）で実施中 |
 
 ### 4.4 PR Plan の統合（owner）
 
