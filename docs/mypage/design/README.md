@@ -33,11 +33,14 @@ python -m pip install -r visual-requirements.txt
 pnpm test
 python scripts/font-qa.py --output /tmp/mypage-font-qa
 python scripts/route-focus-qa.py
+python scripts/refresh-icon-qa.py --output /tmp/mypage-refresh-icon-qa
 ```
 
 外部リクエストを遮断し、撮影前にフォントの読み込みを待つ。実ユーザーデータを公開成果物に保存しない。合成テストデータの成功やプロトタイプとの比較を、実OAuth・Hosting・公開準備完了の証拠にしない。
 
 `route-focus-qa.py` は公開ルートのフッターをキーボードで遷移し、本文見出しへのフォーカス、本文内のTab順、戻る・進む、初回表示、Cookie設定を閉じた際のフォーカス復帰をデスクトップ・モバイルで検証する。ルート変更時は描画後の本文見出し（見出しがなければ`main`）へフォーカスを移し、同一ルートの検索条件・アンカー変更では移さない。アンカー付きの遷移は既存のアンカー動作を優先する。
+
+`refresh-icon-qa.py` は320 / 390 / 768 / 1024 / 1440pxで、更新アイコンの円弧が矢じりの先端につながること、上下対称、17pxの正方形、44px以上の操作高、横はみ出し、フォーカスと更新中の無効化を検証する。Chromiumのビューポート・タッチのエミュレーションであり、物理iPhoneでの確認ではない。
 
 ## bfcache・利用制限の確認
 

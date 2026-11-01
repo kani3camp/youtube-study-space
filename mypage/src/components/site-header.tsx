@@ -13,7 +13,7 @@ export function Icon({ name }: { name: IconName }) {
 	const paths: Record<IconName, ReactNode> = {
 		refresh: (
 			<>
-				<path d="M20 7v5h-5M4 17v-5h5" />
+				<path d="M20 4v5h-5M4 20v-5h5" />
 				<path d="M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1" />
 			</>
 		),
