@@ -123,12 +123,8 @@ def bootstrap():
     project = gcloud('projects', 'describe', PROJECT)
     need(project['projectId'] == PROJECT and project['lifecycleState'] == 'ACTIVE')
     number = project['projectNumber']
-    provider = gcloud('iam', 'workload-identity-pools', 'providers', 'describe', 'github-actions',
-        '--workload-identity-pool=terraform-ci', '--location=global')
-    condition = provider['attributeCondition']
-    need(all(fragment in condition for fragment in ["assertion.repository_id == '340900071'",
-        "assertion.actor_id == '54093651'", "assertion.event_name == 'workflow_dispatch'",
-        'assertion.workflow_sha == assertion.sha', 'assertion.job_workflow_sha == assertion.sha']))
+    # The retired migration trust (terraform-ci pool, ci.yml caller) is disabled
+    # and is no precondition. The normal provider's own condition is checked below.
     baseline = []
     for role in ('terraformCiRead', 'terraformDevRuntimePoolReadV1'):
         baseline.extend(gcloud('iam', 'roles', 'describe', role)['includedPermissions'])

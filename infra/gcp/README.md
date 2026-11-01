@@ -120,7 +120,7 @@ python3 infra/gcp/scripts/enable_normal_integration.py --apply
 
 プレビューは読み取りだけです。`--apply`はGitHub本人認証を確認して、DEVの2 Environmentのbranch制限を外し（No restriction）、読み戻します。GitHub Settings → Environmentsで両Environmentの「Deployment branches and tags」を「No restriction」にしても同じです。既存Environmentがない場合や、想定外のreviewer・wait timerなどの保護がある場合は、作成・上書きせず停止します。
 
-既存のAWS 7-claim subjectとGCP WIFは、本人のimmutable actor ID、repository、Environment、正規caller/reusable等を検証します。DEVのcloud trustには移行中のため旧`ci.yml`と`terraform.yml`の2 callerが併存しており、管理スクリプトはこれを読み取り検証して維持し、書き換えません（入口は`terraform.yml`だけ。旧claimは検証後に削除する）。対象source branchをOIDCのworkflow refへ入れません。
+既存のAWS 7-claim subjectとGCP WIFは、本人のimmutable actor ID、repository、Environment、正規caller/reusable等を検証します。DEVのcloud trustのcallerは`terraform.yml`だけです（旧`ci.yml`のclaimは2026-11-01に削除済み）。管理スクリプトはこれを読み取り検証し、書き換えません。対象source branchをOIDCのworkflow refへ入れません。
 
 `--verify-aws` / `--verify-gcp`は読み取り監査です。`--apply`もAWS IAM・GCP WIF・Terraform State・業務資源・本番・Environment secrets/variablesを更新しません。失敗時は固定のphaseだけを表示し、資格情報やAPIエラー本文を出力しません。
 
@@ -147,7 +147,7 @@ Productionの通常Plan/Applyは既存DEVと同じ `normal-plan` / `normal-apply
 
 ### 一度限りの本番設定と有効化条件
 
-**コードをdevへマージするだけではPRODの認証付きPlan/Applyは有効になりません。** PRODのcallerは `terraform.yml` です。callerを切り替えるリリースでは、PRODのPlan/Applyが使えない時間を作らないよう、次の順で行います。(1) `main` へ取り込む前に、PRODのGCP WIF conditionとAWS trust policy（Plan/Apply role）を、`ci.yml` と `terraform.yml` の両方を許可する値にする。(2) `main` へ取り込む。(3) `main` から `Terraform`（`environment=production`、`operation=plan`）を実行し、認証とPlanを確認する。(4) callerを `terraform.yml` だけへ限定する。GCPは [`bootstrap_production_normal_ops.py`](scripts/bootstrap_production_normal_ops.py) のconditionと一致させる。AWSは既存のtrust policyの条件（`aud`・本人の `actor_id=54093651` など）を保持したまま、`sub` のcallerだけを変える。[`production_backend_packet.py`](scripts/production_backend_packet.py) が生成するtrust policyには `actor_id` が含まれないため、そのまま適用しない。`terraform.yml` を許可しないPROD trustでは、PRODの認証は拒否されます。 既存PROD移行用AWS S3 backend Roleを再利用し、通常専用のGCP Plan/Apply SA・カスタムロール・WIF pool/provider・runtime SAを追加します。移行用GCP WIF/SA、S3 State、既存workloadは変更しません。
+**コードをdevへマージするだけではPRODの認証付きPlan/Applyは有効になりません。** PRODのcallerは `terraform.yml` です（v4.34.0 で切り替え済み。PRODのtrustは `terraform.yml` だけを許可し、`ci.yml` へ戻さない）。以下はcallerを切り替えるリリースの手順の記録です。PRODのPlan/Applyが使えない時間を作らないよう、次の順で行います。(1) `main` へ取り込む前に、PRODのGCP WIF conditionとAWS trust policy（Plan/Apply role）を、`ci.yml` と `terraform.yml` の両方を許可する値にする。(2) `main` へ取り込む。(3) `main` から `Terraform`（`environment=production`、`operation=plan`）を実行し、認証とPlanを確認する。(4) callerを `terraform.yml` だけへ限定する。GCPは [`bootstrap_production_normal_ops.py`](scripts/bootstrap_production_normal_ops.py) のconditionと一致させる。AWSは既存のtrust policyの条件（`aud`・本人の `actor_id=54093651` など）を保持したまま、`sub` のcallerだけを変える。[`production_backend_packet.py`](scripts/production_backend_packet.py) が生成するtrust policyには `actor_id` が含まれないため、そのまま適用しない。`terraform.yml` を許可しないPROD trustでは、PRODの認証は拒否されます。 既存PROD移行用AWS S3 backend Roleを再利用し、通常専用のGCP Plan/Apply SA・カスタムロール・WIF pool/provider・runtime SAを追加します。移行用GCP WIF/SA、S3 State、既存workloadは変更しません。
 
 - PROD用の通常Apply権限はDEVのカタログを基礎としつつ、資源別IAMの付与による自己昇格を防ぐため `*.setIamPolicy` はデフォルトで除外します。Bucket/Secret/Cloud Run等の公開・他主体へのgrantは別途IAMレビューの対象です。
 - PROD AWSの既存Plan/Apply Roleは、repository-wide GitHub OIDCの7 claims（`terraform-prod-plan/apply`、`ref=refs/heads/main`、固定caller/reusable）に加え、native `actor_id=54093651` が必要です。予期しないAllow、旧integration branch trust、wildcardが残ればSTOPします。AWSのtrust調整は管理者が差分を独立レビューしてから実施し、このbootstrapではAWSを変更しません。

@@ -24,7 +24,8 @@ PR_AWS_REF = "refs/pull/*/merge"
 CLAIM_KEYS = ("repository_id", "repository_owner_id", "environment", "ref",
               "workflow_ref", "job_workflow_ref", "event_name")
 # terraform.yml is the only caller (#1500); DEV trust may still list ci.yml until the old claims are removed.
-CALLERS = ('ci.yml', 'terraform.yml')
+# The retired ci.yml caller was removed from the DEV trust on 2026-11-01.
+CALLERS = ('terraform.yml',)
 PHASE = "start"
 
 
@@ -165,7 +166,7 @@ def check_provider(value: dict) -> None:
     need(value.get("attributeMapping") == config.MAPPING)
     # 本人起動・非mainのbranch ref・同ref/SHAのworkflow、または本人のPR PlanをWIF自身が検証する。
     # 旧ci.yml入口が併存するDEVも、他の条件は完全一致のまま読み取る。
-    need(value.get('attributeCondition') in (config.CONDITION, config.condition(CALLERS)))
+    need(value.get('attributeCondition') == config.CONDITION)
     condition = value["attributeCondition"]
     need("refs/heads/dev" not in condition
          and "integration/gcp-terraform-normal-ops" not in condition)

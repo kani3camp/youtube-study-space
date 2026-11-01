@@ -111,15 +111,17 @@ class BranchAuthorizationTest(unittest.TestCase):
                 with self.assertRaises(op.Stop):
                     op.audit_aws_role(document, kind)
 
-    def test_existing_dual_caller_trust_retains_owner_repository_and_workflow_limits(self):
+    def test_aws_trust_admits_only_terraform_yml_and_rejects_the_retired_ci_yml_caller(self):
+        self.assertEqual(op.CALLERS, ('terraform.yml',))
         for kind in ('plan', 'apply'):
             document = role(kind)['AssumeRolePolicyDocument']
             conditions = document['Statement'][0]['Condition']
             subjects = [op.custom_subject(kind, op.LEGACY_AWS_REF, caller) for caller in op.CALLERS]
             conditions['StringLike'][op.ISSUER + ':sub'] = subjects
             op.audit_aws_role(document, kind)
-            for value in (subjects + ['*'], subjects + [subjects[0]],
-                          [subjects[0].replace('ci.yml@', 'attacker.yml@')],
+            retired = subjects[0].replace('terraform.yml@', 'ci.yml@')
+            for value in (subjects + ['*'], subjects + [subjects[0]], subjects + [retired], [retired],
+                          [subjects[0].replace('terraform.yml@', 'attacker.yml@')],
                           [subjects[0].replace('environment:terraform-dev-', 'environment:terraform-prod-')]):
                 invalid = deepcopy(document)
                 invalid['Statement'][0]['Condition']['StringLike'][op.ISSUER + ':sub'] = value
@@ -317,14 +319,16 @@ class BranchAuthorizationTest(unittest.TestCase):
             op.check_provider(provider | {
                 "attributeCondition": bootstrap.CONDITION + " && assertion.ref == 'refs/heads/dev'"})
 
-    def test_gcp_readback_accepts_existing_dual_caller_without_relaxing_other_claims(self):
-        # DEV trust still lists the retired ci.yml caller next to terraform.yml during the migration.
-        condition = bootstrap.condition(op.CALLERS)
-        self.assertNotEqual(condition, bootstrap.CONDITION)
+    def test_gcp_readback_admits_only_terraform_yml_and_rejects_the_retired_dual_caller(self):
+        # The retired ci.yml caller was removed from the DEV trust; re-adding it must fail the audit.
+        condition = bootstrap.CONDITION
+        self.assertEqual(condition, bootstrap.condition(op.CALLERS))
+        self.assertNotIn('ci.yml', condition)
         provider = {'state': 'ACTIVE', 'oidc': {'issuerUri': 'https://token.actions.githubusercontent.com'},
                     'attributeMapping': bootstrap.MAPPING, 'attributeCondition': condition}
         op.check_provider(provider)
-        for invalid in (condition.replace("assertion.actor_id == '54093651'", 'true'),
+        for invalid in (bootstrap.condition(('ci.yml', 'terraform.yml')),
+                        condition.replace("assertion.actor_id == '54093651'", 'true'),
                         condition.replace('terraform.yml@', 'attacker.yml@'),
                         condition.replace('refs/heads/', 'refs/'),
                         condition.replace("assertion.environment == 'terraform-dev-plan'",
