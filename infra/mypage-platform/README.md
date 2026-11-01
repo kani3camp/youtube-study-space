@@ -124,3 +124,9 @@ CIの権限を広げず、承認済みの `mypage-api` / `roles/run.invoker` / `
 filterはtest projectのmypage-apiの標準request logのうちcallback URLまたはquery付きAPI URLだけに限定する。通常のqueryなしAPI request、application/security log、監査・system log、他service/projectは対象外。既存の合成記録は削除せず、保持期間中は既存の閲覧境界内に残る。今後別sink/ancestor routingを増やす場合は同じprivacy境界を検証する。Hosting/CDNや実OAuth部分を含む全層のS04完了をこの局所修正だけでは宣言しない。実Auth、実データ削除、Production、先行ログ基盤追加は対象外。
 
 2026-10-21のowner更新後、実serviceは `mypage-api-00002-qcs` Readyとなり、Hosting GET/POSTのApp Check欠落403、不正Origin400、method405を確認した。run 39592888606のPlanはplanned no-opだが `runtime-owner-refresh-ready` で変更前停止。owner API metadataのtemplate.revisionは更新前後とも空で、実revisionはlatestReady/latestCreatedにだけ現れた。自動命名時の空template.revisionは前後不変の場合だけ認め、固定serviceのlatest Ready/Created一致、成功condition、最新100% traffic、generation+1の検証は維持する。非空の旧revision・他service・未知値は拒否する。
+
+### 手動TerraformのPlan回数とSummary
+
+`operation=plan`は選択したrootごとにPlanを1回実行する。`operation=apply`は外側のPlanをスキップし、認証なしの検証後、各rootのreusable workflow内でPlan権限によるPlanとApply権限による独立Planを生成する。一致した場合だけApply job内の保存Planを適用する（各root計2回）。`component=all`ではCore Applyが成功してからMyPageの内部Plan/Applyを開始するため、MyPageが失敗しても成功済みのCore変更は残る。root間の一括ロールバックはない。
+
+MyPageの通常Plan（Apply内のPlan権限jobを含む）はPlan契約・所有権・State versionの検証成功後、Job Summaryに操作別件数と資源種別・操作別件数を出す。Coreと同じ`Resource type / Actions / Count`形式を使い、名前・ID・設定値・outputs・commitmentは公開しない。`drift`は観測件数で、適用予定の変更件数ではない。拒否されたPlanの値や診断は引き続き非公開とする。

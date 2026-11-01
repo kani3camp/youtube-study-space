@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from collections import Counter
 import hashlib
 import json
 import os
@@ -313,6 +314,41 @@ def describe_runtime_drift(plan):
           "plannedWrites": sum(item.get("change", {}).get("actions") != ["no-op"] for item in changes)}, sort_keys=True) + ".")
 
 
+def publish_plan_summary(env, plan, stage):
+    """検証後のPlanから、ソースで定義した資源種別・操作・件数だけを公開する。"""
+    if not env.get("GITHUB_STEP_SUMMARY"):
+        return
+    resources = (runtime_contract.resource_contract(stage) if stage in set(runtime_contract.MODES.values())
+                 else contract.resource_contract(stage))
+    # Planのtypeやaddressをそのまま出力しない。検証済みaddressを固定contractへ照合する。
+    types = {address: address.rsplit(".", 2)[-2] for address in resources}
+    actions = {("no-op",): "no-op", ("read",): "read", ("create",): "create", ("update",): "update",
+               ("delete",): "delete", ("delete", "create"): "replace", ("create", "delete"): "replace"}
+    grouped = Counter()
+    counts = Counter()
+    for item in plan.get("resource_changes", []):
+        action = actions.get(tuple(item["change"]["actions"]))
+        need(item["address"] in types and action is not None)
+        grouped[types[item["address"]], action] += 1
+        counts[action] += 1
+        counts["import"] += int(isinstance(item["change"].get("importing"), dict))
+    counts["drift"] = len(plan.get("resource_drift", []) or [])
+    lines = ["### MyPage Terraform Plan", "", f"Environment: `{contract.ENVIRONMENT}`",
+             f"Stage: `{stage}`", "", "Plan contract: **PASS**", "",
+             "| Action | Count |", "| --- | ---: |"]
+    lines += [f"| {action} | {counts[action]} |" for action in
+              ("create", "update", "delete", "replace", "read", "no-op", "import", "drift")]
+    lines += ["", "### Terraform resource changes", ""]
+    if grouped:
+        lines += ["| Resource type | Actions | Count |", "| --- | --- | ---: |"]
+        lines += [f"| `{kind}` | {action} | {count} |" for (kind, action), count in sorted(grouped.items())]
+    else:
+        lines += ["No resource changes."]
+    lines += ["", "Drift is an observation count; it does not imply a planned write."]
+    with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
+        stream.write("\n".join(lines) + "\n")
+
+
 def prepare(env):
     global PHASE
     kind = env["MYPAGE_ROLE"]
@@ -369,6 +405,8 @@ def prepare(env):
             with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
                 stream.write("### MyPage PR Plan\n\n" + message + "\n")
         return
+    if kind == "plan":
+        publish_plan_summary(env, plan, stage)
     digest = contract.commitment(plan, version, env["GITHUB_SHA"], env["MYPAGE_PLAN_HMAC_KEY"])
     (root / "prepared.json").write_bytes(contract.canonical({"sha256": hashlib.sha256(saved.read_bytes()).hexdigest(), "source": env["GITHUB_SHA"]}))
     if value is not None and value["read_metrics_from_revision"]:

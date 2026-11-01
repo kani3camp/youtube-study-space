@@ -141,22 +141,54 @@ class TerraformWorkflowTest(unittest.TestCase):
                 self.assertEqual(job['permissions'], {'contents': 'read', 'id-token': 'write'})
                 self.assertNotIn('continue-on-error', job)
 
-    def test_credentialless_validation_and_every_selected_plan_precede_any_apply(self):
+    def test_validation_precedes_operations_and_apply_uses_only_its_internal_plans(self):
         self.assertEqual(self.jobs['validate']['uses'], './.github/workflows/ci-gcp-terraform.yml')
         for name in ('core-plan', 'mypage-plan'):
             self.assertEqual(self.jobs[name]['needs'], ['select', 'validate'])
-            self.assertNotIn('always()', self.jobs[name]['if'])
+            self.assertTrue(self.jobs[name]['if'].startswith("${{ inputs.operation == 'plan' && "))
         core, mypage = self.jobs['core-apply'], self.jobs['mypage-apply']
-        self.assertEqual(core['needs'], ['select', 'core-plan', 'mypage-plan'])
-        self.assertEqual(mypage['needs'], ['select', 'core-plan', 'mypage-plan', 'core-apply'])
+        self.assertEqual(core['needs'], ['select', 'validate'])
+        self.assertEqual(mypage['needs'], ['select', 'validate', 'core-apply'])
         for job in (core, mypage):
-            # Cancelling the run after the Plans must never start an Apply.
             self.assertTrue(job['if'].startswith('${{ !cancelled() && '))
             self.assertIn("inputs.operation == 'apply'", job['if'])
-            self.assertIn("needs.core-plan.result == 'success'", job['if'])
-            self.assertIn("needs.mypage-plan.result == 'success'", job['if'])
-        # MyPage applies after Core unless only MyPage was selected.
+            self.assertIn("needs.validate.result == 'success'", job['if'])
+            self.assertNotIn('always()', job['if'])
+        self.assertIn("needs.select.outputs.mypage_stage != 'disabled'", mypage['if'])
         self.assertIn("needs.core-apply.result == 'success' || (inputs.component == 'mypage' && needs.core-apply.result == 'skipped')", mypage['if'])
+
+    def test_routing_handles_skipped_core_and_never_applies_after_failure_or_cancellation(self):
+        # Evaluate these fixed boolean workflow expressions across operation/component/stage/results.
+        import re
+        from itertools import product
+        for operation, component, stage, validation, core_result, cancelled in product(
+                ('plan', 'apply'), ('all', 'core', 'mypage'), ('runtime_public', 'disabled'),
+                ('success', 'failure', 'skipped', 'cancelled'),
+                ('success', 'failure', 'skipped', 'cancelled'), (False, True)):
+            values = {'inputs.operation': operation, 'inputs.component': component,
+                      'needs.select.outputs.mypage_stage': stage, 'needs.validate.result': validation,
+                      'needs.core-apply.result': core_result}
+            core_selected = component in ('all', 'core')
+            mypage_selected = component in ('all', 'mypage') and stage != 'disabled'
+            valid = validation == 'success' and not cancelled
+            expected = {'core-plan': valid and operation == 'plan' and core_selected,
+                        'mypage-plan': valid and operation == 'plan' and mypage_selected,
+                        'core-apply': valid and operation == 'apply' and core_selected,
+                        'mypage-apply': valid and operation == 'apply' and mypage_selected and
+                            (core_result == 'success' or (component == 'mypage' and core_result == 'skipped'))}
+            for name in expected:
+                expression = self.jobs[name]['if'].removeprefix('${{').removesuffix('}}').strip()
+                expression = expression.replace('!cancelled()', repr(not cancelled))
+                expression = re.sub(r'(?:inputs|needs)\.[\w.-]+(?:\.[\w.-]+)*',
+                                    lambda match: repr(values[match[0]]), expression)
+                expression = expression.replace('&&', ' and ').replace('||', ' or ')
+                # Plan jobs use Actions' implicit success() for select/validate dependencies.
+                observed = eval(expression, {'__builtins__': {}}, {})
+                if name.endswith('-plan'):
+                    observed = observed and valid
+                with self.subTest(job=name, operation=operation, component=component, stage=stage,
+                                  validation=validation, core=core_result, cancelled=cancelled):
+                    self.assertEqual(observed, expected[name])
 
     def test_gate_requires_exactly_the_selected_results(self):
         gate = self.jobs['gate']
@@ -168,14 +200,25 @@ class TerraformWorkflowTest(unittest.TestCase):
                     'CORE_APPLY_RESULT': core_apply, 'MYPAGE_APPLY_RESULT': mypage_apply}
         passing = (
             ('plan', 'all', results('success', 'success', 'skipped', 'skipped'), ok),
-            ('apply', 'all', results('success', 'success', 'success', 'success'), ok),
-            ('apply', 'core', results('success', 'skipped', 'success', 'skipped'), ok),
-            ('apply', 'mypage', results('skipped', 'success', 'skipped', 'success'), ok),
-            ('apply', 'all', results('success', 'skipped', 'success', 'skipped'), ok | {'MYPAGE_STAGE': 'disabled'}),
+            ('plan', 'core', results('success', 'skipped', 'skipped', 'skipped'), ok),
+            ('plan', 'mypage', results('skipped', 'success', 'skipped', 'skipped'), ok),
+            ('plan', 'all', results('success', 'skipped', 'skipped', 'skipped'), ok | {'MYPAGE_STAGE': 'disabled'}),
+            ('apply', 'all', results('skipped', 'skipped', 'success', 'success'), ok),
+            ('apply', 'core', results('skipped', 'skipped', 'success', 'skipped'), ok),
+            ('apply', 'mypage', results('skipped', 'skipped', 'skipped', 'success'), ok),
+            ('apply', 'all', results('skipped', 'skipped', 'success', 'skipped'), ok | {'MYPAGE_STAGE': 'disabled'}),
         )
         for operation, component, values, base in passing:
             with self.subTest(operation=operation, component=component, values=values):
                 self.assertEqual(self.run_step('gate', OPERATION=operation, COMPONENT=component, **base, **values), 0)
+                # Every selected success and required skip is enforced; failures never become green.
+                for key in ('SELECT_RESULT', 'VALIDATE_RESULT', *values):
+                    for bad in ('failure', 'cancelled', 'success', 'skipped'):
+                        mutated = base | values | {key: bad}
+                        if mutated[key] == (base | values)[key]:
+                            continue
+                        self.assertNotEqual(self.run_step('gate', OPERATION=operation,
+                            COMPONENT=component, **mutated), 0, (key, bad))
         failing = (
             ('apply', 'all', results('success', 'success', 'success', 'skipped'), ok),
             ('apply', 'all', results('success', 'failure', 'skipped', 'skipped'), ok),
