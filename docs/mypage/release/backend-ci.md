@@ -98,7 +98,7 @@ Serviceは1回のresourceVersion付きPUTで更新し、自動再試行・自動
 `mypage-backend-deploy` SA/WIFを使用する。
 対象は`mypage-api` serviceの`run.services.get`/`run.services.update`とAPI runtime SAへのresource-level `roles/iam.serviceAccountUser`（actAs）。
 Terraformが過去に付与した固定`mypage-maintenance-operator` Jobの`run.jobs.get`/`run.jobs.update`とmaintenance Job runtime SAへのactAsは、
-初回のMaintenance Operator配備でJobが専用packageへ移ったことを確認した後、削除専用のTerraform遷移で外した（DEVは2026-11-01、[run 41260474728](https://github.com/kani3camp/youtube-study-space/actions/runs/41260474728)。Job IAMとSA IAMの読み戻しで、どちらも`mypage-operator-deploy`だけであることを確認済み）。
+初回のMaintenance Operator配備でJobが専用packageへ移ったことを確認した後、削除専用のTerraform遷移で外した（DEVは2026-11-01、[run 41260474728](https://github.com/kani3camp/youtube-study-space/actions/runs/41260474728)。読み戻しで、Jobの`mypageMaintenanceImageRelease`とmaintenance runtime SAの`roles/iam.serviceAccountUser`のメンバーが、どちらも`mypage-operator-deploy`だけであることを確認済み）。
 runtime契約が許す削除は、この2 bindingの完全一致した削除だけである（`runtime_contract.legacy_image_release`）。
 DEV Artifact Registryのreader、Hosting viewerとquotaの必要最小権限。
 GitHub Environment `mypage-dev-backend` とcallerの完全一致を維持する。
