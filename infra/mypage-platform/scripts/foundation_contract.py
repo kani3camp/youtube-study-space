@@ -215,7 +215,6 @@ def pr_context(env):
     expected = {"GITHUB_REPOSITORY": REPOSITORY, "GITHUB_REPOSITORY_ID": "340900071",
                 "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_EVENT_NAME": "pull_request",
                 "GITHUB_ACTOR": "kani3camp", "GITHUB_ACTOR_ID": "54093651",
-                "GITHUB_TRIGGERING_ACTOR": "kani3camp",
                 "MYPAGE_PR_HEAD_REPOSITORY": REPOSITORY, "MYPAGE_MODE": "desired-plan",
                 "TF_WORKSPACE": "default"}
     need(all(env.get(k) == v for k, v in expected.items()), "pr-plan-context")

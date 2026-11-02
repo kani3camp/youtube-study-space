@@ -31,17 +31,17 @@ def pr_env():
 class PrPlanTest(unittest.TestCase):
     def test_context_admits_only_the_owners_same_repository_attempts(self):
         c.context(pr_env(), 'plan')
-        for key, bad in (('GITHUB_ACTOR_ID', '0'), ('GITHUB_TRIGGERING_ACTOR', 'other'), *(("GITHUB_RUN_ATTEMPT", bad) for bad in ('', '0', '-1', '01', '2x')),
+        for key, bad in (('GITHUB_ACTOR_ID', '0'), *(("GITHUB_RUN_ATTEMPT", bad) for bad in ('', '0', '-1', '01', '2x')),
                          ('MYPAGE_PR_HEAD_REPOSITORY', 'fork/youtube-study-space'), ('MYPAGE_PR_NUMBER', '43'),
                          ('GITHUB_REF', 'refs/pull/42/head'), ('GITHUB_EVENT_NAME', 'pull_request_target'),
                          ('GITHUB_WORKFLOW_REF', c.CALLER), ('MYPAGE_MODE', 'desired-apply'),
                          ('MYPAGE_EXPECTED_SHA', 'b' * 40)):
             with self.subTest(key=key, bad=bad), self.assertRaises(ValueError):
                 c.context(pr_env() | {key: bad}, 'plan')
-        for attempt in ('2', '10'):
-            retry = pr_env() | {'GITHUB_RUN_ATTEMPT': attempt}
+        for attempt in ('1', '2', '10'):
+            retry = pr_env() | {'GITHUB_RUN_ATTEMPT': attempt, 'GITHUB_TRIGGERING_ACTOR': 'trusted-collaborator'}
             c.context(retry, 'plan')
-            for change in ({'GITHUB_ACTOR_ID': '0'}, {'GITHUB_TRIGGERING_ACTOR': 'other'}):
+            for change in ({'GITHUB_ACTOR_ID': '0'}, {'GITHUB_ACTOR': 'other'}):
                 with self.subTest(attempt=attempt, change=change), self.assertRaises(ValueError):
                     c.context(retry | change, 'plan')
             with self.assertRaises(ValueError):

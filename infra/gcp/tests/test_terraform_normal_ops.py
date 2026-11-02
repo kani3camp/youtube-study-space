@@ -243,7 +243,7 @@ class Contracts(unittest.TestCase):
     def test_pr_plan_admits_only_the_owners_same_repository_attempts(self):
         self.assertEqual(ops.context(self.pr_env(), 'plan'), 'dev')
         self.assertEqual(ops.context(self.pr_env()), 'dev')
-        for key, bad in (('GITHUB_ACTOR_ID', '0'), ('GITHUB_TRIGGERING_ACTOR', 'other'),
+        for key, bad in (('GITHUB_ACTOR_ID', '0'), ('GITHUB_ACTOR', 'other'),
                          *(("GITHUB_RUN_ATTEMPT", bad) for bad in ('', '0', '-1', '01', '2x')),
                          ('NORMAL_PR_HEAD_REPOSITORY', 'fork/youtube-study-space'),
                          ('NORMAL_PR_NUMBER', '43'), ('GITHUB_REF', 'refs/heads/dev'),
@@ -256,10 +256,10 @@ class Contracts(unittest.TestCase):
                          ('NORMAL_SOURCE_BRANCH', 'dev')):
             with self.subTest(key=key, bad=bad), self.assertRaises(ValueError):
                 ops.context(self.pr_env() | {key: bad}, 'plan')
-        for attempt in ('2', '10'):
-            retry = self.pr_env() | {'GITHUB_RUN_ATTEMPT': attempt}
+        for attempt in ('1', '2', '10'):
+            retry = self.pr_env() | {'GITHUB_RUN_ATTEMPT': attempt, 'GITHUB_TRIGGERING_ACTOR': 'trusted-collaborator'}
             ops.context(retry, 'plan')
-            for change in ({'GITHUB_ACTOR_ID': '0'}, {'GITHUB_TRIGGERING_ACTOR': 'other'}):
+            for change in ({'GITHUB_ACTOR_ID': '0'}, {'GITHUB_ACTOR': 'other'}):
                 with self.subTest(attempt=attempt, change=change), self.assertRaises(ValueError):
                     ops.context(retry | change, 'plan')
             with self.assertRaises(ValueError):

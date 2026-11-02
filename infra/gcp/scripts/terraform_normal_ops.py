@@ -91,7 +91,6 @@ def pr_context(env, role=None):
              'GITHUB_REPOSITORY': 'kani3camp/youtube-study-space',
              'GITHUB_REPOSITORY_ID': '340900071', 'GITHUB_REPOSITORY_OWNER_ID': '54093651',
              'GITHUB_ACTOR': 'kani3camp', 'GITHUB_ACTOR_ID': '54093651',
-             'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
              'NORMAL_PR_HEAD_REPOSITORY': 'kani3camp/youtube-study-space'}
     need(all(env.get(k) == v for k, v in exact.items()))
     need(re.fullmatch(r'[1-9][0-9]*', env.get('GITHUB_RUN_ATTEMPT', '')) is not None)

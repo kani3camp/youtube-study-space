@@ -69,7 +69,6 @@ class TerraformWorkflowTest(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertEqual(outputs, {})
         for env in ({'HEAD_REPOSITORY': 'fork/youtube-study-space'}, {'GITHUB_ACTOR_ID': '1'},
-                    {'GITHUB_TRIGGERING_ACTOR': 'other'},
                     *({'GITHUB_RUN_ATTEMPT': bad} for bad in ('', '0', '-1', '01', '2x'))):
             with self.subTest(env=env):
                 code, outputs = self.run_pr_select(['infra/gcp/environments/dev/main.tf'], **env)
@@ -77,14 +76,14 @@ class TerraformWorkflowTest(unittest.TestCase):
                 self.assertEqual(outputs, {})
 
     def test_owner_can_rerun_pr_selection_but_cannot_bless_another_actors_run(self):
-        for attempt in ('2', '10'):
+        for attempt in ('1', '2', '10'):
             with self.subTest(attempt=attempt):
-                self.assertEqual(self.run_pr_select(['.github/workflows/terraform.yml'], GITHUB_RUN_ATTEMPT=attempt),
+                self.assertEqual(self.run_pr_select(['.github/workflows/terraform.yml'], GITHUB_RUN_ATTEMPT=attempt, GITHUB_TRIGGERING_ACTOR='trusted-collaborator'),
                                  (0, {'core': 'true', 'mypage': 'true'}))
-                for change in ({'GITHUB_ACTOR_ID': '0'}, {'GITHUB_TRIGGERING_ACTOR': 'other'},
+                for change in ({'GITHUB_ACTOR_ID': '0'},
                                {'HEAD_REPOSITORY': 'fork/youtube-study-space'}):
                     code, outputs = self.run_pr_select(['.github/workflows/terraform.yml'],
-                                                       **({'GITHUB_RUN_ATTEMPT': attempt} | change))
+                                                       **({'GITHUB_RUN_ATTEMPT': attempt, 'GITHUB_TRIGGERING_ACTOR': 'trusted-collaborator'} | change))
                     self.assertNotEqual(code, 0)
                     self.assertEqual(outputs, {})
 
