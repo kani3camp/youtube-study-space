@@ -1,5 +1,6 @@
 """MyPage PR Plan: 所有者の同一repository PRだけを手動PlanのEnvironment/identityで受け付け、何も適用できないことを検証する。"""
 from contextlib import redirect_stdout
+import base64
 import io
 import json
 import os
@@ -28,15 +29,23 @@ def pr_env():
 
 
 class PrPlanTest(unittest.TestCase):
-    def test_context_admits_only_the_owners_same_repository_first_run(self):
+    def test_context_admits_only_the_owners_same_repository_attempts(self):
         c.context(pr_env(), 'plan')
-        for key, bad in (('GITHUB_ACTOR_ID', '0'), ('GITHUB_TRIGGERING_ACTOR', 'other'), ('GITHUB_RUN_ATTEMPT', '2'),
+        for key, bad in (('GITHUB_ACTOR_ID', '0'), ('GITHUB_TRIGGERING_ACTOR', 'other'), *(("GITHUB_RUN_ATTEMPT", bad) for bad in ('', '0', '-1', '01', '2x')),
                          ('MYPAGE_PR_HEAD_REPOSITORY', 'fork/youtube-study-space'), ('MYPAGE_PR_NUMBER', '43'),
                          ('GITHUB_REF', 'refs/pull/42/head'), ('GITHUB_EVENT_NAME', 'pull_request_target'),
                          ('GITHUB_WORKFLOW_REF', c.CALLER), ('MYPAGE_MODE', 'desired-apply'),
                          ('MYPAGE_EXPECTED_SHA', 'b' * 40)):
             with self.subTest(key=key, bad=bad), self.assertRaises(ValueError):
                 c.context(pr_env() | {key: bad}, 'plan')
+        for attempt in ('2', '10'):
+            retry = pr_env() | {'GITHUB_RUN_ATTEMPT': attempt}
+            c.context(retry, 'plan')
+            for change in ({'GITHUB_ACTOR_ID': '0'}, {'GITHUB_TRIGGERING_ACTOR': 'other'}):
+                with self.subTest(attempt=attempt, change=change), self.assertRaises(ValueError):
+                    c.context(retry | change, 'plan')
+            with self.assertRaises(ValueError):
+                c.context(retry, 'apply')
         # A PR uses the manual Plan identity only: never Apply, never an image build.
         for kind in ('apply', 'pr-plan'):
             with self.assertRaises(ValueError):
@@ -70,8 +79,10 @@ class PrPlanTest(unittest.TestCase):
         dispatch, pull_request = condition.split(') || (')
         self.assertIn('assertion.event_name == "workflow_dispatch"', dispatch)
         self.assertNotIn('pull_request', dispatch)
+        self.assertIn('assertion.run_attempt == "1"', dispatch)
+        self.assertNotIn('assertion.run_attempt == "1"', pull_request)
         for clause in ('assertion.event_name == "pull_request"', 'assertion.actor_id == "54093651"',
-                       'assertion.run_attempt == "1"', 'assertion.environment == "mypage-dev-plan"',
+                       "assertion.run_attempt.matches('^[1-9][0-9]*$')", 'assertion.environment == "mypage-dev-plan"',
                        'assertion.workflow_ref == ' + json.dumps(c.WORKFLOWS + 'terraform.yml@') + ' + assertion.ref',
                        'assertion.job_workflow_ref == ' + json.dumps(c.WORKFLOWS + 'mypage-foundation-authenticated.yml@') + ' + assertion.ref'):
             self.assertIn(clause, pull_request)
@@ -91,6 +102,27 @@ class PrPlanTest(unittest.TestCase):
         self.assertIn('assertion.event_name == "workflow_dispatch"', value['condition'])
         self.assertEqual(len(value['plan']['Statement']), 1)
         self.assertNotIn('pull_request', json.dumps(value['plan']))
+
+    def test_oidc_attempt_must_match_the_current_owner_attempt(self):
+        ref = 'refs/pull/42/merge'
+        claims = {'aud': 'sts.amazonaws.com', 'iss': 'https://token.actions.githubusercontent.com',
+                  'sub': c.pr_subject('42'), 'repository_id': '340900071', 'repository_owner_id': '54093651',
+                  'ref': ref, 'workflow_ref': c.WORKFLOWS + 'terraform.yml@' + ref,
+                  'job_workflow_ref': c.WORKFLOWS + c.REUSABLE_NAME + '@' + ref,
+                  'workflow_sha': 'a' * 40, 'job_workflow_sha': 'a' * 40,
+                  'actor_id': '54093651', 'actor': 'kani3camp', 'environment': 'mypage-dev-plan',
+                  'event_name': 'pull_request'}
+        def token(attempt):
+            body = base64.urlsafe_b64encode(json.dumps(claims | {'run_attempt': attempt}).encode()).decode().rstrip('=')
+            return {'value': 'h.' + body + '.s'}
+        for attempt in ('1', '2', '10'):
+            env = pr_env() | {'GITHUB_RUN_ATTEMPT': attempt,
+                              'ACTIONS_ID_TOKEN_REQUEST_URL': 'https://example.invalid/?x=1',
+                              'ACTIONS_ID_TOKEN_REQUEST_TOKEN': 't'}
+            with self.subTest(attempt=attempt), patch.object(ops, 'request', return_value=token(attempt)):
+                ops.oidc(env)
+            with patch.object(ops, 'request', return_value=token('3')), self.assertRaises(ValueError):
+                ops.oidc(env)
 
     def test_plan_runs_without_the_lock_and_emits_nothing_an_apply_could_use(self):
         commands = []

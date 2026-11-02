@@ -337,8 +337,9 @@ jobs:
           fail() { echo "::error::$1"; exit 1; }
           [[ "${HEAD_REPOSITORY}" == "${GITHUB_REPOSITORY}" ]] ||
             fail "Fork PRs never receive Terraform credentials. The owner runs the manual Terraform Plan."
-          [[ "${GITHUB_ACTOR_ID}" == "54093651" && "${GITHUB_TRIGGERING_ACTOR}" == "kani3camp" && "${GITHUB_RUN_ATTEMPT}" == "1" ]] ||
-            fail "PR Plan is limited to the owner's first run. The owner runs the manual Terraform Plan."
+          # Re-runs keep the original actor; check who requested this attempt too.
+          [[ "${GITHUB_ACTOR_ID}" == "54093651" && "${GITHUB_TRIGGERING_ACTOR}" == "kani3camp" && "${GITHUB_RUN_ATTEMPT}" =~ ^[1-9][0-9]*$ ]] ||
+            fail "PR Plan requires the owner as both the original actor and the actor requesting this attempt."
           # Read the diff first: a failed diff must fail the job, never select nothing.
           # --no-renames lists both the old and the new path of a moved file.
           changed="$(mktemp)"

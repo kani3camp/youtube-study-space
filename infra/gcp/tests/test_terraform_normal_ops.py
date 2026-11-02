@@ -240,11 +240,12 @@ class Contracts(unittest.TestCase):
         del value['NORMAL_SOURCE_SHA']
         return value
 
-    def test_pr_plan_admits_only_the_owners_same_repository_first_run(self):
+    def test_pr_plan_admits_only_the_owners_same_repository_attempts(self):
         self.assertEqual(ops.context(self.pr_env(), 'plan'), 'dev')
         self.assertEqual(ops.context(self.pr_env()), 'dev')
         for key, bad in (('GITHUB_ACTOR_ID', '0'), ('GITHUB_TRIGGERING_ACTOR', 'other'),
-                         ('GITHUB_RUN_ATTEMPT', '2'), ('NORMAL_PR_HEAD_REPOSITORY', 'fork/youtube-study-space'),
+                         *(("GITHUB_RUN_ATTEMPT", bad) for bad in ('', '0', '-1', '01', '2x')),
+                         ('NORMAL_PR_HEAD_REPOSITORY', 'fork/youtube-study-space'),
                          ('NORMAL_PR_NUMBER', '43'), ('GITHUB_REF', 'refs/heads/dev'),
                          ('GITHUB_REF', 'refs/pull/42/head'), ('GITHUB_EVENT_NAME', 'workflow_dispatch'),
                          ('GITHUB_EVENT_NAME', 'pull_request_target'),
@@ -255,6 +256,14 @@ class Contracts(unittest.TestCase):
                          ('NORMAL_SOURCE_BRANCH', 'dev')):
             with self.subTest(key=key, bad=bad), self.assertRaises(ValueError):
                 ops.context(self.pr_env() | {key: bad}, 'plan')
+        for attempt in ('2', '10'):
+            retry = self.pr_env() | {'GITHUB_RUN_ATTEMPT': attempt}
+            ops.context(retry, 'plan')
+            for change in ({'GITHUB_ACTOR_ID': '0'}, {'GITHUB_TRIGGERING_ACTOR': 'other'}):
+                with self.subTest(attempt=attempt, change=change), self.assertRaises(ValueError):
+                    ops.context(retry | change, 'plan')
+            with self.assertRaises(ValueError):
+                ops.context(retry, 'apply')
         # A PR context uses the manual Plan identity only and can never authorize Apply.
         for role in ('apply', 'pr-plan'):
             with self.assertRaises(ValueError):
@@ -281,7 +290,13 @@ class Contracts(unittest.TestCase):
                              'ACTIONS_ID_TOKEN_REQUEST_TOKEN': 't'}
         with patch.object(ops.common.urllib.request, 'urlopen', return_value=token(claims)):
             ops.oidc(e)
-        for key, bad in (('environment', 'terraform-dev-pr-plan'),
+        for attempt in ('2', '10'):
+            retry = e | {'GITHUB_RUN_ATTEMPT': attempt}
+            with patch.object(ops.common.urllib.request, 'urlopen', return_value=token(claims | {'run_attempt': attempt})):
+                ops.oidc(retry)
+            with patch.object(ops.common.urllib.request, 'urlopen', return_value=token(claims)), self.assertRaises(ValueError):
+                ops.oidc(retry)
+        for key, bad in (('run_attempt', '2'), ('environment', 'terraform-dev-pr-plan'),
                          ('job_workflow_ref', ops.REUSABLE.replace('gcp-terraform-authenticated', 'terraform-pr-plan') + ref)):
             with self.subTest(key=key), patch.object(ops.common.urllib.request, 'urlopen',
                                                      return_value=token(claims | {key: bad})), \

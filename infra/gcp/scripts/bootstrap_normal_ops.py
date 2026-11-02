@@ -54,17 +54,19 @@ def condition(callers=('terraform.yml',)):
         # DEVはownerの任意の非main branchを許可する。境界はactor・repository・初回実行の固定。
         "assertion.ref.startsWith('refs/heads/')", "assertion.ref != 'refs/heads/main'",
         "assertion.event_name == 'workflow_dispatch'", caller, reusable,
+        "assertion.run_attempt == '1'",
         "assertion.environment in ['terraform-dev-plan', 'terraform-dev-apply']",
     ])
     pull_request = " && ".join([
         "assertion.ref.matches('" + PR_REF + "')", "assertion.event_name == 'pull_request'",
         "assertion.workflow_ref == '" + WORKFLOWS + "terraform.yml@' + assertion.ref", reusable,
         "assertion.environment == 'terraform-dev-plan'",
+        "assertion.run_attempt.matches('^[1-9][0-9]*$')",
     ])
     return " && ".join([
         "assertion.repository_id == '340900071'", "assertion.repository_owner_id == '54093651'",
         "((" + dispatch + ") || (" + pull_request + "))",
-        "assertion.actor_id == '54093651'", "assertion.actor == 'kani3camp'", "assertion.run_attempt == '1'",
+        "assertion.actor_id == '54093651'", "assertion.actor == 'kani3camp'",
         "assertion.workflow_sha == assertion.sha", "assertion.job_workflow_sha == assertion.sha",
     ])
 

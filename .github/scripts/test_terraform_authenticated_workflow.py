@@ -70,6 +70,12 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                    'NORMAL_PR_HEAD_REPOSITORY': 'kani3camp/youtube-study-space'}
         result = self.run_preflight(**context)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for attempt in ('2', '10'):
+            retry = self.run_preflight(**(context | {'GITHUB_RUN_ATTEMPT': attempt}))
+            self.assertEqual(retry.returncode, 0, retry.stdout + retry.stderr)
+            for change in ({'GITHUB_ACTOR_ID': '0'}, {'GITHUB_TRIGGERING_ACTOR': 'other'},
+                           {'TARGET': 'prod'}, {'NORMAL_PR_HEAD_REPOSITORY': 'fork/youtube-study-space'}):
+                self.assertNotEqual(self.run_preflight(**(context | {'GITHUB_RUN_ATTEMPT': attempt} | change)).returncode, 0)
         # The PR plans its own merge commit: no source is published to later jobs.
         self.assertEqual(result.outputs, '')
         for change in ({'TARGET': 'prod'}, {'GITHUB_EVENT_NAME': 'workflow_dispatch'},
@@ -77,7 +83,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                        {'MODE': 'normal-apply'}, {'GITHUB_REF': 'refs/heads/dev'},
                        {'GITHUB_REF': 'refs/pull/42/head'}, {'NORMAL_PR_NUMBER': '43'},
                        {'NORMAL_PR_HEAD_REPOSITORY': 'fork/youtube-study-space'},
-                       {'GITHUB_ACTOR_ID': '0'}, {'GITHUB_RUN_ATTEMPT': '2'},
+                       {'GITHUB_ACTOR_ID': '0'}, {'GITHUB_TRIGGERING_ACTOR': 'other'},
+                       *({'GITHUB_RUN_ATTEMPT': bad} for bad in ('', '0', '-1', '01', '2x')),
                        {'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref},
                        {'NORMAL_SOURCE_BRANCH': 'dev'}):
             with self.subTest(change=change):

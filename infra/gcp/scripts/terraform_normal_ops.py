@@ -91,9 +91,10 @@ def pr_context(env, role=None):
              'GITHUB_REPOSITORY': 'kani3camp/youtube-study-space',
              'GITHUB_REPOSITORY_ID': '340900071', 'GITHUB_REPOSITORY_OWNER_ID': '54093651',
              'GITHUB_ACTOR': 'kani3camp', 'GITHUB_ACTOR_ID': '54093651',
-             'GITHUB_TRIGGERING_ACTOR': 'kani3camp', 'GITHUB_RUN_ATTEMPT': '1',
+             'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
              'NORMAL_PR_HEAD_REPOSITORY': 'kani3camp/youtube-study-space'}
     need(all(env.get(k) == v for k, v in exact.items()))
+    need(re.fullmatch(r'[1-9][0-9]*', env.get('GITHUB_RUN_ATTEMPT', '')) is not None)
     # Production Environments stay main-only, so a PR plans DEV only.
     target = env.get('NORMAL_TARGET')
     need(target == 'dev' and env.get('NORMAL_MODE') == 'pr-plan')
@@ -608,7 +609,7 @@ def oidc(env):
     subject = ':'.join(f'{k}:{v.replace(":", "%3A")}' for k, v in expected.items())
     need(claims.get('sub') == subject and all(claims.get(k) == v for k, v in expected.items()))
     need(all(claims.get(k) == v for k, v in {
-        'actor_id': '54093651', 'actor': 'kani3camp', 'run_attempt': '1',
+        'actor_id': '54093651', 'actor': 'kani3camp', 'run_attempt': env['GITHUB_RUN_ATTEMPT'],
         'run_id': env['GITHUB_RUN_ID'], 'workflow_sha': env['GITHUB_SHA'],
         'job_workflow_sha': env['GITHUB_SHA']}.items()))
 

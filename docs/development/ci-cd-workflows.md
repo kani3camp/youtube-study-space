@@ -18,7 +18,7 @@ workflowファイルの改名・新設は、コードだけでは完結せず、
 | 境界 | 現行の固定値 | 定義場所 |
 | --- | --- | --- |
 | Repository OIDC `sub` テンプレート | `repository_id`, `repository_owner_id`, `environment`, `ref`, `workflow_ref`, `job_workflow_ref`, `event_name`（repository単位設定） | GitHub `actions/oidc/customization/sub` |
-| Core Terraform GCP WIF | `workflow_ref == terraform.yml@ref`、`job_workflow_ref == gcp-terraform-authenticated.yml@ref`、`workflow_dispatch`（DEV は owner の PR Plan も）、owner actor、`run_attempt == 1` | [`bootstrap_normal_ops.py`](../../infra/gcp/scripts/bootstrap_normal_ops.py)、[`terraform_normal_ops.py`](../../infra/gcp/scripts/terraform_normal_ops.py) |
+| Core Terraform GCP WIF | `workflow_ref == terraform.yml@ref`、`job_workflow_ref == gcp-terraform-authenticated.yml@ref`、`workflow_dispatch`（DEV は owner の PR Plan も）、owner actor、手動は `run_attempt == 1`、DEV PR Plan は正整数の attempt | [`bootstrap_normal_ops.py`](../../infra/gcp/scripts/bootstrap_normal_ops.py)、[`terraform_normal_ops.py`](../../infra/gcp/scripts/terraform_normal_ops.py) |
 | Core Terraform AWS State role | 上記 `sub` の完全一致 | [`terraform-authentication-boundary.md`](../../infra/gcp/docs/terraform-authentication-boundary.md) |
 | MyPage foundation GCP WIF / AWS State role | `terraform.yml@integration ref`（image-build は `deploy-mypage-api.yml` / `deploy-mypage-maintenance.yml`）+ `mypage-foundation-authenticated.yml@integration ref`、`workflow_dispatch`（DEV Plan は owner の PR Plan も） | [`foundation_contract.py`](../../infra/mypage-platform/scripts/foundation_contract.py) |
 | MyPage Backend deployer WIF | `deploy-mypage-api.yml` + `mypage-backend-authenticated.yml`、`workflow_dispatch`、Environment `mypage-dev-backend` | [`backend_identity.py`](../../infra/mypage-platform/scripts/backend_identity.py) |
@@ -117,11 +117,12 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 - fork 由来PRでは資格情報を取得しない。`pull_request` は fork に OIDC / secret を渡さないことに加え、job条件で `head.repo.full_name == github.repository` を要求し、満たさない場合は **失敗として** 理由を表示する（false-green skip にしない）。
 - PR Plan は DEV の手動 Plan と同じ reusable・Environment・identity を使う（Core: `gcp-terraform-authenticated.yml` の `pr-plan` mode と `terraform-dev-plan`、MyPage: `mypage-foundation-authenticated.yml` の `foundation_plan` と `mypage-dev-plan`）。PR 専用の identity・Environment・workflow は持たない（2026-10-31 の owner 判断。当初は分離していた）。
   - 理由: ownerの PR で動くコードは、owner が任意の branch から手動 dispatch するコードと信頼の前提が同じ。DEV Environment の Secret は資格情報ではない設定値だけで、資格情報の境界はクラウド trust の actor 検査である。
-  - WIF condition / AWS trust は手動 dispatch の条件に PR 用の節を OR で加える: `event_name == 'pull_request'`、`ref` が `refs/pull/<n>/merge` の形、`workflow_ref == terraform.yml@` + `assertion.ref`、`job_workflow_ref` が同じ reusable の `@` + `assertion.ref`、Environment は **Plan だけ**（`terraform-dev-plan` / `mypage-dev-plan`）。repository / owner ID・actor・`run_attempt == 1` は両節で共通。Apply Environment・Apply identity は手動 dispatch だけ。
+  - WIF condition / AWS trust は手動 dispatch の条件に PR 用の節を OR で加える: `event_name == 'pull_request'`、`ref` が `refs/pull/<n>/merge` の形、`workflow_ref == terraform.yml@` + `assertion.ref`、`job_workflow_ref` が同じ reusable の `@` + `assertion.ref`、Environment は **Plan だけ**（`terraform-dev-plan` / `mypage-dev-plan`）。repository / owner ID・actor は両節で共通。GCP WIF は手動 dispatch で `run_attempt == 1`、PR 節だけは正整数の attempt を許可する。Apply Environment・Apply identity は手動 dispatch だけ。
+  - owner 本人による **Re-run jobs / Re-run failed jobs** を許可する。初回の `actor_id` と、今回の `GITHUB_TRIGGERING_ACTOR` の両方を検査するため、他者の run を owner が再実行しても通らず、owner の run を他者が再実行しても workflow で拒否する。OIDC の `run_attempt` は今回の実行値と完全一致させる。コミット追加による `synchronize` は別 run（attempt 1）で、同じコミットの再実行（attempt 2以降）とは異なる。
   - `-lock=false` で実行する（PR Plan は助言で、手動の Plan / Apply を待たせない。Apply は必ず fresh plan を作る）。
 - **脅威境界**: 同一repositoryのPRでは workflow 定義そのものがPR作成者の管理下にあるため、trust は「どのコードが実行されるか」を固定できない。PR Plan を許可する actor は owner（`actor_id == 54093651`）に限定する。write 権限を持つ協力者の PR では PR Plan job を失敗させ、owner が手動 Plan を実行する（協力者の job が DEV Environment の Secret を読めても、クラウドの資格情報は actor 検査で取得できない）。AIエージェント等の actor を追加する場合は、追加する claim と理由を PR で明示してから trust を広げる。
 - 結果は Job Summary と check に、値を含まない要約（resource type・操作・件数）だけを出す。plan file・JSON・artifact は残さない（state 由来の値を PR 作成者の管理下にあるコードの外へ持ち出さないため）。PRコメントは投稿しない。詳細を確認する場合は owner が手動 Plan を実行する。
-- **残るリスク**: AWS の State read role は `sub`（7 claim）と `actor_id` を検査するが、`run_attempt` は検査しない（手動 Plan / Apply の AWS role も同じ）。再実行の actor は初回実行者のままなので、PR 内のコードが preflight を省いた状態で、書き込み権限を持つ者が owner の run を再実行すると、State を読める可能性がある。GCP WIF は `run_attempt == 1` で拒否する。現在 repository の書き込み権限は owner だけなので許容しているが、AWS が `run_attempt` claim を条件キーとして扱えるか確認し、扱えるなら trust に加える（owner 判断）。
+- **残るリスク**: クラウド trust の actor は初回実行者で、今回の再実行者は示さない。`GITHUB_TRIGGERING_ACTOR` の本人検査は workflow/controller 側の境界であり、クラウド側での本人再確認ではない。owner が管理する PR 内のコードが preflight を省いた状態で、書き込み権限を持つ者が owner の run を再実行した場合、DEV Plan identity による State・metadata の参照をクラウド trust だけでは防げない。この緩和は owner だけに write 権限を付与する運用を前提とし、write 権限を他者へ追加する前に Environment の承認や PR 側で変更できない実行入口などを再設計する。Apply と PROD は今回の緩和に含まれない。
 
 **手動 Plan / Apply（UC2 手動 / UC3）**
 
@@ -257,6 +258,37 @@ PR Plan を DEV の手動 Plan に統合する PR（#1527）を取り込んだ�
 | MyPage DEV AWS Plan role | `foundation_contract.py trust-policy <account> plan` の出力で trust を置き換える（PR 用の statement が加わる） |
 | DEV Environment | `enable_normal_integration.py --apply`（Core の2 Environment）と GitHub Settings（`mypage-dev-*`）で branch 制限を外す（No restriction）。PROD の Environment は変更しない |
 | 撤去 | Environment `terraform-dev-pr-plan` / `terraform-prod-pr-plan` / `mypage-dev-pr-plan` と、作成済みなら PR Plan 用の SA・WIF pool / provider（`terraform-pr-plan`、`mypage-foundation/github-pr-plan`）・AWS role を削除する |
+
+### 4.5 PR Plan の再実行を有効にする（owner）
+
+コードの変更だけでは、既存 GCP WIF の初回限定条件は変わらない。対象コードを統合ブランチへ取り込んだ後、認証済みの管理端末から次を実行する。更新は DEV の2 provider の condition だけで、AWS trust、権限、SA、PROD は変更しない。手動 dispatch の初回限定条件は維持する。
+
+```bash
+# リポジトリルートで実行。condition は現在のソースから生成し、更新後に完全一致を確認する。
+python3 - <<'PY'
+import os
+import subprocess
+import sys
+
+project = 'test-youtube-study-space'
+sources = [
+    ('terraform-normal', ['-c', "import sys; sys.path.insert(0, 'infra/gcp/scripts'); import bootstrap_normal_ops as b; print(b.CONDITION)"]),
+    ('mypage-foundation', ['infra/mypage-platform/scripts/foundation_contract.py', 'provider-condition']),
+]
+for pool, args in sources:
+    condition = subprocess.check_output([sys.executable, *args], text=True,
+        env=os.environ | {'MYPAGE_TARGET': 'development'}).strip()
+    scope = ['github-actions', '--project=' + project, '--location=global', '--workload-identity-pool=' + pool]
+    command = ['gcloud', 'iam', 'workload-identity-pools', 'providers']
+    subprocess.run([*command, 'update-oidc', *scope, '--attribute-condition=' + condition, '--quiet'], check=True)
+    actual = subprocess.check_output([*command, 'describe', *scope, '--format=value(attributeCondition)'], text=True).strip()
+    if actual != condition:
+        raise SystemExit('WIF condition readback mismatch: ' + pool)
+    print(pool + ': condition readback PASS')
+PY
+```
+
+その後、変更を含む PR の Terraform run を owner が再実行し、Core / MyPage 両方で OIDC 検証と native Plan が通ることを確認する。既存 run の再実行では以前の SHA の workflow/controller が使われるため、修正前に作られた run は対象外。更新前の WIF は再実行を拒否するので、コードとテストの成功だけで実環境の有効化済みとは扱わない。PR の結果は引き続き助言で、Apply は別途 fresh Plan を作る。
 
 ## 5. 移行状況
 
