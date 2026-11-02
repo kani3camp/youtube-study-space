@@ -150,6 +150,10 @@ def bootstrap():
     current_policy = gcloud('projects', 'get-iam-policy', PROJECT)
     plan_member = 'serviceAccount:terraform-dev-normal-plan@' + PROJECT + '.iam.gserviceaccount.com'
     need(plan_read_access.grants(current_policy, plan_member) == {plan_read_access.ROLE})
+    apply_member = 'serviceAccount:terraform-dev-normal-apply@' + PROJECT + '.iam.gserviceaccount.com'
+    apply_roles = plan_read_access.grants(current_policy, apply_member)
+    need(apply_roles == {f'projects/{PROJECT}/roles/terraformNormalApply',
+                         f'projects/{PROJECT}/roles/monitorAuthConfigWrite'})
     for kind, allowed in permissions.items():
         if kind == 'plan':
             continue
@@ -204,7 +208,7 @@ def bootstrap():
                        for b in policy['bindings']))
         policy = gcloud('projects', 'get-iam-policy', PROJECT)
         actual = {b['role'] for b in policy['bindings'] if 'serviceAccount:' + email in b['members'] and 'condition' not in b}
-        need(actual == set(roles))
+        need(actual == (set(roles) if kind == 'plan' else apply_roles))
         environment = 'terraform-dev-' + kind
         run(['gh', 'secret', 'set', 'GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', '--repo', REPO, '--env', environment], data=email)
         run(['gh', 'secret', 'set', 'GCP_TERRAFORM_NORMAL_WIF_PROVIDER', '--repo', REPO, '--env', environment], data=readback['name'])

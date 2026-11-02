@@ -230,5 +230,20 @@ class PlanAccessTest(unittest.TestCase):
         with patch.object(bootstrap,'gcloud',side_effect=read),patch.object(sys,'argv',['bootstrap']):
             with self.assertRaises(ValueError):bootstrap.bootstrap()
 
+    def test_bootstrap_checks_apply_grants_before_any_write_after_plan_migration(self):
+        for apply_roles in ([], ['roles/owner'], ['projects/'+op.PROJECT+'/roles/terraformNormalApply']):
+            def read(*args,**kwargs):
+                if args[:2]==('projects','describe'):
+                    return {'projectId':op.PROJECT,'lifecycleState':'ACTIVE','projectNumber':'123'}
+                if args[:3]==('iam','roles','describe'):
+                    if args[3]==op.ROLE_ID:return {'stage':'GA','includedPermissions':op.definition()['includedPermissions']}
+                    return {'includedPermissions':['resourcemanager.projects.get']}
+                if args[:2]==('projects','get-iam-policy'):
+                    return {'bindings':[{'role':op.ROLE,'members':['serviceAccount:terraform-dev-normal-plan@'+op.PROJECT+'.iam.gserviceaccount.com']},
+                            *({'role':role,'members':['serviceAccount:terraform-dev-normal-apply@'+op.PROJECT+'.iam.gserviceaccount.com']} for role in apply_roles)]}
+                raise AssertionError('Write before Apply grant inventory completed')
+            with self.subTest(roles=apply_roles),patch.object(bootstrap,'gcloud',side_effect=read),patch.object(sys,'argv',['bootstrap']):
+                with self.assertRaises(ValueError):bootstrap.bootstrap()
+
 
 if __name__=='__main__':unittest.main()
