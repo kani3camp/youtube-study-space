@@ -112,9 +112,14 @@ jobs:
           }
           # Guard the initial dispatching identity before any plan/apply job can
           # receive Environment secrets or acquire GitHub OIDC credentials.
-          # Re-runs retain the original actor's privileges, so deny all retries.
-          [[ "${GITHUB_ACTOR_ID:-}" == "54093651" && "${GITHUB_ACTOR:-}" == "kani3camp" && "${GITHUB_TRIGGERING_ACTOR:-}" == "kani3camp" && "${GITHUB_RUN_ATTEMPT:-}" == "1" ]] || {
-            echo "::error::Authenticated Terraform only allows initial dispatches by the approved GitHub owner."
+          # PR Plan may be retried by the owner; manual Plan/Apply stay initial-only.
+          # Re-runs retain the original actor, so also check the triggering actor.
+          [[ "${GITHUB_ACTOR_ID:-}" == "54093651" && "${GITHUB_ACTOR:-}" == "kani3camp" && "${GITHUB_TRIGGERING_ACTOR:-}" == "kani3camp" && "${GITHUB_RUN_ATTEMPT:-}" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::Authenticated Terraform requires the approved GitHub owner for this attempt."
+            exit 1
+          }
+          [[ "${MODE}" == "pr-plan" || "${GITHUB_RUN_ATTEMPT}" == "1" ]] || {
+            echo "::error::Manual Terraform only allows initial dispatches."
             exit 1
           }
           # DEVはownerの任意の非main branch（Environmentはbranchで制限しない）。

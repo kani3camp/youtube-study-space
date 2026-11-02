@@ -136,8 +136,9 @@ def provider_condition():
                 " && assertion.sub in " + json.dumps(subjects, separators=(", ", ": ")))
     values = {"repository_id": "340900071", "repository_owner_id": "54093651", "actor_id": "54093651",
               "actor": "kani3camp", "repository": REPOSITORY, "event_name": "pull_request",
-              "run_attempt": "1", "environment": GITHUB_ENVIRONMENT + "-plan"}
+              "environment": GITHUB_ENVIRONMENT + "-plan"}
     pull_request = (" && ".join("assertion." + key + " == " + json.dumps(value) for key, value in values.items()) +
+                    " && assertion.run_attempt.matches('^[1-9][0-9]*$')" +
                     " && assertion.ref.matches(" + json.dumps("^" + PR_REF.pattern + "$") + ")" +
                     " && assertion.workflow_ref == " + json.dumps(WORKFLOWS + "terraform.yml@") + " + assertion.ref" +
                     " && assertion.job_workflow_ref == " + json.dumps(WORKFLOWS + REUSABLE_NAME + "@") + " + assertion.ref" +
@@ -214,10 +215,11 @@ def pr_context(env):
     expected = {"GITHUB_REPOSITORY": REPOSITORY, "GITHUB_REPOSITORY_ID": "340900071",
                 "GITHUB_REPOSITORY_OWNER_ID": "54093651", "GITHUB_EVENT_NAME": "pull_request",
                 "GITHUB_ACTOR": "kani3camp", "GITHUB_ACTOR_ID": "54093651",
-                "GITHUB_TRIGGERING_ACTOR": "kani3camp", "GITHUB_RUN_ATTEMPT": "1",
+                "GITHUB_TRIGGERING_ACTOR": "kani3camp",
                 "MYPAGE_PR_HEAD_REPOSITORY": REPOSITORY, "MYPAGE_MODE": "desired-plan",
                 "TF_WORKSPACE": "default"}
     need(all(env.get(k) == v for k, v in expected.items()), "pr-plan-context")
+    need(re.fullmatch(r"[1-9][0-9]*", env.get("GITHUB_RUN_ATTEMPT", "")) is not None, "pr-plan-attempt")
     match = PR_REF.fullmatch(env.get("GITHUB_REF", ""))
     need(match is not None and match[1] == env.get("MYPAGE_PR_NUMBER"), "pr-plan-ref")
     need(env.get("GITHUB_WORKFLOW_REF") == WORKFLOWS + "terraform.yml@" + env["GITHUB_REF"], "pr-plan-caller")

@@ -69,11 +69,24 @@ class TerraformWorkflowTest(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertEqual(outputs, {})
         for env in ({'HEAD_REPOSITORY': 'fork/youtube-study-space'}, {'GITHUB_ACTOR_ID': '1'},
-                    {'GITHUB_TRIGGERING_ACTOR': 'other'}, {'GITHUB_RUN_ATTEMPT': '2'}):
+                    {'GITHUB_TRIGGERING_ACTOR': 'other'},
+                    *({'GITHUB_RUN_ATTEMPT': bad} for bad in ('', '0', '-1', '01', '2x'))):
             with self.subTest(env=env):
                 code, outputs = self.run_pr_select(['infra/gcp/environments/dev/main.tf'], **env)
                 self.assertNotEqual(code, 0)
                 self.assertEqual(outputs, {})
+
+    def test_owner_can_rerun_pr_selection_but_cannot_bless_another_actors_run(self):
+        for attempt in ('2', '10'):
+            with self.subTest(attempt=attempt):
+                self.assertEqual(self.run_pr_select(['.github/workflows/terraform.yml'], GITHUB_RUN_ATTEMPT=attempt),
+                                 (0, {'core': 'true', 'mypage': 'true'}))
+                for change in ({'GITHUB_ACTOR_ID': '0'}, {'GITHUB_TRIGGERING_ACTOR': 'other'},
+                               {'HEAD_REPOSITORY': 'fork/youtube-study-space'}):
+                    code, outputs = self.run_pr_select(['.github/workflows/terraform.yml'],
+                                                       **({'GITHUB_RUN_ATTEMPT': attempt} | change))
+                    self.assertNotEqual(code, 0)
+                    self.assertEqual(outputs, {})
 
     def test_pr_plan_reuses_the_dev_manual_plan_and_never_reaches_apply(self):
         self.assertEqual(self.workflow['concurrency']['cancel-in-progress'], "${{ github.event_name == 'pull_request' }}")
