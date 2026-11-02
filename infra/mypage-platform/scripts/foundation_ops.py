@@ -197,7 +197,7 @@ def oidc(env, *, image=False):
              "sub": sub, "repository_id": "340900071", "repository_owner_id": "54093651",
              "ref": ref, "workflow_ref": workflow, "job_workflow_ref": reusable,
              "workflow_sha": env["GITHUB_SHA"], "job_workflow_sha": env["GITHUB_SHA"],
-             "actor_id": "54093651", "actor": "kani3camp", "run_attempt": "1",
+             "actor_id": "54093651", "actor": "kani3camp", "run_attempt": env["GITHUB_RUN_ATTEMPT"],
              "environment": contract.GITHUB_ENVIRONMENT + "-" + kind,
              "event_name": env["GITHUB_EVENT_NAME"]}
     need(all(claims.get(k) == v for k, v in exact.items()))

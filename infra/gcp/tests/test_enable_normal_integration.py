@@ -68,9 +68,11 @@ class BranchAuthorizationTest(unittest.TestCase):
         self.assertIn("gcp-terraform-authenticated.yml@' + assertion.ref", pull_request)
         # The transitional ci.yml caller is never admitted for a PR.
         self.assertNotIn('ci.yml', bootstrap.condition(op.CALLERS).split(' || ')[1])
-        # Owner, repository and retry limits apply to both clauses.
-        for clause in ("assertion.actor_id == '54093651'", "assertion.run_attempt == '1'",
-                       "assertion.repository_id == '340900071'"):
+        self.assertIn("assertion.run_attempt == '1'", dispatch)
+        self.assertNotIn("assertion.run_attempt == '1'", pull_request)
+        self.assertIn("assertion.run_attempt.matches('^[1-9][0-9]*$')", pull_request)
+        # Owner and repository limits apply to both clauses.
+        for clause in ("assertion.actor_id == '54093651'", "assertion.repository_id == '340900071'"):
             self.assertEqual(condition.count(clause), 1)
             self.assertNotIn(clause, condition[condition.index('(('):condition.index('))')])
 
