@@ -66,6 +66,9 @@ assert_exact_groups "system firestore_integration aws_cdk" system/.dockerignore
 assert_exact_groups aws_cdk aws-cdk/lib/aws-cdk-stack.ts
 assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/environments/dev/main.tf
 assert_exact_groups "mypage gcp_terraform" infra/mypage-platform/modules/runtime/main.tf
+for path in infra/gcp/policies/plan-metadata-read.json infra/gcp/scripts/plan_read_access.py infra/gcp/tests/test_plan_read_access.py; do
+	assert_exact_groups "gcp_terraform mypage" "$path"
+done
 assert_exact_groups gcp_terraform infra/gcp/README.md
 assert_exact_groups gcp_terraform infra/gcp/environments/dev/main.tf
 assert_exact_groups gcp_terraform infra/gcp/modules/monitor-auth/main.tf

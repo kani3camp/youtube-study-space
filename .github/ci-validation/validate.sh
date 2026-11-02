@@ -14,6 +14,8 @@ case "$1" in
     # so neither a target test nor a provider can rewrite what is checked.
     printf 'disable_checkpoint = true\nprovider_installation {\n  direct {\n    include = ["registry.terraform.io/hashicorp/*"]\n  }\n}\n' > /work/terraformrc
     export TF_CLI_CONFIG_FILE=/work/terraformrc
+    # Execute only the controller copy; the target supplies data-only JSON.
+    python3 /opt/ci-tools/plan_policy.py --manifest /source/infra/gcp/policies/plan-metadata-read.json
     # Check formatting
     terraform -chdir=/source fmt -check -recursive infra/gcp
     # Verify multi-platform provider locks are complete (downloads and hashes
@@ -64,6 +66,7 @@ case "$1" in
     python3 infra/gcp/tests/test_production_backend_packet.py
     python3 infra/gcp/tests/test_production_execution_contract.py
     python3 -B infra/gcp/tests/test_terraform_normal_ops.py
+    python3 -B infra/gcp/tests/test_plan_read_access.py
     python3 -B infra/gcp/tests/test_terraform_source.py
     python3 -B infra/gcp/tests/test_enable_normal_integration.py
     python3 -B infra/gcp/tests/test_production_normal_ops.py

@@ -15,6 +15,7 @@ RUN python -m pip install --no-cache-dir -r .github/codeql/requirements.txt \
     && grep " terraform_${TERRAFORM_VERSION}_linux_amd64.zip$" SHA256SUMS | sed 's/terraform_[^ ]*_linux_amd64.zip/terraform.zip/' | sha256sum --check --strict \
     && unzip terraform.zip terraform -d /usr/local/bin \
     && rm -rf /opt/ci-build
+COPY ci-validation/plan_policy.py /opt/ci-tools/plan_policy.py
 COPY --chmod=755 ci-validation/validate.sh /usr/local/bin/validate-ci
 RUN useradd --uid 10001 --no-create-home ci
 ENV HOME=/tmp/home RUNNER_TEMP=/tmp/runner PYTHONDONTWRITEBYTECODE=1

@@ -105,3 +105,7 @@ Environment reviewは実行時の確認を加える別の制御です。必要�
 
 - [独自証跡の撤廃（PR #1373）](https://github.com/kani3camp/youtube-study-space/pull/1373)
 - [DEV通常運用の導入と検証記録（PR #1382）](https://github.com/kani3camp/youtube-study-space/pull/1382)
+
+## DEV Planの共通構成参照
+
+権限の正本は[静的manifest](../policies/plan-metadata-read.json)であり、Core/MyPageのPlan SAへ同じ定義を付与する。Apply/PROD・AWS State/lockは対象外。[棚卸し・専用反映・復旧手順](plan-read-access.md)に従い、通常bootstrapでPlan権限を拡張しない。

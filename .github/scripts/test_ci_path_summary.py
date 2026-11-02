@@ -83,6 +83,12 @@ class PathSummaryTest(unittest.TestCase):
         self.assertIn(r'<code>docs/a\nb\r\t.md</code>', changed)
         self.assertIn(r'<code>docs/a\\n.md</code>', changed)
 
+    def test_shared_plan_policy_is_matched_and_selects_both_consumers(self):
+        summary, output = self.run_detector('--paths', 'infra/gcp/policies/plan-metadata-read.json')
+        self.assertIn('グループ未対応: 0件', summary)
+        self.assertIn('gcp_terraform=true', output)
+        self.assertIn('mypage=true', output)
+
     def test_known_document_checkers_are_matched_without_extra_groups(self):
         summary, output = self.run_detector('--paths', '.github/scripts/check-doc-references.py',
                                           '.github/scripts/test_check_doc_references.py')
