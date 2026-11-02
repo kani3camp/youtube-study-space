@@ -34,6 +34,8 @@ TARGETS = (
     "mypage/src/assets/fonts/README.md",
     "firebase/README.md",
     "infra/gcp/modules/monitor-auth/README.md",
+    "infra/gcp/docs/terraform-authentication-boundary.md",
+    "infra/gcp/docs/plan-read-access.md",
     "docs-site/README.md",
     "docs/development/architecture.md",
     "docs/development/ci-cd-workflows.md",

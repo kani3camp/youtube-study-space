@@ -165,6 +165,11 @@ classify_path() {
 			mypage=true
 			matched=true
 			;;
+		infra/gcp/policies/*|infra/gcp/scripts/plan_read_access.py|infra/gcp/tests/test_plan_read_access.py|.github/ci-validation/plan_policy.py)
+			gcp_terraform=true
+			mypage=true
+			matched=true
+			;;
 		infra/gcp/*)
 			gcp_terraform=true
 			matched=true
