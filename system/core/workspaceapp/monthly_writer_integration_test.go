@@ -21,7 +21,7 @@ import (
 	"app.modules/internal/integrationtest"
 )
 
-var errMoveRollback = errors.New("synthetic move rollback after source and month writes")
+var errMoveRollback = errors.New("synthetic move rollback after source write")
 
 type moveRollbackRepository struct {
 	*repository.FirestoreControllerImplements
@@ -35,7 +35,7 @@ func (r *moveRollbackRepository) UpdateUserLastEnteredDate(tx *firestore.Transac
 	return r.FirestoreControllerImplements.UpdateUserLastEnteredDate(tx, uid, at)
 }
 
-func TestMonthlyInOrderMoveCommitsAndRollsBackAllDocuments(t *testing.T) {
+func TestInOrderMoveCommitsAndRollsBackAllDocuments(t *testing.T) {
 	integrationtest.ResetFirestore(t)
 	repo := integrationtest.NewFirestoreController(t)
 	require.NoError(t, i18n.LoadLocaleFolderFS())
@@ -64,7 +64,10 @@ func TestMonthlyInOrderMoveCommitsAndRollsBackAllDocuments(t *testing.T) {
 		} else {
 			require.NoError(t, err)
 		}
-		for _, collection := range []string{repository.WorkSegments, repository.WorkMonths, repository.OrderHistory} {
+		months, monthErr := repo.FirestoreClient().Collection(repository.WorkMonths).Where(repository.UserIDDocProperty, "==", uid).Documents(ctx).GetAll()
+		require.NoError(t, monthErr)
+		require.Empty(t, months)
+		for _, collection := range []string{repository.WorkSegments, repository.OrderHistory} {
 			rows, err := repo.FirestoreClient().Collection(collection).Where(repository.UserIDDocProperty, "==", uid).Documents(ctx).GetAll()
 			require.NoError(t, err)
 			if fail {

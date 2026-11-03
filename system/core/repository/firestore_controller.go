@@ -273,7 +273,7 @@ func (c *FirestoreControllerImplements) ReadSeat(ctx context.Context, tx *firest
 }
 
 func (c *FirestoreControllerImplements) ReadSeatWithUserID(ctx context.Context, userID string, isMemberSeat bool) (SeatDoc, error) {
-	docs, err := queryDocuments(ctx, c.seatsCollection(isMemberSeat).Where(UserIDDocProperty, "==", userID).Limit(2)).GetAll()
+	docs, err := c.seatsCollection(isMemberSeat).Where(UserIDDocProperty, "==", userID).Documents(ctx).GetAll()
 	if err != nil {
 		return SeatDoc{}, fmt.Errorf("query seat by user ID: %w", err)
 	}
@@ -584,15 +584,16 @@ func (c *FirestoreControllerImplements) GetUsersActiveAfterDate(ctx context.Cont
 }
 
 func (c *FirestoreControllerImplements) CreateWorkSegmentDoc(ctx context.Context, tx *firestore.Transaction, workSegment WorkSegmentDoc) error {
-	return c.createWorkSegmentWithMonths(ctx, tx, workSegment)
+	ref := c.workSegmentsCollection().NewDoc()
+	return c.create(ctx, tx, ref, workSegment)
 }
 
 // ReadWorkStateSegmentsBySessionID returns work-state segments for the given session ID.
 func (c *FirestoreControllerImplements) ReadWorkStateSegmentsBySessionID(ctx context.Context, sessionID string) ([]WorkSegmentDoc, error) {
-	query := c.workSegmentsCollection().
+	iter := c.workSegmentsCollection().
 		Where(SessionIDDocProperty, "==", sessionID).
-		Where(SegmentTypeDocProperty, "==", WorkState)
-	iter := queryDocuments(ctx, query)
+		Where(SegmentTypeDocProperty, "==", WorkState).
+		Documents(ctx)
 	return getDocDataFromIterator[WorkSegmentDoc](iter)
 }
 

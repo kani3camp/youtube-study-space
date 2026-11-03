@@ -65,6 +65,7 @@ export type Loader = (
 	signal: AbortSignal,
 	forceToken: boolean,
 	forceAppCheck: boolean,
+	currentOnly?: boolean,
 ) => Promise<MyPage>
 
 function retain<T>(
@@ -171,6 +172,7 @@ export class MyPageMemory {
 	private routeActive = true
 	private online = true
 	private failures = 0
+	private pendingManual = false
 	private ignoreAuthUntilSignedOut = false
 	private lastManual = Number.NEGATIVE_INFINITY
 	private retryAt = 0
@@ -214,6 +216,7 @@ export class MyPageMemory {
 	}
 	private clear(phase: MemoryState['phase'], error: string | null = null) {
 		this.epoch++
+		this.pendingManual = false
 		this.stop()
 		this.publish({
 			phase,
@@ -307,7 +310,7 @@ export class MyPageMemory {
 				elapsed < VISIBLE_POLL_INTERVAL_MS
 			)
 				this.schedule(VISIBLE_POLL_INTERVAL_MS - elapsed)
-			else void this.refresh()
+			else void this.refresh(false, true)
 		}
 	}
 
@@ -353,23 +356,26 @@ export class MyPageMemory {
 		this.timer = setTimeout(
 			() => {
 				this.timer = null
-				void this.refresh()
+				void this.refresh(this.pendingManual, true)
 			},
 			Math.max(delay, this.retryAt - this.now()),
 		)
 	}
 
-	async refresh(manual = false) {
+	async refresh(manual = false, periodic = false) {
 		if (
 			!this.canFetch() ||
 			this.uid === null ||
-			this.state.busy ||
 			this.state.phase === 'restricted' ||
 			this.state.phase === 'maintenance'
 		)
 			return
 		// 明示的な手動再試行は通常の通信待機を省略できる。
 		// 表示・ルート・ネットワークのイベントでは、その絶対期限を維持する。
+		if (this.state.busy) {
+			if (manual) this.pendingManual = true
+			return
+		}
 		const remaining =
 			Math.max(this.retryAt, manual ? 0 : this.automaticRetryAt) - this.now()
 		if (remaining > 0) {
@@ -378,6 +384,8 @@ export class MyPageMemory {
 		}
 		if (manual && this.now() - this.lastManual < 2000) return
 		if (manual) this.lastManual = this.now()
+		this.pendingManual = false
+		const currentOnly = periodic && !manual && this.state.data !== null
 		if (this.timer !== null) clearTimeout(this.timer)
 		this.timer = null
 		const uid = this.uid
@@ -398,6 +406,7 @@ export class MyPageMemory {
 						controller.signal,
 						forceToken,
 						forceAppCheck,
+						currentOnly,
 					)
 					break
 				} catch (error) {
@@ -428,7 +437,24 @@ export class MyPageMemory {
 			this.automaticRetryAt = 0
 			this.publish({
 				...this.state,
-				data: mergeResponse(this.state.data, response),
+				data:
+					currentOnly && this.state.data
+						? {
+								...this.state.data,
+								current: retain(
+									this.state.data.current,
+									response.current,
+									response.generatedAt,
+								),
+								account: retain(
+									response.account.reasonCode === 'METADATA_TOO_OLD'
+										? undefined
+										: this.state.data.account,
+									response.account,
+									response.generatedAt,
+								),
+							}
+						: mergeResponse(this.state.data, response),
 				receivedAt: this.now(),
 			})
 		} catch (error) {
@@ -460,6 +486,33 @@ export class MyPageMemory {
 					this.publish({ ...this.state, error: code })
 				return
 			}
+			if (this.state.data) {
+				const data = this.state.data
+				const stale = <T>(value: Retained<T>) => ({
+					...value,
+					stale: value.data !== null,
+				})
+				this.publish({
+					...this.state,
+					data: {
+						...data,
+						current: stale(data.current),
+						...(currentOnly
+							? {}
+							: {
+									summary: {
+										today: stale(data.summary.today),
+										week: stale(data.summary.week),
+										lifetime: stale(data.summary.lifetime),
+									},
+									recent: data.recent.map((item) => ({
+										...item,
+										...stale(item),
+									})),
+								}),
+					},
+				})
+			}
 			this.failures++
 			delay = Math.min(300_000, 60_000 * 2 ** Math.min(this.failures - 1, 3))
 			if (
@@ -481,7 +534,8 @@ export class MyPageMemory {
 			if (epoch === this.epoch) {
 				this.controller = null
 				this.publish({ ...this.state, busy: false })
-				this.schedule(delay)
+				if (this.pendingManual) void this.refresh(true)
+				else this.schedule(delay)
 			}
 		}
 	}

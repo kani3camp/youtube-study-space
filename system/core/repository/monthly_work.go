@@ -1,20 +1,15 @@
 package repository
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"math"
 	"strings"
 	"time"
 
 	"cloud.google.com/go/firestore"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
-	"app.modules/core/serviceaccess"
 	"app.modules/core/timeutil"
 )
 
@@ -59,27 +54,6 @@ func workHash(value string) string {
 }
 
 func WorkMonthID(uid, month string) string { return workHash(uid + "\x00" + month) }
-
-func normalizeSegment(s WorkSegmentDoc) WorkSegmentDoc {
-	s.StartedAt = s.StartedAt.UTC().Truncate(time.Microsecond)
-	s.EndedAt = s.EndedAt.UTC().Truncate(time.Microsecond)
-	return s
-}
-
-// 1つの原イベントは、内容編集から独立した1つの不変IDを持つ。
-// 同じIDで異なる内容は二重加算せず、競合とする。
-func segmentIdentity(s WorkSegmentDoc) string {
-	return workHash(fmt.Sprintf("%s\x00%s\x00%d\x00%t\x00%s\x00%s\x00%s", s.UserID, s.SessionID, s.SeatID, s.IsMemberSeat, s.SegmentType, s.StartedAt.Format(time.RFC3339Nano), s.EndedAt.Format(time.RFC3339Nano)))
-}
-
-func segmentFingerprint(s WorkSegmentDoc) string {
-	return workHash(fmt.Sprintf("%s\x00%s\x00%d", segmentIdentity(s), s.WorkName, s.DurationSec))
-}
-
-func monthStart(t time.Time) time.Time {
-	jst := t.In(timeutil.JapanLocation())
-	return time.Date(jst.Year(), jst.Month(), 1, 0, 0, 0, 0, jst.Location())
-}
 
 func WorkSegmentMonths(s WorkSegmentDoc) ([]string, error) {
 	if s.UserID == "" || strings.Contains(s.UserID, "/") || s.StartedAt.IsZero() || s.EndedAt.IsZero() || s.EndedAt.Before(s.StartedAt) || s.EndedAt.Sub(s.StartedAt) > 366*24*time.Hour {
@@ -290,166 +264,7 @@ func DecodeWorkSegment(doc *firestore.DocumentSnapshot, uid string) (WorkSegment
 	return value, nil
 }
 
-type (
-	segmentPlanKey      struct{}
-	historyAdmissionKey struct{}
-)
-
-// WithWorkHistoryAdmissionは、1つの業務操作の全再試行を、対象ごとに最初に読んだ
-// プライバシーチェックポイントに結び付ける。削除後の再作成で、
-// 古い許可済み操作を新たな正当な書き込みに変えない。
-func WithWorkHistoryAdmission(ctx context.Context) context.Context {
-	return context.WithValue(ctx, historyAdmissionKey{}, map[string]string{})
-}
-
-func (c *FirestoreControllerImplements) PrepareWorkSegment(ctx context.Context, tx *firestore.Transaction, segment WorkSegmentDoc) (context.Context, error) {
-	return PrepareWorkSegmentWrites(ctx, tx, c.firestoreClient, segment)
-}
-
-type segmentWritePlan struct {
-	tx          *firestore.Transaction
-	client      DBClient
-	segment     WorkSegmentDoc
-	fingerprint string
-	ref         *firestore.DocumentRef
-	duplicate   bool
-	months      []WorkMonthDoc
-	user        *UserDoc
-}
-
-// PrepareWorkSegmentWritesは原記録・制御・集計の全読み取りを行う。
-// 注文・活動・座席を含む、すべてのトランザクション書き込みより前に実行する必要がある。
-// 確定計画はこの試行と、正規化した原記録の内容に結び付ける。
-func PrepareWorkSegmentWrites(ctx context.Context, tx *firestore.Transaction, client DBClient, segment WorkSegmentDoc) (context.Context, error) {
-	if tx == nil || client == nil {
-		return nil, ErrWorkHistoryConflict
-	}
-	segment = normalizeSegment(segment)
-	if plan, ok := ctx.Value(segmentPlanKey{}).(*segmentWritePlan); ok && plan.tx == tx && plan.client == client && plan.fingerprint == segmentFingerprint(segment) {
-		return ctx, nil
-	}
-	months, err := WorkSegmentMonths(segment)
-	if err != nil {
-		return nil, err
-	}
-	completionMonth := segment.EndedAt.In(timeutil.JapanLocation()).Format("2006-01")
-	if len(months) == 0 || months[len(months)-1] != completionMonth {
-		months = append(months, completionMonth)
-	}
-	doc, readErr := tx.Get(client.Collection(serviceaccess.Collection).Doc(segment.UserID))
-	control, err := serviceaccess.DecodeSnapshot(doc, readErr)
-	if err != nil {
-		return nil, fmt.Errorf("read history privacy fence: %w", err)
-	}
-	// Botのモデレーションは独立したままにする。
-	// この新しい書き込みを止めるのはプライバシー削除中だけで、制御変更時はトランザクションを再試行する。
-	if control.Control.PrivacyDeletion.Active {
-		return nil, serviceaccess.ErrDeletion
-	}
-	admission, ok := ctx.Value(historyAdmissionKey{}).(map[string]string)
-	if !ok {
-		return nil, ErrWorkHistoryConflict
-	}
-	if checkpoint, exists := admission[segment.UserID]; exists && checkpoint != control.Checkpoint() {
-		return nil, ErrWorkHistoryConflict
-	}
-	admission[segment.UserID] = control.Checkpoint()
-	plan := &segmentWritePlan{tx: tx, client: client, segment: segment, fingerprint: segmentFingerprint(segment), ref: client.Collection(WorkSegments).Doc(segmentIdentity(segment))}
-	doc, err = tx.Get(plan.ref)
-	if err == nil {
-		old, err := DecodeWorkSegment(doc, segment.UserID)
-		if err != nil || segmentFingerprint(normalizeSegment(old)) != plan.fingerprint {
-			return nil, ErrWorkHistoryConflict
-		}
-		plan.duplicate = true
-		return context.WithValue(ctx, segmentPlanKey{}, plan), nil
-	}
-	if status.Code(err) != codes.NotFound {
-		return nil, fmt.Errorf("read history idempotency: %w", err)
-	}
-	doc, err = tx.Get(client.Collection(USERS).Doc(segment.UserID))
-	if err == nil {
-		var user UserDoc
-		if doc.DataTo(&user) != nil {
-			return nil, ErrWorkHistoryConflict
-		}
-		if user.WorkHistoryEpoch != "" && !ValidWorkHistoryWatermark(user, doc.ReadTime) {
-			return nil, ErrWorkHistoryConflict
-		}
-		plan.user = &user
-	} else {
-		if status.Code(err) != codes.NotFound {
-			return nil, fmt.Errorf("read history user: %w", err)
-		}
-		return nil, fmt.Errorf("source close requires existing user: %w", ErrWorkHistoryConflict)
-	}
-	seats := SEATS
-	if segment.IsMemberSeat {
-		seats = MemberSeats
-	}
-	seatDoc, err := tx.Get(client.Collection(seats).Doc(fmt.Sprint(segment.SeatID)))
-	if err != nil {
-		if status.Code(err) != codes.NotFound {
-			return nil, fmt.Errorf("read history source seat: %w", err)
-		}
-		return nil, fmt.Errorf("source close requires existing seat: %w", ErrWorkHistoryConflict)
-	}
-	var seat SeatDoc
-	if seatDoc.DataTo(&seat) != nil || seat.UserID != segment.UserID || seat.SessionID != segment.SessionID || seat.State != segment.SegmentType || !seat.CurrentSegmentStartedAt.Equal(segment.StartedAt) {
-		return nil, ErrWorkHistoryConflict
-	}
-	for _, month := range months {
-		value := WorkMonthDoc{UserID: segment.UserID, Month: month, SchemaVersion: 1, Days: map[string]WorkMonthDay{}}
-		doc, err = tx.Get(client.Collection(WorkMonths).Doc(WorkMonthID(segment.UserID, month)))
-		if err == nil {
-			value, err = DecodeWorkMonth(doc, segment.UserID, month)
-			if err != nil {
-				return nil, ErrWorkHistoryConflict
-			}
-		} else if status.Code(err) != codes.NotFound {
-			return nil, fmt.Errorf("read history month: %w", err)
-		} else if plan.user != nil && plan.user.WorkHistoryEpoch == MonthlyWorkEpoch && !plan.user.WorkHistoryActivatedAt.IsZero() {
-			start, err := time.ParseInLocation("2006-01", month, timeutil.JapanLocation())
-			if err != nil {
-				return nil, fmt.Errorf("parse prepared month: %w", err)
-			}
-			if !start.Before(plan.user.WorkHistoryActivatedAt) && plan.user.WorkHistoryClosedThrough.Before(start) {
-				value.BaselineComplete = true
-				value.WriterEpoch = MonthlyWorkEpoch
-			}
-		}
-		if err := value.Append(segment); err != nil {
-			return nil, err
-		}
-		plan.months = append(plan.months, value)
-	}
-	return context.WithValue(ctx, segmentPlanKey{}, plan), nil
-}
-
-func (c *FirestoreControllerImplements) createWorkSegmentWithMonths(ctx context.Context, tx *firestore.Transaction, segment WorkSegmentDoc) error {
-	segment = normalizeSegment(segment)
-	if tx == nil {
-		return fmt.Errorf("source close requires an admitted seat transaction: %w", ErrWorkHistoryConflict)
-	}
-	plan, ok := ctx.Value(segmentPlanKey{}).(*segmentWritePlan)
-	if !ok || plan.tx != tx || plan.client != c.firestoreClient || plan.fingerprint != segmentFingerprint(segment) {
-		return fmt.Errorf("missing transaction-bound history preparation: %w", ErrWorkHistoryConflict)
-	}
-	if plan.duplicate {
-		return nil
-	}
-	if err := tx.Create(plan.ref, segment); err != nil {
-		return fmt.Errorf("create history source: %w", err)
-	}
-	for _, month := range plan.months {
-		if err := tx.Set(c.firestoreClient.Collection(WorkMonths).Doc(WorkMonthID(segment.UserID, month.Month)), month); err != nil {
-			return fmt.Errorf("write history month: %w", err)
-		}
-	}
-	if plan.user != nil && plan.user.WorkHistoryEpoch == MonthlyWorkEpoch && segment.EndedAt.After(plan.user.WorkHistoryClosedThrough) {
-		if err := tx.Update(c.usersCollection().Doc(segment.UserID), []firestore.Update{{Path: "work-history-closed-through", Value: segment.EndedAt}}); err != nil {
-			return fmt.Errorf("advance history source checkpoint: %w", err)
-		}
-	}
-	return nil
+func monthStart(t time.Time) time.Time {
+	jst := t.In(timeutil.JapanLocation())
+	return time.Date(jst.Year(), jst.Month(), 1, 0, 0, 0, 0, jst.Location())
 }

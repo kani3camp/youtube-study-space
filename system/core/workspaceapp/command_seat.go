@@ -143,19 +143,6 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			}
 		}
 
-		// 移動や名前変更では、原記録の区間を正確に1つ終了する。
-		// 任意の注文履歴を書き込む前に、月次状態とプライバシー保護状態を読む。
-		if isInRoom && (inOption.IsSeatIDSet || inOption.MinWorkOrderOption.IsWorkNameSet) {
-			segment, err := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
-			if err != nil {
-				return fmt.Errorf("generate interval before order or move: %w", err)
-			}
-			ctx, err = app.prepareClosedSegment(ctx, tx, segment)
-			if err != nil {
-				return err
-			}
-		}
-
 		// =========== 以降は書き込み処理のみ ===========
 
 		// メニュー注文されている場合は、メニューコードをセット
@@ -225,10 +212,6 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				workSegment, err := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
 				if err != nil {
 					return fmt.Errorf("in GenerateWorkSegment: %w", err)
-				}
-				ctx, err = app.prepareClosedSegment(ctx, tx, workSegment)
-				if err != nil {
-					return err
 				}
 				if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
 					return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
@@ -468,10 +451,6 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 			workSegment, err := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
 			if err != nil {
 				return fmt.Errorf("in GenerateWorkSegment: %w", err)
-			}
-			ctx, err = app.prepareClosedSegment(ctx, tx, workSegment)
-			if err != nil {
-				return err
 			}
 			if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
 				return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
@@ -722,10 +701,6 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.BreakOpti
 			if err != nil {
 				return fmt.Errorf("in GenerateWorkSegment: %w", err)
 			}
-			ctx, err = app.prepareClosedSegment(ctx, tx, workSegment)
-			if err != nil {
-				return err
-			}
 			if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
 				return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
 			}
@@ -805,10 +780,6 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 				return fmt.Errorf("in GenerateWorkSegment: %w", err)
 			}
 
-			ctx, err = app.prepareClosedSegment(ctx, tx, breakSegment)
-			if err != nil {
-				return err
-			}
 			if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, breakSegment); err != nil {
 				return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
 			}
@@ -981,10 +952,6 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 			workSegment, err := seat.GenerateWorkSegment(jstNow, isInMemberRoom)
 			if err != nil {
 				return fmt.Errorf("in GenerateWorkSegment: %w", err)
-			}
-			ctx, err = app.prepareClosedSegment(ctx, tx, workSegment)
-			if err != nil {
-				return err
 			}
 			if err := app.Repository.CreateWorkSegmentDoc(ctx, tx, workSegment); err != nil {
 				return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
