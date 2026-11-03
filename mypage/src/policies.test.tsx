@@ -123,38 +123,76 @@ describe('public policy draft rendering', () => {
 		)
 		expect(terms).toContain('[要確定：第一審の専属的合意管轄裁判所]')
 		expect(terms).toContain('故意または重過失')
-		expect(terms).toContain('消費者契約法その他の強行法規')
+		expect(terms).toContain('当事者間の合意に優先して適用される法令')
+		expect(terms).toContain('その規定が本規約に優先します。')
 		expect(terms).toContain('href="/privacy"')
 		expect(terms).not.toContain('app.notion.com')
 	})
 	it('preserves receipt-based deletion, purpose-bound proof and metadata retention distinctions', () => {
 		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
+		expect(html).toContain('可能な限り速やかに、遅くとも受付から7暦日以内')
 		expect(html).toContain(
-			'削除意思を受け付けた時点から可能な限り速やかに、遅くとも7暦日以内',
+			'期限は受付時点を基準とし、本人確認が終わるまで一律に延長することはありません。',
 		)
 		expect(html).toContain(
-			'本人確認の完了時点へ期限の起算を無条件に繰り下げません。',
+			'通常のログインを別の依頼の本人確認に流用することはありません。',
 		)
-		expect(html).toContain('通常のログイン成功を別の依頼へ流用しません。')
 		expect(html).toContain(
-			'本人確認の完了だけで削除や全ログインの解除を実行するものではありません。',
+			'本人確認の画面で削除やすべてのログイン状態の解除が実行されることはありません。',
 		)
 		expect(html).toContain('30暦日以内に更新または削除する方針')
-		expect(html).toContain('未利用のチャンネルも期限内の削除対象')
-		expect(html).toContain('既存のFirebase sessionが直ちに終了しない場合')
-		expect(html).toContain('本サービスに保存された作業履歴等の削除とは別の操作')
+		expect(html).toContain(
+			'利用のないチャンネルについても、期限内の削除の対象とします。',
+		)
+		expect(html).toContain('マイページでのログイン状態がすぐには終了しない場合')
+		expect(html).toContain(
+			'保存データ全体の削除をご希望の場合は、第12章の方法でご依頼ください。',
+		)
+	})
+	it('links both policies to public contact after a Google disconnect', () => {
+		for (const Policy of [PrivacyPolicy, TermsOfUse]) {
+			const html = markup(<Policy publicPolicyInputs={{}} />)
+			expect(html).toContain(
+				'本サービスとの連携を解除した場合は、速やかに<a href="/contact">お問い合わせ窓口</a>までご連絡ください。',
+			)
+		}
+		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
+		expect(html).toContain('チャンネルIDと作業履歴は保持します。')
+	})
+	it.each([
+		[
+			'test-youtube-study-space',
+			'1FAIpQLScKyaOQSxKIxs1znN72MlrDwHmJoQ94MnEuUK9UKD_fgqHEzg',
+		],
+		[
+			'youtube-study-space',
+			'1FAIpQLSfTvdRD8r3QPOBMNjNwixzaITe5ca-BPst--ZOoK1aFZXAy2Q',
+		],
+	])('selects the public request form for %s without login', (project, form) => {
+		vi.stubEnv('VITE_FIREBASE_PROJECT_ID', project)
+		vi.stubEnv(
+			'VITE_PUBLIC_PRIVACY_CONTACT_URL',
+			'https://contact.example.invalid/other',
+		)
+		const html = markup(<PublicPolicyContact />)
+		expect(html).toContain(
+			`href="https://docs.google.com/forms/d/e/${form}/viewform"`,
+		)
+		expect(html).not.toContain('contact.example.invalid/other')
 	})
 	it('keeps explicit Analytics opt-in separate from necessary Firebase communication', () => {
 		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
-		expect(html).toContain('本サービスのAnalyticsはdefaultでOFF')
-		expect(html).toContain('利用者が明示的に「Analyticsを許可」した場合に限り')
+		expect(html).toContain('アクセス解析は初期設定で無効です。')
+		expect(html).toContain('「アクセス解析を許可」を選んだ場合に限り')
 		expect(html).toContain(
-			'許可前に発生したイベントを、後から遡ってGA4へ送信しません。',
+			'許可前の閲覧や操作の情報を、許可後にさかのぼって送信することはありません。',
 		)
 		expect(html).toContain(
-			'AnalyticsをOFFにしてもサービス利用に必要な通信は行われます。',
+			'サービスに必要な通信は、任意のアクセス解析を許可しない場合も行われます。',
 		)
-		expect(html).toContain('Google Signals、User-IDは使いません。')
+		expect(html).toContain(
+			'Google シグナル、利用者を識別するGA4のUser-IDは利用しません。',
+		)
 	})
 	it('shows separately supplied destinations and effective dates while remaining draft', () => {
 		const privacy = markup(<PrivacyPolicy publicPolicyInputs={publicValues} />)
@@ -240,10 +278,10 @@ describe('public policy draft rendering', () => {
 		expect(html).toContain('href="https://contact.example.invalid/general"')
 		expect(html).toContain('href="mailto:privacy@example.invalid"')
 		expect(html).toContain(
-			'依頼受付後、同じチャンネルを新しいYouTubeの許可で確認します。',
+			'依頼受付後、本人確認が必要な場合は方法をご案内します。',
 		)
 		expect(html).toContain('通常のログインだけで依頼を実行しません。')
-		expect(html).toContain('ログインや本人確認を利用できない場合も')
+		expect(html).toContain('Google連携を解除済みでログインできない場合も')
 		expect(html).not.toContain('supportChallenge')
 		expect(request).not.toHaveBeenCalled()
 	})

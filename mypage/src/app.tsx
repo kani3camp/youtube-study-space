@@ -990,7 +990,11 @@ export function createApp(
 					<details>
 						<summary>Google側のアクセス許可</summary>
 						<p>
-							Googleの許可を取り消しても、このサービスのログインは自動で終了しません。次回ログイン時に再度チャンネルを確認します。
+							Googleの許可を取り消しても、マイページのログイン状態がすぐには終了しない場合があります。
+						</p>
+						<p>
+							Googleアカウントの設定で本サービスとの連携を解除した場合は、速やかに
+							<Link to="/contact">お問い合わせ窓口</Link>までご連絡ください。
 						</p>
 						<ExternalLink href="https://myaccount.google.com/connections">
 							Googleアカウントの接続設定
@@ -1042,11 +1046,11 @@ export function createApp(
 						</section>
 					)}
 					<p>
-						保存データの削除、開示、全ログインの解除は、返信可能な窓口と本人確認を通じて受け付けます。
+						Google連携解除後のご連絡、保存データの削除、開示、全ログインの解除は、返信可能な窓口で受け付けます。
 					</p>
 					<PublicPolicyContact />
 					<p>
-						依頼受付後、同じチャンネルを新しいYouTubeの許可で確認します。通常のログインだけで依頼を実行しません。ログインや本人確認を利用できない場合も、窓口へお問い合わせください。
+						依頼受付後、本人確認が必要な場合は方法をご案内します。通常のログインだけで依頼を実行しません。Google連携を解除済みでログインできない場合も、窓口へお問い合わせください。
 					</p>
 					<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
 				</section>
