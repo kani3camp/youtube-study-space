@@ -39,6 +39,14 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             result.outputs = output.read_text() if output.exists() else ''
             return result
 
+    def test_only_caller_exposes_plan_and_apply(self):
+        # Migration and live E2E were retired (#1521); the Terraform caller exposes only plan/apply.
+        self.assertIn('mode: normal-plan', self.caller)
+        self.assertIn('mode: normal-apply', self.caller)
+        for retired in ('migration-plan', 'migration-apply', 'normal-e2e', 'terraform_mode:'):
+            self.assertNotIn(retired, self.caller)
+            self.assertNotIn(retired + ')', self.text)
+
 
     def test_dev_preflight_checks_owner_while_environment_selects_trusted_branches(self):
         ref = 'refs/heads/feature/no-environment-registration'
@@ -53,6 +61,31 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     result = self.run_preflight(MODE=mode, **(context | {key: value}))
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(result.outputs, '')
+
+    def test_owner_pr_plans_dev_only_without_selecting_a_source(self):
+        ref = 'refs/pull/42/merge'
+        context = {'MODE': 'pr-plan', 'GITHUB_EVENT_NAME': 'pull_request', 'GITHUB_REF': ref,
+                   'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + ref,
+                   'NORMAL_EXPECTED_SHA': 'a' * 40, 'NORMAL_PR_NUMBER': '42',
+                   'NORMAL_PR_HEAD_REPOSITORY': 'kani3camp/youtube-study-space'}
+        result = self.run_preflight(**context)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        # The PR plans its own merge commit: no source is published to later jobs.
+        self.assertEqual(result.outputs, '')
+        for change in ({'TARGET': 'prod'}, {'GITHUB_EVENT_NAME': 'workflow_dispatch'},
+                       {'GITHUB_EVENT_NAME': 'pull_request_target'}, {'MODE': 'normal-plan'},
+                       {'MODE': 'normal-apply'}, {'GITHUB_REF': 'refs/heads/dev'},
+                       {'GITHUB_REF': 'refs/pull/42/head'}, {'NORMAL_PR_NUMBER': '43'},
+                       {'NORMAL_PR_HEAD_REPOSITORY': 'fork/youtube-study-space'},
+                       {'GITHUB_ACTOR_ID': '0'}, {'GITHUB_RUN_ATTEMPT': '2'},
+                       {'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref},
+                       {'NORMAL_SOURCE_BRANCH': 'dev'}):
+            with self.subTest(change=change):
+                result = self.run_preflight(**(context | change))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.outputs, '')
+        block = self.text.split('\n  normal_plan:', 1)[1].split('\n  normal_apply:', 1)[0]
+        self.assertIn("if: ${{ inputs.target == 'dev' && inputs.mode != 'pr-plan' }}", block)
 
     def test_production_normal_requires_main_and_disallows_cloud_e2e(self):
         ref = 'refs/heads/main'
@@ -69,20 +102,23 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/terraform.yml@refs/heads/dev',
             NORMAL_EXPECTED_SHA='a' * 40).returncode, 0)
 
-    def test_only_terraform_yml_on_the_same_ref_can_call_authenticated_terraform(self):
+    def test_control_branch_uses_only_the_terraform_caller_and_paths_stay_fixed(self):
+        # The use-case redesign (#1500) made terraform.yml the only caller for DEV and PROD;
+        # the CI workflow no longer dispatches Terraform.
         for branch in ('dev', 'integration/mypage-canon-20261006', 'feature/trusted-controller'):
             ref = 'refs/heads/' + branch
-            values = {'MODE': 'normal-plan', 'NORMAL_EXPECTED_SHA': 'a' * 40,
-                      'GITHUB_REF': ref,
+            values = {'MODE': 'normal-plan', 'NORMAL_EXPECTED_SHA': 'a' * 40, 'GITHUB_REF': ref,
                       'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + ref}
             result = self.run_preflight(**values)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             for workflow in ('attacker.yml@' + ref, 'ci.yml@' + ref, 'terraform.yml@refs/heads/other'):
                 bad = values | {'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/' + workflow}
                 self.assertNotEqual(self.run_preflight(**bad).returncode, 0)
-        for caller in ('ci.yml', 'terraform.yml'):
-            self.assertNotEqual(self.run_preflight(TARGET='prod', MODE='normal-plan', NORMAL_EXPECTED_SHA='a' * 40,
-                                GITHUB_REF='refs/heads/feature/x', GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/' + caller + '@refs/heads/feature/x').returncode, 0)
+        main = 'kani3camp/youtube-study-space/.github/workflows/{}@refs/heads/main'
+        self.assertEqual(self.run_preflight(TARGET='prod', MODE='normal-plan', NORMAL_EXPECTED_SHA='a' * 40,
+                         GITHUB_REF='refs/heads/main', GITHUB_WORKFLOW_REF=main.format('terraform.yml')).returncode, 0)
+        self.assertNotEqual(self.run_preflight(TARGET='prod', MODE='normal-plan', NORMAL_EXPECTED_SHA='a' * 40,
+                            GITHUB_REF='refs/heads/main', GITHUB_WORKFLOW_REF=main.format('ci.yml')).returncode, 0)
 
     def test_normal_oidc_targets_correct_gcp_project(self):
         for role in ('normal_plan', 'normal_apply'):
@@ -109,7 +145,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(result.outputs, '')
         inputs = self.text.split('    # Explicit names', 1)[0]
-        self.assertEqual(re.findall(r'^      ([a-z_]+):', inputs, re.M), ['target', 'mode', 'expected_sha', 'source_branch'])
+        self.assertEqual(re.findall(r'^      ([a-z_]+):', inputs, re.M),
+                         ['target', 'mode', 'expected_sha', 'source_branch', 'pr_number', 'head_repository'])
         caller_inputs = self.caller.split('\npermissions:', 1)[0]
         self.assertNotRegex(caller_inputs, r'terraform_(history|current_state|ownership|plan_cost)')
 
@@ -170,6 +207,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertLess(block.index('ref: ${{ github.sha }}'), block.index('path: .terraform-source'))
             self.assertNotRegex(block, r'run:.*\.terraform-source')
             self.assertNotIn('working-directory: .terraform-source', block)
+        # terraform.yml pins one validated commit for Core and never lets the
+        # reusable resolve a branch HEAD again.
         self.assertIn('NORMAL_SOURCE_BRANCH: ${{ inputs.source_branch }}', self.caller)
         self.assertEqual(self.caller.count('expected_sha: ${{ needs.select.outputs.validation_sha }}'), 2)
         self.assertEqual(self.caller.count("source_branch: ''"), 2)
@@ -194,12 +233,8 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
             self.assertRegex(action, r'@[0-9a-f]{40}$')
         self.assertNotIn('workflow_dispatch:', self.text)
         self.assertIn('cancel-in-progress: false', self.text)
-        self.assertNotIn('pull_request', self.caller)
-        self.assertIn('cancel-in-progress: false', self.caller)
-        ci = (ROOT / '.github/workflows/ci.yml').read_text()
-        # The credentialless CI never reaches authenticated Terraform.
-        for forbidden in ('gcp-terraform-authenticated.yml', 'id-token: write', 'secrets.'):
-            self.assertNotIn(forbidden, ci)
+        self.assertIn("          - plan\n          - apply\n", self.caller)
+        self.assertNotIn("terraform_authenticated:", self.caller)
 
 
 if __name__ == '__main__':

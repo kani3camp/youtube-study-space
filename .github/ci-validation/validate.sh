@@ -34,6 +34,14 @@ case "$1" in
       TF_DATA_DIR="/work/terraform-data-$env" terraform -chdir="/source/infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly
       TF_DATA_DIR="/work/terraform-data-$env" terraform -chdir="/source/infra/gcp/environments/$env" validate
     done
+    # The same fixed fmt/init/validate for the MyPage platform and OAuth TTL roots
+    for layer in mypage-platform mypage-oauth-ttl; do
+      terraform -chdir=/source fmt -check -recursive "infra/$layer"
+      for env in dev prod; do
+        TF_DATA_DIR="/work/terraform-data-$layer-$env" terraform -chdir="/source/infra/$layer/environments/$env" init -backend=false -input=false -lockfile=readonly
+        TF_DATA_DIR="/work/terraform-data-$layer-$env" terraform -chdir="/source/infra/$layer/environments/$env" validate
+      done
+    done
     ;;
   terraform-tests)
     # The native suites use the provider mirror of an initialized DEV/PROD root.
@@ -51,6 +59,10 @@ case "$1" in
     python3 .github/scripts/test_terraform_plan_diagnostic.py
     python3 .github/scripts/test_terraform_baseline_drift_diagnostic.py
     python3 infra/gcp/tests/test_runtime_plan_contract.py
+    python3 infra/gcp/tests/test_runtime_ownership.py
+    python3 infra/gcp/tests/test_production_readiness.py
+    python3 infra/gcp/tests/test_production_backend_packet.py
+    python3 infra/gcp/tests/test_production_execution_contract.py
     python3 -B infra/gcp/tests/test_terraform_normal_ops.py
     python3 -B infra/gcp/tests/test_terraform_source.py
     python3 -B infra/gcp/tests/test_enable_normal_integration.py
@@ -71,6 +83,10 @@ case "$1" in
     python3 -B .github/scripts/run_terraform_native_tests.py --workers 2
     # Test Terraform create/update/delete/replace
     python3 -B infra/gcp/tests/test_terraform_normal_ops_native.py
+    # Validate MyPage platform desired state
+    bash infra/mypage-platform/scripts/check-local.sh
+    # Validate MyPage OAuth TTL Terraform
+    bash infra/mypage-oauth-ttl/scripts/check-local.sh
     ;;
   base-image)
     # Run tests
@@ -90,7 +106,7 @@ case "$1" in
     # Test CI selection, required checks and authentication boundary
     python -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v
     # Lint CI and operational workflow calls
-    /opt/ci-tools/actionlint -shellcheck= -pyflakes= .github/workflows/ci.yml .github/workflows/ci-*.yml .github/workflows/gcp-terraform-authenticated.yml .github/workflows/terraform.yml
+    /opt/ci-tools/actionlint -shellcheck= -pyflakes= .github/workflows/ci.yml .github/workflows/ci-*.yml .github/workflows/gcp-*.yml .github/workflows/terraform*.yml .github/workflows/mypage-*.yml .github/workflows/deploy-mypage-*.yml
     ;;
   *) echo "Unknown validation kind" >&2; exit 2 ;;
 esac

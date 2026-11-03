@@ -1,0 +1,833 @@
+openapi: 3.1.0
+info:
+  title: MyPage internal API
+  version: 0.4.0
+servers:
+- url: /
+paths:
+  /api/public/mypage-status:
+    get:
+      operationId: getPublicMyPageStatus
+      description: 同一オリジンの公開メンテナンス状態。Firebase AuthやApp Checkは不要。制御状態の欠落・形式不正・読み取り不能では503を返し、NORMALと推測しない。応答に運用担当者情報・理由区分・リビジョン・プロジェクト・監査フィールドは含めない。
+      security: []
+      responses:
+        '200':
+          description: 検証済みの公開メンテナンス状態
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceStatus'
+        '429':
+          description: 公開状態照会のレート制限超過
+          headers:
+            Retry-After:
+              description: 呼び出し元が再試行できるまでの秒数
+              schema:
+                type: string
+                pattern: '^[0-9]+$'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: 管理元の状態が不明
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/auth/youtube/start:
+    post:
+      operationId: startYouTubeLogin
+      security:
+      - AppCheck: []
+      responses:
+        '400': &id001
+          description: 公開してよい内容だけを含むエラーレスポンス
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401': &id002
+          description: 公開してよい内容だけを含むエラーレスポンス
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403': &id003
+          description: 公開してよい内容だけを含むエラーレスポンス
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404': &id004
+          description: 公開してよい内容だけを含むエラーレスポンス
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '405': &id005
+          description: 公開してよい内容だけを含むエラーレスポンス
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409': &id006
+          description: 公開してよい内容だけを含むエラーレスポンス
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '410': &id007
+          description: 公開してよい内容だけを含むエラーレスポンス
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413': &id008
+          description: 公開してよい内容だけを含むエラーレスポンス
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429': &id009
+          description: 公開してよい内容だけを含むエラーレスポンス
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500': &id010
+          description: 公開してよい内容だけを含むエラーレスポンス
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503': &id011
+          description: 公開してよい内容だけを含むエラーレスポンス
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '200':
+          description: 成功
+          headers:
+            Cache-Control:
+              schema:
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartRequest'
+      description: 任意のsupportChallengeからサーバー管理の申請を特定する。ブラウザは対象や目的を選べない。新しいOAuthトランザクションは10分で失効する。
+  /api/auth/youtube/callback:
+    get:
+      operationId: completeYouTubeOAuth
+      security: []
+      responses:
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '405': *id005
+        '409': *id006
+        '410': *id007
+        '413': *id008
+        '429': *id009
+        '500': *id010
+        '503': *id011
+        '302':
+          description: 許可済みの固定フロントエンドへのリダイレクト
+      parameters:
+      - in: query
+        name: code
+        schema:
+          type: string
+        description: 重複は認めない。codeとerrorは同時に指定できない。
+      - in: query
+        name: state
+        schema:
+          type: string
+        description: 重複は認めない。codeとerrorは同時に指定できない。
+      - in: query
+        name: error
+        schema:
+          type: string
+        description: 重複は認めない。codeとerrorは同時に指定できない。
+      description: 保留中トランザクションの処理権をアトミックに確保し、その後Firestoreコールバックの外で一度だけ認可コードを交換する。上限付きでプロバイダーの追加項目を受け入れる。リダイレクトに認証情報やチャンネルIDを含めない。
+  /api/auth/youtube/channel:
+    get:
+      operationId: getVerifiedChannel
+      security:
+      - AppCheck: []
+        OAuthTransaction: []
+      responses:
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '405': *id005
+        '409': *id006
+        '410': *id007
+        '413': *id008
+        '429': *id009
+        '500': *id010
+        '503': *id011
+        '200':
+          description: 成功
+          headers:
+            Cache-Control:
+              schema:
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelResponse'
+      description: 目的と公開チャンネルメタデータをconfirmationRefに結び付ける。サポートの目的はサーバーレコードだけから取得し、内部の対象チャンネルIDは公開しない。
+  /api/auth/youtube/confirm:
+    post:
+      operationId: confirmChannel
+      security:
+      - AppCheck: []
+        OAuthTransaction: []
+      responses:
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '405': *id005
+        '409': *id006
+        '410': *id007
+        '413': *id008
+        '429': *id009
+        '500': *id010
+        '503': *id011
+        '200':
+          description: 成功
+          headers:
+            Cache-Control:
+              schema:
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmRequest'
+      description: トランザクションをアトミックに消費する。ログインではトランザクション外で一度だけ発行する。サポートでは新たに確認したチャンネルとサーバー側の目的を一度検証し、推測不能なrequestRefを返す。Firebaseトークン発行やWebAccount変更は行わない。
+  /api/auth/session/complete:
+    post:
+      operationId: completeFirebaseSession
+      security:
+      - FirebaseAuth: []
+        AppCheck: []
+      responses:
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '405': *id005
+        '409': *id006
+        '410': *id007
+        '413': *id008
+        '429': *id009
+        '500': *id010
+        '503': *id011
+        '204':
+          description: 冪等なセッション完了
+      description: POST本文は最大4096バイトの厳格なJSONとし、未定義のクエリパラメーターを認めない。本人識別には検証済みcustom-provider uidだけを使う。アカウントやキャッシュの読み取り前に最新のServiceAccessControlを確認する。有効な制限理由には固定403コード、読み取り・デコード失敗には503を返す。
+  /api/mypage:
+    get:
+      operationId: getMyPage
+      security:
+      - FirebaseAuth: []
+        AppCheck: []
+      responses:
+        '400': *id001
+        '401': *id002
+        '403': *id003
+        '404': *id004
+        '405': *id005
+        '409': *id006
+        '410': *id007
+        '413': *id008
+        '429': *id009
+        '500': *id010
+        '503': *id011
+        '200':
+          description: 成功
+          headers:
+            Cache-Control:
+              schema:
+                const: private, no-store
+            X-Request-Id:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyPage'
+      description: POST本文は最大4096バイトの厳格なJSONとし、未定義のクエリパラメーターを認めない。本人識別には検証済みcustom-provider uidだけを使う。アカウントやキャッシュの読み取り前に最新のServiceAccessControlを確認する。有効な制限理由には固定403コード、読み取り・デコード失敗には503を返す。
+components:
+  securitySchemes:
+    FirebaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Firebase ID token
+    AppCheck:
+      type: apiKey
+      in: header
+      name: X-Firebase-AppCheck
+    OAuthTransaction:
+      type: apiKey
+      in: cookie
+      name: __session
+      description: 推測不能なID。HttpOnly・Secure・SameSite=Lax・Path=/・Max-Age=600を指定し、Domainは指定しない。
+  schemas:
+    MaintenanceStatus:
+      type: object
+      additionalProperties: false
+      required: [maintenanceEnabled]
+      properties:
+        maintenanceEnabled:
+          type: boolean
+    ReasonCode:
+      type:
+      - string
+      - 'null'
+      enum:
+      - null
+      - SOURCE_UNAVAILABLE
+      - HISTORY_INCOMPLETE
+      - HISTORY_LIMIT_EXCEEDED
+      - METADATA_REFRESH_FAILED
+      - METADATA_TOO_OLD
+      - DATA_INCONSISTENT
+    Metric:
+      type: object
+      additionalProperties: false
+      properties:
+        availability: &id012
+          type: string
+          enum:
+          - available
+          - unavailable
+        recordedWorkSec: &recordedWorkSec
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          description: 検証済みで記録されている正の作業時間。完全な合計ではない。
+        workSec: &id013
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+        reasonCode: &id014
+          $ref: '#/components/schemas/ReasonCode'
+      required:
+      - availability
+      - workSec
+      - reasonCode
+      allOf: &id015
+      - if:
+          properties:
+            availability:
+              const: available
+        then:
+          properties:
+            workSec:
+              type: integer
+            reasonCode:
+              type: 'null'
+        else:
+          properties:
+            workSec:
+              type: 'null'
+            reasonCode:
+              type: string
+      - if:
+          required: [recordedWorkSec]
+        then:
+          properties:
+            availability:
+              const: unavailable
+            reasonCode:
+              const: HISTORY_INCOMPLETE
+    Current:
+      type: object
+      additionalProperties: false
+      properties:
+        state:
+          type: string
+          enum:
+          - work
+          - break
+          - not_seated
+          - unregistered
+        workName:
+          type:
+          - string
+          - 'null'
+        roomType:
+          type:
+          - string
+          - 'null'
+          enum:
+          - standard
+          - member
+          - null
+        seatNumber:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+        stateStartedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          pattern: Z$
+        expectedEndAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          pattern: Z$
+      required:
+      - state
+      - workName
+      - roomType
+      - seatNumber
+      - stateStartedAt
+      - expectedEndAt
+    Summary:
+      type: object
+      additionalProperties: false
+      properties:
+        today:
+          $ref: '#/components/schemas/Metric'
+        week:
+          $ref: '#/components/schemas/Metric'
+        lifetime:
+          $ref: '#/components/schemas/Metric'
+      required:
+      - today
+      - week
+      - lifetime
+    Day:
+      type: object
+      additionalProperties: false
+      properties:
+        date:
+          type: string
+          format: date
+        availability: *id012
+        workSec: *id013
+        recordedWorkSec: *recordedWorkSec
+        reasonCode: *id014
+      required:
+      - date
+      - availability
+      - workSec
+      - reasonCode
+      allOf: *id015
+    Account:
+      type: object
+      additionalProperties: false
+      properties:
+        displayName: &id016
+          type: string
+          minLength: 1
+        handle: &id017
+          type:
+          - string
+          - 'null'
+        avatarUrl: &id018
+          type:
+          - string
+          - 'null'
+          format: uri
+      required:
+      - displayName
+      - handle
+      - avatarUrl
+    CurrentSection:
+      type: object
+      additionalProperties: false
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+        reasonCode:
+          $ref: '#/components/schemas/ReasonCode'
+        data:
+          oneOf:
+          - $ref: '#/components/schemas/Current'
+          - type: 'null'
+      required:
+      - availability
+      - reasonCode
+      - data
+      allOf:
+      - if:
+          properties:
+            availability:
+              const: unavailable
+        then:
+          properties:
+            data:
+              type: 'null'
+            reasonCode:
+              type: string
+        else:
+          properties:
+            data:
+              $ref: '#/components/schemas/Current'
+      - if:
+          properties:
+            availability:
+              const: available
+        then:
+          properties:
+            reasonCode:
+              type: 'null'
+        else:
+          properties:
+            reasonCode:
+              type: string
+    SummarySection:
+      type: object
+      additionalProperties: false
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - partial
+          - unavailable
+        reasonCode:
+          $ref: '#/components/schemas/ReasonCode'
+        data:
+          oneOf:
+          - $ref: '#/components/schemas/Summary'
+          - type: 'null'
+      required:
+      - availability
+      - reasonCode
+      - data
+      allOf:
+      - if:
+          properties:
+            availability:
+              const: unavailable
+        then:
+          properties:
+            data:
+              type: 'null'
+            reasonCode:
+              type: string
+        else:
+          properties:
+            data:
+              $ref: '#/components/schemas/Summary'
+      - if:
+          properties:
+            availability:
+              const: available
+        then:
+          properties:
+            reasonCode:
+              type: 'null'
+        else:
+          properties:
+            reasonCode:
+              type: string
+    AccountSection:
+      type: object
+      additionalProperties: false
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - partial
+          - unavailable
+        reasonCode:
+          $ref: '#/components/schemas/ReasonCode'
+        data:
+          oneOf:
+          - $ref: '#/components/schemas/Account'
+          - type: 'null'
+      required:
+      - availability
+      - reasonCode
+      - data
+      allOf:
+      - if:
+          properties:
+            availability:
+              const: unavailable
+        then:
+          properties:
+            data:
+              type: 'null'
+            reasonCode:
+              type: string
+        else:
+          properties:
+            data:
+              $ref: '#/components/schemas/Account'
+      - if:
+          properties:
+            availability:
+              const: available
+        then:
+          properties:
+            reasonCode:
+              type: 'null'
+        else:
+          properties:
+            reasonCode:
+              type: string
+    RecentSection:
+      type: object
+      additionalProperties: false
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - partial
+          - unavailable
+        reasonCode:
+          $ref: '#/components/schemas/ReasonCode'
+        data:
+          type: array
+          minItems: 7
+          maxItems: 7
+          items:
+            $ref: '#/components/schemas/Day'
+      required:
+      - availability
+      - reasonCode
+      - data
+    MyPage:
+      type: object
+      additionalProperties: false
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+          pattern: Z$
+        timezone:
+          const: Asia/Tokyo
+        partial:
+          type: boolean
+        current:
+          $ref: '#/components/schemas/CurrentSection'
+        summary:
+          $ref: '#/components/schemas/SummarySection'
+        recent7Days:
+          $ref: '#/components/schemas/RecentSection'
+        account:
+          $ref: '#/components/schemas/AccountSection'
+      required:
+      - generatedAt
+      - timezone
+      - partial
+      - current
+      - summary
+      - recent7Days
+      - account
+    StartRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        privacyPolicyVersion:
+          type: string
+          minLength: 1
+        privacyAccepted:
+          const: true
+        termsVersion:
+          type: string
+          minLength: 1
+        termsAccepted:
+          const: true
+        supportChallenge:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+      required:
+      - privacyPolicyVersion
+      - privacyAccepted
+      - termsVersion
+      - termsAccepted
+    StartResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        authorizationUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+          pattern: Z$
+      required:
+      - authorizationUrl
+      - expiresAt
+    ChannelResponse:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        properties:
+          displayName: *id016
+          handle: *id017
+          avatarUrl: *id018
+          confirmationRef: &id019
+            type: string
+            minLength: 1
+          purpose:
+            const: login
+        required:
+        - displayName
+        - handle
+        - avatarUrl
+        - confirmationRef
+        - purpose
+      - type: object
+        additionalProperties: false
+        properties:
+          displayName: *id016
+          handle: *id017
+          avatarUrl: *id018
+          confirmationRef: *id019
+          purpose:
+            const: support
+          supportPurpose:
+            type: string
+            enum:
+            - delete
+            - revoke
+            - disclosure
+        required:
+        - displayName
+        - handle
+        - avatarUrl
+        - confirmationRef
+        - purpose
+        - supportPurpose
+      discriminator:
+        propertyName: purpose
+    ConfirmRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        confirmationRef:
+          type: string
+          minLength: 1
+      required:
+      - confirmationRef
+    ConfirmResponse:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        required:
+        - purpose
+        - customToken
+        properties:
+          purpose:
+            const: login
+          customToken:
+            type: string
+            minLength: 1
+      - type: object
+        additionalProperties: false
+        required:
+        - purpose
+        - requestRef
+        properties:
+          purpose:
+            const: support
+          requestRef:
+            type: string
+            pattern: ^[a-f0-9]{64}$
+            description: 既存の一度限りのサポート本人確認参照。状態照会の申請識別子ではない。
+          supportRequestRef:
+            type: string
+            pattern: ^[a-f0-9]{64}$
+            description: 認証付き状態照会用にサーバーで結び付けたSupportRequestレコード参照。導入時に追加する項目であり、本人確認参照とは引き続き分ける。
+      discriminator:
+        propertyName: purpose
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+              enum:
+              - INVALID_REQUEST
+              - PAYLOAD_TOO_LARGE
+              - PRIVACY_CONSENT_REQUIRED
+              - POLICY_VERSION_OUTDATED
+              - AUTH_REQUIRED
+              - APP_CHECK_REQUIRED
+              - OAUTH_TRANSACTION_REQUIRED
+              - OAUTH_TRANSACTION_PENDING
+              - OAUTH_TRANSACTION_EXPIRED
+              - OAUTH_TRANSACTION_CONSUMED
+              - OAUTH_TRANSACTION_CHANGED
+              - PRIVACY_RECONSENT_REQUIRED
+              - SERVICE_ACCESS_RESTRICTED
+              - DATA_DELETION_IN_PROGRESS
+              - SUPPORT_CHALLENGE_INVALID
+              - SUPPORT_CHANNEL_MISMATCH
+              - INTAKE_KEY_CONFLICT
+              - OAUTH_FAILED
+              - OAUTH_SCOPE_INSUFFICIENT
+              - CHANNEL_UNAVAILABLE
+              - CHANNEL_AMBIGUOUS
+              - WEB_ACCOUNT_REQUIRED
+              - RATE_LIMITED
+              - MAINTENANCE_ACTIVE
+              - FEATURE_UNAVAILABLE
+              - HISTORY_LIMIT_EXCEEDED
+              - TEMPORARY_UNAVAILABLE
+              - INTERNAL_ERROR
+            message:
+              type: string
+            requestId:
+              type: string
+              minLength: 1
+          required:
+          - code
+          - message
+          - requestId
+      required:
+      - error

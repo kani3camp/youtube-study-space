@@ -419,6 +419,7 @@ describe('Docker asset determinism (issue #692)', () => {
 			fs.cpSync(REPO_SYSTEM_DIR, tempSystemDir, {
 				recursive: true,
 				preserveTimestamps: true,
+				filter: (source) => !path.relative(REPO_SYSTEM_DIR, source).split(path.sep).includes('node_modules'),
 			})
 			return fn(tempSystemDir)
 		} finally {
@@ -439,6 +440,40 @@ describe('Docker asset determinism (issue #692)', () => {
 		fs.writeFileSync(target, payload)
 	}
 
+	test('staged Lambda and Fargate contexts omit local QA receipts while retaining application sources', () => {
+		withTemporarySystemDir((systemDir) => {
+			const receipts = [path.join('node_modules', '.qa-private', 'receipt.json'), path.join('tools', 'node_modules', 'local-only', 'receipt.json')]
+			for (const receipt of receipts) writeTemporaryFile(systemDir, receipt, 'synthetic private receipt')
+			const outdir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-private-context-'))
+			try {
+				const app = new cdk.App({ outdir })
+				new AwsCdkStack(app, 'TestStack', { systemDir })
+				const assembly = app.synth()
+				const assets = JSON.parse(fs.readFileSync(path.join(assembly.directory, 'TestStack.assets.json'), 'utf-8')) as { dockerImages: Record<string, {source: {directory: string}}> }
+				expect(Object.values(assets.dockerImages)).toHaveLength(2)
+				for (const image of Object.values(assets.dockerImages)) {
+					const staged = path.resolve(assembly.directory, image.source.directory)
+					for (const receipt of receipts) expect(fs.existsSync(path.join(staged, receipt))).toBe(false)
+					expect(fs.existsSync(path.join(staged, 'go.mod'))).toBe(true)
+					expect(fs.existsSync(path.join(staged, 'core', 'repository', 'monthly_work.go'))).toBe(true)
+				}
+			} finally {
+				fs.rmSync(outdir, { recursive: true, force: true })
+			}
+		})
+	})
+
+	test('monthly writer source changes update both Docker asset tags', () => {
+		withTemporarySystemDir((systemDir) => {
+			const before = synthDockerImageKeys(systemDir)
+			writeTemporaryFile(systemDir, path.join('core', 'repository', 'monthly_work.go'), '// synthetic source fingerprint change\n')
+			const after = synthDockerImageKeys(systemDir)
+			expect(before).toHaveLength(2)
+			expect(after).toHaveLength(2)
+			for (const tag of after) expect(before).not.toContain(tag)
+		})
+	})
+
 	test('dockerImages keys are identical across two consecutive synths', () => {
 		withTemporarySystemDir((systemDir) => {
 			const baselineKeys = synthDockerImageKeys(systemDir)
@@ -451,6 +486,16 @@ describe('Docker asset determinism (issue #692)', () => {
 	})
 
 	test.each<{ name: string; rel: string; content: Buffer | string }>([
+		{
+			name: 'system/node_modules/.qa-receipt/ledger.json',
+			rel: path.join('node_modules', '.qa-receipt', 'ledger.json'),
+			content: 'synthetic private receipt must not enter the image context',
+		},
+		{
+			name: 'system/tools/node_modules/installed-tool/index.js',
+			rel: path.join('tools', 'node_modules', 'installed-tool', 'index.js'),
+			content: 'synthetic local tool must not affect the image asset',
+		},
 		{
 			name: 'system/youtube-bot (local go build artifact)',
 			rel: 'youtube-bot',

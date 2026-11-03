@@ -1,0 +1,63 @@
+# Default; no resources created. Do not put secret values in Terraform variables.
+stage = "disabled"
+
+# Later, after exact target / state / IAM review: "foundation",
+# "runtime_private" or "runtime_public". Populate runtime_settings from
+# reviewed private/public identifiers and PINNED secret VERSION NUMBERS only.
+
+# DEV snapshot observation capability (default OFF): inside a complete, reviewed
+# runtime_settings object, set read_metrics_enabled = true. This is a boolean;
+# the JSON manifest uses true, not "true". Do not replace the other required fields.
+# Omission/false leaves MYPAGE_READ_METRICS absent. Production rejects true.
+# Changing this flag alone still does not authorize a serving update.
+#
+# To change an EXISTING serving DEV revision, use BOTH fields in the existing
+# private settings for mypage-dev-plan AND mypage-dev-apply (not this example):
+#   read_metrics_enabled       = true       # false to turn observation off
+#   read_metrics_from_revision = "mypage-api-<observed-ready-revision>"
+# The revision must be read from DEV, Ready, and receiving 100% of traffic.
+# The Plan must contain exactly one service update: adding/removing the fixed
+# MYPAGE_READ_METRICS=true env. Same image, origin, identity, secret versions,
+# ingress, scaling and every other resource are required; drift/import/delete/
+# replacement and unknown configuration are rejected. Other resources are no-op.
+#
+# Before enabling: build/deploy the #1437-capable image through the existing
+# reviewed image release path, reconcile its State with a no-op Plan, and verify
+# the exact runtime-release.json digest/source pair. This transition does not
+# combine image rollout with logging, and cannot make an old image emit metrics.
+# Verify the DEV apply identity already has the required update/get permissions;
+# do not expand IAM or bypass a rejected Plan as part of the toggle.
+#
+# Use the EXISTING runtime-private/public-plan and matching -apply workflow
+# modes with exact source SHA. Independent Plan agreement, saved Plan hash,
+# State-version binding and the 30-minute age limit remain mandatory.
+# For metrics only, the provider's ordinary update Plan is NOT applied: Google
+# provider 8.5.0 omits etag. A live Cloud Run GET must match the original Plan's
+# revision/generation/uid/etag/configuration, then one API PATCH sends that etag
+# with updateMask=template.containers,template.revision (auto-generated revision).
+# A competing update after the GET must conflict at the API. No rebase/retry,
+# forced update or automatic rollback is permitted, including after timeouts.
+# The complete original Plan remains HMAC-bound; only a validated refresh-only
+# Plan is applied to State afterward. Unrelated drift/writes stop that sync.
+# Live GETs before/after State reconciliation and in the final readback must
+# match the new ready revision, generation, etag, env/image and 100% traffic.
+# terraform show -json by itself is NOT authoritative live evidence.
+#
+# A failure after PATCH can leave Cloud Run changed and State unreconciled.
+# Stop subsequent releases, inspect the actual service and private evidence,
+# and reconcile through a fresh reviewed Plan. Do not replay the old update
+# Plan or auto-rollback over a newer operator release. Confirmation is a
+# point-in-time guarantee, not a lock preventing future authorized changes.
+# The first authorized DEV run must verify the REST/provider field mapping,
+# a stale-etag conflict, and refresh-only State sync before measurement use.
+# Source: https://docs.cloud.google.com/run/docs/reference/rest/v2/projects.locations.services
+# Source: https://developer.hashicorp.com/terraform/cli/commands/show
+#
+# Clear read_metrics_from_revision back to "" in both private settings after
+# success, retaining the target read_metrics_enabled value, then confirm no-op.
+# To disable/roll back, use false and the CURRENT newly observed ready revision
+# in a fresh Plan/apply. Never replay the enable Plan or name an old revision.
+# Keep synthetic measurement scope/limits, previous and new revision/digest,
+# evidence and rollback together in the existing release record / Issue #1133.
+# Inspect normal vs failed-query counters separately; returned docs != billed
+# reads. This example does not perform deployment or prove live costs/readiness.

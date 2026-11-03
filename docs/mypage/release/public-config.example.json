@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "deployment": {
+    "environment": "development",
+    "projectID": "demo-mypage",
+    "projectNumber": "123456789",
+    "webAppID": "1:123456789:web:synthetic",
+    "publicOrigin": "https://mypage.example.invalid",
+    "privacyVersion": "synthetic-p",
+    "termsVersion": "synthetic-t"
+  },
+  "frontend": {
+    "VITE_FIREBASE_API_KEY": "synthetic-public-api-key",
+    "VITE_FIREBASE_AUTH_DOMAIN": "demo-mypage.firebaseapp.com",
+    "VITE_FIREBASE_PROJECT_ID": "demo-mypage",
+    "VITE_FIREBASE_APP_ID": "1:123456789:web:synthetic",
+    "VITE_APP_CHECK_SITE_KEY": "synthetic-public-site-key",
+    "VITE_PRIVACY_POLICY_VERSION": "synthetic-p",
+    "VITE_TERMS_VERSION": "synthetic-t",
+    "VITE_MYPAGE_ANALYTICS_READY": "false"
+  },
+  "backend": {
+    "environment": "development",
+    "projectID": "demo-mypage",
+    "projectNumber": "123456789",
+    "webAppID": "1:123456789:web:synthetic",
+    "publicOrigin": "https://mypage.example.invalid",
+    "privacyVersion": "synthetic-p",
+    "termsVersion": "synthetic-t"
+  }
+}

@@ -79,6 +79,25 @@ updates:
           - minor
           - patch
 
+  # MyPageフロントエンド（#1236でdevへ統合済み）
+  - package-ecosystem: npm
+    directory: /mypage
+    schedule:
+      interval: daily
+      time: "09:00"
+      timezone: Asia/Tokyo
+    commit-message:
+      prefix: build(deps)
+    open-pull-requests-limit: 10
+    ignore:
+      - dependency-name: "@types/node"
+        versions:
+          - ">=25.0.0"
+    groups:
+      mypage-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
   # =========================
   # GitHub Actions
   # minor / patch はまとめる

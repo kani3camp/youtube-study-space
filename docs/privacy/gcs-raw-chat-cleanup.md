@@ -1,171 +1,37 @@
-# GCS raw YouTube chat snapshot cleanup
+# GCS raw チャットを含む snapshot の cleanup
 
-## 2026-08-14 development bucket finding
+[retirement runbook](raw-live-chat-archive-retirement-runbook.md) の GCS 操作条件。mixed Firestore export は raw chat と `users` / `user-activities` / `order-history` を含み得るため、raw kind だけの部分削除や bucket 全体への短期 lifecycle を使わない。対象は raw を含む **top-level snapshot prefix 全体**であり、その中の古い domain-data backup も失う。新しい clean snapshot と共有 export 基盤を維持する。
 
-The 2026-08-14 read-only retention audit found that the configured Firestore export bucket contained long-lived mixed snapshots rather than a disposable transfer-only staging area.
+## Apply 前の条件
 
-The audited bucket was the **development** bucket:
+1. 対象 environment / credential project / 設定 bucket を毎回照合する。DEV の観測を PROD へ流用しない。
+2. 配備済み producer/export と自然実行の collection group を確認し、raw の再流入・予期しない再配備がないことを確認する。
+3. Firestore raw 0、versioning 無効、最後の raw snapshot より新しい clean snapshot 7世代以上、最新 export 72時間以内を fresh preview で確認する。
+4. bucket の location / storage class / soft delete / retention / lock と、全 candidate object の generation・retention expiration・temporary/event hold・object retention を private inventory に固定する。prefix 内の **全 object** が eligible であることを確認する。
+5. complete clean snapshot の復元可能性、保持する recovery coverage、失う古い backup、復旧経路・hard-delete 時期、request / soft-delete storage / COLDLINE early-deletion 費をレビューし、別途削除承認を得る。
 
-- GCP project: `test-youtube-study-space`
-- bucket: `firestore-backup-test-youtube-study-space`
-- live objects: 18,910
-- live bytes: about 1.53 GB
-- live objects older than the previous raw-data cutoff: 18,640
-- oldest live object: 2022-03-19
-- newest live object: 2026-08-13
-- top-level Firestore export prefixes: 1,614
-- object versioning: disabled
-- soft delete: 7 days
-- bucket lifecycle: none
+Production の COLDLINE / 93日 retention は維持する。個々の実 metadata から eligibility を求め、prefix 名や DEV の日付から推測しない。retention 経過だけで storage-class 料金がなくなると仮定しない。
 
-The confirmed production target is separate:
+**現在の `privacy-gcs-admin` は versioning / soft delete と object 名による prefix を確認するが、retention / hold・snapshot の完全性や復元可能性を検証しない。全 raw prefix を対象とし、eligible な wave だけを選べない。** `ready_to_apply=true` だけでは削除を決定できず、一部 eligible な inventory に all-prefix apply を使わない。retention/hold を外したり、部分削除を retry loop にしない。必要な wave 対応・レビューを先に行う。
 
-- GCP project: `youtube-study-space`
-- bucket: `firestore-backup-youtube-study-space`
+## Guarded command
 
-Do not apply the development bucket observations to production by assumption. Every production preview must inspect and report the current attributes of `firestore-backup-youtube-study-space` before any apply is considered.
+`system/` から、[対象表](raw-live-chat-archive-retirement-runbook.md#対象と実行境界)の値を明示する。preview は read-only。
 
-The audited development bucket contains export artifacts for at least:
-
-- `live-chat-history`
-- `users`
-- `user-activities`
-- `order-history`
-
-Therefore a blanket short lifecycle on the entire bucket would also shorten recovery history for Study Space-owned data.
-
-## Cleanup strategy
-
-Do not delete only `kind_live-chat-history/**` from a mixed Firestore export snapshot. That would leave a partially missing snapshot whose overall export metadata may no longer describe a complete recoverable export.
-
-Instead, treat the top-level Firestore export prefix as the deletion unit. GCS cleanup becomes eligible only after the raw producer has stopped and the short Firestore retention window has fully drained:
-
-1. require Firestore `live-chat-history` to contain zero documents;
-2. identify every snapshot prefix that still contains `kind_live-chat-history`;
-3. require at least seven newer clean snapshot prefixes after the newest raw-chat snapshot;
-4. require the newest overall snapshot to be recent;
-5. require object versioning to be disabled;
-6. delete the complete snapshot prefixes that contain raw chat;
-7. verify that no live GCS snapshot prefix containing raw chat remains.
-
-This deliberately sacrifices old copies of other collections inside the affected mixed snapshots. Newer clean snapshots remain available for disaster recovery.
-
-With the current five-day Firestore retention and daily exports, the producer cutover to GCS eligibility may take roughly 12 to 14 days: about five to seven days for Firestore to drain, followed by enough daily clean snapshot generations. Actual timing depends on cleanup and export cadence, so the command gates are authoritative rather than the calendar estimate.
-
-## Guarded operator command
-
-Every invocation must identify the target environment, expected GCP project ID, and expected GCS bucket. The command resolves the project ID from the active credentials and the bucket name from Firestore configuration, then refuses to continue if either differs from the operator-supplied target.
-
-Development preview is read-only:
-
-```bash
-cd system
-go run ./cmd/privacy-gcs-admin preview \
-  development \
-  test-youtube-study-space \
-  firestore-backup-test-youtube-study-space
+```sh
+go run ./cmd/privacy-gcs-admin preview <environment> <project-id> <bucket>
 ```
 
-The preview reports the target environment/project/bucket, current Firestore raw-chat row count, candidate prefix count, candidate object count/bytes, newest raw-chat snapshot, clean snapshots after it, safety checks, and an exact target-bound confirmation token.
+preview は raw row count、candidate prefix/object/bytes、最後の raw snapshot、clean 世代数、各 safety check、target-bound token を返す。前節の追加条件・人間の承認まで揃った場合だけ、直前 preview の値を使う。
 
-`ready_to_apply` remains false while any Firestore raw-chat document exists or fewer than seven clean snapshots exist after the newest raw snapshot.
-
-Only when every safety check passes can the destructive development command run:
-
-```bash
-go run ./cmd/privacy-gcs-admin apply \
-  development \
-  test-youtube-study-space \
-  firestore-backup-test-youtube-study-space \
-  --expected-prefixes <preview value> \
-  --expected-objects <preview value> \
-  --confirm '<exact preview token>'
+```sh
+go run ./cmd/privacy-gcs-admin apply   <environment> <project-id> <bucket>   --expected-prefixes <preview-count>   --expected-objects <preview-count>   --confirm '<exact-preview-token>'
 ```
 
-Production preview is also read-only and uses the separately confirmed production target:
+production は `--allow-production` も必要。command は直前に再 scan し、target・raw count・clean 世代・件数・token の変化で停止する。各 prefix では non-raw object を先に削除し、最後まで raw marker を残すため、部分失敗後も対象を再発見できる。この再開特性は retention-aware wave 対応の代用にはならない。
 
-```bash
-go run ./cmd/privacy-gcs-admin preview \
-  production \
-  youtube-study-space \
-  firestore-backup-youtube-study-space
-```
+## 結果と記録
 
-Production apply additionally requires the explicit production switch:
+live raw prefix 不在と共有基盤・clean recovery set の保持を確認する。soft delete 期間中は復元可能なので、live 削除成功と hard deletion 完了を分ける。soft-delete 期間は対象 bucket の実 metadata で確認する。
 
-```bash
-go run ./cmd/privacy-gcs-admin apply \
-  production \
-  youtube-study-space \
-  firestore-backup-youtube-study-space \
-  --expected-prefixes <preview value> \
-  --expected-objects <preview value> \
-  --confirm '<exact preview token>' \
-  --allow-production
-```
-
-The command re-scans Firestore and the bucket immediately before deletion. A changed target, non-zero Firestore raw-chat count, insufficient clean snapshots, changed prefix/object count, or confirmation token mismatch stops the operation. Production deletion remains a manual operator action.
-
-Within each candidate prefix, non-raw objects are deleted before raw-chat objects. This ordering keeps at least one raw marker present until the rest of that snapshot has been deleted, so a retry after a partial failure can still rediscover the snapshot as a cleanup candidate.
-
-## Soft delete
-
-The audited development bucket had a seven-day soft-delete policy on 2026-08-14. Deleting a live object from that bucket therefore does not immediately hard-delete it; the object remains recoverable until the configured soft-delete retention expires.
-
-Do not assume the production bucket has the same current policy. The production preview must report the actual `firestore-backup-youtube-study-space` soft-delete retention before any production apply. The cleanup command verifies removal from the live object namespace; permanent hard deletion follows the policy reported for the target bucket.
-
-## Follow-up
-
-### 2026-10-14 IaC migration preparation (#983)
-
-The current migration authorization permits read-only inventory and deletion
-preparation. It **does not authorize deleting any historical mixed GCS snapshot**.
-A `ready_to_apply=true` preview or a confirmation token is a tool condition, not
-human authorization. Keep apply disabled for this workstream.
-
-The [2026-10-06 Issue #983 update](https://github.com/kani3camp/youtube-study-space/issues/983#issuecomment-6006495416)
-records a production natural export containing exactly `users`, `user-activities`
-and `order-history`, with the downstream retained-history transfer successful.
-This is dated evidence, not proof of the currently deployed writer or current
-cleanup eligibility. Earlier issue comments called the development bucket a
-production observation; use the explicit environment/project/bucket binding above
-and authenticated fresh metadata rather than those historical labels.
-
-Before presenting deletion candidates for a separate decision, collect privately:
-
-- the deployed producer/export source and natural-run collection groups, confirming
-  no `live-chat-history` re-entry and no unexpected redeploy;
-- a fresh Firestore drain count, target-bound GCS preview, all candidate object
-  generations, bytes, complete top-level prefixes and retained collections;
-- bucket location/storage class/versioning/soft delete, retention policy and lock;
-- each candidate object's retention expiration, temporary/event-based hold and
-  object-retention settings; a prefix is eligible only if **every object** is eligible;
-- at least seven newer clean generations and latest export age at most 72 hours,
-  confirming natural export success and a usable retained-data recovery set;
-- the loss of older `users`/`user-activities`/`order-history` backups, retained clean
-  backup coverage, private rollback/recovery path and hard-delete window;
-- request, soft-delete storage and COLDLINE early-deletion fees within the allowed
-  budget. Do not assume retention expiry alone eliminates storage-class charges.
-
-The current `privacy-gcs-admin` reads versioning and soft-delete policy and counts
-prefixes from object names. It does **not** inspect bucket retention, individual
-object retention/holds, or prove snapshot completeness/restorability. Its candidate
-set includes every live raw-containing prefix; it cannot select an eligible-only
-retention wave. Therefore its `ready_to_apply` result is insufficient for a
-production retention decision. Do not run the current all-prefix apply against a
-partly eligible inventory, remove retention/holds, or turn partial deletion into
-a retry loop. Retention-aware wave support and review are required before any
-later separately authorized deletion.
-
-Production's recorded COLDLINE / 93-day retention is intentional and must remain.
-Fresh metadata may show a different effective eligibility time per object. Compute
-eligibility from object metadata, not the prefix name or a dev-derived date.
-Preserve complete clean snapshots and the shared bucket/export infrastructure.
-
-The approval packet should contain only sanitized aggregate counts/bytes,
-eligibility ranges, retained backup coverage, expected fees and a private manifest
-reference. Keep raw object names, configuration, confirmation tokens and business
-data out of public logs/artifacts. If no raw prefixes remain, record that fresh
-result and avoid repeating a completed deletion.
-
-After the raw archive migration is complete in both environments, remove the one-shot deletion capability from the repository. Keep useful read-only audits. The general backup retention policy for Study Space-owned data remains independent from raw live-chat retirement.
+公開記録は集約 count/bytes、eligibility 範囲、保持 backup coverage、費用と private manifest 参照だけにする。raw object 名、設定全文、token、business data は public log/artifact へ出さない。fresh preview で raw prefix 0なら削除を繰り返さない。両環境の移行完了後、一時 DELETE 機能を撤去する。一般 backup retention は raw archive 廃止とは独立して扱う。

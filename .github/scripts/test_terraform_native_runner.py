@@ -408,9 +408,14 @@ class NativeRunnerTest(unittest.TestCase):
 
     def test_workflow_requires_runner_contract_and_bounded_whole_suite(self):
         text = (runner.ROOT / ".github/ci-validation/validate.sh").read_text()
+        self.assertTrue(text.startswith("#!/usr/bin/env bash\nset -euo pipefail\n"))
         self.assertIn("python3 .github/scripts/test_terraform_native_runner.py", text)
         self.assertIn("python3 -B .github/scripts/run_terraform_native_tests.py --workers 2", text)
-        self.assertNotIn("continue-on-error", text)
+        self.assertNotIn("|| true", text)
+        workflow = (runner.ROOT / ".github/workflows/ci-gcp-terraform.yml").read_text()
+        self.assertIn("for kind in terraform-static terraform-tests; do", workflow)
+        self.assertIn('yss-ci-validation:local "$kind"', workflow)
+        self.assertNotIn("continue-on-error", workflow)
 
 
 if __name__ == "__main__":
