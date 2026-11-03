@@ -352,6 +352,9 @@ function CurrentCard({
 				</>
 			)}
 			{value && <StaleNote value={value} />}
+			{!active && value?.asOf && !value.stale && (
+				<p className="jst-note">{timestamp(value.asOf)}時点</p>
+			)}
 			<div className="hero-links current-links">
 				{active && (
 					<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
@@ -387,27 +390,31 @@ function SummaryCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 						const originalDate = value?.asOf
 							? day.format(new Date(value.asOf))
 							: null
-						const currentDate = data
-							? day.format(new Date(data.generatedAt))
+						const currentDate = data?.current.asOf
+							? day.format(new Date(data.current.asOf))
 							: null
 						return (
 							<div className={`metric metric-${key}`} key={key}>
 								<dt>
 									<Icon name={key === 'lifetime' ? 'history' : 'calendar'} />
-									{labels[key]}
-									{key === 'week' && <span>（月曜から）</span>}
 									{key === 'today' &&
-										originalDate &&
-										originalDate !== currentDate && (
-											<span>
-												（{originalDate.slice(5).replace('-', '/')}の記録）
-											</span>
-										)}
+									originalDate &&
+									originalDate !== currentDate
+										? `${originalDate.slice(5).replace('-', '/')}の作業時間`
+										: key === 'week' &&
+												originalDate &&
+												originalDate !== currentDate
+											? '週の作業時間'
+											: labels[key]}
+									{key === 'week' && <span>（月曜から）</span>}
 								</dt>
 								<dd>
 									<MetricValue value={value} />
 								</dd>
 								{value && <StaleNote value={value} />}
+								{value?.asOf && !value.stale && (
+									<p className="muted">{timestamp(value.asOf)}時点</p>
+								)}
 							</div>
 						)
 					})}
@@ -497,6 +504,9 @@ function RecentCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 						</p>
 					)}
 					{selected && <StaleNote value={selected} />}
+					{selected?.asOf && !selected.stale && (
+						<p className="muted">{timestamp(selected.asOf)}時点</p>
+					)}
 				</>
 			) : busy ? (
 				<>

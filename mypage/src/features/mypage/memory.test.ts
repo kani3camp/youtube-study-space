@@ -68,6 +68,29 @@ async function settle() {
 describe('private MyPage memory', () => {
 	beforeEach(() => vi.useFakeTimers())
 	afterEach(() => vi.useRealTimers())
+	it('refreshes only current state on the timer and refreshes totals manually', async () => {
+		const next = sample()
+		next.generatedAt = '2026-10-06T03:05:00Z'
+		const load = vi
+			.fn()
+			.mockResolvedValueOnce(sample())
+			.mockResolvedValueOnce(next)
+			.mockResolvedValueOnce(next)
+		const memory = new MyPageMemory(load, async () => {})
+		memory.setIdentity('synthetic')
+		await settle()
+		const before = memory.getSnapshot().data
+		await vi.advanceTimersByTimeAsync(5 * 60_000)
+		expect(load.mock.calls.map((call) => call[4])).toEqual([false, true])
+		expect(memory.getSnapshot().data?.current.asOf).toBe(next.generatedAt)
+		expect(memory.getSnapshot().data?.summary).toBe(before?.summary)
+		expect(memory.getSnapshot().data?.recent).toBe(before?.recent)
+		await memory.refresh(true)
+		expect(load.mock.calls[2]?.[4]).toBe(false)
+		expect(memory.getSnapshot().data?.summary.today.asOf).toBe(next.generatedAt)
+		memory.dispose()
+	})
+
 	it('keeps recorded evidence separate from exact or retained values and clears it on source failure', () => {
 		const response = structuredClone(recordedWire) as MyPage
 		const first = mergeResponse(null, response)

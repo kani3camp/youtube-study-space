@@ -260,6 +260,14 @@ paths:
   /api/mypage:
     get:
       operationId: getMyPage
+      parameters:
+      - in: query
+        name: view
+        required: false
+        description: current は入室状況のみを更新する用途。履歴を取得せず、クライアントは集計を保持する。
+        schema:
+          type: string
+          enum: [current]
       security:
       - FirebaseAuth: []
         AppCheck: []

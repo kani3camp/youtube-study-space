@@ -845,10 +845,6 @@ func (app *WorkspaceApp) exitRoomAt(
 	if err != nil {
 		return 0, 0, fmt.Errorf("generate exit interval: %w", err)
 	}
-	ctx, err = app.prepareClosedSegment(ctx, tx, workSegment)
-	if err != nil {
-		return 0, 0, err
-	}
 
 	// 作業時間を計算
 	var addedWorkedTimeSec int

@@ -73,7 +73,8 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	callback := r.URL.Path == "/api/auth/youtube/callback"
-	if !callback && r.URL.RawQuery != "" {
+	currentOnly := r.URL.Path == "/api/mypage" && r.URL.RawQuery == "view=current"
+	if !callback && !currentOnly && r.URL.RawQuery != "" {
 		writeAPIError(w, 400, "INVALID_REQUEST", requestID)
 		return
 	}
@@ -272,6 +273,9 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if h.BFF == nil {
 			writeAPIError(w, 503, "TEMPORARY_UNAVAILABLE", requestID)
 			return
+		}
+		if currentOnly {
+			ctx = context.WithValue(ctx, currentOnlyKey{}, true)
 		}
 		response, err := h.BFF.Get(ctx, identity.UID, account)
 		if err != nil {

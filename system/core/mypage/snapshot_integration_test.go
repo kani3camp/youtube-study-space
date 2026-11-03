@@ -248,3 +248,33 @@ func TestSnapshotKeepsUserSeatAndHistoryAtomicAtExit(t *testing.T) {
 	}
 	expectSeconds(t, response.Summary.Data.Lifetime, int64(after.User.TotalStudySec))
 }
+
+func TestCurrentOnlySkipsHistoryAndFullReadReturnsNormalZero(t *testing.T) {
+	r, uid := snapshotFixture(t)
+	ctx := context.Background()
+	r.Coverage = nil
+	r.RecentHistoryRecorded = true
+	userRef := r.Client.Collection("users").Doc(uid)
+	_, err := userRef.Set(ctx, repository.UserDoc{WorkHistoryEpoch: repository.MonthlyWorkEpoch})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := userRef.Delete(context.Background())
+		require.NoError(t, err)
+	})
+	var observed SnapshotReadObservation
+	r.Observe = func(value SnapshotReadObservation) { observed = value }
+
+	_, err = r.Read(context.WithValue(ctx, currentOnlyKey{}, true), uid)
+	require.NoError(t, err)
+	require.Equal(t, 2, observed.SeatQueries)
+	require.Zero(t, observed.SegmentQueries)
+	require.Zero(t, observed.MonthLookups)
+
+	snapshot, err := r.Read(ctx, uid)
+	require.NoError(t, err)
+	require.Equal(t, 1, observed.SegmentQueries)
+	require.Zero(t, observed.MonthLookups)
+	response, err := Aggregate(snapshot, Section[Account]{})
+	require.NoError(t, err)
+	require.Equal(t, valueMetric(0), response.Summary.Data.Today)
+}

@@ -226,7 +226,7 @@ export function createLoader(
 	tokens: TokenSource,
 	request: typeof fetch = fetch,
 ): Loader {
-	return async (uid, signal, forceToken, forceAppCheck) => {
+	return async (uid, signal, forceToken, forceAppCheck, currentOnly) => {
 		try {
 			const [idToken, appCheck] = await Promise.all([
 				tokens.idToken(uid, forceToken),
@@ -234,15 +234,18 @@ export function createLoader(
 			])
 			if (signal.aborted || tokens.currentUID() !== uid)
 				throw new RequestError(401, 'AUTH_REQUIRED')
-			const response = await request('/api/mypage', {
-				headers: {
-					Authorization: `Bearer ${idToken}`,
-					'X-Firebase-AppCheck': appCheck,
+			const response = await request(
+				currentOnly ? '/api/mypage?view=current' : '/api/mypage',
+				{
+					headers: {
+						Authorization: `Bearer ${idToken}`,
+						'X-Firebase-AppCheck': appCheck,
+					},
+					signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),
+					credentials: 'same-origin',
+					cache: 'no-store',
 				},
-				signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),
-				credentials: 'same-origin',
-				cache: 'no-store',
-			})
+			)
 			return parseMyPage(await checkedJSON(response))
 		} catch (error) {
 			if (error instanceof RequestError) throw error

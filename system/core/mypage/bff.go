@@ -17,7 +17,10 @@ type (
 		err      error
 		terminal bool
 	}
-	cacheKey        struct{ environment, uid string }
+	cacheKey struct {
+		environment, uid string
+		currentOnly      bool
+	}
 	cachedAggregate struct {
 		response       Response
 		accountVersion string
@@ -86,7 +89,7 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 			}
 		}
 	}()
-	key := cacheKey{b.Environment, uid}
+	key := cacheKey{b.Environment, uid, currentOnlyRead(ctx)}
 	now := b.Now().UTC()
 	if value, ok := b.cacheHit(key, now, account); ok {
 		return value, nil
@@ -111,6 +114,9 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 	// 最初の呼び出し元の切断で、別の呼び出し元と共有するリクエストを中断しない。
 	// 共有操作自体にも独立した制限時間を設ける。
 	flightKey := b.Environment + "\x00" + uid + "\x00" + metadataAccountVersion(account)
+	if key.currentOnly {
+		flightKey += "\x00current"
+	}
 	flight, leader := b.acquireFlight(flightKey)
 	if flight == nil {
 		return b.failedSnapshot(account)
@@ -277,7 +283,8 @@ func (b *BFF) failedSnapshot(account WebAccount) (Response, error) {
 // 各リクエストで必要な検証を代替するものではない。
 func (b *BFF) Invalidate(uid string) {
 	b.mu.Lock()
-	delete(b.cache, cacheKey{b.Environment, uid})
+	delete(b.cache, cacheKey{b.Environment, uid, false})
+	delete(b.cache, cacheKey{b.Environment, uid, true})
 	b.mu.Unlock()
 }
 
