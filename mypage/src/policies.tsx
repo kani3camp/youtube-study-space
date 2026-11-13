@@ -38,19 +38,27 @@ function DraftNotice() {
 	)
 }
 
-function ContactLink({
+export function ContactLink({
 	href,
 	children,
+	primary = false,
 }: {
 	href: string
 	children: ReactNode
+	primary?: boolean
 }) {
 	return href.startsWith('mailto:') ? (
-		<a className="external-link" href={href} rel="noreferrer">
+		<a
+			className={primary ? 'button primary' : 'external-link'}
+			href={href}
+			rel="noreferrer"
+		>
 			{children}
 		</a>
 	) : (
-		<ExternalLink href={href}>{children}</ExternalLink>
+		<ExternalLink href={href} primary={primary}>
+			{children}
+		</ExternalLink>
 	)
 }
 
