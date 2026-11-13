@@ -118,6 +118,7 @@ jobs:
   core-plan:
     name: Core Plan
     needs: [select, validate]
+    if: ${{ inputs.operation == 'plan' }}
     permissions:
       contents: read
       id-token: write
@@ -137,12 +138,12 @@ jobs:
       AWS_TERRAFORM_STATE_ACCOUNT_ID: ${{ secrets.AWS_TERRAFORM_STATE_ACCOUNT_ID }}
       GCP_TERRAFORM_MANAGED_INPUTS_JSON: ${{ secrets.GCP_TERRAFORM_MANAGED_INPUTS_JSON }}
 
-  # The Plan must succeed before Apply starts. !cancelled() (not always()) so
-  # that cancelling the run after the Plan never starts an Apply.
+  # normal-apply contains its own Plan and independent Apply-side Plan.
+  # Only credentialless validation is needed here; cancellation never starts Apply.
   core-apply:
     name: Core Apply
-    needs: [select, core-plan]
-    if: ${{ !cancelled() && inputs.operation == 'apply' && needs.core-plan.result == 'success' }}
+    needs: [select, validate]
+    if: ${{ !cancelled() && inputs.operation == 'apply' && needs.validate.result == 'success' }}
     permissions:
       contents: read
       id-token: write
@@ -179,9 +180,12 @@ jobs:
           set -euo pipefail
           fail() { echo "::error::$1"; exit 1; }
           [[ "${SELECT_RESULT}" == "success" && "${VALIDATE_RESULT}" == "success" ]] || fail "Selection or credentialless validation did not succeed"
-          [[ "${CORE_PLAN_RESULT}" == "success" ]] || fail "Core Plan must succeed"
           case "${OPERATION}" in
-            apply) [[ "${CORE_APPLY_RESULT}" == "success" ]] || fail "Core Apply must succeed" ;;
-            plan) [[ "${CORE_APPLY_RESULT}" == "skipped" ]] || fail "Core Apply must not run" ;;
+            apply)
+              [[ "${CORE_PLAN_RESULT}" == "skipped" ]] || fail "Outer Core Plan must not run for Apply"
+              [[ "${CORE_APPLY_RESULT}" == "success" ]] || fail "Core Apply must succeed" ;;
+            plan)
+              [[ "${CORE_PLAN_RESULT}" == "success" ]] || fail "Core Plan must succeed"
+              [[ "${CORE_APPLY_RESULT}" == "skipped" ]] || fail "Core Apply must not run" ;;
             *) fail "Unsupported operation" ;;
           esac
