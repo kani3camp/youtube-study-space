@@ -49,7 +49,7 @@ go run ./cmd/mypage-server --check-config
 
 バックエンド検査だけは、既存の安全なプロセス環境からサーバー専用シークレットを読む。コマンド引数・マニフェスト・Viteへ移さない。出力は固定のstatus/field/codeだけとする。公開設定チェッカーは64KiB以内の明示JSONを読み、秘密・デバッグ・未知フィールドと、プロジェクト・アプリ・オリジン・同意バージョンの不一致を拒否する。任意のバックエンド補助宣言は、非秘密の識別情報とバージョンだけを持つ。任意のHosting設定には、既存候補の検証処理を再利用する。
 
-マニフェストの最上位項目は`schemaVersion: 1`、`deployment`、`frontend`と、任意の`backend`、`hosting`、`publicPolicy`である。`deployment`/`backend`は`environment`、`projectID`、`projectNumber`、`webAppID`、`publicOrigin`、`privacyVersion`、`termsVersion`の7項目を持つ。`frontend`の正確なキーは[例](public-config.example.json)と[公開スキーマ](../../../mypage/src/release-config.ts)を参照し、サーバー環境をコピーしない。`publicPolicy`は`VITE_PUBLIC_CONTACT_URL`、`VITE_PUBLIC_PRIVACY_CONTACT_URL`、`VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE`、`VITE_PUBLIC_TERMS_EFFECTIVE_DATE`、`VITE_PUBLIC_JURISDICTION`と、任意の`VITE_PUBLIC_OPERATOR_NAME`を持つ。`hosting`には[既存HostingInputs](../../../mypage/src/hosting.ts)の明示的な接続先一覧を使う。任意入力の省略は`not-supplied`として未検証のまま残す。
+マニフェストの最上位項目は`schemaVersion: 1`、`deployment`、`frontend`と、任意の`backend`、`hosting`、`publicPolicy`である。`deployment`/`backend`は`environment`、`projectID`、`projectNumber`、`webAppID`、`publicOrigin`、`privacyVersion`、`termsVersion`の7項目を持つ。`frontend`の正確なキーは[例](public-config.example.json)と[公開スキーマ](../../../mypage/src/release-config.ts)を参照し、サーバー環境をコピーしない。`publicPolicy`は`VITE_PUBLIC_CONTACT_URL`、`VITE_PUBLIC_PRIVACY_CONTACT_URL`、`VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE`、`VITE_PUBLIC_TERMS_EFFECTIVE_DATE`、`VITE_PUBLIC_JURISDICTION`と、任意の`VITE_PUBLIC_OPERATOR_NAME`を受け付ける。既知のFirebaseプロジェクトでは、プライバシー窓口のキーをマニフェストに設定しない。`hosting`には[既存HostingInputs](../../../mypage/src/hosting.ts)の明示的な接続先一覧を使う。任意入力の省略は`not-supplied`として未検証のまま残す。
 
 両検査とも、外部登録・鍵の真正性・権限や利用枠・公開本文の承認は確認しない。`configurationValid=true`/`configuration=valid`でも、基盤と実環境のE2Eは未完了である。`MYPAGE_INFRASTRUCTURE_READY=true`は起動に必要な宣言であり、確認完了の証拠ではない。準備時の検査のために実起動やReadyフラグ変更を行わない。
 
@@ -65,22 +65,26 @@ Hostingの画像接続先一覧には、チャンネル画像用の`https://yt3.
 | server identity | `MYPAGE_ENVIRONMENT/REGION/PROJECT_NUMBER/WEB_APP_ID/SIGNER_EMAIL`, `GOOGLE_CLOUD_PROJECT` | development=asia-southeast2、production=asia-northeast2。signerは選択projectのもの |
 | server secret | `MYPAGE_OAUTH_CLIENT_ID/CLIENT_SECRET`, optional `MYPAGE_YOUTUBE_API_KEY` | OAuth secret/API keyは承認済みsecret供給境界。repo/chat/public artifact/Viteに入れない |
 | optional Analytics | `VITE_MYPAGE_ANALYTICS_READY`, `VITE_MYPAGE_GA4_ID` | 実Console・network inventoryが承認されるまで有効化しない。Consentを迂回しない |
-| 公開案内 | `VITE_PUBLIC_CONTACT_URL/PRIVACY_CONTACT_URL`, optional `VITE_PUBLIC_OPERATOR_NAME`, `VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE/TERMS_EFFECTIVE_DATE/JURISDICTION` | 公開に使ってよい値だけ。実名・自宅住所を必須にしない。欠落/不正は未設定、draftは維持 |
+| 公開案内 | `VITE_PUBLIC_CONTACT_URL`、任意の `VITE_PUBLIC_OPERATOR_NAME`、`VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE/TERMS_EFFECTIVE_DATE/JURISDICTION` | 一般窓口は公開マニフェスト／環境変数で指定する。公開できる値だけを使い、実名・自宅住所を必須にしない。文面は草案のままとする。 |
+| プライバシー窓口 | [`public-policy-config.ts`](../../../mypage/src/public-policy-config.ts) の `privacyForms` | `VITE_FIREBASE_PROJECT_ID` が `test-youtube-study-space` または `youtube-study-space` の場合は、環境別の固定URLを優先する。未知・未設定のプロジェクトでのみ `VITE_PUBLIC_PRIVACY_CONTACT_URL` を使用する。 |
 | ライブ・メンテナンス告知 | `mypage/src/youtube-channel.ts`のDEV/PRODチャンネル対応表、選択keyは`VITE_FIREBASE_PROJECT_ID` | DEV (`test-youtube-study-space`) は`UChBj4xZePvWyGmTKct5FBcg`、PROD (`youtube-study-space`) は`UCXuD2XmPTdpVy7zmwbFVZWg`の`/live`・`/posts`。公開トップとマイページのライブ導線は同じ選択を使う。未知・未設定projectでは両導線を非表示にし、fallbackしない。Firestore・Backend・browser storageへ複製せず、変更はsource reviewと再buildを必須にする |
 | Bot設定案 | `MYPAGE_PUBLIC_ENTRY_URL`（runtimeへの接続は未実装） | 承認済みpublic入口だけ。user固有query/tokenを含めない。0A/0Bは未設定、Phase1承認後に設定。実装・設定の承認前に有効化しない |
 
-publicPolicyでは、一般問い合わせとプライバシー請求の入力を分ける。URLの形式が正しくても、返信機能・ログイン不要・SLA運用が確認済みとは限らない。
-
 ### お問い合わせ窓口の設定と受入
 
-`/contact`は、使い方・不具合・ご意見の一般窓口と、データ削除・開示・訂正・全ログイン解除等のプライバシー窓口を分けて案内する。アプリ内のフォーム送信・自動受付は行わず、既存の人的窓口と[本人確認・運用CLI](../support-operator.md)を利用する。未設定・不正なURLの窓口は個別に「準備中」と表示し、一般窓口をプライバシー請求先へ自動流用しない。
+`/contact` は、使い方・不具合・ご意見の一般窓口と、Google連携解除後の連絡やデータ削除・開示・訂正・全ログイン解除などのプライバシー窓口を分けて案内する。受付と返信は人的窓口で行い、[本人確認・運用CLI](../support-operator.md)を利用する。
 
-- 運営者は一般窓口のURLと、返信可能なプライバシー窓口のURLまたはメールアドレスを確定する。OAuth同意画面のsupport emailや既存匿名フォームを、確認なしに転用しない。
-- ビルドに使う公開マニフェストの`publicPolicy.VITE_PUBLIC_CONTACT_URL`と`publicPolicy.VITE_PUBLIC_PRIVACY_CONTACT_URL`へ設定する。メールは`mailto:`付き、WebはHTTPSの窓口URLを指定し、認証情報・本人確認リンク・利用者情報・クエリを含めない。これらはブラウザへ公開される値である。ローカルだけの環境変数設定でデプロイ設定済みとは扱わない。
-- マイページ未ログイン・利用制限中でも到達でき、外部窓口で相談を送信し、運営者の受信・返信・本人への返信到達を確認する。プライバシー請求にFAQの事前読了や通常ログインを要求しない。
-- プライバシー依頼の受付時刻・返信先・対応担当・期限管理は人的窓口側で扱う。本人確認後の画面表示だけで処理完了とせず、元の窓口から対応結果を返す。実データ削除の運用・7暦日以内の期限管理は別途実証する。
+- 一般窓口は公開マニフェストの `publicPolicy.VITE_PUBLIC_CONTACT_URL` がデプロイ時の正本で、ビルドでは対応する環境変数を読む。未知・未設定のプロジェクトでプライバシー窓口を使う場合に限り、同じ方法で `VITE_PUBLIC_PRIVACY_CONTACT_URL` を指定する。メールは `mailto:` 付き、WebはHTTPSの窓口URLを使い、認証情報・本人確認リンク・利用者情報・クエリを含めない。一般窓口とこのフォールバックは、未設定・不正値の場合にそれぞれ「準備中」と表示する。一般窓口をプライバシー請求先に流用しない。
+- 既知のFirebaseプロジェクトでは、プライバシー窓口をマニフェストに設定しない。ソースの `privacyForms` が正本で、環境変数の値にかかわらず該当する固定URLを表示する。環境の取り違えを防ぐため、URLの変更にはソースレビューと再ビルドが必要となる。
+- プライバシー請求にFAQの事前読了やマイページへのログインを求めない。依頼受付後は、原則として同じチャンネルを新しいYouTubeの許可で確認する（fresh OAuth）。通常のログインだけで依頼を実行しない。この確認を利用できない場合は、窓口で個別の方法を案内する。
 
-公開前に未確定なのは窓口の実値と実運用であり、画面やリンクの表示確認だけではこの受入は完了しない。実デプロイと外部窓口の作成は、画面変更PRとは別の操作として記録する。
+#### お問い合わせ窓口の公開前 Gate
+
+- マイページ未ログイン・利用制限中でも窓口に到達できることと、Googleに未ログインの状態で環境別のフォームから試験回答を送信できることを確認する。運営者の受信、返信、依頼者への返信到達まで実証する。OAuth同意画面のsupport emailや既存の匿名窓口は自動転用しない。
+- フォーム回答の保管場所、閲覧権限、保持期間、削除方法と担当を確定する。受付時刻・返信先・対応担当・期限は人的窓口で管理し、対応結果は元の窓口から返す。実データ削除と7暦日以内の期限管理は別途実証する。
+- [Google連携解除の暫定手順](../support-operator.md#google側で連携を解除した利用者への対応)を開発環境で通し確認し、正式手順化と、fresh OAuthを利用できない場合の本人確認の最低基準を公開前に判断する。
+
+これらは公開の受入条件であり、ソースのマージ条件には含めない。
 
 ## ローカル検証
 

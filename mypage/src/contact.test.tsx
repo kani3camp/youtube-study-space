@@ -10,6 +10,7 @@ import { ContactPage } from './contact'
 import { PUBLIC_POLICY_FIELDS } from './public-policy-config'
 
 beforeEach(() => {
+	vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'synthetic-unknown-project')
 	for (const field of PUBLIC_POLICY_FIELDS) vi.stubEnv(field, undefined)
 })
 afterEach(() => vi.unstubAllEnvs())
@@ -82,6 +83,25 @@ describe('contact destinations and request guidance', () => {
 			expect(href[1]).not.toContain('synthetic-private-proof')
 			expect(href[1]).not.toContain('?')
 		}
+	})
+	it('uses the fixed form independently of the general mailbox and keeps proof out of the form URL', () => {
+		vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'test-youtube-study-space')
+		vi.stubEnv('VITE_PUBLIC_CONTACT_URL', 'mailto:general@example.invalid')
+		vi.stubEnv(
+			'VITE_PUBLIC_PRIVACY_CONTACT_URL',
+			'mailto:override@example.invalid',
+		)
+		const html = markup({ proofRef: 'synthetic-private-proof' })
+		expect(html).toContain('href="mailto:general@example.invalid"')
+		expect(html).not.toContain('override@example.invalid')
+		expect(html).toContain('synthetic-private-proof')
+		const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map((match) => match[1])
+		expect(
+			hrefs.filter((href) => href.startsWith('https://docs.google.com/')),
+		).toEqual([
+			'https://docs.google.com/forms/d/e/1FAIpQLScKyaOQSxKIxs1znN72MlrDwHmJoQ94MnEuUK9UKD_fgqHEzg/viewform',
+		])
+		expect(hrefs.join(' ')).not.toContain('synthetic-private-proof')
 	})
 	it('leaves unsafe configured destinations pending', () => {
 		vi.stubEnv('VITE_PUBLIC_CONTACT_URL', 'javascript:synthetic')

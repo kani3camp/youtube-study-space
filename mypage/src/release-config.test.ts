@@ -190,6 +190,27 @@ describe('offline public release configuration', () => {
 		diagnostic(forbidden, 'publicPolicy', 'UNEXPECTED_FIELD')
 		expect(JSON.stringify(forbidden)).not.toContain('SENTINEL')
 	})
+	it.each([
+		'test-youtube-study-space',
+		'youtube-study-space',
+	])('accepts a public manifest without a privacy contact override for %s', (projectID) => {
+		const input = fixture()
+		input.deployment.projectID = projectID
+		input.frontend.VITE_FIREBASE_PROJECT_ID = projectID
+		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = `${projectID}.firebaseapp.com`
+		input.backend = { ...input.deployment }
+		if (input.hosting) input.hosting.projectID = projectID
+		input.publicPolicy = {
+			VITE_PUBLIC_CONTACT_URL: 'https://general-contact.example.invalid',
+			VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: '2026-10-07',
+			VITE_PUBLIC_TERMS_EFFECTIVE_DATE: '2026-10-07',
+			VITE_PUBLIC_JURISDICTION: 'Synthetic public jurisdiction',
+		}
+		const result = checkReleaseConfig(input)
+		expect(result.configurationValid).toBe(true)
+		expect(result.checks.publicPolicy).toBe('consistent')
+		expect(result.releaseReady).toBe(false)
+	})
 	it('reports missing and malformed fields using known field paths', () => {
 		const input = fixture()
 		delete input.frontend.VITE_FIREBASE_API_KEY

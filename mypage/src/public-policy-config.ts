@@ -123,13 +123,30 @@ export function validatePublicPolicyConfig(input: unknown): PublicPolicyResult {
 	return result
 }
 
+// 公開回答用URL。Firebaseの接続先ごとに固定する。
+const privacyForms = {
+	'test-youtube-study-space':
+		'https://docs.google.com/forms/d/e/1FAIpQLScKyaOQSxKIxs1znN72MlrDwHmJoQ94MnEuUK9UKD_fgqHEzg/viewform',
+	'youtube-study-space':
+		'https://docs.google.com/forms/d/e/1FAIpQLSfTvdRD8r3QPOBMNjNwixzaITe5ca-BPst--ZOoK1aFZXAy2Q/viewform',
+} as const
+
+export function privacyFormForProject(project: unknown): string | undefined {
+	return project === 'test-youtube-study-space' ||
+		project === 'youtube-study-space'
+		? privacyForms[project]
+		: undefined
+}
+
 // 明示した項目だけを読み、Viteの全環境変数をページへコピーしない。
 export function readPublicPolicyConfig(): PublicPolicyResult {
 	const env = import.meta.env
 	return validatePublicPolicyConfig({
 		VITE_PUBLIC_OPERATOR_NAME: env.VITE_PUBLIC_OPERATOR_NAME,
 		VITE_PUBLIC_CONTACT_URL: env.VITE_PUBLIC_CONTACT_URL,
-		VITE_PUBLIC_PRIVACY_CONTACT_URL: env.VITE_PUBLIC_PRIVACY_CONTACT_URL,
+		VITE_PUBLIC_PRIVACY_CONTACT_URL:
+			privacyFormForProject(env.VITE_FIREBASE_PROJECT_ID) ??
+			env.VITE_PUBLIC_PRIVACY_CONTACT_URL,
 		VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: env.VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE,
 		VITE_PUBLIC_TERMS_EFFECTIVE_DATE: env.VITE_PUBLIC_TERMS_EFFECTIVE_DATE,
 		VITE_PUBLIC_JURISDICTION: env.VITE_PUBLIC_JURISDICTION,

@@ -569,9 +569,16 @@ export function createApp(
 					</h1>
 					<p>
 						{supportMode
-							? '受付窓口から届いた依頼について、新しくYouTubeの許可を得て対象チャンネルを確認します。現在のログイン状態だけでは本人確認を完了しません。'
+							? '依頼受付後の本人確認では、原則として、依頼の対象と同じチャンネルを新しいYouTubeの許可で確認します。通常のログインだけで依頼を実行しません。'
 							: 'YouTubeチャンネルを確認して、自分の作業記録を表示します。Googleアカウントのメールアドレスではなく、確認したYouTubeチャンネルが作業部屋のアカウントになります。'}
 					</p>
+					{supportMode && (
+						<p>
+							Google連携を解除済みなどでログインや本人確認を利用できない場合は、まず
+							<Link to="/contact">お問い合わせ窓口</Link>
+							へご連絡ください。個別の確認方法をご案内します。
+						</p>
+					)}
 					{state.phase === 'restricted' && !supportMode && (
 						<p className="notice" role="status">
 							現在のチャンネルではマイページを利用できません。新しくYouTubeチャンネルを確認してログインできます。
@@ -991,7 +998,11 @@ export function createApp(
 					<details>
 						<summary>Google側のアクセス許可</summary>
 						<p>
-							Googleの許可を取り消しても、このサービスのログインは自動で終了しません。次回ログイン時に再度チャンネルを確認します。
+							Googleの許可を取り消しても、マイページのログイン状態がすぐには終了しない場合があります。
+						</p>
+						<p>
+							Googleアカウントの設定で本サービスとの連携を解除した場合は、速やかに
+							<Link to="/contact">お問い合わせ窓口</Link>までご連絡ください。
 						</p>
 						<ExternalLink href="https://myaccount.google.com/connections">
 							Googleアカウントの接続設定
@@ -1000,7 +1011,10 @@ export function createApp(
 					<details>
 						<summary>保存データについて</summary>
 						<p>
-							ログアウトやGoogle側の許可取消だけでは、保存済みの作業記録は削除されません。削除依頼には、対象チャンネルの本人確認が必要です。
+							ログアウトやGoogle側の許可取消だけでは、保存済みの作業記録は削除されません。削除をご希望の場合は、まず窓口へご連絡ください。
+						</p>
+						<p>
+							依頼受付後、原則として、依頼の対象と同じチャンネルを新しいYouTubeの許可で確認します。通常のログインだけで依頼を実行しません。Google連携を解除済みなどでログインや本人確認を利用できない場合は、窓口で個別の確認方法をご案内します。
 						</p>
 						<Link to="/contact">保存データの削除について問い合わせる</Link>
 					</details>
