@@ -1,6 +1,7 @@
 import { type HostingInputs, hostingCandidate } from './hosting.ts'
 import {
 	type PublicPolicyField,
+	privacyFormForProject,
 	validatePublicPolicyConfig,
 } from './public-policy-config.ts'
 
@@ -391,7 +392,18 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 	const result = report(diagnostics)
 	if (root.publicPolicy !== undefined) {
 		const policy = validatePublicPolicyConfig(root.publicPolicy)
-		for (const issue of policy.issues) {
+		const fixedPrivacyForm = privacyFormForProject(
+			frontend?.VITE_FIREBASE_PROJECT_ID,
+		)
+		const issues = policy.issues.filter(
+			(issue) =>
+				!(
+					fixedPrivacyForm &&
+					issue.field === 'VITE_PUBLIC_PRIVACY_CONTACT_URL' &&
+					issue.code === 'missing'
+				),
+		)
+		for (const issue of issues) {
 			const field =
 				issue.field === 'input' ? 'publicPolicy' : `publicPolicy.${issue.field}`
 			add(
@@ -406,8 +418,7 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 					: 'Supply the selected public publication value: safe text, an HTTPS/single-recipient mailto contact without query or fragment, or a real YYYY-MM-DD date. The operator display label is optional; publication review remains pending.',
 			)
 		}
-		result.checks.publicPolicy =
-			policy.issues.length === 0 ? 'consistent' : 'invalid'
+		result.checks.publicPolicy = issues.length === 0 ? 'consistent' : 'invalid'
 	}
 	if (root.backend !== undefined) {
 		const start = diagnostics.length

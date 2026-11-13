@@ -6,12 +6,13 @@ import {
 } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from './app'
 import { PrivacyPolicy, PublicPolicyContact, TermsOfUse } from './policies'
 import { PUBLIC_POLICY_FIELDS } from './public-policy-config'
 import { BrowserRuntime } from './runtime'
 
+beforeEach(() => vi.stubEnv('VITE_FIREBASE_PROJECT_ID', undefined))
 afterEach(() => vi.unstubAllEnvs())
 
 function markup(children: ReactNode) {
@@ -135,7 +136,7 @@ describe('public policy draft rendering', () => {
 			'期限は受付時点を基準とし、本人確認が終わるまで一律に延長することはありません。',
 		)
 		expect(html).toContain(
-			'通常のログインを別の依頼の本人確認に流用することはありません。',
+			'通常のログインを依頼の本人確認に流用せず、通常のログインだけで依頼を実行しません。',
 		)
 		expect(html).toContain(
 			'本人確認の画面で削除やすべてのログイン状態の解除が実行されることはありません。',
@@ -158,6 +159,26 @@ describe('public policy draft rendering', () => {
 		}
 		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
 		expect(html).toContain('チャンネルIDと作業履歴は保持します。')
+		expect(html).toContain(
+			'マイページのアカウント情報とチャンネルとのひも付けを削除',
+		)
+	})
+	it.each([
+		PrivacyPolicy,
+		TermsOfUse,
+	])('explains fresh YouTube authorization and individual guidance in $name', (Policy) => {
+		const html = markup(<Policy publicPolicyInputs={{}} />)
+		expect(html).toContain(
+			'原則として、依頼の対象と同じチャンネルを新しいYouTubeの許可で確認します。',
+		)
+		expect(html).toContain('通常のログインだけで依頼を実行しません。')
+		expect(html).toContain(
+			'Google連携を解除済みなどでログインや本人確認を利用できない場合も',
+		)
+		expect(html).toContain('個別の確認方法をご案内します。')
+		expect(html).toMatch(
+			/マイページへのログイン[もは][^。]*条件ではありません。/,
+		)
 	})
 	it.each([
 		[
@@ -174,10 +195,15 @@ describe('public policy draft rendering', () => {
 			'VITE_PUBLIC_PRIVACY_CONTACT_URL',
 			'https://contact.example.invalid/other',
 		)
-		const html = markup(<PublicPolicyContact />)
-		expect(html).toContain(
-			`href="https://docs.google.com/forms/d/e/${form}/viewform"`,
+		const html = markup(
+			<>
+				<PrivacyPolicy />
+				<TermsOfUse />
+			</>,
 		)
+		expect(
+			html.split(`href="https://docs.google.com/forms/d/e/${form}/viewform"`),
+		).toHaveLength(3)
 		expect(html).not.toContain('contact.example.invalid/other')
 	})
 	it('keeps explicit Analytics opt-in separate from necessary Firebase communication', () => {
@@ -278,15 +304,34 @@ describe('public policy draft rendering', () => {
 		expect(html).toContain('href="https://contact.example.invalid/general"')
 		expect(html).toContain('href="mailto:privacy@example.invalid"')
 		expect(html).toContain(
-			'依頼受付後、本人確認が必要な場合は方法をご案内します。',
+			'依頼受付後、原則として、依頼の対象と同じチャンネルを新しいYouTubeの許可で確認します。',
 		)
 		expect(html).toContain('通常のログインだけで依頼を実行しません。')
 		expect(html).toContain('Google連携を解除済みでログインできない場合も')
+		expect(html).toContain('個別の確認方法をご案内します。')
 		expect(html).not.toContain('supportChallenge')
 		expect(request).not.toHaveBeenCalled()
 	})
-	it('shows only allowlisted support OAuth failures on the public contact route', () => {
-		const renderContact = (entry: string) => {
+	it('preserves a support failure when the client router validates normalized search again', () => {
+		const runtime = new BrowserRuntime(
+			null,
+			{ privacy: 'synthetic-v1', terms: 'synthetic-v1' },
+			vi.fn<typeof fetch>(),
+			'LOGIN_UNAVAILABLE',
+		)
+		const router = createApp(runtime, createMemoryHistory())
+		const validate = router.routesById['/contact'].options.validateSearch
+		if (typeof validate !== 'function')
+			throw new Error('Contact search missing')
+		const normalized = validate({ supportError: 'oauth_denied' })
+		expect(normalized).toEqual({ supportError: true })
+		expect(validate(normalized)).toEqual(normalized)
+		expect(validate({ supportError: 'private-provider-detail' })).toEqual({
+			supportError: undefined,
+		})
+	})
+	it('shows only allowlisted support OAuth failures after contact route search normalization', async () => {
+		const renderContact = async (entry: string) => {
 			const runtime = new BrowserRuntime(
 				null,
 				{ privacy: 'synthetic-v1', terms: 'synthetic-v1' },
@@ -299,16 +344,17 @@ describe('public policy draft rendering', () => {
 			)
 			const Contact = router.routesById['/contact'].options.component
 			if (!Contact) throw new Error('Contact route missing')
+			await router.load()
 			return renderToStaticMarkup(
 				<RouterContextProvider router={router}>
 					<Contact />
 				</RouterContextProvider>,
 			)
 		}
-		const failure = renderContact('/contact?supportError=oauth_denied')
+		const failure = await renderContact('/contact?supportError=oauth_denied')
 		expect(failure).toContain('YouTubeでの本人確認を完了できませんでした。')
 		expect(failure).toContain('受付窓口からもう一度お手続きください。')
-		const untrusted = renderContact(
+		const untrusted = await renderContact(
 			'/contact?supportError=private-provider-detail',
 		)
 		expect(untrusted).not.toContain('本人確認を完了できませんでした。')

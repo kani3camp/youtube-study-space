@@ -19,6 +19,7 @@ import {
 	useSyncExternalStore,
 } from 'react'
 import { SiteHeader } from './components/site-header'
+import { ContactPage } from './contact'
 import {
 	RequestError,
 	type RestrictionCode,
@@ -32,7 +33,7 @@ import {
 } from './features/mypage/view'
 import { maintenanceDestination } from './maintenance'
 import { maintenanceAnnouncementURLForProject } from './maintenance-announcement'
-import { PrivacyPolicy, PublicPolicyContact, TermsOfUse } from './policies'
+import { PrivacyPolicy, TermsOfUse } from './policies'
 import { consentKey, createPrivacy } from './privacy'
 import type { BrowserRuntime, ChannelConfirmation } from './runtime'
 import { youtubeChannelURLsForProject } from './youtube-channel'
@@ -568,9 +569,16 @@ export function createApp(
 					</h1>
 					<p>
 						{supportMode
-							? '受付窓口から届いた依頼について、新しくYouTubeの許可を得て対象チャンネルを確認します。現在のログイン状態だけでは本人確認を完了しません。'
+							? '依頼受付後の本人確認では、原則として、依頼の対象と同じチャンネルを新しいYouTubeの許可で確認します。通常のログインだけで依頼を実行しません。'
 							: 'YouTubeチャンネルを確認して、自分の作業記録を表示します。Googleアカウントのメールアドレスではなく、確認したYouTubeチャンネルが作業部屋のアカウントになります。'}
 					</p>
+					{supportMode && (
+						<p>
+							Google連携を解除済みなどでログインや本人確認を利用できない場合は、まず
+							<Link to="/contact">お問い合わせ窓口</Link>
+							へご連絡ください。個別の確認方法をご案内します。
+						</p>
+					)}
 					{state.phase === 'restricted' && !supportMode && (
 						<p className="notice" role="status">
 							現在のチャンネルではマイページを利用できません。新しくYouTubeチャンネルを確認してログインできます。
@@ -1003,7 +1011,10 @@ export function createApp(
 					<details>
 						<summary>保存データについて</summary>
 						<p>
-							ログアウトやGoogle側の許可取消だけでは、保存済みの作業記録は削除されません。削除依頼には、対象チャンネルの本人確認が必要です。
+							ログアウトやGoogle側の許可取消だけでは、保存済みの作業記録は削除されません。削除をご希望の場合は、まず窓口へご連絡ください。
+						</p>
+						<p>
+							依頼受付後、原則として、依頼の対象と同じチャンネルを新しいYouTubeの許可で確認します。通常のログインだけで依頼を実行しません。Google連携を解除済みなどでログインや本人確認を利用できない場合は、窓口で個別の確認方法をご案内します。
 						</p>
 						<Link to="/contact">保存データの削除について問い合わせる</Link>
 					</details>
@@ -1024,37 +1035,7 @@ export function createApp(
 		})
 		const receipt = useContext(SupportReceipt)
 		return (
-			<main className="main-content public-page">
-				<section className="card policy-page">
-					<h1>お問い合わせ</h1>
-					{supportError && (
-						<p className="notice" role="alert">
-							YouTubeでの本人確認を完了できませんでした。依頼の参照番号をご確認のうえ、受付窓口からもう一度お手続きください。
-						</p>
-					)}
-					{receipt.proofRef && (
-						<section aria-labelledby="support-complete">
-							<h2 id="support-complete">依頼の本人確認が完了しました</h2>
-							<p>
-								受付窓口で依頼内容と照合して対応します。データの削除やログインの解除は、この画面では実行していません。
-							</p>
-							<p>確認結果の参照番号</p>
-							<p className="proof-reference">{receipt.proofRef}</p>
-							<p>
-								この番号は画面を離れたり、再読み込みすると表示されなくなります。確認結果は受付窓口からご案内します。
-							</p>
-						</section>
-					)}
-					<p>
-						Google連携解除後のご連絡、保存データの削除、開示、全ログインの解除は、返信可能な窓口で受け付けます。
-					</p>
-					<PublicPolicyContact />
-					<p>
-						依頼受付後、本人確認が必要な場合は方法をご案内します。通常のログインだけで依頼を実行しません。Google連携を解除済みでログインできない場合も、窓口へお問い合わせください。
-					</p>
-					<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
-				</section>
-			</main>
+			<ContactPage supportError={supportError} proofRef={receipt.proofRef} />
 		)
 	}
 	function MaintenancePage() {
@@ -1143,8 +1124,9 @@ export function createApp(
 		component: Contact,
 		validateSearch: (raw: Record<string, unknown>): ContactSearch => ({
 			supportError:
-				typeof raw.supportError === 'string' &&
-				supportOAuthErrors.has(raw.supportError)
+				raw.supportError === true ||
+				(typeof raw.supportError === 'string' &&
+					supportOAuthErrors.has(raw.supportError))
 					? true
 					: undefined,
 		}),
