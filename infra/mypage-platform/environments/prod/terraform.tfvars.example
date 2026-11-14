@@ -1,0 +1,5 @@
+# Default; no resources created. Do not put secret values in Terraform variables.
+stage = "disabled"
+
+# Later, after dev observed and separate prod approval: "foundation",
+# "runtime_private" or "runtime_public". Production target/rollout is independent.

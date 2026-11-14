@@ -63,9 +63,9 @@ class SourceBoundary(unittest.TestCase):
             context = e | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': ops.CALLER + ref}
             self.assertEqual(ops.context(context, 'plan'), 'dev')
             self.assertEqual(selected.branch(context | {'NORMAL_SOURCE_BRANCH': ''}), '')
-            # ci.yml no longer calls authenticated Terraform.
+            # terraform.yml is the only caller (#1500); the retired CI entry is rejected.
             with self.assertRaises(ValueError):
-                ops.context(context | {'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/ci.yml@' + ref}, 'plan')
+                ops.context(context | {'GITHUB_WORKFLOW_REF': ops.CALLER.replace('terraform.yml', 'ci.yml') + ref}, 'plan')
         for key, value in (('GITHUB_ACTOR', 'other'), ('GITHUB_ACTOR_ID', '0'),
                            ('GITHUB_TRIGGERING_ACTOR', 'other'), ('GITHUB_RUN_ATTEMPT', '2'),
                            ('GITHUB_EVENT_NAME', 'pull_request')):

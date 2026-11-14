@@ -1,0 +1,74 @@
+name: MyPage Maintenance Mode Authenticated
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      enabled:
+        required: true
+        type: string
+    secrets:
+      MYPAGE_MAINTENANCE_WIF_PROVIDER:
+        required: false
+
+permissions: {}
+
+jobs:
+  transition:
+    name: Execute the maintenance operator Job
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: mypage-maintenance-${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # The WIF condition enforces the same values; reject them before any token request.
+      - name: Validate the target, input and trusted caller before credentials
+        id: target
+        env:
+          TARGET: ${{ inputs.environment }}
+          ENABLED: ${{ inputs.enabled }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          case "${TARGET}:${ENABLED}" in
+            development:true|development:false)
+              project=test-youtube-study-space; region=asia-southeast2
+              ref=refs/heads/integration/mypage-canon-20261006 ;;
+            production:true|production:false)
+              project=youtube-study-space; region=asia-northeast2; ref=refs/heads/main ;;
+            *) fail "Unsupported environment or enabled value" ;;
+          esac
+          [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${GITHUB_REPOSITORY_ID}" == "340900071" &&
+             "${GITHUB_REPOSITORY_OWNER_ID}" == "54093651" && "${GITHUB_ACTOR_ID}" == "54093651" &&
+             "${GITHUB_TRIGGERING_ACTOR}" == "kani3camp" && "${GITHUB_RUN_ATTEMPT}" == "1" ]] ||
+            fail "Only the owner's first manual run may change maintenance mode"
+          [[ "${GITHUB_REF}" == "${ref}" &&
+             "${GITHUB_WORKFLOW_REF}" == "kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@${ref}" ]] ||
+            fail "Maintenance mode runs only from the reviewed workflow on the target's ref"
+          echo "project=${project}" >> "$GITHUB_OUTPUT"
+          echo "region=${region}" >> "$GITHUB_OUTPUT"
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Authenticate the dedicated job invoker
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.MYPAGE_MAINTENANCE_WIF_PROVIDER }}
+          service_account: mypage-maintenance-invoker@${{ steps.target.outputs.project }}.iam.gserviceaccount.com
+          project_id: ${{ steps.target.outputs.project }}
+      - name: Set and read back the maintenance switch
+        env:
+          PROJECT: ${{ steps.target.outputs.project }}
+          ENABLED: ${{ inputs.enabled }}
+          REGION: ${{ steps.target.outputs.region }}
+        run: |
+          set -euo pipefail
+          gcloud run jobs execute mypage-maintenance-operator \
+            --project="${PROJECT}" --region="${REGION}" \
+            --args="--enabled=${ENABLED}" --wait --quiet

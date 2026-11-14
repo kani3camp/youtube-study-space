@@ -6,12 +6,12 @@ import sys
 
 GROUPS = (
     'system', 'room_image_prompt', 'menu_image_generator', 'video_maker_simulator',
-    'figma_plugin', 'youtube_monitor', 'docs_site', 'aws_cdk', 'gcp_terraform',
+    'figma_plugin', 'youtube_monitor', 'mypage', 'docs_site', 'aws_cdk', 'gcp_terraform',
     'node_projects', 'firestore_integration', 'formal_spec', 'all',
 )
 DOMAIN_GROUPS = {
     'system': ('system', 'firestore_integration'),
-    'frontend': ('youtube_monitor', 'docs_site', 'node_projects'),
+    'frontend': ('youtube_monitor', 'mypage', 'docs_site', 'node_projects'),
     'tools': ('room_image_prompt', 'menu_image_generator', 'video_maker_simulator',
               'figma_plugin', 'formal_spec', 'node_projects'),
     'infra': ('aws_cdk', 'node_projects'),
@@ -45,7 +45,7 @@ def main():
     except (KeyError, TypeError, ValueError, AttributeError) as error:
         print(f'::error::{error}', file=sys.stderr)
         return 1
-    print('All selected CI validations succeeded; unselected validations may be skipped.')
+    print('All selected CI validations succeeded.')
     return 0
 
 

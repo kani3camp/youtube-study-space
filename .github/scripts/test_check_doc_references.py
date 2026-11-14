@@ -54,6 +54,19 @@ class DocumentationReferencesTests(unittest.TestCase):
             ), redirect_stdout(io.StringIO()):
                 self.assertEqual(checker.main(), 0)
 
+    def test_new_docs_outside_mypage_are_checked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "docs/privacy/cleanup.md"
+            source.parent.mkdir(parents=True)
+            source.write_text("[runbook](missing.md#gate)\n", encoding="utf-8")
+            with patch.object(checker, "ROOT", root), patch.object(
+                checker, "TARGETS", ()
+            ), redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(checker.main(), 1)
+            self.assertIn("docs/privacy/cleanup.md", err.getvalue())
+            self.assertIn("broken relative link", err.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

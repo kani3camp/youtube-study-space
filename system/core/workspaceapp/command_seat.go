@@ -181,7 +181,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				*inOption.MinWorkOrderOption,
 				currentSeat,
 				&userDoc,
-				workSegments)
+				workSegments, jstNow)
 			if err != nil {
 				return fmt.Errorf("failed to moveSeat for %s (%s): %w", app.ProcessedUserDisplayName, app.ProcessedUserID, err)
 			}

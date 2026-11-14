@@ -432,7 +432,9 @@ func TestFirestoreRepository_WorkSegmentQuery(t *testing.T) {
 		},
 	}
 	for _, segment := range segments {
-		require.NoError(t, controller.CreateWorkSegmentDoc(context.Background(), nil, segment))
+		// 過去のクエリ用テストデータは、実際の区間終了書き込みを意図的に迂回する。
+		_, err := controller.FirestoreClient().Collection(repository.WorkSegments).NewDoc().Create(context.Background(), segment)
+		require.NoError(t, err)
 	}
 
 	got, err := controller.ReadWorkStateSegmentsBySessionID(context.Background(), targetSessionID)
