@@ -78,7 +78,7 @@ def command(args, *, env=None, cwd=ROOT):
 
 
 def allowed_path(name):
-    return name in {'index.html', 'fonts/mplus-rounded-1c/OFL.txt'} or bool(
+    return name in {'index.html', 'favicon.png', 'fonts/mplus-rounded-1c/OFL.txt'} or bool(
         re.fullmatch(r'assets/[A-Za-z0-9][A-Za-z0-9._-]*-[A-Za-z0-9_-]{8,}\.(js|css|woff2)', name))
 
 
