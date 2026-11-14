@@ -110,32 +110,57 @@ func concurrently(t *testing.T, fn func() error) int {
 
 func TestAuthAtomicCallbackAndConfirm(t *testing.T) {
 	s, store, provider, minter, now := authTestService(t)
+	ctx := context.Background()
+	// 他パッケージと共有するEmulatorでも、未登録のチャンネルで検証する。
+	channelRef, err := opaque()
+	if err != nil {
+		t.Fatal(err)
+	}
+	uid := "UC" + channelRef[:22]
+	provider.channels[0].ID = uid
+	user := store.Client.Collection("users").Doc(uid)
+	if _, err := user.Get(ctx); status.Code(err) != codes.NotFound {
+		t.Fatalf("expected an unregistered test channel before login, got: %v", err)
+	}
 	id, _ := seedTransaction(t, s, "pending", now)
-	if got := concurrently(t, func() error { return s.Callback(context.Background(), id, "synthetic-state", "synthetic-code", false) }); got != 1 {
+	t.Cleanup(func() {
+		for _, ref := range []*firestore.DocumentRef{
+			store.Client.Collection("oauth-transactions").Doc(id),
+			store.Client.Collection("web-accounts").Doc(uid),
+			user,
+		} {
+			if _, err := ref.Delete(ctx); err != nil {
+				t.Errorf("clean up auth fixture: %v", err)
+			}
+		}
+	})
+	if got := concurrently(t, func() error { return s.Callback(ctx, id, "synthetic-state", "synthetic-code", false) }); got != 1 {
 		t.Fatalf("successful callback count=%d", got)
 	}
 	if provider.calls.Load() != 1 {
 		t.Fatal("code exchange repeated after transaction retry/replay")
 	}
-	channel, err := s.Channel(context.Background(), id)
+	channel, err := s.Channel(ctx, id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := concurrently(t, func() error { _, err := s.Confirm(context.Background(), id, channel.ConfirmationRef); return err }); got != 1 {
+	if got := concurrently(t, func() error { _, err := s.Confirm(ctx, id, channel.ConfirmationRef); return err }); got != 1 {
 		t.Fatalf("successful confirm count=%d", got)
 	}
 	if minter.calls.Load() != 1 {
 		t.Fatal("token minted more than once")
 	}
-	account, err := store.ReadAccount(context.Background(), "UCsynthetic0000000000001")
+	account, err := store.ReadAccount(ctx, uid)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if account.PrivacyPolicyVersion != s.Policy.Privacy || account.TermsVersion != s.Policy.Terms {
 		t.Fatal("consent was not transferred")
 	}
-	if _, err := store.Client.Collection("users").Doc("UCsynthetic0000000000001").Get(context.Background()); status.Code(err) != codes.NotFound {
+	if _, err := user.Get(ctx); err == nil {
 		t.Fatal("web login created a Study Space user")
+	} else if status.Code(err) != codes.NotFound {
+		t.Fatalf("read Study Space user after web login: %v", err)
 	}
 }
 
