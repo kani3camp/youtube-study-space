@@ -471,6 +471,20 @@ h2 {
 	overflow-wrap: anywhere;
 	margin-top: 2px;
 }
+.metric-today {
+	grid-column: 1 / -1;
+	padding-bottom: 18px;
+	border-bottom: 1px dashed var(--color-line);
+}
+.metric-today dd {
+	font-size: 48px;
+	color: oklch(30% 0.05 55);
+}
+.metric-today dd:has(.duration-unavailable) {
+	font-size: 22px;
+	line-height: 1.4;
+	margin-block: 12px 4px;
+}
 .duration-value {
 	display: flex;
 	flex-wrap: wrap;
@@ -493,6 +507,9 @@ h2 {
 .duration-unit {
 	font-size: 13px;
 	color: oklch(38% 0.02 55);
+}
+.metric-today .duration-unit {
+	font-size: 16px;
 }
 .duration-unavailable {
 	font-size: 22px;
@@ -893,6 +910,15 @@ h2 {
 	}
 	.current-links {
 		margin-top: 4px;
+	}
+	.metric-today dd {
+		font-size: 48px;
+	}
+	.metric-today {
+		padding-bottom: 18px;
+	}
+	.metric-today .duration-unit {
+		font-size: 16px;
 	}
 	.metric .duration-value {
 		gap: 0 4px;
