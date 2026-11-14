@@ -491,8 +491,6 @@ func (h *HTTPHandler) callback(w http.ResponseWriter, r *http.Request, requestID
 
 func statusFor(code string) int {
 	switch code {
-	case "FEATURE_UNAVAILABLE":
-		return 404
 	case "AUTH_REQUIRED":
 		return 401
 	case "APP_CHECK_REQUIRED", "PRIVACY_RECONSENT_REQUIRED", "SERVICE_ACCESS_RESTRICTED", "DATA_DELETION_IN_PROGRESS":

@@ -129,6 +129,17 @@ describe('same-origin MyPage client boundary', () => {
 		).rejects.toMatchObject({ retryAfter: 3600 })
 	})
 	it.each([
+		{ status: 404, code: 'FEATURE_UNAVAILABLE' },
+		{ status: 500, code: 'HISTORY_LIMIT_EXCEEDED' },
+	])('treats $code as an unknown top-level HTTP error', async ({
+		status,
+		code,
+	}) => {
+		await expect(
+			checkedJSON(Response.json({ error: { code } }, { status })),
+		).rejects.toMatchObject({ status, code: 'TEMPORARY_UNAVAILABLE' })
+	})
+	it.each([
 		401, 403, 429, 500,
 	])('does not trust MAINTENANCE_ACTIVE on non-503 status %s', async (status) => {
 		await expect(
