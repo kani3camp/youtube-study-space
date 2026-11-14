@@ -263,6 +263,9 @@ function CurrentCard({
 		? Math.min(100, Math.max(0, ((asOf - start) / (end - start)) * 100))
 		: 0
 	const timelinePosition = `calc(6px + (100% - 12px) * ${progress / 100})`
+	const currentAsOf = value?.asOf && (
+		<p className="jst-note">入室状況 · {timestamp(value.asOf)}時点</p>
+	)
 	return (
 		<section
 			className={`card current-card ${active ? (resting ? 'resting' : 'working') : 'empty'}`}
@@ -324,6 +327,7 @@ function CurrentCard({
 								)}
 							</>
 						)}
+						{currentAsOf}
 					</div>
 				</>
 			) : (
@@ -343,12 +347,10 @@ function CurrentCard({
 							? '参加すると、ここに作業時間が記録されます。'
 							: '入室すると、ここに現在の作業が表示されます。'}
 					</p>
+					{currentAsOf}
 				</>
 			)}
 			{value && <StaleNote value={value} sharedAsOf={value.asOf} />}
-			{value?.asOf && (
-				<p className="jst-note">入室状況 · {timestamp(value.asOf)}時点</p>
-			)}
 			<div className="hero-links current-links">
 				{active && (
 					<ExternalLink href={guideURL}>使い方・コマンド</ExternalLink>
