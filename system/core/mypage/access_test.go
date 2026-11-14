@@ -3,8 +3,10 @@ package mypage
 import (
 	"context"
 	"errors"
+	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -47,11 +49,13 @@ type mutableAccess struct {
 	mu    sync.Mutex
 	value serviceaccess.Snapshot
 	err   error
+	uids  []string
 }
 
-func (r *mutableAccess) Read(context.Context, string) (serviceaccess.Snapshot, error) {
+func (r *mutableAccess) Read(_ context.Context, uid string) (serviceaccess.Snapshot, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.uids = append(r.uids, uid)
 	return r.value, r.err
 }
 
@@ -61,11 +65,31 @@ func (r *mutableAccess) set(value serviceaccess.Snapshot, err error) {
 	r.value, r.err = value, err
 }
 
+func (r *mutableAccess) readUIDs() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.uids...)
+}
+
+func TestAccessHTTPReadsOncePerRequestForMissHitAndCurrent(t *testing.T) {
+	h, store, verifier, reads := boundaryFixture()
+	access := &mutableAccess{}
+	h.Auth.Access = access
+	for _, path := range []string{"/api/mypage", "/api/mypage", "/api/mypage?view=current", "/api/mypage?view=current"} {
+		require.Equal(t, 200, boundaryRequest(h, "GET", path, "").Code)
+	}
+	verifier.identity.UID = "another-user"
+	require.Equal(t, 200, boundaryRequest(h, "GET", "/api/mypage", "").Code)
+	require.Equal(t, []string{"synthetic", "synthetic", "synthetic", "synthetic", "another-user"}, access.readUIDs())
+	require.Equal(t, 5, store.reads)
+	require.Equal(t, 3, *reads, "both views and each uid need their own snapshot cache")
+}
+
 func TestAccessHTTPDeniesBeforeAccountOrWarmCache(t *testing.T) {
 	for _, deletion := range []bool{false, true} {
 		h, store, _, reads := boundaryFixture()
 		access := &mutableAccess{}
-		h.Auth.Access, h.BFF.Access = access, access
+		h.Auth.Access = access
 		require.Equal(t, 200, boundaryRequest(h, "GET", "/api/mypage", "").Code)
 		access.set(controlFixture(nowForAccessTest(), deletion), nil)
 		before := store.reads
@@ -78,6 +102,7 @@ func TestAccessHTTPDeniesBeforeAccountOrWarmCache(t *testing.T) {
 		require.Equal(t, want, responseCode(t, w))
 		require.Equal(t, before, store.reads)
 		require.Equal(t, 1, *reads)
+		require.Equal(t, []string{"synthetic", "synthetic"}, access.readUIDs())
 		require.NotContains(t, w.Body.String(), "MODERATION")
 		require.NotContains(t, w.Body.String(), strings.Repeat("a", 64))
 	}
@@ -94,8 +119,7 @@ func TestAccessReadFailureCannotBecomePartial200(t *testing.T) {
 	require.Zero(t, store.reads)
 	require.Zero(t, *reads)
 	require.NotContains(t, w.Body.String(), "SDK")
-	b := BFF{Access: h.Auth.Access, Now: nowForAccessTest, Environment: "demo"}
-	_, err := b.Get(context.Background(), "synthetic", WebAccount{})
+	_, err := readAccess(context.Background(), h.Auth.Access, "synthetic", "")
 	require.Equal(t, "TEMPORARY_UNAVAILABLE", errorCode(err))
 	require.True(t, metadataGateError(err))
 	require.False(t, metadataGateError(apiError("TEMPORARY_UNAVAILABLE")))
@@ -107,37 +131,105 @@ func TestLegacyAccountBlockIsCompatibilityOnly(t *testing.T) {
 	require.Equal(t, 200, boundaryRequest(h, "GET", "/api/mypage", "").Code)
 }
 
-func TestAccessConcurrentDetachedFlightAndAnotherInstance(t *testing.T) {
-	now := workFixture().AsOf
+type accountStoreHook struct {
+	AuthStore
+	afterRead func()
+}
+
+func (s accountStoreHook) ReadAccount(ctx context.Context, uid string) (WebAccount, error) {
+	account, err := s.AuthStore.ReadAccount(ctx, uid)
+	s.afterRead()
+	return account, err
+}
+
+func TestAccessRestrictionImmediatelyAfterHTTPGate(t *testing.T) {
+	h, store, _, reads := boundaryFixture()
 	access := &mutableAccess{}
+	h.Auth.Access = access
+	h.Auth.Store = accountStoreHook{AuthStore: store, afterRead: func() {
+		access.set(controlFixture(nowForAccessTest(), true), nil)
+	}}
+
+	inFlight := boundaryRequest(h, "GET", "/api/mypage", "")
+	require.Equal(t, 200, inFlight.Code)
+	rejected := boundaryRequest(h, "GET", "/api/mypage", "")
+	require.Equal(t, 403, rejected.Code)
+	require.Equal(t, "DATA_DELETION_IN_PROGRESS", responseCode(t, rejected))
+	require.Equal(t, 1, store.reads)
+	require.Equal(t, 1, *reads)
+	require.Equal(t, []string{"synthetic", "synthetic"}, access.readUIDs())
+}
+
+func TestAccessRestrictionDuringSharedSnapshot(t *testing.T) {
+	h, store, _, _ := boundaryFixture()
+	access := &mutableAccess{}
+	h.Auth.Access = access
 	started, release := make(chan struct{}), make(chan struct{})
-	b := &BFF{Access: access, Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) {
-		close(started)
-		<-release
-		return workFixture(), nil
-	})}
-	other := &BFF{Access: access, Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) { return workFixture(), nil })}
-	account := healthyAccount(now)
-	require.NotNil(t, other)
-	_, err := other.Get(context.Background(), "synthetic", account)
-	require.NoError(t, err)
-	result := make(chan error, 1)
-	go func() { _, err := b.Get(context.Background(), "synthetic", account); result <- err }()
-	<-started
+	var unblock sync.Once
+	defer unblock.Do(func() { close(release) })
+	var snapshots atomic.Int32
+	h.BFF.Reader = readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
+		if snapshots.Add(1) == 1 {
+			close(started)
+		}
+		select {
+		case <-release:
+			return workFixture(), nil
+		case <-ctx.Done():
+			return WorkSnapshot{}, ctx.Err()
+		}
+	})
+
+	result := make(chan *httptest.ResponseRecorder, 1)
+	go func() { result <- boundaryRequest(h, "GET", "/api/mypage", "") }()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("request did not start its snapshot")
+	}
+
+	// 先行リクエストが集計中でも、合流するリクエストは個別に判定される。
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	follower := httptest.NewRecorder()
+	h.ServeHTTP(follower, newBoundaryRequest(h, "GET", "/api/mypage", "").WithContext(ctx))
+	require.Equal(t, 503, follower.Code, "the follower expires while the shared snapshot is still running")
+	require.EqualValues(t, 1, snapshots.Load())
+	require.Equal(t, 2, store.reads)
+	require.Equal(t, []string{"synthetic", "synthetic"}, access.readUIDs())
+
+	access.set(controlFixture(nowForAccessTest(), false), nil)
+	rejected := boundaryRequest(h, "GET", "/api/mypage", "")
+	require.Equal(t, 403, rejected.Code)
+	require.Equal(t, "SERVICE_ACCESS_RESTRICTED", responseCode(t, rejected))
+	unblock.Do(func() { close(release) })
+	select {
+	case inFlight := <-result:
+		require.Equal(t, 200, inFlight.Code)
+	case <-time.After(time.Second):
+		t.Fatal("authorized request did not complete")
+	}
+
+	// 制限前に開始した処理がキャッシュを作成しても、後続リクエストは拒否される。
+	rejected = boundaryRequest(h, "GET", "/api/mypage", "")
+	require.Equal(t, 403, rejected.Code)
+	require.Equal(t, []string{"synthetic", "synthetic", "synthetic", "synthetic"}, access.readUIDs())
+	require.Equal(t, 2, store.reads)
+	require.EqualValues(t, 1, snapshots.Load())
+}
+
+func TestAccessGenerationChangeDoesNotReuseWarmCache(t *testing.T) {
+	h, _, _, reads := boundaryFixture()
+	access := &mutableAccess{}
+	h.Auth.Access = access
+	require.Equal(t, 200, boundaryRequest(h, "GET", "/api/mypage", "").Code)
+
+	// 制限開始時にアクセスがなければ、キャッシュを無効化する403も発生しない。
 	blocked := controlFixture(nowForAccessTest(), false)
-	access.set(blocked, nil)
-	_, err = other.Get(context.Background(), "synthetic", account)
-	require.Equal(t, "SERVICE_ACCESS_RESTRICTED", errorCode(err))
-	// ブロック後に解除しても、旧共有処理が保存した判定は無効になる。
-	blocked.Control.Moderation = serviceaccess.ReasonState{}
-	blocked.Control.Generation++
-	blocked.Revision = blocked.Revision.Add(time.Second)
-	access.set(blocked, nil)
-	close(release)
-	require.Equal(t, "TEMPORARY_UNAVAILABLE", errorCode(<-result))
-	b.mu.Lock()
-	require.Empty(t, b.cache)
-	b.mu.Unlock()
-	_, err = other.Get(context.Background(), "synthetic", account)
+	unblocked, _, err := serviceaccess.Transition(blocked, serviceaccess.Change{Reason: serviceaccess.Moderation}, blocked.Revision.Add(time.Second))
 	require.NoError(t, err)
+	access.set(serviceaccess.Snapshot{Control: unblocked, Exists: true, Revision: unblocked.UpdatedAt}, nil)
+	require.Equal(t, 200, boundaryRequest(h, "GET", "/api/mypage", "").Code)
+	require.Equal(t, 2, *reads, "new access generation must fetch a fresh snapshot")
+	require.Equal(t, []string{"synthetic", "synthetic"}, access.readUIDs())
 }

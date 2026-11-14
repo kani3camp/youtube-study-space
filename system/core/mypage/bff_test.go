@@ -16,11 +16,26 @@ func healthyAccount(now time.Time) WebAccount {
 	return WebAccount{PrivacyPolicyVersion: "p1", TermsVersion: "t1", DisplayName: "Sample", MetadataFetchedAt: now}
 }
 
+func testAuthorizedWebAccount(uid string, account WebAccount) authorizedWebAccount {
+	account.AccessCheckpoint = "absent"
+	return authorizedWebAccount{uid: uid, account: account}
+}
+
+func TestBFFRequiresAuthorizedAccount(t *testing.T) {
+	var b BFF
+	if _, err := b.get(context.Background(), authorizedWebAccount{}); errorCode(err) != "TEMPORARY_UNAVAILABLE" {
+		t.Fatalf("empty authorization: %v", err)
+	}
+	if _, err := b.get(context.Background(), authorizedWebAccount{uid: "synthetic", account: healthyAccount(workFixture().AsOf)}); errorCode(err) != "TEMPORARY_UNAVAILABLE" {
+		t.Fatalf("account without access checkpoint: %v", err)
+	}
+}
+
 func TestBFFCacheExpiryBoundaryAndFailure(t *testing.T) {
 	now := instant("2026-10-05T14:59:50Z")
 	calls := 0
 	fail := false
-	b := BFF{Access: allowedAccess(), Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(_ context.Context, uid string) (WorkSnapshot, error) {
+	b := BFF{Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(_ context.Context, uid string) (WorkSnapshot, error) {
 		calls++
 		if fail {
 			return WorkSnapshot{}, errors.New("private dependency detail")
@@ -32,7 +47,7 @@ func TestBFFCacheExpiryBoundaryAndFailure(t *testing.T) {
 	})}
 	get := func(uid string) Response {
 		t.Helper()
-		r, err := b.Get(context.Background(), uid, healthyAccount(now))
+		r, err := b.get(context.Background(), testAuthorizedWebAccount(uid, healthyAccount(now)))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -55,7 +70,7 @@ func TestBFFCacheExpiryBoundaryAndFailure(t *testing.T) {
 	now = now.Add(30 * time.Second)
 	fail = true
 	for range 2 {
-		if _, err := b.Get(context.Background(), "sample-a", healthyAccount(now)); errorCode(err) != "TEMPORARY_UNAVAILABLE" {
+		if _, err := b.get(context.Background(), testAuthorizedWebAccount("sample-a", healthyAccount(now))); errorCode(err) != "TEMPORARY_UNAVAILABLE" {
 			t.Fatalf("error=%v", err)
 		}
 	}
@@ -76,7 +91,7 @@ func TestBFFSingleflightCallerCancellation(t *testing.T) {
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	var calls atomic.Int32
-	b := BFF{Access: allowedAccess(), Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
+	b := BFF{Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
 		calls.Add(1)
 		close(entered)
 		select {
@@ -88,14 +103,17 @@ func TestBFFSingleflightCallerCancellation(t *testing.T) {
 	})}
 	ctx, cancel := context.WithCancel(context.Background())
 	first := make(chan error, 1)
-	go func() { _, err := b.Get(ctx, "sample", healthyAccount(now)); first <- err }()
+	go func() { _, err := b.get(ctx, testAuthorizedWebAccount("sample", healthyAccount(now))); first <- err }()
 	<-entered
 	cancel()
 	if errorCode(<-first) != "TEMPORARY_UNAVAILABLE" {
 		t.Fatal("disconnected caller did not return")
 	}
 	second := make(chan error, 1)
-	go func() { _, err := b.Get(context.Background(), "sample", healthyAccount(now)); second <- err }()
+	go func() {
+		_, err := b.get(context.Background(), testAuthorizedWebAccount("sample", healthyAccount(now)))
+		second <- err
+	}()
 	close(release)
 	if err := <-second; err != nil {
 		t.Fatal(err)

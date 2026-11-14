@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	"app.modules/core/serviceaccess"
 )
 
 type (
@@ -30,10 +28,8 @@ type (
 	}
 )
 
-// BFFはプロセス内メモリだけを使う。最新のアクセス状態を読み、キャッシュ参照・
-// 独立した共有処理・結果の公開・レスポンス返却の各段階を保護する。inactiveの許可結果はキャッシュしない。
+// BFFはHTTP入口で認可済みのリクエスト向けに、プロセス内で集計と共有処理を管理する。
 type BFF struct {
-	Access      serviceaccess.Reader
 	Reader      SnapshotReader
 	Environment string
 	Now         func() time.Time
@@ -74,21 +70,11 @@ func accountSection(account WebAccount, now time.Time) Section[Account] {
 	return availableSection(data)
 }
 
-func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result Response, resultErr error) {
-	checkpoint, err := readAccess(ctx, b.Access, uid, account.AccessCheckpoint)
-	if err != nil {
-		b.Invalidate(uid)
-		return Response{}, err
+func (b *BFF) get(ctx context.Context, authorized authorizedWebAccount) (Response, error) {
+	uid, account := authorized.uid, authorized.account
+	if uid == "" || account.AccessCheckpoint == "" {
+		return Response{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
-	account.AccessCheckpoint = checkpoint
-	defer func() {
-		if resultErr == nil {
-			if _, err := readAccess(ctx, b.Access, uid, checkpoint); err != nil {
-				b.Invalidate(uid)
-				result, resultErr = Response{}, err
-			}
-		}
-	}()
 	key := cacheKey{b.Environment, uid, currentOnlyRead(ctx)}
 	now := b.Now().UTC()
 	if value, ok := b.cacheHit(key, now, account); ok {
@@ -132,22 +118,12 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 				close(flight.done)
 				b.mu.Unlock()
 			}()
-			response, flightErr = func() (result Response, resultErr error) {
+			response, flightErr = func() (Response, error) {
 				// 共有処理側のコピーだけを更新し、呼び出し元の早期の代替応答と、
 				// 独立した共有処理のメタデータ更新が競合しないようにする。
 				account := account
 				workCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), workDeadline)
 				defer cancel()
-				if _, err := readAccess(workCtx, b.Access, uid, checkpoint); err != nil {
-					return Response{}, err
-				}
-				defer func() {
-					if resultErr == nil {
-						if _, err := readAccess(workCtx, b.Access, uid, checkpoint); err != nil {
-							result, resultErr = Response{}, err
-						}
-					}
-				}()
 				if value, ok := b.cacheHit(key, b.Now().UTC(), account); ok {
 					return value, nil
 				}
@@ -182,9 +158,6 @@ func (b *BFF) Get(ctx context.Context, uid string, account WebAccount) (result R
 				response, err := Aggregate(snapshot, accountSection(account, b.Now().UTC()))
 				if err != nil {
 					return b.failedSnapshot(account)
-				}
-				if _, err := readAccess(workCtx, b.Access, uid, checkpoint); err != nil {
-					return Response{}, err
 				}
 				b.mu.Lock()
 				if b.cache == nil {
