@@ -70,9 +70,9 @@ func TestBFFMetadataGateChangesAbortBeforeSnapshotAndAreNeverCached(t *testing.T
 	account := healthyAccount(now.Add(-25 * time.Hour))
 	for _, code := range []string{"AUTH_REQUIRED", "WEB_ACCOUNT_REQUIRED", "PRIVACY_RECONSENT_REQUIRED"} {
 		reads := 0
-		b := BFF{Access: allowedAccess(), Environment: "development", Now: func() time.Time { return now }, Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) { return WebAccount{}, apiError(code) }), Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) { reads++; return workFixture(), nil })}
+		b := BFF{Environment: "development", Now: func() time.Time { return now }, Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) { return WebAccount{}, apiError(code) }), Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) { reads++; return workFixture(), nil })}
 		for i := 0; i < 2; i++ {
-			response, err := b.Get(context.Background(), "synthetic", account)
+			response, err := b.get(context.Background(), testAuthorizedWebAccount("synthetic", account))
 			require.Equal(t, code, errorCode(err))
 			require.True(t, response.GeneratedAt.IsZero())
 		}
@@ -138,17 +138,17 @@ func TestBFFConfirmedMissingNeverRetainsAccountEvenWhenDurableClearFails(t *test
 	now := time.Now().UTC()
 	account := healthyAccount(now.Add(-25 * time.Hour))
 	for _, err := range []error{ErrPublicChannelMissing, errors.Join(ErrPublicChannelMissing, errors.New("synthetic store failure"))} {
-		b := BFF{Access: allowedAccess(), Environment: "demo", Now: func() time.Time { return now }, Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) { return WebAccount{}, err }), Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) { s := workFixture(); s.AsOf = now; return s, nil })}
-		response, err := b.Get(context.Background(), "synthetic", account)
+		b := BFF{Environment: "demo", Now: func() time.Time { return now }, Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) { return WebAccount{}, err }), Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) { s := workFixture(); s.AsOf = now; return s, nil })}
+		response, err := b.get(context.Background(), testAuthorizedWebAccount("synthetic", account))
 		require.NoError(t, err)
 		require.Nil(t, response.Account.Data)
 		require.Equal(t, MetadataTooOld, *response.Account.ReasonCode)
 	}
 	// 一時的な検索エラーでは許可されたメタデータを保持し、表示停止状態にはしない。
-	b := BFF{Access: allowedAccess(), Environment: "demo", Now: func() time.Time { return now }, Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) {
+	b := BFF{Environment: "demo", Now: func() time.Time { return now }, Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) {
 		return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
 	}), Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) { s := workFixture(); s.AsOf = now; return s, nil })}
-	response, err := b.Get(context.Background(), "synthetic", account)
+	response, err := b.get(context.Background(), testAuthorizedWebAccount("synthetic", account))
 	require.NoError(t, err)
 	require.NotNil(t, response.Account.Data)
 	require.Equal(t, MetadataRefreshFailed, *response.Account.ReasonCode)
@@ -161,7 +161,7 @@ func TestBFFNewRevisionDoesNotJoinOldFlightOrReuseLateOldCache(t *testing.T) {
 	cleared := WebAccount{Revision: now}
 	entered, release := make(chan struct{}), make(chan struct{})
 	var calls atomic.Int32
-	b := BFF{Access: allowedAccess(), Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
+	b := BFF{Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
 		if calls.Add(1) == 1 {
 			close(entered)
 			select {
@@ -175,17 +175,17 @@ func TestBFFNewRevisionDoesNotJoinOldFlightOrReuseLateOldCache(t *testing.T) {
 		return s, nil
 	})}
 	done := make(chan error, 1)
-	go func() { _, err := b.Get(context.Background(), "synthetic", old); done <- err }()
+	go func() { _, err := b.get(context.Background(), testAuthorizedWebAccount("synthetic", old)); done <- err }()
 	<-entered
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	next, err := b.Get(ctx, "synthetic", cleared)
+	next, err := b.get(ctx, testAuthorizedWebAccount("synthetic", cleared))
 	close(release)
 	require.NoError(t, err)
 	require.Nil(t, next.Account.Data)
 	require.NoError(t, <-done)
 	// 旧呼び出し元が最後に完了しても、キャッシュした旧リビジョンは拒否する。
-	next, err = b.Get(context.Background(), "synthetic", cleared)
+	next, err = b.get(context.Background(), testAuthorizedWebAccount("synthetic", cleared))
 	require.NoError(t, err)
 	require.Nil(t, next.Account.Data)
 	require.Equal(t, MetadataTooOld, *next.Account.ReasonCode)
@@ -298,7 +298,7 @@ func TestTerminalLaterCallerDoesNotWaitForLongerSharedFlightDeadline(t *testing.
 	account := WebAccount{Revision: now}
 	entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	var calls atomic.Int32
-	b := BFF{Access: allowedAccess(), Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
+	b := BFF{Environment: "demo", Now: func() time.Time { return now }, Reader: readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
 		calls.Add(1)
 		close(entered)
 		defer close(finished)
@@ -311,13 +311,13 @@ func TestTerminalLaterCallerDoesNotWaitForLongerSharedFlightDeadline(t *testing.
 	})}
 	firstCtx, stopFirst := context.WithCancel(context.Background())
 	firstDone := make(chan error, 1)
-	go func() { _, err := b.Get(firstCtx, "synthetic", account); firstDone <- err }()
+	go func() { _, err := b.get(firstCtx, testAuthorizedWebAccount("synthetic", account)); firstDone <- err }()
 	<-entered
 	stopFirst()
 	require.Equal(t, "TEMPORARY_UNAVAILABLE", errorCode(<-firstDone))
 	laterCtx, stopLater := context.WithTimeout(context.Background(), 600*time.Millisecond)
 	defer stopLater()
-	result, err := b.Get(laterCtx, "synthetic", account)
+	result, err := b.get(laterCtx, testAuthorizedWebAccount("synthetic", account))
 	close(release)
 	<-finished
 	require.NoError(t, err)
@@ -334,7 +334,7 @@ func TestConfirmedMissingFlightVerdictReachesShorterPresentCaller(t *testing.T) 
 	account.Revision = now.Add(-time.Second)
 	entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	var calls atomic.Int32
-	b := BFF{Access: allowedAccess(), Environment: "demo", Now: func() time.Time { return now }, Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) {
+	b := BFF{Environment: "demo", Now: func() time.Time { return now }, Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) {
 		return WebAccount{}, errors.Join(ErrPublicChannelMissing, errors.New("synthetic failed clear"))
 	}), Reader: readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
 		calls.Add(1)
@@ -349,13 +349,13 @@ func TestConfirmedMissingFlightVerdictReachesShorterPresentCaller(t *testing.T) 
 	})}
 	firstCtx, stopFirst := context.WithCancel(context.Background())
 	firstDone := make(chan error, 1)
-	go func() { _, err := b.Get(firstCtx, "synthetic", account); firstDone <- err }()
+	go func() { _, err := b.get(firstCtx, testAuthorizedWebAccount("synthetic", account)); firstDone <- err }()
 	<-entered
 	stopFirst()
 	require.Equal(t, "TEMPORARY_UNAVAILABLE", errorCode(<-firstDone))
 	laterCtx, stopLater := context.WithTimeout(context.Background(), 600*time.Millisecond)
 	defer stopLater()
-	result, err := b.Get(laterCtx, "synthetic", account)
+	result, err := b.get(laterCtx, testAuthorizedWebAccount("synthetic", account))
 	close(release)
 	<-finished
 	require.NoError(t, err)
