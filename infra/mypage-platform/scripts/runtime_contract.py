@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-import json
 import re
 
 import foundation_contract as c
@@ -48,7 +47,7 @@ PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
 # After a read, the provider records Job IAM members with the full Job path, not the short name.
 MAINTENANCE_JOB_FULL_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/jobs/mypage-maintenance-operator"
 FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "privacy_version", "terms_version",
-          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
+          "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
 
 
 # google.subject must stay within Google STS's 127-byte limit. The repository's custom
@@ -113,7 +112,7 @@ def reviewed_provider_update(address, change):
 def settings(value, stage=None):
     c.need(stage is None or stage in set(MODES.values()), "runtime-settings-stage")
     operator_only = stage == "maintenance_operator"
-    optional = {"history_coverage_json", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
+    optional = {"image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
     required = {"image_digest"} if operator_only else FIELDS - optional
     c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= required, "runtime-settings-fields")
     defaults = {field: "" for field in FIELDS} | {"read_metrics_enabled": False}
@@ -138,10 +137,6 @@ def settings(value, stage=None):
         c.need(value["hosting_backend_host"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]+\.a\.run\.app", value["hosting_backend_host"]), "runtime-hosting-backend")
         c.need(value["previous_image_digest"] == "" or re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["previous_image_digest"]), "runtime-previous-image")
         c.need(value["read_metrics_from_revision"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", value["read_metrics_from_revision"]), "runtime-read-metrics-revision")
-        coverage = value["history_coverage_json"]
-        c.need(len(coverage.encode()) <= 16384, "runtime-coverage-size")
-        if coverage:
-            c.need(type(json.loads(coverage)) is list, "runtime-coverage-array")
     return value
 
 
@@ -261,8 +256,6 @@ def plain_environment(value):
                         ("MYPAGE_PUBLIC_ORIGIN", "public_origin"), ("MYPAGE_PRIVACY_VERSION", "privacy_version"),
                         ("MYPAGE_TERMS_VERSION", "terms_version")):
         env[name] = value[field]
-    if value["history_coverage_json"]:
-        env["MYPAGE_HISTORY_COVERAGE"] = value["history_coverage_json"]
     if value["hosting_backend_host"]:
         env["MYPAGE_HOSTING_BACKEND_HOST"] = value["hosting_backend_host"]
     if value["read_metrics_enabled"]:

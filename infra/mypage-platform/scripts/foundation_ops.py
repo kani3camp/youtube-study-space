@@ -268,11 +268,10 @@ def runtime_settings(env, stage=None):
             result[key] = value
         return result
     parsed = json.loads(raw, object_pairs_hook=pairs)
-    # One-way migration compatibility: old Environment secrets may still carry
-    # the three retired operator-image keys. Ignore exactly these keys and never
-    # copy them into private tfvars; all other unknown fields stay fail-closed.
+    # Environment secrets may retain these retired keys. Drop them before
+    # validating or writing tfvars; all other unknown fields stay fail-closed.
     retired = {"maintenance_operator_enabled", "maintenance_operator_image_digest",
-               "maintenance_operator_image_source_sha"}
+               "maintenance_operator_image_source_sha", "history_coverage_json"}
     parsed = {key: item for key, item in parsed.items() if key not in retired}
     value = runtime_contract.settings(parsed, stage)
     # After the first Terraform creation, CI/CD owns the Cloud Run image.

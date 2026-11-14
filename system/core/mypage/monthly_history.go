@@ -13,7 +13,6 @@ func monthlyMetric(s WorkSnapshot, start, end time.Time) Metric {
 	if !validSeat(s) {
 		return missingMetric(DataInconsistent)
 	}
-	complete := covered(s.Coverage, start, end)
 	var total int64
 	for day := start; day.Before(end); day = day.AddDate(0, 0, 1) {
 		month, exists := s.Months[day.Format("2006-01")]
@@ -23,7 +22,7 @@ func monthlyMetric(s WorkSnapshot, start, end time.Time) Metric {
 			!s.User.WorkHistoryActivatedAt.IsZero() && !day.Before(s.User.WorkHistoryActivatedAt) &&
 			s.User.WorkHistoryClosedThrough.Before(day)
 		if !verifiedEmpty && (!exists || !month.BaselineComplete || month.WriterEpoch != s.MonthlyEpoch) {
-			complete = false
+			return missingMetric(DataInconsistent)
 		}
 		value, exists := month.Days[day.Format("2006-01-02")]
 		if exists {
@@ -41,13 +40,6 @@ func monthlyMetric(s WorkSnapshot, start, end time.Time) Metric {
 	}
 	if s.Seat != nil && s.Seat.State == repository.WorkState {
 		total += secondsWithin(Interval{s.Seat.CurrentSegmentStartedAt, s.AsOf}, start, end)
-	}
-	if !complete {
-		metric := missingMetric(HistoryIncomplete)
-		if total > 0 {
-			metric.RecordedWorkSec = ptr(total)
-		}
-		return metric
 	}
 	return valueMetric(total)
 }

@@ -17,7 +17,7 @@ func instant(value string) time.Time {
 
 func workFixture() WorkSnapshot {
 	asOf := instant("2026-10-06T03:00:00Z")
-	return WorkSnapshot{AsOf: asOf, UID: "synthetic", User: &repository.UserDoc{TotalStudySec: 6000}, Coverage: []Interval{{asOf.AddDate(0, 0, -30), asOf}}}
+	return WorkSnapshot{AsOf: asOf, UID: "synthetic", User: &repository.UserDoc{TotalStudySec: 6000}}
 }
 
 func fixtureAccount() Section[Account] { return availableSection(Account{DisplayName: "Sample"}) }
@@ -62,7 +62,6 @@ func TestAggregationBreakKeepsClosedSessionWorkInLifetime(t *testing.T) {
 func TestAggregationMidnightAndMondayWindows(t *testing.T) {
 	s := workFixture()
 	s.AsOf = instant("2026-10-05T00:00:00Z")
-	s.Coverage = []Interval{{s.AsOf.AddDate(0, 0, -30), s.AsOf}}
 	start := instant("2026-10-04T14:59:29Z")
 	end := instant("2026-10-04T15:00:31Z")
 	s.Segments = []repository.WorkSegmentDoc{{UserID: s.UID, SegmentType: repository.WorkState, StartedAt: start, EndedAt: end, DurationSec: 62}}
@@ -86,13 +85,11 @@ func TestAggregationMidnightAndMondayWindows(t *testing.T) {
 	}
 }
 
-func TestAggregationUnknownHistoryAndSourceFailureAreNotZero(t *testing.T) {
-	for _, kind := range []string{"unknown-coverage", "history-failure", "seat-failure", "duplicate-seat"} {
+func TestAggregationReadFailureAndInvalidSeatAreNotZero(t *testing.T) {
+	for _, kind := range []string{"history-failure", "seat-failure", "duplicate-seat"} {
 		t.Run(kind, func(t *testing.T) {
 			s := workFixture()
 			switch kind {
-			case "unknown-coverage":
-				s.Coverage = nil
 			case "history-failure":
 				s.HistoryUnavailable = true
 			case "seat-failure":
@@ -163,18 +160,50 @@ func TestAggregationOverlapAndFutureOnlyInvalidateAffectedHistory(t *testing.T) 
 	}
 }
 
-func TestAggregationPartialCoverageRetainsKnownDays(t *testing.T) {
+func TestAggregationEmptyHistoryAndBreakOnlyGiveNormalZero(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		segments []repository.WorkSegmentDoc
+	}{
+		{name: "empty"},
+		{name: "break-only", segments: []repository.WorkSegmentDoc{{
+			UserID: "synthetic", SegmentType: repository.BreakState,
+			StartedAt: instant("2026-10-06T00:00:00Z"), EndedAt: instant("2026-10-06T01:00:00Z"), DurationSec: 3600,
+		}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := workFixture()
+			s.Segments = tc.segments
+			r, err := Aggregate(s, fixtureAccount())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if r.Partial {
+				t.Fatal("normal zero became partial")
+			}
+			expectSeconds(t, r.Summary.Data.Today, 0)
+			expectSeconds(t, r.Summary.Data.Week, 0)
+			expectRecentSeconds(t, r.Recent7Days, 0)
+		})
+	}
+}
+
+func TestAggregationNegativeDurationIsNotZero(t *testing.T) {
 	s := workFixture()
-	w := StatisticsWindows(s.AsOf)
-	s.Coverage = []Interval{{w.Today, s.AsOf}}
+	s.Segments = []repository.WorkSegmentDoc{{
+		UserID: s.UID, SegmentType: repository.WorkState,
+		StartedAt: s.AsOf.Add(-time.Hour), EndedAt: s.AsOf, DurationSec: -3600,
+	}}
 	r, err := Aggregate(s, fixtureAccount())
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectSeconds(t, r.Summary.Data.Today, 0)
-	if r.Summary.Data.Week.WorkSec != nil || r.Recent7Days.Availability != Partial {
-		t.Fatal("incomplete week presented as zero")
+	want := DataInconsistent
+	if metric := r.Summary.Data.Today; metric.Availability != Unavailable || metric.WorkSec != nil || metric.ReasonCode == nil || *metric.ReasonCode != want {
+		t.Fatalf("negative duration was not rejected: %+v", metric)
 	}
+	expectSeconds(t, r.Summary.Data.Lifetime, 6000)
+	expectSeconds(t, r.Recent7Days.Data[0].Metric, 0)
 }
 
 func TestAggregationUnregisteredHasNormalZeroAndNoSeat(t *testing.T) {
@@ -194,4 +223,16 @@ func TestAggregationUnregisteredHasNormalZeroAndNoSeat(t *testing.T) {
 	if _, err := Aggregate(WorkSnapshot{}, fixtureAccount()); err == nil {
 		t.Fatal("missing snapshot time accepted")
 	}
+}
+
+func TestAggregationCountsOngoingWorkWithoutClosedSegments(t *testing.T) {
+	s := workFixture()
+	s.Seat = &repository.SeatDoc{UserID: s.UID, SeatID: 1, State: repository.WorkState, EnteredAt: s.AsOf.Add(-time.Hour), CurrentStateStartedAt: s.AsOf.Add(-time.Hour), CurrentSegmentStartedAt: s.AsOf.Add(-30 * time.Minute)}
+	r, err := Aggregate(s, fixtureAccount())
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectSeconds(t, r.Summary.Data.Today, 1800)
+	expectSeconds(t, r.Summary.Data.Week, 1800)
+	expectRecentSeconds(t, r.Recent7Days, 1800)
 }

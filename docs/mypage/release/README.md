@@ -139,6 +139,12 @@ GitHub Environmentの`mypage-dev-hosting`には、公開項目だけの`MYPAGE_H
 
 この経路はDEVフロントエンド専用である。本番・バックエンドイメージ更新・Terraform変更まで同時に自動化したとは扱わない。後続の本番経路は、公開条件・独立したEnvironmentと権限・配備対象をレビューしてから追加し、本番未公開を維持する。
 
+### 作業集計APIの切り替え
+
+[#1572](https://github.com/kani3camp/youtube-study-space/issues/1572) の反映時は、旧画面が新APIを解釈できるため、Backendを先にデプロイしてからHostingを更新する。両方を戻す場合はHostingを先に戻す。
+
+新Backendは旧環境変数を参照しない。次回のTerraform Plan前にCloud Runの `MYPAGE_HISTORY_COVERAGE` の有無を確認する。設定が残っている場合、新しいTerraform構成はその削除を計画するため、現行の構成変更ガードで停止する。対象変数だけを外す手順を別途レビューする。
+
 ### 静的配信キャッシュの仕様
 
 同じ公開マニフェストでフロントエンドをビルドし、実distを専用リリースディレクトリ内の`dist/`へ固定コピーして、正確なアセットパスを採取する。`node mypage/scripts/prepare-hosting.mjs --manifest /path/to/reviewed-public-config.json --dist /path/to/release/dist --output /path/to/release/firebase.json`は設定候補だけを書き、配備しない。出力先は未作成ファイル、親ディレクトリは作成済みとする。Firebase CLIはプロジェクトルート外のpublicを拒否するため、シンボリックリンク解決後も、distは出力設定の親ディレクトリ内にある独立サブディレクトリでなければならない。マニフェストや非公開運用ファイルをdistに置かない。既知のハッシュ付きJS・CSS・フォントだけを1年間immutableとし、HTML・API・未知のハッシュパスはno-storeにする。ビルドを差し替えた場合は必ず再生成する。対象・サイトの対応は既存のレビュー済みDEV指定を使い、リポジトリ共通Firebase設定を上書きしない。
@@ -155,7 +161,7 @@ Hosting Emulatorで既知アセット、`/`、`/mypage`、`/api/mypage`、未知
 - 記録内容は `user_lookups`（UserDoc lookup数）、`seat_queries` / `seats_returned` / `seat_query_errors`、`segment_queries` / `segments_returned` / `segment_query_error`、`elapsed_ms` の数値・真偽値のみ。uid/channel ID、氏名、path、作業名、segment本文、OAuth/Cookie、エラー本文などの秘匿値を記録しない。
 - `seat_query_errors` は通常席・メンバー席クエリの取得失敗数（0〜2）、`segment_query_error` は履歴クエリの取得失敗（true/false）。返却0件でも、対応する失敗数・フラグが0/falseである場合だけ正常な空結果として扱う。未実行は対応するquery数0で区別する。partial snapshotでquery失敗を捕捉してtransaction自体が成功する場合も、失敗指標を残す。transaction全体の失敗時には従来どおりこの観測callbackは呼ばれず、これを全エラーの集計器とは扱わない。文書のdecode不良・重複等はquery取得失敗とは別であり、既存のavailability判定を維持する。
 - **この数値をFirestoreの実課金読み取り数と混同しない。** 返却0件のqueryの最低課金、index entry read、transaction retry、アクセス制御の別経路、既存AWS Batch等の利用は含まれない。実請求は選択GCP projectのCloud Billingと[Query Explain](https://firebase.google.com/docs/firestore/query-explain)を参照する。Explain Analyze自体も対象クエリのread料金が発生するため、小規模な合成データで実施する。
-- 合成テスト対象：User不存在、履歴0/10/100/500/1000件（可能なら1001件検知）、同一IDの通常席/メンバー席、JST日曜→月曜・月末境界、coverage欠損、クエリ失敗と認証拒否。受け取った文書数だけでなく、失敗/上限時に履歴を0として表示しないことを確認する。
+- 合成テスト対象：User不存在、履歴0/10/100/500/1000件（可能なら1001件検知）、同一IDの通常席/メンバー席、JST日曜→月曜・月末境界、データの不整合、クエリ失敗と認証拒否。受け取った文書数だけでなく、失敗/上限時に履歴を0として表示しないことを確認する。
 - 毎回の処理量（read/write/index read/CPU/latency）と1人・1日あたりのrequest回数を組み合わせて、実測原価を計算する。**現行のQuery `work-segments` は`ended-at`と`started-at`の複数の範囲条件を含むため、index entry readの請求をQuery Explain Analyzeで確認する。** 安全な値として`limit(1001)`があっても、同等数の課金readに収まる保証にはならない。
 - 代表的な2時間滞在なら、定期refreshは旧60秒120回→新5分24回が**目標値**。手動操作/ログイン/再試行は別集計。複数インスタンスのヒット率、App CheckのreCAPTCHA評価回数、追加書き込み/キャッシュ維持費も別途算出する。
 - writer は [削除 inventory の起動経路](../support-delete-inventory.md#起動と再生成経路の調査先)と既存の原記録writerを照合する。旧 daily を正本へ戻さず、Bot / Batch / Lambda の実 build・配備・drain を確認する。

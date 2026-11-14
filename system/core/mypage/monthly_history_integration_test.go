@@ -22,7 +22,6 @@ func TestMonthlySnapshotReadsAtMostTwoMonthsAndNeverRawHistory(t *testing.T) {
 			r.MonthlyEpoch = "synthetic-v1"
 			ctx := context.Background()
 			now := time.Now().UTC().Truncate(time.Second)
-			r.Coverage = []Interval{{now.AddDate(0, 0, -10), now.Add(time.Hour)}}
 			_, err := r.Client.Collection("users").Doc(uid).Set(ctx, repository.UserDoc{TotalStudySec: 6000})
 			require.NoError(t, err)
 			docs := []*firestore.DocumentRef{r.Client.Collection("users").Doc(uid)}
@@ -103,7 +102,6 @@ func TestMonthlySnapshotNeverDecodesMissingNullOrWrongTypedValuesAsZero(t *testi
 	r.MonthlyEpoch = "synthetic-v1"
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Second)
-	r.Coverage = []Interval{{Start: now.AddDate(0, 0, -10), End: now.Add(time.Hour)}}
 	_, err := r.Client.Collection(repository.USERS).Doc(uid).Set(ctx, repository.UserDoc{})
 	require.NoError(t, err)
 	segment := repository.WorkSegmentDoc{UserID: uid, SegmentType: repository.WorkState, StartedAt: now.Add(-time.Minute), EndedAt: now.Add(-30 * time.Second), DurationSec: 30}

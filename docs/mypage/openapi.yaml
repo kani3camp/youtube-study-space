@@ -316,7 +316,6 @@ components:
       enum:
       - null
       - SOURCE_UNAVAILABLE
-      - HISTORY_INCOMPLETE
       - HISTORY_LIMIT_EXCEEDED
       - METADATA_REFRESH_FAILED
       - METADATA_TOO_OLD
@@ -330,11 +329,6 @@ components:
           enum:
           - available
           - unavailable
-        recordedWorkSec: &recordedWorkSec
-          type: integer
-          minimum: 1
-          maximum: 9007199254740991
-          description: 検証済みで記録されている正の作業時間。完全な合計ではない。
         workSec: &id013
           type:
           - integer
@@ -363,14 +357,6 @@ components:
               type: 'null'
             reasonCode:
               type: string
-      - if:
-          required: [recordedWorkSec]
-        then:
-          properties:
-            availability:
-              const: unavailable
-            reasonCode:
-              const: HISTORY_INCOMPLETE
     Current:
       type: object
       additionalProperties: false
@@ -441,7 +427,6 @@ components:
           format: date
         availability: *id012
         workSec: *id013
-        recordedWorkSec: *recordedWorkSec
         reasonCode: *id014
       required:
       - date

@@ -12,7 +12,6 @@ const (
 
 const (
 	SourceUnavailable     = "SOURCE_UNAVAILABLE"
-	HistoryIncomplete     = "HISTORY_INCOMPLETE"
 	HistoryLimitExceeded  = "HISTORY_LIMIT_EXCEEDED"
 	DataInconsistent      = "DATA_INCONSISTENT"
 	MetadataRefreshFailed = "METADATA_REFRESH_FAILED"
@@ -29,9 +28,6 @@ type Metric struct {
 	Availability Availability `json:"availability"`
 	ReasonCode   *string      `json:"reasonCode"`
 	WorkSec      *int64       `json:"workSec"`
-
-	// 記録済みの正の作業時間だけを表し、期間の完全性は主張しない。
-	RecordedWorkSec *int64 `json:"recordedWorkSec,omitempty"`
 }
 
 type Current struct {

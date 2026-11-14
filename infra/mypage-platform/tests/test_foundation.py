@@ -121,7 +121,7 @@ class FoundationTest(unittest.TestCase):
             file.write_text('{"image_digest":"bogus","image_source_sha":"bogus"}')
             self.assertEqual(ops.runtime_settings(env), before)
 
-    def test_retired_maintenance_image_secret_keys_are_ignored_but_other_unknowns_fail(self):
+    def test_retired_runtime_secret_keys_are_ignored_but_other_unknowns_fail(self):
         value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
         env = {'MYPAGE_GCP_WIF_PROVIDER':
                'projects/' + value['project_number'] + '/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions'}
@@ -130,6 +130,7 @@ class FoundationTest(unittest.TestCase):
             'maintenance_operator_enabled': True,
             'maintenance_operator_image_digest': 'private-retired-digest',
             'maintenance_operator_image_source_sha': 'private-retired-source',
+            'history_coverage_json': '[{"start":"2026-10-01T00:00:00Z","end":"2026-10-02T00:00:00Z"}]',
         }
         self.assertEqual(ops.runtime_settings(env | {'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(legacy)}), clean)
         with self.assertRaisesRegex(c.ContractError, '^runtime-settings-fields$'):
