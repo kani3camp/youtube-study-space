@@ -248,7 +248,7 @@ GitHub の Settings → Actions → Policies（workflow execution policy）で�
 
 PR Plan を DEV の手動 Plan に統合する PR（#1527）を取り込んだ後、次の順で行う。順番を逆にすると、PR Plan が通らないまま制限だけが外れる。
 
-**状況（2026-10-31）**: 撤去以外の5行は実施済み（GCP / AWS とも readback 済み。DEV の7 Environment は No restriction、PROD は変更なし）。新経路の PR Plan は [run 41205098180](https://github.com/kani3camp/youtube-study-space/actions/runs/41205098180)（#1528）で確認した。MyPage は plan contract まで成功（26資源・作成0）。Core は認証・State 読み取り・native Plan まで成功し、plan-validation の `resource-contract` で停止した（DEV の Core State に #1467 の Auth 資源が適用済みで、統合ブランチの HCL にないため。経路の問題ではない）。撤去も同日に実施し、Environment・SA・project 権限・WIF pool / provider・AWS role が残っていないことを読み戻した。
+**状況（2026-10-31）**: 撤去以外の5行は実施済み（GCP / AWS とも readback 済み。DEV の7 Environment は No restriction、PROD は変更なし）。新経路の PR Plan は [run 41205098180](https://github.com/kani3camp/youtube-study-space/actions/runs/41205098180)（#1528）で確認した。MyPage は plan contract まで成功（26資源・作成0）。Core は認証・State 読み取り・native Plan まで成功し、plan-validation の `resource-contract` で停止した（DEV の Core State に #1467 の Auth 資源が適用済みで、統合ブランチの HCL にないため。経路の問題ではない）。旧identityの撤去完了はコードの統合完了と分けて確認する。対象一覧と現物を照合し、SA・binding・WIF・AWS role・Environmentのいずれかが残っている場合は撤去済みと扱わない。棚卸し・差分の記録は [Issue #1562](https://github.com/kani3camp/youtube-study-space/issues/1562) を参照する。
 
 | 対象 | 方法 |
 | --- | --- |
@@ -297,9 +297,13 @@ PY
 | UC | 状態 | 経路 |
 | --- | --- | --- |
 | UC1 CI | 実装済み。手動 operation なし（`workflow_dispatch` は再検査のみ） | `ci.yml` |
-| UC2 PR Plan | DEV で有効（run 41205098180 で MyPage 成功。Core は State と HCL のずれを #1532 で解消し、run 41226105756 で差分なし）。旧 PR Plan identity は撤去済み（4.4） | `terraform.yml`（`pull_request`）→ `gcp-terraform-authenticated.yml`（`pr-plan`）/ `mypage-foundation-authenticated.yml` |
+| UC2 PR Plan | DEV で有効（run 41205098180 で MyPage 成功。Core は State と HCL のずれを #1532 で解消し、run 41226105756 で差分なし）。旧PR Plan identityの撤去状況は別途readbackで確認する（4.4、#1562） | `terraform.yml`（`pull_request`）→ `gcp-terraform-authenticated.yml`（`pr-plan`）/ `mypage-foundation-authenticated.yml` |
 | UC2 手動 Plan / UC3 Apply | DEV で有効。対象 commit を1つ確定し、隔離コンテナで検査してから同じ SHA で Plan/Apply する（DEV Core だけ対象ブランチ・SHA を選べる。#1530 / #1534 を統合）。手動 Plan は Core・MyPage とも成功（run 41226781485、差分なし）。MyPage の Apply は run 41260474728 で成功（#1533 の削除2件）。Core の Apply は未実施。PROD の Core は v4.34.0（`main`）で有効（本番 Plan は差分なしで成功。trust は `terraform.yml` だけ、4.3）。PROD Apply の reviewer は owner 設定待ち。旧 router 経路と orchestrator は撤去済み | `terraform.yml` |
 | UC4 Frontend | DEV で有効（[run 41147610986](https://github.com/kani3camp/youtube-study-space/actions/runs/41147610986)）。trust の caller は `deploy-mypage-frontend.yml` だけ（2026-11-01 に `ci.yml` を削除）。旧 router 経路は撤去済み | `deploy-mypage-frontend.yml` |
 | UC5 API | DEV で有効（[run 41146478688](https://github.com/kani3camp/youtube-study-space/actions/runs/41146478688)）。Service のみ。trust の caller は `deploy-mypage-api.yml` だけ（2026-11-01 に `ci.yml` を削除）。旧 router 経路と push 自動CDは撤去済み | `deploy-mypage-api.yml` |
 | UC6 Operator | 実装済み。DEV で build・Job 更新・読み戻し・受領記録まで成功（run 41178451321） | `deploy-mypage-maintenance.yml` |
 | UC7 Maintenance mode | 実装済み（認証 job を reusable 化）。provider の `google.subject` 欠陥（2.4。コードは修正済み、DEV へ未適用）と `MYPAGE_MAINTENANCE_WIF_PROVIDER` 未設定のため未成功 | `mypage-maintenance.yml` → `mypage-maintenance-authenticated.yml` |
+
+## DEV Planの構成参照role
+
+Core/MyPageのDEV Planは共通の静的manifestを使用する。参照範囲は同じSAを使う手動DEV Planにも及ぶが、再実行認可の緩和はPRだけである。Applyとの共有read roleの本文は拡張せず、Plan SAのbindingだけを変更する。[定義・read-only dry-run・管理者レビュー・専用反映・復旧手順](../../infra/gcp/docs/plan-read-access.md)に従う。通常bootstrapの丸ごと実行で代用しない。

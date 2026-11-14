@@ -1,0 +1,409 @@
+{
+  "schema_version": 1,
+  "project": "test-youtube-study-space",
+  "role_id": "terraformDevPlanMetadataReadV1",
+  "families": [
+    {
+      "id": "runtime",
+      "risk": "configuration",
+      "returns": "実行定義・環境変数・HTTP body/headersを含み得る。Secret参照を使用し、平文秘密値を置かないことを反映前に確認する。",
+      "sources": [
+        "https://docs.cloud.google.com/run/docs/reference/rest/v2/projects.locations.services",
+        "https://docs.cloud.google.com/functions/docs/reference/rest/v2/projects.locations.functions",
+        "https://docs.cloud.google.com/scheduler/docs/reference/rest/v1/projects.locations.jobs"
+      ],
+      "permissions": [
+        "cloudfunctions.functions.get",
+        "cloudfunctions.functions.list",
+        "cloudfunctions.locations.list",
+        "cloudfunctions.operations.get",
+        "cloudfunctions.operations.list",
+        "cloudscheduler.jobs.get",
+        "cloudscheduler.jobs.list",
+        "cloudscheduler.locations.get",
+        "cloudscheduler.locations.list",
+        "run.configurations.get",
+        "run.configurations.list",
+        "run.jobs.get",
+        "run.jobs.getIamPolicy",
+        "run.jobs.list",
+        "run.locations.list",
+        "run.operations.get",
+        "run.operations.list",
+        "run.revisions.get",
+        "run.revisions.list",
+        "run.routes.get",
+        "run.routes.list",
+        "run.services.get",
+        "run.services.getIamPolicy",
+        "run.services.list"
+      ]
+    },
+    {
+      "id": "storage",
+      "risk": "configuration",
+      "returns": "bucket設定・IAM、table schema・view query/routine定義。object/行本文は含めない。SQL等へ秘密値を埋め込まない。",
+      "sources": [
+        "https://docs.cloud.google.com/storage/docs/json_api/v1/buckets",
+        "https://docs.cloud.google.com/bigquery/docs/reference/rest/v2/tables",
+        "https://docs.cloud.google.com/bigquery/docs/reference/rest/v2/routines"
+      ],
+      "permissions": [
+        "bigquery.datasets.get",
+        "bigquery.datasets.getIamPolicy",
+        "bigquery.routines.get",
+        "bigquery.routines.list",
+        "bigquery.tables.get",
+        "bigquery.tables.getIamPolicy",
+        "bigquery.tables.list",
+        "storage.buckets.get",
+        "storage.buckets.getIamPolicy",
+        "storage.buckets.list"
+      ]
+    },
+    {
+      "id": "operations",
+      "risk": "configuration",
+      "returns": "監視・ログ保存/転送の構成、filter、通知先、check定義。ログ本文・時系列値は除外。設定中の秘密値は事前確認する。",
+      "sources": [
+        "https://docs.cloud.google.com/logging/docs/reference/v2/rest",
+        "https://docs.cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.uptimeCheckConfigs",
+        "https://docs.cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.notificationChannels"
+      ],
+      "permissions": [
+        "logging.buckets.get",
+        "logging.buckets.list",
+        "logging.logMetrics.get",
+        "logging.logMetrics.list",
+        "logging.settings.get",
+        "logging.sinks.get",
+        "logging.sinks.list",
+        "logging.views.get",
+        "logging.views.getIamPolicy",
+        "logging.views.list",
+        "monitoring.alertPolicies.get",
+        "monitoring.alertPolicies.list",
+        "monitoring.dashboards.get",
+        "monitoring.dashboards.list",
+        "monitoring.notificationChannels.get",
+        "monitoring.notificationChannels.list",
+        "monitoring.services.get",
+        "monitoring.services.list",
+        "monitoring.slos.get",
+        "monitoring.slos.list",
+        "monitoring.uptimeCheckConfigs.get",
+        "monitoring.uptimeCheckConfigs.list"
+      ]
+    },
+    {
+      "id": "messaging",
+      "risk": "configuration",
+      "returns": "topic/subscription/schemaとpush設定。pull/consumeは含めない。push URLへ秘密値を埋め込まない。",
+      "sources": [
+        "https://docs.cloud.google.com/pubsub/docs/reference/rest/v1/projects.subscriptions",
+        "https://docs.cloud.google.com/pubsub/docs/reference/rest/v1/projects.schemas"
+      ],
+      "permissions": [
+        "pubsub.schemas.get",
+        "pubsub.schemas.getIamPolicy",
+        "pubsub.schemas.list",
+        "pubsub.snapshots.get",
+        "pubsub.snapshots.getIamPolicy",
+        "pubsub.snapshots.list",
+        "pubsub.subscriptions.get",
+        "pubsub.subscriptions.getIamPolicy",
+        "pubsub.subscriptions.list",
+        "pubsub.topics.get",
+        "pubsub.topics.getIamPolicy",
+        "pubsub.topics.list"
+      ]
+    },
+    {
+      "id": "iam",
+      "risk": "metadata",
+      "returns": "SA・role・WIF・IAM policy・project・API状態。認証情報発行と更新/有効化は含めない。",
+      "sources": [
+        "https://docs.cloud.google.com/iam/docs/roles-permissions/iam",
+        "https://docs.cloud.google.com/iam/docs/roles-permissions/serviceusage"
+      ],
+      "permissions": [
+        "iam.roles.get",
+        "iam.roles.list",
+        "iam.serviceAccounts.get",
+        "iam.serviceAccounts.getIamPolicy",
+        "iam.serviceAccounts.list",
+        "iam.workloadIdentityPoolProviders.get",
+        "iam.workloadIdentityPoolProviders.list",
+        "iam.workloadIdentityPools.get",
+        "iam.workloadIdentityPools.getAttestationRules",
+        "iam.workloadIdentityPools.list",
+        "resourcemanager.projects.get",
+        "resourcemanager.projects.getIamPolicy",
+        "resourcemanager.projects.list",
+        "serviceusage.operations.get",
+        "serviceusage.operations.list",
+        "serviceusage.services.get",
+        "serviceusage.services.list"
+      ]
+    },
+    {
+      "id": "secrets",
+      "risk": "metadata",
+      "returns": "Secret/versionの器・状態・IAMのみ。payload accessは別permission。",
+      "sources": [
+        "https://docs.cloud.google.com/secret-manager/docs/access-control"
+      ],
+      "permissions": [
+        "secretmanager.locations.get",
+        "secretmanager.locations.list",
+        "secretmanager.secrets.get",
+        "secretmanager.secrets.getIamPolicy",
+        "secretmanager.secrets.list",
+        "secretmanager.versions.get",
+        "secretmanager.versions.list"
+      ]
+    },
+    {
+      "id": "registry",
+      "risk": "metadata",
+      "returns": "repository/tag管理属性。artifact本文・image layerのdownloadは含めない。",
+      "sources": [
+        "https://docs.cloud.google.com/artifact-registry/docs/access-control"
+      ],
+      "permissions": [
+        "artifactregistry.locations.get",
+        "artifactregistry.locations.list",
+        "artifactregistry.repositories.get",
+        "artifactregistry.repositories.getIamPolicy",
+        "artifactregistry.repositories.list",
+        "artifactregistry.tags.get",
+        "artifactregistry.tags.list"
+      ]
+    },
+    {
+      "id": "auth",
+      "risk": "configuration",
+      "returns": "認証構成。getSecret/getHashConfig/users.getは除外。SMTP等の設定に秘密値がないことも確認する。",
+      "sources": [
+        "https://firebase.google.com/docs/projects/iam/permissions",
+        "https://docs.cloud.google.com/identity-platform/docs/access-control"
+      ],
+      "permissions": [
+        "firebaseauth.configs.get"
+      ]
+    },
+    {
+      "id": "firestore",
+      "risk": "metadata",
+      "returns": "database metadata・index/TTL・backup属性。databases.getはtransaction操作のため除外。document本文は含めない。",
+      "sources": [
+        "https://firebase.google.com/docs/firestore/security/iam",
+        "https://firebase.google.com/docs/firestore/ttl"
+      ],
+      "permissions": [
+        "datastore.backupSchedules.get",
+        "datastore.backupSchedules.list",
+        "datastore.backups.get",
+        "datastore.backups.list",
+        "datastore.databases.getMetadata",
+        "datastore.databases.list",
+        "datastore.indexes.get",
+        "datastore.indexes.list",
+        "datastore.locations.get",
+        "datastore.locations.list"
+      ]
+    },
+    {
+      "id": "compute",
+      "risk": "configuration",
+      "returns": "VM/template/disk/imageの構成・状態。metadata/startup script等に平文秘密値を置かない。disk/image本文やexportは除外。",
+      "sources": [
+        "https://docs.cloud.google.com/compute/docs/access/iam",
+        "https://docs.cloud.google.com/compute/docs/reference/rest/v1/instances",
+        "https://docs.cloud.google.com/compute/docs/instances/startup-scripts/linux"
+      ],
+      "permissions": [
+        "compute.addresses.get",
+        "compute.addresses.list",
+        "compute.disks.get",
+        "compute.disks.list",
+        "compute.globalAddresses.get",
+        "compute.globalAddresses.list",
+        "compute.images.get",
+        "compute.images.list",
+        "compute.instanceGroupManagers.get",
+        "compute.instanceGroupManagers.list",
+        "compute.instanceGroups.get",
+        "compute.instanceGroups.list",
+        "compute.instanceTemplates.get",
+        "compute.instanceTemplates.list",
+        "compute.instances.get",
+        "compute.instances.list",
+        "compute.machineTypes.get",
+        "compute.machineTypes.list",
+        "compute.regions.get",
+        "compute.regions.list",
+        "compute.zones.get",
+        "compute.zones.list"
+      ]
+    },
+    {
+      "id": "network",
+      "risk": "configuration",
+      "returns": "VPC/LB/NATの構成・参照。router MD5 keyとbackend IAP/AWS認証keyはinput-only。任意header等へ秘密値を置かない。",
+      "sources": [
+        "https://docs.cloud.google.com/compute/docs/access/iam",
+        "https://docs.cloud.google.com/compute/docs/reference/rest/v1/routers",
+        "https://docs.cloud.google.com/compute/docs/reference/rest/v1/backendServices"
+      ],
+      "permissions": [
+        "compute.backendBuckets.get",
+        "compute.backendBuckets.list",
+        "compute.backendServices.get",
+        "compute.backendServices.list",
+        "compute.firewalls.get",
+        "compute.firewalls.list",
+        "compute.forwardingRules.get",
+        "compute.forwardingRules.list",
+        "compute.globalForwardingRules.get",
+        "compute.globalForwardingRules.list",
+        "compute.healthChecks.get",
+        "compute.healthChecks.list",
+        "compute.networkEndpointGroups.get",
+        "compute.networkEndpointGroups.list",
+        "compute.networks.get",
+        "compute.networks.list",
+        "compute.regionBackendServices.get",
+        "compute.regionBackendServices.list",
+        "compute.routers.get",
+        "compute.routers.list",
+        "compute.routes.get",
+        "compute.routes.list",
+        "compute.sslPolicies.get",
+        "compute.sslPolicies.list",
+        "compute.subnetworks.get",
+        "compute.subnetworks.getIamPolicy",
+        "compute.subnetworks.list",
+        "compute.targetHttpProxies.get",
+        "compute.targetHttpProxies.list",
+        "compute.targetHttpsProxies.get",
+        "compute.targetHttpsProxies.list",
+        "compute.urlMaps.get",
+        "compute.urlMaps.list"
+      ]
+    },
+    {
+      "id": "dns",
+      "risk": "configuration",
+      "returns": "zone・DNS record・policyの設定。recordへ秘密値を置かない。",
+      "sources": [
+        "https://docs.cloud.google.com/dns/docs/reference/rest",
+        "https://docs.cloud.google.com/dns/docs/records"
+      ],
+      "permissions": [
+        "dns.managedZones.get",
+        "dns.managedZones.list",
+        "dns.policies.get",
+        "dns.policies.list",
+        "dns.resourceRecordSets.get",
+        "dns.resourceRecordSets.list",
+        "dns.responsePolicies.get",
+        "dns.responsePolicies.list",
+        "dns.responsePolicyRules.get",
+        "dns.responsePolicyRules.list"
+      ]
+    },
+    {
+      "id": "gke",
+      "risk": "configuration",
+      "returns": "GKE cluster構成。legacy credential取得用getCredentialsとKubernetes pods/secrets/configmaps読取りは含めない。",
+      "sources": [
+        "https://docs.cloud.google.com/kubernetes-engine/docs/how-to/api-server-authentication",
+        "https://docs.cloud.google.com/kubernetes-engine/docs/reference/rest/v1/projects.locations.clusters/get"
+      ],
+      "permissions": [
+        "container.clusters.get",
+        "container.clusters.list"
+      ]
+    },
+    {
+      "id": "kms",
+      "risk": "metadata",
+      "returns": "key ring/key/versionの状態・IAM。decrypt/sign/export/public key取得は含めない。",
+      "sources": [
+        "https://docs.cloud.google.com/kms/docs/reference/permissions-and-roles"
+      ],
+      "permissions": [
+        "cloudkms.cryptoKeyVersions.get",
+        "cloudkms.cryptoKeyVersions.list",
+        "cloudkms.cryptoKeys.get",
+        "cloudkms.cryptoKeys.getIamPolicy",
+        "cloudkms.cryptoKeys.list",
+        "cloudkms.keyRings.get",
+        "cloudkms.keyRings.getIamPolicy",
+        "cloudkms.keyRings.list"
+      ]
+    }
+  ],
+  "exclusions": [
+    {
+      "permissions": [
+        "secretmanager.versions.access",
+        "firebaseauth.configs.getSecret",
+        "firebaseauth.configs.getHashConfig",
+        "iam.serviceAccountKeys.get",
+        "apikeys.keys.getKeyString",
+        "container.clusters.getCredentials"
+      ],
+      "reason": "秘密値・password hash・鍵/接続認証情報"
+    },
+    {
+      "permissions": [
+        "storage.objects.get",
+        "bigquery.tables.getData",
+        "bigquery.jobs.create",
+        "datastore.entities.get",
+        "datastore.entities.list",
+        "datastore.databases.get",
+        "logging.logEntries.list",
+        "monitoring.timeSeries.list",
+        "pubsub.subscriptions.consume",
+        "artifactregistry.repositories.downloadArtifacts"
+      ],
+      "reason": "業務データ本文・query実行・transaction操作"
+    },
+    {
+      "permissions": [
+        "iam.serviceAccounts.getAccessToken",
+        "iam.serviceAccounts.getOpenIdToken",
+        "iam.serviceAccounts.signBlob",
+        "iam.serviceAccounts.signJwt",
+        "cloudkms.cryptoKeyVersions.useToDecrypt"
+      ],
+      "reason": "token発行・sign・復号"
+    },
+    {
+      "permissions": [
+        "billing.accounts.get",
+        "billing.resourceCosts.get",
+        "billing.budgets.get",
+        "billing.budgets.list"
+      ],
+      "reason": "請求・費用"
+    },
+    {
+      "permissions": [
+        "cloudsql.instances.get",
+        "cloudsql.instances.list"
+      ],
+      "reason": "onPremisesConfigurationにpassword/clientKeyがあり、全返却形の非公開保証が未確定のため初期grantから除外"
+    },
+    {
+      "permissions": [
+        "compute.instances.getSerialPortOutput",
+        "compute.instances.getGuestAttributes"
+      ],
+      "reason": "console/guest内容。構成・状態参照の範囲外"
+    }
+  ]
+}

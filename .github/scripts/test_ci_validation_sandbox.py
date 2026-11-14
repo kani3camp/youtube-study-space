@@ -193,11 +193,35 @@ class ValidationSandboxTest(unittest.TestCase):
                 self.assertIn('TF_DATA_DIR="/work/', line)
         # The tests container prepares its own provider mirror for the native suites.
         self.assertIn('terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly', tests)
-        for target_code in ('python', 'node', 'bash ', '.github/scripts', 'infra/gcp/tests', 'infra/gcp/scripts'):
+        self.assertIn('python3 /opt/ci-tools/plan_policy.py --manifest /source/infra/gcp/policies/plan-metadata-read.json', static)
+        self.assertIn('COPY ci-validation/plan_policy.py /opt/ci-tools/plan_policy.py',
+                      (ROOT / '.github/ci-validation/Dockerfile').read_text())
+        for target_code in ('node', 'bash ', '.github/scripts', 'infra/gcp/tests', 'infra/gcp/scripts'):
             self.assertNotIn(target_code, static)
         run = load(ROOT / '.github/workflows/ci-gcp-terraform.yml')['jobs']['validate']['steps'][-1]['run']
         self.assertIn('for kind in terraform-static terraform-tests; do', run)
         self.assertEqual(run.count('docker run '), 1)
+
+    def test_fixed_policy_checker_ignores_target_python_and_rejects_payload_access(self):
+        import shutil
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            trusted = root / 'trusted/plan_policy.py'
+            trusted.parent.mkdir()
+            shutil.copyfile(ROOT / '.github/ci-validation/plan_policy.py', trusted)
+            source = root / 'source'
+            source.mkdir()
+            (source / 'plan_policy.py').write_text('raise RuntimeError("TARGET_CODE_EXECUTED")')
+            manifest = json.loads((ROOT / 'infra/gcp/policies/plan-metadata-read.json').read_text())
+            secrets = next(f for f in manifest['families'] if f['id'] == 'secrets')
+            secrets['permissions'] = sorted(secrets['permissions'] + ['secretmanager.versions.access'])
+            data = source / 'manifest.json'
+            data.write_text(json.dumps(manifest))
+            result = subprocess.run(['python3', str(trusted), '--manifest', str(data)], cwd=source,
+                                    capture_output=True, text=True, check=False)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('PLAN_POLICY: STOP', result.stderr)
+            self.assertNotIn('TARGET_CODE_EXECUTED', result.stdout + result.stderr)
 
     def test_fresh_container_static_checks_reject_invalid_hcl_regardless_of_a_previous_test_run(self):
         entrypoint = (ROOT / '.github/ci-validation/validate.sh').read_text()
@@ -205,6 +229,9 @@ class ValidationSandboxTest(unittest.TestCase):
             root = Path(directory)
             source = root / 'source'
             (source / 'infra/gcp').mkdir(parents=True)
+            (source / 'infra/gcp/policies').mkdir()
+            (source / 'infra/gcp/policies/plan-metadata-read.json').write_text(
+                (ROOT / 'infra/gcp/policies/plan-metadata-read.json').read_text())
             (source / 'infra/gcp/invalid.tf').write_text('resource "terraform_data" "x" {\n  input =\n}\n')
             subprocess.run(['git', 'init', '-q', str(source)], check=True)
             subprocess.run(['git', '-C', str(source), 'add', '.'], check=True)
@@ -217,6 +244,7 @@ class ValidationSandboxTest(unittest.TestCase):
             previous = root / 'work-tests/repository'
             previous.mkdir(parents=True)
             script = entrypoint.replace('/source', str(source)).replace('/work/', str(root / 'work-static') + '/')
+            script = script.replace('/opt/ci-tools/plan_policy.py', str(ROOT / '.github/ci-validation/plan_policy.py'))
             result = subprocess.run(['bash', '-s', '--', 'terraform-static'], input=script,
                 env=os.environ | {'HOME': str(root / 'home'), 'RUNNER_TEMP': str(root / 'tmp'), 'CI_SOURCE_SHA': sha,
                                   'CHECKPOINT_DISABLE': '1'},

@@ -590,9 +590,9 @@ class Contracts(unittest.TestCase):
             'iam.serviceAccounts.getAccessToken', 'iam.serviceAccountKeys.create',
             'resourcemanager.projects.setIamPolicy'}
         roles = bootstrap.selected_permissions(catalog, ['resourcemanager.projects.get'])
-        self.assertEqual(set(roles['plan']), {'resourcemanager.projects.get', 'pubsub.topics.get', 'bigquery.tables.get'})
-        self.assertEqual(set(roles['apply']) - set(roles['plan']),
-            {'pubsub.topics.create', 'storage.buckets.delete', 'secretmanager.secrets.create', 'iam.serviceAccounts.create'})
+        self.assertEqual(roles['plan'], bootstrap.plan_read_access.definition()['includedPermissions'])
+        self.assertEqual(set(roles['apply']), {'resourcemanager.projects.get', 'pubsub.topics.get', 'bigquery.tables.get',
+            'pubsub.topics.create', 'storage.buckets.delete', 'secretmanager.secrets.create', 'iam.serviceAccounts.create'})
 
     def summary_schema(self):
         return {'provider_schemas': {'registry.terraform.io/hashicorp/google': {

@@ -349,6 +349,7 @@ jobs:
           mypage=false
           while IFS= read -r path; do
             case "${path}" in
+              infra/gcp/policies/*|infra/gcp/scripts/plan_read_access.py|.github/ci-validation/plan_policy.py) core=true; mypage=true ;;
               infra/gcp/*|.github/workflows/gcp-terraform-authenticated.yml|.github/scripts/terraform_*.py) core=true ;;
               infra/mypage-platform/*|.github/workflows/mypage-foundation-authenticated.yml) mypage=true ;;
               .github/workflows/terraform.yml) core=true; mypage=true ;;

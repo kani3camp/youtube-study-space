@@ -98,6 +98,10 @@ Environment reviewは実行時の確認を加える別の制御です。必要�
 設定readbackと通常identityの実Plan/Apply成功は区別して記録します。
 基盤設定やソースのマージだけで、新identityの実証が完了したとは判定しません。
 
+## DEV Planの共通構成参照
+
+権限の正本は[静的manifest](../policies/plan-metadata-read.json)であり、Core/MyPageのPlan SAへ同じ定義を付与する。Apply/PROD・AWS State/lockは対象外。[棚卸し・専用反映・復旧手順](plan-read-access.md)に従い、通常bootstrapでPlan権限を拡張しない。
+
 ## 実行記録と変更履歴
 
 実施日時、対象SHA、IAM readback、CI・レビュー結果、Plan/Apply run、未検証事項は、対応するPRとActionsへ記録します。

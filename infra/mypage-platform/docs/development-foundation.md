@@ -75,3 +75,7 @@ refresh差分は原則拒否する。唯一、上記3 Secretの`annotations` / `
 Plan/Apply jobは別identityでそれぞれnative Planを保存し、全Plan・source SHA・S3 State versionのHMAC一致と30分以内を条件に、Apply job自身が保存したPlanだけを適用する。生成timestampだけを除外し、順序に意味を持たないdependency source一覧`relevant_attributes`だけは、全entryの内容・件数・重複を保持したまま整列する（[Terraform JSON format](https://developer.hashicorp.com/terraform/internals/json-format)）。配列を一律にsortせず、action sequence、attribute path、before/afterの値、drift、unknown、その他のPlan fieldは引き続き照合する。HMACはGitHub expression内で比較し、生Plan/State/targetはlog/artifactへ出さない。raw evidenceはrunnerのprivate directoryへ置き、成功・失敗の両方で削除する。
 
 Apply後はStateに選択段階の4件または8件だけが存在することをreadbackする。GCP実物のIAM/Secret metadataも別途readbackし、その証跡を残す。これだけではRuntime起動、公開Ready、実OAuthの成立を示さない。次はSecretの安全な投入と固定version、digest固定image、App Check/Auth/Hosting inventoryを確認し、別のRuntime段階へ進む。
+
+## 現行DEV Planの共通構成参照role
+
+Core/MyPageのPlan SAだけに共通の静的manifestを適用する。[権限定義・棚卸し・反映・復旧手順](../../gcp/docs/plan-read-access.md)を参照する。Applyが利用する `mypageFoundationRead` / `mypageRegistryRead` / `mypageRuntimeRead` の本文とbindingは広げず、Plan SAのproject bindingだけを専用ツールで置き換える。旧PR専用SAは拡張対象に含めない。上記の初回構築記録と、現在のrole付与・認証条件を混同せず、実状態はfresh inventoryで確認する。

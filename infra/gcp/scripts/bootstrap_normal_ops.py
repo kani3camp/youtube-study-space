@@ -4,6 +4,8 @@ import json
 import subprocess
 import sys
 
+import plan_read_access
+
 PROJECT = 'test-youtube-study-space'
 REPO = 'kani3camp/youtube-study-space'
 # Catalogs are read from GCP on every bootstrap; grant only the explicit
@@ -104,7 +106,9 @@ def selected_permissions(catalog, baseline):
         'secretmanager.versions.add', 'storage.objects.get', 'storage.objects.delete',
         'bigquery.tables.getData', 'bigquery.tables.updateData', 'bigquery.jobs.create'}
     need(not (write & forbidden) and read <= write)
-    return {'plan': sorted(read), 'apply': sorted(write)}
+    # Plan uses the reviewed static definition; adding Plan families must never
+    # feed the dynamic Apply catalog/root selection above.
+    return {'plan': plan_read_access.definition()['includedPermissions'], 'apply': sorted(write)}
 
 
 def run(args, *, data=None, missing=False):
@@ -140,7 +144,21 @@ def bootstrap():
             'runtime_sa': 'terraform-dev-workload',
             'github_environments': ['terraform-dev-plan', 'terraform-dev-apply']}, indent=2))
         return
+    # Fail before any write until the separate Plan-only migration has run.
+    # Never update the old shared Plan role or migrate bindings in this bootstrap.
+    plan_role = gcloud('iam', 'roles', 'describe', plan_read_access.ROLE_ID)
+    need(plan_role.get('stage') == 'GA' and not plan_role.get('deleted')
+         and sorted(plan_role['includedPermissions']) == permissions['plan'])
+    current_policy = gcloud('projects', 'get-iam-policy', PROJECT)
+    plan_member = 'serviceAccount:terraform-dev-normal-plan@' + PROJECT + '.iam.gserviceaccount.com'
+    need(plan_read_access.grants(current_policy, plan_member) == {plan_read_access.ROLE})
+    apply_member = 'serviceAccount:terraform-dev-normal-apply@' + PROJECT + '.iam.gserviceaccount.com'
+    apply_roles = plan_read_access.grants(current_policy, apply_member)
+    need(apply_roles == {f'projects/{PROJECT}/roles/terraformNormalApply',
+                         f'projects/{PROJECT}/roles/monitorAuthConfigWrite'})
     for kind, allowed in permissions.items():
+        if kind == 'plan':
+            continue
         role = 'terraformNormal' + kind.title()
         existing = gcloud('iam', 'roles', 'describe', role, missing=True)
         gcloud('iam', 'roles', 'update' if existing else 'create', role,
@@ -167,7 +185,7 @@ def bootstrap():
     runtime_policy = gcloud('projects', 'get-iam-policy', PROJECT)
     need(not any('serviceAccount:' + runtime in b['members'] for b in runtime_policy['bindings']))
     for kind in ('plan', 'apply'):
-        roles = [f'projects/{PROJECT}/roles/terraformNormal' + kind.title()]
+        roles = [plan_read_access.ROLE if kind == 'plan' else f'projects/{PROJECT}/roles/terraformNormalApply']
         name = 'terraform-dev-normal-' + kind
         email = name + '@' + PROJECT + '.iam.gserviceaccount.com'
         existing = gcloud('iam', 'service-accounts', 'describe', email, missing=True)
@@ -192,7 +210,7 @@ def bootstrap():
                        for b in policy['bindings']))
         policy = gcloud('projects', 'get-iam-policy', PROJECT)
         actual = {b['role'] for b in policy['bindings'] if 'serviceAccount:' + email in b['members'] and 'condition' not in b}
-        need(actual == set(roles))
+        need(actual == (set(roles) if kind == 'plan' else apply_roles))
         environment = 'terraform-dev-' + kind
         run(['gh', 'secret', 'set', 'GCP_TERRAFORM_NORMAL_SERVICE_ACCOUNT', '--repo', REPO, '--env', environment], data=email)
         run(['gh', 'secret', 'set', 'GCP_TERRAFORM_NORMAL_WIF_PROVIDER', '--repo', REPO, '--env', environment], data=readback['name'])
