@@ -49,8 +49,8 @@ type FirestoreSnapshotReader struct {
 type currentOnlyKey struct{}
 
 func currentOnlyRead(ctx context.Context) bool {
-	currentOnly, _ := ctx.Value(currentOnlyKey{}).(bool)
-	return currentOnly
+	currentOnly, ok := ctx.Value(currentOnlyKey{}).(bool)
+	return ok && currentOnly
 }
 
 func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSnapshot, error) {
@@ -80,15 +80,10 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 			result = s
 			return nil
 		}
-		var user repository.UserDoc
-		if err := docs[0].DataTo(&user); err != nil {
-			return fmt.Errorf("decode snapshot user: %w", err)
-		}
-		s.User = &user
 		userFields := docs[0].Data()
-		if _, ok := userFields["total-study-sec"].(int64); !ok {
-			s.UserTotalInconsistent = true
-		}
+		totalStudySec, ok := userFields["total-study-sec"].(int64)
+		s.User = &repository.UserDoc{TotalStudySec: int(totalStudySec)}
+		s.UserTotalInconsistent = !ok || int64(s.User.TotalStudySec) != totalStudySec
 		for _, name := range []string{"seats", "member-seats"} {
 			attempt.SeatQueries++
 			seats, err := tx.Documents(r.Client.Collection(name).Where("user-id", "==", uid).Limit(2)).GetAll()
@@ -121,6 +116,9 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 			s.Coverage = []Interval{{Start: window.QueryStart(), End: s.AsOf}}
 		}
 		if epoch := r.MonthlyEpoch; epoch != "" {
+			if err := docs[0].DataTo(s.User); err != nil {
+				return fmt.Errorf("decode snapshot user for monthly history: %w", err)
+			}
 			s.MonthlyEpoch = epoch
 			s.Months = map[string]repository.WorkMonthDoc{}
 			first := window.QueryStart().In(timeutil.JapanLocation())

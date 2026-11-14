@@ -91,6 +91,31 @@ describe('private MyPage memory', () => {
 		memory.dispose()
 	})
 
+	it('restores totals after a successful token retry during polling', async () => {
+		const retry = deferred<MyPage>()
+		const next = sample()
+		next.generatedAt = '2026-10-06T03:05:00Z'
+		const load = vi
+			.fn()
+			.mockResolvedValueOnce(sample())
+			.mockRejectedValueOnce(new RequestError(401, 'AUTH_REQUIRED'))
+			.mockReturnValueOnce(retry.promise)
+		const memory = new MyPageMemory(load, async () => {})
+		memory.setIdentity('synthetic')
+		await settle()
+		await vi.advanceTimersByTimeAsync(5 * 60_000)
+		expect(memory.getSnapshot().data).toBeNull()
+		expect(load.mock.calls.map((call) => [call[2], call[4]])).toEqual([
+			[false, false],
+			[false, true],
+			[true, false],
+		])
+		retry.resolve(next)
+		await settle()
+		expect(memory.getSnapshot().data?.summary.today.asOf).toBe(next.generatedAt)
+		memory.dispose()
+	})
+
 	it('keeps recorded evidence separate from exact or retained values and clears it on source failure', () => {
 		const response = structuredClone(recordedWire) as MyPage
 		const first = mergeResponse(null, response)

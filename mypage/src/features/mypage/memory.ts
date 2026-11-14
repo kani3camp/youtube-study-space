@@ -385,7 +385,7 @@ export class MyPageMemory {
 		if (manual && this.now() - this.lastManual < 2000) return
 		if (manual) this.lastManual = this.now()
 		this.pendingManual = false
-		const currentOnly = periodic && !manual && this.state.data !== null
+		let currentOnly = periodic && !manual && this.state.data !== null
 		if (this.timer !== null) clearTimeout(this.timer)
 		this.timer = null
 		const uid = this.uid
@@ -418,6 +418,7 @@ export class MyPageMemory {
 					) {
 						// トークンを強制更新する前に値を消去する。
 						this.publish({ ...this.state, data: null, receivedAt: null })
+						currentOnly = false
 						forceToken = true
 						continue
 					}
