@@ -558,10 +558,6 @@ h2 {
 .recent-card {
 	grid-area: recent;
 }
-.chart-label {
-	font-size: 13px;
-	margin-block: 8px 0;
-}
 .chart-heading {
 	display: flex;
 	align-items: baseline;
@@ -783,13 +779,6 @@ h2 {
 }
 .account-dialog::backdrop {
 	background: oklch(25% 0.02 55 / 0.2);
-}
-.dialog-heading {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	gap: 12px;
-	margin-bottom: 20px;
 }
 .account-name {
 	font-size: 17px;

@@ -548,11 +548,10 @@ resource "google_project_iam_custom_role" "maintenance_image_release" {
   }
 }
 
-# The legacy backend deployer's Job binding and maintenance SA actAs are no
-# longer declared. After the first verified operator release, Apply deletes
-# them through the reviewed delete-only transition
-# (runtime_contract.legacy_image_release). Once applied and read back, the
-# dedicated operator deployer below is the only Job image releaser.
+# The legacy backend deployer's Job binding and maintenance SA actAs were
+# removed after the first verified operator release (DEV read back
+# 2026-11-01). The dedicated operator deployer below is the only Job image
+# releaser, and the plan contract no longer admits any deletion.
 resource "google_service_account_iam_member" "operator_image_release_act_as" {
   count              = local.maintenance_image_release ? 1 : 0
   service_account_id = "projects/${var.project_id}/serviceAccounts/${local.maintenance_operator_email}"

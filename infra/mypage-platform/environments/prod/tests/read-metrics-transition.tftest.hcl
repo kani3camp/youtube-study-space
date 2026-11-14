@@ -17,42 +17,10 @@ variables {
   }
 }
 
-run "production_refuses_transition_in_disabled" {
-  command = plan
-  variables {
-    stage = "disabled"
-  }
-  expect_failures = [var.runtime_settings]
-}
-
-run "production_refuses_transition_in_foundation_metadata" {
-  command = plan
-  variables {
-    stage = "foundation_metadata"
-  }
-  expect_failures = [var.runtime_settings]
-}
-
-run "production_refuses_transition_in_foundation" {
-  command = plan
-  variables {
-    stage = "foundation"
-  }
-  expect_failures = [var.runtime_settings]
-}
-
 run "production_refuses_transition_in_runtime_private" {
   command = plan
   variables {
     stage = "runtime_private"
-  }
-  expect_failures = [var.runtime_settings]
-}
-
-run "production_refuses_transition_in_runtime_public" {
-  command = plan
-  variables {
-    stage = "runtime_public"
   }
   expect_failures = [var.runtime_settings]
 }

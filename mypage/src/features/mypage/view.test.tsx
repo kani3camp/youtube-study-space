@@ -119,6 +119,13 @@ describe('MyPage observable display', () => {
 		expect(html).toContain('作業集計（直近7日を含む） · 10/6 12:00時点')
 		expect(html.match(/\d{2}:\d{2}時点/g)).toHaveLength(2)
 	})
+	it('marks today with its full-width style hook while week and lifetime share the base metric', () => {
+		const html = markup(state())
+		// metric-${key} は動的生成のため、対応するCSS規則（.metric-today）と対で保つ。
+		expect(html).toContain('class="metric metric-today"')
+		expect(html).toContain('class="metric metric-week"')
+		expect(html).toContain('class="metric metric-lifetime"')
+	})
 	it('shows missing first-load values as unavailable rather than normal zero', () => {
 		const s = state()
 		s.data = null
