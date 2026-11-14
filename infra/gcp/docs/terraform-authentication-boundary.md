@@ -105,3 +105,7 @@ Environment reviewは実行時の確認を加える別の制御です。必要�
 
 - [独自証跡の撤廃（PR #1373）](https://github.com/kani3camp/youtube-study-space/pull/1373)
 - [DEV通常運用の導入と検証記録（PR #1382）](https://github.com/kani3camp/youtube-study-space/pull/1382)
+
+## DEV PR Planの再実行
+
+ownerが起動した同一repositoryのDEV PR Planは、GitHubが再実行を許可するwrite権限保持者へ再実行を委ねる。PR経路ではtriggering actorを限定せず、attemptの上限・初回限定を持たない。正整数のattemptと署名済みOIDCの実行値一致、初回owner actor、merge ref/SHA、Plan Environment限定を検証する。手動Plan/Apply・PRODの初回本人限定は維持する。再実行者そのものをクラウドのactor claimで検証することはできない。反映・確認手順は[workflow設計](../../../docs/development/ci-cd-workflows.md#45-pr-plan-の再実行を有効にするowner)を参照する。
