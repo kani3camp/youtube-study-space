@@ -1,6 +1,5 @@
 export type ReasonCode =
 	| 'SOURCE_UNAVAILABLE'
-	| 'HISTORY_INCOMPLETE'
 	| 'HISTORY_LIMIT_EXCEEDED'
 	| 'DATA_INCONSISTENT'
 	| 'METADATA_REFRESH_FAILED'
@@ -12,7 +11,6 @@ export type Metric =
 			availability: 'unavailable'
 			workSec: null
 			reasonCode: ReasonCode
-			recordedWorkSec?: number
 	  }
 
 export type Section<T> =

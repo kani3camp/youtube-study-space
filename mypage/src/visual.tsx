@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import fixture from '../../docs/mypage/fixtures/available.json'
-import recordedFixture from '../../docs/mypage/fixtures/recorded-history.json'
+import partialFixture from '../../docs/mypage/fixtures/partial.json'
 import type { MyPage } from './features/mypage/contract'
 import { type MemoryState, mergeResponse } from './features/mypage/memory'
 import { MyPageView } from './features/mypage/view'
@@ -29,7 +29,7 @@ function VisualApp({ initial }: { initial: MemoryState }) {
 if (import.meta.env.DEV) {
 	const mode = new URLSearchParams(location.search).get('state')
 	const sample = structuredClone(
-		mode === 'recorded' ? recordedFixture : fixture,
+		mode === 'partial' ? partialFixture : fixture,
 	) as MyPage
 	if (mode === 'avatar-failure' && sample.account.data)
 		sample.account.data.avatarUrl =

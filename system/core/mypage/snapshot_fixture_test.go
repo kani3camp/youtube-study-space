@@ -54,7 +54,6 @@ func TestSnapshotQueryFixtureAccountsAcrossJSTMidnight(t *testing.T) {
 			s := workFixture()
 			s.AsOf = instant(tc.asOf)
 			s.User.TotalStudySec = 600
-			s.Coverage = []Interval{{s.AsOf.AddDate(0, 0, -30), s.AsOf}}
 			// クエリで返る、条件と期間に一致した区間。
 			s.Segments = snapshotQuerySegments(s.UID, instant(tc.capturedAt))[:1]
 			r, err := Aggregate(s, fixtureAccount())

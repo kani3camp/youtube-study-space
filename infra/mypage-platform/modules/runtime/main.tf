@@ -47,7 +47,6 @@ variable "runtime_settings" {
     oauth_client_id_version     = string
     oauth_client_secret_version = string
     youtube_api_key_version     = string
-    history_coverage_json       = optional(string, "")
     image_source_sha            = optional(string, "")
     hosting_backend_host        = optional(string, "")
     previous_image_digest       = optional(string, "")
@@ -279,15 +278,6 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "MYPAGE_TERMS_VERSION"
         value = var.runtime_settings.terms_version
-      }
-      # データ一覧を根拠に明示した期間一覧がなければ、履歴が完全とは仮定しない。
-      # 期間はサーバー起動時に検証する。
-      dynamic "env" {
-        for_each = var.runtime_settings.history_coverage_json == "" ? [] : [var.runtime_settings.history_coverage_json]
-        content {
-          name  = "MYPAGE_HISTORY_COVERAGE"
-          value = env.value
-        }
       }
       # 明示的に有効化した場合だけ使う。モジュールを直接呼んでも本番では無効にする。
       # この実装だけでは配信リビジョンの更新を承認しない。
@@ -656,14 +646,6 @@ output "maintenance_job_name" {
 # Security Current Canonで定めた環境別の容量上限を適用する。
 output "max_instances" {
   value = local.max_instances
-}
-
-# 実際に計画されたCloud Run環境変数エントリーの有無を、真偽値相当の件数だけで公開する。
-output "history_coverage_env_count" {
-  value = local.deploy_api ? length([
-    for item in google_cloud_run_v2_service.api[0].template[0].containers[0].env : item
-    if item.name == "MYPAGE_HISTORY_COVERAGE"
-  ]) : 0
 }
 
 # 認証情報を使わないモックテストでは、この固定かつ個人を識別しない環境変数の値だけを調べる。

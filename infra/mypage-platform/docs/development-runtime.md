@@ -77,7 +77,7 @@ Registryの実適用後、同じ専用reusable workflowで`image-build`を明示
 
 Runtime初回は`runtime-private-plan` / `runtime-private-apply`で11資源（Registry段階9 + 当該SAのFirestore member + Cloud Run 1）だけを許可する。その後、Hosting経路へ接続する段階で`runtime-public-plan` / `runtime-public-apply`を使い、当該serviceだけの`allUsers` invoker memberを追加した12資源に進む。初回create/no-opだけを受理し、update/delete/replace/import、別principal、別Cloud Run/Registry、未知のenvや生Secret値を拒否する。修正revisionへの更新は、この初回guardを無制限に緩めず別のreview済みtransitionで扱う。
 
-両Environmentの追加secret `MYPAGE_RUNTIME_SETTINGS_JSON`へ、`runtime_settings`と同じkeyのJSON objectを設定する。含めるのはimage digest、project番号/Web app ID、固定origin、同意版、3個の番号固定Secret version、任意の確認済みhistory coverageだけ。OAuth client secret/API key/tokenは含めない。重複key、未知field、別Registry/origin、`latest`をpreflightで拒否する。project番号は実WIF providerと一致させ、Planでは当該SHAのimmutable tagと3個のENABLEDなSecret version metadataを照合する。
+両Environmentの追加secret `MYPAGE_RUNTIME_SETTINGS_JSON`へ、`runtime_settings`と同じkeyのJSON objectを設定する。含めるのはimage digest、project番号/Web app ID、固定origin、同意版、3個の番号固定Secret versionだけ。OAuth client secret/API key/tokenは含めない。重複key、未知field、別Registry/origin、`latest`をpreflightで拒否する。旧設定の `history_coverage_json` は読み込み時に除外するため、段階的に削除できる。project番号は実WIF providerと一致させ、Planでは当該SHAのimmutable tagと3個のENABLEDなSecret version metadataを照合する。
 
 image-buildとRuntime Plan/Applyのsource SHAは同一とする。間にcodeを変えた場合は、新SHAでimageを作り直してdigest設定を更新する。前後1世代互換やrollbackは[実経路E2E](../../../docs/mypage/release/e2e.md)で別途確認し、初回guardの成功だけで成立と扱わない。
 

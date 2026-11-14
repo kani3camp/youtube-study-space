@@ -36,7 +36,7 @@
 | A06 | UID差替え/extra query/別Origin/duplicate cookie、parallel callback/confirm | IDOR/Origin拒否、claim/consume/mint一回、公開raw errorなし | HTTP origin/auth atomic tests |
 | L01 / Canon S04 | Hosting/API/security logsでcallback/query記録 | code/state/Cookie/token/support queryを不要に保存・通常表示しない。platform/app全層を確認 | local codeの非出力だけでは証明不可 |
 | Canon S01 | development Hosting→Cloud RunでIP識別・OAuth開始の429 | 同一/別回線を分離、XFF偽装でbucket変更なし、他利用者へ波及なし、Retry-After有効 | process内limiter/RemoteAddrの合成テストだけでは証明不可 |
-| D01 | 登録済み/未登録/coverage欠損/正常0/取得失敗/partial | unavailableと0/未登録を分離、snapshot/asOf、1000件制限 | aggregation/BFF fixtures |
+| D01 | 登録済み/未登録/正常0/取得失敗/データ不整合/partial | unavailableと0/未登録を分離、snapshot/asOf、1000件制限 | aggregation/BFF fixtures |
 | D02 | JST日跨ぎ・seat終了/break移動と同時read | double countなし、writer atomicity、cache失効/GeneratedAt | repository/workspaceapp/mypage Emulator |
 | M01 | metadata正常更新/上流失敗/正常channel不在/30日境界 | public metadataだけguard付き更新/clear、旧表示が復活しない | metadata mock/Emulator |
 | M02 | scheduled cleanup・sink到達・heartbeat/失敗alert | 29日対象、30日超保持なし、成功scan間隔23h以内/job10min以内、alert到達 | cleanup/health tests; scheduler/sink実結線は別 |

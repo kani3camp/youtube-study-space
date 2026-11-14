@@ -49,8 +49,6 @@ type ServerConfig struct {
 	Environment, ProjectID, ProjectNumber, WebAppID, PublicOrigin string
 	Policy                                                        Policy
 	HostingBackendHost                                            string
-	// 完全性を検証した過去期間だけを渡す。nilは履歴が取得不能であることを表す。
-	Coverage []Interval
 }
 
 // 設定できるのはCloud Runサービスのホスト名そのものだけとする。
@@ -135,7 +133,7 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 		PublicOrigin: config.PublicOrigin, HostingBackendHost: config.HostingBackendHost, Verifier: boundary,
 		Maintenance: maintenance,
 		Auth:        &AuthService{Access: access, Store: store, Maintenance: maintenance, Provider: deps.OAuth, Minter: boundary, Policy: config.Policy, Now: now, Support: &FirestoreSupportStore{Client: deps.Firestore, Environment: config.Environment}, OAuthFailures: deps.OAuthFailures},
-		BFF:         &BFF{Access: access, Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Coverage: append([]Interval(nil), config.Coverage...), RecentHistoryRecorded: true, Observe: deps.ReadObserver}, Environment: config.Environment, Now: now, Metadata: metadata},
+		BFF:         &BFF{Access: access, Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Observe: deps.ReadObserver}, Environment: config.Environment, Now: now, Metadata: metadata},
 	}
 	return handler, nil
 }
