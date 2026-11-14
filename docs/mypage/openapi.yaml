@@ -63,12 +63,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '404': &id004
-          description: 公開してよい内容だけを含むエラーレスポンス
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
         '405': &id005
           description: 公開してよい内容だけを含むエラーレスポンス
           content:
@@ -139,7 +133,6 @@ paths:
         '400': *id001
         '401': *id002
         '403': *id003
-        '404': *id004
         '405': *id005
         '409': *id006
         '410': *id007
@@ -176,7 +169,6 @@ paths:
         '400': *id001
         '401': *id002
         '403': *id003
-        '404': *id004
         '405': *id005
         '409': *id006
         '410': *id007
@@ -208,7 +200,6 @@ paths:
         '400': *id001
         '401': *id002
         '403': *id003
-        '404': *id004
         '405': *id005
         '409': *id006
         '410': *id007
@@ -246,7 +237,6 @@ paths:
         '400': *id001
         '401': *id002
         '403': *id003
-        '404': *id004
         '405': *id005
         '409': *id006
         '410': *id007
@@ -275,7 +265,6 @@ paths:
         '400': *id001
         '401': *id002
         '403': *id003
-        '404': *id004
         '405': *id005
         '409': *id006
         '410': *id007
@@ -824,8 +813,6 @@ components:
               - WEB_ACCOUNT_REQUIRED
               - RATE_LIMITED
               - MAINTENANCE_ACTIVE
-              - FEATURE_UNAVAILABLE
-              - HISTORY_LIMIT_EXCEEDED
               - TEMPORARY_UNAVAILABLE
               - INTERNAL_ERROR
             message:

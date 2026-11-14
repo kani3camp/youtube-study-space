@@ -16,8 +16,6 @@ const reasons = new Set([
 	'METADATA_TOO_OLD',
 ])
 const publicErrors = new Set([
-	'FEATURE_UNAVAILABLE',
-	'HISTORY_LIMIT_EXCEEDED',
 	'INVALID_REQUEST',
 	'PAYLOAD_TOO_LARGE',
 	'PRIVACY_CONSENT_REQUIRED',
