@@ -224,3 +224,20 @@ func TestRemovedPhaseTwoRoutesAreNotExposed(t *testing.T) {
 		}
 	}
 }
+
+func TestHTTPCurrentViewDoesNotReuseFullSnapshotCache(t *testing.T) {
+	h, _, _, _ := boundaryFixture()
+	var reads []bool
+	h.BFF.Reader = readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
+		reads = append(reads, currentOnlyRead(ctx))
+		return workFixture(), nil
+	})
+	for _, path := range []string{"/api/mypage?view=current", "/api/mypage", "/api/mypage?view=current", "/api/mypage"} {
+		if result := boundaryRequest(h, http.MethodGet, path, ""); result.Code != http.StatusOK {
+			t.Fatalf("GET %s: status %d", path, result.Code)
+		}
+	}
+	if len(reads) != 2 || !reads[0] || reads[1] {
+		t.Fatalf("reader calls by scope: %v", reads)
+	}
+}

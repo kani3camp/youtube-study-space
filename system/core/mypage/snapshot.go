@@ -40,9 +40,17 @@ type FirestoreSnapshotReader struct {
 	Coverage []Interval
 	// 空なら従来の原記録読み取りを使い、明示的な導入・ロールバックに対応する。
 	// epochは旧書き込み処理の完了を待った後の、検証済み上限付き移行に一致する必要がある。
-	MonthlyEpoch string
+	MonthlyEpoch          string
+	RecentHistoryRecorded bool
 	// 任意のフックで、スナップショット読み取り成功後に一度だけ呼ぶ。
 	Observe func(SnapshotReadObservation)
+}
+
+type currentOnlyKey struct{}
+
+func currentOnlyRead(ctx context.Context) bool {
+	currentOnly, ok := ctx.Value(currentOnlyKey{}).(bool)
+	return ok && currentOnly
 }
 
 func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSnapshot, error) {
@@ -72,40 +80,10 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 			result = s
 			return nil
 		}
-		var user repository.UserDoc
-		if err := docs[0].DataTo(&user); err != nil {
-			return fmt.Errorf("decode snapshot user: %w", err)
-		}
-		s.User = &user
-		epoch := r.MonthlyEpoch
-		if epoch == "" {
-			epoch = user.WorkHistoryEpoch
-		}
 		userFields := docs[0].Data()
-		if _, ok := userFields["total-study-sec"].(int64); !ok {
-			s.UserTotalInconsistent = true
-		}
-		rawEpoch, hasEpoch := userFields["work-history-epoch"]
-		_, hasActivated := userFields["work-history-activated-at"]
-		_, hasThrough := userFields["work-history-closed-through"]
-		if hasEpoch {
-			if value, ok := rawEpoch.(string); !ok || value != repository.MonthlyWorkEpoch {
-				s.HistoryInconsistent = true
-				epoch = repository.MonthlyWorkEpoch
-			}
-		} else if hasActivated || hasThrough {
-			s.HistoryInconsistent = true
-			epoch = repository.MonthlyWorkEpoch
-		}
-		if user.WorkHistoryEpoch != "" && user.WorkHistoryEpoch != repository.MonthlyWorkEpoch {
-			s.HistoryInconsistent = true
-		}
-		if user.WorkHistoryEpoch == repository.MonthlyWorkEpoch {
-			_, hasWatermark := userFields["work-history-closed-through"]
-			if !hasWatermark || !repository.ValidWorkHistoryWatermark(user, s.AsOf) {
-				s.HistoryInconsistent = true
-			}
-		}
+		totalStudySec, ok := userFields["total-study-sec"].(int64)
+		s.User = &repository.UserDoc{TotalStudySec: int(totalStudySec)}
+		s.UserTotalInconsistent = !ok || int64(s.User.TotalStudySec) != totalStudySec
 		for _, name := range []string{"seats", "member-seats"} {
 			attempt.SeatQueries++
 			seats, err := tx.Documents(r.Client.Collection(name).Where("user-id", "==", uid).Limit(2)).GetAll()
@@ -128,8 +106,19 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 				s.MemberSeat = name == "member-seats"
 			}
 		}
+		if currentOnlyRead(ctx) {
+			s.HistoryUnavailable = true
+			result = s
+			return nil
+		}
 		window := StatisticsWindows(s.AsOf)
-		if epoch != "" {
+		if r.RecentHistoryRecorded && len(s.Coverage) == 0 {
+			s.Coverage = []Interval{{Start: window.QueryStart(), End: s.AsOf}}
+		}
+		if epoch := r.MonthlyEpoch; epoch != "" {
+			if err := docs[0].DataTo(s.User); err != nil {
+				return fmt.Errorf("decode snapshot user for monthly history: %w", err)
+			}
 			s.MonthlyEpoch = epoch
 			s.Months = map[string]repository.WorkMonthDoc{}
 			first := window.QueryStart().In(timeutil.JapanLocation())

@@ -153,11 +153,23 @@ func TestMonthlySnapshotNeverDecodesMissingNullOrWrongTypedValuesAsZero(t *testi
 	}
 }
 
-func TestMonthlyBrokenReaderMarkerCannotSilentlyFallBackToRaw(t *testing.T) {
+func TestRawHistoryIgnoresLegacyMonthlyMarkers(t *testing.T) {
 	r, uid := snapshotFixture(t)
 	ctx := context.Background()
-	now := time.Now().UTC().Add(-time.Hour)
-	for _, fault := range []string{"missing-epoch", "null-epoch", "empty-epoch", "zero-watermark", "regressing-watermark"} {
+	now := time.Now().UTC()
+	start := StatisticsWindows(now).Today.AddDate(0, 0, -1).Add(12 * time.Hour)
+	segment := repository.WorkSegmentDoc{UserID: uid, SegmentType: repository.WorkState, StartedAt: start, EndedAt: start.Add(time.Minute), DurationSec: 60}
+	segmentRef := r.Client.Collection(repository.WorkSegments).NewDoc()
+	userRef := r.Client.Collection(repository.USERS).Doc(uid)
+	_, err := segmentRef.Set(ctx, segment)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := segmentRef.Delete(ctx)
+		require.NoError(t, err)
+		_, err = userRef.Delete(ctx)
+		require.NoError(t, err)
+	})
+	for _, fault := range []string{"valid-epoch", "missing-epoch", "null-epoch", "empty-epoch", "wrong-type-epoch", "zero-watermark", "regressing-watermark", "wrong-type-watermark"} {
 		t.Run(fault, func(t *testing.T) {
 			data := map[string]any{"total-study-sec": int64(0), "work-history-epoch": repository.MonthlyWorkEpoch, "work-history-activated-at": now, "work-history-closed-through": now}
 			switch fault {
@@ -167,29 +179,33 @@ func TestMonthlyBrokenReaderMarkerCannotSilentlyFallBackToRaw(t *testing.T) {
 				data["work-history-epoch"] = nil
 			case "empty-epoch":
 				data["work-history-epoch"] = ""
+			case "wrong-type-epoch":
+				data["work-history-epoch"] = int64(1)
 			case "zero-watermark":
 				data["work-history-closed-through"] = time.Time{}
 			case "regressing-watermark":
 				data["work-history-closed-through"] = now.Add(-time.Second)
+			case "wrong-type-watermark":
+				data["work-history-closed-through"] = "invalid"
 			}
-			_, err := r.Client.Collection(repository.USERS).Doc(uid).Set(ctx, data)
+			_, err := userRef.Set(ctx, data)
 			require.NoError(t, err)
 			var stats SnapshotReadObservation
 			r.Observe = func(s SnapshotReadObservation) { stats = s }
 			snapshot, err := r.Read(ctx, uid)
 			require.NoError(t, err)
-			require.True(t, snapshot.HistoryInconsistent)
-			require.Zero(t, stats.SegmentQueries)
+			require.Equal(t, 1, stats.SegmentQueries)
+			require.Zero(t, stats.MonthLookups)
 			response, err := Aggregate(snapshot, fixtureAccount())
 			require.NoError(t, err)
-			require.True(t, response.Partial)
-			require.Nil(t, response.Summary.Data.Today.WorkSec)
+			var recordedSeconds int64
+			for _, day := range response.Recent7Days.Data {
+				require.NotNil(t, day.WorkSec)
+				recordedSeconds += *day.WorkSec
+			}
+			require.Equal(t, int64(60), recordedSeconds)
 		})
 	}
-	t.Cleanup(func() {
-		_, err := r.Client.Collection(repository.USERS).Doc(uid).Delete(context.Background())
-		require.NoError(t, err)
-	})
 }
 
 func TestMonthlyUnknownLifetimeSourceIsNotReportedAsNormalZero(t *testing.T) {
