@@ -157,7 +157,13 @@ export function ExternalLink({
 	)
 }
 
-function StaleNote({ value }: { value: Retained<unknown> }) {
+function StaleNote({
+	value,
+	sharedAsOf,
+}: {
+	value: Retained<unknown>
+	sharedAsOf?: string | null
+}) {
 	if (!value.stale) return null
 	if (value.reason === 'METADATA_TOO_OLD')
 		return (
@@ -166,19 +172,21 @@ function StaleNote({ value }: { value: Retained<unknown> }) {
 			</p>
 		)
 	if (value.data === null) {
-		if (value.recorded)
+		if (value.recorded) {
+			const asOf = value.recorded.asOf
 			return (
 				<p className="stale-note history-note">
 					<span className="history-status">
 						<Icon name="info" />
 						<span>集計未確定</span>
-						<span className="note-time">
-							{timestamp(value.recorded.asOf)}時点
-						</span>
+						{asOf !== sharedAsOf && (
+							<span className="note-time">{timestamp(asOf)}時点</span>
+						)}
 					</span>
 					<span>記録がそろっているか未確認です。</span>
 				</p>
 			)
+		}
 		const explanations: Partial<Record<ReasonCode, string>> = {
 			HISTORY_INCOMPLETE: 'この期間の記録がそろっていません。',
 			HISTORY_LIMIT_EXCEEDED: '記録が多いため集計できません。',
@@ -191,7 +199,10 @@ function StaleNote({ value }: { value: Retained<unknown> }) {
 		<p className="stale-note">
 			{value.data === null
 				? '情報を取得できませんでした'
-				: `更新できませんでした · ${timestamp(value.asOf)}時点`}
+				: '更新できませんでした'}
+			{value.data !== null && value.asOf && value.asOf !== sharedAsOf && (
+				<> · {timestamp(value.asOf)}時点</>
+			)}
 		</p>
 	)
 }
@@ -307,20 +318,6 @@ function CurrentCard({
 										className="timeline-now"
 										style={{ left: timelinePosition }}
 									/>
-									<span
-										className="timeline-caption"
-										style={{
-											left: timelinePosition,
-											transform:
-												progress < 14
-													? 'translateX(-6px)'
-													: progress > 86
-														? 'translateX(calc(-100% + 6px))'
-														: 'translateX(-50%)',
-										}}
-									>
-										{time(value?.asOf ?? null)}時点
-									</span>
 								</div>
 								{asOf > end && (
 									<p className="overdue-note">終了予定を過ぎています</p>
@@ -328,9 +325,6 @@ function CurrentCard({
 							</>
 						)}
 					</div>
-					<p className="jst-note">
-						日本時間（JST） · {time(value?.asOf ?? null)}時点
-					</p>
 				</>
 			) : (
 				<>
@@ -351,9 +345,9 @@ function CurrentCard({
 					</p>
 				</>
 			)}
-			{value && <StaleNote value={value} />}
-			{!active && value?.asOf && !value.stale && (
-				<p className="jst-note">{timestamp(value.asOf)}時点</p>
+			{value && <StaleNote value={value} sharedAsOf={value.asOf} />}
+			{value?.asOf && (
+				<p className="jst-note">入室状況 · {timestamp(value.asOf)}時点</p>
 			)}
 			<div className="hero-links current-links">
 				{active && (
@@ -372,7 +366,28 @@ function CurrentCard({
 	)
 }
 
-function SummaryCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
+function workStatsAsOf(data: ViewData | null) {
+	let newest: string | null = null
+	for (const value of [
+		...Object.values(data?.summary ?? {}),
+		...(data?.recent ?? []),
+	]) {
+		const asOf = value.data === null ? value.recorded?.asOf : value.asOf
+		if (asOf && (!newest || Date.parse(asOf) > Date.parse(newest)))
+			newest = asOf
+	}
+	return newest
+}
+
+function SummaryCard({
+	data,
+	busy,
+	asOf,
+}: {
+	data: ViewData | null
+	busy: boolean
+	asOf: string | null
+}) {
 	const labels = { today: '今日', week: '今週', lifetime: '累計' }
 	return (
 		<section
@@ -411,10 +426,7 @@ function SummaryCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 								<dd>
 									<MetricValue value={value} />
 								</dd>
-								{value && <StaleNote value={value} />}
-								{value?.asOf && !value.stale && (
-									<p className="muted">{timestamp(value.asOf)}時点</p>
-								)}
+								{value && <StaleNote value={value} sharedAsOf={asOf} />}
 							</div>
 						)
 					})}
@@ -424,11 +436,24 @@ function SummaryCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 				<Icon name="clock" />
 				日本時間（JST） · 休憩を除く
 			</p>
+			{asOf && (
+				<p className="jst-note stats-as-of">
+					作業集計（直近7日を含む） · {timestamp(asOf)}時点
+				</p>
+			)}
 		</section>
 	)
 }
 
-function RecentCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
+function RecentCard({
+	data,
+	busy,
+	asOf,
+}: {
+	data: ViewData | null
+	busy: boolean
+	asOf: string | null
+}) {
 	const [selectedDate, setSelectedDate] = useState<string | null>(null)
 	const days = data?.recent ?? []
 	const selected =
@@ -503,10 +528,7 @@ function RecentCard({ data, busy }: { data: ViewData | null; busy: boolean }) {
 							斜線は記録済み分（集計未確定）
 						</p>
 					)}
-					{selected && <StaleNote value={selected} />}
-					{selected?.asOf && !selected.stale && (
-						<p className="muted">{timestamp(selected.asOf)}時点</p>
-					)}
+					{selected && <StaleNote value={selected} sharedAsOf={asOf} />}
 				</>
 			) : busy ? (
 				<>
@@ -623,6 +645,7 @@ export function MyPageView({
 	const avatar = useRef<HTMLButtonElement>(null)
 	const privateVisible = state.phase === 'authenticated'
 	const data = privateVisible ? state.data : null
+	const statsAsOf = workStatsAsOf(data)
 	const account = data?.account.data ?? null
 	const initialFailure = !data && !state.busy && !!state.error
 	const closePanel = () => {
@@ -668,11 +691,7 @@ export function MyPageView({
 						<p className="greeting">おかえりなさい。</p>
 						{state.error && data && (
 							<div className="notice" role="status">
-								<p>
-									最新の情報に更新できませんでした。
-									{state.receivedAt !== null &&
-										`最後に取得できた ${dateTime.format(new Date(state.receivedAt))} の情報を表示しています。`}
-								</p>
+								<p>最新の情報に更新できませんでした。</p>
 								<button
 									className="button"
 									type="button"
@@ -694,8 +713,8 @@ export function MyPageView({
 							/>
 							{!initialFailure && (
 								<>
-									<SummaryCard data={data} busy={state.busy} />
-									<RecentCard data={data} busy={state.busy} />
+									<SummaryCard data={data} busy={state.busy} asOf={statsAsOf} />
+									<RecentCard data={data} busy={state.busy} asOf={statsAsOf} />
 								</>
 							)}
 						</div>

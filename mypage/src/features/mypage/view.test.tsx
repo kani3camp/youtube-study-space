@@ -110,6 +110,15 @@ describe('MyPage observable display', () => {
 		expect(html.match(/class="day-button/g)?.length).toBe(7)
 		expect(html).toContain('aria-live="polite"')
 	})
+	it('shows one timestamp for current work and one for all work statistics after a current-only refresh', () => {
+		const s = state()
+		if (!s.data) throw new Error('synthetic data missing')
+		s.data.current.asOf = '2026-10-06T03:05:00Z'
+		const html = markup(s)
+		expect(html).toContain('入室状況 · 10/6 12:05時点')
+		expect(html).toContain('作業集計（直近7日を含む） · 10/6 12:00時点')
+		expect(html.match(/\d{2}:\d{2}時点/g)).toHaveLength(2)
+	})
 	it('shows missing first-load values as unavailable rather than normal zero', () => {
 		const s = state()
 		s.data = null
@@ -117,6 +126,7 @@ describe('MyPage observable display', () => {
 		const html = markup(s)
 		expect(html).toContain('情報を取得できませんでした')
 		expect(html).not.toContain('0時間 0分')
+		expect(html).not.toContain('時点')
 		expect(html).not.toContain('作業サマリー')
 		expect(html).not.toContain('最新の情報に更新できませんでした')
 	})
@@ -184,13 +194,14 @@ describe('MyPage observable display', () => {
 		if (!s.data) throw new Error('synthetic data missing')
 		s.data.summary.today = {
 			data: 3600,
-			asOf: '2026-10-21T00:00:00Z',
+			asOf: '2026-10-05T03:00:00Z',
 			stale: true,
 			reason: 'HISTORY_INCOMPLETE',
 		}
 		const html = markup(s)
 		expect(html).toContain('1時間 0分')
 		expect(html).toContain('更新できませんでした')
-		expect(html).toContain('10/21')
+		expect(html).toContain('更新できませんでした · 10/5 12:00時点')
+		expect(html).toContain('作業集計（直近7日を含む） · 10/6 12:00時点')
 	})
 })
