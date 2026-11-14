@@ -12,29 +12,6 @@ from test_runtime import fixture as runtime_fixture
 
 
 class PlanSummaryTest(unittest.TestCase):
-    def test_current_contract_legacy_deletes_are_counted_without_publishing_identities(self):
-        plan = runtime_fixture('runtime_public')
-        runtime = ops.runtime_contract
-        for address, values in runtime.legacy_image_release().items():
-            before = dict(values)
-            if address == runtime.MAINTENANCE_IMAGE_BINDING:
-                before['name'] = 'mypage-maintenance-operator'
-            plan['resource_changes'].append({
-                'address': address, 'mode': 'managed',
-                'provider_name': 'registry.terraform.io/hashicorp/google',
-                'change': {'actions': ['delete'], 'before': before, 'after': None},
-            })
-        runtime.validate_plan(plan, 'runtime_public')
-        with tempfile.TemporaryDirectory() as directory:
-            summary = Path(directory) / 'summary'
-            ops.publish_plan_summary({'GITHUB_STEP_SUMMARY': str(summary)}, plan, 'runtime_public')
-            text = summary.read_text()
-        self.assertIn('| delete | 2 |', text)
-        self.assertIn('| `google_cloud_run_v2_job_iam_member` | delete | 1 |', text)
-        self.assertIn('| `google_service_account_iam_member` | delete | 1 |', text)
-        self.assertNotIn('mypage-backend-deploy', text)
-        self.assertNotIn(c.PROJECT, text)
-
     def test_unknown_addresses_or_actions_never_create_a_partial_summary(self):
         for field, value in (('address', 'PRIVATE|<script>bad</script>'),
                              ('actions', ['PRIVATE|<script>bad</script>'])):

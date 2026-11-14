@@ -149,7 +149,7 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
   2. Terraform 契約（配備済み Job image の検査）と Operator 配備スクリプトで、現在の Job image として `mypage-api` と `mypage-maintenance-operator` の両 package を受け入れる。初回作成用の `maintenance_bootstrap_image_digest` は固定の旧 API image のまま（`mypage-api` のみ許可）。
   そのうえで最初の Operator deploy を行い、切り替わったことを確認した。旧 package の現在値としての許容は残す。新しい環境では Job を固定の旧 API image で初回作成するため、外すと最初の Operator deploy が拒否される。
 - #2 で上の1と2を実施した。API image から operator binary を外しても、Job は配備済みの旧 digest（operator binary 入り）を参照し続けるため安全であり、同じ #2 で分離した。
-- MyPage runtime の Terraform 契約は create / no-op だけを許可する。そのため #2 は `mypage-operator-deploy` の binding を **追加** するだけにした。旧 `mypage-backend-deploy` の Job binding と actAs は、初回 Operator deploy の確認後に削除専用の遷移で外した（4.2）。契約が許す削除は、この2 bindingの完全一致した削除だけ（`runtime_contract.legacy_image_release`）。
+- MyPage runtime の Terraform 契約は create / no-op だけを許可する。そのため #2 は `mypage-operator-deploy` の binding を **追加** するだけにした。旧 `mypage-backend-deploy` の Job binding と actAs は、初回 Operator deploy の確認後に削除専用の遷移で外した（4.2、DEVは2026-11-01に完了し遷移コードは削除済み）。現在の契約は削除を一切許可しない。
 
 ### 3.4 Rollback
 

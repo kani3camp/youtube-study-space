@@ -471,20 +471,6 @@ h2 {
 	overflow-wrap: anywhere;
 	margin-top: 2px;
 }
-.metric-today {
-	grid-column: 1 / -1;
-	padding-bottom: 18px;
-	border-bottom: 1px dashed var(--color-line);
-}
-.metric-today dd {
-	font-size: 48px;
-	color: oklch(30% 0.05 55);
-}
-.metric-today dd:has(.duration-unavailable) {
-	font-size: 22px;
-	line-height: 1.4;
-	margin-block: 12px 4px;
-}
 .duration-value {
 	display: flex;
 	flex-wrap: wrap;
@@ -507,9 +493,6 @@ h2 {
 .duration-unit {
 	font-size: 13px;
 	color: oklch(38% 0.02 55);
-}
-.metric-today .duration-unit {
-	font-size: 16px;
 }
 .duration-unavailable {
 	font-size: 22px;
@@ -557,10 +540,6 @@ h2 {
 }
 .recent-card {
 	grid-area: recent;
-}
-.chart-label {
-	font-size: 13px;
-	margin-block: 8px 0;
 }
 .chart-heading {
 	display: flex;
@@ -784,13 +763,6 @@ h2 {
 .account-dialog::backdrop {
 	background: oklch(25% 0.02 55 / 0.2);
 }
-.dialog-heading {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	gap: 12px;
-	margin-bottom: 20px;
-}
 .account-name {
 	font-size: 17px;
 	font-weight: 700;
@@ -921,15 +893,6 @@ h2 {
 	}
 	.current-links {
 		margin-top: 4px;
-	}
-	.metric-today dd {
-		font-size: 48px;
-	}
-	.metric-today {
-		padding-bottom: 18px;
-	}
-	.metric-today .duration-unit {
-		font-size: 16px;
 	}
 	.metric .duration-value {
 		gap: 0 4px;
