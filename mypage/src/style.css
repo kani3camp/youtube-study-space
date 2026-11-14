@@ -336,21 +336,21 @@ h2 {
 }
 .timeline {
 	position: relative;
-	height: 44px;
-	margin: 4px 0 0;
+	height: 16px;
+	margin-top: 10px;
 }
 .timeline-track {
 	position: absolute;
 	left: 6px;
 	right: 6px;
-	top: 29px;
+	top: 7px;
 	height: 2px;
 	background: var(--state-track);
 }
 .timeline-start,
 .timeline-end {
 	position: absolute;
-	top: 24px;
+	top: 2px;
 	width: 12px;
 	height: 12px;
 	border: 2px solid var(--state-dot);
@@ -366,21 +366,13 @@ h2 {
 }
 .timeline-now {
 	position: absolute;
-	top: 22px;
+	top: 0;
 	width: 16px;
 	height: 16px;
 	margin-left: -8px;
 	background: var(--state-dot);
 	border: 3px solid var(--color-surface);
 	border-radius: 50%;
-}
-.timeline-caption {
-	position: absolute;
-	top: 0;
-	font-size: 12px;
-	font-weight: 800;
-	color: var(--state);
-	white-space: nowrap;
 }
 .overdue-note {
 	font-size: 13px;
@@ -559,6 +551,9 @@ h2 {
 	display: flex;
 	align-items: center;
 	gap: 6px;
+}
+.stats-as-of {
+	margin-top: 4px;
 }
 .recent-card {
 	grid-area: recent;
