@@ -200,3 +200,15 @@ jobs:
         run: pnpm test
       - name: Typecheck and build
         run: pnpm build
+      - name: Validate DEV Hosting build output inventory
+        working-directory: .
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+
+          sys.path.insert(0, 'infra/mypage-platform/scripts')
+          from hosting_release import inventory
+
+          inventory(Path('mypage/dist'))
+          PY

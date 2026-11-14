@@ -54,7 +54,7 @@ class ReleaseTest(unittest.TestCase):
         return dist
 
     def test_artifact_inventory_rejects_private_files_api_shadowing_and_maps(self):
-        for name in ['.env', 'api/mypage', 'assets/index-12345678.js.map', 'private.json']:
+        for name in ['.env', 'api/mypage', 'assets/index-12345678.js.map', 'private.json', 'other.png']:
             with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
                 dist = self.make_dist(Path(temp))
                 h.inventory(dist)
