@@ -33,6 +33,7 @@ RUN = 'https://run.googleapis.com/v2/projects/' + PROJECT + '/locations/asia-sou
 MAX_FILE = 4 * 1024 * 1024
 MAX_TOTAL = 20 * 1024 * 1024
 IMMUTABLE = 'public, max-age=31536000, immutable'
+DEV_GA4_ID = 'G-E31NHW939V'
 GA4_TAG = 'https://www.googletagmanager.com/gtag/js'
 GA4_COLLECTION = frozenset({
     'https://www.google-analytics.com', 'https://region1.google-analytics.com',
@@ -119,6 +120,22 @@ def translate(package):
     return json.loads((package / 'hosting.json').read_bytes())
 
 
+def configure_dev_analytics(config, mode):
+    need(mode in {'true', 'false'}, 'analytics-mode')
+    enabled = mode == 'true'
+    frontend = config['frontend']
+    frontend['VITE_MYPAGE_ANALYTICS_READY'] = mode
+    frontend.pop('VITE_MYPAGE_GA4_ID', None)
+    if enabled:
+        frontend.update(VITE_MYPAGE_GA4_ID=DEV_GA4_ID, VITE_MYPAGE_PUBLIC_ORIGIN=ORIGIN)
+    inventory = config['hosting']['inventory']
+    inventory['analyticsApproved'] = enabled
+    for key, directive in (('script', 'script-src'), ('connect', 'connect-src'), ('image', 'img-src')):
+        sources = GA4_SOURCES[directive]
+        existing = [source for source in inventory[key] if source not in sources]
+        inventory[key] = existing + (sorted(sources) if enabled else [])
+
+
 def build(env):
     context(env)
     package = directory(env)
@@ -126,6 +143,7 @@ def build(env):
     raw = env['MYPAGE_HOSTING_PUBLIC_CONFIG_JSON'].encode()
     need(len(raw) <= 65536, 'public-config-size')
     config = json.loads(raw)
+    configure_dev_analytics(config, env.get('MYPAGE_HOSTING_ANALYTICS_ENABLED'))
     # 値をビルド環境変数に使う前に、標準の検証処理を実行する。
     (package / 'public-config.json').write_bytes(canonical(config))
     (package / 'dist').mkdir()

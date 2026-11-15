@@ -6,6 +6,9 @@ on:
       expected_sha:
         required: true
         type: string
+      analytics_enabled:
+        required: true
+        type: boolean
 
 permissions: {}
 
@@ -54,6 +57,7 @@ jobs:
       - name: Build and seal the DEV release package
         id: package
         env:
+          MYPAGE_HOSTING_ANALYTICS_ENABLED: ${{ inputs.analytics_enabled }}
           MYPAGE_HOSTING_PUBLIC_CONFIG_JSON: ${{ vars.MYPAGE_HOSTING_PUBLIC_CONFIG_JSON }}
         run: python3 infra/mypage-platform/scripts/hosting_release.py build
       - name: Upload only validated public files and metadata
