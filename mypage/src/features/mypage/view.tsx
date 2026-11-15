@@ -140,7 +140,7 @@ function StaleNote({
 	if (value.reason === 'METADATA_TOO_OLD')
 		return (
 			<p className="stale-note" role="status">
-				チャンネル情報の有効期限が切れました。再取得まで表示できません。
+				チャンネル情報が古くなったため、表示できません。再取得されるまでお待ちください。
 			</p>
 		)
 	if (value.data === null) {

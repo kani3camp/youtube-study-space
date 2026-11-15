@@ -50,7 +50,7 @@ export function ContactPage({
 			</header>
 			{supportError && (
 				<p className="notice" role="alert">
-					YouTubeでの本人確認を完了できませんでした。依頼の参照番号をご確認のうえ、受付窓口からもう一度お手続きください。
+					YouTubeでの本人確認を完了できませんでした。お手数ですが、受付窓口からもう一度お手続きください。
 				</p>
 			)}
 			{proofRef && (
@@ -62,7 +62,7 @@ export function ContactPage({
 					<p>確認結果の参照番号</p>
 					<p className="proof-reference">{proofRef}</p>
 					<p>
-						この番号は画面を離れたり、再読み込みすると表示されなくなります。確認結果は受付窓口からご案内します。
+						この番号は、画面を離れるか再読み込みすると表示されなくなります。確認結果は受付窓口からご案内します。
 					</p>
 				</section>
 			)}
