@@ -4,7 +4,7 @@ This file is the repository-wide operating contract for coding agents. Tool-spec
 
 ## Communication and Safety
 
-- Use Japanese as the primary language for user-facing communication and pull request discussion unless asked otherwise.
+- ユーザーへの説明、PRでのやり取り、プロジェクトのドキュメントは、別の指定がない限り日本語で記述する。
 - External mutations require user authorization. A direct request to create/edit/push a branch, commit, pull request, deploy, or other external state counts as authorization for the requested scope; do not ask again for the same operation. Obtain new authorization before expanding beyond that scope or performing a materially different destructive/production operation.
 - Do not expose, log, copy, or move credentials/secrets into client-readable locations.
 - Preserve important `NOTE` comments. Temporary review-only explanations may use `[NOTE FOR REVIEW]` and should not become permanent clutter.
@@ -22,6 +22,13 @@ This file is the repository-wide operating contract for coding agents. Tool-spec
    - **Acceptance criteria**: externally observable completion conditions.
    - **Verification**: deterministic checks proving those conditions.
 6. Resolve ambiguity from current code, tests, docs, and existing contracts first. Ask for user judgment only when materially different product semantics remain possible.
+
+## Documentation Lifecycle
+
+- Git管理するドキュメントは、実装後も保守する現行仕様・設計上の判断・開発手順・運用/復旧手順など、恒久的に参照するものに限定する。
+- 個別の変更タスクの実装計画、調査メモ、進捗、作業チェックリスト、実行/検証記録はGitHub IssueまたはPRで管理する。計画だけのMarkdownや一時的な作業記録をリポジトリへ追加しない。
+- 実装PRでは、確定した仕様・設計判断・再利用する手順を既存の正本へ反映する。個々の実行結果や未完了事項はIssue/PRへ残し、必要なら恒久ドキュメントから参照する。未実装の計画を現行仕様として記載しない。
+- タスク契約などのローカル作業メモは追跡対象にしない。既存文書の整理では、現在も必要な仕様・手順・設計根拠を失わないよう確認し、一括削除しない。
 
 ## Canonical Sources
 

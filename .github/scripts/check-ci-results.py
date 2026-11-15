@@ -17,14 +17,12 @@ DOMAIN_GROUPS = {
     'infra': ('aws_cdk', 'node_projects'),
     'gcp-terraform-validate': ('gcp_terraform',),
 }
-DEPENDENCIES = {'changes', 'repository', 'gcp-user-activity-schema-audit', *DOMAIN_GROUPS}
+DEPENDENCIES = {'changes', 'repository', *DOMAIN_GROUPS}
 
 
-def validate(needs, audit_requested):
+def validate(needs):
     if set(needs) != DEPENDENCIES:
         raise ValueError('CI Gate must receive every expected dependency')
-    if audit_requested not in ('true', 'false'):
-        raise ValueError('Schema audit selection must be an explicit boolean')
     for name, job in needs.items():
         result = job.get('result')
         if result not in ('success', 'skipped'):
@@ -39,13 +37,11 @@ def validate(needs, audit_requested):
         selected = outputs['all'] == 'true' or any(outputs[group] == 'true' for group in groups)
         if selected and needs[name]['result'] != 'success':
             raise ValueError(f'{name}: selected validation must succeed')
-    if audit_requested == 'true' and needs['gcp-user-activity-schema-audit']['result'] != 'success':
-        raise ValueError('Requested schema audit must succeed')
 
 
 def main():
     try:
-        validate(json.loads(os.environ['CI_NEEDS']), os.environ['CI_SCHEMA_AUDIT_REQUESTED'])
+        validate(json.loads(os.environ['CI_NEEDS']))
     except (KeyError, TypeError, ValueError, AttributeError) as error:
         print(f'::error::{error}', file=sys.stderr)
         return 1

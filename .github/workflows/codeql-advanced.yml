@@ -1,4 +1,4 @@
-# Same-tree CodeQL analysis uses a fixed secretless Environment in the callee.
+# Same-tree CodeQL analysis uses no Environment or OIDC grant in the callee.
 name: CodeQL Advanced
 
 on:

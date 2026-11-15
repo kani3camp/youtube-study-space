@@ -85,6 +85,7 @@ jobs:
       NEXT_PUBLIC_API_KEY: "ci-dummy-api-key"
       NEXT_PUBLIC_FIREBASE_PROJECT_ID: "ci-dummy-project"
       NEXT_PUBLIC_FIREBASE_API_KEY: "ci-dummy-firebase-api-key"
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "ci-dummy-project.firebaseapp.com"
     steps:
       - uses: actions/checkout@v7
       - name: Install pnpm

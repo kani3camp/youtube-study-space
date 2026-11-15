@@ -30,29 +30,12 @@ resource0の初期StateだけでInfrastructure/MyPage ReadyGateをPASSにしな�
 
 H7最終Stateの補足監査は、両環境のcurrent/prior計4版をversion固定GETし、本文とFULL_OBJECT SHA256・全range/HEAD metadataをnative証跡へ完全照合しました。Devは旧R10時点の全HEADを黙って更新せず、直前版がpinned serial35の本文/全HEADと一致し、新current36は公式Dev最終runの時間内に作成、serialとcheck_resultsの順序だけが変わった専用B判定を独立検証しました。Prodは32/31の30所有です。read/auth callsは41回で、controls9・両環境HEADの前後不変・lock/workspace/delete marker0を確認しました。この補足監査自身のState/lock書込は0です。歴史のraw saved import planは未取得で、歴史のStateDeltaやAuth logはreview済みcontroller/strict inspectorの成功に基づく間接証拠として区別します。
 
-## Output-only initializer controller contract
+## Output-only initializerの撤去
 
-[production_initializer.py](../../../.github/scripts/production_initializer.py)はcloud/State操作のないpure adapterで、
-既存migration-plan/apply controllerからproduction target・manifest/resources0・成功したS3 snapshotの
-head/raw/stateすべてnullの場合だけ選択する。新modeや別の実行権限は追加しない。
-不在はexpected-owner付きの成功した厳密なListObjectsV2からだけ確定する。
-403/404を含むCLIエラー、失敗read、既存State、dev、resource/import/drift/unknown/deferred actionを初期化へ流さない。
-
-adapterは固定production/projectの2 output createを先に検証し、その2件だけを内部射影でno-opへ対応させる。
-通常import-only契約とsaved binaryは変更しない。Coreがresource0で省略するresource_changesだけを空listへ正規化する。
-専用operation marker、元のoutput changes、catalogued hintのpresence/content/path/重複数をprivate HMAC全体と固定名detailへ束縛する。
-hintの外側順だけをentry全体のcanonical sortで安定化し、内側順や未知fieldは捨てない。
-Terraform sourceと実行validator/adapterの追跡済みsource bytesをclosureへ含める。
-
-plan/applyは同一SHA・同一private inputsから独立planし、overall/section/detail HMACの全一致を要求する。
-source copyとsaved-plan seal、native lock、適用直前のpositive absence再確認、新VersionId/lineage・固定outputs2/resource0のState検査、
-通常post-planのresource0・output no-op、metadata/State不変・lock解放を維持する。
-新bucket/marker/dev State copyは作らない。State resource0はInfrastructure/MyPage Readyを意味しない。
-
-CIは通常のcontroller mockに加え、実pinned Core/Google provider・production full default rootとloopbackのfake S3/STSで検証する。
-init/plan/showのState PUT0、saved applyのみ最初のState PUT1、適用後の通常full-root no-op、conditional lockの解放・競合拒否、
-caller accountと外側expected-owner/Versioning拒否を確認する。dummy認証・隔離HOME・外向きproxy拒否を使い、実cloudへ接続しない。
-このsource接続はProduction gateや実State作成の完了を証明しない。
+Productionの空State初期化は完了済みです。migration controllerとpure initializer、専用回帰テストを撤去しました。
+現在の通常Plan/ApplyはState欠損を停止条件とし、空Stateの再作成に流しません。
+当時の実装・検証は[撤去前の固定Source](https://github.com/kani3camp/youtube-study-space/blob/0a2a825de73618735384cd34afe3f407a229824b/infra/gcp/docs/production-readiness.md#output-only-initializer-controller-contract)、
+実際のState復旧は[State account recovery](state-account-recovery.md)を参照してください。
 
 ## Runtime WIF / API定義と採用条件
 

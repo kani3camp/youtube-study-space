@@ -8,6 +8,7 @@ on:
       - '.github/scripts/terraform_protected_plan.py'
       - '.github/workflows/gcp-terraform-authenticated.yml'
       - '.github/workflows/ci.yml'
+      - '.github/workflows/terraform.yml'
       - '.github/workflows/gcp-runtime-ownership-contracts.yml'
 
 permissions:

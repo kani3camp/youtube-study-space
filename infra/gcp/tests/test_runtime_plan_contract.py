@@ -23,7 +23,7 @@ import prepare_runtime_ownership as preparer
 import runtime_plan_selection as selection_module
 import validate_runtime_ownership_plan as gate
 from test_runtime_ownership import inventory
-import test_gcp_user_activity_schema_audit_workflow as history_tests
+import test_user_activity_history_preparation as history_tests
 from test_terraform_export_function_gate import EMAIL
 
 SHA = 'a' * 40

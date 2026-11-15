@@ -298,11 +298,15 @@ function encodeRepositoryPath(path) {
   return path.split("/").map(encodeURIComponent).join("/");
 }
 
+export function isBaseImageDockerfile(filename) {
+  return /^system\/Dockerfile[^/]*$/.test(filename) || filename === ".github/ci-validation/Dockerfile";
+}
+
 export function selectModifiedDockerfiles(changedFiles) {
   return changedFiles
     .filter((file) => file.status === "modified")
     .map((file) => file.filename)
-    .filter((filename) => /^system\/Dockerfile[^/]*$/.test(filename));
+    .filter(isBaseImageDockerfile);
 }
 
 async function getFileContent(repository, path, ref) {
