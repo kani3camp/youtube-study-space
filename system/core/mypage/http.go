@@ -73,10 +73,6 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'")
 	w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-	// [NOTE FOR REVIEW] DEVでの転送ヘッダー段数の観測専用。観測後に取り消す。
-	if probe := r.Header.Get("X-Mypage-Xff-Probe"); probe != "" {
-		w.Header().Set("X-Mypage-Xff-Result", xffProbe(r, probe))
-	}
 	method, known := routeMethods[r.URL.Path]
 	if !known {
 		writeAPIError(w, http.StatusNotFound, "INVALID_REQUEST", requestID)
@@ -589,57 +585,4 @@ func rateError(w http.ResponseWriter, retry int, id string) {
 	}
 	w.Header().Set("Retry-After", strconv.Itoa(retry))
 	writeAPIError(w, 429, "RATE_LIMITED", id)
-}
-
-// xffProbeはX-Forwarded-Forの構造だけを返す。IPアドレスそのものは返さない。
-// p: 申告された送信元IPと一致、m: 合成マーカー(192.0.2.77)と一致、+r: RemoteAddrとも一致、
-// priv/pub/bad: それ以外の要素の種別。
-func xffProbe(r *http.Request, probe string) string {
-	claimed, err := netip.ParseAddr(probe)
-	if err != nil {
-		return "invalid-probe"
-	}
-	claimed = claimed.Unmap()
-	marker := netip.MustParseAddr("192.0.2.77")
-	remote := netip.Addr{}
-	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		if parsed, err := netip.ParseAddr(host); err == nil {
-			remote = parsed.Unmap()
-		}
-	}
-	values := r.Header.Values("X-Forwarded-For")
-	labels := []string{}
-	if len(values) > 0 {
-		for _, entry := range strings.Split(strings.Join(values, ","), ",") {
-			addr, err := netip.ParseAddr(strings.Trim(entry, " \t"))
-			if err != nil {
-				labels = append(labels, "bad")
-				continue
-			}
-			addr = addr.Unmap()
-			label := xffProbeKind(addr, claimed)
-			if addr == marker {
-				label = "m"
-			}
-			if remote.IsValid() && addr == remote {
-				label += "+r"
-			}
-			labels = append(labels, label)
-		}
-	}
-	remoteKind := "bad"
-	if remote.IsValid() {
-		remoteKind = xffProbeKind(remote, claimed)
-	}
-	return "lines=" + strconv.Itoa(len(values)) + ";n=" + strconv.Itoa(len(labels)) + ";e=" + strings.Join(labels, ",") + ";remote=" + remoteKind
-}
-
-func xffProbeKind(addr, claimed netip.Addr) string {
-	switch {
-	case addr == claimed:
-		return "p"
-	case addr.IsPrivate() || addr.IsLoopback() || addr.IsLinkLocalUnicast():
-		return "priv"
-	}
-	return "pub"
 }
