@@ -127,23 +127,23 @@ describe('public policy rendering', () => {
 	})
 	it('preserves receipt-based deletion, purpose-bound proof and metadata retention distinctions', () => {
 		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
-		expect(html).toContain('可能な限り速やかに、遅くとも受付から7暦日以内')
+		expect(html).toContain('受付から7日以内の削除を目指し')
 		expect(html).toContain(
-			'期限は受付時点を基準とし、本人確認が終わるまで一律に延長することはありません。',
+			'本人確認が終わるまで期限を一律に延長することはありません。',
 		)
 		expect(html).toContain(
-			'通常のログインを依頼の本人確認に流用せず、通常のログインだけで依頼を実行しません。',
+			'通常のログインとは別にGoogle（YouTube）の認証手続きを行っていただきます。',
 		)
 		expect(html).toContain(
-			'本人確認の画面で削除やすべてのログイン状態の解除が実行されることはありません。',
+			'認証操作だけでデータの削除やすべてのログイン状態の解除が実行されることはありません。',
 		)
-		expect(html).toContain('30暦日以内に更新または削除する方針')
+		expect(html).toContain('30日以内に更新または削除することを目指します')
 		expect(html).toContain(
 			'利用のないチャンネルについても、期限内の削除の対象とします。',
 		)
 		expect(html).toContain('マイページでのログイン状態がすぐには終了しない場合')
 		expect(html).toContain(
-			'保存データ全体の削除をご希望の場合は、第12章の方法でご依頼ください。',
+			'保存データ全体の削除をご希望の場合は、12.の方法でご依頼ください。',
 		)
 	})
 	it('links both policies to public contact after a Google disconnect', () => {
@@ -154,20 +154,22 @@ describe('public policy rendering', () => {
 			)
 		}
 		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
-		expect(html).toContain('チャンネルIDと作業履歴は保持します。')
 		expect(html).toContain(
-			'マイページのアカウント情報とチャンネルとのひも付けを削除',
+			'チャンネルIDと作業履歴は、Google連携の解除だけでは削除されません。',
+		)
+		expect(html).toContain(
+			'マイページのアカウント情報とチャンネルとの関連付けを削除',
 		)
 	})
-	it.each([
-		PrivacyPolicy,
-		TermsOfUse,
-	])('explains fresh YouTube authorization and individual guidance in $name', (Policy) => {
+	it('explains fresh YouTube authorization and individual guidance in the privacy policy', () => {
+		const Policy = PrivacyPolicy
 		const html = markup(<Policy publicPolicyInputs={{}} />)
 		expect(html).toContain(
-			'原則として、依頼の対象と同じチャンネルを新しいYouTubeの許可で確認します。',
+			'通常のログインとは別にGoogle（YouTube）の認証手続きを行っていただきます。',
 		)
-		expect(html).toContain('通常のログインだけで依頼を実行しません。')
+		expect(html).toContain(
+			'認証操作だけでデータの削除やすべてのログイン状態の解除が実行されることはありません。',
+		)
 		expect(html).toContain(
 			'Google連携を解除済みなどでログインや本人確認を利用できない場合も',
 		)
@@ -175,6 +177,12 @@ describe('public policy rendering', () => {
 		expect(html).toMatch(
 			/マイページへのログイン[もは][^。]*条件ではありません。/,
 		)
+	})
+	it('retains the request verification guidance in the terms', () => {
+		const html = markup(<TermsOfUse publicPolicyInputs={{}} />)
+		expect(html).toContain('新しいYouTubeの許可で確認します。')
+		expect(html).toContain('通常のログインだけで依頼を実行しません。')
+		expect(html).toContain('個別の確認方法をご案内します。')
 	})
 	it.each([
 		[
