@@ -348,11 +348,8 @@ export function createApp(
 										サイトをもっと使いやすくするために
 									</h2>
 									<p>
-										よろしければ、ページの閲覧やログインなどの操作をGoogle
-										アナリティクス（GA4）で分析し、サイトの改善に役立ててもよろしいですか？
-									</p>
-									<p>
-										Cookie等を使用しますが、YouTubeチャンネルID・表示名・作業内容は送信しません。許可しなくてもログインやマイページを利用でき、設定は後から変更できます。
+										サイト改善のため、Google
+										アナリティクス（GA4）によるアクセス解析にご協力ください。個人を特定する情報は送信せず、設定は後からいつでも変更できます。
 									</p>
 									<div className="hero-links">
 										<button
@@ -360,7 +357,7 @@ export function createApp(
 											type="button"
 											onClick={() => privacyServices.consent.set('granted')}
 										>
-											アクセス解析を許可
+											許可する
 										</button>
 										<button
 											className="button"
@@ -423,8 +420,8 @@ export function createApp(
 								{privacyServices.analytics.available ? (
 									<>
 										<p>
-											Google
-											アナリティクス（GA4）でページの閲覧や一部の操作を分析し、サイト改善に役立てます。Cookie等を使用しますが、チャンネルID・表示名・作業内容は送信しません。
+											サイト改善のため、Google
+											アナリティクス（GA4）によるアクセス解析にCookieを使用します（個人を特定する情報は送信しません）。
 										</p>
 										<label className="consent-label">
 											<input
@@ -440,11 +437,6 @@ export function createApp(
 											/>
 											<span>アクセス解析を許可</span>
 										</label>
-										<p role="status">
-											{consent.value === 'granted'
-												? 'アクセス解析：許可'
-												: 'アクセス解析：オフ'}
-										</p>
 										{!consent.saved && (
 											<p role="alert">
 												設定を保存できませんでした。この画面では選択を適用しています。次回はもう一度ご確認ください。
@@ -457,7 +449,7 @@ export function createApp(
 									</p>
 								)}
 								<p>
-									認証・セキュリティなどに必要な保存と通信は常に有効です。アクセス解析への同意は任意です。
+									ログイン維持やセキュリティ対策に必要なCookieは常に有効です。
 								</p>
 								<button
 									type="button"
