@@ -49,7 +49,15 @@ type ServerConfig struct {
 	Environment, ProjectID, ProjectNumber, WebAppID, PublicOrigin string
 	Policy                                                        Policy
 	HostingBackendHost                                            string
+	// X-Forwarded-Forへ要素を追加する信頼済みプロキシの数。0は転送ヘッダーを使わない。
+	TrustedProxyHops int
 }
+
+// 信頼済みプロキシ数の上限。
+// Cloud Runの公開URLへ直接届くリクエストはHostingを経由せず、X-Forwarded-Forの段数が少ない。
+// 2以上を許すと、その経路では右端からN番目を送信者が選べ、制限の迂回や他者のbucket消費ができる。
+// 直接アクセスを遮断または識別できるまでは、Cloud Run自身が追加する1段だけを許可する。
+const maxTrustedProxyHops = 1
 
 // 設定できるのはCloud Runサービスのホスト名そのものだけとする。
 // スキーム・ポート・パス・ワイルドカード・利用者指定の接尾辞は認めない。
@@ -82,6 +90,9 @@ func (config ServerConfig) validate() error {
 		return apiError("TEMPORARY_UNAVAILABLE")
 	}
 	if config.HostingBackendHost != "" && !validHostingBackendHost(config.HostingBackendHost) {
+		return apiError("TEMPORARY_UNAVAILABLE")
+	}
+	if config.TrustedProxyHops < 0 || config.TrustedProxyHops > maxTrustedProxyHops {
 		return apiError("TEMPORARY_UNAVAILABLE")
 	}
 	if _, err := NewGoogleYouTubeOAuth("validation-only", "validation-only", config.PublicOrigin, nil); err != nil {
@@ -130,7 +141,7 @@ func NewMyPageServer(config ServerConfig, deps ServerDependencies) (*HTTPHandler
 	}
 
 	handler := &HTTPHandler{
-		PublicOrigin: config.PublicOrigin, HostingBackendHost: config.HostingBackendHost, Verifier: boundary,
+		PublicOrigin: config.PublicOrigin, HostingBackendHost: config.HostingBackendHost, TrustedProxyHops: config.TrustedProxyHops, Verifier: boundary,
 		Maintenance: maintenance,
 		Auth:        &AuthService{Access: access, Store: store, Maintenance: maintenance, Provider: deps.OAuth, Minter: boundary, Policy: config.Policy, Now: now, Support: &FirestoreSupportStore{Client: deps.Firestore, Environment: config.Environment}, OAuthFailures: deps.OAuthFailures},
 		BFF:         &BFF{Reader: &FirestoreSnapshotReader{Client: deps.Firestore, Observe: deps.ReadObserver}, Environment: config.Environment, Now: now, Metadata: metadata},

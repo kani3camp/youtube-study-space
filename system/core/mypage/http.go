@@ -9,6 +9,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -41,8 +42,12 @@ type HTTPHandler struct {
 	// Hostingの書き換えで観測した固定バックエンドホスト。転送ヘッダーはルーティング情報であり、
 	// 本人確認の証拠やAuth/App Checkの代替にはしない。
 	HostingBackendHost string
-	// 実際の信頼済みプロキシ経路を検証した後だけ、IP抽出処理を注入できる。
-	// 既定ではクライアントの転送ヘッダーをすべて無視する。
+	// X-Forwarded-Forの末尾へ要素を追加する信頼済みプロキシの数。実経路で観測した値だけを設定する。
+	// 設定経路（ServerConfig）は0か1だけを受け付ける。理由はmaxTrustedProxyHopsを参照。
+	// 0（既定）ではクライアントの転送ヘッダーをすべて無視し、RemoteAddrを使う。
+	// N>0では右端からN番目を利用者のIPとし、それより左の要素（クライアントが自由に送れる）は使わない。
+	TrustedProxyHops int
+	// テストなどで独自のIP抽出処理を注入する場合に使う。設定時はTrustedProxyHopsより優先する。
 	RequestIP func(*http.Request) (string, error)
 	limiter   processLimiter
 }
@@ -319,15 +324,49 @@ func (h *HTTPHandler) checkRequestOrigin(r *http.Request) error {
 	return nil
 }
 
+// clientIPはIP単位のレート制限に使うキーを返す。
+// IPv6は利用者が/64内でアドレスを変えて制限を回避できないよう、/64単位にまとめる。
 func (h *HTTPHandler) clientIP(r *http.Request) (string, error) {
 	if h.RequestIP != nil {
 		return h.RequestIP(r)
+	}
+	if h.TrustedProxyHops > 0 {
+		if addr, ok := forwardedClientAddr(r.Header.Values("X-Forwarded-For"), h.TrustedProxyHops); ok {
+			return rateLimitIPKey(addr), nil
+		}
+		// 経路が想定と異なる・ヘッダーが壊れている場合は、リクエストを失敗させずRemoteAddrへ戻す。
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return "unknown", nil
 	}
+	if addr, err := netip.ParseAddr(host); err == nil && addr.Zone() == "" {
+		return rateLimitIPKey(addr), nil
+	}
 	return host, nil
+}
+
+// forwardedClientAddrは、複数行を含むX-Forwarded-Forを1つのリストとして扱い、右端からhops番目を返す。
+// 信頼済みプロキシは末尾へ追加するため、それより左はクライアントが偽装できる値として使わない。
+// 要素数の不足、ポート・ゾーン付き、IPとして解釈できない値はokをfalseにする。
+func forwardedClientAddr(values []string, hops int) (netip.Addr, bool) {
+	entries := strings.Split(strings.Join(values, ","), ",")
+	if len(values) == 0 || hops < 1 || len(entries) < hops {
+		return netip.Addr{}, false
+	}
+	addr, err := netip.ParseAddr(strings.Trim(entries[len(entries)-hops], " \t"))
+	if err != nil || addr.Zone() != "" {
+		return netip.Addr{}, false
+	}
+	return addr, true
+}
+
+func rateLimitIPKey(addr netip.Addr) string {
+	addr = addr.Unmap()
+	if addr.Is6() {
+		return netip.PrefixFrom(addr, 64).Masked().String()
+	}
+	return addr.String()
 }
 
 func strictBody(w http.ResponseWriter, r *http.Request, target any) error {
