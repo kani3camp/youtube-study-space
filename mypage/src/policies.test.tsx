@@ -33,7 +33,7 @@ const publicValues = {
 	VITE_PUBLIC_JURISDICTION: '合成テスト裁判所',
 }
 
-describe('public policy draft rendering', () => {
+describe('public policy rendering', () => {
 	it.each([
 		['/privacy_policy', false],
 		['/privacy_policy', true],
@@ -104,17 +104,13 @@ describe('public policy draft rendering', () => {
 			true,
 		)
 	})
-	it('keeps both full drafts and pending values available without a login', () => {
+	it('shows public policy text without release notes or unconfigured values', () => {
 		const privacy = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
 		const terms = markup(<TermsOfUse publicPolicyInputs={{}} />)
 		for (const html of [privacy, terms]) {
-			expect(html).toContain('class="notice" role="status"')
-			expect(html).toContain('公開前の確認用文面です。')
-			expect(html).toContain('公開承認済みの文面ではありません。')
-			expect(html).toContain('[要確定：施行日]')
-			expect(html).toContain(
-				'窓口への請求に応じ、法令に従い遅滞なく回答する方針です。',
-			)
+			expect(html).not.toMatch(/公開前|公開承認済み|要確定|遅滞なく|非公開検証/)
+			expect(html).not.toContain('施行日')
+			expect(html).toContain('href="/contact">お問い合わせ・請求の案内</a>')
 			expect(html).not.toContain('<time')
 		}
 		expect(privacy.match(/<h2>/g)).toHaveLength(17)
@@ -122,7 +118,7 @@ describe('public policy draft rendering', () => {
 		expect(terms).toContain(
 			'本規約は日本法に準拠し、日本法に従って解釈されます。',
 		)
-		expect(terms).toContain('[要確定：第一審の専属的合意管轄裁判所]')
+		expect(terms).not.toContain('専属的合意管轄裁判所')
 		expect(terms).toContain('故意または重過失')
 		expect(terms).toContain('当事者間の合意に優先して適用される法令')
 		expect(terms).toContain('その規定が本規約に優先します。')
@@ -220,14 +216,14 @@ describe('public policy draft rendering', () => {
 			'Google シグナル、利用者を識別するGA4のUser-IDは利用しません。',
 		)
 	})
-	it('shows separately supplied destinations and effective dates while remaining draft', () => {
+	it('shows configured destinations, effective dates and jurisdiction', () => {
 		const privacy = markup(<PrivacyPolicy publicPolicyInputs={publicValues} />)
 		const terms = markup(<TermsOfUse publicPolicyInputs={publicValues} />)
 		for (const html of [privacy, terms]) {
 			expect(html).toContain('Synthetic Service &amp; &quot;Friends&quot;')
 			expect(html).toContain('href="https://contact.example.invalid/general"')
 			expect(html).toContain('href="mailto:privacy@example.invalid"')
-			expect(html).toContain('公開承認済みの文面ではありません。')
+			expect(html).not.toMatch(/公開前|公開承認済み|要確定|遅滞なく|非公開検証/)
 		}
 		expect(privacy).toContain('<time dateTime="2026-10-07">2026-10-07</time>')
 		expect(terms).toContain('<time dateTime="2026-10-08">2026-10-08</time>')
@@ -242,9 +238,7 @@ describe('public policy draft rendering', () => {
 			/>,
 		)
 		expect(html).toContain('一般のお問い合わせ')
-		expect(html).toContain(
-			'個人情報・プライバシーに関する返信可能な専用窓口は、公開前に確定して掲載します。',
-		)
+		expect(html).toContain('個人情報・プライバシーの専用窓口は準備中です。')
 		expect(html.match(/href=/g)).toHaveLength(1)
 		expect(html).not.toContain('本人確認が完了')
 	})
@@ -267,20 +261,22 @@ describe('public policy draft rendering', () => {
 		expect(html).not.toContain('synthetic')
 		expect(html).not.toContain('<img')
 		expect(html).not.toContain('javascript:')
-		expect(html).toContain('[要確定：施行日]')
-		expect(html).toContain('[要確定：第一審の専属的合意管轄裁判所]')
+		expect(html.match(/<time/g)).toHaveLength(1)
+		expect(html).not.toContain('専属的合意管轄裁判所')
 	})
-	it('connects only explicit public Vite values and keeps a no-config draft default', () => {
+	it('renders only explicitly configured public Vite values', () => {
 		for (const field of PUBLIC_POLICY_FIELDS) vi.stubEnv(field, undefined)
 		const defaultHTML = markup(<PrivacyPolicy />)
-		expect(defaultHTML).toContain('[要確定：施行日]')
+		expect(defaultHTML).not.toContain('<time')
 		expect(defaultHTML).not.toContain('mailto:')
 		for (const [field, value] of Object.entries(publicValues))
 			vi.stubEnv(field, value)
 		vi.stubEnv('VITE_PRIVATE_OPERATOR_NAME', 'synthetic-private-name')
 		const configuredHTML = markup(<PrivacyPolicy />)
 		expect(configuredHTML).toContain('href="mailto:privacy@example.invalid"')
-		expect(configuredHTML).toContain('公開承認済みの文面ではありません。')
+		expect(configuredHTML).toContain(
+			'<time dateTime="2026-10-07">2026-10-07</time>',
+		)
 		expect(configuredHTML).not.toContain('synthetic-private-name')
 	})
 	it('shows configured contact destinations without opening a login or executing a request', () => {

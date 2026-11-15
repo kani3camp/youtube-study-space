@@ -7,13 +7,6 @@ import {
 	validatePublicPolicyConfig,
 } from './public-policy-config'
 
-// 公開文面の草案。05 Privacyと09の判断を反映する。
-// https://app.notion.com/p/3ef357a8d0ce8175aeaed4c044111cfe
-// https://app.notion.com/p/3ef357a8d0ce8196a4b1f71482c1015a
-// https://app.notion.com/p/3ed357a8d0ce81e7b7d2cc85ec8ab4cf (05)
-// https://app.notion.com/p/3f0357a8d0ce81a5b0e4e108231bda0f (09)
-// 05に従い、請求時には運営者情報を提供する。任意の公開サービス名・運営者名のために、
-// 非公開の本名を開示する必要はない。D03の値を渡しても、文面の承認やD01・D02・運用確認の完了にはならない。
 type PublicPolicyProps = { publicPolicyInputs?: unknown }
 
 function policyConfig(inputs: unknown): PublicPolicyConfig {
@@ -22,20 +15,6 @@ function policyConfig(inputs: unknown): PublicPolicyConfig {
 			? readPublicPolicyConfig()
 			: validatePublicPolicyConfig(inputs)
 	).config
-}
-
-function DraftNotice() {
-	return (
-		<>
-			<p className="notice" role="status">
-				公開前の確認用文面です。運営主体・問い合わせ先・施行日・公開条件は、確定後に掲載します。
-			</p>
-			<p>
-				実装・運用・Google
-				OAuth審査・最新法令との最終照合前であり、公開承認済みの文面ではありません。
-			</p>
-		</>
-	)
 }
 
 export function ContactLink({
@@ -83,22 +62,18 @@ export function PublicPolicyContact({
 					</ContactLink>
 				</p>
 			) : (
-				<p>
-					個人情報・プライバシーに関する返信可能な専用窓口は、公開前に確定して掲載します。
-				</p>
+				<p>個人情報・プライバシーの専用窓口は準備中です。</p>
 			)}
-			<p>
-				運営者の氏名または名称・住所その他、法令上本人の知り得る状態に置く必要がある情報は、窓口への請求に応じ、法令に従い遅滞なく回答する方針です。
-			</p>
 		</>
 	)
 }
 
 function EffectiveDate({ value }: { value?: string }) {
+	if (!value) return null
 	return (
 		<p>
 			施行日：
-			{value ? <time dateTime={value}>{value}</time> : '[要確定：施行日]'}
+			<time dateTime={value}>{value}</time>
 		</p>
 	)
 }
@@ -109,14 +84,13 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 		<main className="main-content public-page">
 			<article className="card policy-page">
 				<h1>プライバシーポリシー</h1>
-				<DraftNotice />
 				<h2>1. このポリシーについて</h2>
 				<p>
 					Online Study
 					Space（以下「本サービス」といいます。）は、YouTube上のオンライン作業空間とWeb上のマイページを通じて、作業の状況や履歴を表示するサービスです。
 				</p>
 				<p>
-					このポリシーでは、本サービスが取得する情報、その利用目的、保存や外部サービスでの取り扱い、削除などを依頼する方法を説明します。運営者の氏名または名称、住所などについては、第16章の窓口をご覧ください。
+					このポリシーでは、本サービスが取得する情報、その利用目的、保存や外部サービスでの取り扱い、削除などを依頼する方法を説明します。
 				</p>
 				<h2>2. 取得・作成する情報</h2>
 				<p>
@@ -192,7 +166,7 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 					APIの読み取り専用の権限を使い、Googleでの認証の対象となったYouTubeチャンネルを確認します。
 				</p>
 				<p>
-					初期提供段階（非公開検証から基本機能の一般公開まで）では、ログイン時にこの権限を使って本人確認を行います。このログイン手続きで、YouTubeに動画やコメントを投稿したり、編集したり、削除したりすることはありません。
+					ログイン時にこの権限を使って本人確認を行います。このログイン手続きで、YouTubeに動画やコメントを投稿したり、編集したり、削除したりすることはありません。
 				</p>
 				<p>
 					YouTube API Servicesの利用には、
@@ -218,7 +192,7 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 					ログイン時には、Googleが発行する一時的な認証コードを使って、対象のYouTubeチャンネルを確認します。
 				</p>
 				<p>
-					初期提供段階では、YouTubeへのアクセス権を更新するための情報（更新トークン）を要求せず、保存もしません。ログイン時に取得する短時間だけ有効なアクセストークンは、対象チャンネルの確認に使い、その後のログイン状態を維持するためには保存しません。
+					YouTubeへのアクセス権を更新するための情報（更新トークン）を要求せず、保存もしません。ログイン時に取得する短時間だけ有効なアクセストークンは、対象チャンネルの確認に使い、その後のログイン状態を維持するためには保存しません。
 				</p>
 				<p>
 					チャンネル確認後は、確認したチャンネルIDをFirebase
@@ -246,7 +220,7 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				<p>
 					ログインや安全性の確保のため、Firebase Authentication、Firebase App
 					Check、reCAPTCHA
-					Enterpriseなどを利用します。これらのサービスに必要な通信は、任意のアクセス解析を許可しない場合も行われます。送信する情報と送信先の詳細は、公開前に実際の構成と照合します。
+					Enterpriseなどを利用します。これらのサービスに必要な通信は、任意のアクセス解析を許可しない場合も行われます。
 				</p>
 				<h3>許可した場合だけ行うアクセス解析</h3>
 				<p>
@@ -256,11 +230,8 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 					許可するかどうかの選択は、このサイトがブラウザーに保存する場合があります。選択をYouTubeチャンネルIDやFirebaseの利用者IDにひも付けることはありません。「Cookie設定」からいつでも許可を取り消すことができ、取り消した後はGA4への新たな送信を停止します。
 				</p>
 				<p>
-					現時点の計画では、あらかじめ送信対象に定めた画面の種類、ログインなどの操作、定められた流入元の情報をGoogleに送り、画面やページ間の移動の改善、利用状況の分析に使います。URLに任意で付けられた情報、認証コード、認証の照合に使う値、認証エラーの詳細、依頼時の本人確認情報、利用者ごとのAPIの応答内容は送りません。広告配信、広告のパーソナライズ、Google
+					アクセス解析を行う場合は、あらかじめ送信対象に定めた画面の種類、ログインなどの操作、定められた流入元の情報をGoogleに送り、画面やページ間の移動の改善、利用状況の分析に使います。URLに任意で付けられた情報、認証コード、認証の照合に使う値、認証エラーの詳細、依頼時の本人確認情報、利用者ごとのAPIの応答内容は送りません。広告配信、広告のパーソナライズ、Google
 					シグナル、利用者を識別するGA4のUser-IDは利用しません。
-				</p>
-				<p>
-					GA4に送る情報、Googleでの利用目的、保存期間の設定、送信を停止する方法は、公開前に実際の通信とGoogle側の設定に照らして確認します。
 				</p>
 				<h2>9. 利用する外部サービス</h2>
 				<p>
@@ -417,7 +388,6 @@ export function TermsOfUse({ publicPolicyInputs }: PublicPolicyProps = {}) {
 		<main className="main-content public-page">
 			<article className="card policy-page">
 				<h1>利用規約</h1>
-				<DraftNotice />
 				<h2>第1条（適用）</h2>
 				<ol>
 					<li>
@@ -450,7 +420,7 @@ export function TermsOfUse({ publicPolicyInputs }: PublicPolicyProps = {}) {
 						利用者は、YouTubeのライブチャットで本サービス向けのコマンド（入室や休憩などを指示するための入力）などを使って、入室、退室、作業、休憩などの状態を本サービスに反映できる場合があります。
 					</li>
 					<li>
-						初期提供段階（非公開検証から基本機能の一般公開まで）のマイページは、記録の閲覧を中心とします。提供する機能は、変更、追加または終了することがあります。
+						マイページは、記録の閲覧を中心とします。提供する機能は、変更、追加または終了することがあります。
 					</li>
 					<li>
 						運営者は、利用者の利便性、サービスの品質、安全性、外部サービスの仕様変更などの事情に応じて、本サービスの内容を変更することがあります。
@@ -671,14 +641,18 @@ export function TermsOfUse({ publicPolicyInputs }: PublicPolicyProps = {}) {
 						法令上、利用者の同意が必要な変更については、必要な方法で同意を得ます。
 					</li>
 				</ol>
-				<h2>第17条（準拠法・管轄裁判所）</h2>
+				<h2>
+					第17条（{config.jurisdiction ? '準拠法・管轄裁判所' : '準拠法'}）
+				</h2>
 				<ol>
 					<li>本規約は日本法に準拠し、日本法に従って解釈されます。</li>
-					<li>
-						本サービスに関する訴訟が必要になった場合は、
-						{config.jurisdiction ?? '[要確定：第一審の専属的合意管轄裁判所]'}
-						を第一審の専属的合意管轄裁判所とします。ただし、適用法令により別の取り扱いが必要な場合は、その法令に従います。
-					</li>
+					{config.jurisdiction && (
+						<li>
+							本サービスに関する訴訟が必要になった場合は、
+							{config.jurisdiction}
+							を第一審の専属的合意管轄裁判所とします。ただし、適用法令により別の取り扱いが必要な場合は、その法令に従います。
+						</li>
+					)}
 				</ol>
 				<h2>第18条（お問い合わせ）</h2>
 				<p>
