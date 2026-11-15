@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestUpdateWorkNameTrendDependencyErrorsDoNotLogPayloads(t *testing.T) {
@@ -163,5 +165,29 @@ func stubUpdateTrendDeps(
 		secretFieldFromSecretsManager = origS
 		firestoreClientOptionTrend = origF
 		newTrendWorkspaceApp = origN
+	}
+}
+
+func TestUpdateWorkNameTrendLogsSafeDiagnosticDetail(t *testing.T) {
+	const privateValue = "PRIVATE_DEPENDENCY_BODY_901"
+	t.Setenv("SECRET_NAME", "my-secret")
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+	restore := stubUpdateTrendDeps(t, status.Error(codes.PermissionDenied, privateValue), nil, nil, nil)
+	t.Cleanup(restore)
+
+	// 旧実装(origin/dev)と同様、再試行を誘発しないよう成功扱いで返す。
+	if err := UpdateWorkNameTrend(context.Background()); err != nil {
+		t.Fatalf("expected handled error, got %v", err)
+	}
+	for _, want := range []string{`"error_class":"secret_fetch_failed"`, `"error_kind":"grpc"`, `"error_code":"PermissionDenied"`} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("missing %s: %s", want, logs.String())
+		}
+	}
+	if strings.Contains(logs.String(), privateValue) {
+		t.Fatalf("logs exposed private value: %s", logs.String())
 	}
 }

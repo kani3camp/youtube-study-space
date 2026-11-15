@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"app.modules/core/workspaceapp"
+	"app.modules/internal/logging"
 
 	"github.com/kr/pretty"
 
@@ -57,7 +58,7 @@ func Init() (option.ClientOption, context.Context, error) {
 func CheckLongTimeSitting(ctx context.Context, clientOption option.ClientOption) {
 	app, err := workspaceapp.NewWorkspaceApp(ctx, false, clientOption)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed core.NewWorkspaceApp()", "error_class", "workspace_init_failed")
+		slog.ErrorContext(ctx, "failed core.NewWorkspaceApp()", logging.ErrorClassAttrs("workspace_init_failed", err)...)
 		return
 	}
 
@@ -73,7 +74,7 @@ func CalculateRetryIntervalSec(base float64, numContinuousFailed int) float64 {
 func Bot(ctx context.Context, clientOption option.ClientOption) {
 	app, err := workspaceapp.NewWorkspaceApp(ctx, true, clientOption)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed core.NewWorkspaceApp()", "error_class", "workspace_init_failed")
+		slog.ErrorContext(ctx, "failed core.NewWorkspaceApp()", logging.ErrorClassAttrs("workspace_init_failed", err)...)
 		return
 	}
 	defer app.CloseFirestoreClient()

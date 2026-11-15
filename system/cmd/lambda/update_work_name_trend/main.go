@@ -49,7 +49,7 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 	apiKey, err := secretFieldFromSecretsManager(gracefulCtx, secretName, "OPENAI_API_KEY")
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get OPENAI API key from Secrets Manager",
-			"error_class", "secret_fetch_failed",
+			logging.ErrorClassAttrs("secret_fetch_failed", err)...,
 		)
 		return nil
 	}
@@ -57,7 +57,7 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 	clientOption, err := firestoreClientOptionTrend()
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get Firestore client option",
-			"error_class", "firestore_option_failed",
+			logging.ErrorClassAttrs("firestore_option_failed", err)...,
 		)
 		return nil
 	}
@@ -65,7 +65,7 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 	app, err := newTrendWorkspaceApp(gracefulCtx, false, clientOption)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get WorkspaceApp",
-			"error_class", "workspace_init_failed",
+			logging.ErrorClassAttrs("workspace_init_failed", err)...,
 		)
 		return nil
 	}
@@ -77,7 +77,7 @@ func UpdateWorkNameTrend(ctx context.Context) error {
 			return nil
 		}
 		slog.ErrorContext(ctx, "failed to update work name trends",
-			"error_class", "trend_update_failed",
+			logging.ErrorClassAttrs("trend_update_failed", err)...,
 		)
 		return nil
 	}

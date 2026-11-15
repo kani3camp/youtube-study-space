@@ -52,7 +52,7 @@ func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
 	clientOption, err := firestoreClientOption()
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get Firestore client option",
-			"error_class", "firestore_option_failed",
+			logging.ErrorClassAttrs("firestore_option_failed", err)...,
 		)
 		return okResponse(), nil
 	}
@@ -60,7 +60,7 @@ func OrganizeDatabase(ctx context.Context) (OrganizeDatabaseResponse, error) {
 	app, err := newWorkspaceApp(gracefulCtx, false, clientOption)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get WorkspaceApp",
-			"error_class", "workspace_init_failed",
+			logging.ErrorClassAttrs("workspace_init_failed", err)...,
 		)
 		return okResponse(), nil
 	}
@@ -88,7 +88,7 @@ func runOrganizeDBRoom(ctx context.Context, gracefulCtx context.Context, app org
 		return true
 	}
 
-	slog.ErrorContext(ctx, "failed to OrganizeDB", "room", roomLabel, "error_class", "organize_failed")
+	slog.ErrorContext(ctx, "failed to OrganizeDB", append([]any{"room", roomLabel}, logging.ErrorClassAttrs("organize_failed", err)...)...)
 	app.MessageToOwnerWithError(ctx, fmt.Sprintf("failed to OrganizeDB (%s)", roomLabel), err)
 	return false
 }

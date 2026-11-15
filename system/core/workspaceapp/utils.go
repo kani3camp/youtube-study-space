@@ -21,6 +21,7 @@ import (
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	"app.modules/core/youtubebot"
+	"app.modules/internal/logging"
 )
 
 // IsSeatExist 席番号1～max-seatsの席かどうかを判定。
@@ -232,18 +233,18 @@ func (app *WorkspaceApp) ExitAllUsersInRoom(ctx context.Context, isMemberRoom bo
 				}
 				return nil
 			})
-			logSeatExitResult(txErr) // continue with the next seat after a failed transaction
+			logSeatExitResult(ctx, txErr) // continue with the next seat after a failed transaction
 		}
 	}
 	return nil
 }
 
-func logSeatExitResult(err error) {
+func logSeatExitResult(ctx context.Context, err error) {
 	if err != nil {
-		slog.Error("seat exit failed", "error_class", "transaction_failed")
+		slog.ErrorContext(ctx, "seat exit failed", logging.ErrorClassAttrs("transaction_failed", err)...)
 		return
 	}
-	slog.Info("seat exit completed")
+	slog.InfoContext(ctx, "seat exit completed")
 }
 
 func (app *WorkspaceApp) ListLiveChatMessages(ctx context.Context, pageToken string) ([]*youtube.LiveChatMessage, string, int, error) {
@@ -262,7 +263,7 @@ func (app *WorkspaceApp) MessageToLiveChat(ctx context.Context, message string) 
 
 func (app *WorkspaceApp) MessageToOwner(ctx context.Context, message string) {
 	if err := app.alertOwnerBot.SendMessage(ctx, message); err != nil {
-		slog.ErrorContext(ctx, "failed to send message to owner", "error_class", "delivery_failed")
+		slog.ErrorContext(ctx, "failed to send message to owner", logging.ErrorClassAttrs("delivery_failed", err)...)
 	}
 	// これが最終連絡手段のため、エラーは返さずログのみ。
 }
@@ -278,7 +279,7 @@ func (app *WorkspaceApp) MessageToOwnerOrError(ctx context.Context, message stri
 
 func (app *WorkspaceApp) MessageToOwnerWithError(ctx context.Context, message string, argErr error) {
 	if err := app.alertOwnerBot.SendMessageWithError(ctx, message, argErr); err != nil {
-		slog.ErrorContext(ctx, "failed to send message to owner", "error_class", "delivery_failed")
+		slog.ErrorContext(ctx, "failed to send message to owner", logging.ErrorClassAttrs("delivery_failed", err)...)
 	}
 	// これが最終連絡手段のため、エラーは返さずログのみ。
 }

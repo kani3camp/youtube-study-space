@@ -47,19 +47,19 @@ func handler(ctx context.Context, evt events.SNSEvent) error {
 
 	clientOption, err := firestoreClientOptionSNS()
 	if err != nil {
-		slog.Error("failed to get Firestore client option", "error_class", "firestore_option_failed")
-		return errors.New("load Firestore client option failed")
+		slog.Error("failed to get Firestore client option", logging.ErrorClassAttrs("firestore_option_failed", err)...)
+		return &logging.ClassifiedError{Message: "load Firestore client option failed", Cause: err}
 	}
 
 	app, err := newSNSWorkspaceApp(gracefulCtx, false, clientOption)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			// NOTE: このLambdaは通知Lambda自体なので、タイムアウト時はログに出力するのみ（自分自身への通知は循環になる）
-			slog.Error("timeout warning in sns_notify_discord during initialization", "error_class", "deadline_exceeded")
+			slog.Error("timeout warning in sns_notify_discord during initialization", logging.ErrorClassAttrs("deadline_exceeded", err)...)
 			return nil
 		}
-		slog.Error("failed to init WorkspaceApp", "error_class", "workspace_init_failed")
-		return errors.New("initialize workspace app failed")
+		slog.Error("failed to init WorkspaceApp", logging.ErrorClassAttrs("workspace_init_failed", err)...)
+		return &logging.ClassifiedError{Message: "initialize workspace app failed", Cause: err}
 	}
 	defer app.CloseFirestoreClient()
 
@@ -91,8 +91,8 @@ func handler(ctx context.Context, evt events.SNSEvent) error {
 			} else if errors.Is(err, context.Canceled) {
 				errorClass = "canceled"
 			}
-			slog.ErrorContext(gracefulCtx, "failed to send SNS notification to owner", "record_index", i, "error_class", errorClass)
-			return fmt.Errorf("send SNS notification to owner: %s", errorClass)
+			slog.ErrorContext(gracefulCtx, "failed to send SNS notification to owner", append([]any{"record_index", i}, logging.ErrorClassAttrs(errorClass, err)...)...)
+			return &logging.ClassifiedError{Message: "send SNS notification to owner: " + errorClass, Cause: err}
 		}
 		slog.InfoContext(gracefulCtx, "sns notification dispatch", "record_index", i, "status", "sent")
 	}

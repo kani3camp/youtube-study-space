@@ -7,6 +7,9 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type privateOwnerBotFake struct {
@@ -56,6 +59,7 @@ func TestSeatExitResultDoesNotLogTransactionPayload(t *testing.T) {
 	}{
 		{name: "completed", want: "seat exit completed"},
 		{name: "failed", err: errors.New("transaction for " + privateValue + " failed"), want: `"error_class":"transaction_failed"`},
+		{name: "failed with kind", err: status.Error(codes.Aborted, privateValue), want: `"error_code":"Aborted"`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var logs bytes.Buffer
@@ -63,7 +67,7 @@ func TestSeatExitResultDoesNotLogTransactionPayload(t *testing.T) {
 			slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
 			t.Cleanup(func() { slog.SetDefault(previousLogger) })
 
-			logSeatExitResult(tc.err)
+			logSeatExitResult(context.Background(), tc.err)
 			if !strings.Contains(logs.String(), tc.want) {
 				t.Fatalf("missing safe event/status: %s", logs.String())
 			}

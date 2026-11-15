@@ -22,13 +22,13 @@ func main() {
 
 	clientOption, err := awsruntime.FirestoreClientOption()
 	if err != nil {
-		slog.Error("failed to get Firestore client option", "error_class", "firestore_option_failed")
+		slog.Error("failed to get Firestore client option", logging.ErrorClassAttrs("firestore_option_failed", err)...)
 		os.Exit(1)
 	}
 
 	app, err := workspaceapp.NewWorkspaceApp(ctx, false, clientOption)
 	if err != nil {
-		slog.Error("failed to init WorkspaceApp", "error_class", "workspace_init_failed")
+		slog.Error("failed to init WorkspaceApp", logging.ErrorClassAttrs("workspace_init_failed", err)...)
 		os.Exit(1)
 	}
 	defer app.CloseFirestoreClient()
