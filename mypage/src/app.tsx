@@ -1001,8 +1001,8 @@ export function createApp(
 							Googleの許可を取り消しても、マイページのログイン状態がすぐには終了しない場合があります。
 						</p>
 						<p>
-							Googleアカウントの設定で本サービスとの連携を解除した場合は、速やかに
-							<Link to="/contact">お問い合わせ窓口</Link>までご連絡ください。
+							連携解除後のログイン状態の解除や保存データの削除をご希望の場合は、
+							<Link to="/contact">お問い合わせ窓口</Link>へご連絡ください。
 						</p>
 						<ExternalLink href="https://myaccount.google.com/connections">
 							Googleアカウントの接続設定

@@ -146,14 +146,11 @@ describe('public policy rendering', () => {
 			'保存データ全体の削除をご希望の場合は、12.の方法でご依頼ください。',
 		)
 	})
-	it('links both policies to public contact after a Google disconnect', () => {
-		for (const Policy of [PrivacyPolicy, TermsOfUse]) {
-			const html = markup(<Policy publicPolicyInputs={{}} />)
-			expect(html).toContain(
-				'本サービスとの連携を解除した場合は、速やかに<a href="/contact">お問い合わせ窓口</a>までご連絡ください。',
-			)
-		}
+	it('explains how to request action after a Google disconnect', () => {
 		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
+		expect(html).toContain(
+			'連携解除後のログイン状態の解除や保存データの削除をご希望の場合は、<a href="/contact">お問い合わせ窓口</a>へご連絡ください。',
+		)
 		expect(html).toContain(
 			'チャンネルIDと作業履歴は、Google連携の解除だけでは削除されません。',
 		)
@@ -178,11 +175,14 @@ describe('public policy rendering', () => {
 			/マイページへのログイン[もは][^。]*条件ではありません。/,
 		)
 	})
-	it('retains the request verification guidance in the terms', () => {
+	it('links the terms to request guidance and explains public chat', () => {
 		const html = markup(<TermsOfUse publicPolicyInputs={{}} />)
-		expect(html).toContain('新しいYouTubeの許可で確認します。')
-		expect(html).toContain('通常のログインだけで依頼を実行しません。')
-		expect(html).toContain('個別の確認方法をご案内します。')
+		expect(html).toContain(
+			'YouTubeのライブチャットに入力した内容は他の視聴者にも公開されます。',
+		)
+		expect(html).toContain('href="/contact">お問い合わせ・請求の案内</a>')
+		expect(html).toContain('運営者の軽過失により損害賠償責任を負う場合')
+		expect(html).toContain('親権者等の法定代理人の同意')
 	})
 	it.each([
 		[
