@@ -1154,8 +1154,7 @@ summary {
 	font-size: 14px;
 	line-height: 1.9;
 }
-.contact-destination,
-.contact-page .contact-pending {
+.contact-destination {
 	margin-top: auto;
 	padding-top: 16px;
 }
@@ -1170,17 +1169,6 @@ summary {
 	display: block;
 	margin-top: 4px;
 	overflow-wrap: anywhere;
-}
-.contact-page .contact-pending {
-	margin-bottom: 0;
-	color: var(--color-muted);
-	font-size: 13px;
-}
-.contact-pending strong {
-	display: block;
-	margin-bottom: 6px;
-	color: var(--color-ink);
-	font-size: 14px;
 }
 .contact-process ol {
 	list-style: decimal;

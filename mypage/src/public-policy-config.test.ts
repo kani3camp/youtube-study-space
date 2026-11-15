@@ -21,7 +21,6 @@ function credentialTestURL(hostname: string, withPassword: boolean) {
 const input = {
 	VITE_PUBLIC_OPERATOR_NAME: 'Synthetic Service & Friends',
 	VITE_PUBLIC_CONTACT_URL: 'https://contact.example.invalid/general',
-	VITE_PUBLIC_PRIVACY_CONTACT_URL: 'mailto:privacy+requests@example.invalid',
 	VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: '2026-10-07',
 	VITE_PUBLIC_TERMS_EFFECTIVE_DATE: '2026-10-08',
 	VITE_PUBLIC_JURISDICTION: '合成テスト裁判所',
@@ -33,7 +32,6 @@ describe('public policy configuration', () => {
 			config: {
 				operatorName: input.VITE_PUBLIC_OPERATOR_NAME,
 				contactURL: input.VITE_PUBLIC_CONTACT_URL,
-				privacyContactURL: input.VITE_PUBLIC_PRIVACY_CONTACT_URL,
 				privacyEffectiveDate: '2026-10-07',
 				termsEffectiveDate: '2026-10-08',
 				jurisdiction: '合成テスト裁判所',
@@ -55,16 +53,23 @@ describe('public policy configuration', () => {
 			validatePublicPolicyConfig(withoutLabel).config.operatorName,
 		).toBeUndefined()
 	})
-	it('never promotes the general contact destination to a privacy request channel', () => {
-		const result = validatePublicPolicyConfig({
-			VITE_PUBLIC_CONTACT_URL: input.VITE_PUBLIC_CONTACT_URL,
+	it('rejects the retired separate privacy contact field', () => {
+		expect(
+			validatePublicPolicyConfig({
+				...input,
+				VITE_PUBLIC_PRIVACY_CONTACT_URL: 'mailto:privacy@example.invalid',
+			}),
+		).toEqual({
+			config: {},
+			issues: [{ field: 'input', code: 'unknown-field' }],
 		})
-		expect(result.config.contactURL).toBe(input.VITE_PUBLIC_CONTACT_URL)
-		expect(result.config.privacyContactURL).toBeUndefined()
-		expect(result.issues).toContainEqual({
-			field: 'VITE_PUBLIC_PRIVACY_CONTACT_URL',
-			code: 'missing',
-		})
+	})
+	it('prefers the fixed shared form for known Firebase projects', () => {
+		for (const [key, value] of Object.entries(input)) vi.stubEnv(key, value)
+		vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'test-youtube-study-space')
+		expect(readPublicPolicyConfig().config.contactURL).toBe(
+			'https://docs.google.com/forms/d/e/1FAIpQLScKyaOQSxKIxs1znN72MlrDwHmJoQ94MnEuUK9UKD_fgqHEzg/viewform',
+		)
 	})
 	it.each([
 		'javascript:alert(1)',
@@ -90,13 +95,10 @@ describe('public policy configuration', () => {
 		const result = validatePublicPolicyConfig({
 			...input,
 			VITE_PUBLIC_CONTACT_URL: url,
-			VITE_PUBLIC_PRIVACY_CONTACT_URL: url,
 		})
 		expect(result.config.contactURL).toBeUndefined()
-		expect(result.config.privacyContactURL).toBeUndefined()
 		expect(result.issues).toEqual([
 			{ field: 'VITE_PUBLIC_CONTACT_URL', code: 'invalid' },
-			{ field: 'VITE_PUBLIC_PRIVACY_CONTACT_URL', code: 'invalid' },
 		])
 	})
 	it.each([
@@ -175,7 +177,7 @@ describe('public policy configuration', () => {
 			issues: [{ field: 'input', code: 'invalid' }],
 		})
 	})
-	it('reads only the six explicitly public build fields', () => {
+	it('reads only the five explicitly public build fields', () => {
 		for (const [key, value] of Object.entries(input)) vi.stubEnv(key, value)
 		vi.stubEnv('VITE_OAUTH_CLIENT_SECRET', 'synthetic-private-value')
 		vi.stubEnv('VITE_SUPPORT_CHALLENGE', 'synthetic-proof-value')

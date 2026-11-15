@@ -45,25 +45,23 @@ export function PublicPolicyContact({
 	publicPolicyInputs,
 }: PublicPolicyProps = {}) {
 	const config = policyConfig(publicPolicyInputs)
-	const privacyURL = config.privacyContactURL
+	const contactURL = config.contactURL
 	return (
 		<>
 			{config.operatorName && <p>運営者の公開表記：{config.operatorName}</p>}
 			<p>
-				使い方のご質問や不具合の報告は
-				<Link to="/contact">一般のお問い合わせ</Link>
-				へ、個人情報の開示・削除などのご請求はプライバシーの専用窓口へお寄せください。
+				使い方のご質問や不具合の報告、個人情報の開示・削除などのご請求は、
+				<Link to="/contact">お問い合わせ</Link>
+				ページの案内に沿ってお寄せください。
 			</p>
-			{privacyURL ? (
+			{contactURL && (
 				<p>
-					<ContactLink href={privacyURL}>
-						{privacyURL.startsWith('https://docs.google.com/forms/')
-							? '個人情報の開示・削除などの専用フォーム'
-							: '個人情報の開示・削除などの専用窓口'}
+					<ContactLink href={contactURL}>
+						{contactURL.startsWith('https://docs.google.com/forms/')
+							? 'お問い合わせフォーム'
+							: 'お問い合わせ窓口'}
 					</ContactLink>
 				</p>
-			) : (
-				<p>個人情報・プライバシーの専用窓口は準備中です。</p>
 			)}
 		</>
 	)
@@ -289,16 +287,16 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				</p>
 				<p>
 					Google側で連携を解除しても、マイページのログイン状態が残る場合があります。連携解除後のログイン状態の解除や保存データの削除をご希望の場合は、
-					<a href="#contact">第16節の専用窓口</a>へご連絡ください。
+					<a href="#contact">第16節のお問い合わせフォーム</a>へご連絡ください。
 				</p>
 				<p>
-					連携解除を窓口に申告された場合は、対象のチャンネルを確認したうえで、マイページのアカウント情報とチャンネルとの関連付けを削除し、これまでのログイン状態で個人の情報や作業履歴にアクセスできないようにします。ライブチャットを通じて記録したチャンネルIDと作業履歴は、Google連携の解除だけでは削除されません。保存データ全体の削除をご希望の場合は、
+					連携解除をお問い合わせフォームから申告された場合は、対象のチャンネルを確認したうえで、マイページのアカウント情報とチャンネルとの関連付けを削除し、これまでのログイン状態で個人の情報や作業履歴にアクセスできないようにします。ライブチャットを通じて記録したチャンネルIDと作業履歴は、Google連携の解除だけでは削除されません。保存データ全体の削除をご希望の場合は、
 					<a href="#data-deletion">第12節</a>の方法でご依頼ください。
 				</p>
 				<h2 id="data-deletion">第12節 保存データの削除を依頼する方法</h2>
 				<p>
 					ご自身のデータの削除をご希望の場合は、
-					<a href="#contact">第16節の専用窓口</a>
+					<a href="#contact">第16節のお問い合わせフォーム</a>
 					へご連絡ください。本人確認の方法は
 					<a href="#identity-verification">第15節</a>をご覧ください。
 				</p>
@@ -335,7 +333,7 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				</p>
 				<p>
 					チャンネルを譲渡する場合は、事前に本サービスからログアウトし、必要に応じて保存データの削除を依頼してください。所有者の変更後にログイン状態や保存データについて問題がある場合は、
-					<a href="#contact">第16節の専用窓口</a>
+					<a href="#contact">第16節のお問い合わせフォーム</a>
 					へご連絡ください。必要に応じて対象チャンネルのログイン状態を失効させることがあります。
 				</p>
 				<h2>第14節 情報を安全に管理するための措置</h2>
@@ -369,7 +367,7 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				</p>
 				<p>
 					チャンネルIDの申告、現在のログイン状態、表示名、画面の画像だけで本人確認を完了することはありません。確認に必要な範囲で情報をお願いします。Google連携を解除済みなどでログインや本人確認を利用できない場合も、まずは
-					<a href="#contact">第16節の専用窓口</a>
+					<a href="#contact">第16節のお問い合わせフォーム</a>
 					へお問い合わせください。個別の確認方法をご案内します。
 				</p>
 				<p>
@@ -658,15 +656,13 @@ export function TermsOfUse({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				</ol>
 				<h2>第18条（お問い合わせ）</h2>
 				<p>
-					本サービスまたは本規約に関するご質問は、
-					<Link to="/contact">お問い合わせ窓口</Link>へご連絡ください。
-				</p>
-				<p>
-					個人情報の開示・削除などのご請求については、
+					本サービスまたは本規約に関するご質問や、個人情報の開示・削除などのご請求は、
+					<Link to="/contact">お問い合わせフォーム</Link>
+					からご連絡ください。個人情報に関するご請求の手続きは、
 					<Link to="/privacy" hash="contact">
-						プライバシーポリシーの専用窓口
+						プライバシーポリシー
 					</Link>
-					と、同ポリシーに定める手続きをご確認ください。
+					をご確認ください。
 				</p>
 				<EffectiveDate value={config.termsEffectiveDate} />
 			</article>

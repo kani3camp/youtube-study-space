@@ -27,8 +27,7 @@ function markup(children: ReactNode) {
 }
 const publicValues = {
 	VITE_PUBLIC_OPERATOR_NAME: 'Synthetic Service & "Friends"',
-	VITE_PUBLIC_CONTACT_URL: 'https://contact.example.invalid/general',
-	VITE_PUBLIC_PRIVACY_CONTACT_URL: 'mailto:privacy@example.invalid',
+	VITE_PUBLIC_CONTACT_URL: 'mailto:contact@example.invalid',
 	VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: '2026-10-07',
 	VITE_PUBLIC_TERMS_EFFECTIVE_DATE: '2026-10-08',
 	VITE_PUBLIC_JURISDICTION: '合成テスト裁判所',
@@ -102,7 +101,9 @@ describe('public policy rendering', () => {
 		const deletion = privacy.body
 			.split('<h2 id="data-deletion">')[1]
 			?.split('<h2')[0]
-		expect(deletion).toContain('href="#contact">第16節の専用窓口</a>')
+		expect(deletion).toContain(
+			'href="#contact">第16節のお問い合わせフォーム</a>',
+		)
 		expect(deletion).not.toContain('href="/contact"')
 		expect(privacy.body).toContain(
 			'<h2 id="contact">第16節 運営者・お問い合わせ</h2>',
@@ -173,7 +174,7 @@ describe('public policy rendering', () => {
 	it('explains how to request action after a Google disconnect', () => {
 		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
 		expect(html).toContain(
-			'連携解除後のログイン状態の解除や保存データの削除をご希望の場合は、<a href="#contact">第16節の専用窓口</a>へご連絡ください。',
+			'連携解除後のログイン状態の解除や保存データの削除をご希望の場合は、<a href="#contact">第16節のお問い合わせフォーム</a>へご連絡ください。',
 		)
 		expect(html).toContain(
 			'チャンネルIDと作業履歴は、Google連携の解除だけでは削除されません。',
@@ -182,13 +183,13 @@ describe('public policy rendering', () => {
 			'マイページのアカウント情報とチャンネルとの関連付けを削除',
 		)
 	})
-	it('uses one wording for channel association and links every privacy request to the dedicated desk', () => {
+	it('uses one wording for channel association and links every privacy request to the shared contact form', () => {
 		const privacy = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
 		const terms = markup(<TermsOfUse publicPolicyInputs={{}} />)
 		for (const html of [privacy, terms]) expect(html).not.toMatch(/ひも付/)
 		expect(terms).toContain('同じチャンネルIDに関連付けられたまま')
 		expect(privacy).toContain(
-			'問題がある場合は、<a href="#contact">第16節の専用窓口</a>へご連絡ください。',
+			'問題がある場合は、<a href="#contact">第16節のお問い合わせフォーム</a>へご連絡ください。',
 		)
 		expect(privacy).not.toContain('問い合わせ窓口へご連絡ください。')
 	})
@@ -222,10 +223,9 @@ describe('public policy rendering', () => {
 		expect(html).toContain(
 			'YouTubeのライブチャットに入力した内容は他の視聴者にも公開されます。',
 		)
-		expect(html).toContain('href="/contact">お問い合わせ窓口</a>')
-		expect(html).toContain(
-			'href="/privacy#contact">プライバシーポリシーの専用窓口</a>',
-		)
+		expect(html).toContain('href="/contact">お問い合わせフォーム</a>')
+		expect(html).toContain('href="/privacy#contact">プライバシーポリシー</a>')
+		expect(html).not.toContain('専用窓口')
 		expect(html).not.toMatch(/OAuth|Firebase|Google Cloud/)
 		expect(html).toContain(
 			'故意または重過失による損害については、第2項の制限を適用しません。',
@@ -254,7 +254,7 @@ describe('public policy rendering', () => {
 	])('selects the public request form for %s without login', (project, form) => {
 		vi.stubEnv('VITE_FIREBASE_PROJECT_ID', project)
 		vi.stubEnv(
-			'VITE_PUBLIC_PRIVACY_CONTACT_URL',
+			'VITE_PUBLIC_CONTACT_URL',
 			'https://contact.example.invalid/other',
 		)
 		const html = markup(
@@ -266,7 +266,7 @@ describe('public policy rendering', () => {
 		expect(
 			html.split(`href="https://docs.google.com/forms/d/e/${form}/viewform"`),
 		).toHaveLength(2)
-		expect(html).toContain('個人情報の開示・削除などの専用フォーム')
+		expect(html).toContain('>お問い合わせフォーム')
 		expect(html).not.toContain('contact.example.invalid/other')
 	})
 	it('keeps explicit Analytics opt-in separate from necessary Firebase communication', () => {
@@ -287,9 +287,9 @@ describe('public policy rendering', () => {
 		const privacy = markup(<PrivacyPolicy publicPolicyInputs={publicValues} />)
 		const terms = markup(<TermsOfUse publicPolicyInputs={publicValues} />)
 		expect(privacy).toContain('Synthetic Service &amp; &quot;Friends&quot;')
-		expect(privacy).toContain('href="/contact">一般のお問い合わせ</a>')
-		expect(privacy).toContain('href="mailto:privacy@example.invalid"')
-		expect(terms).not.toContain('href="mailto:privacy@example.invalid"')
+		expect(privacy).toContain('href="/contact">お問い合わせ</a>')
+		expect(privacy).toContain('href="mailto:contact@example.invalid"')
+		expect(terms).not.toContain('href="mailto:contact@example.invalid"')
 		for (const html of [privacy, terms]) {
 			expect(html).not.toMatch(/公開前|公開承認済み|要確定|遅滞なく|非公開検証/)
 		}
@@ -297,16 +297,10 @@ describe('public policy rendering', () => {
 		expect(terms).toContain('<time dateTime="2026-10-08">2026-10-08</time>')
 		expect(terms).toContain('合成テスト裁判所')
 	})
-	it('leaves privacy request reception pending with only a general contact link', () => {
-		const html = markup(
-			<PublicPolicyContact
-				publicPolicyInputs={{
-					VITE_PUBLIC_CONTACT_URL: publicValues.VITE_PUBLIC_CONTACT_URL,
-				}}
-			/>,
-		)
-		expect(html).toContain('一般のお問い合わせ')
-		expect(html).toContain('個人情報・プライバシーの専用窓口は準備中です。')
+	it('shows only the contact page link when no shared destination is configured', () => {
+		const html = markup(<PublicPolicyContact publicPolicyInputs={{}} />)
+		expect(html).toContain('href="/contact">お問い合わせ</a>')
+		expect(html).not.toContain('準備中')
 		expect(html.match(/href=/g)).toHaveLength(1)
 		expect(html).not.toContain('本人確認が完了')
 	})
@@ -314,8 +308,7 @@ describe('public policy rendering', () => {
 		const values = {
 			...publicValues,
 			VITE_PUBLIC_OPERATOR_NAME: '<img src=x onerror=synthetic>',
-			VITE_PUBLIC_CONTACT_URL: 'javascript:synthetic',
-			VITE_PUBLIC_PRIVACY_CONTACT_URL:
+			VITE_PUBLIC_CONTACT_URL:
 				'https://contact.example.invalid/?supportChallenge=synthetic-proof',
 			VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: '2026-02-29',
 			VITE_PUBLIC_JURISDICTION: 'synthetic\u202e',
@@ -341,7 +334,7 @@ describe('public policy rendering', () => {
 			vi.stubEnv(field, value)
 		vi.stubEnv('VITE_PRIVATE_OPERATOR_NAME', 'synthetic-private-name')
 		const configuredHTML = markup(<PrivacyPolicy />)
-		expect(configuredHTML).toContain('href="mailto:privacy@example.invalid"')
+		expect(configuredHTML).toContain('href="mailto:contact@example.invalid"')
 		expect(configuredHTML).toContain(
 			'<time dateTime="2026-10-07">2026-10-07</time>',
 		)
@@ -365,8 +358,7 @@ describe('public policy rendering', () => {
 				<Contact />
 			</RouterContextProvider>,
 		)
-		expect(html).toContain('href="https://contact.example.invalid/general"')
-		expect(html).toContain('href="mailto:privacy@example.invalid"')
+		expect(html.match(/href="mailto:contact@example.invalid"/g)).toHaveLength(2)
 		expect(html).toContain(
 			'通常のログインとは別にGoogleの認証手続きで対象のYouTubeチャンネルを確認します。',
 		)

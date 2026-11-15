@@ -163,8 +163,7 @@ describe('offline public release configuration', () => {
 	it('reuses safe publication validation while keeping optional operator identity and unresolved decisions pending', () => {
 		const input = fixture()
 		input.publicPolicy = {
-			VITE_PUBLIC_CONTACT_URL: 'https://general-contact.example.invalid',
-			VITE_PUBLIC_PRIVACY_CONTACT_URL: 'mailto:privacy@example.invalid',
+			VITE_PUBLIC_CONTACT_URL: 'mailto:contact@example.invalid',
 			VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: '2026-10-07',
 			VITE_PUBLIC_TERMS_EFFECTIVE_DATE: '2026-10-07',
 			VITE_PUBLIC_JURISDICTION: 'Synthetic public jurisdiction',
@@ -178,18 +177,30 @@ describe('offline public release configuration', () => {
 		)
 		for (const value of Object.values(input.publicPolicy))
 			expect(JSON.stringify(result)).not.toContain(value)
-		delete input.publicPolicy.VITE_PUBLIC_PRIVACY_CONTACT_URL
+		delete input.publicPolicy.VITE_PUBLIC_CONTACT_URL
 		diagnostic(
 			checkReleaseConfig(input),
-			'publicPolicy.VITE_PUBLIC_PRIVACY_CONTACT_URL',
+			'publicPolicy.VITE_PUBLIC_CONTACT_URL',
 			'MISSING_FIELD',
 		)
-		input.publicPolicy.VITE_PUBLIC_PRIVACY_CONTACT_URL =
+		input.publicPolicy.VITE_PUBLIC_CONTACT_URL =
 			'mailto:private@example.invalid?body=PRIVATE_VALUE_SENTINEL'
 		diagnostic(
 			checkReleaseConfig(input),
-			'publicPolicy.VITE_PUBLIC_PRIVACY_CONTACT_URL',
+			'publicPolicy.VITE_PUBLIC_CONTACT_URL',
 			'INVALID_FIELD',
+		)
+		diagnostic(
+			checkReleaseConfig({
+				...input,
+				publicPolicy: {
+					...input.publicPolicy,
+					VITE_PUBLIC_CONTACT_URL: 'mailto:contact@example.invalid',
+					VITE_PUBLIC_PRIVACY_CONTACT_URL: 'mailto:privacy@example.invalid',
+				},
+			}),
+			'publicPolicy',
+			'UNEXPECTED_FIELD',
 		)
 		const forbidden = checkReleaseConfig({
 			...input,
@@ -204,7 +215,7 @@ describe('offline public release configuration', () => {
 	it.each([
 		['test-youtube-study-space', 'G-E31NHW939V'],
 		['youtube-study-space', 'G-ZJ1VPVT2L2'],
-	])('accepts a public manifest without a privacy contact override for %s', (projectID, measurementID) => {
+	])('accepts a public manifest without a contact override for %s', (projectID, measurementID) => {
 		const input = fixture()
 		input.deployment.projectID = projectID
 		input.frontend.VITE_FIREBASE_PROJECT_ID = projectID
@@ -213,7 +224,6 @@ describe('offline public release configuration', () => {
 		input.backend = { ...input.deployment }
 		if (input.hosting) input.hosting.projectID = projectID
 		input.publicPolicy = {
-			VITE_PUBLIC_CONTACT_URL: 'https://general-contact.example.invalid',
 			VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: '2026-10-07',
 			VITE_PUBLIC_TERMS_EFFECTIVE_DATE: '2026-10-07',
 			VITE_PUBLIC_JURISDICTION: 'Synthetic public jurisdiction',
