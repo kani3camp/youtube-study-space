@@ -28,9 +28,9 @@ function markup(props: Parameters<typeof ContactPage>[0] = {}) {
 }
 
 describe('contact destinations and request guidance', () => {
-	it('keeps both unconfigured destinations pending without inventing an intake form', () => {
+	it('shows no destination actions when unconfigured without inventing an intake form', () => {
 		const html = markup()
-		expect(html.match(/窓口を準備中です/g)).toHaveLength(2)
+		expect(html).not.toContain('窓口を準備中です')
 		expect(html).not.toContain('class="button primary"')
 		expect(html).not.toContain('mailto:')
 		expect(html).not.toContain('<form')
@@ -51,7 +51,7 @@ describe('contact destinations and request guidance', () => {
 		expect(
 			html.match(/href="https:\/\/contact.example.invalid\/general"/g),
 		).toHaveLength(1)
-		expect(html.match(/窓口を準備中です/g)).toHaveLength(1)
+		expect(html).not.toContain('窓口を準備中です')
 	})
 	it('shares the privacy destination with the general card when no general destination is set', () => {
 		vi.stubEnv(
@@ -65,9 +65,7 @@ describe('contact destinations and request guidance', () => {
 		)
 		expect(html).toContain('メールアプリが開かない場合は')
 		expect(html).toContain('一般の窓口へ連絡する')
-		expect(
-			html.match(/href="mailto:privacy@example.invalid"/g),
-		).toHaveLength(2)
+		expect(html.match(/href="mailto:privacy@example.invalid"/g)).toHaveLength(2)
 		expect(html).not.toContain('窓口を準備中です')
 	})
 	it('shows both configured destinations as separate actions with no user data added', () => {
@@ -108,14 +106,14 @@ describe('contact destinations and request guidance', () => {
 		])
 		expect(hrefs.join(' ')).not.toContain('synthetic-private-proof')
 	})
-	it('leaves unsafe configured destinations pending', () => {
+	it('omits unsafe configured destinations', () => {
 		vi.stubEnv('VITE_PUBLIC_CONTACT_URL', 'javascript:synthetic')
 		vi.stubEnv(
 			'VITE_PUBLIC_PRIVACY_CONTACT_URL',
 			'https://contact.example.invalid/?supportChallenge=synthetic',
 		)
 		const html = markup()
-		expect(html.match(/窓口を準備中です/g)).toHaveLength(2)
+		expect(html).not.toContain('窓口を準備中です')
 		expect(html).not.toContain('synthetic')
 		expect(html).not.toContain('supportChallenge')
 	})

@@ -4,13 +4,7 @@ import { ContactLink } from './policies'
 import { readPublicPolicyConfig } from './public-policy-config'
 
 function ContactDestination({ href, label }: { href?: string; label: string }) {
-	if (!href)
-		return (
-			<p className="contact-pending">
-				<strong>窓口を準備中です</strong>
-				連絡先が決まり次第、このページに掲載します。現在、このページからお問い合わせを送信することはできません。
-			</p>
-		)
+	if (!href) return null
 	return (
 		<div className="contact-destination">
 			<ContactLink href={href} primary>
