@@ -358,6 +358,13 @@ def verify_owner_public_invoker(env):
 PUBLIC_ADDRESS = re.compile(r"module\.platform\[0\]\.[a-z0-9_]+\.[a-z0-9_]+(?:\[[0-9]+\])?")
 PUBLIC_ACTIONS = frozenset({"no-op", "create", "read", "update", "delete"})
 
+# These two resources rely on lifecycle.prevent_destroy alone, which Terraform
+# stops checking if their resource blocks are removed entirely from the source.
+LIFECYCLE_PROTECTED = {
+    "module.platform[0].google_service_account.runtime",
+    "module.platform[0].google_artifact_registry_repository.mypage[0]",
+}
+
 
 def public_entry(item):
     address = item.get("address")
@@ -419,16 +426,70 @@ def describe_runtime_drift(plan):
         key=lambda entry: entry["address"]), sort_keys=True) + ".")
 
 
-def publish_plan_summary(env, plan, stage):
+def stage_resources(stage):
+    if stage in runtime_contract.MODES.values():
+        return runtime_contract.resource_contract(stage)
+    return contract.resource_contract(stage)
+
+
+def plan_without_deletions(plan, stage):
+    """Keep normal validation intact; separately validate standalone State-owned deletions."""
+    changes = plan.get("resource_changes", [])
+    removed = [item for item in changes if "delete" in item.get("change", {}).get("actions", [])]
+    if not removed:
+        return plan, ()
+    expected = stage_resources(stage)
+    prior = plan.get("prior_state", {}).get("values", {}).get("root_module", {})
+    platform = [module for module in prior.get("child_modules", []) if module.get("address") == "module.platform[0]"]
+    contract.need(len(platform) == 1, "deletion-state-module")
+    resources = {item["address"]: item for item in platform[0].get("resources", [])}
+    addresses = set()
+    for item in removed:
+        change = item["change"]
+        contract.need(change.get("actions") == ["delete"] and not change.get("importing") and
+                      not change.get("replace_paths") and not item.get("previous_address") and
+                      not item.get("deposed"), "deletion-must-be-standalone")
+        address = item.get("address")
+        contract.need(type(address) is str and PUBLIC_ADDRESS.fullmatch(address) and
+                      address not in expected and address not in addresses, "deletion-resource-address")
+        contract.need(address not in LIFECYCLE_PROTECTED, "deletion-protected-resource")
+        before = change.get("before")
+        state = resources.get(address, {})
+        provider = "registry.terraform.io/hashicorp/google"
+        contract.need(item.get("mode") == state.get("mode") == "managed" and
+                      item.get("provider_name") == state.get("provider_name") == provider and
+                      type(before) is dict and state.get("values") == before and
+                      change.get("after") is None and
+                      not contract.has_unknown(change.get("after_unknown")), "deletion-state-resource")
+        contract.need(before.get("deletion_protection") in (None, False) and
+                      before.get("deletion_policy") in (None, "DELETE"), "deletion-protected-resource")
+        addresses.add(address)
+    remaining = [item for item in changes if item.get("address") not in addresses]
+    contract.need(len(remaining) + len(addresses) == len(changes), "deletion-resource-address")
+    return plan | {"resource_changes": remaining}, tuple(sorted(addresses))
+
+
+def validate_plan(plan, stage):
+    checked, deletions = plan_without_deletions(plan, stage)
+    if stage in runtime_contract.MODES.values():
+        if deletions:
+            value = runtime_contract.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
+            contract.need(not value["read_metrics_from_revision"], "deletion-metrics-transition")
+        return runtime_contract.validate_plan(checked, stage), deletions
+    return contract.validate_plan(checked, stage), deletions
+
+
+def require_deletion_opt_in(env, deletions):
+    if deletions and (env["MYPAGE_ROLE"] == "apply" or env.get("MYPAGE_OPERATION") == "apply"):
+        contract.need(env.get("MYPAGE_ALLOW_DELETIONS") == "true", "enable-allow-mypage-deletions-to-apply")
+
+
+def publish_plan_summary(env, plan, stage, deletions=()):
     """検証済みPlanの固定資源種別・操作・件数だけをJob Summaryへ公開する。"""
     if not env.get("GITHUB_STEP_SUMMARY"):
         return
-    if stage in set(runtime_contract.MODES.values()):
-        resources = runtime_contract.resource_contract(stage)
-    else:
-        resources = contract.resource_contract(stage)
     # Planのtype/addressや設定値を直接表示せず、ソースのcontractから種別を求める。
-    types = {address: address.rsplit(".", 2)[-2] for address in resources}
+    types = {address: address.rsplit(".", 2)[-2] for address in (*stage_resources(stage), *deletions)}
     actions = {("no-op",): "no-op", ("read",): "read", ("create",): "create", ("update",): "update",
                ("delete",): "delete", ("delete", "create"): "replace", ("create", "delete"): "replace"}
     grouped = Counter()
@@ -451,6 +512,9 @@ def publish_plan_summary(env, plan, stage):
         lines += [f"| `{kind}` | {action} | {count} |" for (kind, action), count in sorted(grouped.items())]
     else:
         lines += ["No resource changes."]
+    if deletions:
+        lines += ["", "### MyPage deletion targets", "", f"Standalone deletes: **{len(deletions)}**", ""]
+        lines += [f"- `{address}`" for address in deletions]
     lines += ["", "Drift is an observation count; it does not imply a planned write."]
     with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
         stream.write("\n".join(lines) + "\n")
@@ -497,29 +561,30 @@ def prepare(env):
     if value is not None:
         need(plan.get("variables", {}).get("runtime_settings", {}).get("value") == value)
         describe_runtime_drift(plan)
-        summary = runtime_contract.validate_plan(plan, stage)
-    else:
-        summary = contract.validate_plan(plan, stage)
+    summary, deletions = validate_plan(plan, stage)
     reject_unowned_resources(env, plan)
     need(state_version(env) == version)
     if contract.is_pr(env):
         # No commitment, saved-plan record or timestamp leaves a PR Plan job;
         # only these value-free counts reach the log and the Job Summary.
         message = ("MyPage PR Plan (advisory) accepted by the plan contract: " + str(summary["resources"]) + " resources, " +
-                   str(summary["creates"]) + " creates. Nothing from this run can be applied.")
+                   str(summary["creates"]) + " creates" + (f", {len(deletions)} deletes" if deletions else "") +
+                   ". Nothing from this run can be applied.")
         print(message)
         if env.get("GITHUB_STEP_SUMMARY"):
             with open(env["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
                 stream.write("### MyPage PR Plan\n\n" + message + "\n")
         return
     if kind == "plan":
-        publish_plan_summary(env, plan, stage)
+        publish_plan_summary(env, plan, stage, deletions)
+    require_deletion_opt_in(env, deletions)
     digest = contract.commitment(plan, version, env["GITHUB_SHA"], env["MYPAGE_PLAN_HMAC_KEY"])
     (root / "prepared.json").write_bytes(contract.canonical({"sha256": hashlib.sha256(saved.read_bytes()).hexdigest(), "source": env["GITHUB_SHA"]}))
     if value is not None and value["read_metrics_from_revision"]:
         (root / "metrics-state-version.json").write_bytes(contract.canonical(version))
     with open(env["GITHUB_OUTPUT"], "a") as output:
         output.write("commitment=" + digest + "\nplan_time=" + str(time.time()) + "\n")
+        output.write("has_deletions=" + ("true" if deletions else "false") + "\n")
     print("Environment-bound foundation plan accepted: " + str(summary["resources"]) + " resources, " + str(summary["creates"]) +
           " creates; accepted computed metadata refreshes: " + str(len(plan.get("resource_drift", []) or [])) + ". No apply.")
 
@@ -537,8 +602,12 @@ def apply_saved(env):
     work = root / ("source/environments/" + contract.CONFIG["state"])
     PHASE = "apply"
     stage = contract.stage_for_mode(env["MYPAGE_MODE"])
-    if stage in set(runtime_contract.MODES.values()):
-        plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work, check="saved-runtime-plan-show"))
+    plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work, check="saved-runtime-plan-show"))
+    _, deletions = validate_plan(plan, stage)
+    require_deletion_opt_in(env, deletions)
+    if deletions:
+        contract.need(env.get("MYPAGE_DELETION_APPROVED") == "true", "deletion-approval-required")
+    if stage in runtime_contract.MODES.values():
         value = runtime_contract.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
         if value["read_metrics_from_revision"]:
             # プロバイダー8.5.0は更新時にetagを省略するため、更新Planは絶対に適用しない。
@@ -548,7 +617,6 @@ def apply_saved(env):
             print("DEV metrics State-only recovery and live/State verification passed." if result == "state-recovery" else
                   "DEV metrics conditional update and live/State verification passed.")
             return
-        runtime_contract.validate_plan(plan, stage)
     run(["terraform", "apply", "-input=false", "-no-color", str(saved)], cwd=work)
     PHASE = "readback"
     state = json.loads(run(["terraform", "show", "-json"], cwd=work))
@@ -558,9 +626,7 @@ def apply_saved(env):
         for child in module.get("child_modules", []):
             walk(child)
     walk(state["values"]["root_module"])
-    stage = contract.stage_for_mode(env["MYPAGE_MODE"])
-    resources = runtime_contract.resource_contract(stage) if stage in set(runtime_contract.MODES.values()) else contract.resource_contract(stage)
-    need(addresses == set(resources))
+    need(addresses == set(stage_resources(stage)))
     need(state_version(env) != "absent")
     print("Environment-bound foundation saved Plan applied and expected State resources read back.")
 

@@ -24,11 +24,11 @@ Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lockと既存multi-
 
 ## 通常desired stateとbootstrap内部stage
 
-通常運用では`Terraform`（`terraform.yml`）の`environment` / `operation=plan|apply` / `component=all|mypage`だけを使う。MyPageは`terraform.yml`がreview済みの`desired-stage.txt`を解決し、最終desired state（現在は`runtime_public`相当）に固定してPlan/Applyする。利用者はstageを選ばない。Core GCPとはStateを分けたまま、同じ`Terraform`実行内で両方を扱える。
+通常運用では`Terraform`（`terraform.yml`）の`environment` / `operation=plan|apply` / `component=all|mypage`を使う。MyPageは`terraform.yml`がreview済みの`desired-stage.txt`を解決し、最終desired state（現在は`runtime_public`相当）に固定してPlan/Applyする。利用者はstageを選ばない。Core GCPとはStateを分けたまま、同じ`Terraform`実行内で両方を扱える。
 
 ownerの同一repository PRでMyPage rootが変わると、`Terraform` がDEVのdesired stateを **PR Plan** する。手動Planと同じ`mypage-foundation-authenticated.yml`の`foundation_plan` job、Environment `mypage-dev-plan`、identity（`mypage-foundation-plan` SA、`mypage-foundation` poolの`github-actions` provider、Plan用AWS role）を使う。provider condition（`foundation_contract.py provider-condition`）と、Plan roleのAWS trust（`foundation_contract.py trust-policy <account> plan`）がPRをPlan Environmentだけに許可する。Applyは手動dispatchだけ（DEVのtrustは2026-10-31に更新済み）。`-lock=false`で実行し、plan contractの判定だけを表示してcommitmentを残さない。
 
-手動実行のMyPage Plan（Apply内のPlan権限jobを含む）は、Plan契約・所有権・State versionの検証に成功すると、Job Summaryに操作別件数と`Resource type / Actions / Count`表を表示する。資源種別はソースのcontractから求め、名前・ID・設定値・outputs・commitmentは公開しない。`drift`は観測件数で、適用予定の変更件数ではない。PR Planは従来のadvisory件数表示を維持する。
+手動実行のMyPage Plan（Apply内のPlan権限jobを含む）は、Plan契約・所有権・State versionの検証に成功すると、Job Summaryに操作別件数と`Resource type / Actions / Count`表を表示する。資源種別はソースのcontractから求め、クラウド側の名前・ID・設定値・outputs・commitmentは公開しない。削除を含む場合は受入済みの Terraform アドレスと削除件数も表示する。`drift`は観測件数で、適用予定の変更件数ではない。PR Planは従来のadvisory件数表示を維持する。
 
 以下のstageは初回構築と既存の拒否条件を維持するための内部実装であり、通常の手動UIには出さない。ソースの`stage = "disabled"`は未構築ルートの既定値で、Module count=0・新GCP資源=0を意味する。初回構築時だけ段階を明示し、既定値を実Stateの状態と混同しない。
 
@@ -95,7 +95,9 @@ maintenance operatorはAPIと別の`mypage/mypage-maintenance-operator` package�
 
 ## Plan guardの責任分担
 
-Terraformのresource schema・computed metadata・etag・空map/list補完・Job実行件数/リビジョン観測値は、Terraform/providerに任せる。Pythonにprovider field全体のallowlistを持たない。refreshは既知の管理資源・Google provider・planned no-op・planned after一致に限定し、destroy/replace/update/importの許可は従来の目的別境界を維持する。
+MyPage の削除を含む Apply は、起動時の `allow_mypage_deletions` と Plan 生成後の GitHub Environment 承認を必要とする。操作と GitHub Environment の初回設定は [CI/CDワークフロー](../../docs/development/ci-cd-workflows.md#32-terraform-plan--apply) の「MyPage の削除を含む Plan」を参照。削除は MyPage State にある管理資源の単独 `delete` に限り、置き換え・削除保護付きの資源・計測切替と同じ Plan での削除は拒否する。
+
+Terraformのresource schema・computed metadata・etag・空map/list補完・Job実行件数/リビジョン観測値は、Terraform/providerに任せる。Pythonにprovider field全体のallowlistを持たない。refreshは既知の管理資源・Google provider・planned no-op・planned after一致に限定し、replace/update/importの許可は従来の目的別境界を維持する。
 
 アプリの計測設定を含むCloud Run security設定のdrift拒否、固定project/region/principal・IAM broadening拒否、Secretの参照のみ、image digest・環境変数・capacityなどの重要設定検査は残す。アプリimageのリリースはCI/CDが担当し、ビルドごとのprevious digest宣言PRやTerraform Applyは不要。後日のPlanでは正規のimage-only refreshを検査し、構成値の変更や不正なイメージ参照を拒否する。実配備のReady/traffic/設定不変はbackend release側が検証する。
 

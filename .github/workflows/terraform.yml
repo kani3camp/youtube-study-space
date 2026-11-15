@@ -47,6 +47,11 @@ on:
           - all
           - core
           - mypage
+      allow_mypage_deletions:
+        description: MyPage Terraform の削除を許可する（Plan 確認後に承認が必要）
+        required: false
+        default: false
+        type: boolean
       source_branch:
         description: DEV Coreの対象ブランチ（省略可。対象SHAのみの指定も可。両方空欄は実行元自身）
         required: false
@@ -203,6 +208,8 @@ jobs:
       target: ${{ inputs.environment }}
       mode: desired-plan
       expected_sha: ${{ github.sha }}
+      operation: ${{ inputs.operation }}
+      allow_deletions: ${{ inputs.allow_mypage_deletions }}
     secrets:
       MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
       MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
@@ -251,6 +258,7 @@ jobs:
       target: ${{ inputs.environment }}
       mode: desired-apply
       expected_sha: ${{ github.sha }}
+      allow_deletions: ${{ inputs.allow_mypage_deletions }}
     secrets:
       MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
       MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}

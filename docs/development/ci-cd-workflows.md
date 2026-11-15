@@ -131,6 +131,14 @@ trustを広げる際は、追加するclaimと脅威境界を同じPRで説明�
 - Apply は `workflow_dispatch` のみ。Production Apply は `terraform-prod-apply`（および将来の `mypage-prod-apply`）に required reviewers を設定して承認必須とする。
 - Apply identity は既存のものを使い、PR Plan identity とは共有しない。
 
+**MyPage の削除を含む Plan**
+
+1. `Terraform` の `operation=plan`、`component=mypage` で、Job Summary の対象環境・Terraform アドレス・削除件数を確認する。単独の `delete` に限り、置き換えや削除保護付きの資源は拒否する。
+2. 適用時は `operation=apply` を起動し、`allow_mypage_deletions` をオンにする。既定ではオフで、削除のある Apply は事前 Plan で停止する。`component=all` で Core にも変更があるときは、既存の順序で Core Apply が MyPage の承認待ちより先に進む。MyPage の削除だけを承認・適用するときは `component=mypage` を使う。
+3. 同じ run の **Review MyPage Terraform deletion Plan** が承認待ちになったら、その job が依存する MyPage Plan の要約を確認し、Actions の **Review deployments** で承認する。Apply は Plan 作成から30分以内に再生成し、State・コミット・Plan の HMAC 照合が一致した保存済み Plan だけを使う。却下・未承認・期限切れ・照合不一致のときは MyPage を適用しない。再試行するときは手動で新しい run を起動する。
+
+リポジトリオーナーは初回実行前に、Settings → Environments で `mypage-dev-delete-approval` を作成する。本番 MyPage を有効化する際は `mypage-prod-delete-approval` も設定する。各 Environment に Required reviewers を登録し、管理者による保護ルールのバイパスを無効にする。Deployment branches は DEV を `integration/mypage-canon-20261006`、本番を `main` に固定する。実行者が1人で運用する場合は、自分を reviewer に登録し、Prevent self-review をオフにする。これらの Environment は承認の記録だけに使うため、Secrets やクラウド権限は追加しない。ワークフローはレビュールールと承認記録を GitHub API で確認する。設定不備・API 障害時は停止する。
+
 ### 3.3 API と Maintenance Operator の image 分離
 
 | 項目 | API | Maintenance Operator |
