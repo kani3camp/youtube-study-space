@@ -109,6 +109,34 @@ describe('MyPage observable display', () => {
 		expect(html.match(/class="day-button/g)?.length).toBe(7)
 		expect(html).toContain('aria-live="polite"')
 	})
+	it('plots a short bar on zero-minute days and scales positive minutes above it', () => {
+		const s = state()
+		if (!s.data) throw new Error('synthetic data missing')
+		const durations = [0, 59, 60, 720, 1_440, 72_000, null]
+		s.data.recent.forEach((item, index) => {
+			item.data = durations[index]
+		})
+		const chart = markup(s).match(
+			/<fieldset class="bar-chart"[^>]*>(.*?)<\/fieldset>/,
+		)?.[1]
+		const buttons = chart?.match(/<button\b.*?<\/button>/g) ?? []
+		expect(buttons).toHaveLength(7)
+		for (const index of [0, 1]) {
+			expect(buttons[index]).toContain(': 0時間 0分"')
+			expect(buttons[index]).toContain('class="bar" style="height:3px"')
+		}
+		expect(buttons[2]).toContain(': 0時間 1分"')
+		expect(buttons[2]).toContain('style="height:calc(5px + (100% - 5px) * ')
+		expect(buttons[3]).toContain(': 0時間 12分"')
+		expect(buttons[3]).toContain(
+			'style="height:calc(5px + (100% - 5px) * 0.01)"',
+		)
+		expect(buttons[4]).toContain(
+			'style="height:calc(5px + (100% - 5px) * 0.02)"',
+		)
+		expect(buttons[5]).toContain('style="height:calc(5px + (100% - 5px) * 1)"')
+		expect(buttons[6]).toContain('class="bar unknown-bar"')
+	})
 	it('shows one timestamp for current work and one for all work statistics after a current-only refresh', () => {
 		const s = state()
 		if (!s.data) throw new Error('synthetic data missing')
