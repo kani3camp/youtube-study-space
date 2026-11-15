@@ -132,7 +132,10 @@ class TerraformWorkflowTest(unittest.TestCase):
         # Optional DEV Core source selectors; empty means the dispatched commit.
         for key in ('source_branch', 'source_sha'):
             self.assertEqual(inputs[key], inputs[key] | {'type': 'string', 'required': False, 'default': ''})
-        self.assertEqual(set(inputs), {'environment', 'operation', 'component', 'source_branch', 'source_sha'})
+        self.assertEqual({k: inputs['allow_mypage_deletions'][k] for k in ('type', 'required', 'default')},
+                         {'type': 'boolean', 'required': False, 'default': False})
+        self.assertEqual(set(inputs), {'environment', 'operation', 'component', 'source_branch', 'source_sha',
+                                       'allow_mypage_deletions'})
         self.assertEqual(self.workflow['permissions'], {'contents': 'read'})
         self.assertIn("(inputs.environment == 'development' && 'mypage-dev-cloud-run' || 'mypage-prod-cloud-run')",
                       self.workflow['concurrency']['group'])
@@ -225,6 +228,33 @@ class TerraformWorkflowTest(unittest.TestCase):
         self.assertIn("needs.core-plan.result == 'success' || needs.core-plan.result == 'skipped'", mypage['if'])
         # MyPage applies after Core unless only MyPage was selected.
         self.assertIn("needs.core-apply.result == 'success' || (inputs.component == 'mypage' && needs.core-apply.result == 'skipped')", mypage['if'])
+
+    def test_only_opted_in_deletion_apply_uses_the_credentialless_review_gate(self):
+        for name in ('mypage-plan', 'mypage-apply'):
+            self.assertEqual(self.jobs[name]['with']['allow_deletions'], '${{ inputs.allow_mypage_deletions }}')
+        self.assertEqual(self.jobs['mypage-plan']['with']['operation'], '${{ inputs.operation }}')
+        for name in ('core-plan', 'core-apply', 'pr-plan-mypage'):
+            self.assertNotIn('allow_deletions', self.jobs[name]['with'])
+        reusable = load(ROOT / '.github/workflows/mypage-foundation-authenticated.yml')
+        jobs = reusable['jobs']
+        protection, review, apply = (jobs[name] for name in ('deletion_protection', 'deletion_review', 'foundation_apply'))
+        self.assertEqual(protection['needs'], ['target_contract', 'foundation_plan'])
+        self.assertIn("needs.target_contract.outputs.is_apply == 'true'", protection['if'])
+        self.assertIn("needs.foundation_plan.outputs.has_deletions == 'true' && inputs.allow_deletions", protection['if'])
+        self.assertNotIn('environment', protection)
+        self.assertEqual(review['needs'], 'deletion_protection')
+        for job, command in ((protection, 'check'), (review, 'verify')):
+            self.assertEqual(job['permissions'], {'contents': 'read'})
+            self.assertTrue(job['steps'][-1]['run'].endswith('deletion_approval.py ' + command))
+            self.assertNotIn('secrets.', str(job))
+        self.assertIn("'mypage-prod-delete-approval' || 'mypage-dev-delete-approval'", review['environment'])
+        self.assertIn('deletion_review', apply['needs'])
+        self.assertIn("needs.foundation_plan.outputs.has_deletions == 'false' ||", apply['if'])
+        self.assertIn("needs.foundation_plan.outputs.has_deletions == 'true' && needs.deletion_review.result == 'success'", apply['if'])
+        step = next(step for step in apply['steps'] if step.get('id') == 'applied')
+        self.assertIn('steps.prepared.outputs.commitment == needs.foundation_plan.outputs.commitment', step['if'])
+        self.assertIn('steps.prepared.outputs.has_deletions == needs.foundation_plan.outputs.has_deletions', step['if'])
+        self.assertEqual(step['env']['MYPAGE_DELETION_APPROVED'], "${{ needs.deletion_review.result == 'success' }}")
 
     def test_gate_requires_exactly_the_selected_results(self):
         gate = self.jobs['gate']

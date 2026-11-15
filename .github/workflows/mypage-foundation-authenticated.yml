@@ -16,6 +16,16 @@ on:
       expected_sha:
         required: true
         type: string
+      operation:
+        description: Manual Terraform caller operation; used for the combined Apply preflight
+        required: false
+        type: string
+        default: plan
+      allow_deletions:
+        description: Manual Terraform caller opted into standalone MyPage deletions
+        required: false
+        type: boolean
+        default: false
       image_component:
         description: Image to build in image-build mode (api or maintenance-operator)
         required: false
@@ -63,6 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       stage: ${{ steps.contract.outputs.stage }}
+      is_apply: ${{ steps.contract.outputs.is_apply }}
     timeout-minutes: 5
     permissions:
       contents: read
@@ -98,6 +109,7 @@ jobs:
               stage = foundation_contract.stage_for_mode(mode)
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
               output.write('stage=' + stage + '\n')
+              output.write('is_apply=' + str(mode.endswith('-apply')).lower() + '\n')
           PY
 
   foundation_plan:
@@ -112,10 +124,13 @@ jobs:
     outputs:
       commitment: ${{ steps.plan.outputs.commitment }}
       plan_time: ${{ steps.plan.outputs.plan_time }}
+      has_deletions: ${{ steps.plan.outputs.has_deletions }}
     env:
       MYPAGE_MODE: ${{ inputs.mode }}
       MYPAGE_TARGET: ${{ inputs.target }}
       MYPAGE_ROLE: plan
+      MYPAGE_OPERATION: ${{ needs.target_contract.outputs.is_apply == 'true' && 'apply' || inputs.operation }}
+      MYPAGE_ALLOW_DELETIONS: ${{ inputs.allow_deletions }}
       MYPAGE_EXPECTED_SHA: ${{ inputs.expected_sha }}
       MYPAGE_PR_NUMBER: ${{ inputs.pr_number }}
       MYPAGE_PR_HEAD_REPOSITORY: ${{ inputs.head_repository }}
@@ -174,9 +189,54 @@ jobs:
         if: ${{ always() }}
         run: python3 infra/mypage-platform/scripts/foundation_ops.py cleanup
 
-  foundation_apply:
+  deletion_protection:
+    name: Check MyPage deletion Environment protection
     needs: [target_contract, foundation_plan]
-    if: ${{ inputs.mode == 'desired-apply' || inputs.mode == 'foundation-apply' || inputs.mode == 'foundation-metadata-apply' || inputs.mode == 'registry-apply' || inputs.mode == 'maintenance-operator-apply' || inputs.mode == 'maintenance-upgrade-apply' || inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply' }}
+    if: ${{ needs.target_contract.outputs.is_apply == 'true' && needs.foundation_plan.outputs.has_deletions == 'true' && inputs.allow_deletions }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      environment_id: ${{ steps.protection.outputs.environment_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Require configured reviewers and disabled administrator bypass
+        id: protection
+        env:
+          MYPAGE_TARGET: ${{ inputs.target }}
+        run: python3 infra/mypage-platform/scripts/deletion_approval.py check
+
+  deletion_review:
+    name: Review MyPage Terraform deletion Plan
+    needs: deletion_protection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: ${{ inputs.target == 'production' && 'mypage-prod-delete-approval' || 'mypage-dev-delete-approval' }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify recorded approval for this run and Environment
+        env:
+          MYPAGE_TARGET: ${{ inputs.target }}
+          MYPAGE_APPROVAL_ENVIRONMENT_ID: ${{ needs.deletion_protection.outputs.environment_id }}
+        run: python3 infra/mypage-platform/scripts/deletion_approval.py verify
+
+  foundation_apply:
+    needs: [target_contract, foundation_plan, deletion_review]
+    # A missing Plan output is a failure. Only the no-deletion path may skip Review.
+    if: >-
+      ${{ !cancelled() && needs.target_contract.outputs.is_apply == 'true' &&
+          needs.foundation_plan.result == 'success' &&
+          (needs.foundation_plan.outputs.has_deletions == 'false' ||
+           (needs.foundation_plan.outputs.has_deletions == 'true' && needs.deletion_review.result == 'success')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: ${{ inputs.target == 'production' && 'mypage-prod-apply' || 'mypage-dev-apply' }}
@@ -187,6 +247,7 @@ jobs:
       MYPAGE_MODE: ${{ inputs.mode }}
       MYPAGE_TARGET: ${{ inputs.target }}
       MYPAGE_ROLE: apply
+      MYPAGE_ALLOW_DELETIONS: ${{ inputs.allow_deletions }}
       MYPAGE_EXPECTED_SHA: ${{ inputs.expected_sha }}
       MYPAGE_STATE_BUCKET: ${{ secrets.MYPAGE_STATE_BUCKET }}
       MYPAGE_STATE_ACCOUNT: ${{ secrets.MYPAGE_STATE_ACCOUNT }}
@@ -242,9 +303,13 @@ jobs:
       # HMAC出力は式の評価処理内に留め、runnerの環境変数やwithのログに出さない。
       - name: Apply matching saved Plan
         id: applied
-        if: ${{ steps.prepared.outputs.commitment == needs.foundation_plan.outputs.commitment && steps.prepared.outputs.commitment != '' }}
+        if: >-
+          ${{ steps.prepared.outputs.commitment == needs.foundation_plan.outputs.commitment &&
+              steps.prepared.outputs.commitment != '' &&
+              steps.prepared.outputs.has_deletions == needs.foundation_plan.outputs.has_deletions }}
         env:
           MYPAGE_PLAN_TIME: ${{ needs.foundation_plan.outputs.plan_time }}
+          MYPAGE_DELETION_APPROVED: ${{ needs.deletion_review.result == 'success' }}
           MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
         run: python3 infra/mypage-platform/scripts/foundation_ops.py apply
       - name: Verify metrics-only serving revision after Apply
