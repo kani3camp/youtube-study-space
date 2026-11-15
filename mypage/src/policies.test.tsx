@@ -98,6 +98,15 @@ describe('public policy rendering', () => {
 		})
 		expect(terms).toMatchObject({ filename: 'terms.html', title: '利用規約' })
 		expect(privacy.body).toContain(markup(<PrivacyPolicy />))
+		expect(privacy.body).toContain('オンライン作業部屋（Online Study Space')
+		const deletion = privacy.body
+			.split('<h2 id="data-deletion">')[1]
+			?.split('<h2')[0]
+		expect(deletion).toContain('href="#contact">第16節の専用窓口</a>')
+		expect(deletion).not.toContain('href="/contact"')
+		expect(privacy.body).toContain(
+			'<h2 id="contact">第16節 運営者・お問い合わせ</h2>',
+		)
 		expect(terms.body).toContain(markup(<TermsOfUse />))
 		for (const { body } of [privacy, terms]) {
 			expect(body).toContain('href="/contact"')
@@ -127,15 +136,15 @@ describe('public policy rendering', () => {
 		for (const html of [privacy, terms]) {
 			expect(html).not.toMatch(/公開前|公開承認済み|要確定|遅滞なく|非公開検証/)
 			expect(html).not.toContain('施行日')
-			expect(html).toContain('href="/contact">お問い合わせ・請求の案内</a>')
 			expect(html).not.toContain('<time')
 		}
-		expect(privacy.match(/<h2>/g)).toHaveLength(17)
+		expect(privacy.match(/<h2(?: id="[^"]+")?>第[0-9]+節/g)).toHaveLength(17)
 		expect(terms.match(/<h2>/g)).toHaveLength(18)
 		expect(terms).toContain(
 			'本規約は日本法に準拠し、日本法に従って解釈されます。',
 		)
 		expect(terms).not.toContain('専属的合意管轄裁判所')
+		expect(terms).toContain('訴訟の管轄裁判所は、法令の定めに従います。')
 		expect(terms).toContain('故意または重過失')
 		expect(terms).toContain('当事者間の合意に優先して適用される法令')
 		expect(terms).toContain('その規定が本規約に優先します。')
@@ -144,47 +153,44 @@ describe('public policy rendering', () => {
 	})
 	it('preserves receipt-based deletion, purpose-bound proof and metadata retention distinctions', () => {
 		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
-		expect(html).toContain('可能な限り速やかに、遅くとも受付から7暦日以内')
+		expect(html).toContain('遅くとも受付から7日以内に削除します。')
+		expect(html).toContain('この期限は依頼の受付時点から数えます。')
 		expect(html).toContain(
-			'期限は受付時点を基準とし、本人確認が終わるまで一律に延長することはありません。',
+			'通常のログインとは別にGoogle（YouTube）の認証手続きを行っていただきます。',
 		)
 		expect(html).toContain(
-			'通常のログインを依頼の本人確認に流用せず、通常のログインだけで依頼を実行しません。',
+			'認証操作だけでデータの削除やすべてのログイン状態の解除が実行されることはありません。',
 		)
-		expect(html).toContain(
-			'本人確認の画面で削除やすべてのログイン状態の解除が実行されることはありません。',
-		)
-		expect(html).toContain('30暦日以内に更新または削除する方針')
+		expect(html).toContain('取得から30日以内に更新または削除します。')
 		expect(html).toContain(
 			'利用のないチャンネルについても、期限内の削除の対象とします。',
 		)
 		expect(html).toContain('マイページでのログイン状態がすぐには終了しない場合')
 		expect(html).toContain(
-			'保存データ全体の削除をご希望の場合は、第12章の方法でご依頼ください。',
+			'保存データ全体の削除をご希望の場合は、<a href="#data-deletion">第12節</a>の方法でご依頼ください。',
 		)
 	})
-	it('links both policies to public contact after a Google disconnect', () => {
-		for (const Policy of [PrivacyPolicy, TermsOfUse]) {
-			const html = markup(<Policy publicPolicyInputs={{}} />)
-			expect(html).toContain(
-				'本サービスとの連携を解除した場合は、速やかに<a href="/contact">お問い合わせ窓口</a>までご連絡ください。',
-			)
-		}
+	it('explains how to request action after a Google disconnect', () => {
 		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
-		expect(html).toContain('チャンネルIDと作業履歴は保持します。')
 		expect(html).toContain(
-			'マイページのアカウント情報とチャンネルとのひも付けを削除',
+			'連携解除後のログイン状態の解除や保存データの削除をご希望の場合は、<a href="#contact">第16節の専用窓口</a>へご連絡ください。',
+		)
+		expect(html).toContain(
+			'チャンネルIDと作業履歴は、Google連携の解除だけでは削除されません。',
+		)
+		expect(html).toContain(
+			'マイページのアカウント情報とチャンネルとの関連付けを削除',
 		)
 	})
-	it.each([
-		PrivacyPolicy,
-		TermsOfUse,
-	])('explains fresh YouTube authorization and individual guidance in $name', (Policy) => {
+	it('explains fresh YouTube authorization and individual guidance in the privacy policy', () => {
+		const Policy = PrivacyPolicy
 		const html = markup(<Policy publicPolicyInputs={{}} />)
 		expect(html).toContain(
-			'原則として、依頼の対象と同じチャンネルを新しいYouTubeの許可で確認します。',
+			'通常のログインとは別にGoogle（YouTube）の認証手続きを行っていただきます。',
 		)
-		expect(html).toContain('通常のログインだけで依頼を実行しません。')
+		expect(html).toContain(
+			'認証操作だけでデータの削除やすべてのログイン状態の解除が実行されることはありません。',
+		)
 		expect(html).toContain(
 			'Google連携を解除済みなどでログインや本人確認を利用できない場合も',
 		)
@@ -192,6 +198,22 @@ describe('public policy rendering', () => {
 		expect(html).toMatch(
 			/マイページへのログイン[もは][^。]*条件ではありません。/,
 		)
+	})
+	it('links the terms to request guidance and explains public chat', () => {
+		const html = markup(<TermsOfUse publicPolicyInputs={{}} />)
+		expect(html).toContain(
+			'YouTubeのライブチャットに入力した内容は他の視聴者にも公開されます。',
+		)
+		expect(html).toContain('href="/contact">お問い合わせ窓口</a>')
+		expect(html).toContain(
+			'href="/privacy#contact">プライバシーポリシーの専用窓口</a>',
+		)
+		expect(html).not.toMatch(/OAuth|Firebase|Google Cloud/)
+		expect(html).toContain(
+			'故意または重過失による損害については、第2項の制限を適用しません。',
+		)
+		expect(html).toContain('運営者の軽過失により損害賠償責任を負う場合')
+		expect(html).toContain('親権者等の法定代理人の同意')
 	})
 	it.each([
 		[
@@ -216,7 +238,8 @@ describe('public policy rendering', () => {
 		)
 		expect(
 			html.split(`href="https://docs.google.com/forms/d/e/${form}/viewform"`),
-		).toHaveLength(3)
+		).toHaveLength(2)
+		expect(html).toContain('個人情報の開示・削除などの専用フォーム')
 		expect(html).not.toContain('contact.example.invalid/other')
 	})
 	it('keeps explicit Analytics opt-in separate from necessary Firebase communication', () => {
@@ -236,10 +259,11 @@ describe('public policy rendering', () => {
 	it('shows configured destinations, effective dates and jurisdiction', () => {
 		const privacy = markup(<PrivacyPolicy publicPolicyInputs={publicValues} />)
 		const terms = markup(<TermsOfUse publicPolicyInputs={publicValues} />)
+		expect(privacy).toContain('Synthetic Service &amp; &quot;Friends&quot;')
+		expect(privacy).toContain('href="/contact">一般のお問い合わせ</a>')
+		expect(privacy).toContain('href="mailto:privacy@example.invalid"')
+		expect(terms).not.toContain('href="mailto:privacy@example.invalid"')
 		for (const html of [privacy, terms]) {
-			expect(html).toContain('Synthetic Service &amp; &quot;Friends&quot;')
-			expect(html).toContain('href="https://contact.example.invalid/general"')
-			expect(html).toContain('href="mailto:privacy@example.invalid"')
 			expect(html).not.toMatch(/公開前|公開承認済み|要確定|遅滞なく|非公開検証/)
 		}
 		expect(privacy).toContain('<time dateTime="2026-10-07">2026-10-07</time>')
@@ -317,10 +341,11 @@ describe('public policy rendering', () => {
 		expect(html).toContain('href="https://contact.example.invalid/general"')
 		expect(html).toContain('href="mailto:privacy@example.invalid"')
 		expect(html).toContain(
-			'依頼受付後、原則として、依頼の対象と同じチャンネルを新しいYouTubeの許可で確認します。',
+			'通常のログインとは別にGoogleの認証手続きで対象のYouTubeチャンネルを確認します。',
 		)
-		expect(html).toContain('通常のログインだけで依頼を実行しません。')
-		expect(html).toContain('Google連携を解除済みでログインできない場合も')
+		expect(html).toContain(
+			'Google連携を解除済みなどで認証手続きを利用できない場合も',
+		)
 		expect(html).toContain('個別の確認方法をご案内します。')
 		expect(html).not.toContain('supportChallenge')
 		expect(request).not.toHaveBeenCalled()
