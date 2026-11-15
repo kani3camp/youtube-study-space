@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
 	"github.com/aws/aws-lambda-go/events"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 )
 
@@ -149,5 +151,31 @@ func TestBuildDiscordNotificationAccountsForSubjectLength(t *testing.T) {
 	}
 	if !strings.Contains(notify, "件名") {
 		t.Fatalf("expected notification to retain subject context, got %q", notify)
+	}
+}
+
+func TestHandlerKeepsCauseForCallersWithoutExposingIt(t *testing.T) {
+	const privateValue = "PRIVATE_DELIVERY_BODY_902"
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	app := &fakeSNSNotifyApp{sendErr: fmt.Errorf("%s: %w", privateValue, &googleapi.Error{Code: 429})}
+	previousOption, previousApp := firestoreClientOptionSNS, newSNSWorkspaceApp
+	firestoreClientOptionSNS = func() (option.ClientOption, error) { return option.WithoutAuthentication(), nil }
+	newSNSWorkspaceApp = func(context.Context, bool, option.ClientOption) (snsNotifyApp, error) { return app, nil }
+	t.Cleanup(func() { firestoreClientOptionSNS, newSNSWorkspaceApp = previousOption, previousApp })
+
+	err := handler(context.Background(), events.SNSEvent{Records: []events.SNSEventRecord{{SNS: events.SNSEntity{Message: "m"}}}})
+	var apiErr *googleapi.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != 429 {
+		t.Fatalf("cause was not preserved for errors.As: %v", err)
+	}
+	if strings.Contains(err.Error(), privateValue) || strings.Contains(logs.String(), privateValue) {
+		t.Fatalf("private value exposed: %v / %s", err, logs.String())
+	}
+	if !strings.Contains(logs.String(), `"error_status":429`) {
+		t.Fatalf("missing safe status detail: %s", logs.String())
 	}
 }

@@ -16,6 +16,7 @@ import (
 
 	"app.modules/core/repository"
 	"app.modules/core/utils"
+	"app.modules/internal/logging"
 )
 
 func (app *WorkspaceApp) UpdateWorkNameTrend(ctx context.Context, apiKey string) error {
@@ -76,14 +77,15 @@ func generateWorkNameTrendRankingsWithClient(ctx context.Context, client openai.
 
 	resp, err := client.Responses.New(ctx, newWorkNameTrendResponseParams(userInput))
 	if err != nil {
-		slog.WarnContext(ctx, "work name trend request failed", "error_class", "provider_request_failed")
+		slog.WarnContext(ctx, "work name trend request failed", logging.ErrorClassAttrs("provider_request_failed", err)...)
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, fmt.Errorf("work name trend provider request: %w", context.DeadlineExceeded)
 		}
 		if errors.Is(err, context.Canceled) {
 			return nil, fmt.Errorf("work name trend provider request: %w", context.Canceled)
 		}
-		return nil, errors.New("work name trend provider request failed")
+		// 本文やURLを含み得る元エラーのメッセージは返さず、errors.Is/Asのために原因だけ保持する。
+		return nil, &logging.ClassifiedError{Message: "work name trend provider request failed", Cause: err}
 	}
 
 	rankings, err := parseWorkNameTrendRankings(resp.OutputText())
