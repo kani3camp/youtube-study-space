@@ -11,7 +11,6 @@ from urllib.parse import unquote
 ROOT = Path(__file__).resolve().parents[2]
 TARGETS = (
     "AGENTS.md",
-    "CLAUDE.md",
     ".github/copilot-instructions.md",
     "system/AI_COLLABORATION_GUIDE.md",
     "youtube-monitor/README.md",
