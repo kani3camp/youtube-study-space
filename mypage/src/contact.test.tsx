@@ -77,6 +77,8 @@ describe('contact destinations and request guidance', () => {
 		expect(html.match(/class="button primary"/g)).toHaveLength(2)
 		expect(html).toContain('href="mailto:general@example.invalid"')
 		expect(html).toContain('href="https://contact.example.invalid/privacy"')
+		expect(html).toContain('href="/privacy">プライバシーポリシー</a>')
+		expect(html).not.toContain('運営者の氏名または名称・住所')
 		expect(html).not.toContain('窓口を準備中です')
 		expect(html).toContain('target="_blank" rel="noopener noreferrer"')
 		for (const href of html.matchAll(/href="([^"]+)"/g)) {
