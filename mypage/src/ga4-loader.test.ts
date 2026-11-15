@@ -3,6 +3,7 @@ import type { GtagCommand } from './ga4'
 import {
 	browserTagLoader,
 	ConsentTag,
+	configuredPrivacy,
 	type PreparedTag,
 	type TagLoader,
 	type TagWindow,
@@ -147,6 +148,7 @@ function domFixture() {
 	const doc = {
 		createElement: () => ({ remove: vi.fn() }),
 		head: { append },
+		location: { origin: 'https://example.invalid' },
 	} as unknown as Document
 	const loader = browserTagLoader('G-SYNTHETIC1', target, doc)
 	function load() {
@@ -161,10 +163,39 @@ function domFixture() {
 		void tag.ready.catch(() => {})
 		return tag
 	}
-	return { scripts, target, load }
+	return { scripts, target, doc, load }
 }
 
 describe('browser DOM boundary without vendor networking', () => {
+	it('makes analytics available from the release settings and waits for consent', () => {
+		const { scripts, target, doc } = domFixture()
+		const env = {
+			VITE_MYPAGE_GA4_ID: 'G-SYNTHETIC1',
+			VITE_MYPAGE_PUBLIC_ORIGIN: 'https://example.invalid',
+		}
+		expect(configuredPrivacy({}, target, doc).analytics.available).toBe(false)
+		expect(
+			configuredPrivacy(
+				{ ...env, VITE_MYPAGE_PUBLIC_ORIGIN: 'https://other.invalid' },
+				target,
+				doc,
+			).analytics.available,
+		).toBe(false)
+		const { analytics, consent } = configuredPrivacy(env, target, doc)
+		expect(analytics.available).toBe(true)
+		const unmount = analytics.mount()
+		try {
+			expect(scripts).toHaveLength(0)
+			consent.set('denied')
+			expect(scripts).toHaveLength(0)
+			consent.set('granted')
+			expect(scripts).toHaveLength(1)
+			consent.set('denied')
+			expect(at(scripts, 0).remove).toHaveBeenCalledOnce()
+		} finally {
+			unmount()
+		}
+	})
 	it('prepares safe startup commands before appending a fixed no-referrer script; cancellation clears queue', async () => {
 		const { scripts, target, load } = domFixture()
 		expect(target.ossAnalyticsLayer).toBeUndefined()

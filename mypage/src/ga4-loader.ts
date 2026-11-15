@@ -186,14 +186,13 @@ export function browserTagLoader(
 	}
 }
 
-// 公開ビルド入力だけを使う。明示的な承認がなければ通信処理はnullのままにする。
+// 測定 ID と配信元が揃う環境で、同意を条件にタグを読み込む。
 export function configuredPrivacy(
 	env: Record<string, unknown>,
 	target: TagWindow,
 	doc: Document,
 ) {
 	const services = createPrivacy()
-	if (env.VITE_MYPAGE_ANALYTICS_READY !== 'true') return services
 	const id = env.VITE_MYPAGE_GA4_ID
 	const origin = env.VITE_MYPAGE_PUBLIC_ORIGIN
 	if (

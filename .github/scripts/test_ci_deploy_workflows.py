@@ -78,8 +78,7 @@ class DeployWorkflowTest(unittest.TestCase):
     def test_frontend_deploy_is_manual_dev_only_and_validates_mypage_first(self):
         workflow = load(WORKFLOWS / 'deploy-mypage-frontend.yml')
         self.assertEqual(triggers(workflow), {'workflow_dispatch'})
-        self.assertEqual(workflow['on']['workflow_dispatch']['inputs'], {'analytics_enabled': {
-            'description': 'Enable consent-based GA4 on DEV', 'type': 'boolean', 'default': True}})
+        self.assertIsNone(workflow['on']['workflow_dispatch'])
         self.assertEqual(workflow['permissions'], {'contents': 'read'})
         jobs = workflow['jobs']
         self.assertEqual(set(jobs), {'validate', 'hosting'})
@@ -88,11 +87,7 @@ class DeployWorkflowTest(unittest.TestCase):
         self.assertEqual(jobs['hosting']['needs'], 'validate')
         self.assertNotIn('if', jobs['hosting'])
         self.assertEqual(jobs['hosting']['uses'], './.github/workflows/mypage-hosting-authenticated.yml')
-        self.assertEqual(jobs['hosting']['with'], {'expected_sha': '${{ github.sha }}',
-                                                  'analytics_enabled': '${{ inputs.analytics_enabled }}'})
-        build = load(WORKFLOWS / 'mypage-hosting-authenticated.yml')['jobs']['build']
-        package = next(step for step in build['steps'] if step.get('id') == 'package')
-        self.assertEqual(package['env']['MYPAGE_HOSTING_ANALYTICS_ENABLED'], '${{ inputs.analytics_enabled }}')
+        self.assertEqual(jobs['hosting']['with'], {'expected_sha': '${{ github.sha }}'})
         self.assertNotIn('secrets', jobs['hosting'])
 
     def test_operator_release_authenticates_after_the_contract_and_joins_the_cloud_run_lock(self):

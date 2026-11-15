@@ -26,7 +26,6 @@ const frontendFields = [
 	'VITE_APP_CHECK_SITE_KEY',
 	'VITE_PRIVACY_POLICY_VERSION',
 	'VITE_TERMS_VERSION',
-	'VITE_MYPAGE_ANALYTICS_READY',
 	'VITE_MYPAGE_GA4_ID',
 	'VITE_MYPAGE_PUBLIC_ORIGIN',
 ] as const
@@ -350,44 +349,40 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 					'Use the selected project or public Hosting site domain; confirm the site/project link and authorized-domain registration separately.',
 				)
 		}
-		const analytics = frontend.VITE_MYPAGE_ANALYTICS_READY
-		if (
-			analytics !== undefined &&
-			analytics !== 'true' &&
-			analytics !== 'false'
+		required(
+			frontend,
+			'VITE_MYPAGE_GA4_ID',
+			'frontend',
+			(x) => typeof x === 'string' && /^G-[A-Z0-9]{6,20}$/.test(x),
+			'Supply the public GA4 measurement ID for the release environment.',
 		)
-			add(
-				'frontend.VITE_MYPAGE_ANALYTICS_READY',
-				'INVALID_FIELD',
-				'Use the string true or false; omit the setting to keep analytics transport disabled.',
+		const expectedMeasurementID =
+			selected?.projectID === 'test-youtube-study-space'
+				? 'G-E31NHW939V'
+				: selected?.projectID === 'youtube-study-space'
+					? 'G-ZJ1VPVT2L2'
+					: undefined
+		if (expectedMeasurementID && frontend.VITE_MYPAGE_GA4_ID)
+			equal(
+				frontend.VITE_MYPAGE_GA4_ID,
+				expectedMeasurementID,
+				'frontend.VITE_MYPAGE_GA4_ID',
+				'Use the MyPage measurement ID registered for the selected Firebase project.',
 			)
-		if (analytics === 'true' || frontend.VITE_MYPAGE_GA4_ID !== undefined)
-			required(
-				frontend,
-				'VITE_MYPAGE_GA4_ID',
-				'frontend',
-				(x) => typeof x === 'string' && /^G-[A-Z0-9]{6,20}$/.test(x),
-				'Supply a public GA4 measurement ID before explicitly enabling analytics.',
+		required(
+			frontend,
+			'VITE_MYPAGE_PUBLIC_ORIGIN',
+			'frontend',
+			origin,
+			'Supply the fixed HTTPS public origin for the release environment.',
+		)
+		if (selected)
+			equal(
+				frontend.VITE_MYPAGE_PUBLIC_ORIGIN,
+				selected.publicOrigin,
+				'frontend.VITE_MYPAGE_PUBLIC_ORIGIN',
+				'Match deployment.publicOrigin and the final browser origin.',
 			)
-		if (
-			analytics === 'true' ||
-			frontend.VITE_MYPAGE_PUBLIC_ORIGIN !== undefined
-		) {
-			required(
-				frontend,
-				'VITE_MYPAGE_PUBLIC_ORIGIN',
-				'frontend',
-				origin,
-				'Supply the fixed HTTPS public origin before explicitly enabling analytics.',
-			)
-			if (selected)
-				equal(
-					frontend.VITE_MYPAGE_PUBLIC_ORIGIN,
-					selected.publicOrigin,
-					'frontend.VITE_MYPAGE_PUBLIC_ORIGIN',
-					'Match deployment.publicOrigin and the final browser origin.',
-				)
-		}
 	}
 	const result = report(diagnostics)
 	if (root.publicPolicy !== undefined) {
@@ -494,23 +489,15 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 						`hosting.${key}`,
 						`Match deployment.${key} for the candidate.`,
 					)
-			if (inventory && typeof inventory.analyticsApproved !== 'boolean')
-				add(
-					'hosting.inventory.analyticsApproved',
-					'INVALID_FIELD',
-					'Supply an explicit boolean for the separate analytics inventory review declaration.',
+			if (inventory)
+				required(
+					inventory,
+					'analyticsApproved',
+					'hosting.inventory',
+					(x) => x === true,
+					'Confirm the GA4 CSP inventory has been reviewed for this release.',
 				)
 			if (
-				frontend?.VITE_MYPAGE_ANALYTICS_READY === 'true' &&
-				inventory?.analyticsApproved !== true
-			)
-				add(
-					'hosting.inventory.analyticsApproved',
-					'MISMATCH',
-					'An enabled analytics candidate requires a separate approved analytics inventory declaration; real review remains pending.',
-				)
-			if (
-				frontend?.VITE_MYPAGE_ANALYTICS_READY === 'true' &&
 				Array.isArray(inventory?.script) &&
 				!inventory.script.some(
 					(source) =>
@@ -522,8 +509,23 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 				add(
 					'hosting.inventory.script',
 					'MISMATCH',
-					'Include the fixed browserTagLoader gtag.js origin or exact path in the reviewed script inventory when analytics is enabled; real vendor connections remain pending.',
+					'Include the fixed browserTagLoader gtag.js origin or exact path in the reviewed script inventory for the release; real vendor connections remain pending.',
 				)
+			for (const key of ['connect', 'image']) {
+				const sources = inventory?.[key]
+				if (
+					Array.isArray(sources) &&
+					![
+						'https://www.google-analytics.com',
+						'https://region1.google-analytics.com',
+					].every((source) => sources.includes(source))
+				)
+					add(
+						`hosting.inventory.${key}`,
+						'MISMATCH',
+						'Include the GA4 collection origins in the release CSP inventory.',
+					)
+			}
 			try {
 				// CSP・ルーティング・接続先一覧・リージョンの規則は、既存の純粋な検証処理が扱う。
 				hostingCandidate(hosting as HostingInputs)

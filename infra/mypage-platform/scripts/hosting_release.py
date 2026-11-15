@@ -120,20 +120,16 @@ def translate(package):
     return json.loads((package / 'hosting.json').read_bytes())
 
 
-def configure_dev_analytics(config, mode):
-    need(mode in {'true', 'false'}, 'analytics-mode')
-    enabled = mode == 'true'
+def configure_dev_analytics(config):
     frontend = config['frontend']
-    frontend['VITE_MYPAGE_ANALYTICS_READY'] = mode
-    frontend.pop('VITE_MYPAGE_GA4_ID', None)
-    if enabled:
-        frontend.update(VITE_MYPAGE_GA4_ID=DEV_GA4_ID, VITE_MYPAGE_PUBLIC_ORIGIN=ORIGIN)
+    # Accept the existing GitHub Environment manifest during migration.
+    frontend.pop('VITE_MYPAGE_ANALYTICS_READY', None)
+    frontend.update(VITE_MYPAGE_GA4_ID=DEV_GA4_ID, VITE_MYPAGE_PUBLIC_ORIGIN=ORIGIN)
     inventory = config['hosting']['inventory']
-    inventory['analyticsApproved'] = enabled
+    inventory['analyticsApproved'] = True
     for key, directive in (('script', 'script-src'), ('connect', 'connect-src'), ('image', 'img-src')):
         sources = GA4_SOURCES[directive]
-        existing = [source for source in inventory[key] if source not in sources]
-        inventory[key] = existing + (sorted(sources) if enabled else [])
+        inventory[key] = list(dict.fromkeys(inventory[key] + sorted(sources)))
 
 
 def build(env):
@@ -143,7 +139,7 @@ def build(env):
     raw = env['MYPAGE_HOSTING_PUBLIC_CONFIG_JSON'].encode()
     need(len(raw) <= 65536, 'public-config-size')
     config = json.loads(raw)
-    configure_dev_analytics(config, env.get('MYPAGE_HOSTING_ANALYTICS_ENABLED'))
+    configure_dev_analytics(config)
     # 値をビルド環境変数に使う前に、標準の検証処理を実行する。
     (package / 'public-config.json').write_bytes(canonical(config))
     (package / 'dist').mkdir()
@@ -153,7 +149,7 @@ def build(env):
     command(['node', 'mypage/scripts/hosting-release-config.mjs',
              str(package / 'public-config.json'), str(package / 'paths.json'),
              str(package / 'hosting.json')])
-    check_ga4_csp(json.loads((package / 'hosting.json').read_bytes()), analytics_enabled(config))
+    check_ga4_csp(json.loads((package / 'hosting.json').read_bytes()))
     build_env = {k: v for k, v in env.items() if not k.startswith('VITE_') and
                  k not in {'MYPAGE_HOSTING_PUBLIC_CONFIG_JSON', 'GITHUB_TOKEN',
                            'GH_TOKEN', 'GOOGLE_APPLICATION_CREDENTIALS'}}
@@ -172,7 +168,6 @@ def build(env):
     digest = sha(canonical(release))
     with open(env['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
         output.write('digest=' + digest + '\n')
-        output.write('analytics_enabled=' + str(analytics_enabled(config)).lower() + '\n')
     print('DEV Hosting package prepared; no cloud credentials or deployment.')
 
 
@@ -274,10 +269,6 @@ def verify_head(env):
     need(json.loads(data)['object']['sha'] == env['GITHUB_SHA'], 'branch-moved')
 
 
-def analytics_enabled(config):
-    return config['frontend'].get('VITE_MYPAGE_ANALYTICS_READY') == 'true'
-
-
 def stable_config(config):
     # 不変アセットのキャッシュ規則と、DEV GA4の固定送信先だけを比較から除く。
     need(set(config) == {'headers', 'rewrites'}, 'hosting-config-scope')
@@ -299,21 +290,18 @@ def stable_config(config):
     return {'headers': global_headers, 'rewrites': config['rewrites']}
 
 
-def check_ga4_csp(hosting, enabled):
+def check_ga4_csp(hosting):
     csp = next(h['headers']['Content-Security-Policy'] for h in hosting['headers'] if h['glob'] == '**')
     directives = dict((parts[0], set(parts[1:])) for item in csp.split('; ') if (parts := item.split()))
     for directive, sources in GA4_SOURCES.items():
-        expected = sources if enabled else set()
-        actual = directives.get(directive, set()) & sources
-        need(actual == expected, 'hosting-ga4-csp')
+        need(sources <= directives.get(directive, set()), 'hosting-ga4-csp')
 
 
 def deploy(env, *, request=cloud, transport=http):
     context(env)
     package = directory(env)
     release, config, hosting = validate_package(package, env)
-    analytics = analytics_enabled(config)
-    check_ga4_csp(hosting, analytics)
+    check_ga4_csp(hosting)
     verify_head(env)
     token = env['MYPAGE_HOSTING_ACCESS_TOKEN']
     site = request(API + 'projects/' + PROJECT + '/sites/' + SITE, token)
@@ -362,7 +350,7 @@ def deploy(env, *, request=cloud, transport=http):
               'packageSHA256': env['MYPAGE_HOSTING_PACKAGE_DIGEST'], 'hostingRelease': None,
               'hostingVersion': name, 'previousRelease': before['name'], 'previousVersion': before['version']['name'],
               'backendRevision': api_before['latestReadyRevision'].rsplit('/', 1)[-1],
-              'analyticsEnabled': analytics, 'realGA4Verified': False,
+              'analyticsEnabled': True, 'realGA4Verified': False,
               'publishStatus': 'unknown', 'publicReadback': 'pending'}
     record_path = Path(env['RUNNER_TEMP']) / 'mypage-hosting-release-record.json'
     # 実際の切替前に復旧用参照を永続化する。応答消失時も公開が成功した可能性がある。

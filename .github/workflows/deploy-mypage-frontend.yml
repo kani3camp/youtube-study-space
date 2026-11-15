@@ -5,11 +5,6 @@ name: Deploy MyPage Frontend
 # release gate (#1133) approves a separate identity.
 on:
   workflow_dispatch:
-    inputs:
-      analytics_enabled:
-        description: Enable consent-based GA4 on DEV
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -34,4 +29,3 @@ jobs:
     uses: ./.github/workflows/mypage-hosting-authenticated.yml
     with:
       expected_sha: ${{ github.sha }}
-      analytics_enabled: ${{ inputs.analytics_enabled }}

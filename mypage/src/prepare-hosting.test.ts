@@ -36,11 +36,23 @@ it('refuses an empty build and prepares exact public assets only after an index 
 			target: 'synthetic-web',
 			inventory: {
 				reviewed: true,
-				script: ['https://script.example.invalid'],
-				connect: ['https://api.example.invalid'],
+				script: [
+					'https://script.example.invalid',
+					'https://www.googletagmanager.com/gtag/js',
+				],
+				connect: [
+					'https://api.example.invalid',
+					'https://www.google-analytics.com',
+					'https://region1.google-analytics.com',
+				],
 				frame: ['https://frame.example.invalid'],
-				image: ['https://yt3.ggpht.com', 'https://yt3.googleusercontent.com'],
-				analyticsApproved: false,
+				image: [
+					'https://yt3.ggpht.com',
+					'https://yt3.googleusercontent.com',
+					'https://www.google-analytics.com',
+					'https://region1.google-analytics.com',
+				],
+				analyticsApproved: true,
 			},
 		}
 		const selected = join(temp, 'manifest.json')
