@@ -11,6 +11,7 @@ import { createApp } from './app'
 import { PrivacyPolicy, PublicPolicyContact, TermsOfUse } from './policies'
 import { PUBLIC_POLICY_FIELDS } from './public-policy-config'
 import { BrowserRuntime } from './runtime'
+import { renderStaticPolicies } from './static-policies'
 
 beforeEach(() => vi.stubEnv('VITE_FIREBASE_PROJECT_ID', undefined))
 afterEach(() => vi.unstubAllEnvs())
@@ -87,6 +88,22 @@ describe('public policy rendering', () => {
 		expect(router.state.matches.at(-1)?.routeId).toBe(entry)
 		expect(request).not.toHaveBeenCalled()
 	})
+	it('renders the complete policy documents and their links in static HTML', () => {
+		for (const [field, value] of Object.entries(publicValues))
+			vi.stubEnv(field, value)
+		const [privacy, terms] = renderStaticPolicies()
+		expect(privacy).toMatchObject({
+			filename: 'privacy.html',
+			title: 'プライバシーポリシー',
+		})
+		expect(terms).toMatchObject({ filename: 'terms.html', title: '利用規約' })
+		expect(privacy.body).toContain(markup(<PrivacyPolicy />))
+		expect(terms.body).toContain(markup(<TermsOfUse />))
+		for (const { body } of [privacy, terms]) {
+			expect(body).toContain('href="/contact"')
+			expect(body).not.toContain('<script')
+		}
+	})
 	it('keeps unknown public paths as not found', async () => {
 		const runtime = new BrowserRuntime(
 			null,
@@ -127,17 +144,15 @@ describe('public policy rendering', () => {
 	})
 	it('preserves receipt-based deletion, purpose-bound proof and metadata retention distinctions', () => {
 		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
-		expect(html).toContain('受付から7日以内の削除を目指し')
-		expect(html).toContain(
-			'本人確認が終わるまで期限を一律に延長することはありません。',
-		)
+		expect(html).toContain('遅くとも受付から7日以内に削除します。')
+		expect(html).toContain('この期限は依頼の受付時点から数えます。')
 		expect(html).toContain(
 			'通常のログインとは別にGoogle（YouTube）の認証手続きを行っていただきます。',
 		)
 		expect(html).toContain(
 			'認証操作だけでデータの削除やすべてのログイン状態の解除が実行されることはありません。',
 		)
-		expect(html).toContain('30日以内に更新または削除することを目指します')
+		expect(html).toContain('取得から30日以内に更新または削除します。')
 		expect(html).toContain(
 			'利用のないチャンネルについても、期限内の削除の対象とします。',
 		)
@@ -308,10 +323,11 @@ describe('public policy rendering', () => {
 		expect(html).toContain('href="https://contact.example.invalid/general"')
 		expect(html).toContain('href="mailto:privacy@example.invalid"')
 		expect(html).toContain(
-			'依頼受付後、原則として、依頼の対象と同じチャンネルを新しいYouTubeの許可で確認します。',
+			'通常のログインとは別にGoogleの認証手続きで対象のYouTubeチャンネルを確認します。',
 		)
-		expect(html).toContain('通常のログインだけで依頼を実行しません。')
-		expect(html).toContain('Google連携を解除済みでログインできない場合も')
+		expect(html).toContain(
+			'Google連携を解除済みなどで認証手続きを利用できない場合も',
+		)
 		expect(html).toContain('個別の確認方法をご案内します。')
 		expect(html).not.toContain('supportChallenge')
 		expect(request).not.toHaveBeenCalled()

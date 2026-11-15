@@ -128,7 +128,7 @@ describe('contact destinations and request guidance', () => {
 		)
 		expect(html).toContain('受付時の連絡先へお知らせします。')
 		expect(html).toContain('回答を受け取れる連絡先')
-		expect(html).toContain('ログインや本人確認を利用できない場合も')
+		expect(html).toContain('認証手続きを利用できない場合も')
 		expect(html).toContain('ログインを、ご依頼の条件にはしません。')
 	})
 })

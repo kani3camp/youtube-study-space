@@ -12,7 +12,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, it } from 'vitest'
 
-it('refuses an empty build and prepares exact public assets only after an index exists', () => {
+it('refuses an empty build and prepares exact public assets only after all required HTML pages exist', () => {
 	const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 	const temp = mkdtempSync(join(tmpdir(), 'mypage-hosting-test-'))
 	if (
@@ -76,6 +76,9 @@ it('refuses an empty build and prepares exact public assets only after an index 
 			)
 		expect(run().status).toBe(1)
 		writeFileSync(join(dist, 'index.html'), '<!doctype html>')
+		expect(run().status).toBe(1)
+		for (const page of ['privacy.html', 'terms.html'])
+			writeFileSync(join(dist, page), '<!doctype html>')
 		const sibling = join(temp, 'other-release')
 		mkdirSync(sibling)
 		const outside = spawnSync(process.execPath, [
