@@ -53,8 +53,11 @@ type ServerConfig struct {
 	TrustedProxyHops int
 }
 
-// 信頼済みプロキシ数の上限。Hosting・Cloud Runの経路で想定する段数に余裕を持たせた値とする。
-const maxTrustedProxyHops = 4
+// 信頼済みプロキシ数の上限。
+// Cloud Runの公開URLへ直接届くリクエストはHostingを経由せず、X-Forwarded-Forの段数が少ない。
+// 2以上を許すと、その経路では右端からN番目を送信者が選べ、制限の迂回や他者のbucket消費ができる。
+// 直接アクセスを遮断または識別できるまでは、Cloud Run自身が追加する1段だけを許可する。
+const maxTrustedProxyHops = 1
 
 // 設定できるのはCloud Runサービスのホスト名そのものだけとする。
 // スキーム・ポート・パス・ワイルドカード・利用者指定の接尾辞は認めない。

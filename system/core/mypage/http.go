@@ -43,6 +43,7 @@ type HTTPHandler struct {
 	// 本人確認の証拠やAuth/App Checkの代替にはしない。
 	HostingBackendHost string
 	// X-Forwarded-Forの末尾へ要素を追加する信頼済みプロキシの数。実経路で観測した値だけを設定する。
+	// 設定経路（ServerConfig）は0か1だけを受け付ける。理由はmaxTrustedProxyHopsを参照。
 	// 0（既定）ではクライアントの転送ヘッダーをすべて無視し、RemoteAddrを使う。
 	// N>0では右端からN番目を利用者のIPとし、それより左の要素（クライアントが自由に送れる）は使わない。
 	TrustedProxyHops int

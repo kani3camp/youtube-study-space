@@ -116,11 +116,11 @@ func TestMyPageServerValidatesConfigurationAndConstructsWithoutBootstrapIO(t *te
 	}
 	config.HostingBackendHost = ""
 	require.Zero(t, server.TrustedProxyHops)
-	config.TrustedProxyHops = 2
+	config.TrustedProxyHops = 1
 	server, err = NewMyPageServer(config, deps)
 	require.NoError(t, err)
-	require.Equal(t, 2, server.TrustedProxyHops)
-	for _, invalid := range []int{-1, maxTrustedProxyHops + 1} {
+	require.Equal(t, 1, server.TrustedProxyHops)
+	for _, invalid := range []int{-1, 2, maxTrustedProxyHops + 1} {
 		config.TrustedProxyHops = invalid
 		_, err = NewMyPageServer(config, deps)
 		require.Error(t, err)
