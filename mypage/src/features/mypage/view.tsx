@@ -413,10 +413,13 @@ function RecentCard({
 	asOf: string | null
 }) {
 	const [selectedDate, setSelectedDate] = useState<string | null>(null)
-	const days = data?.recent ?? []
+	const days = (data?.recent ?? []).map((item) => ({
+		...item,
+		minutes: item.data === null ? null : Math.floor(item.data / 60),
+	}))
 	const selected =
 		days.find((item) => item.date === selectedDate) ?? days.at(-1)
-	const max = Math.max(1, ...days.map((item) => item.data ?? 0))
+	const maxMinutes = Math.max(1, ...days.map((item) => item.minutes ?? 0))
 	const today = data ? day.format(new Date(data.generatedAt)) : null
 	return (
 		<section
@@ -458,17 +461,19 @@ function RecentCard({
 								onFocus={() => setSelectedDate(item.date)}
 							>
 								<span className="bar-track" aria-hidden="true">
-									<span
-										className={`bar ${item.data === null ? 'unknown-bar' : ''}`}
-										style={{
-											height:
-												item.data === null
-													? '2px'
-													: item.data === 0
-														? '4px'
-														: `${(item.data / max) * 100}%`,
-										}}
-									/>
+									{item.minutes === null ? (
+										<span className="bar unknown-bar" />
+									) : (
+										<span
+											className="bar"
+											style={{
+												height:
+													item.minutes === 0
+														? '3px'
+														: `calc(5px + (100% - 5px) * ${item.minutes / maxMinutes})`,
+											}}
+										/>
+									)}
 								</span>
 								<span className="day-label">
 									<span
