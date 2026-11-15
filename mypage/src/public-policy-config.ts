@@ -1,4 +1,4 @@
-// D03の公開値だけを使う。公開ビルド入力であり、
+// ブラウザーに公開する値だけを使う。公開ビルド入力であり、
 // 認証情報・申請の証拠・ユーザーデータ・文面承認の証拠ではない。
 export const PUBLIC_POLICY_FIELDS = [
 	'VITE_PUBLIC_OPERATOR_NAME',
