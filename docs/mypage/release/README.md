@@ -25,7 +25,7 @@
 
 ### GA4の環境別セットアップ
 
-MyPageのGA4は、各Firebaseプロジェクトに既に接続された`mypage`用GA4プロパティを使う。各プロパティのWebデータストリームは1つとし、`youtube-monitor`用プロパティは使わない。測定IDはDEV `G-E31NHW939V` / PROD `G-ZJ1VPVT2L2`を採用する。ストリームURLは承認済みの環境別公開オリジンに揃え、開発アクセスを本番集計へ送らない。IDの採用は確定済みだが、環境別ビルド設定への反映、コンソール設定の受入、実通信・Realtimeの検証が終わるまで、実送信の有効化完了とは扱わない。
+MyPageのGA4は、各Firebaseプロジェクトに既に接続された`mypage`用GA4プロパティを使う。マイページのイベントは対応する `my-page` ストリームへ送る。DEVでは同じGA4プロパティ内に `youtube-monitor` ストリームもあるため、プロパティ単位の設定を変更すると両ストリームに影響する。測定IDはDEV `G-E31NHW939V` / PROD `G-ZJ1VPVT2L2`を採用する。ストリームURLは承認済みの環境別公開オリジンに揃え、開発アクセスを本番集計へ送らない。IDの採用は確定済みだが、環境別ビルド設定への反映、コンソール設定の受入、実通信・Realtimeの検証が終わるまで、実送信の有効化完了とは扱わない。
 
 - 両プロパティで広告連携・Google Signals・広告パーソナライズを使わず、保持14か月と、新規活動による保持期間リセットOFFを確認する。SPA側で手動ページビューを送るため、Enhanced Measurementの履歴変更時の自動ページビューなど、重複・余分な送信を無効にする。
 - `VITE_MYPAGE_ANALYTICS_READY=true`、`VITE_MYPAGE_GA4_ID=<その環境の測定ID>`、`VITE_MYPAGE_PUBLIC_ORIGIN=<その環境のHTTPS origin>`を環境別フロントエンドのビルド設定に渡す。測定IDは公開値であり、シークレット扱いしない。公開マニフェストの整合性検査と、Hosting CSPの別途承認が必要である。
@@ -126,9 +126,15 @@ Google OAuthの同意画面に登録済みの`/privacy_policy`は、SPAルータ
 1. 同じrunで、まずMyPageのcredentialless CI（`ci-frontend.yml`の`mypage`: audit・cost model・フォント整合性・check・test・build）を通す。続くクラウド認証情報のないBuildジョブで、固定依存の検査（`pnpm audit`）・check・typecheck・テスト・DEV公開設定検査・ビルドを行う。
 2. 同じ実行の成果物を別Applyジョブへ渡し、ソースSHA・run ID・30分の期限・設定・全ファイルのSHA256を再検証する。Applyは専用WIFと短命トークンを使い、SA鍵やFirebaseログイントークンは使わない。
 3. 対象は`test-youtube-study-space`の`test--study-space`だけとする。現在のHostingのCSP・書き換えなどと、APIの同意バージョン・固定オリジン・Readyリビジョンを照合する。意図しない設定変更、別サイト、途中のHosting・API・ブランチ変更は拒否する。公開版の作成・アップロード・確定後、最後にリリースを切り替える。書き込みを自動再試行しない。
-4. 配備後は全ファイルのバイト列・Cache-Control・CSPなど、`/`と`/mypage`、匿名APIの403、APIメタデータの不変を確認する。別の認証情報なしBrowserジョブで、匿名画面・Cookie設定・GA4通信0件を確認する。失敗は`Deploy MyPage Frontend`のそのrunの失敗として表示される（`CI`や`CI Gate`とは別のrun）。実GA4送信・認証済みE2E・公開条件の完了を意味しない。
+4. 配備後は全ファイルのバイト列・Cache-Control・CSPなど、`/`と`/mypage`、匿名APIの403、APIメタデータの不変を確認する。別の認証情報なしBrowserジョブで匿名画面とCookie設定を確認する。GA4有効時は同意バナーが表示され、同意前と拒否後にGA4通信が0件であることを確認する。失敗は`Deploy MyPage Frontend`のそのrunの失敗として表示される（`CI`や`CI Gate`とは別のrun）。実GA4送信・認証済みE2E・公開条件の完了を意味しない。
 
-GitHub Environmentの`mypage-dev-hosting`には、公開項目だけの`MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`と専用プロバイダー名`MYPAGE_HOSTING_WIF_PROVIDER`をVariablesに設定する。前者は既存の公開マニフェストスキーマを使い、`VITE_MYPAGE_ANALYTICS_READY=false`、`analyticsApproved=false`を必須とする。サーバー環境の書き出し、OAuth・認証情報・Secretの値は渡さない。公開済みDEVと同じオリジン・Firebaseアプリ・同意バージョン・CSP接続先一覧を引き継ぐ。設定変更は既存の事前検査とレビューを通す。
+GitHub Environmentの`mypage-dev-hosting`には、公開項目だけの`MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`と専用プロバイダー名`MYPAGE_HOSTING_WIF_PROVIDER`をVariablesに設定する。前者は既存の公開マニフェストスキーマを使う。GA4を停止するときは `VITE_MYPAGE_ANALYTICS_READY=false` と `analyticsApproved=false` にし、下記のGA4用CSP接続先を外して再デプロイする。サーバー環境の書き出し、OAuth・認証情報・Secretの値は渡さない。公開済みDEVと同じオリジン・Firebaseアプリ・同意バージョン・CSP接続先一覧を引き継ぐ。設定変更は既存の事前検査とレビューを通す。
+
+DEVでGA4を有効にするときは、コンソールの設定を確認したうえで公開マニフェストに次を設定する。
+
+- `frontend` に `VITE_MYPAGE_ANALYTICS_READY=true`、`VITE_MYPAGE_GA4_ID=G-E31NHW939V`、`VITE_MYPAGE_PUBLIC_ORIGIN=https://test--study-space.web.app` を設定する。環境変数の値はいずれも文字列。
+- `hosting.inventory.analyticsApproved` を `true` にする。既存の許可先に加えて、`script` に `https://www.googletagmanager.com/gtag/js`、`connect` と `image` に `https://www.google-analytics.com` と `https://region1.google-analytics.com` を追加する。この配信経路でのCSP変更はこれらの固定送信先に限る。
+- DEVへデプロイした後、検証用ブラウザでアクセス解析を許可し、NetworkとGA4のRealtimeで受信を照合する。許可を取り消して通信が止まることも確認する。
 
 権限の初期設定は、専用の`mypage-hosting` WIF pool/providerと`mypage-hosting-deploy` SAに分ける。プロバイダーは、固定リポジトリ・所有者・actor ID、初回workflow_dispatch、統合ref、呼び出し元`deploy-mypage-frontend.yml`（移行前は`ci.yml`。ownerがconditionの`workflow_ref`を置き換える）、再利用先`mypage-hosting-authenticated.yml`、同一workflow SHA、Environment `mypage-dev-hosting`をすべて検査する。既存TerraformのWIF・SA・Stateは変更しない。
 

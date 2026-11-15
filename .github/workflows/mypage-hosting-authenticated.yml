@@ -26,6 +26,7 @@ jobs:
       contents: read
     outputs:
       digest: ${{ steps.package.outputs.digest }}
+      analytics_enabled: ${{ steps.package.outputs.analytics_enabled }}
     steps:
       - name: Checkout selected source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -117,7 +118,7 @@ jobs:
 
   browser:
     name: MyPage DEV Hosting Browser Smoke
-    needs: apply
+    needs: [build, apply]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -132,5 +133,7 @@ jobs:
         run: |
           python3 -m pip install -r mypage/visual-requirements.txt
           python3 -m playwright install --with-deps chromium
-      - name: Verify the live DEV page and disabled analytics
+      - name: Verify the live DEV page and GA4 consent boundary
+        env:
+          MYPAGE_HOSTING_ANALYTICS_ENABLED: ${{ needs.build.outputs.analytics_enabled }}
         run: python3 mypage/scripts/hosting-smoke.py
