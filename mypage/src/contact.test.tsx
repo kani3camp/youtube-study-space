@@ -53,7 +53,7 @@ describe('contact destinations and request guidance', () => {
 		).toHaveLength(1)
 		expect(html.match(/窓口を準備中です/g)).toHaveLength(1)
 	})
-	it('makes an independently configured privacy mailbox usable without a general destination', () => {
+	it('shares the privacy destination with the general card when no general destination is set', () => {
 		vi.stubEnv(
 			'VITE_PUBLIC_PRIVACY_CONTACT_URL',
 			'mailto:privacy@example.invalid',
@@ -64,8 +64,11 @@ describe('contact destinations and request guidance', () => {
 			'class="contact-address">privacy@example.invalid</span>',
 		)
 		expect(html).toContain('メールアプリが開かない場合は')
-		expect(html).not.toContain('一般の窓口へ連絡する')
-		expect(html.match(/窓口を準備中です/g)).toHaveLength(1)
+		expect(html).toContain('一般の窓口へ連絡する')
+		expect(
+			html.match(/href="mailto:privacy@example.invalid"/g),
+		).toHaveLength(2)
+		expect(html).not.toContain('窓口を準備中です')
 	})
 	it('shows both configured destinations as separate actions with no user data added', () => {
 		vi.stubEnv('VITE_PUBLIC_CONTACT_URL', 'mailto:general@example.invalid')

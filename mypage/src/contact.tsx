@@ -84,7 +84,7 @@ export function ContactPage({
 						画像を添付する場合は、個人情報や他の方の情報が写らないようにしてください。
 					</p>
 					<ContactDestination
-						href={config.contactURL}
+						href={config.contactURL ?? config.privacyContactURL}
 						label="一般の窓口へ連絡する"
 					/>
 				</section>
