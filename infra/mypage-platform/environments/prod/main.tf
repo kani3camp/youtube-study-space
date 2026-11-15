@@ -18,7 +18,7 @@ provider "google" {
 }
 
 variable "stage" {
-  description = "disabled -> foundation -> registry -> maintenance_operator or maintenance_upgrade -> runtime_private -> runtime_public; default makes no cloud resources."
+  description = "disabled -> foundation_metadata -> foundation -> registry -> maintenance_operator or maintenance_upgrade -> runtime_private -> runtime_public; default makes no cloud resources."
   type        = string
   default     = "disabled"
   validation {

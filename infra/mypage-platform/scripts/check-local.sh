@@ -17,6 +17,7 @@ for environment in dev prod; do
   terraform -chdir="$root" test -no-color
 done
 
-python3 infra/mypage-platform/scripts/check-foundation-native.py
+python3 infra/mypage-platform/scripts/check-foundation-native.py dev
+MYPAGE_TARGET=production python3 infra/mypage-platform/scripts/check-foundation-native.py prod
 python3 infra/mypage-platform/scripts/check-read-metrics-native.py
 echo "MyPage platform: credentialless validation and mocks passed."
