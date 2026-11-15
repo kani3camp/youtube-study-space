@@ -60,7 +60,7 @@ BFF cache破棄、全writer停止/drain、古いqueue/import/restore排除、leg
 - owner/revision/generation/CAS・証跡結合: SAC変更や別実行からの横入りを検出し、保護解除をtransactionで確定する。
 - Auth creation timestampの一時記録: UID再作成を古い削除実行へ取り込まない。最終transactionで消去する。
 - 手動Gate: SDKで個別削除・不存在を証明できない実コピーや全runtimeを、合成adapterで完了済みと偽らない。
-- 月次summary writer/coverage/rebuildとmigration rollback: 基本表示と既存データ移行に必要。詳細履歴UIとは分離する。
+- 月次集計の再構築・移行・ロールバックは基盤の保守範囲とする。Phase 0Aの集計は原記録を読む。
 
 Production rollbackは削除済みユーザーデータの復元を意味しない。既知サービスrevisionへの復帰、writer停止、privacyDeletion維持、同じcheckpointからの前進復旧を組み合わせる。
 
@@ -88,7 +88,7 @@ GitHub Actionsの結果は#1489のChecksを別途参照する。ローカル実�
 
 ## 公開前に残す実環境GateとPhase 2
 
-DEVのfresh OAuth/App Check/Hosting実経路、鍵更新の可用性、S01/S04、履歴coverage実データ照合、monitor/OBS認証、費用/監視通知、D02/D03・ログイン不要の人的窓口と返信到達、backup/vendor/log inventory、最小IAM、7暦日削除とProduction rollbackの実受入は対象リリースで確認する。初回削除確保前のfresh OAuth証跡がTTL消失済みなら、証拠を推測せず元受付期限内で本人確認を解決する。旧合成checkpointの実在有無も配備前に確認する。
+DEVのfresh OAuth/App Check/Hosting実経路、鍵更新の可用性、S01/S04、原記録と集計結果の実データ照合、monitor/OBS認証、費用/監視通知、D02/D03・ログイン不要の人的窓口と返信到達、backup/vendor/log inventory、最小IAM、7暦日削除とProduction rollbackの実受入は対象リリースで確認する。初回削除確保前のfresh OAuth証跡がTTL消失済みなら、証拠を推測せず元受付期限内で本人確認を解決する。旧合成checkpointの実在有無も配備前に確認する。
 
 CLIの実装とローカル試験だけで一般公開Readyとは判断しない。今回、実環境でのCLI実行・配備・実データ削除は行っていない。
 

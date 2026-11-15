@@ -36,12 +36,9 @@ type SnapshotReader interface {
 
 type FirestoreSnapshotReader struct {
 	Client *firestore.Client
-	// 完全性を確認した履歴期間だけを設定できる。既定のepochは設けない。
-	Coverage []Interval
 	// 空なら従来の原記録読み取りを使い、明示的な導入・ロールバックに対応する。
 	// epochは旧書き込み処理の完了を待った後の、検証済み上限付き移行に一致する必要がある。
-	MonthlyEpoch          string
-	RecentHistoryRecorded bool
+	MonthlyEpoch string
 	// 任意のフックで、スナップショット読み取り成功後に一度だけ呼ぶ。
 	Observe func(SnapshotReadObservation)
 }
@@ -65,7 +62,7 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 		// 再試行で発生する追加の課金読み取りは、この件数に含めない。
 		attempt := SnapshotReadObservation{UserLookups: 1}
 		defer func() { observation = attempt }()
-		s := WorkSnapshot{UID: uid, Coverage: r.Coverage}
+		s := WorkSnapshot{UID: uid}
 		// GetAllは利用者がいなくてもreadTimeを返す。スナップショット確定後にこれを使って
 		// JSTの期間を決め、リクエスト時刻の境界を使わない。
 		docs, err := tx.GetAll([]*firestore.DocumentRef{r.Client.Collection("users").Doc(uid)})
@@ -112,9 +109,6 @@ func (r *FirestoreSnapshotReader) Read(ctx context.Context, uid string) (WorkSna
 			return nil
 		}
 		window := StatisticsWindows(s.AsOf)
-		if r.RecentHistoryRecorded && len(s.Coverage) == 0 {
-			s.Coverage = []Interval{{Start: window.QueryStart(), End: s.AsOf}}
-		}
 		if epoch := r.MonthlyEpoch; epoch != "" {
 			if err := docs[0].DataTo(s.User); err != nil {
 				return fmt.Errorf("decode snapshot user for monthly history: %w", err)

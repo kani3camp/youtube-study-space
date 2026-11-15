@@ -6,7 +6,6 @@ import (
 	"context"
 	"os"
 	"testing"
-	"time"
 
 	"app.modules/core/repository"
 	"app.modules/internal/integrationtest"
@@ -101,10 +100,9 @@ func TestSnapshotObservationDistinguishesQueryFailureFromEmptySuccess(t *testing
 				_, err := userRef.Delete(context.Background())
 				require.NoError(t, err)
 			})
-			now := time.Now().UTC()
 			var observations []SnapshotReadObservation
 			reader := FirestoreSnapshotReader{
-				Client: client, Coverage: []Interval{{Start: now.AddDate(0, 0, -30), End: now.Add(time.Hour)}},
+				Client:  client,
 				Observe: func(observation SnapshotReadObservation) { observations = append(observations, observation) },
 			}
 			snapshot, err := reader.Read(context.Background(), uid)

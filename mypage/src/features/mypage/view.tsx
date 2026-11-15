@@ -96,34 +96,6 @@ function DurationValue({ seconds }: { seconds: number | null }) {
 	)
 }
 
-function historySeconds(value?: Retained<number>) {
-	return value?.data ?? value?.recorded?.data ?? null
-}
-
-function historyText(value?: Retained<number>, tentative = true) {
-	if (value?.data === null && value.recorded) {
-		const seconds = value.recorded.data
-		const text = seconds < 60 ? '1分未満' : formatWorkSeconds(seconds)
-		return `記録済み ${text}${tentative ? '（集計未確定）' : ''}`
-	}
-	return formatWorkSeconds(value?.data ?? null)
-}
-
-function MetricValue({ value }: { value?: Retained<number> }) {
-	if (value?.data === null && value.recorded)
-		return (
-			<span className="recorded-value">
-				<span className="recorded-caption">記録済み</span>
-				{value.recorded.data < 60 ? (
-					'1分未満'
-				) : (
-					<DurationValue seconds={value.recorded.data} />
-				)}
-			</span>
-		)
-	return <DurationValue seconds={value?.data ?? null} />
-}
-
 function Skeleton({ area }: { area: 'current' | 'summary' | 'recent' }) {
 	return (
 		<div className={`skeleton skeleton-${area}`} aria-hidden="true">
@@ -172,23 +144,7 @@ function StaleNote({
 			</p>
 		)
 	if (value.data === null) {
-		if (value.recorded) {
-			const asOf = value.recorded.asOf
-			return (
-				<p className="stale-note history-note">
-					<span className="history-status">
-						<Icon name="info" />
-						<span>集計未確定</span>
-						{asOf !== sharedAsOf && (
-							<span className="note-time">{timestamp(asOf)}時点</span>
-						)}
-					</span>
-					<span>記録がそろっているか未確認です。</span>
-				</p>
-			)
-		}
 		const explanations: Partial<Record<ReasonCode, string>> = {
-			HISTORY_INCOMPLETE: 'この期間の記録がそろっていません。',
 			HISTORY_LIMIT_EXCEEDED: '記録が多いため集計できません。',
 			DATA_INCONSISTENT: '記録の整合性を確認できません。',
 		}
@@ -374,7 +330,7 @@ function workStatsAsOf(data: ViewData | null) {
 		...Object.values(data?.summary ?? {}),
 		...(data?.recent ?? []),
 	]) {
-		const asOf = value.data === null ? value.recorded?.asOf : value.asOf
+		const { asOf } = value
 		if (asOf && (!newest || Date.parse(asOf) > Date.parse(newest)))
 			newest = asOf
 	}
@@ -426,7 +382,7 @@ function SummaryCard({
 									{key === 'week' && <span>（月曜から）</span>}
 								</dt>
 								<dd>
-									<MetricValue value={value} />
+									<DurationValue seconds={value?.data ?? null} />
 								</dd>
 								{value && <StaleNote value={value} sharedAsOf={asOf} />}
 							</div>
@@ -460,7 +416,7 @@ function RecentCard({
 	const days = data?.recent ?? []
 	const selected =
 		days.find((item) => item.date === selectedDate) ?? days.at(-1)
-	const max = Math.max(1, ...days.map((item) => historySeconds(item) ?? 0))
+	const max = Math.max(1, ...days.map((item) => item.data ?? 0))
 	const today = data ? day.format(new Date(data.generatedAt)) : null
 	return (
 		<section
@@ -486,7 +442,7 @@ function RecentCard({
 								<span className="selected-date">
 									{dateLabel(selected.date, today)}
 								</span>
-								<strong>{historyText(selected, false)}</strong>
+								<strong>{formatWorkSeconds(selected.data)}</strong>
 							</>
 						)}
 					</p>
@@ -497,20 +453,20 @@ function RecentCard({
 								key={item.date}
 								type="button"
 								aria-pressed={item.date === selected?.date}
-								aria-label={`${dateLabel(item.date, today)}: ${historyText(item)}`}
+								aria-label={`${dateLabel(item.date, today)}: ${formatWorkSeconds(item.data)}`}
 								onClick={() => setSelectedDate(item.date)}
 								onFocus={() => setSelectedDate(item.date)}
 							>
 								<span className="bar-track" aria-hidden="true">
 									<span
-										className={`bar ${historySeconds(item) === null ? 'unknown-bar' : item.data === null ? 'recorded-bar' : ''}`}
+										className={`bar ${item.data === null ? 'unknown-bar' : ''}`}
 										style={{
 											height:
-												historySeconds(item) === null
+												item.data === null
 													? '2px'
-													: historySeconds(item) === 0
+													: item.data === 0
 														? '4px'
-														: `${((historySeconds(item) ?? 0) / max) * 100}%`,
+														: `${(item.data / max) * 100}%`,
 										}}
 									/>
 								</span>
@@ -525,11 +481,6 @@ function RecentCard({
 							</button>
 						))}
 					</fieldset>
-					{days.some((item) => item.data === null && item.recorded) && (
-						<p className="muted recorded-legend">
-							斜線は記録済み分（集計未確定）
-						</p>
-					)}
 					{selected && <StaleNote value={selected} sharedAsOf={asOf} />}
 				</>
 			) : busy ? (

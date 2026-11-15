@@ -15,7 +15,6 @@ const HistoryReadLimit = 1001
 type Interval struct{ Start, End time.Time }
 
 // WorkSnapshotは、整合した1つのFirestoreスナップショットだけから作る。
-// 空のCoverageは完全性が不明なことを表し、7日分の偽の0にはしない。
 type WorkSnapshot struct {
 	AsOf                  time.Time
 	UID                   string
@@ -23,7 +22,6 @@ type WorkSnapshot struct {
 	Seat                  *repository.SeatDoc
 	MemberSeat            bool
 	Segments              []repository.WorkSegmentDoc
-	Coverage              []Interval
 	SeatUnavailable       bool
 	SeatInconsistent      bool
 	HistoryUnavailable    bool
@@ -63,27 +61,6 @@ func secondsWithin(v Interval, start, end time.Time) int64 {
 }
 
 func intersects(a, b Interval) bool { return a.Start.Before(b.End) && b.Start.Before(a.End) }
-
-func covered(coverage []Interval, start, end time.Time) bool {
-	if !end.After(start) {
-		return true
-	}
-	parts := slices.Clone(coverage)
-	slices.SortFunc(parts, func(a, b Interval) int { return a.Start.Compare(b.Start) })
-	cursor := start
-	for _, part := range parts {
-		if part.Start.After(cursor) {
-			return false
-		}
-		if part.End.After(cursor) {
-			cursor = part.End
-		}
-		if !cursor.Before(end) {
-			return true
-		}
-	}
-	return false
-}
 
 func validSeat(s WorkSnapshot) bool {
 	if s.SeatInconsistent {
@@ -259,13 +236,6 @@ func (m historyModel) metric(s WorkSnapshot, start, end time.Time) Metric {
 			return missingMetric(DataInconsistent)
 		}
 		total += seconds
-	}
-	if !covered(s.Coverage, start, end) {
-		metric := missingMetric(HistoryIncomplete)
-		if total > 0 {
-			metric.RecordedWorkSec = ptr(total)
-		}
-		return metric
 	}
 	return valueMetric(total)
 }

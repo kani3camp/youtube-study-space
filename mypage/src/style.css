@@ -529,24 +529,6 @@ h2 {
 	color: oklch(38% 0.04 55);
 	margin-top: 12px;
 }
-.history-note {
-	display: grid;
-	gap: 5px;
-}
-.history-status {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 4px 6px;
-	font-size: 13px;
-	font-weight: 700;
-	color: var(--color-accent);
-}
-.note-time {
-	font-size: 12px;
-	font-weight: 500;
-	color: var(--color-muted);
-}
 .summary-timezone {
 	display: flex;
 	align-items: center;
@@ -610,29 +592,6 @@ h2 {
 .unknown-bar {
 	height: 2px;
 	background: oklch(68% 0.01 70);
-}
-.bar.recorded-bar {
-	background: repeating-linear-gradient(
-		135deg,
-		var(--color-accent) 0 4px,
-		transparent 4px 7px
-	);
-	border: 1px solid var(--color-accent);
-}
-.recorded-value {
-	display: block;
-	font-size: inherit;
-	font-weight: 700;
-	line-height: 1.6;
-}
-.recorded-caption {
-	display: block;
-	font-size: 13px;
-	font-weight: 500;
-	color: var(--color-muted);
-}
-.recorded-legend {
-	margin-top: 16px;
 }
 .day-label {
 	display: flex;

@@ -17,57 +17,45 @@ import (
 
 func snapshotFixture(t *testing.T) (*FirestoreSnapshotReader, string) {
 	t.Helper()
-	_, store, _, _, now := authTestService(t)
+	_, store, _, _, _ := authTestService(t)
 	uid, err := opaque()
 	if err != nil {
 		t.Fatal(err)
 	}
-	reader := &FirestoreSnapshotReader{Client: store.Client, Coverage: []Interval{{now.AddDate(0, 0, -30), now.Add(time.Hour)}}}
+	reader := &FirestoreSnapshotReader{Client: store.Client}
 	return reader, uid
 }
 
-func TestSnapshotExplicitCoveragePreservesUnknownAndGaps(t *testing.T) {
+func TestSnapshotMalformedWorkSegmentIsUnavailable(t *testing.T) {
 	r, uid := snapshotFixture(t)
 	ctx := context.Background()
-	_, err := r.Client.Collection("users").Doc(uid).Set(ctx, repository.UserDoc{TotalStudySec: 600})
+	now := time.Now().UTC()
+	userRef := r.Client.Collection("users").Doc(uid)
+	segmentRef := r.Client.Collection("work-segments").Doc(uid)
+	_, err := userRef.Set(ctx, repository.UserDoc{TotalStudySec: 600})
 	require.NoError(t, err)
-	// 保護されたEmulatorで公開ダミーデータだけを使い、各テストデータが自分のUIDを持つ。
 	t.Cleanup(func() {
-		_, err := r.Client.Collection("users").Doc(uid).Delete(context.Background())
+		_, err := userRef.Delete(context.Background())
+		require.NoError(t, err)
+		_, err = segmentRef.Delete(context.Background())
 		require.NoError(t, err)
 	})
-	now := time.Now().UTC()
-	windows := StatisticsWindows(now)
-	gapStart := windows.Recent.AddDate(0, 0, 2).Add(time.Hour)
-	gapEnd := gapStart.Add(time.Nanosecond)
-	for _, tc := range []struct {
-		name     string
-		coverage []Interval
-	}{
-		{"unset", nil},
-		{"complete", []Interval{{Start: windows.Recent.AddDate(0, 0, -1), End: now.Add(time.Hour)}}},
-		{"gap", []Interval{{Start: windows.Recent.AddDate(0, 0, -1), End: gapStart}, {Start: gapEnd, End: now.Add(time.Hour)}}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			r.Coverage = tc.coverage
-			snapshot, err := r.Read(ctx, uid)
-			require.NoError(t, err)
-			require.Equal(t, tc.coverage, snapshot.Coverage)
-			response, err := Aggregate(snapshot, fixtureAccount())
-			require.NoError(t, err)
-			require.Equal(t, snapshot.AsOf, response.GeneratedAt)
-			expectSeconds(t, response.Summary.Data.Lifetime, 600)
-			for _, day := range response.Recent7Days.Data {
-				if tc.name == "unset" || (tc.name == "gap" && day.Date == gapStart.In(windows.Recent.Location()).Format("2006-01-02")) {
-					require.Equal(t, Unavailable, day.Availability)
-					require.Equal(t, HistoryIncomplete, *day.ReasonCode)
-					require.Nil(t, day.WorkSec)
-				} else {
-					expectSeconds(t, day.Metric, 0)
-				}
-			}
-		})
-	}
+	_, err = segmentRef.Set(ctx, map[string]any{
+		"user-id": uid, "segment-type": repository.WorkState,
+		"started-at": now.Add(-2 * time.Minute), "ended-at": now.Add(-time.Minute),
+		"duration-sec": "not a number",
+	})
+	require.NoError(t, err)
+
+	snapshot, err := r.Read(ctx, uid)
+	require.NoError(t, err)
+	response, err := Aggregate(snapshot, fixtureAccount())
+	require.NoError(t, err)
+	require.True(t, response.Partial)
+	require.Equal(t, missingMetric(SourceUnavailable), response.Summary.Data.Today)
+	require.Equal(t, missingMetric(SourceUnavailable), response.Summary.Data.Week)
+	require.Equal(t, Unavailable, response.Recent7Days.Availability)
+	expectSeconds(t, response.Summary.Data.Lifetime, 600)
 }
 
 func TestSnapshotMissingUserSkipsCorruptSeatAndHistory(t *testing.T) {
@@ -252,8 +240,6 @@ func TestSnapshotKeepsUserSeatAndHistoryAtomicAtExit(t *testing.T) {
 func TestCurrentOnlySkipsHistoryAndFullReadReturnsNormalZero(t *testing.T) {
 	r, uid := snapshotFixture(t)
 	ctx := context.Background()
-	r.Coverage = nil
-	r.RecentHistoryRecorded = true
 	userRef := r.Client.Collection("users").Doc(uid)
 	_, err := userRef.Set(ctx, repository.UserDoc{WorkHistoryEpoch: repository.MonthlyWorkEpoch})
 	require.NoError(t, err)
@@ -277,4 +263,6 @@ func TestCurrentOnlySkipsHistoryAndFullReadReturnsNormalZero(t *testing.T) {
 	response, err := Aggregate(snapshot, Section[Account]{})
 	require.NoError(t, err)
 	require.Equal(t, valueMetric(0), response.Summary.Data.Today)
+	expectSeconds(t, response.Summary.Data.Week, 0)
+	expectRecentSeconds(t, response.Recent7Days, 0)
 }

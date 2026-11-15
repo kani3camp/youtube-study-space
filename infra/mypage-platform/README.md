@@ -49,8 +49,6 @@ Cloud Runは `mypage-api`、専用SA/ADC、`min_instance_count=0`、`max_instanc
 
 リビジョンのイメージはArtifact Registryのダイジェスト（`@sha256:...`）で固定し、タグやlatestで不用意に差し替えない。 **初回Cloud Run作成後のAPI Serviceとmaintenance JobのコンテナimageはCI/CDが所有し、Terraformは両方のimage属性を`ignore_changes`で管理しない。** API ServiceはBackend release、Jobは独立した`Deploy Maintenance Operator`が更新し、同じdigestへ同期しない。 maintenance専用digest/source SHAをruntime settingsへ追加しない。既存サービスのimage更新は[Backend CI手順](../../docs/mypage/release/backend-ci.md)のBuild→Registry digest→直接image配備→検証で行う。通常releaseごとにTerraform Plan/Applyやdigest変更PRを実行しない。実費は起動回数・Secret Manager・ログ量・API呼び出しなどで変わるため、未計測で月額1ドル未満と断定しない。<https://cloud.google.com/run/pricing>と<https://cloud.google.com/secret-manager/pricing>を参考に、実対象と試算を別途レビューする。
 
-作業履歴の完全性は実データの確認済み区間だけで宣言する。`runtime_settings.history_coverage_json` は**既定が空文字の任意設定**で、空文字ならCloud Runに`MYPAGE_HISTORY_COVERAGE`は存在しない。指定する場合は最大16KiBのJSON配列を渡し、Goの[厳格parser](../../system/cmd/mypage-server/coverage.go)がUTC時刻・順序・重複・上限を起動前に検証する。`[]`や未指定は完全な履歴を表さない。実際のwriterと履歴のRead-only inventoryに基づく区間以外は指定せず、実Deploy/rollbackの設定値と欠損の扱いを照合する。
-
 ### Secret / IAM境界
 
 1. Terraformは `mypage-oauth-client-id`、`mypage-oauth-client-secret`、`mypage-youtube-api-key` の**コンテナだけ**を管理する。値および `google_secret_manager_secret_version` を作成・保存しない。Secret versionはowner-approved private手順で投入し、Cloud Runには**番号で固定**して環境変数へ参照する。`latest`は禁止。

@@ -48,7 +48,7 @@ flowchart TD
 
 - Cloud Run Serviceの既存bootstrap imageはTerraform入力として残るが、通常releaseでは更新しない。maintenance JobをDEVで初めて作るときだけ、Job不存在をread-only確認したうえで、実ビルド済み・operator binary含有をsourceで確認した固定SHA tagをArtifact Registryからdigestへ解決し、**そのPlan/Applyだけのprivate入力**として使う。GitHub Environmentの設定JSONへmaintenance専用digest/source SHAを保存しない。
 - 作成後はService/Jobともcontainer **imageだけ** を`lifecycle.ignore_changes`でCI/CDへ委譲する（ServiceはこのBackend release、JobはMaintenance Operatorの配備）。Jobのcommand/env/resources/IAM/runtime SA等はTerraform管理のまま。
-- 旧Environment secretに `maintenance_operator_enabled` / `maintenance_operator_image_digest` / `maintenance_operator_image_source_sha` が残っていても、移行互換としてその3キーだけを読み捨てる。private tfvarsやPlanには伝播せず、他の未知キーは引き続き拒否する。運用上は確認後に旧3キーを削除する。
+- 旧Environment secretの `maintenance_operator_enabled` / `maintenance_operator_image_digest` / `maintenance_operator_image_source_sha` / `history_coverage_json` は読み込み時に除外する。他の未知キーは引き続き拒否する。
 - CPU・メモリ・concurrency・環境変数・Secret version・サービスアカウント・ingress・traffic・IAM等は
   Terraform/既存専用運用が管理する。`ignore_changes`をtemplate全体に広げない。
 - TerraformのPlan/Applyはインフラ構成を変更するときだけ使う。

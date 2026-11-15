@@ -49,7 +49,6 @@ variable "runtime_settings" {
     oauth_client_id_version     = string
     oauth_client_secret_version = string
     youtube_api_key_version     = string
-    history_coverage_json       = optional(string, "")
     image_source_sha            = optional(string, "")
     hosting_backend_host        = optional(string, "")
     previous_image_digest       = optional(string, "")
@@ -74,14 +73,6 @@ variable "runtime_settings" {
       can(regex("^mypage-api-[a-z0-9-]{1,50}$", var.runtime_settings.read_metrics_from_revision))
     )
     error_message = "A metrics transition requires a runtime stage and an exact prior ready revision."
-  }
-
-  validation {
-    condition = var.runtime_settings.history_coverage_json == "" || (
-      length(var.runtime_settings.history_coverage_json) <= 16384 &&
-      can(tolist(jsondecode(var.runtime_settings.history_coverage_json)))
-    )
-    error_message = "History coverage must be absent or an at-most-16KiB JSON array of reviewed intervals."
   }
 
   validation {

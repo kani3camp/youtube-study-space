@@ -41,7 +41,6 @@ func TestMonthlyOverviewDoesNotDependOnRawHistoryCount(t *testing.T) {
 		t.Run(fmt.Sprint(count), func(t *testing.T) {
 			s := workFixture()
 			s.AsOf = time.Date(2026, 11, 1, 12, 0, 0, 0, timeutil.JapanLocation())
-			s.Coverage = []Interval{{s.AsOf.AddDate(0, 0, -10), s.AsOf}}
 			for i := 0; i < count; i++ {
 				start := s.AsOf.Add(-time.Hour).Add(time.Duration(i) * time.Second)
 				s.Segments = append(s.Segments, repository.WorkSegmentDoc{UserID: s.UID, SegmentType: repository.WorkState, StartedAt: start, EndedAt: start.Add(time.Second), DurationSec: 1})
@@ -61,8 +60,8 @@ func TestMonthlyOverviewDoesNotDependOnRawHistoryCount(t *testing.T) {
 	}
 }
 
-func TestMonthlyPreservesUnknownEpochCoverageAndInvalidState(t *testing.T) {
-	for _, fault := range []string{"missing-month", "wrong-epoch", "unverified-baseline", "unknown-coverage", "invalid-day", "future-day", "seat-failure"} {
+func TestMonthlyRejectsUnverifiedRollupAndInvalidState(t *testing.T) {
+	for _, fault := range []string{"missing-month", "wrong-epoch", "unverified-baseline", "invalid-day", "future-day", "seat-failure"} {
 		t.Run(fault, func(t *testing.T) {
 			s := monthlyFixture(t, workFixture())
 			key := s.AsOf.In(timeutil.JapanLocation()).Format("2006-01")
@@ -76,8 +75,6 @@ func TestMonthlyPreservesUnknownEpochCoverageAndInvalidState(t *testing.T) {
 			case "unverified-baseline":
 				m.BaselineComplete = false
 				s.Months[key] = m
-			case "unknown-coverage":
-				s.Coverage = nil
 			case "invalid-day":
 				m.Days[s.AsOf.In(timeutil.JapanLocation()).Format("2006-01-02")] = repository.WorkMonthDay{Invalid: true}
 				s.Months[key] = m
@@ -103,7 +100,6 @@ func TestMonthlyMatchesRawAtJSTMonthBoundaryWithOngoingWorkAndBreak(t *testing.T
 		t.Run(string(state), func(t *testing.T) {
 			s := workFixture()
 			s.AsOf = time.Date(2026, 11, 1, 0, 15, 0, 0, timeutil.JapanLocation())
-			s.Coverage = []Interval{{s.AsOf.AddDate(0, 0, -10), s.AsOf}}
 			start := s.AsOf.Add(-30 * time.Minute)
 			boundary := s.AsOf.Add(-5 * time.Minute)
 			s.Segments = []repository.WorkSegmentDoc{{UserID: s.UID, SegmentType: repository.WorkState, StartedAt: start, EndedAt: boundary, DurationSec: 1500}}
@@ -130,7 +126,6 @@ func TestMonthlyPreservesRawWeeklySecondFloorAcrossFractionalBoundaries(t *testi
 		t.Run(tc.name, func(t *testing.T) {
 			s := workFixture()
 			s.AsOf = instant(tc.asOf)
-			s.Coverage = []Interval{{s.AsOf.AddDate(0, 0, -10), s.AsOf}}
 			start, end := instant(tc.start), instant(tc.end)
 			s.Segments = []repository.WorkSegmentDoc{{UserID: s.UID, SegmentType: repository.WorkState, StartedAt: start, EndedAt: end, DurationSec: int(end.Sub(start) / time.Second)}}
 			legacy, err := Aggregate(s, fixtureAccount())
@@ -145,7 +140,6 @@ func TestMonthlyPreservesRawWeeklySecondFloorAcrossFractionalBoundaries(t *testi
 func TestMonthlyVerifiedEmptyWatermarkDoesNotHideMissingRecordedMonth(t *testing.T) {
 	s := workFixture()
 	s.AsOf = instant("2026-11-02T03:00:00Z")
-	s.Coverage = []Interval{{s.AsOf.AddDate(0, 0, -10), s.AsOf}}
 	s.MonthlyEpoch = repository.MonthlyWorkEpoch
 	s.User.WorkHistoryEpoch = repository.MonthlyWorkEpoch
 	s.User.WorkHistoryActivatedAt = instant("2026-10-20T03:00:00Z")
@@ -165,7 +159,6 @@ func TestMonthlyInvalidWatermarkNeverTurnsMissingMonthsIntoNormalZero(t *testing
 	for _, watermark := range []time.Time{{}, instant("2026-10-19T03:00:00Z")} {
 		s := workFixture()
 		s.AsOf = instant("2026-11-02T03:00:00Z")
-		s.Coverage = []Interval{{s.AsOf.AddDate(0, 0, -10), s.AsOf}}
 		s.MonthlyEpoch = repository.MonthlyWorkEpoch
 		s.User.WorkHistoryEpoch = repository.MonthlyWorkEpoch
 		s.User.WorkHistoryActivatedAt = instant("2026-10-20T03:00:00Z")
