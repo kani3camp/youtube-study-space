@@ -33,6 +33,15 @@ RUN = 'https://run.googleapis.com/v2/projects/' + PROJECT + '/locations/asia-sou
 MAX_FILE = 4 * 1024 * 1024
 MAX_TOTAL = 20 * 1024 * 1024
 IMMUTABLE = 'public, max-age=31536000, immutable'
+GA4_TAG = 'https://www.googletagmanager.com/gtag/js'
+GA4_COLLECTION = frozenset({
+    'https://www.google-analytics.com', 'https://region1.google-analytics.com',
+})
+GA4_SOURCES = {
+    'script-src': frozenset({GA4_TAG}),
+    'connect-src': GA4_COLLECTION,
+    'img-src': GA4_COLLECTION,
+}
 
 
 def need(value, label='contract'):
@@ -121,11 +130,12 @@ def build(env):
     (package / 'public-config.json').write_bytes(canonical(config))
     (package / 'dist').mkdir()
     (package / 'dist/index.html').write_text('<!doctype html>')
-    # 候補への変換時に、DEVの識別情報とアクセス解析の無効化も検証する。
+    # 候補への変換時に、DEVの識別情報とアクセス解析の設定も検証する。
     (package / 'paths.json').write_bytes(canonical(['index.html']))
     command(['node', 'mypage/scripts/hosting-release-config.mjs',
              str(package / 'public-config.json'), str(package / 'paths.json'),
              str(package / 'hosting.json')])
+    check_ga4_csp(json.loads((package / 'hosting.json').read_bytes()), analytics_enabled(config))
     build_env = {k: v for k, v in env.items() if not k.startswith('VITE_') and
                  k not in {'MYPAGE_HOSTING_PUBLIC_CONFIG_JSON', 'GITHUB_TOKEN',
                            'GH_TOKEN', 'GOOGLE_APPLICATION_CREDENTIALS'}}
@@ -144,7 +154,8 @@ def build(env):
     digest = sha(canonical(release))
     with open(env['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
         output.write('digest=' + digest + '\n')
-    print('DEV Hosting package prepared; analytics OFF; no cloud credentials or deployment.')
+        output.write('analytics_enabled=' + str(analytics_enabled(config)).lower() + '\n')
+    print('DEV Hosting package prepared; no cloud credentials or deployment.')
 
 
 def validate_package(package, env):
@@ -245,8 +256,12 @@ def verify_head(env):
     need(json.loads(data)['object']['sha'] == env['GITHUB_SHA'], 'branch-moved')
 
 
+def analytics_enabled(config):
+    return config['frontend'].get('VITE_MYPAGE_ANALYTICS_READY') == 'true'
+
+
 def stable_config(config):
-    # 通常のページ配備で変更するのは、不変ファイルのキャッシュ規則だけである。
+    # 不変アセットのキャッシュ規則と、DEV GA4の固定送信先だけを比較から除く。
     need(set(config) == {'headers', 'rewrites'}, 'hosting-config-scope')
     headers = config['headers']
     need(isinstance(headers, list) and sum(x.get('glob') == '**' for x in headers) == 1, 'hosting-headers')
@@ -255,13 +270,32 @@ def stable_config(config):
         if h['glob'] != '**':
             need(h['glob'].startswith('/assets/') and allowed_path(h['glob'][1:]) and
                  h['headers'] == {'Cache-Control': IMMUTABLE}, 'hosting-cache-rule')
-    return {'headers': [h for h in headers if h['glob'] == '**'], 'rewrites': config['rewrites']}
+    global_headers = next(h['headers'] for h in headers if h['glob'] == '**').copy()
+    csp = global_headers['Content-Security-Policy']
+    directives = []
+    for item in csp.split('; '):
+        directive, *sources = item.split(' ')
+        allowed = GA4_SOURCES.get(directive, ())
+        directives.append(' '.join([directive, *(source for source in sources if source not in allowed)]))
+    global_headers['Content-Security-Policy'] = '; '.join(directives)
+    return {'headers': global_headers, 'rewrites': config['rewrites']}
+
+
+def check_ga4_csp(hosting, enabled):
+    csp = next(h['headers']['Content-Security-Policy'] for h in hosting['headers'] if h['glob'] == '**')
+    directives = dict((parts[0], set(parts[1:])) for item in csp.split('; ') if (parts := item.split()))
+    for directive, sources in GA4_SOURCES.items():
+        expected = sources if enabled else set()
+        actual = directives.get(directive, set()) & sources
+        need(actual == expected, 'hosting-ga4-csp')
 
 
 def deploy(env, *, request=cloud, transport=http):
     context(env)
     package = directory(env)
     release, config, hosting = validate_package(package, env)
+    analytics = analytics_enabled(config)
+    check_ga4_csp(hosting, analytics)
     verify_head(env)
     token = env['MYPAGE_HOSTING_ACCESS_TOKEN']
     site = request(API + 'projects/' + PROJECT + '/sites/' + SITE, token)
@@ -310,7 +344,7 @@ def deploy(env, *, request=cloud, transport=http):
               'packageSHA256': env['MYPAGE_HOSTING_PACKAGE_DIGEST'], 'hostingRelease': None,
               'hostingVersion': name, 'previousRelease': before['name'], 'previousVersion': before['version']['name'],
               'backendRevision': api_before['latestReadyRevision'].rsplit('/', 1)[-1],
-              'analyticsEnabled': False, 'realGA4Verified': False,
+              'analyticsEnabled': analytics, 'realGA4Verified': False,
               'publishStatus': 'unknown', 'publicReadback': 'pending'}
     record_path = Path(env['RUNNER_TEMP']) / 'mypage-hosting-release-record.json'
     # 実際の切替前に復旧用参照を永続化する。応答消失時も公開が成功した可能性がある。
@@ -325,7 +359,7 @@ def deploy(env, *, request=cloud, transport=http):
     verify_public(release, hosting)
     record['publicReadback'] = 'passed'
     record_path.write_bytes(canonical(record))
-    print('DEV Hosting release verified: ' + name + '; analytics OFF; backend unchanged.')
+    print('DEV Hosting release verified: ' + name + '; backend unchanged.')
 
 
 def verify_public(release, hosting):
