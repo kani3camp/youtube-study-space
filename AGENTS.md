@@ -63,6 +63,7 @@ Read these before changing the corresponding behavior:
 | Data storage, forwarding, retention, or deletion | [`docs/privacy/`](docs/privacy/) | Privacy runbooks define retained vs retired data paths and migration constraints. |
 | Monitor layout or room definitions | [`youtube-monitor/README.md`](youtube-monitor/README.md), [`docs/development/architecture.md`](docs/development/architecture.md) | The monitor computes desired seat counts and may send control requests. |
 | Promotional/SNS/thumbnail design | [`docs/design/DESIGN.md`](docs/design/DESIGN.md) | Brand/production guidance only; it is not the livestream UI implementation specification. |
+| GitHub PR review handling | Canonical source per area: [`formal-spec/`](formal-spec/) for seat state/allocation; Notion via Notion MCP search/fetch for Notion-designed areas (e.g. mypage); GitHub for implementation/test/deploy state | Check the area's canonical source before judging review threads; escalate diffs that stay undecidable after cross-checking spec against implementation evidence. If Notion MCP is unavailable, keep reviewing what GitHub evidence can decide and hold only Notion-dependent judgments, naming the reference and why it is unconfirmed. |
 
 ## Quality Ownership
 
