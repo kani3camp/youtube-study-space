@@ -107,6 +107,24 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             h.stable_config(more)
 
+    def test_dispatch_mode_sets_dev_id_and_preserves_non_analytics_destinations(self):
+        config = {'frontend': {'VITE_MYPAGE_GA4_ID': 'G-OTHER0000', 'VITE_FIREBASE_APP_ID': 'synthetic'},
+                  'hosting': {'inventory': {'script': ['https://www.google.com/recaptcha/'],
+                                            'connect': [], 'image': [], 'frame': ['https://frame.example']}}}
+        with self.assertRaises(ValueError):
+            h.configure_dev_analytics(config, None)
+        h.configure_dev_analytics(config, 'true')
+        self.assertEqual(config['frontend']['VITE_MYPAGE_GA4_ID'], h.DEV_GA4_ID)
+        self.assertEqual(config['frontend']['VITE_MYPAGE_PUBLIC_ORIGIN'], h.ORIGIN)
+        self.assertEqual(config['hosting']['inventory']['connect'], sorted(h.GA4_COLLECTION))
+        self.assertTrue(h.analytics_enabled(config))
+        h.configure_dev_analytics(config, 'false')
+        self.assertFalse(h.analytics_enabled(config))
+        self.assertNotIn('VITE_MYPAGE_GA4_ID', config['frontend'])
+        self.assertEqual(config['frontend']['VITE_FIREBASE_APP_ID'], 'synthetic')
+        self.assertEqual(config['hosting']['inventory'], {'script': ['https://www.google.com/recaptcha/'],
+                         'connect': [], 'image': [], 'frame': ['https://frame.example'], 'analyticsApproved': False})
+
     def test_only_fixed_ga4_sources_can_change_on_analytics_activation(self):
         disabled = hosting()
         csp = disabled['headers'][0]['headers']
