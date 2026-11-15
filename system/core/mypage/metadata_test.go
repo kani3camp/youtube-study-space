@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -364,4 +366,228 @@ func TestConfirmedMissingFlightVerdictReachesShorterPresentCaller(t *testing.T) 
 	require.Nil(t, result.Account.Data)
 	require.Nil(t, result.Current.Data)
 	require.EqualValues(t, 1, calls.Load())
+}
+
+// simulatedLatencyは実時間を待たずに、依存先が消費する時間を残りの期限から差し引く。
+type simulatedLatency struct {
+	mu    sync.Mutex
+	spent time.Duration
+}
+
+func (l *simulatedLatency) spend(ctx context.Context, d time.Duration) error {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return errors.New("metadata refresh must be bounded")
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if time.Until(deadline) < l.spent+d {
+		return context.DeadlineExceeded
+	}
+	l.spent += d
+	return nil
+}
+
+func TestMetadataRefreshAnsweredWithinProviderTimeoutIsPersistedAndServed(t *testing.T) {
+	h, store, _, _ := boundaryFixture()
+	now := workFixture().AsOf
+	store.account.MetadataFetchedAt = now.Add(-25 * time.Hour)
+	store.account.Revision = now.Add(-time.Hour)
+	latency := &simulatedLatency{}
+	var lookups, saves atomic.Int32
+	h.BFF.Metadata = &AccountMetadataRefresh{
+		Access: allowedAccess(), Policy: Policy{Privacy: "p1", Terms: "t1"}, Now: func() time.Time { return now },
+		Provider: metadataReaderFunc(func(ctx context.Context, uid string) (Channel, error) {
+			lookups.Add(1)
+			// 旧来の1秒全体予算の大半を、YouTube自身の1秒制限内で消費する応答。
+			if err := latency.spend(ctx, 900*time.Millisecond); err != nil {
+				return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
+			}
+			return Channel{ID: uid, DisplayName: "Refreshed"}, nil
+		}),
+		Store: metadataWriterFunc(func(ctx context.Context, _ string, expected WebAccount, channel Channel, _ Policy, at time.Time) (WebAccount, error) {
+			// 保存トランザクション、保存後の再読み取り、アクセス再確認。
+			if err := latency.spend(ctx, 300*time.Millisecond); err != nil {
+				return WebAccount{}, err
+			}
+			saves.Add(1)
+			persisted := store.account
+			persisted.DisplayName, persisted.MetadataFetchedAt, persisted.Revision = channel.DisplayName, at, at
+			store.account = persisted
+			persisted.AccessCheckpoint = expected.AccessCheckpoint
+			return persisted, nil
+		}),
+	}
+	for range 2 {
+		response := boundaryRequest(h, "GET", "/api/mypage", "")
+		require.Equal(t, 200, response.Code)
+		var result Response
+		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
+		require.Equal(t, Available, result.Account.Availability)
+		require.Equal(t, "Refreshed", result.Account.Data.DisplayName)
+	}
+	require.EqualValues(t, 1, lookups.Load(), "the persisted metadata must satisfy the next request")
+	require.EqualValues(t, 1, saves.Load())
+	require.Equal(t, "Refreshed", store.account.DisplayName)
+	require.True(t, store.account.MetadataFetchedAt.Equal(now))
+}
+
+func TestSlowMetadataRefreshNeitherDelaysResponseNorStarvesSnapshot(t *testing.T) {
+	now := workFixture().AsOf
+	account := healthyAccount(now.Add(-25 * time.Hour))
+	account.Revision = now.Add(-time.Hour)
+	var refreshDeadline time.Time
+	var snapshotErr error
+	b := BFF{
+		Environment: "demo", Now: func() time.Time { return now },
+		Metadata: metadataFunc(func(ctx context.Context, _ string, _ WebAccount) (WebAccount, error) {
+			refreshDeadline, _ = ctx.Deadline()
+			<-ctx.Done()
+			return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
+		}),
+		Reader: readerFunc(func(ctx context.Context, _ string) (WorkSnapshot, error) {
+			snapshotErr = ctx.Err()
+			return workFixture(), nil
+		}),
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Millisecond)
+	defer cancel()
+	outerDeadline, _ := ctx.Deadline()
+	response, err := b.get(ctx, testAuthorizedWebAccount("synthetic", account))
+	require.NoError(t, err)
+	require.NoError(t, ctx.Err(), "response must arrive before the caller deadline")
+	require.True(t, refreshDeadline.Before(outerDeadline))
+	require.NoError(t, snapshotErr, "a slow refresh must leave time for the work snapshot")
+	require.Equal(t, Partial, response.Account.Availability)
+	require.Equal(t, MetadataRefreshFailed, *response.Account.ReasonCode)
+	require.Equal(t, "Sample", response.Account.Data.DisplayName)
+}
+
+func TestFailedMetadataRefreshBacksOffPerAccountState(t *testing.T) {
+	start := workFixture().AsOf
+	now := start
+	account := healthyAccount(now.Add(-25 * time.Hour))
+	account.Revision = now.Add(-time.Hour)
+	refreshes, reads := 0, 0
+	b := BFF{
+		Environment: "demo", Now: func() time.Time { return now },
+		Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) {
+			refreshes++
+			return WebAccount{}, fmt.Errorf("refresh public metadata: %w", apiError("TEMPORARY_UNAVAILABLE"))
+		}),
+		Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) {
+			reads++
+			s := workFixture()
+			s.AsOf = now
+			return s, nil
+		}),
+	}
+	get := func(at time.Duration, account WebAccount) {
+		t.Helper()
+		now = start.Add(at)
+		response, err := b.get(context.Background(), testAuthorizedWebAccount("synthetic", account))
+		require.NoError(t, err)
+		require.Equal(t, MetadataRefreshFailed, *response.Account.ReasonCode)
+		require.Equal(t, "Sample", response.Account.Data.DisplayName)
+	}
+	get(0, account)
+	require.Equal(t, 1, refreshes)
+	get(31*time.Second, account)
+	get(metadataRefreshBackoff-31*time.Second, account)
+	require.Equal(t, 3, reads, "uncached requests still read the work snapshot")
+	require.Equal(t, 1, refreshes, "a failed refresh must not be retried before the backoff elapses")
+	get(metadataRefreshBackoff, account)
+	require.Equal(t, 2, refreshes)
+	changed := account
+	changed.Revision = account.Revision.Add(time.Second)
+	get(metadataRefreshBackoff+31*time.Second, changed)
+	require.Equal(t, 3, refreshes, "a changed account state must be refreshed immediately")
+}
+
+func TestMetadataGateAndConfirmedMissingAreRecheckedOnEveryUncachedRequest(t *testing.T) {
+	start := workFixture().AsOf
+	for _, test := range []struct {
+		name string
+		err  error
+	}{
+		{"restricted", &accessGateError{cause: apiError("SERVICE_ACCESS_RESTRICTED")}},
+		{"gate-unavailable", fmt.Errorf("save public metadata: %w", &accessGateError{cause: apiError("TEMPORARY_UNAVAILABLE")})},
+		{"reconsent", apiError("PRIVACY_RECONSENT_REQUIRED")},
+		{"confirmed-missing", errors.Join(ErrPublicChannelMissing, errors.New("synthetic failed clear"))},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			now := start
+			account := healthyAccount(now.Add(-25 * time.Hour))
+			account.Revision = now.Add(-time.Hour)
+			refreshes, reads := 0, 0
+			b := BFF{
+				Environment: "demo", Now: func() time.Time { return now },
+				Metadata: metadataFunc(func(context.Context, string, WebAccount) (WebAccount, error) {
+					refreshes++
+					return WebAccount{}, test.err
+				}),
+				Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) {
+					reads++
+					s := workFixture()
+					s.AsOf = now
+					return s, nil
+				}),
+			}
+			for i := range 2 {
+				now = start.Add(time.Duration(i) * 31 * time.Second)
+				response, err := b.get(context.Background(), testAuthorizedWebAccount("synthetic", account))
+				if test.name == "confirmed-missing" {
+					require.NoError(t, err)
+					require.Nil(t, response.Account.Data)
+					require.Equal(t, MetadataTooOld, *response.Account.ReasonCode)
+					continue
+				}
+				require.True(t, metadataGateError(err), "error=%v", err)
+				require.True(t, response.GeneratedAt.IsZero())
+			}
+			require.Equal(t, 2, refreshes, "gate and absence verdicts must never be skipped by the failure backoff")
+			if test.name != "confirmed-missing" {
+				require.Zero(t, reads)
+			}
+		})
+	}
+}
+
+func TestConcurrentStaleMetadataRequestsShareOneRefresh(t *testing.T) {
+	now := workFixture().AsOf
+	account := healthyAccount(now.Add(-25 * time.Hour))
+	account.Revision = now.Add(-time.Hour)
+	entered, release := make(chan struct{}), make(chan struct{})
+	var refreshes atomic.Int32
+	b := BFF{
+		Environment: "demo", Now: func() time.Time { return now },
+		Metadata: metadataFunc(func(ctx context.Context, _ string, _ WebAccount) (WebAccount, error) {
+			if refreshes.Add(1) == 1 {
+				close(entered)
+			}
+			select {
+			case <-release:
+			case <-ctx.Done():
+			}
+			return WebAccount{}, apiError("TEMPORARY_UNAVAILABLE")
+		}),
+		Reader: readerFunc(func(context.Context, string) (WorkSnapshot, error) { return workFixture(), nil }),
+	}
+	const callers = 8
+	results := make(chan error, callers)
+	for range callers {
+		go func() {
+			response, err := b.get(context.Background(), testAuthorizedWebAccount("synthetic", account))
+			if err == nil && (response.Account.ReasonCode == nil || *response.Account.ReasonCode != MetadataRefreshFailed) {
+				err = errors.New("stale metadata was not reported as refresh failed")
+			}
+			results <- err
+		}()
+	}
+	<-entered
+	close(release)
+	for range callers {
+		require.NoError(t, <-results)
+	}
+	require.EqualValues(t, 1, refreshes.Load())
 }

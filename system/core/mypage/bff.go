@@ -23,6 +23,10 @@ type (
 		response       Response
 		accountVersion string
 	}
+	metadataFailure struct {
+		at             time.Time
+		accountVersion string
+	}
 	MetadataRefresher interface {
 		Refresh(context.Context, string, WebAccount) (WebAccount, error)
 	}
@@ -37,7 +41,17 @@ type BFF struct {
 	mu          sync.Mutex
 	cache       map[cacheKey]cachedAggregate
 	flights     map[string]*metadataFlight
+	// 認可ゲート・チャンネル不在以外で失敗したメタデータ再取得を、uidごとに記録する。
+	metadataFailures map[string]metadataFailure
 }
+
+const (
+	// メタデータ再取得全体の上限。アクセス確認、YouTube検索（それ自体は1秒で打ち切る）、
+	// Firestoreの保存トランザクション、保存後の再読み取りとアクセス再確認を含める。
+	metadataRefreshTimeout = 3 * time.Second
+	// 失敗した再取得を、キャッシュされない後続リクエストごとに繰り返さない期間。
+	metadataRefreshBackoff = 5 * time.Minute
+)
 
 func (b *BFF) cacheHit(key cacheKey, now time.Time, account WebAccount) (Response, bool) {
 	b.mu.Lock()
@@ -127,9 +141,13 @@ func (b *BFF) get(ctx context.Context, authorized authorizedWebAccount) (Respons
 				if value, ok := b.cacheHit(key, b.Now().UTC(), account); ok {
 					return value, nil
 				}
-				if b.Metadata != nil && (account.MetadataFetchedAt.IsZero() || b.Now().Sub(account.MetadataFetchedAt) >= 24*time.Hour) {
-					metadataCtx, stop := context.WithTimeout(workCtx, time.Second)
-					if refreshed, err := b.Metadata.Refresh(metadataCtx, uid, account); err == nil {
+				if b.Metadata != nil && (account.MetadataFetchedAt.IsZero() || b.Now().Sub(account.MetadataFetchedAt) >= 24*time.Hour) && !b.metadataBackingOff(uid, account) {
+					// 再取得は共有処理の期限内で行い、応答の待ち時間を延ばさない。
+					// 作業スナップショットの読み取りに残り時間の半分以上を残す。
+					metadataCtx, stop := context.WithTimeout(workCtx, min(metadataRefreshTimeout, time.Until(workDeadline)/2))
+					refreshed, err := b.Metadata.Refresh(metadataCtx, uid, account)
+					b.recordMetadataRefresh(uid, account, err)
+					if err == nil {
 						account = refreshed
 					} else if metadataGateError(err) {
 						stop()
@@ -222,6 +240,54 @@ func (b *BFF) acquireFlight(key string) (*metadataFlight, bool) {
 	flight := &metadataFlight{done: make(chan struct{})}
 	b.flights[key] = flight
 	return flight, true
+}
+
+// metadataBackingOffは、同じアカウント状態での再取得が直近に失敗している場合にtrueを返す。
+// 再取得を省略しても、アカウント情報は既存の24時間・30日の判定で表示する。
+// アクセス状態はHTTP入口の認可で毎回検証済みであり、メタデータが新しい場合と同じ扱いになる。
+func (b *BFF) metadataBackingOff(uid string, account WebAccount) bool {
+	now := b.Now().UTC()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	failure, ok := b.metadataFailures[uid]
+	if !ok {
+		return false
+	}
+	if failure.accountVersion != metadataAccountVersion(account) || now.Before(failure.at) || now.Sub(failure.at) >= metadataRefreshBackoff {
+		delete(b.metadataFailures, uid)
+		return false
+	}
+	return true
+}
+
+// recordMetadataRefreshは、通常の取得・保存失敗だけを待機対象にする。
+// 認可ゲートのエラーとチャンネル不在は、次のリクエストでも必ず再取得して判定し直す。
+func (b *BFF) recordMetadataRefresh(uid string, account WebAccount, err error) {
+	now := b.Now().UTC()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if err == nil || metadataGateError(err) || errors.Is(err, ErrPublicChannelMissing) {
+		delete(b.metadataFailures, uid)
+		return
+	}
+	if b.metadataFailures == nil {
+		b.metadataFailures = make(map[string]metadataFailure)
+	}
+	if _, ok := b.metadataFailures[uid]; !ok && len(b.metadataFailures) >= 1024 {
+		for victim, failure := range b.metadataFailures {
+			if now.Before(failure.at) || now.Sub(failure.at) >= metadataRefreshBackoff {
+				delete(b.metadataFailures, victim)
+			}
+		}
+		// 上限時に1件を追い出しても、そのuidの再取得が1回増えるだけである。
+		for victim := range b.metadataFailures {
+			if len(b.metadataFailures) < 1024 {
+				break
+			}
+			delete(b.metadataFailures, victim)
+		}
+	}
+	b.metadataFailures[uid] = metadataFailure{at: now, accountVersion: metadataAccountVersion(account)}
 }
 
 func minDeadline(a, b time.Time) time.Time {
