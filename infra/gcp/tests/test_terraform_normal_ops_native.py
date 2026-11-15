@@ -14,12 +14,64 @@ import sys
 import tempfile
 from threading import Thread
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import terraform_normal_ops as ops
+import test_terraform_source as source_fixture
 
 
 class NativeCRUD(unittest.TestCase):
+    def test_invalid_selected_hcl_is_rejected_even_when_controller_hcl_passes(self):
+        fixture = source_fixture.SourceBoundary()
+        with tempfile.TemporaryDirectory(prefix='selected-validation-') as temporary:
+            control, selected, env = fixture.fixture(temporary)
+            (selected / 'infra/gcp/environments/dev/main.tf').write_text(
+                'resource "terraform_data" "invalid" {\n  input =\n}\n')
+            fixture.git(selected, 'add', '.')
+            fixture.git(selected, '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid',
+                        '-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'invalid HCL')
+            sha = fixture.git(selected, 'rev-parse', 'HEAD')
+            validation = Path(temporary) / 'validation'
+            fixture.git(Path(temporary), 'clone', '--local', str(selected), str(validation))
+            fixture.git(validation, 'checkout', '--detach', sha)
+            clean = {'PATH': os.environ.get('PATH', os.defpath), 'CHECKPOINT_DISABLE': '1'}
+            command = ['terraform', 'fmt', '-check', '-recursive', 'infra/gcp']
+            controller = subprocess.run(command, cwd=control, env=clean, capture_output=True, timeout=30)
+            target = subprocess.run(command, cwd=validation, env=clean, capture_output=True, timeout=30)
+            self.assertEqual(controller.returncode, 0)
+            self.assertNotEqual(target.returncode, 0)
+            self.assertIn(b'Invalid expression', target.stderr)
+            self.assertEqual(fixture.git(validation, 'rev-parse', 'HEAD'), sha)
+
+    def test_selected_source_is_used_by_native_terraform(self):
+        with tempfile.TemporaryDirectory(prefix='selected-source-native-') as temporary:
+            fixture = source_fixture.SourceBoundary()
+            control, source, env = fixture.fixture(temporary)
+            main = source / 'infra/gcp/environments/dev/main.tf'
+            main.write_text('resource "terraform_data" "selected" { input = "source-only" }\n')
+            fixture.git(source, 'add', '.')
+            fixture.git(source, '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid',
+                        '-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'native source')
+            env['NORMAL_EXPECTED_SHA'] = fixture.git(source, 'rev-parse', 'HEAD')
+            env['NORMAL_SOURCE_SHA'] = env['NORMAL_EXPECTED_SHA']
+            private = Path(temporary) / 'private'
+            with patch.object(ops, 'REPO', control):
+                tfroot = ops.source(env, private)
+            cli = Path(temporary) / 'terraform.rc'
+            cli.write_text('disable_checkpoint = true\n')
+            clean = {'PATH': os.environ.get('PATH', os.defpath), 'TF_CLI_CONFIG_FILE': str(cli),
+                     'CHECKPOINT_DISABLE': '1', 'TF_INPUT': 'false', 'TF_IN_AUTOMATION': 'true'}
+            for args in (['init', '-backend=false', '-input=false'],
+                         ['plan', '-input=false', '-out=native.tfplan']):
+                result = subprocess.run(['terraform', *args], cwd=tfroot, env=clean, capture_output=True, timeout=60)
+                self.assertEqual(result.returncode, 0, 'native source検証が失敗しました')
+            result = subprocess.run(['terraform', 'show', '-json', 'native.tfplan'], cwd=tfroot,
+                                    env=clean, capture_output=True, check=True, timeout=30)
+            resource = json.loads(result.stdout)['planned_values']['root_module']['resources'][0]
+            self.assertEqual(resource['type'], 'terraform_data')
+            self.assertEqual(resource['values']['input'], 'source-only')
+
     def test_native_create_update_replace_delete_and_post_noop(self):
         topics = {}
         requests = []

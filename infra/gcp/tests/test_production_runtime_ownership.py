@@ -60,7 +60,8 @@ class ProductionRuntimeOwnership(unittest.TestCase):
             target = base / "environments/prod"
             target.mkdir(parents=True)
             shutil.copytree(GCP / "modules", base / "modules", ignore=shutil.ignore_patterns(
-                ".terraform", "*.tfstate*", "*.tfplan", "*.tfvars*", "__pycache__"))
+                ".terraform", "node_modules", "source.zip", "*debug.log",
+                "*.tfstate*", "*.tfplan", "*.tfvars*", "__pycache__"))
             if project == PROD:
                 for source in (GCP / "environments/prod").glob("*.tf"):
                     shutil.copyfile(source, target / source.name)

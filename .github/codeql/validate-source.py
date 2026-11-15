@@ -105,9 +105,9 @@ def validate(caller, callee, static, active, config):
     require(set(callee["jobs"]) == {"analyze"}, "Single analyzer job")
     job = callee["jobs"]["analyze"]
     require("if" not in job, "Analyzer must analyze every selected language without a job condition")
-    require(job.get("environment") == "codeql-analysis", "Fixed dedicated Environment required")
+    require("environment" not in job, "Analyzer must not request an Environment")
     require(job.get("permissions") == ANALYSIS_PERMISSIONS, "Callee job permissions required")
-    require(set(job) == {"name", "runs-on", "timeout-minutes", "environment", "permissions", "strategy", "steps"},
+    require(set(job) == {"name", "runs-on", "timeout-minutes", "permissions", "strategy", "steps"},
             "No extra analyzer jobs/services/env/configuration")
     require(job["runs-on"] == "ubuntu-latest" and job["timeout-minutes"] == 40, "Standard GitHub-hosted Linux runner")
     require(job["strategy"] == {"fail-fast": False, "matrix": {"include": [

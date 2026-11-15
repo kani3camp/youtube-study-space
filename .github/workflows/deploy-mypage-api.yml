@@ -1,0 +1,40 @@
+name: Deploy MyPage API
+
+# Entry point registered on the default branch only. GitHub accepts
+# workflow_dispatch only for workflow files that exist on the default branch,
+# but runs the file of the selected ref. The real workflow lives on
+# integration/mypage-canon-20261006 (Issue #1500); select that branch in
+# "Use workflow from". This file is replaced when the integration branch
+# reaches dev. Keep the inputs identical to the integration branch's file.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: build-and-deploy builds this commit; deploy-existing reuses a verified image (rollback)
+        required: true
+        default: build-and-deploy
+        type: choice
+        options:
+          - build-and-deploy
+          - deploy-existing
+      image_digest:
+        description: deploy-existing only. Exact mypage-api@sha256 digest
+        required: false
+        type: string
+      image_source_sha:
+        description: deploy-existing only. Source SHA whose immutable tag resolves to the digest
+        required: false
+        type: string
+
+permissions: {}
+
+jobs:
+  integration-only:
+    name: Run from the integration branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Refuse to run from this ref
+        run: |
+          echo "::error::Run Deploy MyPage API with 'Use workflow from: integration/mypage-canon-20261006'. This ref only registers the entry point."
+          exit 1

@@ -10,7 +10,9 @@ updates:
   # Docker ベースイメージ（#693: 再現可能ビルドのため digest 固定を自動更新）
   # =========================
   - package-ecosystem: docker
-    directory: /system
+    directories:
+      - /system
+      - /.github/ci-validation
     schedule:
       interval: monthly
       time: "09:00"
