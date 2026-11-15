@@ -101,7 +101,9 @@ describe('public policy rendering', () => {
 		const deletion = privacy.body
 			.split('<h2 id="data-deletion">')[1]
 			?.split('<h2')[0]
-		expect(deletion).toContain('href="#contact">第16節の専用窓口</a>')
+		expect(deletion).toContain(
+			'href="#contact">第16節のお問い合わせフォーム</a>',
+		)
 		expect(deletion).not.toContain('href="/contact"')
 		expect(privacy.body).toContain(
 			'<h2 id="contact">第16節 運営者・お問い合わせ</h2>',
@@ -172,7 +174,7 @@ describe('public policy rendering', () => {
 	it('explains how to request action after a Google disconnect', () => {
 		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
 		expect(html).toContain(
-			'連携解除後のログイン状態の解除や保存データの削除をご希望の場合は、<a href="#contact">第16節の専用窓口</a>へご連絡ください。',
+			'連携解除後のログイン状態の解除や保存データの削除をご希望の場合は、<a href="#contact">第16節のお問い合わせフォーム</a>へご連絡ください。',
 		)
 		expect(html).toContain(
 			'チャンネルIDと作業履歴は、Google連携の解除だけでは削除されません。',
@@ -181,13 +183,13 @@ describe('public policy rendering', () => {
 			'マイページのアカウント情報とチャンネルとの関連付けを削除',
 		)
 	})
-	it('uses one wording for channel association and links every privacy request to the dedicated desk', () => {
+	it('uses one wording for channel association and links every privacy request to the shared contact form', () => {
 		const privacy = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
 		const terms = markup(<TermsOfUse publicPolicyInputs={{}} />)
 		for (const html of [privacy, terms]) expect(html).not.toMatch(/ひも付/)
 		expect(terms).toContain('同じチャンネルIDに関連付けられたまま')
 		expect(privacy).toContain(
-			'問題がある場合は、<a href="#contact">第16節の専用窓口</a>へご連絡ください。',
+			'問題がある場合は、<a href="#contact">第16節のお問い合わせフォーム</a>へご連絡ください。',
 		)
 		expect(privacy).not.toContain('問い合わせ窓口へご連絡ください。')
 	})
@@ -221,10 +223,9 @@ describe('public policy rendering', () => {
 		expect(html).toContain(
 			'YouTubeのライブチャットに入力した内容は他の視聴者にも公開されます。',
 		)
-		expect(html).toContain('href="/contact">お問い合わせ窓口</a>')
-		expect(html).toContain(
-			'href="/privacy#contact">プライバシーポリシーの専用窓口</a>',
-		)
+		expect(html).toContain('href="/contact">お問い合わせフォーム</a>')
+		expect(html).toContain('href="/privacy#contact">プライバシーポリシー</a>')
+		expect(html).not.toContain('専用窓口')
 		expect(html).not.toMatch(/OAuth|Firebase|Google Cloud/)
 		expect(html).toContain(
 			'故意または重過失による損害については、第2項の制限を適用しません。',

@@ -3,14 +3,15 @@ import { ExternalLink, guideURL } from './features/mypage/view'
 import { ContactLink } from './policies'
 import { readPublicPolicyConfig } from './public-policy-config'
 
-function ContactDestination({ href, label }: { href?: string; label: string }) {
+function ContactDestination({ href }: { href?: string }) {
 	if (!href) return null
+	const mail = href.startsWith('mailto:')
 	return (
 		<div className="contact-destination">
 			<ContactLink href={href} primary>
-				{label}
+				{mail ? 'メールで問い合わせる' : 'お問い合わせフォームを開く'}
 			</ContactLink>
-			{href.startsWith('mailto:') && (
+			{mail && (
 				<p className="muted">
 					メールアプリが開かない場合は、次の宛先へお送りください。
 					<span className="contact-address">
@@ -77,10 +78,7 @@ export function ContactPage({
 					<p className="muted">
 						画像を添付する場合は、個人情報や他の方の情報が写らないようにしてください。
 					</p>
-					<ContactDestination
-						href={config.contactURL}
-						label="一般の窓口へ連絡する"
-					/>
+					<ContactDestination href={config.contactURL} />
 				</section>
 				<section
 					className="card contact-option"
@@ -89,7 +87,7 @@ export function ContactPage({
 					<p className="contact-eyebrow">ご自身のデータ・アカウント</p>
 					<h2 id="contact-privacy">個人情報・プライバシーのご相談</h2>
 					<p>
-						Google連携解除後のご連絡、保存データの削除・開示・訂正、すべてのログインの解除、個人情報の取り扱いに関するご相談はこちらへ。Google連携を解除済みでログインできない場合も、この窓口をご利用いただけます。
+						Google連携解除後のご連絡、保存データの削除・開示・訂正、すべてのログインの解除、個人情報の取り扱いに関するご相談はこちらへ。Google連携を解除済みでログインできない場合も、お問い合わせフォームをご利用いただけます。
 					</p>
 					<h3>連絡時にお知らせいただきたいこと</h3>
 					<ul>
@@ -100,10 +98,7 @@ export function ContactPage({
 					<p className="muted">
 						使い方の確認やマイページへのログインを、ご依頼の条件にはしません。
 					</p>
-					<ContactDestination
-						href={config.contactURL}
-						label="プライバシーの窓口へ連絡する"
-					/>
+					<ContactDestination href={config.contactURL} />
 				</section>
 			</div>
 			<section
@@ -113,13 +108,13 @@ export function ContactPage({
 				<h2 id="contact-process">データに関するご依頼の流れ</h2>
 				<ol>
 					<li>
-						<strong>プライバシーの窓口へ連絡</strong>
+						<strong>お問い合わせフォームから連絡</strong>
 						<p>ご依頼を受け付けた後、必要な手続きを返信でご案内します。</p>
 					</li>
 					<li>
 						<strong>依頼の対象チャンネルの本人確認</strong>
 						<p>
-							ご依頼を受け付けた後、原則として、通常のログインとは別にGoogleの認証手続きで対象のYouTubeチャンネルを確認します。Google連携を解除済みなどで認証手続きを利用できない場合も、まずは窓口へお問い合わせください。個別の確認方法をご案内します。
+							ご依頼を受け付けた後、原則として、通常のログインとは別にGoogleの認証手続きで対象のYouTubeチャンネルを確認します。Google連携を解除済みなどで認証手続きを利用できない場合も、まずはお問い合わせフォームからご連絡ください。個別の確認方法をご案内します。
 						</p>
 					</li>
 					<li>

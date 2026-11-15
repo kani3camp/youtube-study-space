@@ -45,8 +45,8 @@ describe('contact destinations and request guidance', () => {
 		const html = markup({ proofRef: 'synthetic-private-proof' })
 		expect(html.match(/class="button primary"/g)).toHaveLength(2)
 		expect(html.match(/href="mailto:contact@example.invalid"/g)).toHaveLength(2)
-		expect(html).toContain('一般の窓口へ連絡する')
-		expect(html).toContain('プライバシーの窓口へ連絡する')
+		expect(html.match(/メールで問い合わせる/g)).toHaveLength(2)
+		expect(html).not.toContain('お問い合わせフォームを開く')
 		expect(html).toContain(
 			'class="contact-address">contact@example.invalid</span>',
 		)
@@ -70,6 +70,7 @@ describe('contact destinations and request guidance', () => {
 			'https://docs.google.com/forms/d/e/1FAIpQLScKyaOQSxKIxs1znN72MlrDwHmJoQ94MnEuUK9UKD_fgqHEzg/viewform',
 			'https://docs.google.com/forms/d/e/1FAIpQLScKyaOQSxKIxs1znN72MlrDwHmJoQ94MnEuUK9UKD_fgqHEzg/viewform',
 		])
+		expect(html.match(/お問い合わせフォームを開く/g)).toHaveLength(2)
 		expect(hrefs.join(' ')).not.toContain('synthetic-private-proof')
 	})
 	it('omits unsafe configured destinations', () => {
