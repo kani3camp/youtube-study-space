@@ -117,7 +117,7 @@ export function createApp(
 					<h1>
 						{unknown
 							? '現在、マイページの状態を確認できません'
-							: 'マイページの利用状況を確認しています'}
+							: 'マイページの状態を確認しています'}
 					</h1>
 					<p>
 						{unknown
@@ -557,7 +557,7 @@ export function createApp(
 				<Link to="/">オンライン作業部屋</Link>
 				<section className="card login-card">
 					<h1>
-						{supportMode ? '問い合わせの本人確認' : 'マイページへログイン'}
+						{supportMode ? 'お問い合わせの本人確認' : 'マイページへログイン'}
 					</h1>
 					<p>
 						{supportMode
@@ -598,7 +598,9 @@ export function createApp(
 							)}
 							{(state.error === 'PRIVACY_RECONSENT_REQUIRED' ||
 								state.error === 'POLICY_VERSION_OUTDATED') && (
-								<p role="alert">最新の同意内容をご確認ください。</p>
+								<p role="alert">
+									プライバシーポリシーと利用規約が更新されています。内容をご確認のうえ、あらためて同意してください。
+								</p>
 							)}
 							{runtime.unavailable && (
 								<p role="alert">
@@ -876,14 +878,17 @@ export function createApp(
 								{channel.purpose === 'support' ? (
 									<>
 										<p>
-											依頼の目的：{supportPurposeLabel[channel.supportPurpose]}
+											ご依頼の内容：
+											{supportPurposeLabel[channel.supportPurpose]}
 										</p>
 										<p>
 											このチャンネルの依頼について、本人確認だけを完了します。依頼の実行状況は受付窓口からご案内します。
 										</p>
 									</>
 								) : (
-									<p>作業部屋で使っているチャンネルか確認してください。</p>
+									<p>
+										作業部屋で使っているYouTubeチャンネルか、ご確認ください。
+									</p>
 								)}
 								<div className="card channel-identity">
 									<div className="channel-avatar">
@@ -901,7 +906,7 @@ export function createApp(
 									{busy
 										? '手続きを完了しています…'
 										: channel.purpose === 'support'
-											? 'この依頼の本人確認を完了'
+											? 'この依頼の本人確認を完了する'
 											: 'このチャンネルでログイン'}
 								</button>
 							</>
@@ -1047,7 +1052,7 @@ export function createApp(
 						{unknown
 							? '現在、マイページの状態を確認できません'
 							: checking
-								? 'マイページの利用状況を確認しています'
+								? 'マイページの状態を確認しています'
 								: 'ただいまメンテナンス中です'}
 					</h1>
 					<p>

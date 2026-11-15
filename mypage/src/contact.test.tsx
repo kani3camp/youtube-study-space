@@ -121,7 +121,7 @@ describe('contact destinations and request guidance', () => {
 		expect(html).toContain('依頼の本人確認が完了しました')
 		expect(html).toContain('synthetic&lt;&amp;proof')
 		expect(html).toContain(
-			'この番号は画面を離れたり、再読み込みすると表示されなくなります。',
+			'この番号は、画面を離れるか再読み込みすると表示されなくなります。',
 		)
 		expect(html).toContain(
 			'削除やログインの解除は、この画面では実行していません。',
