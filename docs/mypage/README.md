@@ -273,7 +273,7 @@ JSONレコーダーは期限を実際に適用できる専用の出力先だけ�
 
 `mypage/src/hosting.ts`のhostingCandidateは、明示した環境・プロジェクト・対象・Cloud Runサービス・リージョンと、レビュー済みのSDK接続先から設定候補だけを生成する純粋関数である。developmentはasia-southeast2、productionはasia-northeast2を使う。既存のfirebase/firebase.jsonは変更せず、CLIのinit/deployも実行しない。projectIDは配備先を明示的に選ぶ別の値であり、firebase.json本体に混入させない。候補のpublic=distはmypageディレクトリを基準にする。
 
-/apiと/api/**を先にCloud Runへ書き換え、最後にSPAへ書き換える。既定では全パスにno-store/no-referrer/CSPとセキュリティヘッダーを設定する。`hostingCandidate(input, assetPaths)`に、検証済みの実ビルド全ファイル一覧を渡した場合だけ、既知のハッシュ付きJS/CSS/woff2の完全一致パスをpublic immutableにする。HTML・API・未知のハッシュパスのSPA代替表示はno-storeとする。CSPは明示したHTTPS接続先だけを許可し、wildcard/unsafe-inline/eval/credential/query/fragmentを拒否する。Firebase/App Check/reCAPTCHAの実接続先を推測しない。アクセス解析の接続先には別の承認を必要とする。validateHostingAssetsは静的ファイルとAPIの衝突・ソースマップ・秘密ファイル向けパスを拒否する。Cloud Run APIは自身のレスポンスヘッダーも保持する。
+`/privacy_policy`は`/privacy`へHTTP 302で転送する。`/api`と`/api/**`はCloud Runへ、`/privacy`と`/terms`はビルド時に生成した規約HTMLへ書き換え、残りはSPAへ書き換える。既定では全パスにno-store/no-referrer/CSPとセキュリティヘッダーを設定する。`hostingCandidate(input, assetPaths)`に、検証済みの実ビルド全ファイル一覧を渡した場合だけ、既知のハッシュ付きJS/CSS/woff2の完全一致パスをpublic immutableにする。HTML・API・未知のハッシュパスのSPA代替表示はno-storeとする。CSPは明示したHTTPS接続先だけを許可し、wildcard/unsafe-inline/eval/credential/query/fragmentを拒否する。Firebase/App Check/reCAPTCHAの実接続先を推測しない。アクセス解析の接続先には別の承認を必要とする。validateHostingAssetsは静的ファイルとAPIの衝突・ソースマップ・秘密ファイル向けパスを拒否する。Cloud Run APIは自身のレスポンスヘッダーも保持する。
 
 原価の仮定と除外範囲は[増分原価モデル](cost-notes.md)を参照する。実測前の推定を請求削減の実績にしない。
 

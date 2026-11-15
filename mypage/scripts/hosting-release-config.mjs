@@ -23,6 +23,11 @@ try {
 	const paths = JSON.parse(await readFile(pathsPath, 'utf8'))
 	const candidate = hostingCandidate(config.hosting, paths).firebase.hosting
 	const rest = {
+		redirects: candidate.redirects.map(({ source, destination, type }) => ({
+			glob: source,
+			location: destination,
+			statusCode: type,
+		})),
 		rewrites: candidate.rewrites.map(({ source, destination, run }) => ({
 			glob: source,
 			...(destination ? { path: destination } : { run }),

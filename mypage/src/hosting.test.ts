@@ -31,6 +31,8 @@ describe('Hosting candidate without deployment', () => {
 	it('caches only exact known public hash assets and keeps SPA/API/unknown paths no-store', () => {
 		const paths = [
 			'index.html',
+			'privacy.html',
+			'terms.html',
 			'assets/index-BRqipLeI.js',
 			'assets/index-DjiJpEFS.css',
 			'assets/m-plus-400-xpk6PQU0.woff2',
@@ -67,6 +69,9 @@ describe('Hosting candidate without deployment', () => {
 	it('routes both API root and subtree before SPA and preserves strict static security headers', () => {
 		const input = fixture()
 		const result = hostingCandidate(input)
+		expect(result.firebase.hosting.redirects).toEqual([
+			{ source: '/privacy_policy{,/}', destination: '/privacy', type: 302 },
+		])
 		expect(result.firebase.hosting.rewrites).toEqual([
 			{
 				source: '/api',
@@ -76,6 +81,8 @@ describe('Hosting candidate without deployment', () => {
 				source: '/api/**',
 				run: { serviceId: input.serviceID, region: input.region },
 			},
+			{ source: '/privacy{,/}', destination: '/privacy.html' },
+			{ source: '/terms{,/}', destination: '/terms.html' },
 			{ source: '**', destination: '/index.html' },
 		])
 		const headers = result.firebase.hosting.headers[0]?.headers
@@ -160,11 +167,16 @@ describe('Hosting candidate without deployment', () => {
 		expect(() => hostingCandidate(input)).toThrow()
 		input.inventory.analyticsApproved = true
 		expect(() => hostingCandidate(input)).not.toThrow()
+		const pages = ['index.html', 'privacy.html', 'terms.html']
 		validateHostingAssets([
-			'index.html',
+			...pages,
 			'assets/synthetic.js',
 			'assets/synthetic.css',
 		])
+		for (const missing of pages)
+			expect(() =>
+				validateHostingAssets(pages.filter((path) => path !== missing)),
+			).toThrow()
 		for (const path of [
 			'api',
 			'api/unknown',
@@ -173,6 +185,6 @@ describe('Hosting candidate without deployment', () => {
 			'/absolute',
 			'.env',
 		])
-			expect(() => validateHostingAssets(['index.html', path])).toThrow()
+			expect(() => validateHostingAssets([...pages, path])).toThrow()
 	})
 })

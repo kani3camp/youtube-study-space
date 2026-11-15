@@ -11,6 +11,7 @@ import { createApp } from './app'
 import { PrivacyPolicy, PublicPolicyContact, TermsOfUse } from './policies'
 import { PUBLIC_POLICY_FIELDS } from './public-policy-config'
 import { BrowserRuntime } from './runtime'
+import { renderStaticPolicies } from './static-policies'
 
 beforeEach(() => vi.stubEnv('VITE_FIREBASE_PROJECT_ID', undefined))
 afterEach(() => vi.unstubAllEnvs())
@@ -86,6 +87,22 @@ describe('public policy rendering', () => {
 		expect(router.state.location.href).toBe(entry)
 		expect(router.state.matches.at(-1)?.routeId).toBe(entry)
 		expect(request).not.toHaveBeenCalled()
+	})
+	it('renders the complete policy documents and their links in static HTML', () => {
+		for (const [field, value] of Object.entries(publicValues))
+			vi.stubEnv(field, value)
+		const [privacy, terms] = renderStaticPolicies()
+		expect(privacy).toMatchObject({
+			filename: 'privacy.html',
+			title: 'プライバシーポリシー',
+		})
+		expect(terms).toMatchObject({ filename: 'terms.html', title: '利用規約' })
+		expect(privacy.body).toContain(markup(<PrivacyPolicy />))
+		expect(terms.body).toContain(markup(<TermsOfUse />))
+		for (const { body } of [privacy, terms]) {
+			expect(body).toContain('href="/contact"')
+			expect(body).not.toContain('<script')
+		}
 	})
 	it('keeps unknown public paths as not found', async () => {
 		const runtime = new BrowserRuntime(

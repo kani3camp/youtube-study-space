@@ -17,6 +17,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urljoin
 
 ROOT = Path(__file__).resolve().parents[3]
 PROJECT = 'test-youtube-study-space'
@@ -33,6 +34,10 @@ RUN = 'https://run.googleapis.com/v2/projects/' + PROJECT + '/locations/asia-sou
 MAX_FILE = 4 * 1024 * 1024
 MAX_TOTAL = 20 * 1024 * 1024
 IMMUTABLE = 'public, max-age=31536000, immutable'
+POLICY_PAGES = {'/privacy': 'privacy.html', '/terms': 'terms.html'}
+POLICY_REWRITES = [{'glob': route + '{,/}', 'path': '/' + filename}
+                   for route, filename in POLICY_PAGES.items()]
+POLICY_REDIRECTS = [{'glob': '/privacy_policy{,/}', 'statusCode': 302, 'location': '/privacy'}]
 DEV_GA4_ID = 'G-E31NHW939V'
 GA4_TAG = 'https://www.googletagmanager.com/gtag/js'
 GA4_COLLECTION = frozenset({
@@ -88,7 +93,7 @@ def command(args, *, env=None, cwd=ROOT):
 
 
 def allowed_path(name):
-    return name in {'index.html', 'favicon.png', 'fonts/mplus-rounded-1c/OFL.txt'} or bool(
+    return name in {'index.html', 'favicon.png', 'fonts/mplus-rounded-1c/OFL.txt', *POLICY_PAGES.values()} or bool(
         re.fullmatch(r'assets/[A-Za-z0-9][A-Za-z0-9._-]*-[A-Za-z0-9_-]{8,}\.(js|css|woff2)', name))
 
 
@@ -104,7 +109,7 @@ def inventory(dist):
         need(0 < p.stat().st_size <= MAX_FILE, 'asset-size')
         data = p.read_bytes()
         files[name] = {'bytes': len(data), 'sha256': sha(data)}
-    need(0 < len(files) <= 64 and 'index.html' in files, 'asset-count')
+    need(len(files) <= 64 and {'index.html', *POLICY_PAGES.values()} <= files.keys(), 'asset-count')
     need(sum(f['bytes'] for f in files.values()) <= MAX_TOTAL, 'release-size')
     need(sum(n.endswith('.js') for n in files) == 1 and
          sum(n.endswith('.css') for n in files) == 1, 'entry-assets')
@@ -142,10 +147,8 @@ def build(env):
     configure_dev_analytics(config)
     # 値をビルド環境変数に使う前に、標準の検証処理を実行する。
     (package / 'public-config.json').write_bytes(canonical(config))
-    (package / 'dist').mkdir()
-    (package / 'dist/index.html').write_text('<!doctype html>')
     # 候補への変換時に、DEVの識別情報とアクセス解析の設定も検証する。
-    (package / 'paths.json').write_bytes(canonical(['index.html']))
+    (package / 'paths.json').write_bytes(canonical([]))
     command(['node', 'mypage/scripts/hosting-release-config.mjs',
              str(package / 'public-config.json'), str(package / 'paths.json'),
              str(package / 'hosting.json')])
@@ -198,7 +201,8 @@ def validate_package(package, env):
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise ValueError('http-redirect')
+        # 匿名の応答検査で転送先を確認できるよう、追従せずに応答を返す。
+        return None
 
 
 def http(url, *, token=None, method='GET', body=None, binary=False, github=False):
@@ -271,7 +275,8 @@ def verify_head(env):
 
 def stable_config(config):
     # 不変アセットのキャッシュ規則と、DEV GA4の固定送信先だけを比較から除く。
-    need(set(config) == {'headers', 'rewrites'}, 'hosting-config-scope')
+    need(set(config) in ({'headers', 'rewrites'}, {'headers', 'rewrites', 'redirects'}),
+         'hosting-config-scope')
     headers = config['headers']
     need(isinstance(headers, list) and sum(x.get('glob') == '**' for x in headers) == 1, 'hosting-headers')
     for h in headers:
@@ -287,7 +292,20 @@ def stable_config(config):
         allowed = GA4_SOURCES.get(directive, ())
         directives.append(' '.join([directive, *(source for source in sources if source not in allowed)]))
     global_headers['Content-Security-Policy'] = '; '.join(directives)
-    return {'headers': global_headers, 'rewrites': config['rewrites']}
+    return {'headers': global_headers, 'rewrites': config['rewrites'],
+            'redirects': config.get('redirects', [])}
+
+
+def hosting_settings_match(current_config, candidate_config):
+    current_settings = stable_config(current_config)
+    candidate_settings = stable_config(candidate_config)
+    rewrites = candidate_settings['rewrites']
+    # 初回の公開時だけ、規約ルール追加前の設定も許可する。
+    need(candidate_settings['redirects'] == POLICY_REDIRECTS and
+         rewrites[-3:] == [*POLICY_REWRITES, {'glob': '**', 'path': '/index.html'}],
+         'hosting-policy-routes')
+    legacy = candidate_settings | {'redirects': [], 'rewrites': rewrites[:-3] + rewrites[-1:]}
+    return current_settings in (candidate_settings, legacy)
 
 
 def check_ga4_csp(hosting):
@@ -310,7 +328,7 @@ def deploy(env, *, request=cloud, transport=http):
     before = current(token)
     version = request(API + before['version']['name'], token)
     need(version.get('status') == 'FINALIZED' and
-         stable_config(version['config']) == stable_config(hosting), 'hosting-settings-changed')
+         hosting_settings_match(version['config'], hosting), 'hosting-settings-changed')
     api_before = backend(token)
     # APIとフロントエンドの同意バージョンの組み合わせを、暗黙に変更しない。
     public_env = {x['name']: x.get('value') for x in api_before['template']['containers'][0]['env']
@@ -380,6 +398,15 @@ def verify_public(release, hosting):
     for route in ('/', '/mypage'):
         status, headers, data = http(ORIGIN + route)
         need(status == 200 and sha(data) == release['files']['index.html']['sha256'], 'public-route')
+    for route, filename in POLICY_PAGES.items():
+        status, headers, data = http(ORIGIN + route)
+        headers = {k.lower(): v for k, v in headers.items()}
+        need(status == 200 and sha(data) == release['files'][filename]['sha256'] and
+             headers.get('content-type', '').split(';', 1)[0] == 'text/html' and
+             headers.get('cache-control') == 'no-store', 'public-policy-html')
+    status, headers, _ = http(ORIGIN + '/privacy_policy')
+    location = {k.lower(): v for k, v in headers.items()}.get('location', '')
+    need(status == 302 and urljoin(ORIGIN, location) == ORIGIN + '/privacy', 'public-policy-redirect')
     status, headers, data = http(ORIGIN + '/api/mypage')
     cache = {k.lower(): v for k, v in headers.items()}.get('cache-control', '')
     need(status == 403 and json.loads(data).get('error', {}).get('code') == 'APP_CHECK_REQUIRED' and
