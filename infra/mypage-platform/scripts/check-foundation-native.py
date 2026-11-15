@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """TerraformのネイティブモックPlan JSONで、配備の許可範囲を検証する。"""
 import json
+import sys
 from pathlib import Path
 import subprocess
 
 from foundation_contract import ContractError, need, validate_plan
 import runtime_contract
 
-root = Path(__file__).resolve().parents[1] / "environments/dev"
+envdir = sys.argv[1] if len(sys.argv) > 1 else "dev"
+need(envdir in ("dev", "prod"), "foundation-native-environment")
+root = Path(__file__).resolve().parents[1] / "environments" / envdir
 result = subprocess.run(["terraform", "test", "-filter=tests/foundation-contract.tftest.hcl", "-verbose", "-json"],
                         cwd=root, capture_output=True, text=True, timeout=180)
 need(result.returncode == 0)
