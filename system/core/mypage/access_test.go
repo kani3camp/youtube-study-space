@@ -3,6 +3,7 @@ package mypage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -139,7 +140,10 @@ type accountStoreHook struct {
 func (s accountStoreHook) ReadAccount(ctx context.Context, uid string) (WebAccount, error) {
 	account, err := s.AuthStore.ReadAccount(ctx, uid)
 	s.afterRead()
-	return account, err
+	if err != nil {
+		return account, fmt.Errorf("read test web account: %w", err)
+	}
+	return account, nil
 }
 
 func TestAccessRestrictionImmediatelyAfterHTTPGate(t *testing.T) {
