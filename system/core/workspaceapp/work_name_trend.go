@@ -98,7 +98,7 @@ func generateWorkNameTrendRankingsWithClient(ctx context.Context, client openai.
 
 func newWorkNameTrendResponseParams(userInput string) responses.ResponseNewParams {
 	return responses.ResponseNewParams{
-		Model: shared.ResponsesModel("gpt-5-nano"),
+		Model: shared.ResponsesModel("gpt-5.6-luna"),
 		Reasoning: shared.ReasoningParam{
 			Effort:  shared.ReasoningEffortMedium,
 			Summary: shared.ReasoningSummaryAuto,
