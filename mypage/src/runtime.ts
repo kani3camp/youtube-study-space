@@ -39,6 +39,7 @@ export class BrowserRuntime {
 	private request: typeof fetch
 	private completingSession = false
 	private active = false
+	private authObserved = false
 	private authGeneration = 0
 	private confirmationGeneration = 0
 	private normalOAuthGeneration = 0
@@ -248,6 +249,8 @@ export class BrowserRuntime {
 
 	resumeAfterMaintenance() {
 		if (this.maintenance.getSnapshot().phase !== 'normal') return
+		// メンテナンス確認が先に終わっても、Firebaseの初期値を待つ。
+		if (this.session && !this.authObserved) return
 		this.memory.resumeAfterMaintenance()
 		if (this.active && !this.completingSession)
 			this.restoreIdentity(this.session?.currentUID() ?? null)
@@ -263,6 +266,7 @@ export class BrowserRuntime {
 		// 認証監視が初期値を返すまでページを初期化中に保ち、
 		// 保存済みセッションの遅い復元をログアウトと誤認しない。
 		this.memory.suspend()
+		this.authObserved = false
 		let active = true
 		this.active = true
 		let generation = 0
@@ -272,6 +276,7 @@ export class BrowserRuntime {
 		network()
 		visible()
 		const unsubscribe = session.subscribe((uid) => {
+			this.authObserved = true
 			// 表示・取得の停止中も、本人の切替を追跡する。
 			this.observeIdentity(uid)
 			if (active && !this.completingSession) this.restoreIdentity(uid)
