@@ -136,7 +136,6 @@ describe('public policy rendering', () => {
 		for (const html of [privacy, terms]) {
 			expect(html).not.toMatch(/公開前|公開承認済み|要確定|遅滞なく|非公開検証/)
 			expect(html).not.toContain('施行日')
-			expect(html).toContain('href="/contact">一般のお問い合わせ</a>')
 			expect(html).not.toContain('<time')
 		}
 		expect(privacy.match(/<h2(?: id="[^"]+")?>第[0-9]+節/g)).toHaveLength(17)
@@ -145,6 +144,7 @@ describe('public policy rendering', () => {
 			'本規約は日本法に準拠し、日本法に従って解釈されます。',
 		)
 		expect(terms).not.toContain('専属的合意管轄裁判所')
+		expect(terms).toContain('訴訟の管轄裁判所は、法令の定めに従います。')
 		expect(terms).toContain('故意または重過失')
 		expect(terms).toContain('当事者間の合意に優先して適用される法令')
 		expect(terms).toContain('その規定が本規約に優先します。')
@@ -204,7 +204,14 @@ describe('public policy rendering', () => {
 		expect(html).toContain(
 			'YouTubeのライブチャットに入力した内容は他の視聴者にも公開されます。',
 		)
-		expect(html).toContain('href="/contact">一般のお問い合わせ</a>')
+		expect(html).toContain('href="/contact">お問い合わせ窓口</a>')
+		expect(html).toContain(
+			'href="/privacy#contact">プライバシーポリシーの専用窓口</a>',
+		)
+		expect(html).not.toMatch(/OAuth|Firebase|Google Cloud/)
+		expect(html).toContain(
+			'故意または重過失による損害については、第2項の制限を適用しません。',
+		)
 		expect(html).toContain('運営者の軽過失により損害賠償責任を負う場合')
 		expect(html).toContain('親権者等の法定代理人の同意')
 	})
@@ -231,7 +238,7 @@ describe('public policy rendering', () => {
 		)
 		expect(
 			html.split(`href="https://docs.google.com/forms/d/e/${form}/viewform"`),
-		).toHaveLength(3)
+		).toHaveLength(2)
 		expect(html).toContain('個人情報の開示・削除などの専用フォーム')
 		expect(html).not.toContain('contact.example.invalid/other')
 	})
@@ -252,10 +259,11 @@ describe('public policy rendering', () => {
 	it('shows configured destinations, effective dates and jurisdiction', () => {
 		const privacy = markup(<PrivacyPolicy publicPolicyInputs={publicValues} />)
 		const terms = markup(<TermsOfUse publicPolicyInputs={publicValues} />)
+		expect(privacy).toContain('Synthetic Service &amp; &quot;Friends&quot;')
+		expect(privacy).toContain('href="/contact">一般のお問い合わせ</a>')
+		expect(privacy).toContain('href="mailto:privacy@example.invalid"')
+		expect(terms).not.toContain('href="mailto:privacy@example.invalid"')
 		for (const html of [privacy, terms]) {
-			expect(html).toContain('Synthetic Service &amp; &quot;Friends&quot;')
-			expect(html).toContain('href="/contact">一般のお問い合わせ</a>')
-			expect(html).toContain('href="mailto:privacy@example.invalid"')
 			expect(html).not.toMatch(/公開前|公開承認済み|要確定|遅滞なく|非公開検証/)
 		}
 		expect(privacy).toContain('<time dateTime="2026-10-07">2026-10-07</time>')
