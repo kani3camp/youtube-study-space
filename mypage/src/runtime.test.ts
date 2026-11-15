@@ -578,7 +578,7 @@ describe('browser authentication runtime', () => {
 
 	it('keeps a maintenance-gated route bootstrapping until the initial auth observer fires', async () => {
 		browserFixture()
-		let uid: string | null = 'persisted-synthetic'
+		let uid: string | null = null
 		let reportInitial: (uid: string | null) => void = () => {}
 		const session: BrowserSession = {
 			currentUID: () => uid,
@@ -590,26 +590,33 @@ describe('browser authentication runtime', () => {
 			},
 			recheck: async () => uid,
 			signIn: async () => uid ?? '',
-			signOut: async () => {
+			signOut: vi.fn(async () => {
 				uid = null
-			},
+			}),
 		}
-		const request = vi.fn<typeof fetch>(async (path) =>
-			path === '/api/auth/session/complete'
-				? new Response(null, { status: 204 })
-				: Response.json(fixture),
-		)
+		const request = vi.fn<typeof fetch>(async (path) => {
+			if (path === '/api/public/mypage-status')
+				return Response.json({ maintenanceEnabled: false })
+			if (path === '/api/auth/session/complete')
+				return new Response(null, { status: 204 })
+			return Response.json(fixture)
+		})
 		const runtime = new BrowserRuntime(
 			session,
 			{ privacy: 'p1', terms: 't1' },
 			request,
 		)
-		runtime.memory.enterMaintenance('TEMPORARY_UNAVAILABLE')
+		const disposeMaintenance = runtime.mountMaintenance()
+		runtime.maintenance.setRouteActive(true)
+		await settle()
+		expect(runtime.maintenance.getSnapshot().phase).toBe('normal')
+		request.mockClear()
 		const dispose = runtime.mountSession()
-		runtime.memory.resumeAfterMaintenance()
+		runtime.resumeAfterMaintenance()
 		expect(runtime.memory.getSnapshot().phase).toBe('bootstrapping')
 		expect(request).not.toHaveBeenCalled()
 
+		uid = 'persisted-synthetic'
 		reportInitial(uid)
 		await settle()
 		expect(request.mock.calls.map(([path]) => path)).toEqual([
@@ -617,7 +624,9 @@ describe('browser authentication runtime', () => {
 			'/api/mypage',
 		])
 		expect(runtime.memory.getSnapshot().phase).toBe('authenticated')
+		expect(session.signOut).not.toHaveBeenCalled()
 		dispose()
+		disposeMaintenance()
 	})
 	it('restored auth retries transient completion at most three times then signs out without fetching data', async () => {
 		vi.useFakeTimers()
