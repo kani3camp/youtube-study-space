@@ -23,7 +23,7 @@ stage = "disabled"
 #
 # Before enabling: build/deploy the #1437-capable image through the existing
 # reviewed image release path, reconcile its State with a no-op Plan, and verify
-# the exact runtime-release.json digest/source pair. This transition does not
+# the exact digest/source pair recorded for the deployed revision. This transition does not
 # combine image rollout with logging, and cannot make an old image emit metrics.
 # Verify the DEV apply identity already has the required update/get permissions;
 # do not expand IAM or bypass a rejected Plan as part of the toggle.

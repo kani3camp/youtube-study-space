@@ -115,13 +115,13 @@ CIの権限を広げず、承認済みの `mypage-api` / `roles/run.invoker` / `
 
 `MYPAGE_HOSTING_BACKEND_HOST` は実metadataから得たCloud Run hostnameを固定する。未設定時は従来どおり公開Hostのみを認める。設定時も一致するbackend Host、単一の公開 `X-Forwarded-Host`、単一の `X-Forwarded-Proto: https` を要求する。転送情報は認証根拠とせず、Auth/App Check/Origin/cookie検証とIP判定を維持する。
 
-`environments/dev/runtime-release.json`の4値は旧方式の履歴であり、現在のCI/CD・Terraform入力ではない。アプリ更新はコードPRのレビュー後、同じActions runでbuildしたdigestをCloud Runへ直接渡す。Secret参照番号・同意版・project等の設定はimage更新で変更できない。更新対象イメージはimmutable tag・Registry digestで厳格に検証する。
+2026-10の旧方式で残していた4値のリリース設定ファイルは履歴であり、現在のCI/CD・Terraform入力ではない（ファイルは削除済み、記録はgit履歴に保持）。アプリ更新はコードPRのレビュー後、同じActions runでbuildしたdigestをCloud Runへ直接渡す。Secret参照番号・同意版・project等の設定はimage更新で変更できない。更新対象イメージはimmutable tag・Registry digestで厳格に検証する。
 
 以前はownerが手動でimageを更新していたが、今後は専用CIのbackend deployerがv1 resourceVersion付きでimageだけを変更する。初回のHosting接続時だけ固定host env 1個を追加し、以後のimage更新では全envをそのまま保持する。通常のアプリ配備ではTerraform applyをしない。Cloud Runの前後で同一service・env/Secret/scale/IAM不変・Ready/最新revision100%・generation+1・更新時刻前進を検証する。後日のTerraform Planはimage-only（複数世代も可）と許可されたcomputed metadataだけをState refreshとして受理し、その他のdriftを拒否する。
 
 ### S04の実測後のDEV request URL保存抑止
 
-2026-10-21 11:16 UTCの合成callbackをCloud Run request logで観測し、code/state queryが保存されることを確認した（実OAuthは未実施）。`environments/dev/request-log-exclusion.json` はowner管理の `_Default` sink exclusionのreview済み入力で、Terraform Stateの追加資源ではない。ownerが既存sink inventoryとfilter previewを確認して作成し、readbackと別合成markerで再確認する。CIのIAMや既存State管理範囲を増やさない。
+2026-10-21 11:16 UTCの合成callbackをCloud Run request logで観測し、code/state queryが保存されることを確認した（実OAuthは未実施）。callback URLまたはquery付きAPI URLに限定した `_Default` sinkのexclusion（`mypage-sensitive-request-url`）はownerが手で適用したもので、Terraform Stateの追加資源ではない。ownerが既存sink inventoryとfilter previewを確認して2026-10-21に作成し、readbackと別合成markerで再確認した。適用内容のJSONはコード管理していない。CIのIAMや既存State管理範囲を増やさない。
 
 filterはtest projectのmypage-apiの標準request logのうちcallback URLまたはquery付きAPI URLだけに限定する。通常のqueryなしAPI request、application/security log、監査・system log、他service/projectは対象外。既存の合成記録は削除せず、保持期間中は既存の閲覧境界内に残る。今後別sink/ancestor routingを増やす場合は同じprivacy境界を検証する。Hosting/CDNや実OAuth部分を含む全層のS04完了をこの局所修正だけでは宣言しない。実Auth、実データ削除、Production、先行ログ基盤追加は対象外。
 
