@@ -27,7 +27,7 @@
 
 | ID | 実施・観測 | 受入条件 | local準備の根拠 |
 | --- | --- | --- | --- |
-| P01 | anonymous `/`, `/privacy`, `/terms`, `/contact` とAPI前同意 | 公開pathへlogin不要、窓口/本文版一致、draft placeholder解消は承認後のみ | public policy tests / privacy-qa |
+| P01 | anonymous `/`, `/privacy`, `/terms`, `/contact` とAPI前同意 | 公開pathへlogin不要、窓口・施行日・管轄・本文の版を承認済みの公開設定と照合 | public policy tests / privacy-qa |
 | A01 | 同意→start→Google→callback→channel confirm→session complete→MyPage | youtube.readonlyのみ、確認前mintなし、uidは確認channel、登録済み記録のみ | server integration / runtime-qa |
 | A02 | scope拒否/callback失敗/confirm cancel、期限切れ/replay | token永続保存なし、説明と再開始、誤mint/遅延復活なし | provider/auth/HTTP tests |
 | A03 | 通常account/Brand Account/複数channel、意図とdefaultが違う | 誤channelを確定しない。再試行手順とGoogle側選択挙動を記録 | real Google試験は代替不可 |

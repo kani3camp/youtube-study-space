@@ -149,9 +149,6 @@ export function ContactPage({
 				{config.operatorName && (
 					<p>運営者・サービスの公開表記：{config.operatorName}</p>
 				)}
-				<p className="muted">
-					運営者の氏名または名称・住所その他、法令上本人の知り得る状態に置く必要がある情報は、窓口への請求に応じ、法令に従い遅滞なく回答する方針です。
-				</p>
 			</aside>
 		</main>
 	)

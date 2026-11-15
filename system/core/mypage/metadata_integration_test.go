@@ -4,6 +4,7 @@ package mypage
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -169,11 +170,25 @@ func TestTwoBFFProcessesDropPurgedMetadataBeforeCacheTTL(t *testing.T) {
 		s.AsOf = now
 		return s, nil
 	})
-	processes := []*BFF{{Access: &serviceaccess.FirestoreStore{Client: client}, Environment: "demo", Now: func() time.Time { return now }, Reader: reader}, {Access: &serviceaccess.FirestoreStore{Client: client}, Environment: "demo", Now: func() time.Time { return now }, Reader: reader}}
-	for _, b := range processes {
-		response, err := b.Get(ctx, uid, current)
-		require.NoError(t, err)
-		require.NotNil(t, response.Account.Data)
+	access := &serviceaccess.FirestoreStore{Client: client}
+	var processes [2]*HTTPHandler
+	for i := range processes {
+		h, _, verifier, _ := boundaryFixture()
+		h.Auth = &AuthService{Access: access, Store: store, Policy: policy, Now: func() time.Time { return now }}
+		h.BFF.Reader, h.BFF.Now = reader, h.Auth.Now
+		verifier.identity.UID = uid
+		processes[i] = h
+	}
+	get := func(h *HTTPHandler) Response {
+		t.Helper()
+		w := boundaryRequest(h, "GET", "/api/mypage", "")
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		var response Response
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		return response
+	}
+	for _, h := range processes {
+		require.NotNil(t, get(h).Account.Data)
 	}
 	// 25日前のメタデータでも、公開APIで確認した不存在を判断の根拠にする。
 	provider, err := NewPublicYouTubeMetadata("synthetic-key", &http.Client{Transport: providerTransport(func(*http.Request) (*http.Response, error) { return providerResponse(200, `{"items":[]}`), nil })})
@@ -190,11 +205,8 @@ func TestTwoBFFProcessesDropPurgedMetadataBeforeCacheTTL(t *testing.T) {
 		require.NotContains(t, doc.Data(), field)
 	}
 	now = now.Add(time.Second)
-	latest, err := store.ReadAccount(ctx, uid)
-	require.NoError(t, err)
-	for _, b := range processes {
-		response, err := b.Get(ctx, uid, latest)
-		require.NoError(t, err)
+	for _, h := range processes {
+		response := get(h)
 		require.Nil(t, response.Account.Data)
 		require.Equal(t, MetadataTooOld, *response.Account.ReasonCode)
 	}

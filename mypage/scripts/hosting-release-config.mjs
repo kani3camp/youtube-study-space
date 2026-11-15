@@ -18,8 +18,9 @@ try {
 		config.deployment.environment !== 'development' ||
 		config.deployment.projectID !== 'test-youtube-study-space' ||
 		config.deployment.publicOrigin !== 'https://test--study-space.web.app' ||
-		config.frontend.VITE_MYPAGE_ANALYTICS_READY !== 'false' ||
-		config.hosting.inventory.analyticsApproved !== false
+		(config.frontend.VITE_MYPAGE_ANALYTICS_READY === 'true'
+			? config.frontend.VITE_MYPAGE_GA4_ID !== 'G-E31NHW939V'
+			: config.hosting.inventory.analyticsApproved !== false)
 	)
 		throw new Error()
 	const paths = JSON.parse(await readFile(pathsPath, 'utf8'))

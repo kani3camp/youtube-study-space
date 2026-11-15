@@ -107,6 +107,44 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             h.stable_config(more)
 
+    def test_dispatch_mode_sets_dev_id_and_preserves_non_analytics_destinations(self):
+        config = {'frontend': {'VITE_MYPAGE_GA4_ID': 'G-OTHER0000', 'VITE_FIREBASE_APP_ID': 'synthetic'},
+                  'hosting': {'inventory': {'script': ['https://www.google.com/recaptcha/'],
+                                            'connect': [], 'image': [], 'frame': ['https://frame.example']}}}
+        with self.assertRaises(ValueError):
+            h.configure_dev_analytics(config, None)
+        h.configure_dev_analytics(config, 'true')
+        self.assertEqual(config['frontend']['VITE_MYPAGE_GA4_ID'], h.DEV_GA4_ID)
+        self.assertEqual(config['frontend']['VITE_MYPAGE_PUBLIC_ORIGIN'], h.ORIGIN)
+        self.assertEqual(config['hosting']['inventory']['connect'], sorted(h.GA4_COLLECTION))
+        self.assertTrue(h.analytics_enabled(config))
+        h.configure_dev_analytics(config, 'false')
+        self.assertFalse(h.analytics_enabled(config))
+        self.assertNotIn('VITE_MYPAGE_GA4_ID', config['frontend'])
+        self.assertEqual(config['frontend']['VITE_FIREBASE_APP_ID'], 'synthetic')
+        self.assertEqual(config['hosting']['inventory'], {'script': ['https://www.google.com/recaptcha/'],
+                         'connect': [], 'image': [], 'frame': ['https://frame.example'], 'analyticsApproved': False})
+
+    def test_only_fixed_ga4_sources_can_change_on_analytics_activation(self):
+        disabled = hosting()
+        csp = disabled['headers'][0]['headers']
+        csp['Content-Security-Policy'] += "; script-src 'self'; connect-src 'self'; img-src 'self'"
+        enabled = copy.deepcopy(disabled)
+        active_csp = enabled['headers'][0]['headers']
+        for directive, sources in h.GA4_SOURCES.items():
+            base = directive + " 'self'"
+            active_csp['Content-Security-Policy'] = active_csp['Content-Security-Policy'].replace(
+                base, base + ' ' + ' '.join(sorted(sources)))
+        h.check_ga4_csp(disabled, False)
+        h.check_ga4_csp(enabled, True)
+        self.assertEqual(h.stable_config(disabled), h.stable_config(enabled))
+        with self.assertRaises(ValueError):
+            h.check_ga4_csp(enabled, False)
+        with self.assertRaises(ValueError):
+            h.check_ga4_csp(disabled, True)
+        active_csp['Content-Security-Policy'] += ' https://unrelated.example'
+        self.assertNotEqual(h.stable_config(disabled), h.stable_config(enabled))
+
     def test_backend_accepts_omitted_false_but_requires_actual_ready_traffic(self):
         value = {'latestReadyRevision': 'projects/p/locations/l/services/s/revisions/r',
                  'latestCreatedRevision': 'projects/p/locations/l/services/s/revisions/r',
@@ -125,7 +163,8 @@ class ReleaseTest(unittest.TestCase):
         env = environment() | {'RUNNER_TEMP': str(package.parent), 'MYPAGE_HOSTING_PACKAGE_DIGEST': 'b' * 64}
         rest = hosting()
         release = {'files': h.inventory(package / 'dist')}
-        config = {'deployment': {'projectNumber': '123', 'privacyVersion': 'p', 'termsVersion': 't'}}
+        config = {'deployment': {'projectNumber': '123', 'privacyVersion': 'p', 'termsVersion': 't'},
+                  'frontend': {}}
         api = {'latestReadyRevision': 'projects/p/locations/l/services/s/revisions/r',
                'template': {'containers': [{'env': [
                    {'name': 'MYPAGE_PRIVACY_VERSION', 'value': 'p'},

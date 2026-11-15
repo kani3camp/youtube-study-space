@@ -24,6 +24,12 @@ type (
 	}
 )
 
+// authorizedWebAccountは、HTTP入口で認証・SAC・WebAccount・同意を確認したリクエストにだけ渡す。
+type authorizedWebAccount struct {
+	uid     string
+	account WebAccount
+}
+
 type HTTPHandler struct {
 	Maintenance MaintenanceReader
 	Auth        *AuthService
@@ -173,8 +179,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	authenticated := r.URL.Path == "/api/mypage" || r.URL.Path == "/api/auth/session/complete"
-	var identity VerifiedIdentity
-	var account WebAccount
+	var authorized authorizedWebAccount
 	if !strings.HasPrefix(r.URL.Path, "/api/auth/youtube/") && h.Maintenance != nil {
 		if err := h.Maintenance.Check(ctx); err != nil {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
@@ -187,7 +192,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, 401, "AUTH_REQUIRED", requestID)
 			return
 		}
-		identity, err = h.Verifier.VerifyIDToken(ctx, strings.TrimPrefix(bearer, "Bearer "))
+		identity, err := h.Verifier.VerifyIDToken(ctx, strings.TrimPrefix(bearer, "Bearer "))
 		if err != nil || identity.UID == "" || strings.Contains(identity.UID, "/") || identity.Provider != "custom" {
 			writeAPIError(w, 401, "AUTH_REQUIRED", requestID)
 			return
@@ -210,7 +215,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(accessErr)), errorCode(accessErr), requestID)
 			return
 		}
-		account, err = h.Auth.Store.ReadAccount(ctx, identity.UID)
+		account, err := h.Auth.Store.ReadAccount(ctx, identity.UID)
 		if err != nil {
 			if h.BFF != nil {
 				h.BFF.Invalidate(identity.UID)
@@ -230,6 +235,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return
 		}
+		authorized = authorizedWebAccount{uid: identity.UID, account: account}
 	}
 	switch r.URL.Path {
 	case "/api/auth/youtube/start":
@@ -260,7 +266,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		setTransactionCookie(w, "", -1)
 		writeJSON(w, 200, response)
 	case "/api/auth/session/complete":
-		if err := h.Auth.Store.CompleteSession(ctx, identity.UID, account.AccessCheckpoint, h.Auth.Policy, now); err != nil {
+		if err := h.Auth.Store.CompleteSession(ctx, authorized.uid, authorized.account.AccessCheckpoint, h.Auth.Policy, now); err != nil {
 			code := errorCode(err)
 			if code == "INTERNAL_ERROR" {
 				code = "TEMPORARY_UNAVAILABLE"
@@ -277,7 +283,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if currentOnly {
 			ctx = context.WithValue(ctx, currentOnlyKey{}, true)
 		}
-		response, err := h.BFF.Get(ctx, identity.UID, account)
+		response, err := h.BFF.get(ctx, authorized)
 		if err != nil {
 			writeAPIError(w, statusFor(errorCode(err)), errorCode(err), requestID)
 			return

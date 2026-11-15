@@ -25,7 +25,7 @@
 
 ### GA4の環境別セットアップ
 
-MyPageのGA4は、各Firebaseプロジェクトに既に接続された`mypage`用GA4プロパティを使う。各プロパティのWebデータストリームは1つとし、`youtube-monitor`用プロパティは使わない。測定IDはDEV `G-E31NHW939V` / PROD `G-ZJ1VPVT2L2`を採用する。ストリームURLは承認済みの環境別公開オリジンに揃え、開発アクセスを本番集計へ送らない。IDの採用は確定済みだが、環境別ビルド設定への反映、コンソール設定の受入、実通信・Realtimeの検証が終わるまで、実送信の有効化完了とは扱わない。
+MyPageのGA4は、各Firebaseプロジェクトに既に接続された`mypage`用GA4プロパティを使う。マイページのイベントは対応する `my-page` ストリームへ送る。DEVでは同じGA4プロパティ内に `youtube-monitor` ストリームもあるため、プロパティ単位の設定を変更すると両ストリームに影響する。測定IDはDEV `G-E31NHW939V` / PROD `G-ZJ1VPVT2L2`を採用する。ストリームURLは承認済みの環境別公開オリジンに揃え、開発アクセスを本番集計へ送らない。IDの採用は確定済みだが、環境別ビルド設定への反映、コンソール設定の受入、実通信・Realtimeの検証が終わるまで、実送信の有効化完了とは扱わない。
 
 - 両プロパティで広告連携・Google Signals・広告パーソナライズを使わず、保持14か月と、新規活動による保持期間リセットOFFを確認する。SPA側で手動ページビューを送るため、Enhanced Measurementの履歴変更時の自動ページビューなど、重複・余分な送信を無効にする。
 - `VITE_MYPAGE_ANALYTICS_READY=true`、`VITE_MYPAGE_GA4_ID=<その環境の測定ID>`、`VITE_MYPAGE_PUBLIC_ORIGIN=<その環境のHTTPS origin>`を環境別フロントエンドのビルド設定に渡す。測定IDは公開値であり、シークレット扱いしない。公開マニフェストの整合性検査と、Hosting CSPの別途承認が必要である。
@@ -121,14 +121,16 @@ Go変更の必須検査は[AGENTS.md](../../../AGENTS.md)に従い、生成後�
 
 Google OAuthの同意画面に登録済みの`/privacy_policy`は、SPAルーターで`/privacy`へ履歴を置換して移動する互換入口とする。Firebase Hostingの`web.app`・`firebaseapp.com`両ドメインで、匿名のまま同じ既存本文へ到達できる。検索パラメーター・フラグメントは引き継がず、正規の公開URLは引き続き`/privacy`・`/terms`・`/contact`を使う。HTTPリダイレクト設定やOAuthコンソールの登録は変更せず、この互換入口の反映にもフロントエンドの再配備が必要である。
 
-基盤のTerraform Applyとページ配備は別操作である。DEVページの更新は`Deploy MyPage Frontend`（[`deploy-mypage-frontend.yml`](../../../.github/workflows/deploy-mypage-frontend.yml)）の手動実行で行う。`integration/mypage-canon-20261006`を選んで実行する（入力なし、DEVのみ）。実行SHAは選択refの`github.sha`を使い、手入力しない。PR実行・main・他ブランチ・別所有者・再実行・SHA不一致は拒否する。失敗時に同じRunを再実行して継続せず、現在状態を確認して新しく実行する。
+基盤のTerraform Applyとページ配備は別操作である。DEVページの更新は`Deploy MyPage Frontend`（[`deploy-mypage-frontend.yml`](../../../.github/workflows/deploy-mypage-frontend.yml)）の手動実行で行う。`integration/mypage-canon-20261006`を選んで実行する（DEVのみ）。`analytics_enabled` は既定で有効。計測を停止するときは、この項目をオフにして再デプロイする。実行SHAは選択refの`github.sha`を使い、手入力しない。PR実行・main・他ブランチ・別所有者・再実行・SHA不一致は拒否する。失敗時に同じRunを再実行して継続せず、現在状態を確認して新しく実行する。
 
 1. 同じrunで、まずMyPageのcredentialless CI（`ci-frontend.yml`の`mypage`: audit・cost model・フォント整合性・check・test・build）を通す。続くクラウド認証情報のないBuildジョブで、固定依存の検査（`pnpm audit`）・check・typecheck・テスト・DEV公開設定検査・ビルドを行う。
 2. 同じ実行の成果物を別Applyジョブへ渡し、ソースSHA・run ID・30分の期限・設定・全ファイルのSHA256を再検証する。Applyは専用WIFと短命トークンを使い、SA鍵やFirebaseログイントークンは使わない。
 3. 対象は`test-youtube-study-space`の`test--study-space`だけとする。現在のHostingのCSP・書き換えなどと、APIの同意バージョン・固定オリジン・Readyリビジョンを照合する。意図しない設定変更、別サイト、途中のHosting・API・ブランチ変更は拒否する。公開版の作成・アップロード・確定後、最後にリリースを切り替える。書き込みを自動再試行しない。
-4. 配備後は全ファイルのバイト列・Cache-Control・CSPなど、`/`と`/mypage`、匿名APIの403、APIメタデータの不変を確認する。別の認証情報なしBrowserジョブで、匿名画面・Cookie設定・GA4通信0件を確認する。失敗は`Deploy MyPage Frontend`のそのrunの失敗として表示される（`CI`や`CI Gate`とは別のrun）。実GA4送信・認証済みE2E・公開条件の完了を意味しない。
+4. 配備後は全ファイルのバイト列・Cache-Control・CSPなど、`/`と`/mypage`、匿名APIの403、APIメタデータの不変を確認する。別の認証情報なしBrowserジョブで匿名画面とCookie設定を確認する。GA4有効時は同意バナーが表示され、同意前と拒否後にGA4通信が0件であることを確認する。失敗は`Deploy MyPage Frontend`のそのrunの失敗として表示される（`CI`や`CI Gate`とは別のrun）。実GA4送信・認証済みE2E・公開条件の完了を意味しない。
 
-GitHub Environmentの`mypage-dev-hosting`には、公開項目だけの`MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`と専用プロバイダー名`MYPAGE_HOSTING_WIF_PROVIDER`をVariablesに設定する。前者は既存の公開マニフェストスキーマを使い、`VITE_MYPAGE_ANALYTICS_READY=false`、`analyticsApproved=false`を必須とする。サーバー環境の書き出し、OAuth・認証情報・Secretの値は渡さない。公開済みDEVと同じオリジン・Firebaseアプリ・同意バージョン・CSP接続先一覧を引き継ぐ。設定変更は既存の事前検査とレビューを通す。
+GitHub Environmentの`mypage-dev-hosting`には、公開項目だけの`MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`と専用プロバイダー名`MYPAGE_HOSTING_WIF_PROVIDER`をVariablesに設定する。前者は既存の公開マニフェストスキーマを使う。サーバー環境の書き出し、OAuth・認証情報・Secretの値は渡さない。デプロイ時に `analytics_enabled` から DEV の GA4 設定と固定 CSP 許可先を生成する。許可先はスクリプトの `https://www.googletagmanager.com/gtag/js` と、計測通信の `https://www.google-analytics.com`、`https://region1.google-analytics.com` に限る。
+
+有効化後は、検証用ブラウザでアクセス解析を許可し、Network と GA4 の Realtime で受信を照合する。許可を取り消して通信が止まることも確認する。
 
 権限の初期設定は、専用の`mypage-hosting` WIF pool/providerと`mypage-hosting-deploy` SAに分ける。プロバイダーは、固定リポジトリ・所有者・actor ID、初回workflow_dispatch、統合ref、呼び出し元`deploy-mypage-frontend.yml`（移行前は`ci.yml`。ownerがconditionの`workflow_ref`を置き換える）、再利用先`mypage-hosting-authenticated.yml`、同一workflow SHA、Environment `mypage-dev-hosting`をすべて検査する。既存TerraformのWIF・SA・Stateは変更しない。
 
@@ -194,7 +196,7 @@ Canon S03のチャンネル譲渡は利用規約で扱い、申告時の[手動�
 
 通常のセッション失効で最大約1時間の残存を許容することを、削除時の全書き込み・キャッシュ停止の代替にしない。D01は独立したServiceAccessControlを使い、Aの保護処理と、Bの横断削除・実行中処理の完了待ちを区別する。
 
-OAuth同意画面のuser support emailは、指定済みの専用値を安全な運用入力で渡す。プライバシー窓口・一般問い合わせ・developer contactに自動転用しない。公開本文は運営者の本名・自宅住所の常時掲載を前提にせず、必要な請求に回答できる運用を用意する。公開前に、返信可能でログイン不要のプライバシー窓口、担当・受付時刻と期限管理、本人テストアカウント・チャンネル、未指定のdeveloper contact、施行日・管轄を実値で照合する。
+OAuth同意画面のuser support emailは、指定済みの専用値を安全な運用入力で渡す。プライバシー窓口・一般問い合わせ・developer contactに自動転用しない。法令に基づく照会を受け付け、遅滞なく回答できる運用を用意する。公開前に、返信可能でログイン不要のプライバシー窓口、担当・受付時刻と期限管理、本人テストアカウント・チャンネル、未指定のdeveloper contact、施行日・管轄を実値で照合する。
 
 OAuthスコープは`youtube.readonly`だけ、コールバックは固定の`/api/auth/youtube/callback`とする。D02では、外部Google取消検知だけのためのリフレッシュトークン保存・定期取得を採用しない。アプリ内とGoogle設定画面の両取消経路、保持済みAPIデータの扱いについて検証・規約適合性確認が終わるまで、公開を保留する。設計確定や一般OAuth審査を、この確認の代替にしない。
 

@@ -1,4 +1,5 @@
-"""DEV専用の匿名UI疎通確認。ログイン・GA4同意・HAR・スクリーンショットは使わない。"""
+"""DEV専用の匿名UI疎通確認。ログイン・GA4への送信・HARは使わない。"""
+import os
 from urllib.parse import urlsplit
 
 ORIGIN = 'https://test--study-space.web.app'
@@ -33,7 +34,7 @@ def check_protected_page(page, route, origin=ORIGIN):
     expect(page.get_by_role('heading', name=heading, exact=True)).to_be_visible()
 
 
-def smoke(page, origin=ORIGIN):
+def smoke(page, origin=ORIGIN, *, analytics_enabled=False):
     from playwright.sync_api import expect
 
     analytics = []
@@ -47,12 +48,22 @@ def smoke(page, origin=ORIGIN):
 
     page.on('request', observe)
     check_protected_page(page, '/login', origin)
-    expect(page.get_by_role('heading', name='サイトをもっと使いやすくするために')).to_have_count(0)
+    banner = page.get_by_role('heading', name='サイトをもっと使いやすくするために')
+    if analytics_enabled:
+        expect(banner).to_be_visible()
+        assert not analytics, 'Unexpected GA4 request before consent'
+        page.get_by_role('button', name='許可しない', exact=True).click()
+        expect(banner).to_have_count(0)
+    else:
+        expect(banner).to_have_count(0)
     page.get_by_role('button', name='Cookie設定', exact=True).click()
     dialog = page.get_by_role('dialog', name='Cookie設定')
     expect(dialog).to_be_visible()
-    expect(dialog.get_by_text('任意のアクセス解析は現在利用していません。利用開始時にあらためてご案内します。', exact=True)).to_be_visible()
-    expect(dialog.get_by_role('switch')).to_have_count(0)
+    if analytics_enabled:
+        expect(dialog.get_by_role('switch', name='アクセス解析を許可')).not_to_be_checked()
+    else:
+        expect(dialog.get_by_text('任意のアクセス解析は現在利用していません。利用開始時にあらためてご案内します。', exact=True)).to_be_visible()
+        expect(dialog.get_by_role('switch')).to_have_count(0)
     page.keyboard.press('Escape')
     expect(dialog).to_be_hidden()
     for route, heading in (('/privacy', 'プライバシーポリシー'), ('/terms', '利用規約')):
@@ -62,16 +73,20 @@ def smoke(page, origin=ORIGIN):
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
     check_protected_page(page, '/mypage', origin)
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
+    expect(banner).to_have_count(0)
     assert not analytics, 'Unexpected GA4 request; URL intentionally omitted'
 
 
 def main():
     from playwright.sync_api import sync_playwright
 
+    mode = os.environ.get('MYPAGE_HOSTING_ANALYTICS_ENABLED', 'false')
+    if mode not in {'true', 'false'}:
+        raise ValueError('Invalid DEV analytics mode')
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         context = browser.new_context(viewport={'width': 390, 'height': 960})
-        smoke(context.new_page())
+        smoke(context.new_page(), analytics_enabled=mode == 'true')
         browser.close()
     print('PASS: live anonymous DEV UI, maintenance routing, Cookie settings, GA4 requests=0. Real GA4 sending remains unverified.')
 
