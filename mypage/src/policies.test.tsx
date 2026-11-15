@@ -182,6 +182,24 @@ describe('public policy rendering', () => {
 			'マイページのアカウント情報とチャンネルとの関連付けを削除',
 		)
 	})
+	it('uses one wording for channel association and links every privacy request to the dedicated desk', () => {
+		const privacy = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
+		const terms = markup(<TermsOfUse publicPolicyInputs={{}} />)
+		for (const html of [privacy, terms]) expect(html).not.toMatch(/ひも付/)
+		expect(terms).toContain('同じチャンネルIDに関連付けられたまま')
+		expect(privacy).toContain(
+			'問題がある場合は、<a href="#contact">第16節の専用窓口</a>へご連絡ください。',
+		)
+		expect(privacy).not.toContain('問い合わせ窓口へご連絡ください。')
+	})
+	it('names the operator in the contact heading only when an operator name is published', () => {
+		expect(markup(<PrivacyPolicy publicPolicyInputs={{}} />)).toContain(
+			'<h2 id="contact">第16節 お問い合わせ</h2>',
+		)
+		expect(
+			markup(<PrivacyPolicy publicPolicyInputs={publicValues} />),
+		).toContain('<h2 id="contact">第16節 運営者・お問い合わせ</h2>')
+	})
 	it('explains fresh YouTube authorization and individual guidance in the privacy policy', () => {
 		const Policy = PrivacyPolicy
 		const html = markup(<Policy publicPolicyInputs={{}} />)
@@ -212,8 +230,17 @@ describe('public policy rendering', () => {
 		expect(html).toContain(
 			'故意または重過失による損害については、第2項の制限を適用しません。',
 		)
-		expect(html).toContain('運営者の軽過失により損害賠償責任を負う場合')
+		expect(html).toContain(
+			'運営者の責めに帰すべき事由がある場合を除き、運営者は、本サービスの利用または利用不能により利用者に生じた損害について責任を負いません。',
+		)
+		expect(html).toContain(
+			'運営者が軽過失により損害賠償責任を負う場合、その賠償額は、通常かつ直接の損害に限り、かつ、当該損害が発生した月に利用者が運営者に支払った利用料金の額（無料利用の場合は1,000円）を上限とします。',
+		)
 		expect(html).toContain('親権者等の法定代理人の同意')
+		expect(html).toContain('法定代理人の同意があったものとみなします。')
+		expect(html).toContain(
+			'運営者が入力情報を利用（複製、公衆送信等を含みます。）することを許諾するものとします。',
+		)
 	})
 	it.each([
 		[
