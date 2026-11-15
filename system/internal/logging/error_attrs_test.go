@@ -11,6 +11,7 @@ import (
 
 	"github.com/openai/openai-go/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -40,7 +41,10 @@ var _ net.Error = timeoutNetError{}
 
 func flatten(attrs []any) (kind, code, status, typ string) {
 	for _, a := range attrs {
-		attr := a.(slog.Attr)
+		attr, ok := a.(slog.Attr)
+		if !ok {
+			continue
+		}
 		switch attr.Key {
 		case "error_kind":
 			kind = attr.Value.String()
@@ -113,7 +117,8 @@ func TestClassifiedErrorKeepsCauseWithoutLeakingIt(t *testing.T) {
 
 func TestErrorClassAttrsKeepsClass(t *testing.T) {
 	attrs := ErrorClassAttrs("secret_fetch_failed", status.Error(codes.PermissionDenied, sentinelSecret))
-	first := attrs[0].(slog.Attr)
+	first, ok := attrs[0].(slog.Attr)
+	require.True(t, ok)
 	assert.Equal(t, "error_class", first.Key)
 	assert.Equal(t, "secret_fetch_failed", first.Value.String())
 	kind, code, _, _ := flatten(attrs[1:])
