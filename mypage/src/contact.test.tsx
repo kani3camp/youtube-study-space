@@ -40,62 +40,27 @@ describe('contact destinations and request guidance', () => {
 		expect(html).toContain('href="/privacy"')
 		expect(html).not.toContain('href="/login')
 	})
-	it('does not reuse a general destination for private data requests', () => {
-		vi.stubEnv(
-			'VITE_PUBLIC_CONTACT_URL',
-			'https://contact.example.invalid/general',
-		)
-		const html = markup()
-		expect(html).toContain('一般の窓口へ連絡する')
-		expect(html).not.toContain('プライバシーの窓口へ連絡する')
-		expect(
-			html.match(/href="https:\/\/contact.example.invalid\/general"/g),
-		).toHaveLength(1)
-		expect(html).not.toContain('窓口を準備中です')
-	})
-	it('shares the privacy destination with the general card when no general destination is set', () => {
-		vi.stubEnv(
-			'VITE_PUBLIC_PRIVACY_CONTACT_URL',
-			'mailto:privacy@example.invalid',
-		)
-		const html = markup()
-		expect(html).toContain('href="mailto:privacy@example.invalid"')
-		expect(html).toContain(
-			'class="contact-address">privacy@example.invalid</span>',
-		)
-		expect(html).toContain('メールアプリが開かない場合は')
-		expect(html).toContain('一般の窓口へ連絡する')
-		expect(html.match(/href="mailto:privacy@example.invalid"/g)).toHaveLength(2)
-		expect(html).not.toContain('窓口を準備中です')
-	})
-	it('shows both configured destinations as separate actions with no user data added', () => {
-		vi.stubEnv('VITE_PUBLIC_CONTACT_URL', 'mailto:general@example.invalid')
-		vi.stubEnv(
-			'VITE_PUBLIC_PRIVACY_CONTACT_URL',
-			'https://contact.example.invalid/privacy',
-		)
+	it('links both cards to the single shared destination with no user data added', () => {
+		vi.stubEnv('VITE_PUBLIC_CONTACT_URL', 'mailto:contact@example.invalid')
 		const html = markup({ proofRef: 'synthetic-private-proof' })
 		expect(html.match(/class="button primary"/g)).toHaveLength(2)
-		expect(html).toContain('href="mailto:general@example.invalid"')
-		expect(html).toContain('href="https://contact.example.invalid/privacy"')
+		expect(html.match(/href="mailto:contact@example.invalid"/g)).toHaveLength(2)
+		expect(html).toContain('一般の窓口へ連絡する')
+		expect(html).toContain('プライバシーの窓口へ連絡する')
+		expect(html).toContain(
+			'class="contact-address">contact@example.invalid</span>',
+		)
 		expect(html).toContain('href="/privacy">プライバシーポリシー</a>')
 		expect(html).not.toContain('運営者の氏名または名称・住所')
-		expect(html).not.toContain('窓口を準備中です')
-		expect(html).toContain('target="_blank" rel="noopener noreferrer"')
 		for (const href of html.matchAll(/href="([^"]+)"/g)) {
 			expect(href[1]).not.toContain('synthetic-private-proof')
 			expect(href[1]).not.toContain('?')
 		}
 	})
-	it('uses the fixed form independently of the general mailbox and keeps proof out of the form URL', () => {
+	it('prefers the fixed shared form for known projects and keeps proof out of the form URL', () => {
 		vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'test-youtube-study-space')
-		vi.stubEnv('VITE_PUBLIC_CONTACT_URL', 'mailto:general@example.invalid')
-		vi.stubEnv(
-			'VITE_PUBLIC_PRIVACY_CONTACT_URL',
-			'mailto:override@example.invalid',
-		)
+		vi.stubEnv('VITE_PUBLIC_CONTACT_URL', 'mailto:override@example.invalid')
 		const html = markup({ proofRef: 'synthetic-private-proof' })
-		expect(html).toContain('href="mailto:general@example.invalid"')
 		expect(html).not.toContain('override@example.invalid')
 		expect(html).toContain('synthetic-private-proof')
 		const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map((match) => match[1])
@@ -103,19 +68,21 @@ describe('contact destinations and request guidance', () => {
 			hrefs.filter((href) => href.startsWith('https://docs.google.com/')),
 		).toEqual([
 			'https://docs.google.com/forms/d/e/1FAIpQLScKyaOQSxKIxs1znN72MlrDwHmJoQ94MnEuUK9UKD_fgqHEzg/viewform',
+			'https://docs.google.com/forms/d/e/1FAIpQLScKyaOQSxKIxs1znN72MlrDwHmJoQ94MnEuUK9UKD_fgqHEzg/viewform',
 		])
 		expect(hrefs.join(' ')).not.toContain('synthetic-private-proof')
 	})
 	it('omits unsafe configured destinations', () => {
-		vi.stubEnv('VITE_PUBLIC_CONTACT_URL', 'javascript:synthetic')
-		vi.stubEnv(
-			'VITE_PUBLIC_PRIVACY_CONTACT_URL',
+		for (const url of [
+			'javascript:synthetic',
 			'https://contact.example.invalid/?supportChallenge=synthetic',
-		)
-		const html = markup()
-		expect(html).not.toContain('窓口を準備中です')
-		expect(html).not.toContain('synthetic')
-		expect(html).not.toContain('supportChallenge')
+		]) {
+			vi.stubEnv('VITE_PUBLIC_CONTACT_URL', url)
+			const html = markup()
+			expect(html).not.toContain('class="button primary"')
+			expect(html).not.toContain('synthetic')
+			expect(html).not.toContain('supportChallenge')
+		}
 	})
 	it('explains human follow-up and preserves proof success independently of intake availability', () => {
 		const html = markup({ proofRef: 'synthetic<&proof' })

@@ -3,7 +3,6 @@
 export const PUBLIC_POLICY_FIELDS = [
 	'VITE_PUBLIC_OPERATOR_NAME',
 	'VITE_PUBLIC_CONTACT_URL',
-	'VITE_PUBLIC_PRIVACY_CONTACT_URL',
 	'VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE',
 	'VITE_PUBLIC_TERMS_EFFECTIVE_DATE',
 	'VITE_PUBLIC_JURISDICTION',
@@ -13,8 +12,8 @@ export type PublicPolicyField = (typeof PUBLIC_POLICY_FIELDS)[number]
 export type PublicPolicyConfig = {
 	// 任意の公開運営者名・サービス名であり、非公開の本名を求めるものではない。
 	operatorName?: string
+	// 一般・プライバシーの両方で使う共通のお問い合わせ先。
 	contactURL?: string
-	privacyContactURL?: string
 	privacyEffectiveDate?: string
 	termsEffectiveDate?: string
 	jurisdiction?: string
@@ -96,7 +95,6 @@ export function validatePublicPolicyConfig(input: unknown): PublicPolicyResult {
 	const fields = [
 		['VITE_PUBLIC_OPERATOR_NAME', 'operatorName', publicText],
 		['VITE_PUBLIC_CONTACT_URL', 'contactURL', publicContact],
-		['VITE_PUBLIC_PRIVACY_CONTACT_URL', 'privacyContactURL', publicContact],
 		[
 			'VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE',
 			'privacyEffectiveDate',
@@ -123,18 +121,18 @@ export function validatePublicPolicyConfig(input: unknown): PublicPolicyResult {
 	return result
 }
 
-// 公開回答用URL。Firebaseの接続先ごとに固定する。
-const privacyForms = {
+// 共通のお問い合わせフォームの公開回答用URL。Firebaseの接続先ごとに固定する。
+const contactForms = {
 	'test-youtube-study-space':
 		'https://docs.google.com/forms/d/e/1FAIpQLScKyaOQSxKIxs1znN72MlrDwHmJoQ94MnEuUK9UKD_fgqHEzg/viewform',
 	'youtube-study-space':
 		'https://docs.google.com/forms/d/e/1FAIpQLSfTvdRD8r3QPOBMNjNwixzaITe5ca-BPst--ZOoK1aFZXAy2Q/viewform',
 } as const
 
-export function privacyFormForProject(project: unknown): string | undefined {
+export function contactFormForProject(project: unknown): string | undefined {
 	return project === 'test-youtube-study-space' ||
 		project === 'youtube-study-space'
-		? privacyForms[project]
+		? contactForms[project]
 		: undefined
 }
 
@@ -143,10 +141,9 @@ export function readPublicPolicyConfig(): PublicPolicyResult {
 	const env = import.meta.env
 	return validatePublicPolicyConfig({
 		VITE_PUBLIC_OPERATOR_NAME: env.VITE_PUBLIC_OPERATOR_NAME,
-		VITE_PUBLIC_CONTACT_URL: env.VITE_PUBLIC_CONTACT_URL,
-		VITE_PUBLIC_PRIVACY_CONTACT_URL:
-			privacyFormForProject(env.VITE_FIREBASE_PROJECT_ID) ??
-			env.VITE_PUBLIC_PRIVACY_CONTACT_URL,
+		VITE_PUBLIC_CONTACT_URL:
+			contactFormForProject(env.VITE_FIREBASE_PROJECT_ID) ??
+			env.VITE_PUBLIC_CONTACT_URL,
 		VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: env.VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE,
 		VITE_PUBLIC_TERMS_EFFECTIVE_DATE: env.VITE_PUBLIC_TERMS_EFFECTIVE_DATE,
 		VITE_PUBLIC_JURISDICTION: env.VITE_PUBLIC_JURISDICTION,

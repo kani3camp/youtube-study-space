@@ -1,7 +1,7 @@
 import { type HostingInputs, hostingCandidate } from './hosting.ts'
 import {
+	contactFormForProject,
 	type PublicPolicyField,
-	privacyFormForProject,
 	validatePublicPolicyConfig,
 } from './public-policy-config.ts'
 
@@ -387,14 +387,14 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 	const result = report(diagnostics)
 	if (root.publicPolicy !== undefined) {
 		const policy = validatePublicPolicyConfig(root.publicPolicy)
-		const fixedPrivacyForm = privacyFormForProject(
+		const fixedContactForm = contactFormForProject(
 			frontend?.VITE_FIREBASE_PROJECT_ID,
 		)
 		const issues = policy.issues.filter(
 			(issue) =>
 				!(
-					fixedPrivacyForm &&
-					issue.field === 'VITE_PUBLIC_PRIVACY_CONTACT_URL' &&
+					fixedContactForm &&
+					issue.field === 'VITE_PUBLIC_CONTACT_URL' &&
 					issue.code === 'missing'
 				),
 		)

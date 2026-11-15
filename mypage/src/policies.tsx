@@ -45,25 +45,23 @@ export function PublicPolicyContact({
 	publicPolicyInputs,
 }: PublicPolicyProps = {}) {
 	const config = policyConfig(publicPolicyInputs)
-	const privacyURL = config.privacyContactURL
+	const contactURL = config.contactURL
 	return (
 		<>
 			{config.operatorName && <p>運営者の公開表記：{config.operatorName}</p>}
 			<p>
-				使い方のご質問や不具合の報告は
-				<Link to="/contact">一般のお問い合わせ</Link>
-				へ、個人情報の開示・削除などのご請求はプライバシーの専用窓口へお寄せください。
+				使い方のご質問や不具合の報告、個人情報の開示・削除などのご請求は、
+				<Link to="/contact">お問い合わせ</Link>
+				ページの案内に沿ってお寄せください。
 			</p>
-			{privacyURL ? (
+			{contactURL && (
 				<p>
-					<ContactLink href={privacyURL}>
-						{privacyURL.startsWith('https://docs.google.com/forms/')
-							? '個人情報の開示・削除などの専用フォーム'
-							: '個人情報の開示・削除などの専用窓口'}
+					<ContactLink href={contactURL}>
+						{contactURL.startsWith('https://docs.google.com/forms/')
+							? 'お問い合わせフォーム'
+							: 'お問い合わせ窓口'}
 					</ContactLink>
 				</p>
-			) : (
-				<p>個人情報・プライバシーの専用窓口は準備中です。</p>
 			)}
 		</>
 	)
