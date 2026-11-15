@@ -45,20 +45,21 @@ export function PublicPolicyContact({
 	publicPolicyInputs,
 }: PublicPolicyProps = {}) {
 	const config = policyConfig(publicPolicyInputs)
+	const privacyURL = config.privacyContactURL
 	return (
 		<>
-			{config.operatorName && (
-				<p>運営者・サービスの公開表記：{config.operatorName}</p>
-			)}
-			{config.contactURL && (
+			{config.operatorName && <p>運営者の公開表記：{config.operatorName}</p>}
+			<p>
+				使い方のご質問や不具合の報告は
+				<Link to="/contact">一般のお問い合わせ</Link>
+				へ、個人情報の開示・削除などのご請求はプライバシーの専用窓口へお寄せください。
+			</p>
+			{privacyURL ? (
 				<p>
-					<ContactLink href={config.contactURL}>一般のお問い合わせ</ContactLink>
-				</p>
-			)}
-			{config.privacyContactURL ? (
-				<p>
-					<ContactLink href={config.privacyContactURL}>
-						個人情報・プライバシーに関する問い合わせ・請求
+					<ContactLink href={privacyURL}>
+						{privacyURL.startsWith('https://docs.google.com/forms/')
+							? '個人情報の開示・削除などの専用フォーム'
+							: '個人情報の開示・削除などの専用窓口'}
 					</ContactLink>
 				</p>
 			) : (
@@ -84,15 +85,15 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 		<main className="main-content public-page">
 			<article className="card policy-page">
 				<h1>プライバシーポリシー</h1>
-				<h2>1. このポリシーについて</h2>
+				<h2>第1節 このポリシーについて</h2>
 				<p>
-					Online Study
-					Space（以下「本サービス」といいます。）は、YouTube上のオンライン作業空間とWeb上のマイページを通じて、作業の状況や履歴を表示するサービスです。
+					オンライン作業部屋（Online Study
+					Space、以下「本サービス」）は、YouTube上のオンライン作業空間とWeb上のマイページを通じて、作業の状況や履歴を表示するサービスです。
 				</p>
 				<p>
 					このポリシーでは、本サービスが取得する情報、その利用目的、保存や外部サービスでの取り扱い、削除などを依頼する方法を説明します。
 				</p>
-				<h2>2. 取得・作成する情報</h2>
+				<h2>第2節 取得・作成する情報</h2>
 				<p>
 					本サービスは、サービスの提供に必要な範囲で、次の情報を取得または作成します。
 				</p>
@@ -137,9 +138,10 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				<h3>2.4 任意のアクセス解析</h3>
 				<p>
 					利用者が明示的に許可した場合に限り、Google アナリティクス
-					4（以下「GA4」といいます。）を利用し、ページの閲覧や本サービスでの操作などの情報を取得することがあります。YouTubeチャンネルID、Firebaseの利用者ID、メールアドレス、チャンネルの表示名、作業名などはGA4に送りません。詳しくは8.をご覧ください。
+					4（以下「GA4」といいます。）を利用し、ページの閲覧や本サービスでの操作などの情報を取得することがあります。YouTubeチャンネルID、Firebaseの利用者ID、メールアドレス、チャンネルの表示名、作業名などはGA4に送りません。詳しくは
+					<a href="#analytics">第8節</a>をご覧ください。
 				</p>
-				<h2>3. 情報を利用する目的</h2>
+				<h2>第3節 情報を利用する目的</h2>
 				<ol>
 					<li>
 						利用者が使うYouTubeチャンネルを確認し、本サービスにログインできるようにするため
@@ -159,7 +161,7 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				<p>
 					取得した情報を、本サービスの主要な機能の提供や改善と無関係な広告の出し分けのために販売したり、転用したりすることはありません。
 				</p>
-				<h2>4. YouTubeとの連携</h2>
+				<h2>第4節 YouTubeとの連携</h2>
 				<p>
 					本サービスはYouTube API
 					Servicesを利用しています。ログイン時にはYouTube Data
@@ -187,7 +189,7 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 					</ExternalLink>
 					をご確認ください。
 				</p>
-				<h2>5. ログインに使う情報とログイン状態</h2>
+				<h2>第5節 ログインに使う情報とログイン状態</h2>
 				<p>
 					ログイン時には、Googleが発行する一時的な認証コードを使って、対象のYouTubeチャンネルを確認します。
 				</p>
@@ -198,7 +200,7 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 					チャンネル確認後は、確認したチャンネルIDをFirebase
 					Authenticationの利用者IDとして使い、同サービスでマイページのログイン状態を維持します。そのため、Google側で本サービスへのアクセス権を取り消しても、マイページでのログイン状態がすぐには終了しない場合があります。
 				</p>
-				<h2>6. YouTubeチャンネルの公開情報の保存・更新</h2>
+				<h2>第6節 YouTubeチャンネルの公開情報の保存・更新</h2>
 				<p>
 					チャンネルの表示名、ハンドル、プロフィール画像など、変更されることのある公開情報を、表示のために一時保存する場合があります。
 				</p>
@@ -208,14 +210,14 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				<p>
 					チャンネルIDは、本サービスのアカウントを識別するために使用します。
 				</p>
-				<h2>7. 作業履歴の取り扱い</h2>
+				<h2>第7節 作業履歴の取り扱い</h2>
 				<p>
 					本サービスで行った作業に関する情報は、本サービスの作業履歴として保存します。履歴には、作業名、作業・休憩の状態や区間、作業時間、ルームや席などが含まれることがあります。
 				</p>
 				<p>
 					作業名に個人情報や機密情報など、第三者に知られたくない情報を入力すると、その内容が作業履歴に保存される場合があります。入力する内容にご注意ください。
 				</p>
-				<h2>8. アクセス解析・Cookie・外部への送信</h2>
+				<h2 id="analytics">第8節 アクセス解析・Cookie・外部への送信</h2>
 				<h3>サービスの提供に必要な通信</h3>
 				<p>
 					ログインや安全性の確保のため、Firebase Authentication、Firebase App
@@ -233,7 +235,7 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 					アクセス解析を行う場合は、あらかじめ送信対象に定めた画面の種類、ログインなどの操作、定められた流入元の情報をGoogleに送り、画面やページ間の移動の改善、利用状況の分析に使います。任意のURLクエリパラメータ、認証コードや照合用の値、認証エラーの詳細、依頼時の本人確認情報、利用者ごとのAPIの応答内容は送りません。広告配信、広告のパーソナライズ、Google
 					シグナル、利用者を識別するGA4のUser-IDは利用しません。
 				</p>
-				<h2>9. 利用する外部サービス</h2>
+				<h2>第9節 利用する外部サービス</h2>
 				<p>
 					機能の提供、ログイン、サイトの公開、データの保存、アクセス解析などのため、次の外部サービスを利用する場合があります。
 				</p>
@@ -247,7 +249,7 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				<p>
 					これらのサービスでの情報の処理には、各提供者の規約とプライバシーポリシーが適用されます。提供者のシステム上で、情報が日本国外を含む地域で取り扱われる場合があります。
 				</p>
-				<h2>10. 情報を保存する期間</h2>
+				<h2>第10節 情報を保存する期間</h2>
 				<p>情報は、それぞれの利用目的に必要な期間に限って保存します。</p>
 				<ul>
 					<li>
@@ -263,7 +265,8 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 						作業履歴とアカウント情報は、サービスの提供に必要な期間保存します。
 					</li>
 					<li>
-						ライブチャットのメッセージ本文を保存する場合、保存期間は保存先によって異なります。障害時の復旧に備えたバックアップは、通常の保存先からデータを削除した後も、バックアップの保存期間が終わるまで残る場合があります。削除を依頼した場合の取り扱いは、12.をご覧ください。
+						ライブチャットのメッセージ本文を保存する場合、保存期間は保存先によって異なります。障害時の復旧に備えたバックアップは、通常の保存先からデータを削除した後も、バックアップの保存期間が終わるまで残る場合があります。削除を依頼した場合の取り扱いは
+						<a href="#data-deletion">第12節</a>をご覧ください。
 					</li>
 					<li>
 						アクセス解析データは、GA4の設定とGoogleの仕様に従って保存します。
@@ -273,7 +276,7 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				<p>
 					法令により保存が必要な場合は、必要な範囲で保存することがあります。
 				</p>
-				<h2>11. Googleアカウントから連携を解除する方法</h2>
+				<h2>第11節 Googleアカウントから連携を解除する方法</h2>
 				<p>
 					利用者は、
 					<ExternalLink href="https://security.google.com/settings/security/permissions">
@@ -286,16 +289,18 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				</p>
 				<p>
 					Google側で連携を解除しても、マイページのログイン状態が残る場合があります。連携解除後のログイン状態の解除や保存データの削除をご希望の場合は、
-					<Link to="/contact">お問い合わせ窓口</Link>へご連絡ください。
+					<a href="#contact">第16節の専用窓口</a>へご連絡ください。
 				</p>
 				<p>
-					連携解除を窓口に申告された場合は、対象のチャンネルを確認したうえで、マイページのアカウント情報とチャンネルとの関連付けを削除し、これまでのログイン状態で個人の情報や作業履歴にアクセスできないようにします。ライブチャットを通じて記録したチャンネルIDと作業履歴は、Google連携の解除だけでは削除されません。保存データ全体の削除をご希望の場合は、12.の方法でご依頼ください。
+					連携解除を窓口に申告された場合は、対象のチャンネルを確認したうえで、マイページのアカウント情報とチャンネルとの関連付けを削除し、これまでのログイン状態で個人の情報や作業履歴にアクセスできないようにします。ライブチャットを通じて記録したチャンネルIDと作業履歴は、Google連携の解除だけでは削除されません。保存データ全体の削除をご希望の場合は、
+					<a href="#data-deletion">第12節</a>の方法でご依頼ください。
 				</p>
-				<h2>12. 保存データの削除を依頼する方法</h2>
+				<h2 id="data-deletion">第12節 保存データの削除を依頼する方法</h2>
 				<p>
-					利用者は、本サービスに保存された自分のデータの削除を依頼できます。
-					<Link to="/contact">お問い合わせ・請求の案内</Link>
-					をご覧のうえ、16.の窓口にご連絡ください。本人確認の方法は15.をご覧ください。
+					ご自身のデータの削除をご希望の場合は、
+					<a href="#contact">第16節の専用窓口</a>
+					へご連絡ください。本人確認の方法は
+					<a href="#identity-verification">第15節</a>をご覧ください。
 				</p>
 				<p>
 					削除のご希望を受け付けた場合は、本人確認を行ったうえで、対象の利用者に関連するデータを可能な限り速やかに、遅くとも受付から7日以内に削除します。この期限は依頼の受付時点から数えます。
@@ -321,7 +326,7 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				<p>
 					本サービスでの削除の対象は、本サービスが保存する情報です。YouTube上のチャンネル、動画、コメントなど、YouTubeが保有する情報を削除する場合は、YouTube側の機能を利用してください。
 				</p>
-				<h2>13. YouTubeチャンネルの譲渡・所有者の変更</h2>
+				<h2>第13節 YouTubeチャンネルの譲渡・所有者の変更</h2>
 				<p>
 					本サービスは、チャンネルIDごとにアカウントを管理します。チャンネルの所有者が変わっても、履歴や利用状況は、原則として同じチャンネルIDに関連付けられたままです。
 				</p>
@@ -331,7 +336,7 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				<p>
 					チャンネルを譲渡する場合は、事前に本サービスからログアウトし、必要に応じて保存データの削除を依頼してください。所有者の変更後にログイン状態や保存データについて問題がある場合は、問い合わせ窓口へご連絡ください。必要に応じて対象チャンネルのログイン状態を失効させることがあります。
 				</p>
-				<h2>14. 情報を安全に管理するための措置</h2>
+				<h2>第14節 情報を安全に管理するための措置</h2>
 				<p>
 					本サービスは、保有する情報を保護するため、合理的な範囲で次の措置を講じます。
 				</p>
@@ -348,7 +353,9 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				<p>
 					公表によって安全性を損なうおそれがある場合、措置の詳細は公表しないことがあります。
 				</p>
-				<h2>15. 開示・訂正・利用停止などの請求と本人確認</h2>
+				<h2 id="identity-verification">
+					第15節 開示・訂正・利用停止などの請求と本人確認
+				</h2>
 				<p>
 					利用者は、適用法令に基づき、本サービスが保有するご自身の情報について、利用目的の通知、開示、訂正、追加、削除、利用停止などを求めることができます。
 				</p>
@@ -359,18 +366,16 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 					認証後、運営窓口で対象チャンネルと依頼内容を照合して対応します。認証操作だけでデータの削除やすべてのログイン状態の解除が実行されることはありません。
 				</p>
 				<p>
-					チャンネルIDの申告、現在のログイン状態、表示名、画面の画像だけで本人確認を完了することはありません。確認に必要な範囲で情報をお願いします。Google連携を解除済みなどでログインや本人確認を利用できない場合も、まずは16.の窓口へお問い合わせください。個別の確認方法をご案内します。
+					チャンネルIDの申告、現在のログイン状態、表示名、画面の画像だけで本人確認を完了することはありません。確認に必要な範囲で情報をお願いします。Google連携を解除済みなどでログインや本人確認を利用できない場合も、まずは
+					<a href="#contact">第16節の専用窓口</a>
+					へお問い合わせください。個別の確認方法をご案内します。
 				</p>
 				<p>
 					マイページへのログインは請求の条件ではありません。回答できない場合や、一部の請求に対応できない場合は、その理由と状況をご案内します。
 				</p>
-				<h2>16. お問い合わせ</h2>
-				<p>
-					本ポリシー、保存データの削除、開示などの請求、その他個人情報やプライバシーに関するお問い合わせは、
-					<Link to="/contact">お問い合わせ・請求の案内</Link>をご覧ください。
-				</p>
+				<h2 id="contact">第16節 運営者・お問い合わせ</h2>
 				<PublicPolicyContact publicPolicyInputs={publicPolicyInputs} />
-				<h2>17. このポリシーの変更</h2>
+				<h2>第17節 このポリシーの変更</h2>
 				<p>
 					本サービスの機能、外部サービス、法令、GoogleやYouTubeのポリシーなどの変更に伴い、このポリシーを変更する場合があります。
 				</p>
@@ -393,9 +398,9 @@ export function TermsOfUse({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				<h2>第1条（適用）</h2>
 				<ol>
 					<li>
-						本利用規約（以下「本規約」といいます。）は、Online Study
-						Spaceの運営者（以下「運営者」といいます。）が提供するOnline Study
-						Space、マイページおよび関連機能（以下、総称して「本サービス」といいます。）の利用条件を定めます。
+						本利用規約（以下「本規約」といいます。）は、オンライン作業部屋（Online
+						Study
+						Space）の運営者（以下「運営者」といいます。）が提供するオンライン作業部屋、マイページおよび関連機能（以下、総称して「本サービス」といいます。）の利用条件を定めます。
 					</li>
 					<li>
 						利用者は、本規約に同意したうえで本サービスを利用するものとします。
@@ -659,10 +664,6 @@ export function TermsOfUse({ publicPolicyInputs }: PublicPolicyProps = {}) {
 					)}
 				</ol>
 				<h2>第18条（お問い合わせ）</h2>
-				<p>
-					本規約や本サービスに関するお問い合わせ、保存データの削除などのご請求については、
-					<Link to="/contact">お問い合わせ・請求の案内</Link>をご覧ください。
-				</p>
 				<PublicPolicyContact publicPolicyInputs={publicPolicyInputs} />
 				<EffectiveDate value={config.termsEffectiveDate} />
 			</article>

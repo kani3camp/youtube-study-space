@@ -98,6 +98,15 @@ describe('public policy rendering', () => {
 		})
 		expect(terms).toMatchObject({ filename: 'terms.html', title: '利用規約' })
 		expect(privacy.body).toContain(markup(<PrivacyPolicy />))
+		expect(privacy.body).toContain('オンライン作業部屋（Online Study Space')
+		const deletion = privacy.body
+			.split('<h2 id="data-deletion">')[1]
+			?.split('<h2')[0]
+		expect(deletion).toContain('href="#contact">第16節の専用窓口</a>')
+		expect(deletion).not.toContain('href="/contact"')
+		expect(privacy.body).toContain(
+			'<h2 id="contact">第16節 運営者・お問い合わせ</h2>',
+		)
 		expect(terms.body).toContain(markup(<TermsOfUse />))
 		for (const { body } of [privacy, terms]) {
 			expect(body).toContain('href="/contact"')
@@ -127,10 +136,10 @@ describe('public policy rendering', () => {
 		for (const html of [privacy, terms]) {
 			expect(html).not.toMatch(/公開前|公開承認済み|要確定|遅滞なく|非公開検証/)
 			expect(html).not.toContain('施行日')
-			expect(html).toContain('href="/contact">お問い合わせ・請求の案内</a>')
+			expect(html).toContain('href="/contact">一般のお問い合わせ</a>')
 			expect(html).not.toContain('<time')
 		}
-		expect(privacy.match(/<h2>/g)).toHaveLength(17)
+		expect(privacy.match(/<h2(?: id="[^"]+")?>第[0-9]+節/g)).toHaveLength(17)
 		expect(terms.match(/<h2>/g)).toHaveLength(18)
 		expect(terms).toContain(
 			'本規約は日本法に準拠し、日本法に従って解釈されます。',
@@ -158,13 +167,13 @@ describe('public policy rendering', () => {
 		)
 		expect(html).toContain('マイページでのログイン状態がすぐには終了しない場合')
 		expect(html).toContain(
-			'保存データ全体の削除をご希望の場合は、12.の方法でご依頼ください。',
+			'保存データ全体の削除をご希望の場合は、<a href="#data-deletion">第12節</a>の方法でご依頼ください。',
 		)
 	})
 	it('explains how to request action after a Google disconnect', () => {
 		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
 		expect(html).toContain(
-			'連携解除後のログイン状態の解除や保存データの削除をご希望の場合は、<a href="/contact">お問い合わせ窓口</a>へご連絡ください。',
+			'連携解除後のログイン状態の解除や保存データの削除をご希望の場合は、<a href="#contact">第16節の専用窓口</a>へご連絡ください。',
 		)
 		expect(html).toContain(
 			'チャンネルIDと作業履歴は、Google連携の解除だけでは削除されません。',
@@ -195,7 +204,7 @@ describe('public policy rendering', () => {
 		expect(html).toContain(
 			'YouTubeのライブチャットに入力した内容は他の視聴者にも公開されます。',
 		)
-		expect(html).toContain('href="/contact">お問い合わせ・請求の案内</a>')
+		expect(html).toContain('href="/contact">一般のお問い合わせ</a>')
 		expect(html).toContain('運営者の軽過失により損害賠償責任を負う場合')
 		expect(html).toContain('親権者等の法定代理人の同意')
 	})
@@ -223,6 +232,7 @@ describe('public policy rendering', () => {
 		expect(
 			html.split(`href="https://docs.google.com/forms/d/e/${form}/viewform"`),
 		).toHaveLength(3)
+		expect(html).toContain('個人情報の開示・削除などの専用フォーム')
 		expect(html).not.toContain('contact.example.invalid/other')
 	})
 	it('keeps explicit Analytics opt-in separate from necessary Firebase communication', () => {
@@ -244,7 +254,7 @@ describe('public policy rendering', () => {
 		const terms = markup(<TermsOfUse publicPolicyInputs={publicValues} />)
 		for (const html of [privacy, terms]) {
 			expect(html).toContain('Synthetic Service &amp; &quot;Friends&quot;')
-			expect(html).toContain('href="https://contact.example.invalid/general"')
+			expect(html).toContain('href="/contact">一般のお問い合わせ</a>')
 			expect(html).toContain('href="mailto:privacy@example.invalid"')
 			expect(html).not.toMatch(/公開前|公開承認済み|要確定|遅滞なく|非公開検証/)
 		}
