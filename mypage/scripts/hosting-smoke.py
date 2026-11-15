@@ -21,8 +21,10 @@ def check_protected_page(page, route, origin=ORIGIN):
     from playwright.sync_api import expect
 
     # 実際の画面が読んだ状態を使い、別リクエストとの状態の食い違いを避ける。
+    # networkidleは常時通信のあるページで成立しないことがあるため使わない。
+    # 準備完了はステータス応答と見出しの表示で判定する。
     with page.expect_response(origin + STATUS_PATH) as pending:
-        page.goto(origin + route, wait_until='networkidle')
+        page.goto(origin + route, wait_until='domcontentloaded')
     response = pending.value
     try:
         payload = response.json()
@@ -59,7 +61,9 @@ def smoke(page, origin=ORIGIN):
     page.keyboard.press('Escape')
     expect(dialog).to_be_hidden()
     for route, heading in (('/privacy', 'プライバシーポリシー'), ('/terms', '利用規約')):
-        page.goto(origin + route, wait_until='networkidle')
+        # networkidleは常時通信のあるページで成立しないことがあるため使わない。
+        # 準備完了はURLと見出しの表示で判定する。
+        page.goto(origin + route, wait_until='domcontentloaded')
         expect(page).to_have_url(origin + route)
         expect(page.get_by_role('heading', name=heading, exact=True)).to_be_visible()
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
