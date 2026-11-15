@@ -107,23 +107,18 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             h.stable_config(more)
 
-    def test_dispatch_mode_sets_dev_id_and_preserves_non_analytics_destinations(self):
-        config = {'frontend': {'VITE_MYPAGE_GA4_ID': 'G-OTHER0000', 'VITE_FIREBASE_APP_ID': 'synthetic'},
+    def test_existing_dev_manifest_gets_ga4_without_a_dispatch_input(self):
+        config = {'frontend': {'VITE_MYPAGE_ANALYTICS_READY': 'false', 'VITE_FIREBASE_APP_ID': 'synthetic'},
                   'hosting': {'inventory': {'script': ['https://www.google.com/recaptcha/'],
                                             'connect': [], 'image': [], 'frame': ['https://frame.example']}}}
-        with self.assertRaises(ValueError):
-            h.configure_dev_analytics(config, None)
-        h.configure_dev_analytics(config, 'true')
-        self.assertEqual(config['frontend']['VITE_MYPAGE_GA4_ID'], h.DEV_GA4_ID)
-        self.assertEqual(config['frontend']['VITE_MYPAGE_PUBLIC_ORIGIN'], h.ORIGIN)
+        h.configure_dev_analytics(config)
+        h.configure_dev_analytics(config)
+        self.assertEqual(config['frontend'], {'VITE_MYPAGE_GA4_ID': h.DEV_GA4_ID,
+                         'VITE_MYPAGE_PUBLIC_ORIGIN': h.ORIGIN, 'VITE_FIREBASE_APP_ID': 'synthetic'})
         self.assertEqual(config['hosting']['inventory']['connect'], sorted(h.GA4_COLLECTION))
-        self.assertTrue(h.analytics_enabled(config))
-        h.configure_dev_analytics(config, 'false')
-        self.assertFalse(h.analytics_enabled(config))
-        self.assertNotIn('VITE_MYPAGE_GA4_ID', config['frontend'])
-        self.assertEqual(config['frontend']['VITE_FIREBASE_APP_ID'], 'synthetic')
-        self.assertEqual(config['hosting']['inventory'], {'script': ['https://www.google.com/recaptcha/'],
-                         'connect': [], 'image': [], 'frame': ['https://frame.example'], 'analyticsApproved': False})
+        self.assertEqual(config['hosting']['inventory']['script'], ['https://www.google.com/recaptcha/', h.GA4_TAG])
+        self.assertTrue(config['hosting']['inventory']['analyticsApproved'])
+        self.assertEqual(config['hosting']['inventory']['frame'], ['https://frame.example'])
 
     def test_only_fixed_ga4_sources_can_change_on_analytics_activation(self):
         disabled = hosting()
@@ -135,13 +130,10 @@ class ReleaseTest(unittest.TestCase):
             base = directive + " 'self'"
             active_csp['Content-Security-Policy'] = active_csp['Content-Security-Policy'].replace(
                 base, base + ' ' + ' '.join(sorted(sources)))
-        h.check_ga4_csp(disabled, False)
-        h.check_ga4_csp(enabled, True)
+        h.check_ga4_csp(enabled)
         self.assertEqual(h.stable_config(disabled), h.stable_config(enabled))
         with self.assertRaises(ValueError):
-            h.check_ga4_csp(enabled, False)
-        with self.assertRaises(ValueError):
-            h.check_ga4_csp(disabled, True)
+            h.check_ga4_csp(disabled)
         active_csp['Content-Security-Policy'] += ' https://unrelated.example'
         self.assertNotEqual(h.stable_config(disabled), h.stable_config(enabled))
 
@@ -162,6 +154,9 @@ class ReleaseTest(unittest.TestCase):
     def publication(self, package, *, moved=False, upload_foreign=False, upload_failure=False, smoke_failure=False, lost_ack=False):
         env = environment() | {'RUNNER_TEMP': str(package.parent), 'MYPAGE_HOSTING_PACKAGE_DIGEST': 'b' * 64}
         rest = hosting()
+        csp = rest['headers'][0]['headers']
+        for directive, sources in h.GA4_SOURCES.items():
+            csp['Content-Security-Policy'] += '; ' + directive + ' ' + ' '.join(sorted(sources))
         release = {'files': h.inventory(package / 'dist')}
         config = {'deployment': {'projectNumber': '123', 'privacyVersion': 'p', 'termsVersion': 't'},
                   'frontend': {}}

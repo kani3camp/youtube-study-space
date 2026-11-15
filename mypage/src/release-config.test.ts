@@ -44,6 +44,8 @@ function fixture(): ReleaseConfig {
 			VITE_APP_CHECK_SITE_KEY: 'synthetic-public-site-key',
 			VITE_PRIVACY_POLICY_VERSION: deployment.privacyVersion,
 			VITE_TERMS_VERSION: deployment.termsVersion,
+			VITE_MYPAGE_GA4_ID: 'G-SYNTHETIC1',
+			VITE_MYPAGE_PUBLIC_ORIGIN: deployment.publicOrigin,
 		},
 		backend: { ...deployment },
 		hosting: {
@@ -55,15 +57,24 @@ function fixture(): ReleaseConfig {
 			target: 'synthetic-web',
 			inventory: {
 				reviewed: true,
-				script: ['https://scripts.example.invalid/enterprise.js'],
-				connect: ['https://api.example.invalid'],
+				script: [
+					'https://scripts.example.invalid/enterprise.js',
+					'https://www.googletagmanager.com/gtag/js',
+				],
+				connect: [
+					'https://api.example.invalid',
+					'https://www.google-analytics.com',
+					'https://region1.google-analytics.com',
+				],
 				frame: ['https://frames.example.invalid'],
 				image: [
 					'https://images.example.invalid',
+					'https://www.google-analytics.com',
+					'https://region1.google-analytics.com',
 					'https://yt3.ggpht.com',
 					'https://yt3.googleusercontent.com',
 				],
-				analyticsApproved: false,
+				analyticsApproved: true,
 			},
 		},
 	}
@@ -191,13 +202,14 @@ describe('offline public release configuration', () => {
 		expect(JSON.stringify(forbidden)).not.toContain('SENTINEL')
 	})
 	it.each([
-		'test-youtube-study-space',
-		'youtube-study-space',
-	])('accepts a public manifest without a privacy contact override for %s', (projectID) => {
+		['test-youtube-study-space', 'G-E31NHW939V'],
+		['youtube-study-space', 'G-ZJ1VPVT2L2'],
+	])('accepts a public manifest without a privacy contact override for %s', (projectID, measurementID) => {
 		const input = fixture()
 		input.deployment.projectID = projectID
 		input.frontend.VITE_FIREBASE_PROJECT_ID = projectID
 		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = `${projectID}.firebaseapp.com`
+		input.frontend.VITE_MYPAGE_GA4_ID = measurementID
 		input.backend = { ...input.deployment }
 		if (input.hosting) input.hosting.projectID = projectID
 		input.publicPolicy = {
@@ -260,6 +272,7 @@ describe('offline public release configuration', () => {
 		input.backend.publicOrigin = input.deployment.publicOrigin
 		input.hosting.publicOrigin = input.deployment.publicOrigin
 		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = authDomain
+		input.frontend.VITE_MYPAGE_PUBLIC_ORIGIN = input.deployment.publicOrigin
 		const result = checkReleaseConfig(input)
 		expect(result.configurationValid).toBe(true)
 		expect(result.releaseReady).toBe(false)
@@ -320,45 +333,75 @@ describe('offline public release configuration', () => {
 			'INVALID_FIELD',
 		)
 	})
-	it('requires analytics ID/origin alignment and separate candidate inventory approval', () => {
+	it.each([
+		{
+			environment: 'development',
+			projectID: 'test-youtube-study-space',
+			measurementID: 'G-E31NHW939V',
+			wrongID: 'G-ZJ1VPVT2L2',
+		},
+		{
+			environment: 'production',
+			projectID: 'youtube-study-space',
+			measurementID: 'G-ZJ1VPVT2L2',
+			wrongID: 'G-E31NHW939V',
+		},
+	] as const)('requires $environment GA4 release configuration', ({
+		environment,
+		projectID,
+		measurementID,
+		wrongID,
+	}) => {
 		const input = fixture()
-		input.frontend.VITE_MYPAGE_ANALYTICS_READY = 'true'
+		input.deployment.environment = environment
+		input.deployment.projectID = projectID
+		input.frontend.VITE_FIREBASE_PROJECT_ID = projectID
+		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = `${projectID}.firebaseapp.com`
+		input.backend = { ...input.deployment }
+		delete input.hosting
+		delete input.frontend.VITE_MYPAGE_GA4_ID
+		delete input.frontend.VITE_MYPAGE_PUBLIC_ORIGIN
 		const missing = checkReleaseConfig(input)
 		diagnostic(missing, 'frontend.VITE_MYPAGE_GA4_ID', 'MISSING_FIELD')
 		diagnostic(missing, 'frontend.VITE_MYPAGE_PUBLIC_ORIGIN', 'MISSING_FIELD')
-		diagnostic(missing, 'hosting.inventory.analyticsApproved', 'MISMATCH')
-		input.frontend.VITE_MYPAGE_GA4_ID = 'G-SYNTHETIC1'
-		input.frontend.VITE_MYPAGE_PUBLIC_ORIGIN = 'https://other.invalid'
-		diagnostic(
-			checkReleaseConfig(input),
-			'frontend.VITE_MYPAGE_PUBLIC_ORIGIN',
-			'MISMATCH',
-		)
 		input.frontend.VITE_MYPAGE_PUBLIC_ORIGIN = input.deployment.publicOrigin
-		if (input.hosting) input.hosting.inventory.analyticsApproved = true
+		input.frontend.VITE_MYPAGE_GA4_ID = wrongID
 		diagnostic(
 			checkReleaseConfig(input),
-			'hosting.inventory.script',
+			'frontend.VITE_MYPAGE_GA4_ID',
 			'MISMATCH',
 		)
-		input.hosting?.inventory.script.push(
-			'https://www.googletagmanager.com/gtag/js',
-		)
-		expect(checkReleaseConfig(input).configurationValid).toBe(true)
-		expect(checkReleaseConfig(input).releaseReady).toBe(false)
-		input.frontend.VITE_MYPAGE_ANALYTICS_READY = 'TRUE'
-		diagnostic(
-			checkReleaseConfig(input),
-			'frontend.VITE_MYPAGE_ANALYTICS_READY',
-			'INVALID_FIELD',
-		)
-		input.frontend.VITE_MYPAGE_ANALYTICS_READY = 'false'
 		input.frontend.VITE_MYPAGE_GA4_ID = 'invalid'
 		diagnostic(
 			checkReleaseConfig(input),
 			'frontend.VITE_MYPAGE_GA4_ID',
 			'INVALID_FIELD',
 		)
+		input.frontend.VITE_MYPAGE_GA4_ID = measurementID
+		expect(checkReleaseConfig(input).configurationValid).toBe(true)
+		input.frontend.VITE_MYPAGE_PUBLIC_ORIGIN = 'https://other.invalid'
+		diagnostic(
+			checkReleaseConfig(input),
+			'frontend.VITE_MYPAGE_PUBLIC_ORIGIN',
+			'MISMATCH',
+		)
+	})
+	it('requires GA4 script and collection sources in the release CSP inventory', () => {
+		const input = fixture()
+		if (!input.hosting) throw new Error('Missing synthetic hosting')
+		input.hosting.inventory.analyticsApproved = false
+		input.hosting.inventory.script = [
+			'https://scripts.example.invalid/enterprise.js',
+		]
+		input.hosting.inventory.connect = ['https://api.example.invalid']
+		input.hosting.inventory.image = [
+			'https://yt3.ggpht.com',
+			'https://yt3.googleusercontent.com',
+		]
+		const missing = checkReleaseConfig(input)
+		diagnostic(missing, 'hosting.inventory.analyticsApproved', 'INVALID_FIELD')
+		for (const key of ['script', 'connect', 'image'])
+			diagnostic(missing, `hosting.inventory.${key}`, 'MISMATCH')
 	})
 	it('reuses Hosting region/source/review rejection without returning a deployment candidate', () => {
 		const input = fixture()
@@ -372,11 +415,6 @@ describe('offline public release configuration', () => {
 		input.hosting.inventory.reviewed = false
 		diagnostic(checkReleaseConfig(input), 'hosting', 'INVALID_FIELD')
 		input.hosting.inventory.reviewed = true
-		input.hosting.inventory.script.push(
-			'https://www.googletagmanager.com/gtag/js',
-		)
-		diagnostic(checkReleaseConfig(input), 'hosting', 'INVALID_FIELD')
-		input.hosting.inventory.analyticsApproved = true
 		expect(checkReleaseConfig(input).configurationValid).toBe(true)
 		input.hosting.inventory.connect = [
 			credentialTestURL('api.example.invalid', true),

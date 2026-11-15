@@ -6,9 +6,6 @@ on:
       expected_sha:
         required: true
         type: string
-      analytics_enabled:
-        required: true
-        type: boolean
 
 permissions: {}
 
@@ -29,7 +26,6 @@ jobs:
       contents: read
     outputs:
       digest: ${{ steps.package.outputs.digest }}
-      analytics_enabled: ${{ steps.package.outputs.analytics_enabled }}
     steps:
       - name: Checkout selected source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,7 +53,6 @@ jobs:
       - name: Build and seal the DEV release package
         id: package
         env:
-          MYPAGE_HOSTING_ANALYTICS_ENABLED: ${{ inputs.analytics_enabled }}
           MYPAGE_HOSTING_PUBLIC_CONFIG_JSON: ${{ vars.MYPAGE_HOSTING_PUBLIC_CONFIG_JSON }}
         run: python3 infra/mypage-platform/scripts/hosting_release.py build
       - name: Upload only validated public files and metadata
@@ -122,7 +117,7 @@ jobs:
 
   browser:
     name: MyPage DEV Hosting Browser Smoke
-    needs: [build, apply]
+    needs: apply
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -138,6 +133,4 @@ jobs:
           python3 -m pip install -r mypage/visual-requirements.txt
           python3 -m playwright install --with-deps chromium
       - name: Verify the live DEV page and GA4 consent boundary
-        env:
-          MYPAGE_HOSTING_ANALYTICS_ENABLED: ${{ needs.build.outputs.analytics_enabled }}
         run: python3 mypage/scripts/hosting-smoke.py
