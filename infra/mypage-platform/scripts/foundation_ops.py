@@ -33,7 +33,7 @@ def need(value):
 
 def run(args, *, cwd=None, codes=(0,), check="native-command"):
     result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=600)
-    if result.returncode not in codes and check in {"metrics-refresh-show", "metrics-refresh-apply", "metrics-final-state-show", "state-version-list", "state-version-head", "saved-runtime-plan-show"}:
+    if result.returncode not in codes and check in {"metrics-refresh-show", "metrics-refresh-apply", "metrics-final-state-show", "state-version-list", "state-version-head", "saved-plan-show"}:
         # 固定の分類で失敗したネイティブ処理を特定する。
         # 元のPlan/State・引数・パス・認証情報・APIエラーは出力しない。
         diagnostics = result.stdout + result.stderr
@@ -485,10 +485,10 @@ def require_deletion_opt_in(env, deletions):
 
 
 def publish_plan_summary(env, plan, stage, deletions=()):
-    """検証済みPlanの固定資源種別・操作・件数だけをJob Summaryへ公開する。"""
+    """固定資源種別・操作・件数と検証済みの削除アドレスをJob Summaryへ公開する。"""
     if not env.get("GITHUB_STEP_SUMMARY"):
         return
-    # Planのtype/addressや設定値を直接表示せず、ソースのcontractから種別を求める。
+    # 種別は期待資源か検証済みの削除アドレスから求め、Planのtypeや設定値は使わない。
     types = {address: address.rsplit(".", 2)[-2] for address in (*stage_resources(stage), *deletions)}
     actions = {("no-op",): "no-op", ("read",): "read", ("create",): "create", ("update",): "update",
                ("delete",): "delete", ("delete", "create"): "replace", ("create", "delete"): "replace"}
@@ -602,7 +602,7 @@ def apply_saved(env):
     work = root / ("source/environments/" + contract.CONFIG["state"])
     PHASE = "apply"
     stage = contract.stage_for_mode(env["MYPAGE_MODE"])
-    plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work, check="saved-runtime-plan-show"))
+    plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work, check="saved-plan-show"))
     _, deletions = validate_plan(plan, stage)
     require_deletion_opt_in(env, deletions)
     if deletions:

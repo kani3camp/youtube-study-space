@@ -99,7 +99,7 @@ Serviceは1回のresourceVersion付きPUTで更新し、自動再試行・自動
 対象は`mypage-api` serviceの`run.services.get`/`run.services.update`とAPI runtime SAへのresource-level `roles/iam.serviceAccountUser`（actAs）。
 Terraformが過去に付与した固定`mypage-maintenance-operator` Jobの`run.jobs.get`/`run.jobs.update`とmaintenance Job runtime SAへのactAsは、
 初回のMaintenance Operator配備でJobが専用packageへ移ったことを確認した後、削除専用のTerraform遷移で外した（DEVは2026-11-01、[run 41260474728](https://github.com/kani3camp/youtube-study-space/actions/runs/41260474728)。読み戻しで、Jobの`mypageMaintenanceImageRelease`とmaintenance runtime SAの`roles/iam.serviceAccountUser`のメンバーが、どちらも`mypage-operator-deploy`だけであることを確認済み）。
-この2 bindingの削除はDEVで2026-11-01に完了し、runtime契約は現在、削除を一切許可しない。
+この2 bindingの削除はDEVで2026-11-01に完了した。今後の MyPage Terraform の削除は [Plan 承認手順](../../development/ci-cd-workflows.md#32-terraform-plan--apply) を使う。
 DEV Artifact Registryのreader、Hosting viewerとquotaの必要最小権限。
 GitHub Environment `mypage-dev-backend` とcallerの完全一致を維持する。
 
