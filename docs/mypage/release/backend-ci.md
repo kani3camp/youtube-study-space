@@ -60,9 +60,9 @@ flowchart TD
 - DEVの通常インフラ操作とbackend releaseは同じconcurrency groupで競合を抑止する。
   Hosting releaseとの競合は各実行のHosting版・head照合と実行者による運用停止も必要であり、
   クラウド間の完全な原子性は保証しない。
-- 既存の`runtime-release.json`は2026-10の旧方式の履歴情報であり、
-  **現在のCI/CD・Terraform実行入力として参照しない。** 新リリースごとに編集・コミットしない。
-  後日archive/削除する場合は参照元を整理し、追跡用の旧commitを保持する。
+- 2026-10の旧方式のリリース設定ファイルは履歴情報であり、
+  **現在のCI/CD・Terraform実行入力として参照しない**（ファイルは削除済み、記録はgit履歴に保持）。
+  新リリースごとに編集・コミットしない。
 
 ## 初回有効化条件
 
