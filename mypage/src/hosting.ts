@@ -130,6 +130,9 @@ export function hostingCandidate(
 				target: input.target,
 				public: 'dist',
 				ignore: ['firebase.json', '**/.*', '**/node_modules/**'],
+				redirects: [
+					{ source: '/privacy_policy{,/}', destination: '/privacy', type: 302 },
+				],
 				rewrites: [
 					{
 						source: '/api',
@@ -139,6 +142,8 @@ export function hostingCandidate(
 						source: '/api/**',
 						run: { serviceId: input.serviceID, region: input.region },
 					},
+					{ source: '/privacy{,/}', destination: '/privacy.html' },
+					{ source: '/terms{,/}', destination: '/terms.html' },
 					{ source: '**', destination: '/index.html' },
 				],
 				headers: [
@@ -173,7 +178,9 @@ export function hostingCandidate(
 // 公開の静的成果物がAPIを隠さないよう、競合する出力とソースマップを拒否する。
 export function validateHostingAssets(paths: string[]) {
 	if (
-		!paths.includes('index.html') ||
+		!['index.html', 'privacy.html', 'terms.html'].every((path) =>
+			paths.includes(path),
+		) ||
 		paths.some(
 			(path) =>
 				path.startsWith('/') ||

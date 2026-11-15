@@ -25,8 +25,9 @@ def hosting():
     return {'headers': [{'glob': '**', 'headers': {
         'Content-Security-Policy': "default-src 'none'", 'Cache-Control': 'no-store',
         'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer'}}],
-        'rewrites': [{'glob': '/api/**', 'run': {'serviceId': 'mypage-api', 'region': 'asia-southeast2'}},
-                     {'glob': '**', 'path': '/index.html'}]}
+        'redirects': h.POLICY_REDIRECTS,
+            'rewrites': [{'glob': '/api/**', 'run': {'serviceId': 'mypage-api', 'region': 'asia-southeast2'}},
+                     *h.POLICY_REWRITES, {'glob': '**', 'path': '/index.html'}]}
 
 
 class ReleaseTest(unittest.TestCase):
@@ -51,6 +52,8 @@ class ReleaseTest(unittest.TestCase):
         for name, data in [('index.html', b'<!doctype html>'), ('assets/index-12345678.js', b'console.log(1)'),
                            ('assets/index-12345678.css', b'body{}')]:
             (dist / name).write_bytes(data)
+        for filename in h.POLICY_PAGES.values():
+            (dist / filename).write_text(f'<!doctype html><main>{filename}</main>')
         return dist
 
     def test_artifact_inventory_rejects_private_files_api_shadowing_and_maps(self):
@@ -93,8 +96,7 @@ class ReleaseTest(unittest.TestCase):
     def test_authentication_never_follows_redirect_or_foreign_urls(self):
         with self.assertRaises(ValueError):
             h.http('https://attacker.invalid/', token='synthetic-private')
-        with self.assertRaises(ValueError):
-            h.NoRedirect().redirect_request(None, None, 307, '', {}, 'https://attacker.invalid/')
+        self.assertIsNone(h.NoRedirect().redirect_request(None, None, 307, '', {}, 'https://attacker.invalid/'))
 
     def test_configuration_changes_are_not_hidden_by_asset_cache_updates(self):
         rest = hosting()
@@ -106,6 +108,16 @@ class ReleaseTest(unittest.TestCase):
         more['headers'][1]['headers']['Other'] = 'hidden'
         with self.assertRaises(ValueError):
             h.stable_config(more)
+
+    def test_only_policy_routes_can_change_between_hosting_releases(self):
+        candidate = hosting()
+        current = {k: v for k, v in candidate.items() if k != 'redirects'}
+        current['rewrites'] = [current['rewrites'][0], current['rewrites'][-1]]
+        self.assertTrue(h.hosting_settings_match(current, candidate))
+        self.assertTrue(h.hosting_settings_match(candidate, candidate))
+        current['rewrites'].insert(1, {'glob': '/custom', 'path': '/index.html'})
+        self.assertFalse(h.hosting_settings_match(current, candidate))
+        self.assertFalse(h.hosting_settings_match(candidate | {'redirects': []}, candidate))
 
     def test_existing_dev_manifest_gets_ga4_without_a_dispatch_input(self):
         config = {'frontend': {'VITE_MYPAGE_ANALYTICS_READY': 'false', 'VITE_FIREBASE_APP_ID': 'synthetic'},
@@ -179,7 +191,9 @@ class ReleaseTest(unittest.TestCase):
             if url.endswith('/sites/' + h.SITE):
                 return {'name': 'projects/' + h.PROJECT + '/sites/' + h.SITE, 'defaultUrl': h.ORIGIN}
             if url.endswith('/versions/old'):
-                return {'status': 'FINALIZED', 'config': rest}
+                legacy = {k: v for k, v in rest.items() if k != 'redirects'}
+                legacy['rewrites'] = [legacy['rewrites'][0], legacy['rewrites'][-1]]
+                return {'status': 'FINALIZED', 'config': legacy}
             if url.endswith('/versions'):
                 return {'name': name}
             if url.endswith(':populateFiles'):
@@ -257,14 +271,29 @@ class ReleaseTest(unittest.TestCase):
                 name = url.removeprefix(h.ORIGIN + '/')
                 if name == 'api/mypage':
                     return 403, {'Cache-Control': mode['cache']}, h.canonical({'error': {'code': mode['code']}})
+                if name == 'privacy_policy':
+                    return mode.get('redirect', 302), {'Location': '/privacy'}, b''
+                name = h.POLICY_PAGES.get('/' + name, name)
                 if name in ('', 'mypage'):
                     name = 'index.html'
                 headers = dict(rest['headers'][0]['headers'])
+                if name.endswith('.html'):
+                    headers['Content-Type'] = 'text/html; charset=utf-8'
+                if mode.get('empty_policy') and url == h.ORIGIN + '/privacy':
+                    name = 'index.html'
                 if name.startswith('assets/'):
                     headers['Cache-Control'] = h.IMMUTABLE
                 return 200, headers, (dist / name).read_bytes()
             with patch.object(h, 'http', side_effect=public):
                 h.verify_public(release, rest)
+                mode['redirect'] = 200
+                with self.assertRaisesRegex(ValueError, 'public-policy-redirect'):
+                    h.verify_public(release, rest)
+                del mode['redirect']
+                mode['empty_policy'] = True
+                with self.assertRaisesRegex(ValueError, 'public-policy-html'):
+                    h.verify_public(release, rest)
+                del mode['empty_policy']
                 mode['cache'] = 'private, no-store'
                 h.verify_public(release, rest)
                 for cache in ('private', 'no-store, private, public', 'max-age=60', ''):
