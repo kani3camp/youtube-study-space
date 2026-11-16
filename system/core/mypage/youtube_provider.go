@@ -19,6 +19,10 @@ const (
 	youtubeChannelsURL = "https://www.googleapis.com/youtube/v3/channels"
 )
 
+// youtubeChannelFieldsはchannels.listの応答を必要な項目だけに絞る。
+// itemsが省略される0件応答を判定するため、pageInfo.totalResultsを必ず残す。
+const youtubeChannelFields = "nextPageToken,pageInfo(totalResults),items(id,snippet(title,customUrl,thumbnails(default(url))))"
+
 var youtubeChannelID = regexp.MustCompile(`^UC[A-Za-z0-9_-]{22}$`)
 
 // GoogleYouTubeOAuthはResolve内だけで短命トークンを使う。
@@ -77,7 +81,7 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 	// 要求していないリフレッシュトークンも破棄する。
 	// OAuthクライアントを作らず、交換結果をプロバイダー・ストア・セッションに保持しない。
 	token.RefreshToken = ""
-	query := url.Values{"mine": {"true"}, "part": {"snippet"}, "maxResults": {"2"}, "fields": {"nextPageToken,items(id,snippet(title,customUrl,thumbnails(default(url))))"}}.Encode()
+	query := url.Values{"mine": {"true"}, "part": {"snippet"}, "maxResults": {"2"}, "fields": {youtubeChannelFields}}.Encode()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, youtubeChannelsURL+"?"+query, nil)
 	if err != nil {
 		return nil, oauthFailure(oauthStageChannelRequest, apiError("TEMPORARY_UNAVAILABLE"))
@@ -124,11 +128,20 @@ func decodeChannelResponse(body io.Reader, terminalAbsence bool) (Channel, error
 				} `json:"thumbnails"`
 			} `json:"snippet"`
 		} `json:"items"`
+		PageInfo json.RawMessage `json:"pageInfo"`
 	}
 	if json.Unmarshal(data, &result) != nil {
 		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
 	if result.Items == nil {
+		// YouTube Data APIは0件のときitemsを省略し得る。pageInfo.totalResultsが
+		// 数値の0と明示された場合だけ不在とし、それ以外の欠落は不正な応答として扱う。
+		if result.NextPageToken == "" && pageInfoReportsZeroResults(result.PageInfo) {
+			if terminalAbsence {
+				return Channel{}, ErrPublicChannelMissing
+			}
+			return Channel{}, apiError("CHANNEL_UNAVAILABLE")
+		}
 		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
 	}
 	if len(*result.Items) > 1 || result.NextPageToken != "" {
@@ -153,4 +166,16 @@ func decodeChannelResponse(body io.Reader, terminalAbsence bool) (Channel, error
 		channel.AvatarURL = &item.Snippet.Thumbnails.Default.URL
 	}
 	return channel, nil
+}
+
+// pageInfoReportsZeroResultsは、pageInfo.totalResultsが存在し、JSON数値の0である場合だけtrueを返す。
+// 欠落・null・文字列・負数・非ゼロ・pageInfoの型違いはすべてfalseとする。
+func pageInfoReportsZeroResults(raw json.RawMessage) bool {
+	var info struct {
+		TotalResults json.RawMessage `json:"totalResults"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &info) != nil {
+		return false
+	}
+	return string(info.TotalResults) == "0"
 }

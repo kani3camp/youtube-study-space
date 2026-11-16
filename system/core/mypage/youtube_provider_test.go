@@ -57,6 +57,8 @@ func TestYouTubeResolveSingleExchangeAndNoReturnedCredentials(t *testing.T) {
 		require.Equal(t, "true", r.URL.Query().Get("mine"))
 		require.Equal(t, "snippet", r.URL.Query().Get("part"))
 		require.Equal(t, "2", r.URL.Query().Get("maxResults"))
+		require.Equal(t, youtubeChannelFields, r.URL.Query().Get("fields"))
+		require.Contains(t, r.URL.Query().Get("fields"), "pageInfo(totalResults)")
 		require.Empty(t, r.URL.Query().Get("id"))
 		require.NotContains(t, r.URL.String(), "synthetic-access")
 		require.NotContains(t, r.URL.String(), "synthetic-code")
@@ -112,6 +114,14 @@ func TestYouTubeUnavailableAmbiguousAndMalformedChannels(t *testing.T) {
 		status           int
 	}{
 		{"none", `{"items":[]}`, "CHANNEL_UNAVAILABLE", 200},
+		{"omitted items with zero total", `{"kind":"youtube#channelListResponse","pageInfo":{"totalResults":0,"resultsPerPage":5}}`, "CHANNEL_UNAVAILABLE", 200},
+		{"empty object", `{}`, "TEMPORARY_UNAVAILABLE", 200},
+		{"omitted items without page info", `{"kind":"youtube#channelListResponse"}`, "TEMPORARY_UNAVAILABLE", 200},
+		{"omitted items without total", `{"pageInfo":{"resultsPerPage":5}}`, "TEMPORARY_UNAVAILABLE", 200},
+		{"omitted items with non-numeric total", `{"pageInfo":{"totalResults":"0"}}`, "TEMPORARY_UNAVAILABLE", 200},
+		{"omitted items with negative total", `{"pageInfo":{"totalResults":-1}}`, "TEMPORARY_UNAVAILABLE", 200},
+		{"omitted items with non-zero total", `{"pageInfo":{"totalResults":1}}`, "TEMPORARY_UNAVAILABLE", 200},
+		{"omitted items with wrong page info type", `{"pageInfo":"0"}`, "TEMPORARY_UNAVAILABLE", 200},
 		{"two", `{"items":[{},{}]}`, "CHANNEL_AMBIGUOUS", 200},
 		{"more pages", `{"nextPageToken":"synthetic-next","items":[{}]}`, "CHANNEL_AMBIGUOUS", 200},
 		{"bad id", strings.ReplaceAll(syntheticChannel, "UCsynthetic0000000000001", "../../synthetic"), "CHANNEL_UNAVAILABLE", 200},
