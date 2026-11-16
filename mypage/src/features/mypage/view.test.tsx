@@ -204,6 +204,7 @@ describe('MyPage observable display', () => {
 		const s = state()
 		if (!s.data) throw new Error('synthetic data missing')
 		s.data.generatedAt = '2026-12-31T15:05:00Z'
+		s.data.current.asOf = '2026-12-31T15:05:00Z'
 		const dates = [
 			'2026-12-26',
 			'2026-12-27',
@@ -221,6 +222,29 @@ describe('MyPage observable display', () => {
 		expect(html).toContain('12/26〜1/1')
 		expect(html).toContain('1月1日（金・今日）')
 		expect(html).toContain('12月31日（木）')
+	})
+	it('labels today by the latest fetch date shared with the summary after a current-only refresh', () => {
+		const s = state()
+		if (!s.data) throw new Error('synthetic data missing')
+		s.data.generatedAt = '2026-10-06T14:55:00Z'
+		s.data.current.asOf = '2026-10-06T15:05:00Z'
+		const dates = [
+			'2026-10-01',
+			'2026-10-02',
+			'2026-10-03',
+			'2026-10-04',
+			'2026-10-05',
+			'2026-10-06',
+			'2026-10-07',
+		]
+		s.data.recent = s.data.recent.map((item, index) => ({
+			...item,
+			date: dates[index],
+		}))
+		const html = markup(s)
+		expect(html).toContain('10月7日（水・今日）')
+		expect(html).toContain('10月6日（火）')
+		expect(html).not.toContain('10月6日（火・今日）')
 	})
 	it('keeps the last verified value and timestamp when a later history read fails', () => {
 		const s = state()

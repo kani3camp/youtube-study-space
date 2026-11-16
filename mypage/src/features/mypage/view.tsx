@@ -2,7 +2,12 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Icon, SiteHeader } from '../../components/site-header'
 import { formatWorkSeconds } from '../../lib/format'
 import type { Account, Current, ReasonCode } from './contract'
-import type { MemoryState, Retained, ViewData } from './memory'
+import {
+	jstDate,
+	type MemoryState,
+	type Retained,
+	type ViewData,
+} from './memory'
 
 export const guideURL =
 	'https://kani3camp.github.io/youtube-study-space/docs/essential'
@@ -19,12 +24,6 @@ const clock = new Intl.DateTimeFormat('ja-JP', {
 	hour: '2-digit',
 	minute: '2-digit',
 	hour12: false,
-})
-const day = new Intl.DateTimeFormat('sv-SE', {
-	timeZone: 'Asia/Tokyo',
-	year: 'numeric',
-	month: '2-digit',
-	day: '2-digit',
 })
 const weekday = new Intl.DateTimeFormat('ja-JP', {
 	timeZone: 'Asia/Tokyo',
@@ -360,11 +359,9 @@ function SummaryCard({
 				<dl>
 					{(['today', 'week', 'lifetime'] as const).map((key) => {
 						const value = data?.summary[key]
-						const originalDate = value?.asOf
-							? day.format(new Date(value.asOf))
-							: null
+						const originalDate = value?.asOf ? jstDate(value.asOf) : null
 						const currentDate = data?.current.asOf
-							? day.format(new Date(data.current.asOf))
+							? jstDate(data.current.asOf)
 							: null
 						return (
 							<div className={`metric metric-${key}`} key={key}>
@@ -420,7 +417,8 @@ function RecentCard({
 	const selected =
 		days.find((item) => item.date === selectedDate) ?? days.at(-1)
 	const maxMinutes = Math.max(1, ...days.map((item) => item.minutes ?? 0))
-	const today = data ? day.format(new Date(data.generatedAt)) : null
+	// SummaryCardの「今日」と同じく、最新の取得時刻（入室状況）のJST日付で判定する。
+	const today = data ? jstDate(data.current.asOf ?? data.generatedAt) : null
 	return (
 		<section
 			className="card recent-card"

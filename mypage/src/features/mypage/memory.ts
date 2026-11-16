@@ -67,6 +67,18 @@ export type Loader = (
 	currentOnly?: boolean,
 ) => Promise<MyPage>
 
+const jstDay = new Intl.DateTimeFormat('sv-SE', {
+	timeZone: 'Asia/Tokyo',
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+})
+
+// JSTの日付（YYYY-MM-DD）。表示側と取得判定で同じ境界を使う。
+export function jstDate(value: string | number | Date) {
+	return jstDay.format(new Date(value))
+}
+
 function retain<T>(
 	previous: Retained<T> | undefined,
 	section: Section<T>,
@@ -379,7 +391,13 @@ export class MyPageMemory {
 		if (manual && this.now() - this.lastManual < 2000) return
 		if (manual) this.lastManual = this.now()
 		this.pendingManual = false
-		let currentOnly = periodic && !manual && this.state.data !== null
+		// 保持中の全項目のJST日付が現在と異なる場合は、次の定期取得で全項目を取り直す。
+		// 失敗時はgeneratedAtが古いままなので、次の定期取得でも全項目を再試行する。
+		let currentOnly =
+			periodic &&
+			!manual &&
+			this.state.data !== null &&
+			jstDate(this.state.data.generatedAt) === jstDate(this.now())
 		if (this.timer !== null) clearTimeout(this.timer)
 		this.timer = null
 		const uid = this.uid
