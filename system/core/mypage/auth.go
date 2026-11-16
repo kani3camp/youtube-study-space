@@ -295,6 +295,16 @@ func (s *AuthService) Confirm(ctx context.Context, id, confirmation string) (str
 	if err != nil {
 		return "", fmt.Errorf("read confirmed channel: %w", err)
 	}
+	return s.confirmLogin(ctx, id, confirmation, value)
+}
+
+// confirmLoginは、同じリクエストで読み取り済みの確認済みトランザクションを使い、通常ログインを完了する。
+// /confirmの予算内で同じ読み取りを繰り返さないためである。valueは用途の判定とアクセス確認の対象チャンネルにだけ使う。
+// 一度限りの消費はvalueに依存せず、Consumeが自身のトランザクション内で状態・参照・同意・アクセスを読み直して検証する。
+func (s *AuthService) confirmLogin(ctx context.Context, id, confirmation string, value OAuthTransaction) (string, error) {
+	if confirmation == "" {
+		return "", apiError("INVALID_REQUEST")
+	}
 	if transactionPurpose(value) != "login" || value.Support != nil {
 		return "", apiError("SUPPORT_CHALLENGE_INVALID")
 	}
@@ -378,7 +388,7 @@ func (s *AuthService) ConfirmResult(ctx context.Context, id, confirmation string
 		return ConfirmResponse{}, fmt.Errorf("read confirmation purpose: %w", err)
 	}
 	if transactionPurpose(tx) == "login" {
-		token, err := s.Confirm(ctx, id, confirmation)
+		token, err := s.confirmLogin(ctx, id, confirmation, tx)
 		if err != nil {
 			return ConfirmResponse{}, err
 		}
