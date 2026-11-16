@@ -409,7 +409,7 @@ export class MyPageMemory {
 		if (manual) this.lastManual = this.now()
 		this.pendingManual = false
 		// 定期取得は、集計が現在のJST日付で同期済みの場合だけcurrentOnlyにする。
-		// 日付判定は取得開始時点のthis.now()で統一し、保存する日付も同じ値を使う。
+		// 定期取得の判定には取得開始時点のthis.now()のJST日付を使う。
 		const requestDate = jstDate(this.now())
 		let currentOnly =
 			periodic &&
@@ -469,8 +469,15 @@ export class MyPageMemory {
 			if (!currentOnly) {
 				// 初回・手動は結果によらず当日分の試行済みとする。日付またぎの定期取得は
 				// 応答で集計が実際に取得できた場合だけ同期済みにし、未取得なら次回も全項目取得にする。
-				if (!rollover || dayDataObtained(response))
-					this.syncedDate = requestDate
+				// 保存する日付は応答のgeneratedAt（サーバー時刻）のJST日付にする。
+				// クライアント時計が進んでいて応答がまだ前日なら、次回も全項目取得になる。
+				// NOTE: 時計が日単位でずれたブラウザは一致せず、5分ごとの定期取得が毎回
+				// 全項目取得になる。回数は定期取得1回につき1回に限られ、時計が正しければ解消する。
+				if (
+					(!rollover || dayDataObtained(response)) &&
+					Number.isFinite(Date.parse(response.generatedAt))
+				)
+					this.syncedDate = jstDate(response.generatedAt)
 			}
 			this.failures = 0
 			this.automaticRetryAt = 0

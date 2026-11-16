@@ -300,6 +300,62 @@ describe('private MyPage memory', () => {
 		})
 	})
 
+	describe('クライアント時計のずれ', () => {
+		function page(generatedAt: string): MyPage {
+			const value = sample()
+			value.generatedAt = generatedAt
+			return value
+		}
+		const flags = (load: { mock: { calls: unknown[][] } }) =>
+			load.mock.calls.map((call) => call[4])
+
+		it('時計が進んでいて応答がまだ前日なら、サーバーの日付が変わるまで全項目取得を続ける', async () => {
+			// クライアントはJST 10/7 00:00、サーバーはまだ10/6 23:59。
+			vi.setSystemTime(new Date('2026-10-06T14:56:00Z'))
+			const load = vi
+				.fn()
+				.mockResolvedValueOnce(page('2026-10-06T14:55:00Z'))
+				.mockResolvedValueOnce(page('2026-10-06T14:59:00Z'))
+				.mockResolvedValueOnce(page('2026-10-06T15:01:00Z'))
+				.mockResolvedValue(page('2026-10-06T15:06:00Z'))
+			const memory = new MyPageMemory(load, async () => {})
+			memory.setIdentity('synthetic')
+			await settle()
+			// 時計を1分進めた状態を再現する（取得時刻は +1分 = 15:00Z 以降）。
+			vi.setSystemTime(new Date('2026-10-06T15:00:00Z'))
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(flags(load)).toEqual([false, false])
+			expect(memory.getSnapshot().data?.generatedAt).toBe(
+				'2026-10-06T14:59:00Z',
+			)
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(flags(load)).toEqual([false, false, false])
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(flags(load)).toEqual([false, false, false, true])
+			memory.dispose()
+		})
+
+		it('時計が遅れていて初回が翌日の応答なら、クライアントの日付が追いつくまで全項目取得にする', async () => {
+			// サーバーは10/7 00:00(JST)、クライアントは10/6 23:50(JST)。
+			vi.setSystemTime(new Date('2026-10-06T14:50:00Z'))
+			const load = vi
+				.fn()
+				.mockResolvedValueOnce(page('2026-10-06T15:00:00Z'))
+				.mockResolvedValueOnce(page('2026-10-06T15:05:00Z'))
+				.mockResolvedValue(page('2026-10-06T15:10:00Z'))
+			const memory = new MyPageMemory(load, async () => {})
+			memory.setIdentity('synthetic')
+			await settle()
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			// 1回目の定期取得（クライアント10/6 23:55）は日付が一致せず全項目、
+			// 2回目（10/7 00:00）以降は一致してcurrentOnlyになる。回数は定期取得ごとに最大1回。
+			expect(flags(load)).toEqual([false, false, true])
+			expect(vi.getTimerCount()).toBeLessThanOrEqual(1)
+			memory.dispose()
+		})
+	})
+
 	it('restores totals after a successful token retry during polling', async () => {
 		const retry = deferred<MyPage>()
 		const next = sample()
