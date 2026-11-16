@@ -21,18 +21,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MaintenanceStatus'
-        '429':
-          description: 公開状態照会のレート制限超過
-          headers:
-            Retry-After:
-              description: 呼び出し元が再試行できるまでの秒数
-              schema:
-                type: string
-                pattern: '^[0-9]+$'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
         '503':
           description: 管理元の状態が不明
           content:
@@ -87,12 +75,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '429': &id009
-          description: 公開してよい内容だけを含むエラーレスポンス
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
         '500': &id010
           description: 公開してよい内容だけを含むエラーレスポンス
           content:
@@ -137,7 +119,6 @@ paths:
         '409': *id006
         '410': *id007
         '413': *id008
-        '429': *id009
         '500': *id010
         '503': *id011
         '302':
@@ -173,7 +154,6 @@ paths:
         '409': *id006
         '410': *id007
         '413': *id008
-        '429': *id009
         '500': *id010
         '503': *id011
         '200':
@@ -204,7 +184,6 @@ paths:
         '409': *id006
         '410': *id007
         '413': *id008
-        '429': *id009
         '500': *id010
         '503': *id011
         '200':
@@ -241,7 +220,12 @@ paths:
         '409': *id006
         '410': *id007
         '413': *id008
-        '429': *id009
+        '429': &id009
+          description: 公開してよい内容だけを含むエラーレスポンス
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500': *id010
         '503': *id011
         '204':

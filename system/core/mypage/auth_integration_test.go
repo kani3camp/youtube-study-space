@@ -300,3 +300,67 @@ func TestCallbackWithDeletedTransactionRedirectsToRestartLogin(t *testing.T) {
 		t.Fatalf("callback created a transaction: %v", err)
 	}
 }
+
+// ConfirmResultは読み取り済みの値をConsumeへ渡さず、消費トランザクション内で読み直した文書だけで一度限りの消費を判定する。
+func TestConfirmResultRejectsTransactionChangedAfterPurposeRead(t *testing.T) {
+	uid := "UCsynthetic0000000000001"
+	for _, tc := range []struct {
+		name   string
+		change func(t *testing.T, s *AuthService, store *FirestoreAuthStore, id, confirmation string, now time.Time)
+		code   string
+	}{
+		{"confirmation replaced", func(t *testing.T, _ *AuthService, store *FirestoreAuthStore, id, _ string, _ time.Time) {
+			replacement, err := opaque()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.Client.Collection("oauth-transactions").Doc(id).Update(context.Background(), []firestore.Update{{Path: "confirmationRef", Value: replacement}}); err != nil {
+				t.Fatal(err)
+			}
+		}, "OAUTH_TRANSACTION_CHANGED"},
+		{"superseded by new start", func(t *testing.T, s *AuthService, _ *FirestoreAuthStore, id, _ string, _ time.Time) {
+			if _, _, err := s.Start(context.Background(), id, StartRequest{PrivacyPolicyVersion: s.Policy.Privacy, TermsVersion: s.Policy.Terms, PrivacyAccepted: true, TermsAccepted: true}); err != nil {
+				t.Fatal(err)
+			}
+		}, "OAUTH_TRANSACTION_PENDING"},
+		{"consumed by another request", func(t *testing.T, s *AuthService, store *FirestoreAuthStore, id, confirmation string, now time.Time) {
+			if _, err := store.Consume(context.Background(), id, confirmation, "absent", s.Policy, now); err != nil {
+				t.Fatal(err)
+			}
+		}, "OAUTH_TRANSACTION_CONSUMED"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, store, _, minter, now := authTestService(t)
+			account := store.Client.Collection("web-accounts").Doc(uid)
+			if _, err := account.Delete(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			id, confirmation := seedTransaction(t, s, "channel_verified", now)
+			s.Store = &consumeHookStore{AuthStore: store, before: func() { tc.change(t, s, store, id, confirmation, now) }}
+			response, err := s.ConfirmResult(context.Background(), id, confirmation)
+			if errorCode(err) != tc.code || response.CustomToken != "" {
+				t.Fatalf("code=%s token=%q", errorCode(err), response.CustomToken)
+			}
+			if minter.calls.Load() != 0 {
+				t.Fatal("changed transaction minted token")
+			}
+			if tc.code == "OAUTH_TRANSACTION_CONSUMED" {
+				return
+			}
+			if _, err := account.Get(context.Background()); status.Code(err) != codes.NotFound {
+				t.Fatalf("rejected consume wrote WebAccount: %v", err)
+			}
+		})
+	}
+}
+
+func TestConfirmResultConsumesOnceAcrossConcurrentRequests(t *testing.T) {
+	s, _, _, minter, now := authTestService(t)
+	id, confirmation := seedTransaction(t, s, "channel_verified", now)
+	if got := concurrently(t, func() error { _, err := s.ConfirmResult(context.Background(), id, confirmation); return err }); got != 1 {
+		t.Fatalf("successful confirm count=%d", got)
+	}
+	if minter.calls.Load() != 1 {
+		t.Fatal("token minted more than once")
+	}
+}

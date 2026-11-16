@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -122,17 +123,93 @@ func TestMetadataRefreshChecksAccountBeforeProviderAndDoesNotWriteFailedLookup(t
 	require.Zero(t, writes)
 }
 
-func TestPublicMetadataOnlySuccessfulExplicitEmptyItemsIsTerminalAbsence(t *testing.T) {
+// 不在と判定するのは、HTTP 200で「items=[]」または「itemsが無くpageInfo.totalResultsが数値の0」の場合だけ。
+// それ以外の欠落・不整合は、不正な応答を削除済みと誤認しないため一時的な失敗のままにする。
+func TestPublicMetadataAbsenceRequiresExplicitEmptyItemsOrZeroTotalResults(t *testing.T) {
+	const other = `{"id":"UCsynthetic0000000000002","snippet":{"title":"Other"}}`
 	for _, test := range []struct {
+		name    string
 		status  int
 		body    string
 		missing bool
-	}{{200, `{"items":[]}`, true}, {503, `{"items":[]}`, false}, {200, `{}`, false}, {200, `{"items":null}`, false}, {200, `invalid`, false}, {200, `{"nextPageToken":"synthetic","items":[]}`, false}, {200, `{"items":[{"id":"UCsynthetic0000000000002","snippet":{"title":"Other"}}]}`, false}} {
-		p, err := NewPublicYouTubeMetadata("synthetic-key", &http.Client{Transport: providerTransport(func(*http.Request) (*http.Response, error) { return providerResponse(test.status, test.body), nil })})
+	}{
+		{"explicit empty items", 200, `{"items":[]}`, true},
+		{"explicit empty items with page info zero", 200, `{"items":[],"pageInfo":{"totalResults":0,"resultsPerPage":5}}`, true},
+		// 既存挙動を維持: 明示的な空配列はtotalResultsに依存せず不在とする。
+		{"explicit empty items with inconsistent total", 200, `{"items":[],"pageInfo":{"totalResults":3}}`, true},
+		{"omitted items with zero total", 200, `{"kind":"youtube#channelListResponse","etag":"x","pageInfo":{"totalResults":0,"resultsPerPage":5}}`, true},
+		{"null items with zero total", 200, `{"items":null,"pageInfo":{"totalResults":0}}`, true},
+		{"omitted items with zero total only", 200, `{"pageInfo":{"totalResults":0}}`, true},
+		{"zero total but upstream failure", 503, `{"pageInfo":{"totalResults":0}}`, false},
+		{"empty items but upstream failure", 503, `{"items":[]}`, false},
+		{"empty object", 200, `{}`, false},
+		{"null items without page info", 200, `{"items":null}`, false},
+		{"omitted items with null page info", 200, `{"pageInfo":null}`, false},
+		{"omitted items with empty page info", 200, `{"pageInfo":{}}`, false},
+		{"omitted items without total", 200, `{"pageInfo":{"resultsPerPage":5}}`, false},
+		{"omitted items with null total", 200, `{"pageInfo":{"totalResults":null}}`, false},
+		{"omitted items with string zero", 200, `{"pageInfo":{"totalResults":"0"}}`, false},
+		{"omitted items with float zero", 200, `{"pageInfo":{"totalResults":0.0}}`, false},
+		{"omitted items with negative total", 200, `{"pageInfo":{"totalResults":-1}}`, false},
+		{"omitted items with non-zero total", 200, `{"pageInfo":{"totalResults":1}}`, false},
+		{"omitted items with boolean total", 200, `{"pageInfo":{"totalResults":false}}`, false},
+		{"omitted items with array total", 200, `{"pageInfo":{"totalResults":[0]}}`, false},
+		{"omitted items with string page info", 200, `{"pageInfo":"0"}`, false},
+		{"omitted items with array page info", 200, `{"pageInfo":[{"totalResults":0}]}`, false},
+		{"omitted items with zero total and next page", 200, `{"nextPageToken":"synthetic","pageInfo":{"totalResults":0}}`, false},
+		{"invalid body", 200, `invalid`, false},
+		{"empty items with next page", 200, `{"nextPageToken":"synthetic","items":[]}`, false},
+		{"other channel", 200, `{"items":[` + other + `],"pageInfo":{"totalResults":0}}`, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			p, err := NewPublicYouTubeMetadata("synthetic-key", &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+				require.Equal(t, youtubeChannelFields, r.URL.Query().Get("fields"))
+				require.Contains(t, r.URL.Query().Get("fields"), "pageInfo(totalResults)")
+				return providerResponse(test.status, test.body), nil
+			})})
+			require.NoError(t, err)
+			_, err = p.Read(context.Background(), "UCsynthetic0000000000001")
+			require.Error(t, err)
+			require.Equal(t, test.missing, errors.Is(err, ErrPublicChannelMissing))
+			if !test.missing && !strings.Contains(test.name, "other channel") && !strings.Contains(test.name, "empty items with next page") {
+				require.Equal(t, "TEMPORARY_UNAVAILABLE", errorCode(err))
+			}
+		})
+	}
+}
+
+type missingClearerStore struct {
+	metadataWriterFunc
+	cleared *int
+}
+
+func (s missingClearerStore) ClearMissingMetadata(_ context.Context, _ string, a WebAccount, _ Policy, _ time.Time) (WebAccount, error) {
+	*s.cleared++
+	a.DisplayName, a.MetadataFetchedAt = "", time.Time{}
+	return a, nil
+}
+
+func TestMetadataRefreshClearsStoredMetadataWhenItemsAreOmittedForZeroResults(t *testing.T) {
+	now := time.Now().UTC()
+	for _, body := range []string{`{"items":[]}`, `{"kind":"youtube#channelListResponse","pageInfo":{"totalResults":0,"resultsPerPage":5}}`} {
+		cleared, saved := 0, 0
+		provider, err := NewPublicYouTubeMetadata("synthetic-key", &http.Client{Transport: providerTransport(func(*http.Request) (*http.Response, error) { return providerResponse(200, body), nil })})
 		require.NoError(t, err)
-		_, err = p.Read(context.Background(), "UCsynthetic0000000000001")
-		require.Error(t, err)
-		require.Equal(t, test.missing, errors.Is(err, ErrPublicChannelMissing))
+		refresh := AccountMetadataRefresh{
+			Access: allowedAccess(), Policy: Policy{Privacy: "p1", Terms: "t1"}, Now: func() time.Time { return now }, Provider: provider,
+			Store: missingClearerStore{cleared: &cleared, metadataWriterFunc: func(context.Context, string, WebAccount, Channel, Policy, time.Time) (WebAccount, error) {
+				saved++
+				return WebAccount{}, nil
+			}},
+		}
+		account := healthyAccount(now.Add(-25 * time.Hour))
+		account.Revision = now
+		result, err := refresh.Refresh(context.Background(), "UCsynthetic0000000000001", account)
+		require.NoError(t, err)
+		require.Equal(t, 1, cleared)
+		require.Zero(t, saved)
+		require.Empty(t, result.DisplayName)
+		require.True(t, result.MetadataFetchedAt.IsZero())
 	}
 }
 

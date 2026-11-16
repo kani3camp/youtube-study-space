@@ -14,7 +14,7 @@
   "gates": {
     "infrastructure": "pending",
     "serverBootstrapAndHostingRewrite": "pending",
-    "S01DevIPAnd429": "pending",
+    "S01DevUIDRateLimit": "pending",
     "S04DevPlatformAndAppLogs": "pending",
     "D01Implementation": "pending",
     "D02Design": "decided-2026-10-09",

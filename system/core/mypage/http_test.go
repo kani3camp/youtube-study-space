@@ -192,10 +192,6 @@ func TestOpaqueCookieAndErrorAllowlist(t *testing.T) {
 	if errorCode(apiError("private unapproved detail")) != "INTERNAL_ERROR" {
 		t.Fatal("public error code not allowlisted")
 	}
-	ip, err := (&HTTPHandler{}).clientIP(httptest.NewRequest("GET", "/", nil))
-	if err != nil || ip == "" {
-		t.Fatal("default remote IP extraction")
-	}
 }
 
 type refusingCallbackStore struct{ AuthStore }
@@ -243,5 +239,42 @@ func TestHTTPCurrentViewDoesNotReuseFullSnapshotCache(t *testing.T) {
 	}
 	if len(reads) != 2 || !reads[0] || reads[1] {
 		t.Fatalf("reader calls by scope: %v", reads)
+	}
+}
+
+func TestHTTPUIDRateLimitDoesNotSpillOverToAnotherUser(t *testing.T) {
+	h, _, v, _ := boundaryFixture()
+	for range 10 {
+		if boundaryRequest(h, "GET", "/api/mypage", "").Code != 200 {
+			t.Fatal("burst rejected early")
+		}
+	}
+	w := boundaryRequest(h, "GET", "/api/mypage", "")
+	if w.Code != 429 || responseCode(t, w) != "RATE_LIMITED" || w.Header().Get("Retry-After") == "" {
+		t.Fatalf("uid limit not applied: %d", w.Code)
+	}
+	v.identity = VerifiedIdentity{UID: "other-synthetic", Provider: "custom"}
+	if w := boundaryRequest(h, "GET", "/api/mypage", ""); w.Code != 200 {
+		t.Fatalf("limit spilled over to another uid: %d", w.Code)
+	}
+}
+
+// IP単位の制限は置かない。同じ接続元からの未認証リクエストをアプリケーションが429にしないことを確認する。
+func TestHTTPDoesNotRateLimitUnauthenticatedRequestsByAddress(t *testing.T) {
+	h, _, v, _ := boundaryFixture()
+	v.appErr = errors.New("synthetic rejection")
+	for attempt := range 100 {
+		for _, path := range []struct{ method, path, body string }{
+			{"POST", "/api/auth/youtube/start", `{}`},
+			{"GET", "/api/mypage", ""},
+		} {
+			r := newBoundaryRequest(h, path.method, path.path, path.body)
+			r.RemoteAddr = "192.0.2.10:4321"
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			if w.Code != 403 {
+				t.Fatalf("attempt=%d %s status=%d, want App Check rejection without address limit", attempt, path.path, w.Code)
+			}
+		}
 	}
 }
