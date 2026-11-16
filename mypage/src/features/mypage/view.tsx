@@ -2,7 +2,12 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Icon, SiteHeader } from '../../components/site-header'
 import { formatWorkSeconds } from '../../lib/format'
 import type { Account, Current, ReasonCode } from './contract'
-import type { MemoryState, Retained, ViewData } from './memory'
+import {
+	jstDate,
+	type MemoryState,
+	type Retained,
+	type ViewData,
+} from './memory'
 
 export const guideURL =
 	'https://kani3camp.github.io/youtube-study-space/docs/essential'
@@ -19,12 +24,6 @@ const clock = new Intl.DateTimeFormat('ja-JP', {
 	hour: '2-digit',
 	minute: '2-digit',
 	hour12: false,
-})
-const day = new Intl.DateTimeFormat('sv-SE', {
-	timeZone: 'Asia/Tokyo',
-	year: 'numeric',
-	month: '2-digit',
-	day: '2-digit',
 })
 const weekday = new Intl.DateTimeFormat('ja-JP', {
 	timeZone: 'Asia/Tokyo',
@@ -337,6 +336,17 @@ function workStatsAsOf(data: ViewData | null) {
 	return newest
 }
 
+// 画面全体の「今日」。保持された古い入室状況が日付を巻き戻さないよう、
+// 入室状況の時刻と全体のgeneratedAtのうち新しい方のJST日付を使う。
+function viewDate(data: ViewData | null) {
+	if (!data) return null
+	const times = [data.current.asOf, data.generatedAt].filter(
+		(value): value is string => !!value && Number.isFinite(Date.parse(value)),
+	)
+	if (times.length === 0) return null
+	return jstDate(Math.max(...times.map((value) => Date.parse(value))))
+}
+
 function SummaryCard({
 	data,
 	busy,
@@ -360,12 +370,8 @@ function SummaryCard({
 				<dl>
 					{(['today', 'week', 'lifetime'] as const).map((key) => {
 						const value = data?.summary[key]
-						const originalDate = value?.asOf
-							? day.format(new Date(value.asOf))
-							: null
-						const currentDate = data?.current.asOf
-							? day.format(new Date(data.current.asOf))
-							: null
+						const originalDate = value?.asOf ? jstDate(value.asOf) : null
+						const currentDate = viewDate(data)
 						return (
 							<div className={`metric metric-${key}`} key={key}>
 								<dt>
@@ -420,7 +426,7 @@ function RecentCard({
 	const selected =
 		days.find((item) => item.date === selectedDate) ?? days.at(-1)
 	const maxMinutes = Math.max(1, ...days.map((item) => item.minutes ?? 0))
-	const today = data ? day.format(new Date(data.generatedAt)) : null
+	const today = viewDate(data)
 	return (
 		<section
 			className="card recent-card"

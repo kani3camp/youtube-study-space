@@ -67,6 +67,32 @@ export type Loader = (
 	currentOnly?: boolean,
 ) => Promise<MyPage>
 
+const jstDay = new Intl.DateTimeFormat('sv-SE', {
+	timeZone: 'Asia/Tokyo',
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+})
+
+// JSTの日付（YYYY-MM-DD）。表示側と取得判定で同じ境界を使う。
+export function jstDate(value: string | number | Date) {
+	return jstDay.format(new Date(value))
+}
+
+// 応答の時点で、日付依存の集計が全て取得できているか（保持値での代替を含まない）。
+function dayDataObtained(response: MyPage) {
+	const summary = response.summary.data
+	const recent = response.recent7Days.data
+	return (
+		summary !== null &&
+		[summary.today, summary.week, summary.lifetime].every(
+			(metric) => metric.availability === 'available',
+		) &&
+		recent.length > 0 &&
+		recent.every((metric) => metric.availability === 'available')
+	)
+}
+
 function retain<T>(
 	previous: Retained<T> | undefined,
 	section: Section<T>,
@@ -166,6 +192,8 @@ export class MyPageMemory {
 	private routeActive = true
 	private online = true
 	private failures = 0
+	// 日付依存の集計（summary・recent）を同期済みとみなすJST日付。
+	private syncedDate: string | null = null
 	private pendingManual = false
 	private ignoreAuthUntilSignedOut = false
 	private lastManual = Number.NEGATIVE_INFINITY
@@ -211,6 +239,7 @@ export class MyPageMemory {
 	private clear(phase: MemoryState['phase'], error: string | null = null) {
 		this.epoch++
 		this.pendingManual = false
+		this.syncedDate = null
 		this.stop()
 		this.publish({
 			phase,
@@ -379,7 +408,16 @@ export class MyPageMemory {
 		if (manual && this.now() - this.lastManual < 2000) return
 		if (manual) this.lastManual = this.now()
 		this.pendingManual = false
-		let currentOnly = periodic && !manual && this.state.data !== null
+		// 定期取得は、集計が現在のJST日付で同期済みの場合だけcurrentOnlyにする。
+		// 定期取得の判定には取得開始時点のthis.now()のJST日付を使う。
+		const requestDate = jstDate(this.now())
+		let currentOnly =
+			periodic &&
+			!manual &&
+			this.state.data !== null &&
+			this.syncedDate === requestDate
+		// 日付またぎの定期的な全項目取得。集計が取れるまで同期済みにしない。
+		const rollover = periodic && !manual && !currentOnly
 		if (this.timer !== null) clearTimeout(this.timer)
 		this.timer = null
 		const uid = this.uid
@@ -428,6 +466,19 @@ export class MyPageMemory {
 				}
 			}
 			if (epoch !== this.epoch || uid !== this.uid) return
+			if (!currentOnly) {
+				// 初回・手動は結果によらず当日分の試行済みとする。日付またぎの定期取得は
+				// 応答で集計が実際に取得できた場合だけ同期済みにし、未取得なら次回も全項目取得にする。
+				// 保存する日付は応答のgeneratedAt（サーバー時刻）のJST日付にする。
+				// クライアント時計が進んでいて応答がまだ前日なら、次回も全項目取得になる。
+				// NOTE: 時計が日単位でずれたブラウザは一致せず、5分ごとの定期取得が毎回
+				// 全項目取得になる。回数は定期取得1回につき1回に限られ、時計が正しければ解消する。
+				if (
+					(!rollover || dayDataObtained(response)) &&
+					Number.isFinite(Date.parse(response.generatedAt))
+				)
+					this.syncedDate = jstDate(response.generatedAt)
+			}
 			this.failures = 0
 			this.automaticRetryAt = 0
 			this.publish({

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import availableWire from '../../../../docs/mypage/fixtures/available.json'
 import partialWire from '../../../../docs/mypage/fixtures/partial.json'
-import type { MyPage } from './contract'
+import type { Metric, MyPage } from './contract'
 import { MyPageMemory, mergeResponse, RequestError } from './memory'
 
 function sample(): MyPage {
@@ -66,7 +66,11 @@ async function settle() {
 }
 
 describe('private MyPage memory', () => {
-	beforeEach(() => vi.useFakeTimers())
+	beforeEach(() => {
+		vi.useFakeTimers()
+		// 合成データのgeneratedAtと同じJST日に固定する。
+		vi.setSystemTime(new Date('2026-10-06T03:00:00Z'))
+	})
 	afterEach(() => vi.useRealTimers())
 	it('refreshes only current state on the timer and refreshes totals manually', async () => {
 		const next = sample()
@@ -89,6 +93,267 @@ describe('private MyPage memory', () => {
 		expect(load.mock.calls[2]?.[4]).toBe(false)
 		expect(memory.getSnapshot().data?.summary.today.asOf).toBe(next.generatedAt)
 		memory.dispose()
+	})
+
+	describe('JST日付をまたいだ定期取得', () => {
+		function at(generatedAt: string): MyPage {
+			const page = sample()
+			page.generatedAt = generatedAt
+			return page
+		}
+		const loadedFlags = (load: { mock: { calls: unknown[][] } }) =>
+			load.mock.calls.map((call) => call[4])
+
+		it('同じJST日の定期取得はcurrentOnlyのままにする', async () => {
+			vi.setSystemTime(new Date('2026-10-06T03:00:00Z'))
+			const load = vi
+				.fn()
+				.mockResolvedValueOnce(at('2026-10-06T03:00:00Z'))
+				.mockResolvedValue(at('2026-10-06T03:05:00Z'))
+			const memory = new MyPageMemory(load, async () => {})
+			memory.setIdentity('synthetic')
+			await settle()
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(loadedFlags(load)).toEqual([false, true, true])
+			memory.dispose()
+		})
+
+		it('日付が変わった最初の定期取得で全項目を取得し、その後はcurrentOnlyに戻る', async () => {
+			vi.setSystemTime(new Date('2026-10-06T14:56:00Z'))
+			const rolled = at('2026-10-06T15:01:00Z')
+			rolled.recent7Days.data = rolled.recent7Days.data.map((item, index) => ({
+				...item,
+				date: `2026-10-0${index + 2}`,
+			}))
+			const load = vi
+				.fn()
+				.mockResolvedValueOnce(at('2026-10-06T14:56:00Z'))
+				.mockResolvedValueOnce(rolled)
+				.mockResolvedValue(at('2026-10-06T15:06:00Z'))
+			const memory = new MyPageMemory(load, async () => {})
+			memory.setIdentity('synthetic')
+			await settle()
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(loadedFlags(load)).toEqual([false, false])
+			const data = memory.getSnapshot().data
+			expect(data?.generatedAt).toBe('2026-10-06T15:01:00Z')
+			expect(data?.summary.today.asOf).toBe('2026-10-06T15:01:00Z')
+			expect(data?.recent.at(-1)?.date).toBe('2026-10-08')
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(loadedFlags(load)).toEqual([false, false, true])
+			memory.dispose()
+		})
+
+		it('日付をまたぐ全項目の取得に失敗したら、次の定期取得でも全項目を再試行する', async () => {
+			vi.setSystemTime(new Date('2026-10-06T14:56:00Z'))
+			const load = vi
+				.fn()
+				.mockResolvedValueOnce(at('2026-10-06T14:56:00Z'))
+				.mockRejectedValueOnce(new RequestError(503, 'TEMPORARY_UNAVAILABLE'))
+				.mockResolvedValueOnce(at('2026-10-06T15:10:00Z'))
+				.mockResolvedValue(at('2026-10-06T15:15:00Z'))
+			const memory = new MyPageMemory(load, async () => {})
+			memory.setIdentity('synthetic')
+			await settle()
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(memory.getSnapshot().error).toBe('TEMPORARY_UNAVAILABLE')
+			expect(memory.getSnapshot().data?.generatedAt).toBe(
+				'2026-10-06T14:56:00Z',
+			)
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(loadedFlags(load)).toEqual([false, false, false])
+			expect(memory.getSnapshot().data?.generatedAt).toBe(
+				'2026-10-06T15:10:00Z',
+			)
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(loadedFlags(load)).toEqual([false, false, false, true])
+			memory.dispose()
+		})
+	})
+
+	it('日付をまたぐ全項目取得が部分応答でも、集計が取れるまで全項目取得を続ける', async () => {
+		vi.setSystemTime(new Date('2026-10-06T14:56:00Z'))
+		const partial = sample()
+		partial.generatedAt = '2026-10-06T15:01:00Z'
+		partial.partial = true
+		partial.summary = {
+			availability: 'unavailable',
+			reasonCode: 'SOURCE_UNAVAILABLE',
+			data: null,
+		} as unknown as MyPage['summary']
+		partial.recent7Days = {
+			availability: 'unavailable',
+			reasonCode: 'SOURCE_UNAVAILABLE',
+			data: [],
+		} as unknown as MyPage['recent7Days']
+		const first = sample()
+		first.generatedAt = '2026-10-06T14:56:00Z'
+		const recovered = sample()
+		recovered.generatedAt = '2026-10-06T15:11:00Z'
+		const load = vi
+			.fn()
+			.mockResolvedValueOnce(first)
+			.mockResolvedValueOnce(partial)
+			.mockResolvedValueOnce(recovered)
+			.mockResolvedValue(recovered)
+		const memory = new MyPageMemory(load, async () => {})
+		memory.setIdentity('synthetic')
+		await settle()
+		await vi.advanceTimersByTimeAsync(5 * 60_000)
+		await vi.advanceTimersByTimeAsync(5 * 60_000)
+		expect(load.mock.calls.map((call) => call[4])).toEqual([
+			false,
+			false,
+			false,
+		])
+		expect(memory.getSnapshot().data?.summary.today.asOf).toBe(
+			'2026-10-06T15:11:00Z',
+		)
+		await vi.advanceTimersByTimeAsync(5 * 60_000)
+		expect(load.mock.calls.map((call) => call[4])).toEqual([
+			false,
+			false,
+			false,
+			true,
+		])
+		memory.dispose()
+	})
+
+	describe('日付同期済みの判定', () => {
+		function historyDown(generatedAt: string): MyPage {
+			const page = sample()
+			page.generatedAt = generatedAt
+			page.partial = true
+			const down = {
+				availability: 'unavailable',
+				reasonCode: 'SOURCE_UNAVAILABLE',
+			} as unknown as Metric
+			if (page.summary.data) {
+				page.summary.data = { ...page.summary.data, today: down, week: down }
+			}
+			page.recent7Days = {
+				availability: 'unavailable',
+				reasonCode: 'SOURCE_UNAVAILABLE',
+				data: [],
+			} as unknown as MyPage['recent7Days']
+			return page
+		}
+		function full(generatedAt: string): MyPage {
+			const page = sample()
+			page.generatedAt = generatedAt
+			return page
+		}
+		const flags = (load: { mock: { calls: unknown[][] } }) =>
+			load.mock.calls.map((call) => call[4])
+
+		it('初回が部分応答で、日付をまたぐ取得でも履歴が失敗する間は全項目取得を続ける', async () => {
+			vi.setSystemTime(new Date('2026-10-06T14:56:00Z'))
+			const load = vi
+				.fn()
+				.mockResolvedValueOnce(historyDown('2026-10-06T14:56:00Z'))
+				.mockResolvedValueOnce(historyDown('2026-10-06T15:01:00Z'))
+				.mockResolvedValueOnce(historyDown('2026-10-06T15:06:00Z'))
+				.mockResolvedValueOnce(full('2026-10-06T15:11:00Z'))
+				.mockResolvedValue(full('2026-10-06T15:16:00Z'))
+			const memory = new MyPageMemory(load, async () => {})
+			memory.setIdentity('synthetic')
+			await settle()
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(flags(load)).toEqual([false, false, false, false])
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(flags(load)).toEqual([false, false, false, false, true])
+			memory.dispose()
+		})
+
+		it('同じ日の初回が部分応答でも、その日の定期取得はcurrentOnlyのままにする', async () => {
+			const load = vi
+				.fn()
+				.mockResolvedValueOnce(historyDown('2026-10-06T03:00:00Z'))
+				.mockResolvedValue(full('2026-10-06T03:05:00Z'))
+			const memory = new MyPageMemory(load, async () => {})
+			memory.setIdentity('synthetic')
+			await settle()
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(flags(load)).toEqual([false, true, true])
+			memory.dispose()
+		})
+
+		it('日付をまたいだ後の手動更新は、部分応答でもその日の同期試行として扱う', async () => {
+			vi.setSystemTime(new Date('2026-10-06T14:56:00Z'))
+			const load = vi
+				.fn()
+				.mockResolvedValueOnce(full('2026-10-06T14:56:00Z'))
+				.mockResolvedValueOnce(historyDown('2026-10-06T15:01:00Z'))
+				.mockResolvedValue(full('2026-10-06T15:06:00Z'))
+			const memory = new MyPageMemory(load, async () => {})
+			memory.setIdentity('synthetic')
+			await settle()
+			await vi.advanceTimersByTimeAsync(4 * 60_000 + 30_000)
+			await memory.refresh(true)
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(flags(load)).toEqual([false, false, true])
+			memory.dispose()
+		})
+	})
+
+	describe('クライアント時計のずれ', () => {
+		function page(generatedAt: string): MyPage {
+			const value = sample()
+			value.generatedAt = generatedAt
+			return value
+		}
+		const flags = (load: { mock: { calls: unknown[][] } }) =>
+			load.mock.calls.map((call) => call[4])
+
+		it('時計が進んでいて応答がまだ前日なら、サーバーの日付が変わるまで全項目取得を続ける', async () => {
+			// クライアントはJST 10/7 00:00、サーバーはまだ10/6 23:59。
+			vi.setSystemTime(new Date('2026-10-06T14:56:00Z'))
+			const load = vi
+				.fn()
+				.mockResolvedValueOnce(page('2026-10-06T14:55:00Z'))
+				.mockResolvedValueOnce(page('2026-10-06T14:59:00Z'))
+				.mockResolvedValueOnce(page('2026-10-06T15:01:00Z'))
+				.mockResolvedValue(page('2026-10-06T15:06:00Z'))
+			const memory = new MyPageMemory(load, async () => {})
+			memory.setIdentity('synthetic')
+			await settle()
+			// 時計を1分進めた状態を再現する（取得時刻は +1分 = 15:00Z 以降）。
+			vi.setSystemTime(new Date('2026-10-06T15:00:00Z'))
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(flags(load)).toEqual([false, false])
+			expect(memory.getSnapshot().data?.generatedAt).toBe(
+				'2026-10-06T14:59:00Z',
+			)
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(flags(load)).toEqual([false, false, false])
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			expect(flags(load)).toEqual([false, false, false, true])
+			memory.dispose()
+		})
+
+		it('時計が遅れていて初回が翌日の応答なら、クライアントの日付が追いつくまで全項目取得にする', async () => {
+			// サーバーは10/7 00:00(JST)、クライアントは10/6 23:50(JST)。
+			vi.setSystemTime(new Date('2026-10-06T14:50:00Z'))
+			const load = vi
+				.fn()
+				.mockResolvedValueOnce(page('2026-10-06T15:00:00Z'))
+				.mockResolvedValueOnce(page('2026-10-06T15:05:00Z'))
+				.mockResolvedValue(page('2026-10-06T15:10:00Z'))
+			const memory = new MyPageMemory(load, async () => {})
+			memory.setIdentity('synthetic')
+			await settle()
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			await vi.advanceTimersByTimeAsync(5 * 60_000)
+			// 1回目の定期取得（クライアント10/6 23:55）は日付が一致せず全項目、
+			// 2回目（10/7 00:00）以降は一致してcurrentOnlyになる。回数は定期取得ごとに最大1回。
+			expect(flags(load)).toEqual([false, false, true])
+			expect(vi.getTimerCount()).toBeLessThanOrEqual(1)
+			memory.dispose()
+		})
 	})
 
 	it('restores totals after a successful token retry during polling', async () => {
