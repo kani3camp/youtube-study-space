@@ -41,7 +41,7 @@ func (p *PublicYouTubeMetadata) Read(ctx context.Context, uid string) (Channel, 
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
-	query := url.Values{"id": {uid}, "part": {"snippet"}, "key": {p.key}, "fields": {"nextPageToken,items(id,snippet(title,customUrl,thumbnails(default(url))))"}}.Encode()
+	query := url.Values{"id": {uid}, "part": {"snippet"}, "key": {p.key}, "fields": {youtubeChannelFields}}.Encode()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, youtubeChannelsURL+"?"+query, nil)
 	if err != nil {
 		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
