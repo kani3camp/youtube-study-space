@@ -5,6 +5,8 @@ package mypage
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -265,6 +267,37 @@ func TestAuthChannelAmbiguityAndSuperseding(t *testing.T) {
 	}
 	if _, err := s.Confirm(context.Background(), old, confirmation); err == nil {
 		t.Fatal("superseded transaction remained usable")
+	}
+}
+
+// TTLで削除されたトランザクションや古いCookieは、存在しないIDと区別せず「ログインをやり直す」案内にする。
+func TestCallbackWithDeletedTransactionRedirectsToRestartLogin(t *testing.T) {
+	s, store, provider, minter, _ := authTestService(t)
+	id, err := opaque()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := store.Client.Collection("oauth-transactions").Doc(id)
+	if _, err := ref.Get(context.Background()); status.Code(err) != codes.NotFound {
+		t.Fatalf("synthetic transaction id unexpectedly exists: %v", err)
+	}
+	purpose, err := s.CallbackWithPurpose(context.Background(), id, "synthetic-state", "synthetic-code", false)
+	if errorCode(err) != "OAUTH_TRANSACTION_REQUIRED" || purpose != "" || status.Code(err) != codes.NotFound {
+		t.Fatalf("purpose=%q code=%s err=%v", purpose, errorCode(err), err)
+	}
+	h := &HTTPHandler{Auth: s}
+	r := httptest.NewRequest("GET", "/api/auth/youtube/callback?state=synthetic-state&code=synthetic-code", nil)
+	r.AddCookie(&http.Cookie{Name: "__session", Value: id})
+	w := httptest.NewRecorder()
+	h.callback(w, r, "synthetic-request")
+	if w.Code != http.StatusFound || w.Header().Get("Location") != "/login?error=oauth_state_invalid" {
+		t.Fatalf("status=%d location=%q", w.Code, w.Header().Get("Location"))
+	}
+	if provider.calls.Load() != 0 || minter.calls.Load() != 0 {
+		t.Fatal("missing transaction reached provider or minter")
+	}
+	if _, err := ref.Get(context.Background()); status.Code(err) != codes.NotFound {
+		t.Fatalf("callback created a transaction: %v", err)
 	}
 }
 

@@ -125,13 +125,23 @@ func (s *FirestoreAuthStore) ReadPurpose(ctx context.Context, id string) (string
 	}
 	doc, err := ref.Get(ctx)
 	if err != nil {
-		return "", fmt.Errorf("read OAuth purpose: %w", err)
+		return "", purposeReadError(err)
 	}
 	var value OAuthTransaction
 	if err := doc.DataTo(&value); err != nil {
 		return "", fmt.Errorf("decode OAuth purpose: %w", err)
 	}
 	return transactionPurpose(value), nil
+}
+
+// purposeReadErrorは、用途読み取りで文書がない場合をreadTransactionと同じOAUTH_TRANSACTION_REQUIREDに分類する。
+// TTLによる削除と存在しないIDは区別できないため、期限切れとは扱わない。原因は%wで残す。
+// それ以外の依存先エラーは分類せず、従来どおり公開しない内部エラーとする。
+func purposeReadError(err error) error {
+	if status.Code(err) == codes.NotFound {
+		return fmt.Errorf("read OAuth purpose: %w: %w", apiError("OAUTH_TRANSACTION_REQUIRED"), err)
+	}
+	return fmt.Errorf("read OAuth purpose: %w", err)
 }
 
 func (s *FirestoreAuthStore) Claim(ctx context.Context, id, stateHash string, now time.Time) error {
