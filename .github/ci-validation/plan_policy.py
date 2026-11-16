@@ -1,4 +1,12 @@
-"""Validate a data-only, reviewed DEV Plan permission manifest; no cloud calls."""
+"""Terraformの変更計画(Plan)専用の権限一覧(JSON)が、決めたルールを破っていないか確かめる。
+
+目的: Plan確認用のサービスアカウントに、書き込み・秘密値の取得・請求情報の閲覧などの危険な権限が紛れ込む事故を、クラウドに接続せずに防ぐ。
+使われる場面: CI GCP Terraform ワークフローの固定検査(.github/ci-validation/validate.sh の terraform-static)が実行する。infra/gcp/scripts/plan_read_access.py からも部品として読み込まれる。
+失敗したとき: CI GCP Terraform が失敗し、PRをマージできない。
+なくした場合: infra/gcp/policies/plan-metadata-read.json の中身を、検査対象コミットのコードを実行せずに確かめる手段がなくなる。plan_read_access.py の検査とは部品を共有しており、別の重複する検査ではない。
+
+補足: クラウドには接続しない(cloud_calls=0)。
+"""
 import argparse
 import json
 from pathlib import Path

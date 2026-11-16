@@ -1,4 +1,10 @@
-"""独立ファイルシステムと偽APIで、公開時の観測可能な制御を検証する。"""
+"""hosting_release.py(DEV Hosting公開)が、不正な入力や失敗時に正しく止まるかをテストする。
+
+目的: 非公開ファイルの公開、リダイレクトでの認証情報の漏洩、公開の競合、失敗後の勝手な再試行などを検出する。偽のファイルシステムとAPIを使い、クラウドには接続しない。
+使われる場面: infra/mypage-platform/scripts/check-local.sh の `unittest discover`。CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。
+失敗したとき: CI GCP Terraform が失敗し、PRをマージできない。
+なくした場合: Hosting公開スクリプトの安全装置が壊れても気づけなくなる。
+"""
 import copy
 import json
 from pathlib import Path

@@ -1,4 +1,10 @@
-"""P1回帰: 古いState・競合書き込み・条件付き変更を検証し、クラウド入出力は行わない。"""
+"""read_metrics_live.py と read_metrics_v1.py が、古いState・競合した書き込み・条件付き変更を正しく扱うかをテストする。クラウドには接続しない。
+
+目的: 計測設定の変更で、競合を無視して上書きする、再試行で二重に書く、失敗したサービスを正常と見なす、といった不具合を検出する。
+使われる場面: infra/mypage-platform/scripts/check-local.sh の `unittest discover`。CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。
+失敗したとき: CI GCP Terraform が失敗し、PRをマージできない。
+なくした場合: 計測設定の条件付き更新の安全装置が壊れても気づけなくなる。
+"""
 from copy import deepcopy
 import hashlib
 import io

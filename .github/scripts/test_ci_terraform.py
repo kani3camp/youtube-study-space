@@ -1,4 +1,10 @@
-"""手動Terraform workflow（UC2手動Plan / UC3 Apply）の選択・順序・結果判定を検証する。"""
+"""手動で実行するTerraformワークフロー(.github/workflows/terraform.yml)の、対象の選び方・実行順・結果の判定をテストする。
+
+目的: 他人や外部フォークのPRでPlanが走る、Plan前にApplyへ進む、選んでいない対象の結果が合格扱いになる、といったワークフローの書き間違いを防ぐ。
+使われる場面: CI Repository ワークフローの contracts 検査(.github/ci-validation/validate.sh が `unittest discover -p 'test_ci_*.py'` で実行)。
+失敗したとき: CI Repository が失敗し、PRをマージできない。
+なくした場合: terraform.yml の選択・順序・ゲートの書き間違いが自動では見つからなくなる。dev にある test_ci_terraform_source.py など他のワークフロー検査と一部重なる可能性がある。
+"""
 import os
 from pathlib import Path
 import subprocess

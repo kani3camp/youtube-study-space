@@ -1,4 +1,10 @@
-"""削除Planの許可条件、公開する要約、GitHub承認の照合。"""
+"""deletion_approval.py と、削除を伴うPlanの承認条件をテストする。
+
+目的: 保護されていないEnvironment、管理者による迂回、別の実行での承認、承認なしの削除が通ってしまう不具合を検出する。
+使われる場面: infra/mypage-platform/scripts/check-local.sh の `unittest discover`。CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。
+失敗したとき: CI GCP Terraform が失敗し、PRをマージできない。
+なくした場合: 削除承認の確認が壊れても気づけなくなる。
+"""
 from copy import deepcopy
 import hashlib
 import json

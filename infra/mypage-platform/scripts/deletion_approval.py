@@ -1,4 +1,10 @@
-"""MyPage Terraform の削除承認を GitHub の公開 REST API だけで照合する。"""
+"""MyPageのTerraformで削除を伴う変更を適用してよいか、GitHubの公開APIだけで確認する。
+
+目的: リソースの削除を、実際に承認者が付いた保護済みEnvironmentで、管理者の迂回なしに、同じ実行(run)で承認されたときだけ進める。
+使われる場面: MyPage Foundation Authenticated ワークフロー(.github/workflows/mypage-foundation-authenticated.yml)の削除承認の確認(check)と承認の照合(verify)の各ステップ。
+失敗したとき: 削除を含む配備(apply)が進まず中断される。
+なくした場合: 削除を伴うApplyの承認確認ができなくなり、上記ワークフローのステップが動かなくなる。
+"""
 from __future__ import annotations
 
 import json

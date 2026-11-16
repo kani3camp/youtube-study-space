@@ -1,4 +1,10 @@
-"""DEVの計測設定だけの厳密な配信遷移。クラウド入出力・非公開値の出力は行わない。"""
+"""DEVの読み取り計測設定の切り替えだけを許し、それ以外の変更が混ざった計画を拒否する。
+
+目的: 計測設定を変えるPlanに、サービス設定・環境変数・権限・トラフィックの変更が隠れて紛れ込む事故を防ぐ。
+使われる場面: runtime_contract.py などが検査ルールとして読み込む。MyPage Foundation Authenticated ワークフロー(.github/workflows/mypage-foundation-authenticated.yml)から `read_metrics_transition.py readback` としても直接呼ばれる。
+失敗したとき: 計測設定の変更を含む基盤配備が中断される。
+なくした場合: 計測設定切り替えの許可判定と、適用後の読み戻し確認ができなくなる。
+"""
 from copy import deepcopy
 import re
 

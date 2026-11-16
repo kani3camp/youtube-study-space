@@ -1,4 +1,12 @@
-"""フォントの整合性・描画をオフライン検査する。先にfont-requirements.txtを導入する。"""
+"""MyPageが同梱しているフォントファイルが、記録どおり壊れていないかをオフラインで検査する。
+
+目的: フォントの差し替えや加工ミスで、ファイルの中身・文字数・太さの指定が登録した内容と食い違う事故を防ぐ。
+使われる場面: CI Frontend ワークフロー(.github/workflows/ci-frontend.yml)の mypage-check ジョブの「Validate local font rendering and integrity」ステップ。
+失敗したとき: CI Frontend が失敗し、PRをマージできない。
+なくした場合: 同梱フォントの改変や破損が自動では見つからなくなる。ブラウザで実際の表示を見る font-qa.py とは別の検査(こちらはファイル自体の検査)。
+
+補足: 実行の前に font-requirements.txt を導入する(fontTools が必要)。
+"""
 
 import hashlib
 import json

@@ -1,4 +1,10 @@
-"""ランタイムの拒否と、ソース完全一致のイメージ受入を検証する。クラウド入出力は行わない。"""
+"""runtime_contract.py(Cloud Runの許可設定)と image_ops.py のイメージ受け入れをテストする。クラウドには接続しない。
+
+目的: メンテナンス用の権限が広がる、公開設定や環境変数や容量が許可なく変わる、別のコミットのイメージが受け入れられる、といった不具合を検出する。
+使われる場面: infra/mypage-platform/scripts/check-local.sh の `unittest discover`。CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。他のテストから部品も読み込まれる。
+失敗したとき: CI GCP Terraform が失敗し、PRをマージできない。
+なくした場合: Cloud Runの許可ルールの変更が、自動では検査されなくなる。test_foundation.py と対象が一部重なる。
+"""
 from copy import deepcopy
 import json
 from pathlib import Path

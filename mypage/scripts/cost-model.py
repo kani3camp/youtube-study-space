@@ -1,4 +1,10 @@
-"""明示した仮定から、再現可能なMyPageの増分試算を生成する。"""
+"""MyPageの増分費用の見積もり表を、入力ファイルの仮定から再現可能に作る。--test で計算の自己検査だけも行える。
+
+目的: 利用量や構成を変えたときの月額費用の見積もりを、手計算ではなく同じ手順で再現し、計算式の誤りを防ぐ。
+使われる場面: CI Frontend ワークフロー(.github/workflows/ci-frontend.yml)の mypage-check ジョブで `python scripts/cost-model.py --test`。手動で見積もりレポートを出すときにも使う(docs/mypage/cost-notes.md)。
+失敗したとき: CI Frontend が失敗し、PRをマージできない。
+なくした場合: 見積もり表を作る手段と、料金計算式の自己検査が失われる。本番の動作には関係しない。
+"""
 import argparse
 import copy
 import json

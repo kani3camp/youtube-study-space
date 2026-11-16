@@ -1,4 +1,12 @@
-"""DEV Plan専用の共通roleを検証・差分生成する。既定はread-only。"""
+"""DEV環境のTerraform Plan専用の共通権限(カスタムロール)を、定義ファイルどおりに検証し、必要なら実環境へ反映する。既定は読み取りだけ。
+
+目的: Plan確認用サービスアカウントの権限が、レビュー済みの一覧から外れて広がったり、想定外の人に付いたりする事故を防ぐ。
+使われる場面: ローカルで所有者が手動実行する(手順は infra/gcp/docs/plan-read-access.md)。infra/gcp/scripts/bootstrap_normal_ops.py からも部品として読み込まれる。ワークフローからは実行されない(terraform.yml はこのファイルの変更を検知して検査対象を選ぶだけ)。
+失敗したとき: 検査・反映が止まるだけで、CIやワークフローは止まらない。--apply 以外はクラウドを変更しない。
+なくした場合: 共通権限の差分の確認と、バックアップ付きの反映ができなくなり、bootstrap_normal_ops.py も動かなくなる。
+
+補足: 既定(引数なし)はクラウドに接続せずJSONの検証だけを行う。--live で最新の権限を読み取り、--snapshot で保存済みデータをオフライン確認、--apply は --confirm・--review・--backup がそろったときだけ書き込む。
+"""
 import argparse
 from copy import deepcopy
 from datetime import datetime, timezone, timedelta

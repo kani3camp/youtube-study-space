@@ -1,7 +1,11 @@
-"""ソースを固定したDEV maintenance operator Job image配備。
+"""ソースを固定して、DEVのメンテナンス用Cloud Run Job(mypage-maintenance-operator)のイメージだけを入れ替える。
 
-Cloud Run Job `mypage-maintenance-operator` のimageだけを更新する。API Service・Hosting・
-Terraform・State・IAMには触れず、Jobを実行しない（実行はmaintenance modeを変更するため）。
+目的: メンテナンスモード用のJobの更新で、イメージ以外が変わる・競合する更新を上書きする、といった事故を防ぐ。Job自体は実行しない。
+使われる場面: MyPage DEV Maintenance Operator Release ワークフロー(.github/workflows/mypage-operator-authenticated.yml)の context と deploy の各ステップ。
+失敗したとき: Jobの更新が中断される。自動の再試行・巻き戻しはしない。
+なくした場合: mypage-operator-authenticated.yml の配備が動かなくなる。構造は backend_release.py と似ている。
+
+補足: API Service・Hosting・Terraform・State・IAMには触れず、Jobを実行しない(実行はmaintenance modeを変更するため)。
 """
 from copy import deepcopy
 import json

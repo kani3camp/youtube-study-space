@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""レビュー済みの環境専用イメージをビルド・pushする。AWS/State認証情報は使わない。"""
+"""レビュー済みのコミットから環境専用のコンテナイメージをビルドし、Artifact Registryへ登録(push)する。
+
+目的: 登録するイメージを、決まったコミット・決まった名前・決まった環境のものだけに限り、AWSやTerraform Stateの認証情報は使わない。
+使われる場面: MyPage Foundation Authenticated ワークフロー(.github/workflows/mypage-foundation-authenticated.yml)のイメージビルド用ジョブ(preflight・oidc・build-push)。
+失敗したとき: イメージが登録されず、そのジョブが中断される。
+なくした場合: 上記ワークフローのイメージビルドが動かなくなる。
+"""
 import json
 import os
 import re

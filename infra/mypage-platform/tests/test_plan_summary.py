@@ -1,4 +1,10 @@
-"""検証済みの通常Planだけが値を含まないJob Summaryを公開する。"""
+"""MyPage基盤のPlan要約(GitHub Actionsのジョブサマリー)が、値や名前を出さずに作られるかをテストする。
+
+目的: 検証を通ったPlanだけが要約され、フィールド名・値・不明な項目が公開サマリーに漏れる事故を検出する。
+使われる場面: infra/mypage-platform/scripts/check-local.sh の `unittest discover`。CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。
+失敗したとき: CI GCP Terraform が失敗し、PRをマージできない。
+なくした場合: Plan要約の情報漏れ防止が壊れても気づけなくなる。
+"""
 from contextlib import redirect_stdout
 import io
 import json

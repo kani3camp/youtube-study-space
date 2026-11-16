@@ -1,4 +1,12 @@
-"""ソースを固定したDEVイメージ配備。秘密取得・IAM書き込み・Stateアクセスは行わない。"""
+"""ソースを固定して、DEVのCloud Run(mypage-api)のコンテナイメージだけを入れ替える。
+
+目的: DEVのバックエンド配備で、イメージ以外の設定が勝手に変わったり、競合する別の更新を上書きしたりする事故を防ぎ、配備前後の記録を残す。
+使われる場面: MyPage DEV Backend Release ワークフロー(.github/workflows/mypage-backend-authenticated.yml)の context と deploy の各ステップ。
+失敗したとき: 配備が中断される。自動の再試行・巻き戻しはせず、記録を見て手で判断する。
+なくした場合: mypage-backend-authenticated.yml の配備が動かなくなる。
+
+補足: 秘密値の取得・IAM書き込み・Stateアクセスは行わない。
+"""
 from copy import deepcopy
 import json
 import os

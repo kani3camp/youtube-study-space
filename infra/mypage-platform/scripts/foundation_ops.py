@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""環境に固定した基盤Planを実行する。元のクラウド証跡は非公開に保つ。"""
+"""MyPage基盤のTerraform Planを作り、検査し、承認後に適用するための実行役。元のクラウド出力は非公開のまま保つ。
+
+目的: 検査を通ったPlanだけを同じ内容のまま適用し、公開する要約には値や名前を出さない。未知のリソースや削除が紛れ込む事故を防ぐ。
+使われる場面: MyPage Foundation Authenticated ワークフロー(.github/workflows/mypage-foundation-authenticated.yml)の stage・oidc・execute・apply・cleanup の各ステップ。image_ops.py や read_metrics_live.py からも部品として読み込まれる。
+失敗したとき: 基盤のPlanまたはApplyが中断される。自動の再試行はしない。
+なくした場合: MyPage基盤のPlan・Applyワークフローが動かなくなる。
+"""
 from __future__ import annotations
 
 import base64

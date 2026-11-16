@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""MyPage OAuth TTLの1フィールドを厳格に検査する。applyは承認しない。"""
+"""MyPageのOAuth一時データ用TTL(自動削除)設定1件のTerraform変更計画が、承認済みの範囲だけかを厳しく検査する。承認(apply)そのものは行わない。
+
+目的: TTL設定の変更計画に、別のリソースの削除・作り直し・本番や別DBへの変更・秘密値が混ざる事故を、適用前に止める。
+使われる場面: 所有者が手元で terraform plan のJSONに対して実行する(手順は infra/mypage-oauth-ttl/README.md)。check_mock_plans.py と test_plan_contract.py から部品としても読み込まれる。ワークフローから直接は呼ばれない。
+失敗したとき: 終了コードが異常になるだけで、手動手順はそこで止まる。CIでは check-local.sh 経由のテストが失敗する。
+なくした場合: OAuth TTLの変更計画を確認する検査が使えなくなり、check_mock_plans.py と test_plan_contract.py も動かなくなる。他の検査との重複はない。
+"""
 
 from __future__ import annotations
 

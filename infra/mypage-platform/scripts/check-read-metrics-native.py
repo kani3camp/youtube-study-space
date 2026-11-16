@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""プロバイダーが生成した計測設定だけの更新Planを、実際の受入検査に渡す。"""
+"""DEVの読み取り計測設定(MYPAGE_READ_METRICS)だけを変えるTerraformのモック計画を、実際の受け入れ検査に通して確かめる。
+
+目的: 計測設定の変更計画が、他の設定変更に紛れ込まず、受け入れ検査が想定どおり通すことを、実際のTerraform出力で確認する。
+使われる場面: infra/mypage-platform/scripts/check-local.sh から呼ばれ、CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。terraform コマンドが必要。
+失敗したとき: check-local.sh が失敗し、CI GCP Terraform が失敗してPRをマージできない。
+なくした場合: 計測設定の変更計画をTerraformの実出力で確かめる手段がなくなる。tests/test_read_metrics*.py が作り物のデータで同じ受け入れ規則を試しているため、一部重なる。薄い呼び出し役で、check-local.sh からだけ使われる。
+"""
 import json
 from pathlib import Path
 import subprocess

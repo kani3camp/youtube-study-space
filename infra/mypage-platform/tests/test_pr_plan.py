@@ -1,4 +1,10 @@
-"""MyPage PR Plan: 所有者の同一repository PRだけを手動PlanのEnvironment/identityで受け付け、何も適用できないことを検証する。"""
+"""PRから実行するMyPageのPlan(変更計画の確認)が、所有者の同一リポジトリPRだけを受け付け、何も適用できないことをテストする。
+
+目的: 外部フォークや他人のPR、本番環境の信頼設定、Apply用の成果物の出力など、PRのPlanが危険な動きをしてしまう不具合を検出する。
+使われる場面: infra/mypage-platform/scripts/check-local.sh の `unittest discover`。CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。
+失敗したとき: CI GCP Terraform が失敗し、PRをマージできない。
+なくした場合: PRのPlanの安全条件が、自動では検査されなくなる。.github/scripts/test_ci_terraform.py はワークフローの書き方、こちらは認証条件を見ており、一部重なる。
+"""
 from contextlib import redirect_stdout
 import base64
 import io

@@ -1,4 +1,10 @@
-"""Cloud RunのresourceVersion仕様を使う、厳密なDEV計測設定切替。"""
+"""Cloud Runのバージョン番号(resourceVersion)を使って、DEVの計測設定を安全に切り替える。
+
+目的: 切り替え中に別の変更が入ったとき、上書きせずに止める。
+使われる場面: backend_release.py から部品として読み込まれる。単体では実行されない。
+失敗したとき: backend_release.py の配備が中断される。
+なくした場合: backend_release.py が動かなくなる。read_metrics_live.py にも似た「条件付きでCloud Runを更新する」処理があり、重複している可能性がある。
+"""
 from copy import deepcopy
 import json
 import time

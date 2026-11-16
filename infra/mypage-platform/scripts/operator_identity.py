@@ -1,8 +1,11 @@
-"""DEV maintenance operator配備用の独立した権限を所有者が初期設定する。既定はプレビュー。
+"""DEVのメンテナンス用オペレーター配備専用の権限(サービスアカウント・認証連携・GitHub Environment)を、所有者が最初に1回作るための手動スクリプト。既定はプレビュー。
 
-Job IAM（`run.jobs.get/update`）と実行SAへのactAsはTerraform（runtime module）が付与する。
-このスクリプトはSA・WIF pool/provider・Environmentだけを作り、Cloud Run Job・API Service・
-Terraform State・本番対象には触れない。既存名があれば停止し、部分実行後は復旧前に状態を調べる。
+目的: メンテナンスモードを切り替えるCloud Run Jobの更新だけができる独立した権限を作り、バックエンド配備の権限と混ぜない。
+使われる場面: 所有者がローカルで手動実行する(手順は docs/mypage/release/backend-ci.md)。ワークフローからは呼ばれない。test_operator_release.py から部品としても読み込まれる。backend_identity.py と構造がよく似ている。
+失敗したとき: 作成が止まるだけでCIには影響しない。部分実行後は状態を手で調べる必要がある。
+なくした場合: DEVオペレーター配備用の権限を作る手順がなくなる。backend_identity.py と作りが近いため、将来まとめられる可能性がある。
+
+補足: Job IAM(`run.jobs.get/update`)と実行SAへのactAsはTerraform(runtime module)が付与する。このスクリプトはSA・WIF pool/provider・Environmentだけを作り、Cloud Run Job・API Service・Terraform State・本番対象には触れない。既存名があれば停止し、部分実行後は復旧前に状態を調べる。
 """
 import json
 import sys

@@ -1,8 +1,11 @@
-"""ETag条件付きのDEV計測設定変更と、Cloud Runからの確定的な再読み取りを行う。
+"""DEVのCloud Run APIの読み取り計測設定を、実際のAPIの状態を見ながら安全に切り替える。
 
-このモードでは通常のプロバイダー更新Planをレビューするが、適用はしない。
-Googleプロバイダー8.5.0がetagを送らないため、条件付きAPI変更後に
-範囲を限定したrefresh-only Planだけを適用する。再試行・再基準化・自動ロールバックは行わない。
+目的: 計測設定の変更を、Terraformの保存済みPlanと実際のCloud Runの状態が食い違っていないときだけ、競合を検知しながら適用する。
+使われる場面: 単体では実行されない。foundation_ops.py の apply 処理、read_metrics_transition.py の readback、backend_release.py と operator_release.py の補助関数から読み込まれる。
+失敗したとき: 読み込んだ側のワークフロー(MyPage Foundation Authenticated など)が中断される。
+なくした場合: 計測設定の切り替えと、バックエンド/オペレーター配備の一部の補助処理が動かなくなる。read_metrics_v1.py と「Cloud Runの設定を条件付きで更新する」点で役割が近い。
+
+補足: このモードでは通常のプロバイダー更新Planをレビューするが、適用はしない。Googleプロバイダー8.5.0がetagを送らないため、条件付きAPI変更後に範囲を限定したrefresh-only Planだけを適用する。再試行・再基準化・自動ロールバックは行わない。
 """
 from copy import deepcopy
 import hashlib

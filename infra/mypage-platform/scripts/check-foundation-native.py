@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""TerraformのネイティブモックPlan JSONで、配備の許可範囲を検証する。"""
+"""Terraformのモック計画(terraform test)の結果を、MyPage基盤の許可範囲ルールで検査する。
+
+目的: MyPage基盤のTerraformが、許可した種類のリソース変更以外(削除・公開・外部への権限付与など)を計画に含めていないか、実際のクラウドに触れずに確かめる。
+使われる場面: infra/mypage-platform/scripts/check-local.sh から dev と prod に対して呼ばれ、CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。terraform コマンドが必要。
+失敗したとき: check-local.sh が失敗し、CI GCP Terraform が失敗してPRをマージできない。
+なくした場合: モック計画が foundation_contract.py と runtime_contract.py のルールに合うかの確認が check-local.sh から消える。同じルールの単体テストは infra/mypage-platform/tests/ にあるが、こちらは実際のTerraform出力で確かめる点が違う。
+"""
 import json
 import sys
 from pathlib import Path
