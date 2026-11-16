@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // 実アカウント・認証情報を使わず、流出したら判別できる合成値だけを使う。
@@ -235,6 +237,36 @@ func TestOAuthDiagnosticsHTTPRedirectDoesNotIncludePrivateError(t *testing.T) {
 	require.Equal(t, "/login?error=oauth_failed", w.Header().Get("Location"))
 	require.NotContains(t, w.Body.String()+fmt.Sprint(w.Header()), "DO_NOT_LOG")
 	requireDiagnostic(t, queue, "transaction_claim", "INTERNAL_ERROR")
+}
+
+// 削除済み・存在しないトランザクションは「このログインはもう使えない」とだけ伝え、期限切れや依存先の詳細を示さない。
+func TestCallbackPurposeReadClassifiesOnlyMissingTransaction(t *testing.T) {
+	for _, tc := range []struct {
+		name, code, location string
+		grpc                 codes.Code
+	}{
+		{"missing", "OAUTH_TRANSACTION_REQUIRED", "/login?error=oauth_state_invalid", codes.NotFound},
+		{"unavailable", "INTERNAL_ERROR", "/login?error=oauth_failed", codes.Unavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, store, provider, queue := diagnosticFixture()
+			store.purpose = ""
+			store.readErr = purposeReadError(status.Error(tc.grpc, diagnosticSentinel))
+			require.Equal(t, tc.code, errorCode(store.readErr))
+			require.Equal(t, tc.grpc, status.Code(store.readErr), "classification must preserve the dependency cause")
+			h := &HTTPHandler{Auth: s}
+			r := httptest.NewRequest("GET", "/api/auth/youtube/callback?state=state-sentinel&code=code-sentinel", nil)
+			r.AddCookie(&http.Cookie{Name: "__session", Value: strings.Repeat("a", 64)})
+			w := httptest.NewRecorder()
+			h.callback(w, r, "synthetic-request")
+			require.Equal(t, http.StatusFound, w.Code)
+			require.Equal(t, tc.location, w.Header().Get("Location"))
+			require.NotContains(t, w.Body.String()+fmt.Sprint(w.Header()), "DO_NOT_LOG")
+			require.Equal(t, []string{"read"}, store.calls)
+			require.Zero(t, provider.calls)
+			requireDiagnostic(t, queue, "purpose_read", tc.code)
+		})
+	}
 }
 
 func TestOAuthDiagnosticsMissingCodeCannotContactProvider(t *testing.T) {
