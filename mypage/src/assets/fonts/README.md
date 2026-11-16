@@ -1,26 +1,25 @@
-# M PLUS Rounded 1c
+# M PLUS Rounded 1c（ローカルフォント配信）
 
-承認済みプロトタイプが指定する400/500/700/800の同じフォントをローカル配信する。CSSのファミリー名だけでは読み込まれないため、`fonts.css`をメインのスタイルシートからimportする。実行時にGoogle Fontsへ外部リクエストする必要はない。
+承認済みプロトタイプが指定する 400 / 500 / 700 / 800 のウェイトをローカルから配信するためのフォント資産です（CSS のファミリー名だけでは読み込まれないため、`fonts.css` をメインスタイルシートから import し、実行時の Google Fonts への外部リクエストを不要にしています）。
 
-公式Google Fonts CSS2 APIが配信するv22のTTFをWOFF2へ変換し、後述の描画テーブルを補正した。サブセット化はしていない。全8,532グリフの順序・cmap・横方向のメトリクス・nameレコードを往復比較し、取得元URLと入出力のSHA-256は[sources.json](sources.json)に保持する。内部PostScript名はRoundedMplus1c-Regular/Medium/Bold/ExtraBoldであり、CSS上のファミリー名とは異なる。
+## 収録内容とライセンス
 
-4ファイルのサイズとSHA-256はsources.jsonを参照する。ブラウザは使用したウェイトだけを取得する。Hosting候補は現在すべてのアセットに`Cache-Control: no-store`を設定しており、HTTPキャッシュで再利用しない。静的フォントのキャッシュ対応は公開前の改善候補として残し、認証・非公開レスポンスのキャッシュポリシーは変更しない。`font-display: swap`で初回読み込み中やアセット取得失敗時も本文を表示する。描画比較やQAは`document.fonts.ready`の後に行い、実際のカスタムフォントとPostScript名をChromium CDPで検証する。
+- **変換元と整合性**: 公式 Google Fonts CSS2 API が配信する v22 の TTF を WOFF2 へ変換し、後述の描画テーブル補正を施しています（サブセット化はしていません）。全 8,532 グリフの順序・`cmap`・横メトリクス・`name` レコードを比較検証済みで、取得元 URL・サイズ・入出力の SHA-256 は [sources.json](sources.json) に記録しています（内部 PostScript 名は `RoundedMplus1c-Regular` / `Medium` / `Bold` / `ExtraBold`）。
+- **配信と表示**: ブラウザは使用したウェイトのみを取得し、`font-display: swap` により読み込み中や取得失敗時も本文を表示します。描画比較や QA は `document.fonts.ready` の完了後に行い、Chromium CDP で実際の適用フォントと PostScript 名を確認します（※現在 Hosting 設定候補はアセットに `Cache-Control: no-store` を付けており、静的フォントのキャッシュ化は公開前の改善候補です）。
+- **ライセンス**: Copyright 2016 The Rounded M+ Project Authors。フォント単体に SIL Open Font License 1.1 が適用され、ビルドにも [OFL.txt](../../../public/fonts/mplus-rounded-1c/OFL.txt)（[公式ライセンス](https://raw.githubusercontent.com/google/fonts/main/ofl/roundedmplus1c/OFL.txt)）を同梱しています。フォント単体での販売は禁止されており、著作権表示とライセンス保持が必要です（Reserved Font Name の指定はありません）。
 
-Copyright 2016 The Rounded M+ Project Authors. フォントだけにSIL Open Font License 1.1を適用し、[著作権・ライセンス全文](../../../public/fonts/mplus-rounded-1c/OFL.txt)をビルドにも同梱する。[公式ライセンス](https://raw.githubusercontent.com/google/fonts/main/ofl/roundedmplus1c/OFL.txt)はソフトウェアへの同梱・再配布を許可し、著作権表示とライセンスの保持を要求する。フォント単体で販売しない。著作権表示にReserved Font Nameの指定はない。
+## ブラウザ確認と小さい文字の平滑化（`gasp` 補正）
 
-ブラウザ検証には`python3 scripts/font-qa.py --output /tmp/mypage-font-qa`を使う。ローカルVite（18081）とChromium/Playwrightが必要であり、通常読み込みとフォント取得失敗時の代替表示を確認する。
+2026-10-21 に小さい文字の可読性を改善するため描画設定を補正しました（公式フォントの新バージョンではなく、ローカルな描画テーブル補正です）。
 
-## 小さい文字の平滑化
-
-2026-10-21に描画設定を補正した。元の4ウェイトは`gasp` version 0 / `{65535: 0x0002}`だった。接続ブラウザで同じ字形・幅・サイズを比較し、ユーザーが滑らかと確認した2列目のversion 1 / `{65535: 0x000A}`を全ウェイトに適用する。グレースケールと対称なClearType平滑化を指定し、hintingは追加しない。CSSの文字サイズやウェイトは変更しない。全OSの描画結果を保証する設定ではない。
-
-これは公式フォントの新バージョンではなく、配信アセットへのローカルな描画テーブル補正である。`gasp`と`head.checkSumAdjustment`以外の全テーブルを元のWOFF2と比較し、字形・cmap・文字幅・name・ライセンス・時刻が保持されることを確認した。元WOFF2のSHA-256、保持テーブルを連結したSHA-256、補正後のSHA-256をsources.jsonに記録する。
-
-再現には補正前のWOFF2（統合コミット`733c34e50f4bab48d3b95c3efff71e17d7aa954e`）と`font-requirements.txt`の環境を使う。入力を`originalWOFF2SHA256`で照合してから、FontToolsの`TTFont(path, recalcTimestamp=False)`で開き、`font['gasp'].version = 1`と`font['gasp'].gaspRange = {65535: 0x000A}`だけを設定して保存する。
+- 元の 4 ウェイトは `gasp` version 0 / `{65535: 0x0002}` でしたが、接続ブラウザで比較のうえ滑らかに表示される `version 1 / {65535: 0x000A}`（グレースケール＋対称 ClearType 平滑化、hinting 追加なし）を全ウェイトに適用しました（※全 OS で同一の描画結果を保証するものではありません）。
+- `gasp` と `head.checkSumAdjustment` 以外の全テーブルが元 WOFF2 と一致することを検証しています。再現する場合は補正前の WOFF2（統合コミット `733c34e50f4bab48d3b95c3efff71e17d7aa954e`）と `font-requirements.txt` を用意し、`originalWOFF2SHA256` 照合のうえ FontTools の `TTFont(path, recalcTimestamp=False)` で `gasp` を更新します。
 
 ```sh
+# 整合性チェック（フロントエンド CI でも実行）
 python3 -m pip install -r font-requirements.txt
 python3 scripts/check-fonts.py
-```
 
-このオフライン検査はフロントエンドCIでも実行する。4ウェイトの平滑化設定・バイト列とハッシュ・元テーブルの保持を検証し、古い描画設定への戻りや字形・幅の変化を検出する。保持テーブルのダイジェストはtag順に`tag(ASCII) + length(4-byte big-endian) + table bytes`を連結する。`gasp`は除外し、`head`のoffset 8..11のchecksumだけを0に正規化する。
+# ブラウザ描画検証（ローカル Vite 18081 + Chromium / Playwright 環境が必要）
+python3 scripts/font-qa.py --output /tmp/mypage-font-qa
+```

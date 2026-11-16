@@ -1,38 +1,45 @@
-# Support deletion B: source inventory
+# Privacy 横断削除の対象一覧（ソース棚卸し）
 
-横断削除で調査するランタイム2種類と削除対象11種類を示す。実環境の完全な一覧や削除権限を示すものではない。対象環境の全リビジョン・手動起動・外部コピーを別途照合する。
+横断削除で調査対象とする **2 種類のランタイム** と **11 種類の削除スコープ** の一覧です。
 
-| 固定 scope ID | 範囲 | 完了に必要な主な証跡 |
+> [!NOTE]
+> これはソースコード上の調査マップであり、実環境の完全な棚卸しや削除権限の有無を示すものではありません。対象環境の全リビジョン・手動起動・外部コピーは別途照合してください。
+
+## 調査スコープ一覧
+
+| 固定 scope ID | 調査範囲 | 完了に必要な主な確認項目 |
 | --- | --- | --- |
-| `runtime-my-page` | OAuth callback、account consume/session、mint、BFF cache/切断後の flight、metadata refresh/cleanup、support proof | 全 revision/instance/direct runner の admission と SDK/flight/commit/配達 drain |
-| `runtime-legacy` | Bot、独立 force move、organizer、capacity、日次・手動 SFN/Fargate、BQ import、trend、admin、export/restore、通知 | 起動・再試行・再開経路の停止、実行中 task/job の終端、古い queue/snapshot の破棄・封鎖 |
-| `seat-state` | `seats` / `member-seats` の target seat | `user-id` 帰属と revision 再照合、通常 Out/Block の副作用を生成しない専用消去 |
-| `firestore-primary` | `users`（月次読取markerを含む）、work segment、`work-months`、`mypage-history-budgets`、activity、order、4 種 seat limit、legacy raw history | direct lookup と各 equality query の全件 pagination・再 scan・不存在。月次rebuildはoriginal SAC checkpointを各操作へ束縛 |
-| `firestore-web` | WebAccount、process cache/flight、配達済み private display | account 不存在、全 process の stale publication 拒否、account 再作成との世代分離 |
-| `firestore-oauth` | login/support OAuth、channel 未確定 callback | channel query、receipt relation、明示 transaction、未確定 callback の admission を合わせた閉路 |
-| `firestore-support-relations` | 全 target receipt、challenge/request index、support OAuth | 他 receipt を含む ownership 照合、現在の完了依存を保持した関連 cleanup |
-| `legacy-mappings` | 旧 channel owner / legacy uid account / linked Auth | 旧 UID の確認と逆・重複・移行関係、旧 writer/restore の確認 |
-| `firebase-auth` | 現在のchannel UID、mint/token/session（旧UID/tenantはlegacy Gate） | 明示 project/tenant/UID、mint と配達 drain、revoke/delete の結果と readback |
-| `bigquery` | 3 本表、`tmp`、load/query/copy/export job と結果コピー | main/tmp 不存在、実行・再開可能な古い job/source が再投入しないこと |
-| `backups-exports` | mixed GCS snapshot、generation/soft delete、managed backup/PITR、local JSON/export copies | snapshot integrity を維持した帰属・残存処置、recoverable copy と restore の確認 |
-| `derived-vendor` | global trend/examples、OpenAI stored Responses、Discord/YouTube copies | channel index のない派生物の provenance、vendor ownership/削除・残存証跡。個別処置は[所有者Gate](support-delete.md#所有者gate)参照 |
-| `platform-logs` | local/CloudWatch/SFN/API/Hosting/Cloud Run/vendor logs、forwarded payload | 各 sink の実帰属と処置、遅延 forwarding drain、実設定の redaction |
+| `runtime-my-page` | OAuth callback、アカウント消費・セッション、トークン発行、BFF キャッシュ・切断後の処理、メタデータ更新・削除、サポート本人確認 | 全リビジョン・インスタンス・直接実行の新規受付停止と、SDK / flight / commit / 配達中の処理完了（drain） |
+| `runtime-legacy` | Bot、独立 force move、organizer、座席数制御、日次・手動 SFN / Fargate、BQ import、trend、admin、export / restore、通知 | 起動・再試行・再開経路の停止、実行中タスク/ジョブの終了、古いキュー・スナップショットの破棄・封鎖 |
+| `seat-state` | `seats` / `member-seats` の対象座席 | `user-id` 帰属とリビジョン再照合、通常の退室/ブロックの副作用を起こさない専用消去 |
+| `firestore-primary` | `users`（月次読取マーカー含む）、work segment、`work-months`、`mypage-history-budgets`、activity、order、4 種 seat limit、旧生履歴 | 直接参照および各等値クエリの全件ページング・再走査・不存在確認（月次再構築は元の SAC チェックポイントを各操作へ束縛） |
+| `firestore-web` | WebAccount、プロセスのキャッシュ/flight、配信済みの画面データ | アカウント不存在、全プロセスでの古い出力の抑止、アカウント再作成との世代分離 |
+| `firestore-oauth` | ログイン/サポート用 OAuth、チャンネル未確定 callback | チャンネルクエリ、受付関連、明示トランザクション、未確定 callback の受付制御を合わせた閉鎖確認 |
+| `firestore-support-relations` | 対象者の全受付レコード、チャレンジ/リクエストインデックス、サポート OAuth | 他受付を含む所有権照合、完了依存関係を保ったうえでの関連整理 |
+| `legacy-mappings` | 旧チャンネル所有者 / 旧 UID アカウント / 連携済み Auth | 旧 UID の有無と逆引き・重複・移行関係、旧 writer / restore の確認 |
+| `firebase-auth` | 現行チャンネル UID、トークン発行・セッション（旧 UID / テナントは legacy Gate） | プロジェクト・テナント・UID の明示、発行と配信の drain、無効化・削除結果の再読み取り |
+| `bigquery` | 3 テーブル、`tmp`、load / query / copy / export ジョブと結果コピー | 本表・`tmp` からの不存在、実行中・再開可能な古いジョブ/ソースから再投入されないこと |
+| `backups-exports` | 混合 GCS スナップショット、generation / soft delete、マネージドバックアップ / PITR、ローカル JSON / export コピー | スナップショット整合性を保った帰属確認・残存処置、復元可能コピーとリストア経路の確認 |
+| `derived-vendor` | 全体トレンド・例文、OpenAI 保存 Responses、Discord / YouTube 上のコピー | チャンネル索引のない派生データの由来、外部サービスの所有・削除・残存確認（個別処置は [所有者 Gate](support-delete.md#所有者gate) を参照） |
+| `platform-logs` | ローカル / CloudWatch / SFN / API / Hosting / Cloud Run / 外部サービスログ、転送ペイロード | 各出力先の実帰属と処置、遅延転送の drain、実設定のマスキング確認 |
 
-Canon 05では、停止前に取得・受理した古いメッセージ、座席スナップショット、コールバック、トークン発行結果、import・restore・再試行が、削除済みデータを復活させないことを条件にする。再開後の正当な新規利用によるデータ作成は許容する。初期SACの対象はMyPageだけで、既存Botの通常書き込み、`!block`、YouTube Banの意味は変更しない。
+---
 
-`service-access-controls/{channel}`は横断消去の対象外とする。privacy解除後も、すべて無効なチェックポイント、両方の制限理由、世代、リビジョンを保持する。TTL・削除・一部だけの削除済みマーカー・世代リセットは追加しない。独立して有効なmoderationを保持し、復元・移行によるチェックポイントの巻き戻しも許容しない。これは新しい保持ポリシーの決定ではない。
+## 設計上の境界・未確認事項
 
-プロセスログの秘匿処理と外部配送は別に調査する。トレンド・SNS・退室・RP・初期化のログを固定状態に変えても、OpenAIへの作業名送信、所有者・Discord・YouTubeへの通知、CloudWatch本文転送、旧リビジョンのコピーは残る場合がある。全出力先・キュー・購読・アーカイブの帰属、保持・保全、遅延配送を確認する。
+- **データ復活の防止（Canon 05）**: 停止前に取得・受理した古いメッセージ、座席スナップショット、コールバック、トークン発行結果、import / restore / 再試行によって削除済みデータが復活しないことを条件とします（再開後の正当な新規利用によるデータ作成は許可）。初期 SAC の対象は MyPage のみとし、既存 Bot の通常書き込み・`!block`・YouTube Ban の意味は変えません。
+- **`service-access-controls/{channel}` は消去対象外**: プライバシー削除完了後も、すべて無効状態のチェックポイント・両方の制限理由・世代・リビジョンを保持します（TTL・削除・世代リセットは追加せず、有効な `moderation` やチェックポイントの巻き戻しも行いません。これは保持ポリシーの新規決定ではありません）。
+- **ログと外部配送の調査**: トレンド・SNS・退室・RP・初期化ログを固定形式に変えても、OpenAI への作業名送信、Discord / YouTube 通知、CloudWatch 本文転送、旧リビジョンのコピーが残る場合があります。全出力先・キュー・購読・アーカイブの帰属と保持を確認してください。
+- **完了処理の順序**: この棚卸し一覧自体は受付を削除・完了させません。全対象の事後条件・ランタイム再開・privacy 解除の照合が成立してから完了段階で処理します。
+- **ソースだけでは完了できない項目**: 全ランタイムの停止担当、未確定コールバックと配信、複数受付・旧 UID、BQ の `tmp` / 混合・soft-delete バックアップの復元経路、チャンネル索引のない派生・ログコピー、実権限・TTL・Hosting 秘匿設定は実環境で確認が必要です。不明・上限超過・障害・ACK 消失は `unknown` のまま残し、`0` や完了に置き換えないでください。
 
-完了受付と匿名の永続監査は、別の完了アダプター・ワークフローが扱う。この一覧自体は現在の受付を削除したり完了状態に変えたりしない。現在の証拠とインデックスの依存を保持し、全対象の事後条件、ランタイム再開、privacy解除の照合が成立してから、完了段階で処置する。
-
-ソースだけでは次の公開条件を完了できない。全ランタイム・起動経路と停止・完了待ち・再開の管理者、チャンネル未確定コールバックとトークン発行・配送、複数受付と旧UID、BQのtmp/jobと混合・soft-deletedバックアップの復元経路、チャンネル索引のないトレンド・ベンダー・ログのコピー、実権限・インデックス/TTL・リビジョン・Hosting秘匿処理は未確認である。不明・上限超過・障害・ACK消失は`unknown`のまま残し、0・不存在・完了に変換しない。既存期間の保持や処置判断を推測せず、必要な実環境証跡を別途取得する。
+---
 
 ## 起動と再生成経路の調査先
 
-以下のソースを手がかりに、対象環境での稼働・手動実行・旧バイナリ・再試行・スケジューラーを列挙する。ソースがあることは、停止や実行中処理の完了を示す証拠ではない。
+対象環境での稼働プロセス・手動実行・旧バイナリ・再試行・スケジューラーを列挙するためのソース上の参照先です（ソースの存在は停止完了を示すものではありません）。
 
-| writer | 調査先 |
+| Writer | 調査先のソースコード |
 | --- | --- |
 | `mypage-oauth-start-callback` | [system/core/mypage/auth.go](../../system/core/mypage/auth.go) / [system/core/mypage/auth_store.go](../../system/core/mypage/auth_store.go) / [system/core/mypage/support_auth_store.go](../../system/core/mypage/support_auth_store.go) |
 | `mypage-account-consume-session-mint` | [system/core/mypage/auth.go](../../system/core/mypage/auth.go) / [system/core/mypage/auth_store.go](../../system/core/mypage/auth_store.go) / [system/core/mypage/firebase_boundary.go](../../system/core/mypage/firebase_boundary.go) / [mypage/src/firebase.ts](../../mypage/src/firebase.ts) |
@@ -52,4 +59,4 @@ Canon 05では、停止前に取得・受理した古いメッセージ、座席
 | `legacy-notification-log-forwarding` | [system/core/workspaceapp/utils.go](../../system/core/workspaceapp/utils.go) / [system/core/workspaceapp/command_moderation.go](../../system/core/workspaceapp/command_moderation.go) / [system/core/youtubebot/live_chat.go](../../system/core/youtubebot/live_chat.go) / [system/core/moderatorbot/discord.go](../../system/core/moderatorbot/discord.go) / [system/cmd/lambda/error_log_notify_discord/main.go](../../system/cmd/lambda/error_log_notify_discord/main.go) / [system/cmd/lambda/sns_notify_discord/main.go](../../system/cmd/lambda/sns_notify_discord/main.go) |
 | `external-export-backup-restore` | [system/core/repository/models.go](../../system/core/repository/models.go) / [system/core/mystorage/storage_controller.go](../../system/core/mystorage/storage_controller.go) |
 
-実行用の本人情報は、MyPageの鍵を使わないランタイム・署名者、Bot・旧管理ツールの認証情報ファイル、AWSランタイムのWIF・権限借用に分かれる。実主体・プロジェクトやテナント・最小権限・停止担当を環境ごとに照合し、1つの認証情報で全経路を止められるとは推測しない。
+※実行用の認証主体は、MyPage の鍵なしランタイム/署名者、Bot・旧ツールの認証ファイル、AWS ランタイムの WIF/IAM ロールに分かれています。1 つの認証情報で全経路を止められるとはみなさず、環境ごとに実主体・最小権限・停止担当を照合してください。

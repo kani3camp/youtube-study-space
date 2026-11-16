@@ -1,55 +1,69 @@
-# 人的Privacy運用
+# 人的 Privacy 運用手順
 
-1. 公開Privacy/Terms/contactから、ログインできない人も使える返信可能な窓口へ案内する。連絡先実値・D02適合性・公開文面の承認は公開前Gate。
-2. 所有者が受付時刻・依頼ID・申告channel・目的(delete/revoke/disclosure)をprivateに記録し、SupportRequestを作成する。本文・連絡先は人的窓口に留める。削除期限は受付から7暦日、challenge再発行でも延長しない。
-3. challengeに結び付いたfresh YouTube OAuthでchannel ownershipを確認する。通常loginやFirebase sessionだけで代用しない。Support purposeはCustom Token/WebAccountを作成せず、通常loginがSACで制限中でも本人確認できる。
-4. private CLI/Runbookで対象environment/project/channel/verified requestを固定し、削除またはrevoke/開示を実施する。[削除手順](support-delete.md)の未解決Gateは完了と偽らない。
-5. 元の返信可能な人的窓口で結果を返す。Firebase user削除後のアプリ内返信を前提にしない。revoke/開示の操作・到達確認はprivate記録に残し、未実行を完了としない。
+ログインできない利用者からのプライバシー請求（削除・全ログイン解除・開示）を受け付け、本人確認から実施・完了報告までを行う運用手順です。
 
-## private受付CLI
+## 全体の流れ
 
-`cmd/mypage-support-operator`のcreate・inspect・recoverは、`--execute`時だけ所有者のADC/GCP IAMへ接続する。DEV/Productionのprojectは削除CLIと同じ固定mapping。Productionでは`--allow-production`を必要とする。Google Operator OIDCやCLI指定operator名では権限を作らず、server-side Firestore権限は既存IAMが検証する。
+1. **窓口からの案内**: 公開のプライバシーポリシー・利用規約・`/contact` から、ログイン不要で返信可能な人的窓口へ案内します（連絡先の実値、D02 適合性、公開文面の承認は公開前の確認項目です）。
+2. **受付の記録**: 所有者が受付時刻・依頼 ID・申告されたチャンネル・目的（`delete` / `revoke` / `disclosure`）を非公開の場所に記録し、CLI で `SupportRequest` を作成します（本文や連絡先は人的窓口に留めます）。削除期限は受付から **7 暦日** とし、チャレンジを再発行しても延長しません。
+3. **本人確認（fresh YouTube OAuth）**: 発行したチャレンジに結び付いた新しい YouTube OAuth でチャンネル所有権を確認します。通常ログインや Firebase セッションだけでは代用しません（サポート目的のフローでは Custom Token や WebAccount を作成せず、通常ログインが ServiceAccessControl で制限中でも本人確認できます）。
+4. **処置の実施**: 非公開 CLI と Runbook で環境・プロジェクト・チャンネル・確認済み依頼を固定し、削除・連携解除・開示を実施します（[削除手順](support-delete.md) の未完了項目を完了と偽りません）。
+5. **結果の返信**: 元の返信可能な人的窓口から結果を返します（Firebase ユーザー削除後のアプリ内返信を前提にせず、`revoke` / 開示の操作と到達確認を非公開記録に残します）。
 
-入力は0600のprivate JSON。`requestId`（64桁hexの安定ID）、`targetChannel`、`acceptedAt`（UTC/microsecond精度）を指定する。申告channelは本人確認前の対象候補であり権限ではない。受付作成とrecoverはtransactionで同じ元受付時刻・7日期限を維持する。本文・連絡先をコピーしない。
+---
+
+## 非公開の受付 CLI（`cmd/mypage-support-operator`）
+
+`create`・`inspect`・`recover` の各操作は、`--execute` を付けたときだけ所有者の ADC / GCP IAM へ接続します（DEV は `test-youtube-study-space`、Production は `youtube-study-space`、Production 時は `--allow-production` が必須）。権限は既存のサーバー側 IAM で検証します。
+
+- **入力形式**: パーミッション `0600` の非公開 JSON ファイルに、`requestId`（64 桁の 16 進数）、`targetChannel`、`acceptedAt`（UTC・マイクロ秒精度）を指定します。申告チャンネルは確認前の候補であり、権限を付与するものではありません（本文や連絡先はコピーしません）。
+- **状態の維持**: 受付作成と `recover` は、トランザクション内で元の受付時刻と 7 日期限を維持します。
 
 ```sh
-# system/から。初回は--executeなしでoffline input確認。
+# system/ で実行（--execute なしはオフライン入力確認のみ）
 MYPAGE_ENVIRONMENT=development GOOGLE_CLOUD_PROJECT=test-youtube-study-space \
   go run ./cmd/mypage-support-operator --action create --environment development \
   --project test-youtube-study-space --purpose delete --request-file /private/path/intake.json
 
-# 明示実行。handoffは新規0600ファイルへだけ保存し、stdoutには出さない。
+# 明示実行（handoff は新規 0600 ファイルへ保存し、標準出力には出さない）
 MYPAGE_ENVIRONMENT=development GOOGLE_CLOUD_PROJECT=test-youtube-study-space \
   go run ./cmd/mypage-support-operator --action create --environment development \
   --project test-youtube-study-space --purpose delete --request-file /private/path/intake.json \
   --execute --handoff-file /private/path/new-handoff.json
 ```
 
-handoffのChallengeを対象環境の`/login?supportChallenge=...`へprivateに案内し、同じ目的・channelのfresh OAuthを完了する。証跡参照はサーバー側SupportRequestと照合し、削除CLIのprivate manifestへ転記する。通常loginを依頼本人確認の代用にしない。
+### 案内・照合・再発行（`recover`）
 
-受付ACK/handoff消失時は新しい受付を作らず、同じrequestIdで`--action inspect`し、新規handoffファイルからReceipt/Revisionを確認する。未検証なら`expectedReceiptVersion`を入力へ加えて`--action recover`し、元の期限を変えずchallengeを再発行する。verified/claimed/完了済み受付を再発行で巻き戻さない。revoke/開示の実処置は人的private Runbookで証跡を残し、受付作成だけで完了としない。
+- **本人確認の案内**: `handoff` に出力されたチャレンジを、対象環境の `/login?supportChallenge=...` として依頼者へ非公開に案内し、同じ目的・チャンネルで fresh OAuth を完了してもらいます。完了後の証拠参照はサーバー側 `SupportRequest` と照合し、削除 CLI の非公開マニフェストへ転記します。
+- **ACK / handoff 消失時の復旧**: 新しい受付を作り直さず、同じ `requestId` で `--action inspect` を実行して新規 `handoff` ファイルから Receipt / Revision を確認します。未検証状態であれば、入力に `expectedReceiptVersion` を加えて `--action recover` を実行し、元の期限を変えずにチャレンジを再発行します（`verified` / `claimed` / 完了済みの受付は巻き戻しません）。
 
-アプリ内受付/状態照会/返信、Google operator challenge/PKCE/JWKS/ID token authority、reply/complete用独自権限frameworkは撤去した。管理画面や複数operatorが必要になった段階で再設計する。既存GitHub/GCP identityを、ユーザーのfresh OAuth本人確認と混同しない。
+※アプリ内受付/状態照会/返信 UI や独自 Operator OIDC などは撤去済みです（管理画面や複数運用者が必要になった段階で再設計します）。
+
+---
 
 ## Google側で連携を解除した利用者への対応
 
-公開の「お問い合わせ・請求の案内」から環境別フォームへ案内する。受付後、申告された環境・対象チャンネル・依頼目的を確認する。本人確認は原則として、依頼の対象と同じチャンネルを新しいYouTubeの許可で確認する（fresh OAuth）。通常のログインだけで依頼を実行しない。Google連携を解除済みなどでこの確認を利用できない場合は個別に案内し、チャンネルURLの申告だけで操作しない。保存データ全体の削除を希望する場合は、既存の削除手順に切り替える。
+公開の「お問い合わせ」ページから環境別フォームへ案内し、申告された環境・対象チャンネル・依頼目的を確認します。
 
-### 手動でマイページの連携情報を取り除く
+- 本人確認は原則として対象チャンネルに対する新しい YouTube OAuth（fresh OAuth）で行い、通常ログインだけでは実行しません。
+- Google 連携を解除済みで OAuth を利用できない場合も個別に案内し、チャンネル URL の申告だけで操作を行わないでください。
+- 保存データ全体の削除を希望する場合は、[削除手順](support-delete.md) へ切り替えます。
 
-この手順は、マイページ全体のメンテナンス、トークン失効までの待機（発行時刻を特定できない場合は最低2時間）、Firebase Consoleでの手作業を伴う暫定運用である。正式手順化と、fresh OAuthを利用できない場合の本人確認の最低基準は、公開前に別途判断する。
+### 手動でマイページの連携情報を取り除く（暫定運用）
 
-1. 返信可能な窓口で、解除だけの依頼であることと対象を確認する。開発は `test-youtube-study-space`、本番は `youtube-study-space`。Firebase AuthenticationとFirestoreの両画面で同じプロジェクトと同じチャンネルIDを確認する。作業者を一人に固定し、作業開始前のメンテナンス状態を記録する。
-2. [メンテナンスモード](maintenance-mode.md)を有効にし、通常の個人APIと新規ログインが停止したことを確認する。切替前からのMyPageの読み取り・更新・トークン発行と配信が完了するまで待つ。対象UIDのFirebase Authenticationユーザーが存在する場合は無効化し、無効化を読み返す。無効化または実行中処理の確認が失敗した場合は先に進まない。
-3. Firestoreの `web-accounts/{channelId}` を文書単位で削除して読み返す。OAuthの一時文書のうち、対象チャンネルと一致する通常ログイン用の文書が残っていれば削除する。サポート依頼、利用制御、ライブチャット由来のユーザー・履歴には触れない。
-4. メンテナンスを維持し、最後に発行され得たCustom Tokenと、最後に取得され得たIDトークンの両方の有効期間が過ぎたことを確認する。発行時刻を特定できない場合は、処理の完了と、既存ユーザーがいる場合はその無効化を確認した時点から、Custom Tokenの交換可能期間と交換後のIDトークンの有効期間を合わせて少なくとも2時間確保する。途中で発行や交換が判明した場合は、そのトークンの有効期間も過ぎるまで解除しない。[Firebaseのセッション管理](https://firebase.google.com/docs/auth/admin/manage-sessions) · [Custom Token](https://firebase.google.com/docs/auth/admin/create-custom-tokens)
-5. 対象UIDのFirebase Authenticationユーザーを削除し、Authenticationと `web-accounts` の両方に対象がないことを再確認する。削除済みなら不存在を確認して次へ進める。作業者が今回有効にしたメンテナンスのみ解除する。受付元へ結果を返信し、途中で失敗した場合は完了と案内せず、同じ依頼の対象・状態を確認してから再開する。
+この手順は、マイページ全体のメンテナンス切り替え、トークン失効までの待機（発行時刻を特定できない場合は最低 2 時間）、Firebase Console での手作業を伴う暫定運用です。正式手順化と fresh OAuth 不可時の本人確認の最低基準は、一般公開前に別途決定します。
 
-### リリース前の開発環境での確認
+1. **対象の確認**: 返信可能な窓口で「連携解除のみの依頼」であることと対象環境（開発: `test-youtube-study-space` / 本番: `youtube-study-space`）を確認します。Firebase Authentication と Firestore の両画面で同じプロジェクト・同じチャンネル ID を確認し、作業者を 1 名に固定して作業開始前のメンテナンス状態を記録します。
+2. **メンテナンス有効化とユーザー無効化**: [メンテナンスモード](maintenance-mode.md) を有効にし、通常の個人 API と新規ログインが止まったことを確認します。切替前から進行していた読み取り・更新・トークン発行の完了を待ってから、対象 UID の Firebase Authentication ユーザーが存在すれば無効化し、読み戻して反映を確認します（確認に失敗したら先に進みません）。
+3. **マイページ連携文書の削除**: Firestore の `web-accounts/{channelId}` を文書単位で削除し、消えたことを読み戻します。OAuth 一時文書のうち対象チャンネルと一致する通常ログイン用の文書が残っていれば削除します（※サポート依頼、利用制御、ライブチャット由来の `users` や作業履歴には触れません）。
+4. **トークン有効期間の経過待機**: メンテナンスを維持したまま、最後に発行され得た Custom Token と ID トークンの両方の有効期間が過ぎるのを確認します。発行時刻を特定できない場合は、処理完了およびユーザー無効化の確認時点から **最低 2 時間**（Custom Token の交換期限 + ID トークンの有効期間）確保します（途中で発行や交換が判明した場合は、そのトークンの失効も待ちます。参考: [セッション管理](https://firebase.google.com/docs/auth/admin/manage-sessions) / [Custom Token](https://firebase.google.com/docs/auth/admin/create-custom-tokens)）。
+5. **Auth ユーザー削除と復帰**: 対象 UID の Firebase Authentication ユーザーを削除し、Authentication と `web-accounts` の両方に対象がないことを確認します（すでに削除済みなら不存在を確認して次へ進みます）。作業者が今回有効にしたメンテナンスだけを解除し、受付元へ結果を返信します（途中で失敗した場合は完了と案内せず、対象と状態を再確認してから再開します）。
 
-専用の試験用YouTubeチャンネルで、ライブチャットから作業履歴を作ったうえでマイページにログインする。別ブラウザーの古いログインを残し、上記の操作を実施する。
+### リリース前の開発環境での動作確認
 
-- FirestoreとFirebase Authenticationを読み返し、マイページのアカウント情報とひも付けが存在しない。
-- メンテナンス解除後に古いログインから個人APIが拒否される。試験用チャンネルで改めて連携してログインした後も、古いブラウザーのログインから個人APIを利用できない。
-- ライブチャット由来のチャンネルIDと既存の作業履歴が残り、改めて連携したマイページで同じ作業履歴を確認できる。
-- 未ログインのブラウザーから環境に対応したフォームへ到達し、運営者が管理する試験回答の送信と受信を確認する。
+専用の試験用 YouTube チャンネルでライブチャットから作業履歴を作ったうえでマイページにログインし、別ブラウザに古いログインを残した状態で上記手順を実施して以下を確認します。
+
+- Firestore と Firebase Authentication を読み返し、マイページのアカウント情報と紐付けが残っていないこと。
+- メンテナンス解除後、古いブラウザのログインから個人 API が拒否されること（試験用チャンネルで改めて連携・ログインし直した後も、古いブラウザのセッションからは利用できないこと）。
+- ライブチャット由来のチャンネル ID と既存の作業履歴は残っており、再連携したマイページで同じ作業履歴を確認できること。
+- 未ログインのブラウザから環境に対応した問い合わせフォームへ到達し、運営者側で試験回答を送受信できること。

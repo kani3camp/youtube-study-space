@@ -1,29 +1,45 @@
 # MyPage メンテナンスモード v1
 
-計画メンテナンス中にMyPageの通常利用を停止する機能です。セキュリティ事故への即時遮断装置ではありません。切替時に進行中の通常読み取りが完了する場合があります。通常書き込みは同じFirestoreトランザクション内で状態を確認し、Custom Tokenは発行直前に再確認します。Privacy / Supportの専用経路は維持します。
+計画メンテナンス中に MyPage の通常利用を停止する機能です。
 
-## 制御データと動作
+> [!NOTE]
+> これは計画メンテナンス用の停止機能であり、セキュリティ事故向けの即時遮断装置ではありません。切り替え時に実行中だった通常読み取りが完了する場合があります。なお、プライバシー請求・サポート用の専用経路はメンテナンス中も維持します。
 
-各環境の`config/mypage`を制御状態の管理元とします。`maintenance-enabled`は真偽値、`updated-at`はFirestore Timestampです。制御文書がない、不正、または読み取り不能の場合は、安全のため通常利用を停止します。ブラウザから直接読み書きすることはできません。
+---
 
-バックエンドは保護対象の通常処理を始めるときに最新の制御状態を読み、有効なら`503 MAINTENANCE_ACTIVE`を返します。書き込みはトランザクション内でも再確認します。Firestore更新やトークン発行の直前確認により、処理中に切り替わった場合の危険な操作を防ぎます。ただし、外部のトークン発行とFirestoreの切替を完全にアトミックにはできません。
+## 制御データと動作仕様
 
-公開状態APIの応答は`{"maintenanceEnabled": true}`または`{"maintenanceEnabled": false}`だけとし、制御文書の更新日時は公開しません。
+各環境の Firestore 文書 `config/mypage` を制御状態の正本とします（ブラウザからの直接読み書きは不可）。
 
-画面は保護ルートに入るときに状態を確認し、ACTIVEまたはAPIの`MAINTENANCE_ACTIVE`を受け取るとメンテナンス画面に移ります。「お知らせを見る」と「状態を再確認」を表示し、定期取得やタブ復帰時の自動確認は行いません。解除後は再読み込みか「状態を再確認」で通常画面へ戻ります。
+- **フィールド**: `maintenance-enabled`（真偽値）、`updated-at`（Firestore Timestamp）
+- **Fail-closed（安全側停止）**: 制御文書が存在しない・不正・読み取り不能の場合は、安全のため通常利用を停止します。
+- **バックエンドの判定**: 保護対象の通常処理の開始時に最新状態を読み取り、有効なら `503 MAINTENANCE_ACTIVE` を返します。書き込みは Firestore トランザクション内でも再確認し、Custom Token は発行直前に再確認します（外部トークン発行と切替操作を完全にアトミックにはできないため、直前確認で保護します）。
+- **公開 API の応答**: `{"maintenanceEnabled": true}` または `{"maintenanceEnabled": false}` のみとし、更新日時は公開しません。
+- **フロントエンドの画面遷移**: 保護ルートへ入る際に状態を確認し、有効または `MAINTENANCE_ACTIVE` を受け取るとメンテナンス画面を表示します（「お知らせを見る」「状態を再確認」を表示し、定期取得やタブ復帰時の自動再確認は行いません。解除後は再読み込みまたは「状態を再確認」で復帰します）。
 
-## 初期化と切替
+---
 
-1. 先にDEVのreview済みMyPageイメージがArtifact Registryに存在することを確認します。初回maintenance Job作成時は、GitHub EnvironmentのJSONへdigestを書かず、コードで固定した実ビルド済みsource SHAのimmutable tagをPlan時にread-only解決してprivate digest入力にします。Jobが既に存在する通常Planではこのbootstrap解決を使いません。
-2. `Terraform`（`terraform.yml`）を`operation=plan`と対象`environment`で実行し、Core GCPとMyPageのdesired stateをまとめてPlanします。DEVの現在のdesired stageには、メンテナンス専用Service Account・WIF・単一Cloud Run Jobを含みます。差分のレビュー後だけ`operation=apply`を実行します。通常操作で`maintenance_operator` / `maintenance_upgrade`の個別モードは選びません。対象環境のdesired stageが`disabled`ならMyPage資源を変更しません。Job作成後のimageはTerraform設定JSONではなくBackend CI/CDが所有します。
-3. 初回構築後は`Deploy Maintenance Operator`（`mode=build-and-deploy`）でJobを専用operator imageへ更新し、Job generationと設定不変のreadbackが成功したことを確認します。API Serviceとは同じdigestへ同期しません。その後、GitHub Actionsの`Set Maintenance Mode`（`mypage-maintenance.yml`）を`workflow_dispatch`で実行し、対象`environment`と`enabled=false`を指定して初期化します。欠落文書も同じJobが作成します。
-4. 開始時は`enabled=true`、解除時は`enabled=false`を指定します。Jobは入力を検証し、トランザクションで現在値を読んで更新します。コミット後に読み返し、結果をログに出します。同じ値への更新は成功のno-opです。
-5. 実行結果とJobログを確認します。読み取り・更新・再読み取りの失敗は成功扱いにしません。失敗時は対象環境・権限・Firestore文書の状態を調査し、復旧後に同じワークフローを再実行します。
+## 初期化と切り替え手順
 
-GitHubのWIF本人情報は固定Jobを実行できますが、Firestoreへの直接アクセス権は持ちません。Job自体は専用Service Accountで動きます。Firestore IAMはコレクション単位ではないため、Jobの権限はプロジェクト内の他文書にも及びます。
+### 1. 初回構築・有効化
 
-実行用の`mypage-maintenance-invoker`には、固定Job上の`roles/run.jobsExecutorWithOverrides`に加えて、`run.jobs.get`と`run.executions.get`だけを含むカスタムロール`mypageMaintenanceExecutionRead`を付与します。`gcloud`は引数の上書き検証でJob設定を読み、`--wait`で実行の完了を確認します。実行ロールだけではこの読み取りができません（[Cloud Runのロールと権限](https://docs.cloud.google.com/iam/docs/roles-permissions/run)）。
+1. **イメージの準備確認**: 事前に DEV のレビュー済み MyPage イメージが Artifact Registry に存在することを確認します。初回に Maintenance Job を作成するときだけ、GitHub Environment の JSON へ digest を書かず、コードに固定した実ビルド済み source SHA の不変タグを Plan 時に読み取り専用で解決して非公開 digest 入力として使います（Job 作成済みの通常 Plan では使いません）。
+2. **Terraform の Plan / Apply**: `Terraform`（`terraform.yml`）を `operation=plan` と対象 `environment` で実行し、Core GCP と MyPage の desired state をまとめて確認したうえで、差分レビュー後に `operation=apply` を実行します（通常運用では `maintenance_operator` / `maintenance_upgrade` を個別選択せず、desired stage が `disabled` なら変更しません）。Job 作成後のコンテナイメージは Backend CI/CD が所有します。
+3. **Operator イメージ配備と制御文書初期化**:
+   - 初回構築後は `Deploy Maintenance Operator`（`mode=build-and-deploy`）で Job を専用 operator イメージへ更新し、generation 前進と設定不変の読み戻し成功を確認します（API Service とは同じ digest に同期しません）。
+   - 続いて GitHub Actions の `Set Maintenance Mode`（`mypage-maintenance.yml`）を `workflow_dispatch` で実行し、対象 `environment` と `enabled=false` を指定して制御文書を初期化します（文書が欠落している場合も同じ Job が作成します）。
 
-`run.jobs.get`の`PERMISSION_DENIED`で停止した場合は、先に修正後のTerraformを対象環境へPlan/Applyします。既存構成が適用済みなら、追加差分はこのカスタムロールと固定JobへのIAM memberの2資源です。Job/APIの更新やプロジェクト全体への読取り権限付与を含まないことを確認します。適用後は`Set Maintenance Mode`を新しい手動実行として起動します。GitHubの「Re-run jobs」は`run_attempt=1`の制限により拒否されます。
+### 2. 日常の開始・解除
 
-配備時はJobを用意し、初期状態の`enabled=false`を確認してからバックエンドとフロントエンドを配備します。旧形式の両者は新形式と互換ではないため、対応する両方を続けて配備します。切替中や古い画面を開いている利用者は状態を確認できず、再読み込みが必要になる場合があります。IaCの変更だけでは実環境への適用や初期化は行われません。
+- 開始時は `enabled=true`、解除時は `enabled=false` を指定して `Set Maintenance Mode` を手動実行します。
+- Job は入力検証のうえ、トランザクションで現在値を読み取って更新し、コミット後に読み戻して結果をログ出力します（同じ値への更新は正常終了の no-op）。
+- 読み取り・更新・再読み取りに失敗した場合は成功とみなさず、対象環境・権限・Firestore 文書を調査して復旧後に新しい手動実行として起動してください。
+
+---
+
+## 権限境界と配備時の注意
+
+- **WIF と Job の権限**: GitHub の WIF 本人情報は固定 Job を起動できますが、Firestore への直接権限は持ちません。Job 自体は専用 Service Account で動作します（Firestore IAM はコレクション単位に絞れないため、他文書にも権限が及びます）。
+- **Invoker のカスタムロール**: `mypage-maintenance-invoker` には、固定 Job 上の `roles/run.jobsExecutorWithOverrides` に加えて、`run.jobs.get` と `run.executions.get` のみを含むカスタムロール `mypageMaintenanceExecutionRead` を付与します（`gcloud` が引数検証と `--wait` の完了確認に必要とするため。参考: [Cloud Run のロールと権限](https://docs.cloud.google.com/iam/docs/roles-permissions/run)）。
+- **`PERMISSION_DENIED` 発生時の復旧**: `run.jobs.get` で権限不足停止した場合は、修正後の Terraform を先に対象環境へ Plan/Apply し（追加差分はこのカスタムロールと固定 Job への IAM メンバーの 2 資源のみであることを確認）、適用後に `Set Maintenance Mode` を新しい手動実行として起動します（GitHub の「Re-run jobs」は `run_attempt=1` 制限により拒否されます）。
+- **配備順序の注意**: 配備時は Job と `enabled=false` を準備したうえで、バックエンドとフロントエンドを続けて配備してください（旧形式と新形式は非互換のため、切替中に古い画面を開いている利用者は再読み込みが必要になる場合があります）。
