@@ -1,4 +1,10 @@
-"""ユースケース単位のDeploy workflowが、認証境界と配備対象を取り違えないことを検証する。"""
+"""配備用GitHub Actionsワークフローの書き方が、認証情報の扱いと配備対象を取り違えていないかをテストする。
+
+目的: クラウド認証情報の取得がワークフローの外側に出る、キャンセル後に認証が始まる、DEV専用のはずの配備が他の対象を触る、といった書き間違いを防ぐ。
+使われる場面: CI Repository ワークフローの contracts 検査(.github/ci-validation/validate.sh が `unittest discover -p 'test_ci_*.py'` で実行)。ローカルでも同じ方法で実行できる。
+失敗したとき: CI Repository が失敗し、PRをマージできない。
+なくした場合: 配備ワークフロー(mypage-*-authenticated.yml など)の認証・配備対象の書き間違いが自動では見つからなくなる。認証まわりは dev にある test_ci_workflows.py や test_ci_security.py も見ており、一部重なる。
+"""
 import unittest
 
 from test_ci_workflows import ROOT, load

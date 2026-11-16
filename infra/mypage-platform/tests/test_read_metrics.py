@@ -1,4 +1,10 @@
-"""DEV計測の明示的な有効化だけを検査し、配信更新やクラウド入出力は承認しない。"""
+"""DEVの読み取り計測の有効化(MYPAGE_READ_METRICS)が、明示した場合だけ受け入れられるかをテストする。
+
+目的: 計測の有効化が省略や不正な値で勝手に変わる、本番で有効化される、秘密値に紐づく、といった不具合を検出する。クラウドには接続しない。
+使われる場面: infra/mypage-platform/scripts/check-local.sh の `unittest discover`。CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。
+失敗したとき: CI GCP Terraform が失敗し、PRをマージできない。
+なくした場合: 計測有効化の受け入れ条件が壊れても気づけなくなる。read_metrics_transition・read_metrics_live のテストと話題が近く、一部重なる。
+"""
 from copy import deepcopy
 import json
 from pathlib import Path

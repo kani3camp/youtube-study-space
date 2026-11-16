@@ -1,4 +1,10 @@
-"""DEV maintenance operator Job配備の観測可能な制御を検証する。クラウド認証情報は使わない。"""
+"""operator_release.py(DEVオペレーターJob配備)と operator_identity.py が、競合・失敗時に正しく止まるかをテストする。
+
+目的: イメージ以外の設定が変わる、他のJobを更新する、競合した更新を上書きする、といった配備の不具合を検出する。クラウド認証情報は使わない。
+使われる場面: infra/mypage-platform/scripts/check-local.sh の `unittest discover`。CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。.github/scripts/test_ci_deploy_workflows.py にも名前が出てくる。
+失敗したとき: CI GCP Terraform が失敗し、PRをマージできない。
+なくした場合: オペレーター配備スクリプトの安全装置が壊れても気づけなくなる。構造は test_backend_release.py と似ている。
+"""
 from copy import deepcopy
 import json
 from pathlib import Path

@@ -1,4 +1,10 @@
-"""DEV配備・競合・失敗の観測可能な制御を検証する。クラウド認証情報は使わない。"""
+"""backend_release.py(DEVバックエンド配備)と backend_identity.py が、競合・失敗時に正しく止まるかをテストする。
+
+目的: イメージ以外の設定が変わる、競合した更新を上書きする、失敗時に自動で再試行や巻き戻しをする、といった配備の不具合を検出する。クラウド認証情報は使わない。
+使われる場面: infra/mypage-platform/scripts/check-local.sh の `unittest discover`。CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。
+失敗したとき: CI GCP Terraform が失敗し、PRをマージできない。
+なくした場合: バックエンド配備スクリプトの安全装置が壊れても気づけなくなる。
+"""
 from copy import deepcopy
 import json
 from pathlib import Path

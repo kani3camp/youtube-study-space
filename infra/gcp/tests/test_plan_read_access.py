@@ -1,4 +1,10 @@
-"""Plan-only policy: data boundaries, fail-closed inventory, and bounded reflection."""
+"""plan_read_access.py と権限一覧(plan-metadata-read.json)が、決めた境界を守っているかをテストする。
+
+目的: 危険な権限の混入、分類漏れ、想定外のメンバーへの付与、バックアップなしの書き込みを、クラウドに接続せずに検出する。
+使われる場面: CI GCP Terraform ワークフローの terraform-tests(.github/ci-validation/validate.sh が `python3 -B infra/gcp/tests/test_plan_read_access.py` で実行)。
+失敗したとき: CI GCP Terraform が失敗し、PRをマージできない。
+なくした場合: plan_read_access.py の安全装置(拒否条件・確認文字列・バックアップ必須)が壊れても気づけなくなる。.github/ci-validation/plan_policy.py は JSON の検査だけで、反映手順までは見ない。
+"""
 from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 import io

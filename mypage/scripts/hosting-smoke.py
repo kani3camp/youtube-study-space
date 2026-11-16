@@ -1,4 +1,12 @@
-"""DEV専用の匿名UI疎通確認。ログイン・GA4への送信・HARは使わない。"""
+"""DEVに公開したMyPageを、ログインなしの利用者として実際のブラウザで開き、基本の画面が動くか確かめる。
+
+目的: 公開直後に、ログイン画面・メンテナンス表示・Cookie設定・利用規約などが正しく出ること、同意前にGA4(アクセス解析)へ送信していないことを確認する。
+使われる場面: MyPage DEV Hosting Release ワークフロー(.github/workflows/mypage-hosting-authenticated.yml)の browser ジョブ。判定部分(protected_destination)は mypage/scripts/test_hosting_smoke.py も使う。
+失敗したとき: Hosting配備後の確認ジョブが失敗する(公開自体はすでに行われており、自動の巻き戻しはない)。
+なくした場合: DEV公開後のブラウザでの疎通確認が失われる。
+
+補足: ログイン・GA4への送信・HARは使わない。
+"""
 from urllib.parse import urlsplit
 
 ORIGIN = 'https://test--study-space.web.app'

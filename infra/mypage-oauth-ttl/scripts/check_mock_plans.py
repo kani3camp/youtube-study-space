@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Terraformが実際に生成した詳細モックJSONで、共通仕様を検証する。"""
+"""Terraformのモック実行(テスト)で出た変更計画を、plan_contract.py のルールで検査する小さな補助スクリプト。
+
+目的: OAuthの一時データを自動削除する設定(TTL)の変更計画が、想定どおり4つのテストに合格し、許可した変更だけを含むことを確かめる。
+使われる場面: infra/mypage-oauth-ttl/scripts/check-local.sh から dev と prod の環境ごとに呼ばれ、CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。
+失敗したとき: check-local.sh が失敗し、CI GCP Terraform が失敗してPRをマージできない。
+なくした場合: Terraformのモック計画が plan_contract.py のルールに合うかの確認が check-local.sh から消える。plan_contract.py 自体のテストは test_plan_contract.py が別に行う。薄い補助で、check-local.sh にしか使われない。
+"""
 
 import json
 import pathlib

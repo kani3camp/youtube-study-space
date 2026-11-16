@@ -1,4 +1,10 @@
-"""環境に固定したランタイム受入検査。認証情報・クラウド入出力・秘密値は扱わない。"""
+"""MyPageのCloud Run(API・メンテナンスJob)について、環境ごとに許可する設定と変更を決め、Planが範囲内か検査する部品。認証情報・クラウドへの接続・秘密値は扱わない。
+
+目的: 公開範囲・権限・環境変数・イメージなど、勝手に変わると危険な設定の変更を、Planの段階で拒否する。
+使われる場面: 単体では実行されない。foundation_ops.py・backend_release.py・image_ops.py・check-foundation-native.py・check-read-metrics-native.py と、infra/mypage-platform/tests/ のテストから読み込まれる。
+失敗したとき: 部品なので、読み込んだスクリプトやテストの失敗として現れる(ワークフローの中断やCI失敗)。
+なくした場合: MyPage基盤の配備スクリプトと検査・テストの大半が動かなくなる。
+"""
 from __future__ import annotations
 
 from copy import deepcopy

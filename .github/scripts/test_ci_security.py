@@ -1,4 +1,10 @@
-"""検証不能時に拒否するスキャナー方針と、メンテナンス認証情報の分離だけを検証する。"""
+"""セキュリティ検査(脆弱性スキャン)が検証できないときに失敗する書き方になっているか、メンテナンス用の認証情報が分離されているかをテストする。
+
+目的: 脆弱性スキャンが黙って成功扱いになる、メンテナンス用ワークフローが認証情報を残したまま動く、といった書き間違いを防ぐ。
+使われる場面: CI Repository ワークフローの contracts 検査(.github/ci-validation/validate.sh が `unittest discover -p 'test_ci_*.py'` で実行)。
+失敗したとき: CI Repository が失敗し、PRをマージできない。
+なくした場合: スキャナーの方針とメンテナンス認証の分離が、自動では確かめられなくなる。認証境界の検査は test_ci_workflows.py などとも一部重なる。
+"""
 import os
 import subprocess
 import unittest

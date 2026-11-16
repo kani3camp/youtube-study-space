@@ -1,4 +1,10 @@
-"""環境に固定したMyPage基盤の検査。認証情報やクラウド入出力は使わない。"""
+"""MyPage基盤(Terraformで管理するサービスアカウント・Secret Manager・Artifact Registryなど)の固定ルールをまとめ、環境(dev/本番)ごとに検査する部品。認証情報やクラウドへの接続は使わない。
+
+目的: 認証の条件・許可するリソース・Plan結果の判定ルールを1か所に決め、各スクリプトとテストが同じルールで判断できるようにする。
+使われる場面: 単体では実行されない。foundation_ops.py・runtime_contract.py・backend_release.py などの配備スクリプトと、infra/mypage-platform/tests/ のテスト、Terraformのテスト(*.tftest.hcl)、terraform.yml(REFの取得)から読み込まれる。
+失敗したとき: このファイル自体は部品なので、ルール違反は読み込んだスクリプトの失敗として現れる。
+なくした場合: MyPage基盤のほぼ全スクリプトとテストが動かなくなる。
+"""
 from __future__ import annotations
 
 import hashlib

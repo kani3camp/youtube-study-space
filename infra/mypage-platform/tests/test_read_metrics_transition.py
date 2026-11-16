@@ -1,4 +1,10 @@
-"""計測設定だけの更新・再読み取り仕様。合成値を使い、クラウド入出力は行わない。"""
+"""read_metrics_transition.py が、計測設定だけを変える更新を通し、それ以外の変更が混ざる更新を拒否するかをテストする。クラウドには接続しない。
+
+目的: 計測設定の切り替えに、他の設定変更・削除・未知の値が紛れ込む不具合を検出する。
+使われる場面: infra/mypage-platform/scripts/check-local.sh の `unittest discover`。CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。
+失敗したとき: CI GCP Terraform が失敗し、PRをマージできない。
+なくした場合: 計測設定の切り替え規則が壊れても気づけなくなる。test_read_metrics.py や test_read_metrics_live.py と話題が近く、一部重なる。
+"""
 from copy import deepcopy
 from pathlib import Path
 import sys

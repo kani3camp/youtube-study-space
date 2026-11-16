@@ -1,7 +1,11 @@
-"""DEV専用Hosting配備。非特権ビルド、制限付きREST公開、再読み取りを行う。
+"""MyPageのWebページ(静的ファイル)をDEVのFirebase Hostingへ公開し、公開後に読み直して確かめる。
 
-Firebase CLI探索・SA鍵・Terraform/IAM書き込み・バックエンド更新・
-ランタイムの秘密値・変更の自動再試行・自動ロールバックは扱わない。
+目的: 想定外のファイル(非公開ファイルやAPIを隠すもの)が公開される、設定が黙って変わる、公開が競合する、といった事故を防ぐ。
+使われる場面: MyPage DEV Hosting Release ワークフロー(.github/workflows/mypage-hosting-authenticated.yml)の context・build・deploy の各ステップ。CI Frontend の mypage-check でも、ビルド結果の一覧検査(inventory)だけが読み込まれる。
+失敗したとき: Hosting配備が中断される。自動の再試行・巻き戻しはしない。CI Frontend では inventory の失敗でPRをマージできない。
+なくした場合: DEV Hosting配備ワークフローが動かなくなり、CI Frontend のビルド成果物の検査も失われる。
+
+補足: 非特権ビルド、制限付きREST公開、再読み取りを行う。Firebase CLI探索・SA鍵・Terraform/IAM書き込み・バックエンド更新・ランタイムの秘密値・変更の自動再試行・自動ロールバックは扱わない。
 """
 from __future__ import annotations
 

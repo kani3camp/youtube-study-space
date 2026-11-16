@@ -1,4 +1,10 @@
-"""受入・ネイティブPlan・独立バックエンド権限の観測可能な制御を検証する。"""
+"""MyPage基盤の受け入れ検査(foundation_contract.py と foundation_ops.py)をテストする。
+
+目的: 想定外のリソース・削除・公開アクセス・外部の認証主体を含むPlanを通してしまう不具合や、認証条件(実行者・ブランチ・コミット)のゆるみを検出する。
+使われる場面: infra/mypage-platform/scripts/check-local.sh の `unittest discover`。CI GCP Terraform の terraform-tests(validate.sh 経由)で実行される。他のテストから部品も読み込まれる。
+失敗したとき: CI GCP Terraform が失敗し、PRをマージできない。
+なくした場合: MyPage基盤の許可範囲ルールの変更が、自動では検査されなくなる。他のテスト(test_runtime.py など)と対象が一部重なる。
+"""
 from copy import deepcopy
 from contextlib import redirect_stderr, redirect_stdout
 import io

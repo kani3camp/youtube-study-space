@@ -1,4 +1,10 @@
-"""Hosting smokeが通常稼働・メンテナンスと、検証不能を区別する契約。"""
+"""hosting-smoke.py の判定部分が、通常時・メンテナンス中・状態の取得失敗を正しく見分けるかをテストする。
+
+目的: 状態が分からないのにメンテナンス扱い・通常扱いにしてしまう、ログイン画面とメンテナンス画面を取り違える、といった判定ミスを検出する。
+使われる場面: CI Frontend ワークフロー(.github/workflows/ci-frontend.yml)の mypage-check ジョブの「Check Hosting smoke maintenance routing contracts」ステップ。
+失敗したとき: CI Frontend が失敗し、PRをマージできない。
+なくした場合: hosting-smoke.py の判定ミスが、公開後のDEV確認まで気づけなくなる。
+"""
 import importlib.util
 from pathlib import Path
 import unittest

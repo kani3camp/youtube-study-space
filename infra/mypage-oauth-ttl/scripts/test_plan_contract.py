@@ -1,4 +1,10 @@
-"""対象範囲・破壊的変更・非公開値の出力に関する回帰仕様。"""
+"""plan_contract.py が、許可する変更計画を通し、危険な変更計画を拒否するかをテストする。
+
+目的: 削除・作り直し・別環境や別DBへの変更・秘密値の出力などを見逃す検査の劣化を防ぐ。
+使われる場面: infra/mypage-oauth-ttl/scripts/check-local.sh の `unittest discover` で実行され、CI GCP Terraform の terraform-tests(validate.sh 経由)に含まれる。
+失敗したとき: check-local.sh が失敗し、CI GCP Terraform が失敗してPRをマージできない。
+なくした場合: plan_contract.py の拒否条件が壊れても自動では気づけなくなる。
+"""
 
 import copy
 import json
