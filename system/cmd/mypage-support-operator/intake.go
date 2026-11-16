@@ -21,8 +21,8 @@ var (
 	intakeActor   = regexp.MustCompile(`^[A-Za-z0-9_-]{3,128}$`)
 )
 
-// 有人窓口のやり取りは窓口に留め、本文や連絡先をコピーしない。
-// 対象指定は申告に過ぎず、既存の申請に結び付けた新たなOAuth認証を待つ。
+// 有人窓口の本文や連絡先はコピーせず窓口側に留める。
+// ここで受け取る対象チャンネルは申請者の申告値に過ぎず、この後の新規 OAuth 認証で所有権を確認する。
 type humanRequest struct {
 	RequestID        string
 	Channel          string
@@ -57,11 +57,11 @@ type intakeRuntime struct {
 	environment, project string
 	creator              supportCreator
 	recovery             supportRecovery
-	// 申請ID・対象チャンネル・サポートチャレンジ・Firebase本人情報・ADCだけでは運用権限にならない。
-	// 実環境はliveIntakeFactoryがowner-controlled GCP IAMで組み立てる。
+	// 申請 ID・対象チャンネル・サポートチャレンジ・Firebase 本人情報・ADC だけでは運用権限にならない。
+	// 実環境では liveIntakeFactory がオーナー管理下の GCP IAM で実行権限を検証する。
 	authorize func(context.Context, intakeIntent) (intakeGrant, error)
-	// 非公開の受け渡しは標準出力や監査とは分離し、依頼された操作の完了証拠やACKとして扱わない。
-	// 実際の配送機能は含めない。
+	// 非公開の受け渡しは標準出力や監査記録とは分離し、依頼操作の完了証拠や ACK としては扱わない
+	// （この CLI 自体は実際の配送処理を持たない）。
 	deliver func(context.Context, intakeIntent, intakeReceipt) error
 	clock   func() time.Time
 }
@@ -122,9 +122,9 @@ func readHumanRequest(path, action string) (humanRequest, error) {
 	return input, nil
 }
 
-// newFirestoreIntakeRuntimeは受付作成と保護付き復旧を組み立てる。
-// 承認済みクライアント・本人情報・非公開配送の管理は呼び出し元が担う。
-// 認証情報の探索・認証・通信は行わない。
+// newFirestoreIntakeRuntime は受付作成と保護付き復旧のランタイムを組み立てる。
+// 承認済みクライアント・本人情報・非公開配送の管理は呼び出し元が担い、
+// この関数内では認証情報の探索・認証・通信を行わない。
 func newFirestoreIntakeRuntime(p proposal, client *firestore.Client, authorize func(context.Context, intakeIntent) (intakeGrant, error), deliver func(context.Context, intakeIntent, intakeReceipt) error, clock func() time.Time) (*intakeRuntime, error) {
 	if client == nil || !project.MatchString(p.Project) || (p.Environment != "development" && p.Environment != "production") || authorize == nil || deliver == nil || clock == nil ||
 		!strings.HasPrefix(client.Collection("support-requests").Path, "projects/"+p.Project+"/databases/(default)/documents/") {
@@ -154,8 +154,8 @@ func runHumanIntake(ctx context.Context, p proposal, input humanRequest, factory
 	if err != nil || ctx.Err() != nil || grant.Intent != intent || !intakeActor.MatchString(grant.Actor) {
 		return "TRUSTED_INTAKE_DENIED"
 	}
-	// 権限確認後に信頼済み時刻を読み直し、元の受付時刻を維持する。
-	// Createは1回だけ呼び、タイムアウトやACK消失でSLAをリセットしない。
+	// 権限確認後に信頼済み時計を読み直す（受付の SLA 起算点となる input.AcceptedAt 自体は維持）。
+	// Create は 1 回だけ呼び、タイムアウトや ACK 消失が起きても SLA をリセットしない。
 	now = runtime.clock().UTC()
 	if now.IsZero() || input.AcceptedAt.After(now) {
 		return "INVALID_INPUT"

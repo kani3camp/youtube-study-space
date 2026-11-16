@@ -14,7 +14,7 @@ const (
 	MetadataCleanupAge     = 29 * 24 * time.Hour
 	MetadataRetentionLimit = 30 * 24 * time.Hour
 	MetadataCleanupBudget  = 10 * time.Minute
-	// アカウントが走査対象になった直後に走査を逃した場合も、完了までの余裕を残す。
+	// 29 日経過して対象になった直後に走査を逃した場合でも、30 日の上限までに完了できる余裕を残す。
 	MetadataCleanupHeartbeat = 23 * time.Hour
 )
 
@@ -64,9 +64,9 @@ func cursorAfter(next, previous MetadataCleanupCursor) bool {
 	return next.FetchedAt.After(previous.FetchedAt) || (next.FetchedAt.Equal(previous.FetchedAt) && next.UID > previous.UID)
 }
 
-// Runは注入可能なジョブであり、スケジューラー・API・実環境の初期化ではない。
-// 上限付きの最終走査でリビジョン競合や残件を検出し、部分処理を完了として扱わない。
-// 未利用ユーザーのメタデータを再取得しない。
+// Run は外部から呼び出せるジョブ本体であり、スケジューラーや実環境自体の初期化は行わない。
+// 上限付きの最終走査でリビジョン競合や残件を検出し、途中までしか終わらなかった処理を完了とみなさない。
+// また、未利用ユーザーのメタデータを再取得することもしない。
 func (j *MetadataCleanupJob) Run(ctx context.Context) (MetadataCleanupObservation, error) {
 	observation := MetadataCleanupObservation{Stage: "configuration"}
 	if j.Now == nil || j.Recorder == nil {
@@ -165,9 +165,8 @@ func (j *MetadataCleanupJob) Run(ctx context.Context) (MetadataCleanupObservatio
 
 type JSONMetadataCleanupRecorder struct{ Writer io.Writer }
 
-// 出力先は期限に対応した専用のものを使う（例: パイプやソケットの*os.File）。
-// 通常のio.WriterはWrite前に拒否する。待機した書き込みを無期限goroutineへ移しても、
-// 安全にキャンセルできない。
+// 出力先には書き込み期限を設定できる専用ライターのみを許可する（例: パイプやソケットの *os.File）。
+// 通常の io.Writer は書き込み前に拒否する（待機中の書き込みを無期限 goroutine へ逃がしても安全にキャンセルできないため）。
 type cleanupDeadlineWriter interface {
 	io.Writer
 	SetWriteDeadline(time.Time) error
@@ -232,9 +231,9 @@ type MetadataCleanupHealth struct {
 	Reason string
 }
 
-// lastSuccessfulCoverageは成功した実行のStartedAtであり、完了時刻ではない。
-// 配備時には1日2回など23時間以内に走査対象を更新する必要がある。
-// ハートビート欠如・実行失敗・期限違反を、暗黙に正常扱いしない。
+// lastSuccessfulCoverage は成功した走査の開始時刻（StartedAt）であり、完了時刻ではない。
+// 運用時は 1 日 2 回など、23 時間以内に走査対象を更新する必要がある。
+// ハートビート欠如・実行失敗・期限違反を暗黙のうちに正常扱いしない。
 func EvaluateMetadataCleanupHealth(latest *MetadataCleanupObservation, lastSuccessfulCoverage, now time.Time) MetadataCleanupHealth {
 	alert := func(reason string) MetadataCleanupHealth { return MetadataCleanupHealth{Alert: true, Reason: reason} }
 	if now.IsZero() || lastSuccessfulCoverage.After(now) || (latest != nil && (latest.CompletedAt.After(now) || latest.CompletedAt.Before(latest.StartedAt))) {

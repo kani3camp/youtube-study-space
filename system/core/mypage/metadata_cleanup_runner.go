@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// プロジェクトごとに匿名・上限付きのスナップショットを1つ持ち、利用者別・実行別の履歴は保存しない。
+// プロジェクトごとに匿名・件数固定のスナップショットを 1 つだけ保持し、利用者別や実行別の履歴は保存しない。
 type MetadataCleanupMonitoringState struct {
 	Latest                    *MetadataCleanupObservation `firestore:"latest"`
 	LastSuccessfulCoverage    time.Time                   `firestore:"lastSuccessfulCoverage"`
@@ -31,10 +31,9 @@ type MetadataCleanupHealthRecorder interface {
 	RecordHealth(context.Context, MetadataCleanupHealthObservation) error
 }
 
-// スケジューラーのコールバックと独立監視は、この組み立て処理を共有する。
-// 構築時には何も開始せず、認証情報やスケジューラーも作らない。
-// 外部スケジューラーはRunを12時間以内の間隔で、CheckHealthを別途（例: 毎時）呼ぶ必要がある。
-// これにより、削除処理の起動漏れを観測できる。
+// スケジューラーからの削除実行と独立監視のコールバックをまとめるランナー。
+// 構築時点では何も開始せず、認証情報やスケジューラーも作成しない。
+// 外部スケジューラーからは Run を 12 時間以内の間隔で呼び、起動漏れを検知するため CheckHealth も別途（例: 毎時）呼ぶ想定。
 type MetadataCleanupRunner struct {
 	Store               MetadataCleanupStore
 	Monitor             MetadataCleanupMonitor
@@ -99,8 +98,8 @@ func (r *MetadataCleanupRunner) checkHealth(ctx context.Context, current *Metada
 			health.Reason = "monitoring_failed"
 		}
 	}
-	// 新しい正常走査で、出力先に一度も届いていない期限違反を隠さない。
-	// 保存失敗や並行実行による最新観測の置換があっても、この実行自身の違反も通知する。
+	// 新しい正常走査が走っても、出力先に未通知の期限違反（PendingRetentionStartedAt）は上書きせず残す。
+	// 保存失敗や並行実行で最新観測が置き換わっても、今回の実行自身の違反も合わせて通知する。
 	if health.Reason != "invalid_clock" && ((loadErr == nil && !state.PendingRetentionStartedAt.IsZero()) || (current != nil && current.RetentionViolations > 0)) {
 		health = MetadataCleanupHealth{Alert: true, Reason: "retention_deadline"}
 	}
@@ -157,8 +156,8 @@ func canonicalMetadataCleanupObservation(next MetadataCleanupObservation) Metada
 	return next
 }
 
-// 走査開始時刻で更新し、完了の遅延や観測の再送で新しい失敗を隠さない。同じ開始時刻なら失敗を優先する。
-// 完全に終了した走査だけで対象時刻を進め、完了時刻をハートビートの基準にしない。
+// 走査開始時刻の順に状態を更新し、遅延到着や再送で新しい失敗を上書きしない（同時刻なら失敗を優先）。
+// 完全に終了した走査のみ成功対象時刻を進め、完了時刻をハートビート基準にはしない。
 func updateMetadataCleanupMonitoring(state MetadataCleanupMonitoringState, next MetadataCleanupObservation) MetadataCleanupMonitoringState {
 	next = canonicalMetadataCleanupObservation(next)
 	if next.RetentionViolations > 0 && next.StartedAt.After(state.PendingRetentionStartedAt) {

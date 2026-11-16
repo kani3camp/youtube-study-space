@@ -37,8 +37,8 @@ type HTTPHandler struct {
 	// 環境ごとにHTTPSオリジンを1つ固定し、リクエストヘッダーから導出しない。
 	// 実際のHostingやプロキシのホスト転送は配備時に検証する。
 	PublicOrigin string
-	// Hostingの書き換えで観測した固定バックエンドホスト。転送ヘッダーはルーティング情報であり、
-	// 本人確認の証拠やAuth/App Checkの代替にはしない。
+	// Hosting からの書き換え先として観測済みの Cloud Run ホスト名。
+	// 転送ヘッダーはルーティング情報であり、本人確認の根拠や Auth / App Check の代替にはしない。
 	HostingBackendHost string
 	// uid単位のレート制限だけを持つ。IP単位の制限は、Cloud RunのRemoteAddrが利用者を区別できないため置かない。
 	limiter processLimiter

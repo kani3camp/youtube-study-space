@@ -16,8 +16,8 @@ func humanAction(action string) bool {
 	return action == "create" || action == "inspect" || action == "recover"
 }
 
-// 復旧はCreateへの切替も、受け渡しの自動再試行も行わない。
-// 明示して調査したバージョンを、独立した権限検証の正確な操作意図に含める。
+// 復旧処理では Create への自動切り替えや、handoff の自動再試行を行わない。
+// 事前に調査して明示したバージョン（ExpectedRevision）を、権限検証の対象となる操作意図に含める。
 func runHumanRecovery(ctx context.Context, p proposal, input humanRequest, runtime *intakeRuntime, intent intakeIntent, now time.Time) string {
 	selector := mypage.SupportRecoverySelector{Environment: p.Environment, ProjectID: p.Project, RequestID: input.RequestID, Channel: input.Channel, Purpose: p.Purpose, AcceptedAt: input.AcceptedAt}
 	var receipt intakeReceipt

@@ -32,7 +32,8 @@ type (
 	}
 )
 
-// BFFはHTTP入口で認可済みのリクエスト向けに、プロセス内で集計と共有処理を管理する。
+// BFF は HTTP 入口で認可済みのリクエストに対し、プロセス内での集計キャッシュと
+// 同一ユーザー向けの重複リクエスト集約（singleflight）を管理する。
 type BFF struct {
 	Reader      SnapshotReader
 	Environment string
@@ -41,15 +42,16 @@ type BFF struct {
 	mu          sync.Mutex
 	cache       map[cacheKey]cachedAggregate
 	flights     map[string]*metadataFlight
-	// 認可ゲート・チャンネル不在以外で失敗したメタデータ再取得を、uidごとに記録する。
+	// 認可エラーやチャンネル不在以外の理由で失敗したメタデータ再取得を UID ごとに記録する。
 	metadataFailures map[string]metadataFailure
 }
 
 const (
-	// メタデータ再取得全体の上限。アクセス確認、YouTube検索（それ自体は1秒で打ち切る）、
-	// Firestoreの保存トランザクション、保存後の再読み取りとアクセス再確認を含める。
+	// メタデータ再取得全体の上限時間。
+	// アクセス確認、YouTube 検索（検索自体は 1 秒で打ち切る）、Firestore の保存トランザクション、
+	// 保存後の再読み取りとアクセス再確認までを含める。
 	metadataRefreshTimeout = 3 * time.Second
-	// 失敗した再取得を、キャッシュされない後続リクエストごとに繰り返さない期間。
+	// 再取得が失敗した際、キャッシュされない後続リクエストで毎回再試行しないための待機期間。
 	metadataRefreshBackoff = 5 * time.Minute
 )
 
@@ -94,9 +96,9 @@ func (b *BFF) get(ctx context.Context, authorized authorizedWebAccount) (Respons
 	if value, ok := b.cacheHit(key, now, account); ok {
 		return value, nil
 	}
-	// HTTPの制限時間は認可前から進み、ブラウザにも期限がある。
-	// 共有処理の結果返却とレスポンスのシリアライズに余裕を残し、
-	// キャンセルを切り離しても消費済みの制限時間をリセットしない。
+	// HTTP の制限時間は認可処理の時点からすでに経過しており、ブラウザ側にもタイムアウトがある。
+	// 共有処理の結果返却と JSON シリアライズ用の余裕を残し、
+	// 呼び出し元のキャンセルを切り離しても、すでに消費した制限時間はリセットしない。
 	workDeadline := time.Now().Add(8 * time.Second)
 	waitCtx := ctx
 	if outerDeadline, ok := ctx.Deadline(); ok {
@@ -111,8 +113,8 @@ func (b *BFF) get(ctx context.Context, authorized authorizedWebAccount) (Respons
 		waitCtx, stop = context.WithDeadline(ctx, waitDeadline)
 		defer stop()
 	}
-	// 最初の呼び出し元の切断で、別の呼び出し元と共有するリクエストを中断しない。
-	// 共有操作自体にも独立した制限時間を設ける。
+	// 最初の呼び出し元が切断しても、相乗りしている他の呼び出し元の処理は中断しない。
+	// 共有処理自体にも独立した制限時間を設ける。
 	flightKey := b.Environment + "\x00" + uid + "\x00" + metadataAccountVersion(account)
 	if key.currentOnly {
 		flightKey += "\x00current"
@@ -133,8 +135,7 @@ func (b *BFF) get(ctx context.Context, authorized authorizedWebAccount) (Respons
 				b.mu.Unlock()
 			}()
 			response, flightErr = func() (Response, error) {
-				// 共有処理側のコピーだけを更新し、呼び出し元の早期の代替応答と、
-				// 独立した共有処理のメタデータ更新が競合しないようにする。
+				// 共有処理内のローカルコピーだけを更新し、呼び出し元の早期フォールバック応答と競合させない。
 				account := account
 				workCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), workDeadline)
 				defer cancel()
@@ -142,8 +143,8 @@ func (b *BFF) get(ctx context.Context, authorized authorizedWebAccount) (Respons
 					return value, nil
 				}
 				if b.Metadata != nil && (account.MetadataFetchedAt.IsZero() || b.Now().Sub(account.MetadataFetchedAt) >= 24*time.Hour) && !b.metadataBackingOff(uid, account) {
-					// 再取得は共有処理の期限内で行い、応答の待ち時間を延ばさない。
-					// 作業スナップショットの読み取りに残り時間の半分以上を残す。
+					// 再取得は共有処理の期限内に収め、応答の待ち時間を延ばさない。
+					// 作業スナップショットの読み取り用に、残り時間の半分以上を残しておく。
 					metadataCtx, stop := context.WithTimeout(workCtx, min(metadataRefreshTimeout, time.Until(workDeadline)/2))
 					refreshed, err := b.Metadata.Refresh(metadataCtx, uid, account)
 					b.recordMetadataRefresh(uid, account, err)
@@ -157,7 +158,7 @@ func (b *BFF) get(ctx context.Context, authorized authorizedWebAccount) (Respons
 						b.mu.Unlock()
 						return Response{}, gateErr
 					} else if errors.Is(err, ErrPublicChannelMissing) {
-						// 永続データの消去に失敗しても、不在が証明されたデータの表示は停止する。
+						// Firestore 上の消去に失敗しても、不在が確認されたチャンネルの表示はここで止める。
 						account.DisplayName = ""
 						account.Handle, account.AvatarURL = nil, nil
 						account.MetadataFetchedAt = time.Time{}
@@ -181,7 +182,7 @@ func (b *BFF) get(ctx context.Context, authorized authorizedWebAccount) (Respons
 				if b.cache == nil {
 					b.cache = make(map[cacheKey]cachedAggregate)
 				}
-				// 攻撃者が指定できるuidの種類数を制限し、上限時は1件を追い出す。
+				// キャッシュ対象の UID 数に上限を設け、上限時は 1 件追い出す。
 				if len(b.cache) >= 1024 {
 					for victim := range b.cache {
 						delete(b.cache, victim)
@@ -196,9 +197,9 @@ func (b *BFF) get(ctx context.Context, authorized authorizedWebAccount) (Respons
 	}
 	select {
 	case <-waitCtx.Done():
-		// 後から合流する呼び出し元の制限時間は、最初の呼び出し元より短い場合がある。
-		// 既知の表示停止アカウント情報をその期限前に返し、
-		// 上限付き共有処理は他の呼び出し元のために継続する。
+		// 後から合流した呼び出し元は、最初の呼び出し元より残り制限時間が短い場合がある。
+		// 表示停止が必要と判明しているアカウント情報はその期限前に返し、
+		// 共有処理自体は他の呼び出し元のために期限まで継続する。
 		if errors.Is(waitCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
 			b.mu.Lock()
 			gateErr, terminal := flight.err, flight.terminal
@@ -223,8 +224,8 @@ func (b *BFF) get(ctx context.Context, authorized authorizedWebAccount) (Respons
 	}
 }
 
-// 登録と完了は同じロックで行い、合流する全呼び出し元に同じ認証済みメタデータ判定を渡す。
-// 登録件数に上限を設け、コールバック完了時の結果公開とスロット削除はアトミックに行う。
+// 登録と完了を同じロックで行い、相乗りした全呼び出し元へ同じ認証済みメタデータ判定を渡す。
+// 登録件数に上限（1,024 件）を設け、完了時の結果公開とスロット削除もアトミックに行う。
 func (b *BFF) acquireFlight(key string) (*metadataFlight, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -242,9 +243,9 @@ func (b *BFF) acquireFlight(key string) (*metadataFlight, bool) {
 	return flight, true
 }
 
-// metadataBackingOffは、同じアカウント状態での再取得が直近に失敗している場合にtrueを返す。
-// 再取得を省略しても、アカウント情報は既存の24時間・30日の判定で表示する。
-// アクセス状態はHTTP入口の認可で毎回検証済みであり、メタデータが新しい場合と同じ扱いになる。
+// metadataBackingOff は、同じアカウント状態で直近に再取得が失敗していれば true を返す。
+// 再取得を省略しても、既存の 24 時間・30 日判定に基づいてアカウント情報を表示できる
+// （アクセス状態は HTTP 入口で毎回検証済みのため、メタデータが新しい場合と同様に扱える）。
 func (b *BFF) metadataBackingOff(uid string, account WebAccount) bool {
 	now := b.Now().UTC()
 	b.mu.Lock()
@@ -260,8 +261,8 @@ func (b *BFF) metadataBackingOff(uid string, account WebAccount) bool {
 	return true
 }
 
-// recordMetadataRefreshは、通常の取得・保存失敗だけを待機対象にする。
-// 認可ゲートのエラーとチャンネル不在は、次のリクエストでも必ず再取得して判定し直す。
+// recordMetadataRefresh は、通常の取得・保存失敗だけをバックオフ対象として記録する。
+// 認可エラーやチャンネル不在時は待機せず、次のリクエストでも毎回再取得して判定し直す。
 func (b *BFF) recordMetadataRefresh(uid string, account WebAccount, err error) {
 	now := b.Now().UTC()
 	b.mu.Lock()
@@ -297,9 +298,9 @@ func minDeadline(a, b time.Time) time.Time {
 	return a
 }
 
-// 作業を読めなくても、既知のメタデータ表示停止状態を維持する。
-// 作業スナップショットは作り出さず、全作業項目を取得不能にする。0や未登録にはせず、失敗応答はキャッシュしない。
-// 既存の通信仕様により、ブラウザはアカウント情報を捨て、以前の作業を古い値として保持できる。
+// 作業スナップショットを取得できなくても、既知のメタデータ表示停止状態は維持する。
+// 空のスナップショットは作らず、全作業項目を「取得不能」として返す（0 や未登録にはせず、失敗応答もキャッシュしない）。
+// この仕様により、ブラウザ側はアカウント情報だけを破棄し、以前の作業記録は古い値のまま保持できる。
 func (b *BFF) failedSnapshot(account WebAccount) (Response, error) {
 	now := b.Now().UTC()
 	section := accountSection(account, now)

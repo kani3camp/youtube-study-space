@@ -127,9 +127,9 @@ func (s Snapshot) Checkpoint() string {
 	return fmt.Sprintf("%d:%s", s.Control.Generation, s.Revision.UTC().Format(time.RFC3339Nano))
 }
 
-// Transitionは同じ要求状態・参照に対して冪等である。
-// Aでは無効状態のチェックポイントにTTLや削除処理を設けない。
-// ライフサイクルと処理完了待ちの方針は、別途レビューする削除運用の作業で扱う。
+// Transition は同じ状態・参照の再適用に対して冪等に動作する。
+// フェーズ A では無効状態のチェックポイントに TTL や削除処理を設けず、
+// 保持期限や処理完了待ちの方針は、別途レビューする削除運用の作業で扱う。
 func Transition(old Snapshot, change Change, now time.Time) (Control, bool, error) {
 	if old.Validate() != nil || now.IsZero() {
 		return Control{}, false, ErrUnavailable

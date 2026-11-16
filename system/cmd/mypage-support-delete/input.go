@@ -232,8 +232,8 @@ func readRequest(input io.Reader) (request, error) {
 			return request{}, errInput
 		}
 	}
-	// 確認内容は運用担当者の操作意図だけに結び付ける。証拠参照は独立した信頼済み証拠の指定値であり、
-	// マニフェスト内の宣言だけでは証明できない。
+	// 確認情報（confirmation）は運用担当者の操作意図の一致を確かめるためのもの。
+	// 証拠参照（ProofRef）は独立した確認済みの参照値であり、マニフェスト内の自己申告だけでは証明にならない。
 	return r, nil
 }
 

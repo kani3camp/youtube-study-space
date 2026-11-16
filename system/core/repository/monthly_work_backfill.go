@@ -17,10 +17,9 @@ import (
 	"app.modules/core/timeutil"
 )
 
-// 明示した1ユーザー・1か月を再開単位にする。外から渡す運用操作であり、概要GETからは呼ばない。
-// WriterEpochは運用担当者のレビュー済み切替IDであり、旧書き込み処理の完了宣言ではない。
-// 全月・全再試行で元の制御チェックポイントを維持する必要がある。
-// プライバシー削除後に新しく取得すると、データが復活してしまう。
+// WorkMonthBackfill は指定した 1 ユーザー・1 か月単位で再集計を行う運用操作（概要 GET からは呼ばない）。
+// WriterEpoch は運用担当者がレビューして決めた切替 ID であり、旧書き込み処理の完了宣言ではない。
+// 全月・全再試行を通じて元の制御チェックポイントを維持する必要があり、プライバシー削除後に新規取得するとデータが復活する恐れがある。
 type WorkMonthBackfill struct {
 	UID, Month, WriterEpoch, ControlCheckpoint string
 	ExpectedVersion                            string
@@ -79,8 +78,8 @@ func (c *FirestoreControllerImplements) RebuildWorkMonth(ctx context.Context, in
 		} else if status.Code(err) != codes.NotFound {
 			return fmt.Errorf("read migration month: %w", err)
 		}
-		// 上限付きでUIDの原記録を調べ、日付不等式やorderByクエリで除外される不正行も対象にする。
-		// 上限超過時は部分合計を公開しない。大きな履歴には別途レビューした移行を必要とする。
+		// 上限付きで該当 UID の原記録を全件走査し、日付範囲や orderBy クエリから漏れる不正行も検査対象にする。
+		// 上限超過時は部分合計を公開せず停止する（履歴が大きい場合は別途レビューした移行が必要）。
 		query := c.workSegmentsCollection().Where(UserIDDocProperty, "==", input.UID).
 			OrderBy(firestore.DocumentID, firestore.Asc).Limit(input.MaxDocuments + 1)
 		iter := tx.Documents(query)

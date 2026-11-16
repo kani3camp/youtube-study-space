@@ -25,9 +25,8 @@ const youtubeChannelFields = "nextPageToken,pageInfo(totalResults),items(id,snip
 
 var youtubeChannelID = regexp.MustCompile(`^UC[A-Za-z0-9_-]{22}$`)
 
-// GoogleYouTubeOAuthはResolve内だけで短命トークンを使う。
-// クライアントはtoken source・自動更新・再試行・認証情報の記録や保存を持たない。
-// 基盤・認証情報の準備確認後に、サーバー専用シークレットを渡す。
+// GoogleYouTubeOAuth は Resolve 処理中のみ短命のアクセストークンを使用する。
+// 自動更新・再試行・トークン保存機能は持たず、基盤と認証情報の確認後にサーバー専用シークレットを渡して使う。
 type GoogleYouTubeOAuth struct {
 	config oauth2.Config
 	client *http.Client
@@ -78,8 +77,8 @@ func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channe
 	if token.AccessToken == "" || !strings.EqualFold(token.TokenType, "Bearer") || token.Expiry.IsZero() || !token.Valid() {
 		return nil, oauthFailure(oauthStageToken, apiError("OAUTH_FAILED"))
 	}
-	// 要求していないリフレッシュトークンも破棄する。
-	// OAuthクライアントを作らず、交換結果をプロバイダー・ストア・セッションに保持しない。
+	// 付与されていないはずのリフレッシュトークンも念のため破棄し、
+	// OAuth クライアントやトークンをプロバイダー・ストア・セッションに保持しない。
 	token.RefreshToken = ""
 	query := url.Values{"mine": {"true"}, "part": {"snippet"}, "maxResults": {"2"}, "fields": {youtubeChannelFields}}.Encode()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, youtubeChannelsURL+"?"+query, nil)
