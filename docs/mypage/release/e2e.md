@@ -11,7 +11,7 @@
 | MON-01 Rules | Firebase Client SDKから匿名・通常MyPageユーザーの `seats/member-seats/menu/work-name-trend/config/constants` read/listが拒否、Firebase Auth済みで有効な許可リスト（`_monitor-readers/{uid}`）のUIDだけに必要readを許可（custom claimなしでも成功）、全client write拒否 | source/Emulator contractあり、DEV/PROD未実証 |
 | MON-02 OBS | OBSブラウザソースのInteractログイン、`browserLocalPersistence`、scene切替/OBS・PC再起動/24時間相当稼働、token更新・失効・通知・再ログインを実OBS/CEFで確認 | 未実証 |
 | MON-03 cutover | DEV/PRODでRules version・monitor購読・ seat-count API回帰・バックアウト手順を整合。認証不能時に匿名readへ無断rollbackしない | 未実証 |
-| COST-01 limits | Run DEV min0/max1・PROD min0/max3をlive readback。requestのtimeout/body/query上限とUID/IP limiter・S01をHostingおよび`run.app`直接で検証 | 部分sourceあり、実経路要確認 |
+| COST-01 limits | Run DEV min0/max1・PROD min0/max3をlive readback。requestのtimeout/body/query上限とuid limiter・S01をHostingおよび`run.app`直接で検証 | 部分sourceあり、実経路要確認 |
 | COST-02 notify | Billing Budget通知と届け先の実着信、Cloud MonitoringでRun/Firestore reads/429/5xx/instance/YouTube quotaの異常通知 | 未実証 |
 | COST-03 cap | Billing alertはhard capでなく、Cloud Run Spend Capは対象範囲・使用可否・他service停止影響を検証後に任意採用。Firestoreには独立した抑止策が必要 | 採否未決 |
 
@@ -35,7 +35,7 @@
 | A05 | App Check欠落/別app/失効、Auth欠落/旧google provider/別project | guardをdata read/cacheより先に拒否。App Check debug tokenなし | signed synthetic RSA / Firebase boundary tests |
 | A06 | UID差替え/extra query/別Origin/duplicate cookie、parallel callback/confirm | IDOR/Origin拒否、claim/consume/mint一回、公開raw errorなし | HTTP origin/auth atomic tests |
 | L01 / Canon S04 | Hosting/API/security logsでcallback/query記録 | code/state/Cookie/token/support queryを不要に保存・通常表示しない。platform/app全層を確認 | local codeの非出力だけでは証明不可 |
-| Canon S01 | development Hosting→Cloud RunでIP識別・OAuth開始の429 | 同一/別回線を分離、XFF偽装でbucket変更なし、他利用者へ波及なし、Retry-After有効 | process内limiter/RemoteAddrの合成テストだけでは証明不可 |
+| Canon S01 | development Hosting→Cloud Runでuid単位の429と、未認証リクエストが429にならないこと | uid制限の429は`Retry-After`が正で待機後に回復し他uidへ波及しない。未認証の反復リクエストにアプリは429を返さない | process内limiterの合成テストだけでは実経路の証明不可 |
 | D01 | 登録済み/未登録/正常0/取得失敗/データ不整合/partial | unavailableと0/未登録を分離、snapshot/asOf、1000件制限 | aggregation/BFF fixtures |
 | D02 | JST日跨ぎ・seat終了/break移動と同時read | double countなし、writer atomicity、cache失効/GeneratedAt | repository/workspaceapp/mypage Emulator |
 | M01 | metadata正常更新/上流失敗/正常channel不在/30日境界 | public metadataだけguard付き更新/clear、旧表示が復活しない | metadata mock/Emulator |
@@ -51,12 +51,12 @@ falseや未実施を合格に置き換えない。実E2Eごとに範囲、対象
 
 ## Canon S01/S04 実経路セキュリティ検証
 
-以下は**将来の承認済みdevelopment実経路**に対する最小試験手順であり、今すぐ実行可能とは限らない。まずowner/infra担当のprivate inventoryで、対象Hosting releaseとAPI rewrite先、Cloud Run service/image digest/実際にtrafficを受けるrevision、`mypage-server`のkeyless/Firestore/provider/HTTP bootstrap、dev URLとログの閲覧境界を確認する。欠ける経路・bootstrap・権限は`pending`として別の実装/配備・承認へ戻す。sourceの`RemoteAddr`利用、Hosting候補、CI成功だけでこの前提をPASSにしない。実値・実account・実ログ本文を公開recordへ写さない。
+以下は**将来の承認済みdevelopment実経路**に対する最小試験手順であり、今すぐ実行可能とは限らない。まずowner/infra担当のprivate inventoryで、対象Hosting releaseとAPI rewrite先、Cloud Run service/image digest/実際にtrafficを受けるrevision、`mypage-server`のkeyless/Firestore/provider/HTTP bootstrap、dev URLとログの閲覧境界を確認する。欠ける経路・bootstrap・権限は`pending`として別の実装/配備・承認へ戻す。sourceの実装、Hosting候補、CI成功だけでこの前提をPASSにしない。実値・実account・実ログ本文を公開recordへ写さない。
 
 1. **release対を固定する。** [record](release-record.example.json)に承認済みdevelopmentのHosting release、rewrite、Cloud Run revision/image digest、FE/BE SHA、試験時間窓、rollback対をprivate referenceで固定する。試験中にrevisionが変われば結果を混ぜず再開始する。
-2. **S01: 実IPと429。** 承認された同一回線の2つの合成clientと、別回線の合成clientから、負荷を限定してOAuth開始と保護対象requestを試す。`RemoteAddr`と採用bucketの意味をprivate診断で確かめ、同一回線の429が別回線/利用者へ波及しないか、`Retry-After`が正で待機後に回復するかを記録する。単なる`X-Forwarded-For`変更を別回線の代用にしない。同じ送信元から偽装XFFを複数値に変えても制限を迂回・他者のbucketを消費できないことを確認する。現行codeは既定で`RemoteAddr`を使い、XFFを直接信用しない。`MYPAGE_TRUSTED_PROXY_HOPS`を設定する場合は、この試験で実clientのIPがXFFの右端から何番目に入るかを観測してから値を決める。設定できるのは1までで、2番目以降に入る場合は設定せず、経路側の対策が必要な事項として記録する。実proxy chainが不明、実IPを安全に観測できない、他者へ429が波及する場合はFAIL/PENDINGにし、確認された局所修正だけ別reviewする。
+2. **S01: uid単位の429と未認証リクエスト。** IP単位の制限は置かない（理由は[README](../README.md)の「HTTPとキャッシュ」）。承認された2つの合成利用者A・Bで、Aだけが`GET /api/mypage`を限定した負荷で繰り返し、429に達すること、`Retry-After`が正であること、待機後に回復すること、同じ時間帯のBが429にならないこと（uidをまたいで波及しない）を確認する。続けて、承認された同一の合成clientから無効なApp Checkのまま、またはログイン開始を一定回数反復し、アプリケーションが429を返さないこと（App Check拒否などの通常の4xxで終わること）を確認する。回数は承認された負荷の範囲に限り、Cloud Runの最大インスタンス数と同時実行数を超える負荷を掛けない。Hosting経由と`run.app`直接の両方で実施し、`RemoteAddr`や`X-Forwarded-For`の値は診断に不要なので記録しない。Aの429がBや別経路へ波及する、または未認証の反復に429が返る場合はFAIL/PENDINGにし、確認された局所修正だけ別reviewする。
 3. **S04: callback/log全層。** 承認済みの合成`code`/`state`/`__session` markerでcallbackのHosting→rewrite→Cloud Run転送、直後のcodeなしredirectを確認する。platform request log、利用中のCDN/Hosting access log、Cloud Run request/access log、application/security logと閲覧者・保持設定をprivateに照合し、query・Cookie・token・support参照が不要に記録/閲覧/長期保持されないことを確認する。合成markerで通らない実OAuth部分は承認済み検証accountで別途閉じる。アプリ側redactionだけでPASSにせず、閲覧不能な層もPASSにしない。raw URL/HAR/log/markerをPR・CI artifact・公開recordへ置かず、各層の結果・時刻・redactedな証跡参照だけ残す。
-4. **結果の扱い。** S01/S04のpass/fail/pendingと局所修正の根拠をrelease対へ結び付ける。漏洩または誤った429波及があれば0B Gateを閉じ、必要な範囲だけ修正して同じ実経路で再検証する。Redis、WAF、分散limiter、先行ログ基盤の追加を試験の前提にしない。production公開前にも対象release対でログとrate limitの同等の確認を行う。
+4. **結果の扱い。** S01/S04のpass/fail/pendingと局所修正の根拠をrelease対へ結び付ける。漏洩または誤った429波及があれば0B Gateを閉じ、必要な範囲だけ修正して同じ実経路で再検証する。Redis、WAF、分散limiter、先行ログ基盤の追加を試験の前提にしない。production公開前にも対象release対でログとuid制限の同等の確認を行う。
 
 ## Deploy / rollback rehearsal
 

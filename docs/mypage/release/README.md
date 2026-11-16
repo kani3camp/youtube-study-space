@@ -8,7 +8,7 @@
 
 ## 構成と配備の入口
 
-開発・本番とも、Firebase Hosting (React/Vite)、`/api/**`の書き換え、Cloud Run Go BFF、Firebase Authentication、Firestoreで構成する。Cloudflareはドメイン登録とDNSだけに使う。初期構成にManaged WAF・Cloud Armor・専用外部LB・Cloud Run Webは含めない。標準の`run.app`にも直接到達できるため、Hostingと直接Runの両方で認証・App Check・SAC・Origin・IP/UID制限・S01/S04を検証する。
+開発・本番とも、Firebase Hosting (React/Vite)、`/api/**`の書き換え、Cloud Run Go BFF、Firebase Authentication、Firestoreで構成する。Cloudflareはドメイン登録とDNSだけに使う。初期構成にManaged WAF・Cloud Armor・専用外部LB・Cloud Run Webは含めない。標準の`run.app`にも直接到達できるため、Hostingと直接Runの両方で認証・App Check・SAC・Origin・uid制限・S01/S04を検証する。
 
 公開ドメインは`https://moku.work/`とする。登録のActive状態、DNS/TLS、OAuthコールバック、本番配備は対象環境を再読み取りして確認する。
 

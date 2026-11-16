@@ -16,13 +16,7 @@ func TestBootstrapRequiresExplicitReadinessAndRejectsUnsafeConfigurationWithoutA
 	config, err = configurationFrom(get)
 	require.NoError(t, err)
 	require.Equal(t, values["MYPAGE_HOSTING_BACKEND_HOST"], config.server.HostingBackendHost)
-	require.Zero(t, config.server.TrustedProxyHops)
-	values["MYPAGE_TRUSTED_PROXY_HOPS"] = "1"
-	config, err = configurationFrom(get)
-	require.NoError(t, err)
-	require.Equal(t, 1, config.server.TrustedProxyHops)
-	delete(values, "MYPAGE_TRUSTED_PROXY_HOPS")
-	for _, tc := range []struct{ key, value string }{{"MYPAGE_INFRASTRUCTURE_READY", ""}, {"FIRESTORE_EMULATOR_HOST", "127.0.0.1:8080"}, {"FIREBASE_AUTH_EMULATOR_HOST", "127.0.0.1:9099"}, {"GOOGLE_APPLICATION_CREDENTIALS", "synthetic-key-file"}, {"MYPAGE_ENVIRONMENT", "unknown"}, {"MYPAGE_REGION", "asia-northeast2"}, {"MYPAGE_PUBLIC_ORIGIN", "http://example.invalid"}, {"MYPAGE_HOSTING_BACKEND_HOST", "other.example.test"}, {"MYPAGE_SIGNER_EMAIL", "synthetic@demo-other.iam.gserviceaccount.com"}, {"MYPAGE_OAUTH_CLIENT_SECRET", ""}, {"MYPAGE_WEB_APP_ID", "1:987654321:web:synthetic"}, {"PORT", "synthetic"}, {"PORT", "65536"}, {"GOOGLE_CLOUD_PROJECT", "invalid project"}, {"MYPAGE_TRUSTED_PROXY_HOPS", "-1"}, {"MYPAGE_TRUSTED_PROXY_HOPS", "2"}, {"MYPAGE_TRUSTED_PROXY_HOPS", "5"}, {"MYPAGE_TRUSTED_PROXY_HOPS", "01"}, {"MYPAGE_TRUSTED_PROXY_HOPS", " 1"}, {"MYPAGE_TRUSTED_PROXY_HOPS", "two"}} {
+	for _, tc := range []struct{ key, value string }{{"MYPAGE_INFRASTRUCTURE_READY", ""}, {"FIRESTORE_EMULATOR_HOST", "127.0.0.1:8080"}, {"FIREBASE_AUTH_EMULATOR_HOST", "127.0.0.1:9099"}, {"GOOGLE_APPLICATION_CREDENTIALS", "synthetic-key-file"}, {"MYPAGE_ENVIRONMENT", "unknown"}, {"MYPAGE_REGION", "asia-northeast2"}, {"MYPAGE_PUBLIC_ORIGIN", "http://example.invalid"}, {"MYPAGE_HOSTING_BACKEND_HOST", "other.example.test"}, {"MYPAGE_SIGNER_EMAIL", "synthetic@demo-other.iam.gserviceaccount.com"}, {"MYPAGE_OAUTH_CLIENT_SECRET", ""}, {"MYPAGE_WEB_APP_ID", "1:987654321:web:synthetic"}, {"PORT", "synthetic"}, {"PORT", "65536"}, {"GOOGLE_CLOUD_PROJECT", "invalid project"}} {
 		t.Run(tc.key, func(t *testing.T) {
 			old := values[tc.key]
 			values[tc.key] = tc.value

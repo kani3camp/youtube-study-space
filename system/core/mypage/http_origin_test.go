@@ -1,7 +1,6 @@
 package mypage
 
 import (
-	"errors"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -52,39 +51,6 @@ func TestHTTPRejectsForeignOriginHostAndAmbiguousCookieBeforeVerification(t *tes
 	h.PublicOrigin = ""
 	if w := boundaryRequest(h, "GET", "/api/mypage", ""); w.Code != 503 {
 		t.Fatal("missing fixed origin did not fail closed")
-	}
-}
-
-func TestHTTPIPLimitBoundsRejectedVerificationAndIgnoresForwardedIP(t *testing.T) {
-	for _, appFailure := range []bool{true, false} {
-		h, s, v, reads := boundaryFixture()
-		if appFailure {
-			v.appErr = errors.New("synthetic rejection")
-		} else {
-			v.tokenErr = errors.New("synthetic rejection")
-		}
-		for attempt := 0; attempt < 25; attempt++ {
-			r := httptest.NewRequest("GET", "/api/mypage", nil)
-			r.Host = "mypage.example.test"
-			r.Header.Set("X-Firebase-AppCheck", "synthetic")
-			r.Header.Set("Authorization", "Bearer synthetic")
-			r.Header.Set("X-Forwarded-For", strings.Repeat("x", attempt+1))
-			w := httptest.NewRecorder()
-			h.ServeHTTP(w, r)
-			if attempt >= 20 && (w.Code != 429 || w.Header().Get("Retry-After") == "") {
-				t.Fatalf("attempt=%d status=%d", attempt, w.Code)
-			}
-		}
-		if v.appCalls != 20 || s.reads != 0 || *reads != 0 {
-			t.Fatalf("app=%d account=%d snapshot=%d", v.appCalls, s.reads, *reads)
-		}
-		wantTokenCalls := 20
-		if appFailure {
-			wantTokenCalls = 0
-		}
-		if v.tokenCalls != wantTokenCalls {
-			t.Fatal("ID-token verifier escaped IP limit")
-		}
 	}
 }
 
