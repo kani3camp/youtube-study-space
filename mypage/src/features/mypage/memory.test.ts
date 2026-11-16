@@ -172,6 +172,54 @@ describe('private MyPage memory', () => {
 		})
 	})
 
+	it('日付をまたぐ全項目取得が部分応答でも、集計が取れるまで全項目取得を続ける', async () => {
+		vi.setSystemTime(new Date('2026-10-06T14:56:00Z'))
+		const partial = sample()
+		partial.generatedAt = '2026-10-06T15:01:00Z'
+		partial.partial = true
+		partial.summary = {
+			availability: 'unavailable',
+			reasonCode: 'SOURCE_UNAVAILABLE',
+			data: null,
+		} as unknown as MyPage['summary']
+		partial.recent7Days = {
+			availability: 'unavailable',
+			reasonCode: 'SOURCE_UNAVAILABLE',
+			data: [],
+		} as unknown as MyPage['recent7Days']
+		const first = sample()
+		first.generatedAt = '2026-10-06T14:56:00Z'
+		const recovered = sample()
+		recovered.generatedAt = '2026-10-06T15:11:00Z'
+		const load = vi
+			.fn()
+			.mockResolvedValueOnce(first)
+			.mockResolvedValueOnce(partial)
+			.mockResolvedValueOnce(recovered)
+			.mockResolvedValue(recovered)
+		const memory = new MyPageMemory(load, async () => {})
+		memory.setIdentity('synthetic')
+		await settle()
+		await vi.advanceTimersByTimeAsync(5 * 60_000)
+		await vi.advanceTimersByTimeAsync(5 * 60_000)
+		expect(load.mock.calls.map((call) => call[4])).toEqual([
+			false,
+			false,
+			false,
+		])
+		expect(memory.getSnapshot().data?.summary.today.asOf).toBe(
+			'2026-10-06T15:11:00Z',
+		)
+		await vi.advanceTimersByTimeAsync(5 * 60_000)
+		expect(load.mock.calls.map((call) => call[4])).toEqual([
+			false,
+			false,
+			false,
+			true,
+		])
+		memory.dispose()
+	})
+
 	it('restores totals after a successful token retry during polling', async () => {
 		const retry = deferred<MyPage>()
 		const next = sample()

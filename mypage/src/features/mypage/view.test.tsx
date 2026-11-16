@@ -246,6 +246,34 @@ describe('MyPage observable display', () => {
 		expect(html).toContain('10月6日（火）')
 		expect(html).not.toContain('10月6日（火・今日）')
 	})
+	it('does not move today backwards when the retained current section is stale', () => {
+		const s = state()
+		if (!s.data) throw new Error('synthetic data missing')
+		s.data.generatedAt = '2026-10-07T00:05:00Z'
+		s.data.current.asOf = '2026-10-06T03:00:00Z'
+		s.data.current.stale = true
+		const dates = [
+			'2026-10-01',
+			'2026-10-02',
+			'2026-10-03',
+			'2026-10-04',
+			'2026-10-05',
+			'2026-10-06',
+			'2026-10-07',
+		]
+		s.data.recent = s.data.recent.map((item, index) => ({
+			...item,
+			date: dates[index],
+			asOf: '2026-10-07T00:05:00Z',
+		}))
+		for (const key of ['today', 'week', 'lifetime'] as const)
+			s.data.summary[key].asOf = '2026-10-07T00:05:00Z'
+		const html = markup(s)
+		expect(html).toContain('10月7日（水・今日）')
+		expect(html).not.toContain('10月6日（火・今日）')
+		expect(html).not.toMatch(/\d+\/\d+の作業時間/)
+		expect(html).not.toContain('週の作業時間')
+	})
 	it('keeps the last verified value and timestamp when a later history read fails', () => {
 		const s = state()
 		if (!s.data) throw new Error('synthetic data missing')

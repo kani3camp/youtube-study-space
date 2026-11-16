@@ -336,6 +336,17 @@ function workStatsAsOf(data: ViewData | null) {
 	return newest
 }
 
+// 画面全体の「今日」。保持された古い入室状況が日付を巻き戻さないよう、
+// 入室状況の時刻と全体のgeneratedAtのうち新しい方のJST日付を使う。
+function viewDate(data: ViewData | null) {
+	if (!data) return null
+	const times = [data.current.asOf, data.generatedAt].filter(
+		(value): value is string => !!value && Number.isFinite(Date.parse(value)),
+	)
+	if (times.length === 0) return null
+	return jstDate(Math.max(...times.map((value) => Date.parse(value))))
+}
+
 function SummaryCard({
 	data,
 	busy,
@@ -360,9 +371,7 @@ function SummaryCard({
 					{(['today', 'week', 'lifetime'] as const).map((key) => {
 						const value = data?.summary[key]
 						const originalDate = value?.asOf ? jstDate(value.asOf) : null
-						const currentDate = data?.current.asOf
-							? jstDate(data.current.asOf)
-							: null
+						const currentDate = viewDate(data)
 						return (
 							<div className={`metric metric-${key}`} key={key}>
 								<dt>
@@ -417,8 +426,7 @@ function RecentCard({
 	const selected =
 		days.find((item) => item.date === selectedDate) ?? days.at(-1)
 	const maxMinutes = Math.max(1, ...days.map((item) => item.minutes ?? 0))
-	// SummaryCardの「今日」と同じく、最新の取得時刻（入室状況）のJST日付で判定する。
-	const today = data ? jstDate(data.current.asOf ?? data.generatedAt) : null
+	const today = viewDate(data)
 	return (
 		<section
 			className="card recent-card"

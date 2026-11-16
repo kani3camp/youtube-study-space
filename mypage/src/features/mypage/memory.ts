@@ -391,13 +391,20 @@ export class MyPageMemory {
 		if (manual && this.now() - this.lastManual < 2000) return
 		if (manual) this.lastManual = this.now()
 		this.pendingManual = false
-		// 保持中の全項目のJST日付が現在と異なる場合は、次の定期取得で全項目を取り直す。
-		// 失敗時はgeneratedAtが古いままなので、次の定期取得でも全項目を再試行する。
+		// 日付に依存する集計（summary・recent）が現在のJST日付に取得済みでなければ、
+		// 次の定期取得で全項目を取り直す。部分応答でgeneratedAtだけが進んでも、
+		// 項目ごとの最終成功時刻（asOf）で判定するため再試行が止まらない。
+		const today = this.now()
 		let currentOnly =
 			periodic &&
 			!manual &&
 			this.state.data !== null &&
-			jstDate(this.state.data.generatedAt) === jstDate(this.now())
+			[
+				...Object.values(this.state.data.summary),
+				...this.state.data.recent,
+			].every(
+				(item) => item.asOf === null || jstDate(item.asOf) === jstDate(today),
+			)
 		if (this.timer !== null) clearTimeout(this.timer)
 		this.timer = null
 		const uid = this.uid
