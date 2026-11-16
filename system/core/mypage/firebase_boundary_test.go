@@ -3,6 +3,7 @@ package mypage
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,6 +39,8 @@ func TestFirebaseBoundaryAcceptsOnlyCurrentProjectCustomChannelIdentity(t *testi
 		mutate func(*auth.Token)
 	}{
 		{"valid", func(*auth.Token) {}},
+		{"issue within clock skew", func(v *auth.Token) { v.IssuedAt = now.Add(tokenIssuedAtClockSkew).Unix() }},
+		{"auth within clock skew", func(v *auth.Token) { v.AuthTime = now.Add(tokenIssuedAtClockSkew).Unix() }},
 		{"wrong project", func(v *auth.Token) { v.Audience = "demo-other" }},
 		{"wrong issuer", func(v *auth.Token) { v.Issuer = "https://securetoken.google.com/demo-other" }},
 		{"old google login", func(v *auth.Token) { v.Firebase.SignInProvider = "google.com" }},
@@ -45,8 +48,8 @@ func TestFirebaseBoundaryAcceptsOnlyCurrentProjectCustomChannelIdentity(t *testi
 		{"not channel uid", func(v *auth.Token) { v.UID = "../../synthetic" }},
 		{"subject mismatch", func(v *auth.Token) { v.Subject = "UCsynthetic0000000000002" }},
 		{"expiry boundary", func(v *auth.Token) { v.Expires = now.Unix() }},
-		{"future issue", func(v *auth.Token) { v.IssuedAt = now.Add(time.Second).Unix() }},
-		{"future auth", func(v *auth.Token) { v.AuthTime = now.Add(time.Second).Unix() }},
+		{"issue beyond clock skew", func(v *auth.Token) { v.IssuedAt = now.Add(tokenIssuedAtClockSkew + time.Second).Unix() }},
+		{"auth beyond clock skew", func(v *auth.Token) { v.AuthTime = now.Add(tokenIssuedAtClockSkew + time.Second).Unix() }},
 		{"missing issue", func(v *auth.Token) { v.IssuedAt = 0 }},
 		{"missing auth", func(v *auth.Token) { v.AuthTime = 0 }},
 	} {
@@ -56,7 +59,7 @@ func TestFirebaseBoundaryAcceptsOnlyCurrentProjectCustomChannelIdentity(t *testi
 			f := &fakeFirebaseClient{token: &value}
 			v := &FirebaseBoundary{Client: f, ProjectID: "demo-mypage", Now: func() time.Time { return now }}
 			identity, err := v.VerifyIDToken(context.Background(), "synthetic-id-token")
-			if tc.name == "valid" {
+			if tc.name == "valid" || strings.HasSuffix(tc.name, "within clock skew") {
 				require.NoError(t, err)
 				require.Equal(t, VerifiedIdentity{UID: good.UID, Provider: "custom"}, identity)
 			} else {
