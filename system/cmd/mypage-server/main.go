@@ -46,14 +46,6 @@ func configurationValuesFrom(get func(string) string) (configuration, error) {
 		return fail()
 	}
 	config := configuration{server: mypage.ServerConfig{Environment: environment, ProjectID: get("GOOGLE_CLOUD_PROJECT"), ProjectNumber: get("MYPAGE_PROJECT_NUMBER"), WebAppID: get("MYPAGE_WEB_APP_ID"), PublicOrigin: get("MYPAGE_PUBLIC_ORIGIN"), HostingBackendHost: get("MYPAGE_HOSTING_BACKEND_HOST"), Policy: mypage.Policy{Privacy: get("MYPAGE_PRIVACY_VERSION"), Terms: get("MYPAGE_TERMS_VERSION")}}, signer: get("MYPAGE_SIGNER_EMAIL"), clientID: get("MYPAGE_OAUTH_CLIENT_ID"), clientSecret: get("MYPAGE_OAUTH_CLIENT_SECRET"), metadataKey: get("MYPAGE_YOUTUBE_API_KEY"), port: get("PORT")}
-	// 未設定は0（転送ヘッダーを使わない）。実経路で観測した段数だけを10進数で指定する。
-	if hops := get("MYPAGE_TRUSTED_PROXY_HOPS"); hops != "" {
-		parsed, err := strconv.Atoi(hops)
-		if err != nil || strconv.Itoa(parsed) != hops {
-			return fail()
-		}
-		config.server.TrustedProxyHops = parsed
-	}
 	if config.port == "" {
 		config.port = "8080"
 	}
