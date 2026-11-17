@@ -12,10 +12,9 @@ import (
 	"cloud.google.com/go/firestore"
 )
 
-// SnapshotReadObservationには上限付き件数とクエリエラーフラグだけを含める。
-// チャンネル識別子・文書パス・データ・エラーメッセージは保存しない。
-// 返却文書数は課金読み取り数とは異なる。空クエリの最低課金・インデックス・再試行を含む
-// 全体費用はQuery Explain / Cloud Billingで確認する。クエリ失敗を正常な空結果として扱わない。
+// SnapshotReadObservation は上限付き件数とクエリエラーフラグのみを記録する（UID・パス・本文・生エラーは含めない）。
+// 返却文書数は実際の課金読み取り数とは異なる（空クエリ最低課金・インデックス・再試行を含む費用は
+// Query Explain や Cloud Billing で確認すること）。クエリ失敗を正常な 0 件として扱ってはならない。
 type SnapshotReadObservation struct {
 	UserLookups         int
 	SeatQueries         int
@@ -36,8 +35,8 @@ type SnapshotReader interface {
 
 type FirestoreSnapshotReader struct {
 	Client *firestore.Client
-	// 空なら従来の原記録読み取りを使い、明示的な導入・ロールバックに対応する。
-	// epochは旧書き込み処理の完了を待った後の、検証済み上限付き移行に一致する必要がある。
+	// 空文字の場合は従来の原記録読み取りを使い、明示的な切替・ロールバックに対応する。
+	// epoch を指定する場合は、旧書き込み処理の完了待ちを経た検証済み移行世代と一致させる必要がある。
 	MonthlyEpoch string
 	// 任意のフックで、スナップショット読み取り成功後に一度だけ呼ぶ。
 	Observe func(SnapshotReadObservation)

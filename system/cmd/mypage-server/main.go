@@ -33,8 +33,9 @@ func configurationFrom(get func(string) string) (configuration, error) {
 	return configurationValuesFrom(get)
 }
 
-// configurationValuesFromは、起動とオフライン準備で共有する。
-// 基盤準備の宣言は別途起動を制限する。この純粋な検証では確認せず、準備完了の証拠にも使わない。
+// configurationValuesFrom はサーバー起動とオフライン設定検査で共有する。
+// MYPAGE_INFRASTRUCTURE_READY は起動を制限する宣言だが、この純粋な設定検査では確認せず、
+// 基盤準備完了の根拠としても使わない。
 func configurationValuesFrom(get func(string) string) (configuration, error) {
 	fail := func() (configuration, error) { return configuration{}, errors.New("MyPage configuration unavailable") }
 	if get("FIRESTORE_EMULATOR_HOST") != "" || get("FIREBASE_AUTH_EMULATOR_HOST") != "" || get("GOOGLE_APPLICATION_CREDENTIALS") != "" {
@@ -65,8 +66,8 @@ func configurationValuesFrom(get func(string) string) (configuration, error) {
 	return config, nil
 }
 
-// テストで置き換えられるのは、外部初期化操作だけとする。
-// 設定検査、プロバイダー・ハンドラーの遅延組み立て、終了処理は本番起動と共有する。
+// テストで差し替えられるのは外部リソースの初期化のみとする。
+// 設定検査・ハンドラーの遅延組み立て・終了処理は本番起動と共通のまま使う。
 type bootstrapDependencies struct {
 	appcheck    func(context.Context, string) (mypage.FirebaseAppCheckClient, error)
 	credentials func(context.Context) (*google.Credentials, error)

@@ -12,9 +12,9 @@ import (
 	"app.modules/core/supportdelete"
 )
 
-// FirestoreDeletionEffectsはソースで確認できるFirestore許可リストを実装する。
-// RestoreGuardは同じプロジェクト・世代・cutoffについて、全実行系の停止と完了待ち、一覧の完全性、
-// 旧キュー・import・restoreの排除を独立して証明する必要がある。nilや不明な証拠では変更しない。
+// FirestoreDeletionEffects はソースコード上で定義された Firestore の削除対象コレクションを実装する。
+// RestoreGuard は、同一プロジェクト・世代・cutoff に対して全実行系の停止と完了待ち（drain）、
+// 棚卸し完了、古いキュー・import・restore からの再生成排除を独立して保証する必要がある（nil や不明な証拠では変更しない）。
 type FirestoreDeletionEffects struct {
 	Store        *FirestoreDeletionStore
 	RestoreGuard supportdelete.Effects
@@ -86,8 +86,8 @@ func (a *FirestoreDeletionEffects) Apply(ctx context.Context, op supportdelete.O
 		}
 	}
 	for _, lookup := range lookups {
-		// 上限付き先頭ページを削除し、部分コミットやACK消失後の文書の読み飛ばしを避ける。
-		// 各ページで、同じ所有者の実行保護状態をトランザクション内で読み直す。
+		// 上限付きの先頭ページから順に削除し、部分コミットや ACK 消失による文書の読み飛ばしを防ぐ。
+		// 各ページの削除トランザクション内で、同じ所有者の実行保護状態も毎回読み直す。
 		for page := 0; page < 10000; page++ {
 			found := 0
 			err = a.Store.Client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {

@@ -37,8 +37,8 @@ type HTTPHandler struct {
 	// 環境ごとにHTTPSオリジンを1つ固定し、リクエストヘッダーから導出しない。
 	// 実際のHostingやプロキシのホスト転送は配備時に検証する。
 	PublicOrigin string
-	// Hostingの書き換えで観測した固定バックエンドホスト。転送ヘッダーはルーティング情報であり、
-	// 本人確認の証拠やAuth/App Checkの代替にはしない。
+	// Hosting からの書き換え先として観測済みの Cloud Run ホスト名。
+	// 転送ヘッダーはルーティング情報であり、本人確認の根拠や Auth / App Check の代替にはしない。
 	HostingBackendHost string
 	// uid単位のレート制限だけを持つ。IP単位の制限は、Cloud RunのRemoteAddrが利用者を区別できないため置かない。
 	limiter processLimiter
@@ -325,7 +325,7 @@ func strictBody(w http.ResponseWriter, r *http.Request, target any) error {
 }
 
 // encoding/jsonはフィールド名の大小文字を区別せず、重複キーも受け入れる。
-// 公開スキーマでは、完全一致する曖昧さのないフィールド名を必須とする。
+// 公開スキーマでは完全一致する曖昧さのないフィールド名を必須とする。
 func validObjectKeys(body []byte, target any) bool {
 	shape := reflect.TypeOf(target)
 	if shape == nil || shape.Kind() != reflect.Pointer || shape.Elem().Kind() != reflect.Struct {

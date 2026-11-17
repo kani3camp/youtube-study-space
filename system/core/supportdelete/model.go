@@ -1,5 +1,5 @@
-// Package supportdeleteは、申請に結び付いた削除を調整する。SDK初期化は含めない。
-// 信頼済みストアと操作アダプターは明示的に渡す必要がある。
+// Package supportdelete はサポート申請に紐づく削除フローを調整する（SDK 初期化は含まない）。
+// 信頼済みのストアと操作アダプターは呼び出し元から明示的に渡す必要がある。
 package supportdelete
 
 import (
@@ -94,8 +94,8 @@ type Recovery struct {
 	ObservedAt                                           time.Time
 }
 
-// Acquireは証拠を単一実行へアトミックに確保し、プライバシー保護を有効にする。
-// Refresh/Commit/Finalizeは、所有者・リビジョン・申請・制御世代で実行を保護する。
+// Acquire は削除証拠を単一の実行へアトミックに確保し、プライバシー保護（privacyDeletion）を有効にする。
+// Refresh / Commit / Finalize は所有者・リビジョン・申請・制御世代を照合して実行を保護し、
 // リース期限や暗黙の引き継ぎは設けない。
 type Store interface {
 	Acquire(context.Context, Start) (Execution, error)
@@ -124,7 +124,7 @@ func Steps() []Step {
 			steps = append(steps, Step{"delete", s})
 		}
 	}
-	// Canon 05では、主データ・Web・派生データ・分析データの消去後にAuthを削除する。
+	// Canon 05 では主データ・Web・派生データ・分析データの消去後に Auth を削除する。
 	// 一覧の並びは実行順序ではない。
 	steps = append(steps, Step{"delete", "firebase-auth"})
 	for _, s := range DeletionScopes() {

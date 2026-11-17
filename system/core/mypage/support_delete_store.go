@@ -237,8 +237,8 @@ func (s *FirestoreDeletionStore) Refresh(ctx context.Context, expected supportde
 		result.Generation = control.Control.Generation
 		result.Revision++
 		result.UpdatedAt = now.UTC().Truncate(time.Microsecond)
-		// 独立したモデレーション変更は、部分的な不存在証拠を無効にする。
-		// 永続化した再開意図からは戻らず、再開後の正当な新規利用を保持する。
+		// 独立したモデレーション状態の変更が起きた場合、それまでの部分的な不存在確認は無効とする。
+		// ただし永続化された再開段階（ResumeStart 以降）からは戻らず、再開後の正当な新規利用は保持する。
 		if result.Cursor > supportdelete.InspectionStart() && result.Cursor < supportdelete.ResumeStart() {
 			result.Cursor = supportdelete.InspectionStart()
 		}
@@ -335,8 +335,8 @@ func (s *FirestoreDeletionStore) Finalize(ctx context.Context, expected supportd
 		if err != nil {
 			return supportdelete.ErrConflict
 		}
-		// 最小限の推測不能な完了受付には、チャンネル・証拠・申請への関連を残さない。
-		// 無効状態の制御チェックポイントは、TTL・リセット・削除を行わず保持する。
+		// 最小限の推測不能な完了レコードに置き換え、チャンネル・証拠・申請との関連は残さない。
+		// 無効化したアクセス制御チェックポイントは、TTL や削除を設けずそのまま保持する。
 		terminal := map[string]interface{}{"schemaVersion": int64(1), "acceptedAt": e.AcceptedAt, "deleteBy": e.DeleteBy, "completedAt": now.UTC().Truncate(time.Microsecond)}
 		currentAuthCleanup, err := s.prepareCurrentAuthTarget(tx, e)
 		if err != nil {

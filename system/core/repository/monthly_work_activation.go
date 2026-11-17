@@ -10,9 +10,9 @@ import (
 	"app.modules/core/serviceaccess"
 )
 
-// SetWorkMonthReaderは明示的な運用切替・ロールバックであり、通常APIの副作用にはしない。
-// 想定Userリビジョンと元のプライバシーチェックポイントは、レビュー済みdry-runから取得する。
-// 切替には全旧書き込み処理の完了確認が必要であり、ローカル・モック実行ではその運用証拠を提供できない。
+// SetWorkMonthReader は運用担当者による明示的な切替・ロールバック操作であり、通常 API の副作用としては実行しない。
+// 期待する User リビジョンとアクセス制御チェックポイントは、事前にレビューした dry-run から取得して渡す。
+// 有効化には旧書き込み処理がすべて完了している確認が必須であり、ローカルやモック試験ではその運用根拠を代替できない。
 func (c *FirestoreControllerImplements) SetWorkMonthReader(ctx context.Context, uid, checkpoint string, expectedUserRevision time.Time, enabled, apply bool) error {
 	if uid == "" || checkpoint == "" || expectedUserRevision.IsZero() {
 		return ErrWorkHistoryConflict

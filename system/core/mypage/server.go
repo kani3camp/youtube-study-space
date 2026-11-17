@@ -17,9 +17,9 @@ import (
 	"google.golang.org/api/option"
 )
 
-// NewKeylessFirebaseClientは既存ADCのtoken sourceを受け取り、鍵ファイルは使わない。
-// 指定署名者の構築とiam.serviceAccounts.signBlob付与は、
-// 人が承認する別のインフラ操作であり、このコンストラクターでは行わない。
+// NewKeylessFirebaseClient は既存 ADC のトークンソースを受け取り、秘密鍵ファイルは使わない。
+// 指定署名者 SA の作成と iam.serviceAccounts.signBlob 権限付与は、
+// 人が別途承認・実行するインフラ操作であり、このコンストラクターでは行わない。
 func NewKeylessFirebaseClient(ctx context.Context, projectID, signerEmail string, credentials *google.Credentials, client *http.Client) (*auth.Client, error) {
 	if validateKeylessSigner(projectID, signerEmail) != nil || credentials == nil || credentials.TokenSource == nil || len(credentials.JSON) != 0 || (credentials.ProjectID != "" && credentials.ProjectID != projectID) || os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") != "" || ctx.Err() != nil {
 		return nil, apiError("TEMPORARY_UNAVAILABLE")
@@ -60,8 +60,8 @@ func validHostingBackendHost(host string) bool {
 	return hostingBackendHostPattern.MatchString(host)
 }
 
-// ValidateRuntimeはADC探索前に、固定の環境・プロジェクト・アプリ・オリジン・署名者を確認する。
-// 準備完了の判断は、人による基盤確認として残す。
+// ValidateRuntime は ADC を探索する前に、環境・プロジェクト・アプリ・オリジン・署名者設定を検証する。
+// 基盤が実際に利用可能かどうかの判断は、人による準備確認として残す。
 func (config ServerConfig) ValidateRuntime(signerEmail string) error {
 	if err := config.validate(); err != nil {
 		return err

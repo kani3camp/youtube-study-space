@@ -6,8 +6,8 @@ import (
 	"io"
 )
 
-// 設定検証は基盤検査や実環境のE2Eではない。報告項目はすべて範囲を限定した固定値とする。
-// 共有可能な準備記録へ、入力設定や依存先エラーを出さない。
+// 設定検証は基盤検査や実環境 E2E ではなく、報告項目も範囲を限定した固定値のみを出力する。
+// 共有可能な出力に、入力設定値や依存先の生エラーは含めない。
 type configurationReport struct {
 	SchemaVersion               int    `json:"schemaVersion"`
 	Mode                        string `json:"mode"`
@@ -52,8 +52,8 @@ func command(args []string, get func(string) string, stdout, stderr io.Writer, s
 	return exitCode
 }
 
-// 配備診断用に、既存の安全な起動段階を維持する。
-// 厳密な許可リストで、予期しない依存先やコールバックのエラーをログに出さない。
+// 配備時の切り分け用に、定型化された起動段階メッセージを維持する。
+// 厳密な許可リストを使い、予期しない依存先やコールバックの生エラーをログに出さない。
 func startupDiagnostic(err error) string {
 	switch err.Error() {
 	case "MyPage configuration unavailable":

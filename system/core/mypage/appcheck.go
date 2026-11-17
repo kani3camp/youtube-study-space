@@ -19,10 +19,10 @@ type FirebaseAppCheckClient interface {
 	VerifyToken(string) (*appcheck.DecodedAppCheckToken, error)
 }
 
-// NewFirebaseAppCheckClientは起動時にだけ呼ぶ。ctxは初回公開JWKS取得の期限を制限する。
-// 定期更新は公式SDKがプロセス内で管理する。
-// App Checkのaudienceはproject numberを使うため、Authとは別のAppに固定する。
-// 署名鍵は公開JWKSから得る。ADCやサービスアカウント鍵は不要。
+// NewFirebaseAppCheckClient は起動時に 1 回だけ呼ぶ（ctx で初回公開 JWKS 取得の期限を制限する）。
+// 以降の JWKS 定期更新は公式 SDK がプロセス内で管理する。
+// App Check の audience には project number が使われるため、Auth 用 App（project ID）とは別の App を生成する。
+// 署名鍵は公開 JWKS から取得するため、ADC やサービスアカウント鍵は不要。
 func NewFirebaseAppCheckClient(ctx context.Context, projectNumber string) (FirebaseAppCheckClient, error) {
 	if !projectNumberPattern.MatchString(projectNumber) || ctx.Err() != nil {
 		return nil, apiError("TEMPORARY_UNAVAILABLE")

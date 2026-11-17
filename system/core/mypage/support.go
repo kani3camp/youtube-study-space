@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// SupportPurposeはサーバー管理レコードに固定する。受付で検証済み区分を受け入れても、
-// ブラウザ入力は本人確認や操作の実行権限にならない。
+// SupportPurpose はサーバー管理レコードに固定される。
+// ブラウザから入力や確認区分が渡されても、それ自体は本人確認や操作の実行権限にならない。
 type SupportPurpose string
 
 const (
@@ -24,8 +24,8 @@ type SupportBinding struct {
 	ChallengeHash string         `firestore:"challengeHash"`
 }
 
-// SupportRequestはサーバー専用。チャレンジはランダムに作り、ハッシュで保存する。
-// 成功した証拠は本人確認だけを意味し、実行承認にはしない。
+// SupportRequest はサーバー専用の受付レコード（チャレンジはランダム生成し、ハッシュのみ保存）。
+// 確認に成功しても本人確認が完了したことを示すのみで、削除などの実行承認そのものにはならない。
 type SupportRequest struct {
 	RequestID          string         `firestore:"requestId"`
 	Environment        string         `firestore:"environment"`

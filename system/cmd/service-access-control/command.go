@@ -89,8 +89,8 @@ func execute(ctx context.Context, r request, p ports, now time.Time, out *report
 		out.Code = "MODERATION_CLEARED"
 	}
 	if r.Operation == "block" {
-		// コミット・検証済みの保護状態を主要な制御手段とする。
-		// 部分失敗から復旧できるよう、冪等なブロックでも失効を再試行する。
+		// コミット・検証済みの制御状態を主たる保護手段とする。
+		// 部分失敗から復旧できるよう、すでに block 状態（冪等再実行）であってもセッション失効を再試行する。
 		out.Code = "MODERATION_ACTIVE"
 		if p.Revoke == nil || p.Revoke(ctx, r.Target.ChannelID) != nil {
 			out.Status, out.Code, out.Revoke = "partial-failure", "REVOKE_UNAVAILABLE", "failed"

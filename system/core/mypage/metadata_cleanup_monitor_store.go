@@ -69,9 +69,8 @@ func (s *FirestoreMetadataCleanupMonitor) Record(ctx context.Context, next Metad
 	return nil
 }
 
-// NewFirestoreMetadataCleanupRunnerは、アカウント削除処理と永続監視を、
-// 明示して選んだ同じ既存プロジェクト・クライアントに結び付ける。構築時に処理は開始しない。
-// 承認済みランタイム・スケジュール・期限対応の監視出力先は呼び出し元が管理する。
+// NewFirestoreMetadataCleanupRunner は削除処理と監視状態ストアを、指定された同一プロジェクト・クライアントに紐づける。
+// 構築時には処理を開始せず、スケジューラーや期限対応の出力先は呼び出し元が管理する。
 func NewFirestoreMetadataCleanupRunner(client *firestore.Client, projectID string, signals MetadataCleanupHealthRecorder, now func() time.Time, batchSize, maxPages int) (*MetadataCleanupRunner, error) {
 	store := &FirestoreMetadataCleanupStore{Client: client, ProjectID: projectID}
 	if !store.valid() || signals == nil || now == nil || batchSize < 1 || batchSize > 1000 || maxPages < 1 || maxPages > 1000 {
@@ -83,8 +82,8 @@ func NewFirestoreMetadataCleanupRunner(client *firestore.Client, projectID strin
 	}, nil
 }
 
-// ACKは期限対応の監視出力先が受理したことを示し、運用担当者の受領は意味しない。
-// 比較後の消去で、並行して発生した新しいイベントを保持する。
+// ACK は期限対応の出力先が違反シグナルを受理したことを示す（運用担当者の確認完了までは意味しない）。
+// 想定時刻を比較してから消去することで、並行して記録された新しい期限違反を上書きせずに残す。
 func (s *FirestoreMetadataCleanupMonitor) AcknowledgeRetention(ctx context.Context, startedAt time.Time) error {
 	if !s.valid() || startedAt.IsZero() {
 		return ErrMetadataCleanupIncomplete

@@ -18,9 +18,9 @@ type DryRunSelector struct {
 	Now             time.Time
 }
 
-// DryRunReaderは変更・認証失効・Google APIの操作を持たない。
-// 受付・利用可能な証拠・対象一覧を1つの読み取り時刻に結び付ける。
-// TTLで消えたOAuth追跡記録は不明のままにし、実行を許可しない。
+// DryRunReader はデータの変更・認証失効・Google API 呼び出しを行わない読み取り専用インターフェース。
+// 受付記録・利用可能な本人確認証拠・対象件数を単一の読み取り時刻でまとめて確認する。
+// TTL で消去済みの OAuth 追跡記録は「不明」のまま残し、実行許可は出さない。
 type DryRunReader interface {
 	Inspect(context.Context, DryRunSelector) (DryRunSnapshot, error)
 }
@@ -79,8 +79,8 @@ func validateDryRunProof(value SupportRequest, oauth OAuthTransaction, s DryRunS
 	return nil
 }
 
-// BuildDryRunは秘匿処理済みの診断である。
-// 検証済み受付や観測件数は、実行権限やストア横断の消去証明にはならない。
+// BuildDryRun は秘匿項目を除いた読み取り専用の診断レポートを生成する。
+// 受付が確認済みであることや観測件数の取得だけでは、実行権限やストア横断の削除完了を証明するものではない。
 func BuildDryRun(ctx context.Context, s DryRunSelector, reader DryRunReader) (DryRunReport, error) {
 	if err := validateDryRunSelector(s); err != nil || reader == nil {
 		return DryRunReport{}, ErrDryRunUnavailable

@@ -12,8 +12,8 @@ import (
 	"app.modules/core/serviceaccess"
 )
 
-// APIErrorは安定した許可済みコードだけを持つ。
-// 依存先エラーを公開メッセージや通常のログ項目に使わない。
+// APIError は許可リストに含まれる安定したエラーコードのみを保持する。
+// 依存先の生エラーは公開メッセージや通常のログ項目に出さない。
 type APIError struct{ Code string }
 
 func (e *APIError) Error() string { return e.Code }
@@ -87,7 +87,7 @@ type AuthStore interface {
 	CompleteSession(context.Context, string, string, Policy, time.Time) error
 }
 
-// プロバイダー実装は、確認済みチャンネルを返す前に交換したOAuthトークンを破棄する。
+// プロバイダー実装は確認済みチャンネルを返す前に交換した OAuth トークンを破棄する。
 // 付与スコープにyoutube.readonlyがあることも確認する必要がある。
 type YouTubeOAuth interface {
 	AuthorizationURL(state string) string
@@ -298,9 +298,10 @@ func (s *AuthService) Confirm(ctx context.Context, id, confirmation string) (str
 	return s.confirmLogin(ctx, id, confirmation, value)
 }
 
-// confirmLoginは、同じリクエストで読み取り済みの確認済みトランザクションを使い、通常ログインを完了する。
-// /confirmの予算内で同じ読み取りを繰り返さないためである。valueは用途の判定とアクセス確認の対象チャンネルにだけ使う。
-// 一度限りの消費はvalueに依存せず、Consumeが自身のトランザクション内で状態・参照・同意・アクセスを読み直して検証する。
+// confirmLogin は、すでに読み取り済みの検証済みトランザクションを使って通常ログインを完了する
+// （/confirm の制限時間内で同じ読み取りを繰り返さないため）。
+// 渡された value は用途の判定とアクセス確認の対象チャンネル取得にのみ使い、
+// 一度限りの消費自体は Consume のトランザクション内で状態・参照・同意・アクセス状態を読み直して検証する。
 func (s *AuthService) confirmLogin(ctx context.Context, id, confirmation string, value OAuthTransaction) (string, error) {
 	if confirmation == "" {
 		return "", apiError("INVALID_REQUEST")

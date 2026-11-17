@@ -10,8 +10,8 @@ import (
 	"cloud.google.com/go/firestore"
 )
 
-// SupportRecoverySelectorは元の有人受付を表し、権限や本人証明には使わない。
-// 復旧の呼び出し元は、この正確な対応を独立して承認する必要がある。
+// SupportRecoverySelector は元の有人受付の識別情報を表すが、これ自体を権限や本人証明には使わない。
+// 復旧の呼び出し元は、この対応づけが正しいことを別途承認する必要がある。
 type SupportRecoverySelector struct {
 	Environment, ProjectID, RequestID, Channel string
 	Purpose                                    SupportPurpose
@@ -61,7 +61,7 @@ func (s *FirestoreSupportStore) readRecovery(tx *firestore.Transaction, selector
 	} else if value.DeleteBy != nil {
 		return deny()
 	}
-	// 旧チャレンジの所有者は、受付と同じ読み取り集合内で一致する必要がある。
+	// 旧チャレンジの所有者は受付と同じ読み取り集合内で一致する必要がある。
 	old, err := tx.Get(s.Client.Collection("support-challenges").Doc(value.ChallengeHash))
 	if err != nil {
 		return nil, SupportRequest{}, fmt.Errorf("read recovery challenge index: %w", err)
@@ -76,8 +76,8 @@ func (s *FirestoreSupportStore) readRecovery(tx *firestore.Transaction, selector
 	return doc, value, nil
 }
 
-// InspectRequestIDは読み取り専用。インデックスの欠落・不一致は不明のまま残す。
-// 失敗を、Create再呼び出しの許可として扱わない。
+// InspectRequestID は読み取り専用の照会を行う。インデックスの欠落や不一致は不明のまま残し、
+// この処理の失敗を理由に Create の再呼び出しを許可してはならない。
 func (s *FirestoreSupportStore) InspectRequestID(ctx context.Context, selector SupportRecoverySelector, now time.Time) (SupportReceiptInspection, error) {
 	if !s.recoveryReady(ctx, selector, now) {
 		return SupportReceiptInspection{}, apiError("SUPPORT_CHALLENGE_INVALID")
@@ -97,9 +97,9 @@ func (s *FirestoreSupportStore) InspectRequestID(ctx context.Context, selector S
 	return result, nil
 }
 
-// ReissueRequestIDは明示的にレビューした調査バージョンを必要とする。
-// コミットやACK消失後、または並行する本人確認・再発行後に同じバージョンを使うと失敗する必要がある。
-// 操作記録・再試行ループ・配送・Createへの切替は追加しない。
+// ReissueRequestID は明示的に調査・確認済みのリビジョン指定を必要とする。
+// コミット後や ACK 消失後、または並行して本人確認・再発行が進んだ後に同じ古いバージョンを渡した場合は失敗する。
+// 操作記録・再試行ループ・自動配送・Create への切り替えはここへ追加しない。
 func (s *FirestoreSupportStore) ReissueRequestID(ctx context.Context, selector SupportRecoverySelector, expected time.Time, now time.Time) (string, string, error) {
 	if !s.recoveryReady(ctx, selector, now) || expected.IsZero() {
 		return "", "", apiError("SUPPORT_CHALLENGE_INVALID")

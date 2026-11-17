@@ -95,7 +95,7 @@ func privateRegular(info os.FileInfo) bool {
 	return info != nil && info.Mode().IsRegular() && info.Mode().Perm() == 0o600 && info.Mode()&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky) == 0 && info.Size() <= maxInputBytes
 }
 
-// 入力ファイルは、開く前後で非公開の通常ファイルを維持する必要がある。
+// 入力ファイルは開く前後で非公開の通常ファイルを維持する必要がある。
 // Lstat後にパスが変わってもO_NOFOLLOWで末尾のシンボリックリンクを拒否し、
 // O_NONBLOCKで置換FIFOによる待機を防いでからfstatで拒否する。
 // ファイルパスや元のファイルシステムエラーを運用報告に含めない。
@@ -232,8 +232,8 @@ func readRequest(input io.Reader) (request, error) {
 			return request{}, errInput
 		}
 	}
-	// 確認内容は運用担当者の操作意図だけに結び付ける。証拠参照は独立した信頼済み証拠の指定値であり、
-	// マニフェスト内の宣言だけでは証明できない。
+	// 確認情報（confirmation）は運用担当者の操作意図の一致を確かめるためのもの。
+	// 証拠参照（ProofRef）は独立した確認済みの参照値であり、マニフェスト内の自己申告だけでは証明にならない。
 	return r, nil
 }
 
