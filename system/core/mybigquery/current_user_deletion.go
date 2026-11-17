@@ -12,6 +12,10 @@ import (
 	"app.modules/core/serviceaccess"
 )
 
+type countRow struct {
+	RowCount int64 `bigquery:"row_count"`
+}
+
 // ApplyChannelDeletion handles only the current fixed primary archive tables.
 // Export snapshots, backups and other copies require the separate owner Runbook gate.
 // Stable job IDs reconcile a lost DML acknowledgement without inventing completion.
