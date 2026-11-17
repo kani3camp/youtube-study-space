@@ -57,8 +57,8 @@ go run ./cmd/mypage-server --check-config
 ```
 
 - バックエンド検査は既存の安全なプロセス環境からサーバー専用シークレットを読みますが、コマンド引数・マニフェスト・Vite へは移さず、固定の `status` / `field` / `code` だけを出します。
-- 公開設定チェッカーは 64 KiB 以内の明示 JSON を読み、秘密値・デバッグ値・未知フィールドや、プロジェクト・アプリ・オリジン・同意バージョンの不一致を拒否します（任意のバックエンド補助宣言は非秘密情報とバージョンのみを持ち、Hosting 設定には既存検証処理を再利用）。
-- マニフェストの最上位項目は `schemaVersion: 1`、`deployment`、`frontend` と任意の `backend`、`hosting`、`publicPolicy` です。`deployment` / `backend` は `environment`、`projectID`、`projectNumber`、`webAppID`、`publicOrigin`、`privacyVersion`、`termsVersion` の 7 項目を持ち、`frontend` は [例](public-config.example.json) と [公開スキーマ](../../../mypage/src/release-config.ts)、`hosting` は [HostingInputs](../../../mypage/src/hosting.ts) を参照します（任意入力の省略時は `not-supplied` として未検証のまま残ります）。`publicPolicy` は `VITE_PUBLIC_CONTACT_URL`、`VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE`、`VITE_PUBLIC_TERMS_EFFECTIVE_DATE`、`VITE_PUBLIC_JURISDICTION` と任意の `VITE_PUBLIC_OPERATOR_NAME` を受け付けますが、既知の Firebase プロジェクトではお問い合わせ先キーを設定しません。
+- 公開設定チェッカーは 64 KiB 以内の明示 JSON を読み、秘密値・デバッグ値・未知フィールドや、プロジェクト・アプリ・オリジンの不一致を拒否します（任意のバックエンド補助宣言は非秘密情報のみを持ち、Hosting 設定には既存検証処理を再利用）。
+- マニフェストの最上位項目は `schemaVersion: 1`、`deployment`、`frontend` と任意の `backend`、`hosting` です。`deployment` / `backend` は `environment`、`projectID`、`projectNumber`、`webAppID`、`publicOrigin` の 5 項目を持ち、`frontend` は [例](public-config.example.json) と [公開スキーマ](../../../mypage/src/release-config.ts)、`hosting` は [HostingInputs](../../../mypage/src/hosting.ts) を参照します（任意入力の省略時は `not-supplied` として未検証のまま残ります）。同意版と公開文面の値はマニフェストに含めず、旧項目（`publicPolicy`、`privacyVersion` / `termsVersion`、`VITE_PRIVACY_POLICY_VERSION` / `VITE_TERMS_VERSION`）は未知フィールドとして拒否します。
 
 両検査とも外部登録・鍵の真正性・権限や利用枠・公開本文の承認は確認せず、`configurationValid=true` / `configuration=valid` でも基盤と実環境の E2E は未完了です（`MYPAGE_INFRASTRUCTURE_READY=true` も起動に必要な宣言であり、確認完了の証拠にはなりません）。
 
@@ -69,13 +69,13 @@ Hosting の画像接続先一覧（`img-src` 専用で `script` / `connect` / `f
 | 設定の用途 | 項目 | 受け渡し・検証 |
 | --- | --- | --- |
 | public browser | `VITE_FIREBASE_API_KEY/AUTH_DOMAIN/PROJECT_ID/APP_ID`, `VITE_APP_CHECK_SITE_KEY` | 公開 Web app 設定（secret / admin key / debug token 不可）。project 番号と app、登録 domain は別途照合 |
-| 同意版 | browser `VITE_PRIVACY_POLICY_VERSION/VITE_TERMS_VERSION`<br>server `MYPAGE_PRIVACY_VERSION/MYPAGE_TERMS_VERSION` | 同じリリース対で一致させ、実際に承認された本文の版を記録 |
+| 同意版 | browser [`public-policy-config.ts`](../../../mypage/src/public-policy-config.ts) の `POLICY_VERSIONS`<br>server [`policy.go`](../../../system/core/mypage/policy.go) の `CurrentPrivacyPolicyVersion` / `CurrentTermsVersion` | 本文と同じくソースの定数で管理し、環境変数やマニフェストでは設定しない。両者の一致は `public-policy-config.test.ts` で検査。本文を改訂して再同意を求めるときは両方の版を上げ、同じコミットから Backend と Hosting を配備する（片方だけが新しい間は版の不一致でログイン開始を拒否） |
 | origin | `MYPAGE_PUBLIC_ORIGIN`<br>analytics 用 `VITE_MYPAGE_PUBLIC_ORIGIN` | 環境ごとの固定 HTTPS origin（Host / Origin をクライアントヘッダーから推測しない） |
 | server identity | `MYPAGE_ENVIRONMENT/REGION/PROJECT_NUMBER/WEB_APP_ID/SIGNER_EMAIL`, `GOOGLE_CLOUD_PROJECT` | `development`=`asia-southeast2`、`production`=`asia-northeast2`。signer は選択プロジェクトのもの |
 | server secret | `MYPAGE_OAUTH_CLIENT_ID/CLIENT_SECRET`, 任意 `MYPAGE_YOUTUBE_API_KEY` | 承認済みの秘密情報供給境界から渡し、repo・チャット・公開成果物・Vite に入れない |
 | GA4（リリース必須） | `VITE_MYPAGE_GA4_ID`, `VITE_MYPAGE_PUBLIC_ORIGIN` | 環境別の測定 ID と公開オリジン（送信には利用者の同意が必要） |
-| 公開案内 | 任意の `VITE_PUBLIC_OPERATOR_NAME`, `VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE/TERMS_EFFECTIVE_DATE/JURISDICTION` | 公開できる値だけを使い実名・自宅住所を必須にしない。文面は草案のまま保持 |
-| お問い合わせ先 | [`public-policy-config.ts`](../../../mypage/src/public-policy-config.ts) の `contactForms` | 一般・プライバシーのお問い合わせで共通フォームを使用。`VITE_FIREBASE_PROJECT_ID` が `test-youtube-study-space` または `youtube-study-space` の場合は環境別固定 URL を優先し、未知・未設定プロジェクトでのみ `VITE_PUBLIC_CONTACT_URL` を参照 |
+| 公開案内 | [`public-policy-config.ts`](../../../mypage/src/public-policy-config.ts) の `OPERATOR_NAME`・`POLICY_EFFECTIVE_DATE` | 運営者の公開表記は `らいど開発`。施行日は両文書で共通とし、未設定の間は表示しない。管轄裁判所は特定せず、利用規約で法令の定めに従うと記載 |
+| お問い合わせ先 | [`public-policy-config.ts`](../../../mypage/src/public-policy-config.ts) の `contactForms` | 一般・プライバシーのお問い合わせで共通フォームを使用。`VITE_FIREBASE_PROJECT_ID` が `test-youtube-study-space` または `youtube-study-space` の場合だけ環境別固定 URL を表示し、未知・未設定プロジェクトではお問い合わせボタンを表示しない |
 | ライブ・メンテナンス告知 | [`youtube-channel.ts`](../../../mypage/src/youtube-channel.ts)（キーは `VITE_FIREBASE_PROJECT_ID`） | DEV は `UChBj4xZePvWyGmTKct5FBcg`、PROD は `UCXuD2XmPTdpVy7zmwbFVZWg` の `/live`・`/posts` を使用（公開トップとマイページで共通）。未知・未設定プロジェクトでは両導線を非表示にしフォールバックせず、変更にはソースレビューと再ビルドを必須化 |
 | Bot 設定案 | `MYPAGE_PUBLIC_ENTRY_URL`（runtime 未接続） | 承認済み public 入口のみ（user 固有 query/token 不可）。0A/0B は未設定、Phase 1 承認後に設定 |
 
@@ -83,8 +83,7 @@ Hosting の画像接続先一覧（`img-src` 専用で `script` / `connect` / `f
 
 `/contact` は使い方・不具合・ご意見の一般窓口と、Google 連携解除後の連絡やデータ削除・開示・訂正・全ログイン解除などのプライバシー窓口を分けて案内します。受付と返信は人的窓口で行い、[本人確認・運用 CLI](../support-operator.md) を利用します。
 
-- 未知・未設定のプロジェクトでは公開マニフェストの `publicPolicy.VITE_PUBLIC_CONTACT_URL` を参照元とし、ビルドでは対応する環境変数を読みます（メールは `mailto:` 付き、Web は HTTPS のみで認証情報やクエリ不可。未設定・不正値時は連絡ボタン非表示）。
-- 既知の Firebase プロジェクトではマニフェストに問い合わせ先を設定せず、ソースの `contactForms` を基準として環境変数の値にかかわらず固定 URL を表示します（URL 変更にはソースレビューと再ビルドが必要）。
+- 窓口 URL はソースの `contactForms` で Firebase プロジェクトごとに固定し、環境変数やマニフェストでは設定しません（URL 変更にはソースレビューと再ビルドが必要）。未知・未設定のプロジェクトでは窓口を推測せず、お問い合わせボタンを表示しません。
 - プライバシー請求に FAQ 事前読了やマイページへのログインを求めず、受付後は原則同じチャンネルを新しい YouTube の許可（fresh OAuth）で確認します（通常ログインだけでは実行せず、利用できない場合は窓口で個別方法を案内）。
 
 #### お問い合わせ窓口の公開前条件（ソースのマージ条件には含めない）
@@ -92,6 +91,11 @@ Hosting の画像接続先一覧（`img-src` 専用で `script` / `connect` / `f
 - マイページ未ログイン・利用制限中でも窓口に到達できることと、Google 未ログイン状態で環境別フォームから試験回答を送信し運営者の受信・返信・依頼者への到達まで実証すること（OAuth 同意画面の support email や既存匿名窓口は自動転用しない）。
 - フォーム回答の保管場所・閲覧権限・保持期間・削除方法と担当を確定すること（受付時刻・返信先・対応担当・期限は人的窓口で管理し、対応結果は元の窓口から返し、実データ削除と 7 暦日以内の期限管理を別途実証）。
 - [Google 側で連携を解除した利用者への対応](../support-operator.md#google側で連携を解除した利用者への対応) を開発環境で通し確認し、正式手順化と fresh OAuth 不可時の本人確認の最低基準を公開前に判断すること。
+
+確定済みの事項:
+
+- 受付担当は運営者本人（らいど開発）が担う。返信は元の窓口から行い、内部目標は数営業日以内とする（公開約束は受付から7暦日以内）。通知先・保管場所・閲覧権限・保持期間・削除方法の実値は0A初回リリース前に実フォームで確定し、受信・返信の到達を実証する。
+- 公開本文は privacy v1 / terms v1 とし、2026-11-17に運営者が正式承認した。施行日は初回本番公開日（両文書同日）とし、公開直前にソースの定数を更新する。
 
 ---
 
@@ -134,10 +138,10 @@ DEV ページの更新は基盤 Terraform Apply とは別に `Deploy MyPage Fron
 
 1. 同じ Run 内でまず MyPage の認証なし CI（`ci-frontend.yml` の `mypage`: audit・cost model・フォント整合性・check・test・build）を通し、続くクラウド認証情報なしの Build ジョブで固定依存検査・check・typecheck・テスト・DEV 公開設定検査・ビルドを実行します。
 2. 成果物を別 Apply ジョブへ渡し、ソース SHA・Run ID・30 分の期限・設定・全ファイルの SHA256 を再検証してから専用 WIF と短命トークンで認証します（SA 鍵や Firebase ログイントークンは不使用）。
-3. 対象を `test-youtube-study-space` の `test--study-space` だけとし、現在の Hosting の CSP・書き換え等と API の同意バージョン・固定オリジン・Ready リビジョンを照合したうえでリリースを切り替えます（自動再試行しない）。
+3. 対象を `test-youtube-study-space` の `test--study-space` だけとし、現在の Hosting の CSP・書き換え等と API の固定オリジン・Ready リビジョンを照合したうえでリリースを切り替えます（自動再試行しない。同意版はソースの定数のため照合しません）。
 4. 配備後は全ファイルのバイト列・`Cache-Control`・CSP・`/` と `/mypage`・匿名 API の 403・API メタデータ不変を確認し、別の認証なし Browser ジョブで匿名画面・Cookie 設定・同意バナー表示・同意前と拒否後の GA4 通信 0 件を確認します（実 GA4 送信・認証済み E2E・公開条件完了とは区別）。
 
-- GitHub Environment の `mypage-dev-hosting` には公開項目だけの `MYPAGE_HOSTING_PUBLIC_CONFIG_JSON` と専用プロバイダー名 `MYPAGE_HOSTING_WIF_PROVIDER` を Variables に設定し、デプロイ時に DEV の測定 ID・公開オリジン・固定 CSP 許可先（`https://www.googletagmanager.com/gtag/js`、`https://www.google-analytics.com`、`https://region1.google-analytics.com`）を補います。有効化後は検証用ブラウザでアクセス解析を許可し Network と GA4 Realtime で受信を照合し、拒否へ戻して通信が止まることも確認します。
+- GitHub Environment の `mypage-dev-hosting` には公開項目だけの `MYPAGE_HOSTING_PUBLIC_CONFIG_JSON` と専用プロバイダー名 `MYPAGE_HOSTING_WIF_PROVIDER` を Variables に設定し、デプロイ時に DEV の測定 ID・公開オリジン・固定 CSP 許可先（`https://www.googletagmanager.com/gtag/js`、`https://www.google-analytics.com`、`https://region1.google-analytics.com`）を補います（変数に残る旧項目の `VITE_MYPAGE_ANALYTICS_READY` と同意版・`publicPolicy` は検査前に取り除くため、変数から段階的に削除できます）。有効化後は検証用ブラウザでアクセス解析を許可し Network と GA4 Realtime で受信を照合し、拒否へ戻して通信が止まることも確認します。
 - 権限は専用の `mypage-hosting` WIF pool/provider と `mypage-hosting-deploy` SA に分離します。Firebase Hosting にはカスタムロールがないため DEV プロジェクトに `roles/firebasehosting.admin` を付与しつつ、サイト 1 個への限定は固定 API/配備仕様と厳格な WIF 受入検査で担保します（加えて `mypage-api` 1 サービスの `roles/run.viewer` と DEV `roles/serviceusage.serviceUsageConsumer` だけを追加）。
 - Firebase のリリース切替 API には compare-and-swap がないため実行中は別経路の更新を避け、リリース記録は切替 API 呼び出し前に `unknown` で保存して応答確認後に `confirmed` へ更新します（成否にかかわらず CI 成果物で 14 日間保存、ビルド成果物は 1 日で期限切れ。失敗時は `previousVersion` / `previousRelease` と現在配信を照合して手動復旧判断）。本番経路は公開条件・独立 Environment/権限レビュー後に追加します。
 
@@ -145,6 +149,13 @@ DEV ページの更新は基盤 Terraform Apply とは別に `Deploy MyPage Fron
 
 - [#1572](https://github.com/kani3camp/youtube-study-space/issues/1572) の反映時は旧画面が新 API を解釈できるため Backend を先にデプロイしてから Hosting を更新し、両方戻す場合は Hosting を先に戻します。
 - 新 Backend は旧環境変数 `MYPAGE_HISTORY_COVERAGE` を参照しません。次回の Terraform Plan 前に Cloud Run に設定が残っていないか確認してください（残存時は新構成が削除を計画して現行ガードで停止するため、対象変数だけを外す手順を別途レビューします）。
+
+### 同意版の環境変数の廃止
+
+- Backend は同意版をソースの定数から決め、旧環境変数 `MYPAGE_PRIVACY_VERSION` / `MYPAGE_TERMS_VERSION` を参照しません。CI のイメージ配備は既存の環境変数を引き継ぐため、DEV の Cloud Run に旧変数が残っていても動作は変わりません。
+- Terraform は両変数を設定しなくなりました。DEV の Cloud Run には両変数が残っているため、次回の MyPage Terraform Plan（Runtime 段階）は削除を計画して現行ガードで停止します。対象 2 変数だけを外す遷移を別途レビューするまで、MyPage の Terraform Apply は行えません。
+- `MYPAGE_RUNTIME_SETTINGS_JSON` に残る `privacy_version` / `terms_version` は読み込み時に除外するため、Secret から段階的に削除できます。
+- 同意版が変わると、旧版で同意したアカウントは次回ログイン時に再同意を求められます（DEV の旧版は `dev-draft-*-30102f3`）。
 
 ### 静的配信キャッシュの仕様
 

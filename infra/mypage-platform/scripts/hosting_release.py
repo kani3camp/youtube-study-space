@@ -129,6 +129,17 @@ def translate(package):
     return json.loads((package / 'hosting.json').read_bytes())
 
 
+def drop_retired_policy_settings(config):
+    # 同意版と公開文面の値はソースの定数になった。既存のGitHub Environment変数に残る
+    # 旧項目だけを移行期間として取り除き、それ以外の未知項目は標準の検証処理で拒否する。
+    config.pop('publicPolicy', None)
+    for section in ('deployment', 'backend'):
+        for key in ('privacyVersion', 'termsVersion'):
+            config.get(section, {}).pop(key, None)
+    for key in ('VITE_PRIVACY_POLICY_VERSION', 'VITE_TERMS_VERSION'):
+        config.get('frontend', {}).pop(key, None)
+
+
 def configure_dev_analytics(config):
     frontend = config['frontend']
     # Accept the existing GitHub Environment manifest during migration.
@@ -148,6 +159,7 @@ def build(env):
     raw = env['MYPAGE_HOSTING_PUBLIC_CONFIG_JSON'].encode()
     need(len(raw) <= 65536, 'public-config-size')
     config = json.loads(raw)
+    drop_retired_policy_settings(config)
     configure_dev_analytics(config)
     # 値をビルド環境変数に使う前に、標準の検証処理を実行する。
     (package / 'public-config.json').write_bytes(canonical(config))
@@ -161,7 +173,6 @@ def build(env):
                  k not in {'MYPAGE_HOSTING_PUBLIC_CONFIG_JSON', 'GITHUB_TOKEN',
                            'GH_TOKEN', 'GOOGLE_APPLICATION_CREDENTIALS'}}
     build_env.update(config['frontend'])
-    build_env.update(config.get('publicPolicy', {}))
     need(not list((ROOT / 'mypage').glob('.env*')), 'ambient-vite-config')
     command(['pnpm', 'build'], cwd=ROOT / 'mypage', env=build_env)
     shutil.copytree(ROOT / 'mypage/dist', package / 'dist', dirs_exist_ok=True)
@@ -334,12 +345,10 @@ def deploy(env, *, request=cloud, transport=http):
     need(version.get('status') == 'FINALIZED' and
          hosting_settings_match(version['config'], hosting), 'hosting-settings-changed')
     api_before = backend(token)
-    # APIとフロントエンドの同意バージョンの組み合わせを、暗黙に変更しない。
+    # 同意版は両方のソースの定数で決まるため、ここではAPIの公開オリジンだけを照合する。
     public_env = {x['name']: x.get('value') for x in api_before['template']['containers'][0]['env']
-                  if x.get('name') in {'MYPAGE_PRIVACY_VERSION', 'MYPAGE_TERMS_VERSION', 'MYPAGE_PUBLIC_ORIGIN'}}
-    need(public_env == {'MYPAGE_PRIVACY_VERSION': config['deployment']['privacyVersion'],
-                        'MYPAGE_TERMS_VERSION': config['deployment']['termsVersion'],
-                        'MYPAGE_PUBLIC_ORIGIN': ORIGIN}, 'backend-public-config')
+                  if x.get('name') == 'MYPAGE_PUBLIC_ORIGIN'}
+    need(public_env == {'MYPAGE_PUBLIC_ORIGIN': ORIGIN}, 'backend-public-config')
     created = request(API + 'sites/' + SITE + '/versions', token, method='POST', body={
         'config': hosting, 'labels': {'deployment-tool': 'github-actions', 'source-sha': env['GITHUB_SHA'],
                                      'workflow-run': env['GITHUB_RUN_ID']}})

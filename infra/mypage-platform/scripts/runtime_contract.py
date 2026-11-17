@@ -52,7 +52,7 @@ PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/ser
 PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
 # After a read, the provider records Job IAM members with the full Job path, not the short name.
 MAINTENANCE_JOB_FULL_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/jobs/mypage-maintenance-operator"
-FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "privacy_version", "terms_version",
+FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin",
           "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
 
 
@@ -136,8 +136,6 @@ def settings(value, stage=None):
         c.need(value["project_number"] == c.PROJECT_NUMBER, "runtime-project-number")
         c.need(re.fullmatch("1:" + value["project_number"] + r":web:[A-Za-z0-9]+", value["web_app_id"]), "runtime-app-project")
         c.need(value["public_origin"] == ORIGIN, "runtime-origin")
-        for field in ("privacy_version", "terms_version"):
-            c.need(re.fullmatch(r"[A-Za-z0-9._-]{1,64}", value[field]), "runtime-policy-version")
         for field in ("oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version"):
             c.need(re.fullmatch(r"[1-9][0-9]*", value[field]), "runtime-secret-version")
         c.need(value["hosting_backend_host"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]+\.a\.run\.app", value["hosting_backend_host"]), "runtime-hosting-backend")
@@ -259,8 +257,7 @@ def plain_environment(value):
     env = {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": c.ENVIRONMENT, "MYPAGE_REGION": c.REGION,
            "MYPAGE_SIGNER_EMAIL": c.EMAIL, "MYPAGE_INFRASTRUCTURE_READY": "true"}
     for name, field in (("MYPAGE_PROJECT_NUMBER", "project_number"), ("MYPAGE_WEB_APP_ID", "web_app_id"),
-                        ("MYPAGE_PUBLIC_ORIGIN", "public_origin"), ("MYPAGE_PRIVACY_VERSION", "privacy_version"),
-                        ("MYPAGE_TERMS_VERSION", "terms_version")):
+                        ("MYPAGE_PUBLIC_ORIGIN", "public_origin")):
         env[name] = value[field]
     if value["hosting_backend_host"]:
         env["MYPAGE_HOSTING_BACKEND_HOST"] = value["hosting_backend_host"]

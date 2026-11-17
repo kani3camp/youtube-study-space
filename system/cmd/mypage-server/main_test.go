@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"app.modules/core/mypage"
 )
 
 func TestBootstrapRequiresExplicitReadinessAndRejectsUnsafeConfigurationWithoutADC(t *testing.T) {
@@ -27,6 +29,16 @@ func TestBootstrapRequiresExplicitReadinessAndRejectsUnsafeConfigurationWithoutA
 	}
 }
 
+func TestConfigurationUsesSourcePolicyVersionsAndIgnoresRetiredEnvironment(t *testing.T) {
+	values := syntheticConfiguration()
+	// 旧Cloud Runに残る値は読まない。同意版はソースの定数だけで決める。
+	values["MYPAGE_PRIVACY_VERSION"] = "retired-synthetic-p"
+	values["MYPAGE_TERMS_VERSION"] = "retired-synthetic-t"
+	config, err := configurationFrom(func(key string) string { return values[key] })
+	require.NoError(t, err)
+	require.Equal(t, mypage.Policy{Privacy: mypage.CurrentPrivacyPolicyVersion, Terms: mypage.CurrentTermsVersion}, config.server.Policy)
+}
+
 func syntheticConfiguration() map[string]string {
-	return map[string]string{"MYPAGE_INFRASTRUCTURE_READY": "true", "MYPAGE_ENVIRONMENT": "development", "MYPAGE_REGION": "asia-southeast2", "GOOGLE_CLOUD_PROJECT": "demo-mypage", "MYPAGE_PROJECT_NUMBER": "123456789", "MYPAGE_WEB_APP_ID": "1:123456789:web:synthetic", "MYPAGE_PUBLIC_ORIGIN": "https://example.invalid", "MYPAGE_SIGNER_EMAIL": "mypage-signer@demo-mypage.iam.gserviceaccount.com", "MYPAGE_OAUTH_CLIENT_ID": "synthetic-client", "MYPAGE_OAUTH_CLIENT_SECRET": "synthetic-secret", "MYPAGE_PRIVACY_VERSION": "synthetic-p", "MYPAGE_TERMS_VERSION": "synthetic-t"}
+	return map[string]string{"MYPAGE_INFRASTRUCTURE_READY": "true", "MYPAGE_ENVIRONMENT": "development", "MYPAGE_REGION": "asia-southeast2", "GOOGLE_CLOUD_PROJECT": "demo-mypage", "MYPAGE_PROJECT_NUMBER": "123456789", "MYPAGE_WEB_APP_ID": "1:123456789:web:synthetic", "MYPAGE_PUBLIC_ORIGIN": "https://example.invalid", "MYPAGE_SIGNER_EMAIL": "mypage-signer@demo-mypage.iam.gserviceaccount.com", "MYPAGE_OAUTH_CLIENT_ID": "synthetic-client", "MYPAGE_OAUTH_CLIENT_SECRET": "synthetic-secret"}
 }

@@ -276,8 +276,10 @@ def runtime_settings(env, stage=None):
     parsed = json.loads(raw, object_pairs_hook=pairs)
     # Environment secrets may retain these retired keys. Drop them before
     # validating or writing tfvars; all other unknown fields stay fail-closed.
+    # The consent versions are source constants in the API image.
     retired = {"maintenance_operator_enabled", "maintenance_operator_image_digest",
-               "maintenance_operator_image_source_sha", "history_coverage_json"}
+               "maintenance_operator_image_source_sha", "history_coverage_json",
+               "privacy_version", "terms_version"}
     parsed = {key: item for key, item in parsed.items() if key not in retired}
     value = runtime_contract.settings(parsed, stage)
     # After the first Terraform creation, CI/CD owns the Cloud Run image.

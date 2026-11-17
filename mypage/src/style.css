@@ -1161,15 +1161,6 @@ summary {
 .contact-destination .button {
 	width: 100%;
 }
-.contact-page .contact-destination p {
-	margin-bottom: 0;
-	font-size: 12px;
-}
-.contact-address {
-	display: block;
-	margin-top: 4px;
-	overflow-wrap: anywhere;
-}
 .contact-process ol {
 	list-style: decimal;
 	padding-left: 1.4em;

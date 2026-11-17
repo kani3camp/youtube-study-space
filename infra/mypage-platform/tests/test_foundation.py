@@ -137,6 +137,8 @@ class FoundationTest(unittest.TestCase):
             'maintenance_operator_image_digest': 'private-retired-digest',
             'maintenance_operator_image_source_sha': 'private-retired-source',
             'history_coverage_json': '[{"start":"2026-10-01T00:00:00Z","end":"2026-10-02T00:00:00Z"}]',
+            'privacy_version': 'dev-draft-privacy-retired',
+            'terms_version': 'dev-draft-terms-retired',
         }
         self.assertEqual(ops.runtime_settings(env | {'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(legacy)}), clean)
         with self.assertRaisesRegex(c.ContractError, '^runtime-settings-fields$'):

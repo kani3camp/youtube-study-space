@@ -1,24 +1,14 @@
 import { Link } from '@tanstack/react-router'
 import { ExternalLink, guideURL } from './features/mypage/view'
-import { ContactLink } from './policies'
-import { readPublicPolicyConfig } from './public-policy-config'
+import { publicPolicyConfig } from './public-policy-config'
 
 function ContactDestination({ href }: { href?: string }) {
 	if (!href) return null
-	const mail = href.startsWith('mailto:')
 	return (
 		<div className="contact-destination">
-			<ContactLink href={href} primary>
-				{mail ? 'メールで問い合わせる' : 'お問い合わせフォームを開く'}
-			</ContactLink>
-			{mail && (
-				<p className="muted">
-					メールアプリが開かない場合は、次の宛先へお送りください。
-					<span className="contact-address">
-						{href.slice('mailto:'.length)}
-					</span>
-				</p>
-			)}
+			<ExternalLink href={href} primary>
+				お問い合わせフォームを開く
+			</ExternalLink>
 		</div>
 	)
 }
@@ -30,7 +20,7 @@ export function ContactPage({
 	supportError?: boolean
 	proofRef?: string | null
 }) {
-	const { config } = readPublicPolicyConfig()
+	const config = publicPolicyConfig()
 	return (
 		<main className="main-content public-page contact-page">
 			<Link className="contact-back" to="/">
@@ -135,9 +125,7 @@ export function ContactPage({
 					もご利用いただけます。
 				</p>
 				<Link to="/privacy">プライバシーポリシー</Link>
-				{config.operatorName && (
-					<p>運営者・サービスの公開表記：{config.operatorName}</p>
-				)}
+				<p>運営者・サービスの公開表記：{config.operatorName}</p>
 			</aside>
 		</main>
 	)
