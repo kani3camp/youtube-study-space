@@ -538,8 +538,16 @@ def prepare(env):
     PHASE = "plan-contract"
     # Planの宣言は、上で観測した事実（settingsの有無・Serviceの実在）と一致しなければならない。
     variables = plan.get("variables", {})
-    contract.need(variables.get("runtime_settings", {}).get("value") == value and
-                  variables.get("public_invoker", {}).get("value") is service, "plan-declared-inputs")
+    declared = variables.get("runtime_settings", {}).get("value")
+    if declared != value:
+        # 値は出さず、レビュー済みフィールド名のうち一致しないものだけを示す。
+        names = sorted(runtime_contract.FIELDS & (set(declared or {}) | set(value or {})))
+        print("Declared runtime settings mismatch: " + json.dumps({
+            "declared": declared is not None, "observed": value is not None,
+            "fields": [name for name in names if (declared or {}).get(name) != (value or {}).get(name)]}) + ".")
+    contract.need(declared == value, "plan-declared-runtime-settings")
+    public = variables.get("public_invoker", {}).get("value")
+    contract.need(public is service, "plan-declared-public-invoker-" + ("unset" if public is None else type(public).__name__))
     if value is not None:
         describe_runtime_drift(plan)
     summary, deletions = validate_plan(plan)
