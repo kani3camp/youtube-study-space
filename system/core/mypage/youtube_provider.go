@@ -26,7 +26,7 @@ const youtubeChannelFields = "nextPageToken,pageInfo(totalResults),items(id,snip
 var youtubeChannelID = regexp.MustCompile(`^UC[A-Za-z0-9_-]{22}$`)
 
 // GoogleYouTubeOAuth は Resolve 処理中のみ短命のアクセストークンを使用する。
-// 自動更新・再試行・トークン保存機能は持たず、基盤と認証情報の確認後にサーバー専用シークレットを渡して使う。
+// トークンソース・自動更新・再試行・認証情報のログ記録や保存は行わず、基盤と認証情報の確認後にサーバー専用シークレットを渡して使う。
 type GoogleYouTubeOAuth struct {
 	config oauth2.Config
 	client *http.Client
