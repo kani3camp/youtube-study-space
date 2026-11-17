@@ -27,6 +27,8 @@ import runtime_contract
 
 REPO = Path(__file__).resolve().parents[3]
 PHASE = "context"
+# オーナーの公開invokerを取り込むときだけ、prepareが書くJSON var-file。
+PUBLIC_INVOKER_FILE = "public-invoker.json"
 
 
 def need(value):
@@ -531,7 +533,10 @@ def prepare(env):
     if service:
         verify_owner_public_invoker(env)
         (work / "owner-public-invoker-import.tf").write_text(runtime_contract.public_invoker_import_config())
-        arguments.append("-var=public_invoker=true")
+        # CLIの-varはPlanに未変換の文字列として記録されるため、JSON var-fileで真偽値として渡す。
+        public_file = root / PUBLIC_INVOKER_FILE
+        public_file.write_bytes(contract.canonical({"public_invoker": True}))
+        arguments.append("-var-file=" + str(public_file))
     PHASE = "terraform-plan"
     run(arguments, cwd=work, check="terraform-plan")
     plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work))

@@ -300,8 +300,8 @@ def apply_saved(env, root, plan):
     work = root / "source/environments/dev"
     refresh_file = root / "metrics-refresh.tfplan"
     ops.run(["terraform", "plan", "-refresh-only", "-input=false", "-no-color", "-lock-timeout=60s",
-             "-var=public_invoker=" + ("true" if public else "false"),
              "-var-file=" + str(root / "runtime-settings.json"),
+             *(["-var-file=" + str(root / ops.PUBLIC_INVOKER_FILE)] if public else []),
              "-out=" + str(refresh_file)], cwd=work, check="terraform-plan")
     digest = hashlib.sha256(refresh_file.read_bytes()).hexdigest()
     refresh = json.loads(ops.run(["terraform", "show", "-json", str(refresh_file)], cwd=work, check="metrics-refresh-show"))

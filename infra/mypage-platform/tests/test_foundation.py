@@ -211,24 +211,29 @@ class FoundationTest(unittest.TestCase):
                     patch.object(ops, 'reject_unowned_resources'), redirect_stdout(io.StringIO()):
                 ops.prepare(env)
             imported = (work / 'owner-public-invoker-import.tf').exists()
+            public_file = root / ops.PUBLIC_INVOKER_FILE
+            public = json.loads(public_file.read_text()) if public_file.exists() else None
+            passed = any(arg == '-var-file=' + str(public_file) for args in commands for arg in args)
+            self.assertEqual(passed, public is not None)
         self.assertEqual(inputs.called, settings)
         self.assertEqual(owner.called, service)
-        return next(args for args in commands if args[:2] == ['terraform', 'plan']), imported
+        return next(args for args in commands if args[:2] == ['terraform', 'plan']), (imported, public)
 
     def test_prepare_declares_runtime_and_public_invoker_only_from_external_facts(self):
         # 初回構築: Secret値・imageがまだ無い → 基盤だけ。
         args, imported = self.prepare_plan_arguments(settings=False, service=False)
         self.assertFalse(any(arg.startswith('-var') for arg in args))
-        self.assertFalse(imported)
+        self.assertEqual(imported, (False, None))
         # runtime settingsが揃った → 実行系を作るが、まだ無いServiceの公開invokerは宣言しない。
         args, imported = self.prepare_plan_arguments(settings=True, service=False)
         self.assertEqual([arg for arg in args if arg.startswith('-var')][0].split('=', 1)[0], '-var-file')
-        self.assertNotIn('-var=public_invoker=true', args)
-        self.assertFalse(imported)
+        self.assertEqual(len([arg for arg in args if arg.startswith('-var')]), 1)
+        self.assertEqual(imported, (False, None))
         # Serviceが実在する（DEVの現状）→ オーナーの公開invokerを検証してimportする。
         args, imported = self.prepare_plan_arguments(settings=True, service=True)
-        self.assertIn('-var=public_invoker=true', args)
-        self.assertTrue(imported)
+        # CLIの-varは未変換の文字列としてPlanに残るため、真偽値のJSON var-fileで渡す。
+        self.assertFalse(any(arg.startswith('-var=') for arg in args))
+        self.assertEqual(imported, (True, {'public_invoker': True}))
         # 既存Serviceに対して実行設定が欠けたら、実行系を消すPlanを作らずに停止する。
         with self.assertRaisesRegex(c.ContractError, '^runtime-settings-required$'):
             self.prepare_plan_arguments(settings=False, service=True)
