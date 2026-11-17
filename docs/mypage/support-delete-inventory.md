@@ -27,11 +27,11 @@
 
 ## 設計上の境界・未確認事項
 
-- **データ復活の防止（Canon 05）**: 停止前に取得・受理した古いメッセージ、座席スナップショット、コールバック、トークン発行結果、import / restore / 再試行によって削除済みデータが復活しないことを条件とします（再開後の正当な新規利用によるデータ作成は許可）。初期 SAC の対象は MyPage のみとし、既存 Bot の通常書き込み・`!block`・YouTube Ban の意味は変えません。
-- **`service-access-controls/{channel}` は消去対象外**: プライバシー削除完了後も、すべて無効状態のチェックポイント・両方の制限理由・世代・リビジョンを保持します（TTL・削除・世代リセットは追加せず、有効な `moderation` やチェックポイントの巻き戻しも行いません。これは保持ポリシーの新規決定ではありません）。
-- **ログと外部配送の調査**: トレンド・SNS・退室・RP・初期化ログを固定形式に変えても、OpenAI への作業名送信、Discord / YouTube 通知、CloudWatch 本文転送、旧リビジョンのコピーが残る場合があります。全出力先・キュー・購読・アーカイブの帰属と保持を確認してください。
-- **完了処理の順序**: この棚卸し一覧自体は受付を削除・完了させません。全対象の事後条件・ランタイム再開・privacy 解除の照合が成立してから完了段階で処理します。
-- **ソースだけでは完了できない項目**: 全ランタイムの停止担当、未確定コールバックと配信、複数受付・旧 UID、BQ の `tmp` / 混合・soft-delete バックアップの復元経路、チャンネル索引のない派生・ログコピー、実権限・TTL・Hosting 秘匿設定は実環境で確認が必要です。不明・上限超過・障害・ACK 消失は `unknown` のまま残し、`0` や完了に置き換えないでください。
+- データ復活の防止（Canon 05）: 停止前に取得・受理した古いメッセージ、座席スナップショット、コールバック、トークン発行結果、import / restore / 再試行によって削除済みデータが復活しないことを条件とします（再開後の正当な新規利用によるデータ作成は許可）。初期 SAC の対象は MyPage のみとし、既存 Bot の通常書き込み・`!block`・YouTube Ban の意味は変えません。
+- `service-access-controls/{channel}` は消去対象外: プライバシー削除完了後もすべて無効状態のチェックポイント・両方の制限理由・世代・リビジョンを保持します（TTL・削除・世代リセットは追加せず、有効な `moderation` やチェックポイントの巻き戻しも行いません。これは保持ポリシーの新規決定ではありません）。
+- ログと外部配送の調査: トレンド・SNS・退室・RP・初期化ログを固定形式に変えても、OpenAI への作業名送信、Discord / YouTube 通知、CloudWatch 本文転送、旧リビジョンのコピーが残る場合があります。全出力先・キュー・購読・アーカイブの帰属と保持を確認してください。
+- 完了処理の順序: この棚卸し一覧自体は受付を削除・完了させません。全対象の事後条件・ランタイム再開・privacy 解除の照合が成立してから完了段階で処理します。
+- ソースだけでは完了できない項目: 全ランタイムの停止担当、未確定コールバックと配信、複数受付・旧 UID、BQ の `tmp` / 混合・soft-delete バックアップの復元経路、チャンネル索引のない派生・ログコピー、実権限・TTL・Hosting 秘匿設定は実環境で確認が必要です。不明・上限超過・障害・ACK 消失は `unknown` のまま残し、`0` や完了に置き換えないでください。
 
 ---
 
@@ -59,4 +59,4 @@
 | `legacy-notification-log-forwarding` | [system/core/workspaceapp/utils.go](../../system/core/workspaceapp/utils.go) / [system/core/workspaceapp/command_moderation.go](../../system/core/workspaceapp/command_moderation.go) / [system/core/youtubebot/live_chat.go](../../system/core/youtubebot/live_chat.go) / [system/core/moderatorbot/discord.go](../../system/core/moderatorbot/discord.go) / [system/cmd/lambda/error_log_notify_discord/main.go](../../system/cmd/lambda/error_log_notify_discord/main.go) / [system/cmd/lambda/sns_notify_discord/main.go](../../system/cmd/lambda/sns_notify_discord/main.go) |
 | `external-export-backup-restore` | [system/core/repository/models.go](../../system/core/repository/models.go) / [system/core/mystorage/storage_controller.go](../../system/core/mystorage/storage_controller.go) |
 
-※実行用の認証主体は、MyPage の鍵なしランタイム/署名者、Bot・旧ツールの認証ファイル、AWS ランタイムの WIF/IAM ロールに分かれています。1 つの認証情報で全経路を止められるとはみなさず、環境ごとに実主体・最小権限・停止担当を照合してください。
+※実行用の認証主体は MyPage の鍵なしランタイム/署名者、Bot・旧ツールの認証ファイル、AWS ランタイムの WIF/IAM ロールに分かれています。1 つの認証情報で全経路を止められるとはみなさず、環境ごとに実主体・最小権限・停止担当を照合してください。

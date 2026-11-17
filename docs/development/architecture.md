@@ -66,11 +66,11 @@ See [`../../youtube-monitor/README.md`](../../youtube-monitor/README.md) for bui
 
 ### モニター認証
 
-OBS 上の `youtube-monitor` は Firebase のブラウザ Client SDK を使用します。現在のソースコードでは、`seats`・`member-seats`・`menu`・`work-name-trend`・`config/constants` を読み取るために、Firebase Auth でログインし、その UID が有効な許可リスト（`_monitor-readers/{uid}`）に登録されている必要があります（custom claim は参照せず、匿名ユーザーや許可リスト外の通常 MyPage ユーザーは拒否します）。
+OBS 上の `youtube-monitor` は Firebase のブラウザ Client SDK を使用します。現在のソースコードでは `seats`・`member-seats`・`menu`・`work-name-trend`・`config/constants` を読み取るために Firebase Auth でログインし、その UID が有効な許可リスト（`_monitor-readers/{uid}`）に登録されている必要があります（custom claim は参照せず、匿名ユーザーや許可リスト外の通常 MyPage ユーザーは拒否します）。
 
-- **実環境との区別**: ソースコードが存在することと、DEV / PROD の Rules やモニター資産が配備済みであることは別であり、Security Rules は WAF や費用上限の代替になりません（サーバー側の Go / Admin SDK は IAM とアプリ認可を使用）。
-- **運用手順と残課題**: OBS ブラウザ上で一度対話的にログインし、Firebase のローカル永続化を使う前提です。OBS / CEF 再起動時の挙動、トークン復元、シーン切替、認証失効時の通知・復旧は実環境で受入試験を行う必要があります（Firestore 購読を変更する場合は既存の `set_desired_max_seats` 制御ループを維持）。
-- 関連資料: [モニター課題 #1459](https://github.com/kani3camp/youtube-study-space/issues/1459) / [Firebase Rules 案内](../../firebase/README.md) / [MyPage Phase 0B 条件 #1133](https://github.com/kani3camp/youtube-study-space/issues/1133)
+- ソースコードが存在することと DEV/PROD の Rules やモニター資産が配備済みであることは別であり、Security Rules は WAF や費用上限の代替になりません（サーバー側の Go / Admin SDK は IAM とアプリ認可を使用）。
+- OBS ブラウザ上で一度対話的にログインし Firebase のローカル永続化を使う前提ですが、OBS / CEF 再起動時の挙動、トークン復元、シーン切替、認証失効時の通知・復旧は実環境で受入試験を行う必要があります（Firestore 購読を変更する場合は既存の `set_desired_max_seats` 制御ループを維持）。
+- 関連資料は [モニター課題 #1459](https://github.com/kani3camp/youtube-study-space/issues/1459) / [Firebase Rules 案内](../../firebase/README.md) / [MyPage Phase 0B 条件 #1133](https://github.com/kani3camp/youtube-study-space/issues/1133) を参照してください。
 
 Server-side Go repository tests and browser Client SDK security rules answer different questions:
 
@@ -109,15 +109,16 @@ Changes to storage, forwarding, archival, or deletion must also be checked again
 
 ### 変更検知と隔離コンテナでの実行
 
-- **変更検知と必須ゲート**: [変更検知](../../.github/scripts/detect-ci-paths.sh) で変更ドメインを選択します（ワークフローや共通スクリプト変更時は全グループを選択。変更のないドメインはスキップし、Repository 検証は毎回実行）。Ruleset の必須チェックは `CI Gate` であり、[Gate 判定](../../.github/scripts/check-ci-results.py) が呼び出し先の失敗・キャンセル・変更検知欠損・スキップ漏れを拒否します（手動 `ci.yml` 実行も認証なしで全ドメインを再検査します）。
-- **隔離コンテナ実行**: 検査ツールと [コンテナ実行スクリプト](../../.github/ci-validation/validate.sh) は、対象コード取得前に実行元の checkout からビルドします。対象コードは非 root の Docker コンテナ内へ読み取り専用でマウントしてメモリ上の一時領域へコピーし、runner の環境変数・Actions キャッシュトークン・Docker ソケットは渡しません（Repository 共通検査は通信も禁止）。
-- **Terraform 静的検査の分離**: Terraform 検査では、固定検査（`fmt`・`validate`・provider lock・`terraform-static`）を、対象コミットのテスト（`terraform-tests`）より前に別コンテナで実行するため、テストコードによる HCL 書き換えが固定検査へ影響しません。
+- [変更検知](../../.github/scripts/detect-ci-paths.sh) で変更したドメインを選択します（ワークフロー・共有 CI action・選択結果の契約・未分類の CI スクリプト変更時は全グループを選択。既知の文書チェッカー 2 本は常時実行の Repository 検証で網羅するため追加グループを選択しません）。変更のないドメインはスキップし、Repository 検証は毎回実行します（手動 `ci.yml` 実行も認証なしで全ドメインを再検査します）。
+- Ruleset の必須チェックは `CI Gate` であり、[Gate の判定](../../.github/scripts/check-ci-results.py) が呼び出し先の失敗・キャンセル・変更検知欠損・Repository 検証未成功・選択モジュールのスキップを拒否します。
+- 検査ツールと [コンテナ実行スクリプト](../../.github/ci-validation/validate.sh) は対象コード取得前に実行元の checkout からビルドします。Repository 検証は 1 ジョブで隔離イメージを 1 回ビルドし、`base-image`・`node-policy`・`docs`・`contracts` の 4 件を独立した非 root コンテナで読み取り専用マウントして実行します（runner 環境変数・キャッシュトークン・Docker ソケットは渡さず、Repository 共通検査は通信も禁止）。4 件すべての結果をログと Step Summary に記録し、1 件でも失敗すれば失敗とします（コンテナ出力は結果表へ取り込みません）。
+- Terraform 検査では固定の検査（`fmt`・`validate`・provider lock・`terraform-static`）を対象コミットのテスト（`terraform-tests`）より前に別コンテナで実行し、テストコードによる HCL 書き換えが固定検査へ影響しないようにしています（`terraform-static` は `registry.terraform.io/hashicorp/*` のみ許可し、読み取り専用の `/source` に対して最後に `init`/`validate` を実行）。
 
 ### Terraform・アプリケーション配備との分担
 
-- **Terraform Plan / Apply**: [Terraform](../../.github/workflows/terraform.yml) ワークフロー（オーナーによる `workflow_dispatch` および DEV PR Plan）が担当します。[ソース解決器](../../.github/scripts/terraform_source_pin.py) で対象 SHA を固定したうえで、認証なし検証（`ci-gcp-terraform.yml`）を通し、認証付き実行器へ `expected_sha` を渡します（Plan ジョブと Apply ジョブで独立して Plan を生成し、HMAC 一致時のみ Apply 内の保存 Plan を適用）。
-- **MyPage アプリケーション配備**: ユースケース別の最上位ワークフロー（`Deploy MyPage API` / `Deploy MyPage Frontend` / `Deploy Maintenance Operator`）が担当し、`ci.yml` からは呼び出しません（各 Deploy ワークフローは資格情報取得前に対象ドメインの認証なし検査を実行）。詳細は [CI / Terraform / Deploy / Operation workflow 設計](ci-cd-workflows.md) を参照してください。
-- **CodeQL / ローカル検証**: CodeQL・GCP Production Readiness・GCP Runtime Ownership Contracts は独立して維持します。CI 契約のローカル検証は以下のコマンドで行えます（`.github/codeql/requirements.txt` 導入済み環境）。
+- [Terraform](../../.github/workflows/terraform.yml) ワークフロー（オーナーによる `workflow_dispatch` および DEV PR Plan）が Plan / Apply を担当します。[ソース解決器](../../.github/scripts/terraform_source_pin.py) で対象 SHA を固定したうえで認証なし検証（`ci-gcp-terraform.yml`）を通し、認証付き実行器へ `expected_sha` を渡します（Plan ジョブと Apply ジョブがそれぞれ独立に Plan を生成し、HMAC 一致時のみ Apply 内の保存 Plan を適用するため Core の適用前 Plan は計 2 回、適用後 no-op 検証 Plan も維持）。
+- MyPage のアプリケーション配備はユースケース別の最上位ワークフロー（`Deploy MyPage API` / `Deploy MyPage Frontend` / `Deploy Maintenance Operator`）が担当し、`ci.yml` からは呼び出しません（各 Deploy ワークフローは資格情報取得前に対象ドメインの認証なし検査を実行）。詳細は [CI / Terraform / Deploy / Operation workflow 設計](ci-cd-workflows.md) を参照してください。
+- CodeQL・GCP Production Readiness・GCP Runtime Ownership Contracts は独立して維持します。CI 契約のローカル検証は以下のコマンドで行えます（`.github/codeql/requirements.txt` 導入済み環境）。
 
 ```sh
 python3 -m unittest discover -s .github/scripts -p 'test_ci_*.py' -v

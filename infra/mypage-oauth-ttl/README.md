@@ -9,10 +9,9 @@
 
 ## 対象範囲と停止条件
 
-- **管理対象**: [共有モジュール](modules/oauth-transaction-ttl/main.tf) の `google_firestore_field`（`ttl_config {}`、`offset` 指定なし）1 つのみです。DB・API・IAM・ルール・認証は含めません。
-- **インデックスの保護**: `index_config` は省略して継承インデックスを維持します（空の `index_config {}` はインデックスを無効化するため追加しません。明示的な上書きがある場合は Plan 検査で停止して別途レビューします。参考: [provider v8.5.0 仕様](https://github.com/hashicorp/terraform-provider-google/blob/v8.5.0/website/docs/r/firestore_field.html.markdown)）。
-- **削除防止**: `prevent_destroy` と `deletion_policy = "PREVENT"` を設定しています（撤去・置換・TTL 無効化は対象外）。
-- ※CI の成功だけでは公開承認や実環境での TTL `ACTIVE` 状態は証明されません。
+- 管理対象: [共有モジュール](modules/oauth-transaction-ttl/main.tf) の `google_firestore_field`（`ttl_config {}`、`offset` 指定なし）1 つのみです。DB・API・IAM・ルール・認証は含めません。
+- インデックスの保護: `index_config` は省略して継承インデックスを維持します（空の `index_config {}` はインデックスを無効化するため追加しません。明示的な上書きがある場合は Plan 検査で停止して別途レビューします。参考: [provider v8.5.0 仕様](https://github.com/hashicorp/terraform-provider-google/blob/v8.5.0/website/docs/r/firestore_field.html.markdown)）。
+- 削除防止と公開前の確認事項: `prevent_destroy` と `deletion_policy = "PREVENT"` を設定しています（撤去・置換・TTL 無効化は対象外）。なおサポート 3 コレクションの保持・削除、新 D01 方式の実装、実サポート受付の完了、実環境のインデックスと運用は別の公開条件として残っており、CI の成功だけでは公開承認や実環境での TTL `ACTIVE` 状態は証明されません。
 
 ---
 

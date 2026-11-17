@@ -1,6 +1,6 @@
 # DEV Plan の構成参照権限
 
-Core と MyPage の DEV Plan では、[静的マニフェスト](../policies/plan-metadata-read.json) を正本とする共通のプロジェクトカスタムロールを使用します（対象は `test-youtube-study-space` の `terraform-dev-normal-plan` と `mypage-foundation-plan` のみ。SA・WIF・State は別々のまま維持します）。同じ SA を使う手動 DEV Plan にもこの参照範囲が適用されます。
+Core と MyPage の DEV Plan では、[静的マニフェスト](../policies/plan-metadata-read.json) を基準定義とする共通のプロジェクトカスタムロールを使用します（対象は `test-youtube-study-space` の `terraform-dev-normal-plan` と `mypage-foundation-plan` のみ。SA・WIF・State は別々のまま維持します）。同じ SA を使う手動 DEV Plan にもこの参照範囲が適用されます。
 
 ---
 
@@ -9,11 +9,11 @@ Core と MyPage の DEV Plan では、[静的マニフェスト](../policies/pla
 - マニフェストのサービス（family）ごとに、明示的な permission・API 返却内容・一次資料・平文秘密値を置かないための前提を記録しています（API や定義済みロールの変更に自動追従せず、未分類 permission は拒否）。
 - 未使用サービスの参照権限も含みますが、API 自体の有効化は行いません。
 - 課金情報・Secret の実値（payload）・業務データ本文・認証情報発行・署名/復号・書き込み権限は一切付与しません（Secret メタデータと AWS State 読み取りは別扱いとし、State/lock ポリシーはこのツールでは変更しません）。
-- **個別の除外ルール**:
+- 個別の除外ルール
   - Cloud SQL instance の `get`/`list` は、外部接続設定の `password` / `clientKey` が返却から確実に除外される保証が未確定のため初期対象外としています。
   - GKE はクラスタ構成のみを対象とし、`getCredentials` や Kubernetes API の Secret / Pod / ConfigMap 参照は許可しません。
   - Firestore は `datastore.databases.getMetadata` を用い、トランザクション操作を含む `datastore.databases.get` は含めません。
-- **平文秘密値の禁止**: VM メタデータ、スタートアップスクリプト、Run/Functions の環境変数、Scheduler の body/header、Pub/Sub push URL、BigQuery の view/routine 定義、監視設定には平文の秘密値を埋め込まないでください（既知の秘密値埋め込みが見つかった場合は修正まで権限拡張を止めます）。
+- 平文秘密値の禁止: VM メタデータ、スタートアップスクリプト、Run/Functions の環境変数、Scheduler の body/header、Pub/Sub push URL、BigQuery の view/routine 定義、監視設定には平文の秘密値を埋め込まないでください（既知の秘密値埋め込みが見つかった場合は修正まで権限拡張を止め、Secret 実値や State 本文を取得した検査は行いません）。
 
 ---
 
@@ -25,15 +25,15 @@ Core と MyPage の DEV Plan では、[静的マニフェスト](../policies/pla
 python3 infra/gcp/scripts/plan_read_access.py
 ```
 
-固定 CI の `terraform-static` は、信頼済みコントローラー側の [plan_policy.py](../../../.github/ci-validation/plan_policy.py) を使って対象コミットの JSON だけを実行せずに検証します（マニフェストがない過去コミットは停止します）。
+固定 CI の `terraform-static` は信頼済みコントローラー側からコピーした [plan_policy.py](../../../.github/ci-validation/plan_policy.py) を使って対象コミットの JSON だけを実行せずに検証します（マニフェストがない過去コミットも停止するため、手動指定の対象 SHA もレビュー済みマニフェストを含むものを選び、マニフェスト・生成器・テストの変更は Core/MyPage 両方の CI へ分類します）。
 
-Core の `bootstrap_normal_ops.py` は Plan 権限をこのマニフェストから生成し、Apply 権限は従来どおり独立して生成します（共有の旧 read ロールは変更しません）。
+Core の `bootstrap_normal_ops.py` は Plan 権限をこのマニフェストから生成し、Apply 権限は従来どおり独立して生成します（共有の旧 read ロールは広げず、移行済みの新ロール/バインディングを読み取るまで通常 bootstrap の書き込みは進めません）。
 
 ---
 
 ## 読み取り棚卸しと dry-run
 
-管理端末の既存 `gcloud` 認証で実行します（Plan SA へ棚卸し権限を足したり、Plan SA になりすましたりしないでください。権限不足時は停止します）。
+管理端末の既存 `gcloud` 認証で実行します（Plan SA へ棚卸し権限を足したり、Plan SA になりすましたり、通常 bootstrap で代用したりしないでください。権限不足時は停止します）。
 
 ```bash
 # 保存先は既存の非公開ディレクトリ、出力先は新規ファイルパスを指定
@@ -43,14 +43,14 @@ python3 infra/gcp/scripts/plan_read_access.py --live --export /private/plan-befo
 python3 infra/gcp/scripts/plan_read_access.py --snapshot /private/plan-before.json
 ```
 
-- プロジェクト/SA の同一性・有効状態、user-managed key がないこと、プロジェクトポリシーの `etag`、新旧ロールの範囲、GA / カスタムロール対応を確認します。Cloud Asset Analyzer で条件付き・間接・子リソースの追加付与や禁止 permission、解析不足（`fullyExplored != true`）が見つかった場合は停止します。
+- プロジェクト/SA の同一性・有効状態、user-managed key がないこと、プロジェクトポリシーの `etag`、新旧ロールの範囲、GA / カスタムロール対応を確認します。Cloud Asset Analyzer は identity を指定し resource/access フィルタなしで解析し、条件付き・間接・子リソースの追加付与や禁止 permission、解析不足（`fullyExplored != true`）が見つかった場合は既存付与を勝手に消さず停止します。
 - 出力は追加/削除 permission・Plan 対象名・確認 digest・review 待ち状態のみとし、生 IAM ポリシーは公開ログに出しません。`export` は `0600` で新規作成し、スナップショットや復旧記録・レビュー記録は Git や公開 Issue/artifact に保存しないでください。
 
 ---
 
 ## 反映前の管理者レビュー
 
-プロジェクトスコープの Analyzer だけでは対象外リソースや他プロジェクトからの間接付与・設定内の平文秘密値を網羅できないため、管理者が残る範囲を確認し、非公開の根拠記録を作成します（旧 PR 専用 identity が残っていても拡張対象に加えず、整理方針のみ記録します）。
+プロジェクトスコープの Analyzer だけでは対象外リソースや他プロジェクトからの間接付与・設定内の平文秘密値を網羅できないため、管理者が残る範囲を確認し、非公開の根拠記録を作成します（旧 PR 専用 identity が残っていても存在確認と利用可能性の確認を分け、拡張対象には加えず整理方針のみ記録します）。
 
 全項目の確認が完了したら、レビュー JSON の各 boolean を `true` に設定します（これは管理者の確認記録であり、技術的な完全証明ではありません）。
 
@@ -90,7 +90,7 @@ python3 infra/gcp/scripts/plan_read_access.py --live --apply \
 ## 復旧手順
 
 1. 実行中の DEV Plan を停止します（復旧も環境更新のため、明示的な指示の範囲内で実施）。
-2. backup の `before.json` と **最新のプロジェクトポリシー** を取得し、最新ポリシーの `etag` と他メンバー・監査設定を維持したまま、対象 2 つの Plan SA のバインディングだけを `before.json` と同じ状態へ戻したポリシーを作成します（**古いプロジェクトポリシー全体でそのまま上書きしないでください**）。
+2. backup の `before.json` と **最新のプロジェクトポリシー** を取得し、最新ポリシーの `etag` と他メンバー・監査設定を維持したまま、対象 2 つの Plan SA のバインディングだけを `before.json` と同じ状態へ戻したポリシーを作成します（古いプロジェクトポリシー全体でそのまま上書きしないでください）。
 3. `gcloud projects set-iam-policy test-youtube-study-space /private/restored-policy.json` で `etag` 付き更新を行い、読み戻して対象以外が変わっていないことを確認します。
 4. 共通ロールが更新前から存在していた場合は、他メンバーへの新規付与がないことを確認のうえ現 `etag` を含めて元定義へ戻して読み戻します（新規作成した場合はバインディング解除のみで構いません。共有 legacy ロール・旧 SA/WIF・State には触れません）。
 5. 新規トークン発行の停止と発行済みトークンの有効期限を考慮した確認を別々に行います（バインディング解除が既存トークンの即時失効を意味するわけではありません）。

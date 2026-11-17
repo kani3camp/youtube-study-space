@@ -11,10 +11,10 @@ YouTube の生データ `live-chat-history` の永続保存を廃止しつつ、
 | `development` | `test-youtube-study-space` | `firestore_export` / `live-chat-history` | `firestore-backup-test-youtube-study-space` | `soraride-dev` |
 | `production` | `youtube-study-space` | `firestore_export` / `live-chat-history` | `firestore-backup-youtube-study-space` | `soraride-prod` |
 
-- **プロジェクトの一致確認**: 各操作では認証情報が解決したプロジェクトと明示したターゲットを照合します（GCS は Firestore 設定のバケットも照合）。`system/.env` の値や過去の記録だけで環境を判断しないでください。
-- **秘密・生情報の保護**: 認証情報 JSON とそのパス、confirmation token、生棚卸し一覧はコミットや公開ログに出しません。
-- **実環境変更操作の制限**: Bot は OBS / モニターと同じ配信 PC、日次バッチは AWS 上で動作します。Bot 起動・CDK デプロイ・データ削除（purge）は実環境を変更するため通常のローカル検証には使わず、Bot 起動時は表示された `Project ID` が対象と完全一致する場合のみ `yes` で続行します。
-- **記録管理**: 実施記録・Day 0・対象ソースと成果物・承認・結果は対応する Issue / PR の非公開証跡参照で管理します（日付経過やマージだけで完了とみなしません）。
+- プロジェクトの一致確認: 各操作では認証情報が解決したプロジェクトと明示したターゲットを照合します（GCS は Firestore 設定のバケットも照合）。`system/.env` の値や過去の記録だけで環境を判断しないでください。
+- 秘密・生情報の保護: 認証情報 JSON とそのパス、confirmation token、生棚卸し一覧はコミットや公開ログに出しません。
+- 実環境変更操作の制限: Bot は OBS / モニターと同じ配信 PC、日次バッチは AWS 上で動作します。Bot 起動・CDK デプロイ・データ削除（purge）は実環境を変更するため通常のローカル検証には使わず、Bot 起動時は表示された `Project ID` が対象と完全一致する場合のみ `yes` で続行します。
+- 記録管理: 実施記録・Day 0・対象ソースと成果物・承認・結果は対応する Issue / PR の非公開証跡参照で管理します（日付経過やマージだけで完了とみなしません）。
 
 ### 変更してはいけない条件
 
