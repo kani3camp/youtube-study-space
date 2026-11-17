@@ -23,8 +23,8 @@
 
 ### 1. 初回構築・有効化
 
-1. イメージの準備確認: 事前に DEV のレビュー済み MyPage イメージが Artifact Registry に存在することを確認します。初回に Maintenance Job を作成するときだけ、GitHub Environment の JSON へ digest を書かず、コードに固定した実ビルド済み source SHA の不変タグを Plan 時に読み取り専用で解決して非公開 digest 入力として使います（Job 作成済みの通常 Plan では使いません）。
-2. Terraform の Plan / Apply: `Terraform`（`terraform.yml`）を `operation=plan` と対象 `environment` で実行し、Core GCP と MyPage の desired state をまとめて確認したうえで、差分レビュー後に `operation=apply` を実行します（通常運用では `maintenance_operator` / `maintenance_upgrade` を個別選択せず、desired stage が `disabled` なら変更しません）。Job 作成後のコンテナイメージは Backend CI/CD が所有します。
+1. イメージの準備確認: 対象環境の Artifact Registry に、GitHub Environment の `MYPAGE_RUNTIME_SETTINGS_JSON` が指すレビュー済み API イメージがあることを確認します。Job を初めて作るときだけ、この API イメージ（`runtime_settings.image_digest`）で作成します（API イメージには Operator のバイナリが無いため、手順 3 の Operator 配備までは Job を実行できません）。
+2. Terraform の Plan / Apply: `Terraform`（`terraform.yml`）を `operation=plan` と対象 `environment` で実行し、Core GCP と MyPage の desired state をまとめて確認したうえで、差分レビュー後に `operation=apply` を実行します（段階の選択は無く、runtime settings がそろった環境では API と同じ Apply で Job と専用 IAM/WIF を宣言します。本番の初回構築手順は [MyPage Platform Terraform](../../infra/mypage-platform/README.md#本番の初回構築main-から) を参照）。Job 作成後のコンテナイメージは Backend CI/CD が所有します。
 3. Operator イメージ配備と制御文書初期化
    - 初回構築後は `Deploy Maintenance Operator`（`mode=build-and-deploy`）で Job を専用 operator イメージへ更新し、generation 前進と設定不変の読み戻し成功を確認します（API Service とは同じ digest に同期しません）。
    - 続いて GitHub Actions の `Set Maintenance Mode`（`mypage-maintenance.yml`）を `workflow_dispatch` で実行し、対象 `environment` と `enabled=false` を指定して制御文書を初期化します（文書が欠落している場合も同じ Job が作成します）。

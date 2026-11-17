@@ -17,7 +17,7 @@ import runtime_contract as r
 import read_metrics_transition as m
 
 
-def fixture(enabled=True, stage="runtime_private"):
+def fixture(enabled=True, public=False):
     value = r.settings({
         "image_digest": r.REPOSITORY + "@sha256:" + "a" * 64,
         "project_number": c.PROJECT_NUMBER, "web_app_id": "1:" + c.PROJECT_NUMBER + ":web:synthetic",
@@ -31,7 +31,7 @@ def fixture(enabled=True, stage="runtime_private"):
                                 ("MYPAGE_OAUTH_CLIENT_SECRET", "mypage-oauth-client-secret", "oauth_client_secret_version"),
                                 ("MYPAGE_YOUTUBE_API_KEY", "mypage-youtube-api-key", "youtube_api_key_version")):
         env.append({"name": name, "value_source": [{"secret_key_ref": [{"secret": secret, "version": value[field]}]}]})
-    resources = r.resource_contract(stage, value)
+    resources = r.resource_contract(public=public, value=value)
     for address in (r.MAINTENANCE_ROLE, r.MAINTENANCE_IMAGE_ROLE):
         resources[address]["deleted"] = False
     resources[r.SERVICE].update(
@@ -53,7 +53,7 @@ def fixture(enabled=True, stage="runtime_private"):
                 "change": {"actions": ["no-op"], "before": deepcopy(data), "after": deepcopy(data), "after_unknown": {}}}
                for address, data in resources.items()]
     plan = {"format_version": "1.2", "complete": True, "errored": False,
-            "variables": {"stage": {"value": stage}, "runtime_settings": {"value": value}}, "resource_changes": changes}
+            "variables": {"runtime_settings": {"value": value}, "public_invoker": {"value": public}}, "resource_changes": changes}
     change = service(plan)
     change["actions"] = ["update"]
     new_env = m.container(change["after"])["env"]
@@ -93,18 +93,18 @@ def actual(state):
 class MetricsTransitionTest(unittest.TestCase):
     def test_enable_disable_private_public_and_no_plan_mutation(self):
         for enabled in (True, False):
-            for stage in ("runtime_private", "runtime_public"):
-                with self.subTest(enabled=enabled, stage=stage):
-                    plan = fixture(enabled, stage)
+            for public in (False, True):
+                with self.subTest(enabled=enabled, public=public):
+                    plan = fixture(enabled, public)
                     original = deepcopy(plan)
-                    self.assertEqual(r.validate_plan(plan, stage), {"resources": len(plan["resource_changes"]), "creates": 0, "updates": 1})
+                    self.assertEqual(r.validate_plan(plan), {"resources": len(plan["resource_changes"]), "creates": 0, "updates": 1})
                     self.assertEqual(plan, original)
                     state = applied_state(plan)
-                    m.validate_readback(state, plan, stage)
+                    m.validate_readback(state, plan)
                     self.assertEqual(plan, original)
 
     def test_metrics_transition_accepts_verified_service_and_job_image_refresh_drift(self):
-        plan = fixture(True, "runtime_private")
+        plan = fixture(True)
         target_image = r.REPOSITORY + "@sha256:" + "d" * 64
         old_image = r.REPOSITORY + "@sha256:" + "c" * 64
 
@@ -137,7 +137,7 @@ class MetricsTransitionTest(unittest.TestCase):
         }
         plan["resource_drift"] = [service_drift, job_drift]
         original = deepcopy(plan)
-        self.assertEqual(r.validate_plan(plan, "runtime_private"),
+        self.assertEqual(r.validate_plan(plan),
                          {"resources": len(plan["resource_changes"]), "creates": 0, "updates": 1})
         self.assertEqual(plan, original)
 
@@ -145,11 +145,11 @@ class MetricsTransitionTest(unittest.TestCase):
         plan = fixture()
         value(plan)["read_metrics_from_revision"] = ""
         with self.assertRaises(c.ContractError):
-            r.validate_plan(plan, "runtime_private")
+            r.validate_plan(plan)
         plan = fixture()
         service(plan)["actions"] = ["no-op"]
         with self.assertRaises(c.ContractError):
-            r.validate_plan(plan, "runtime_private")
+            r.validate_plan(plan)
 
     def test_revision_declaration_requires_exact_string(self):
         for revision in (None, True, 1, [], {}, "", "other-api-ready", "../mypage-api-ready", "mypage-api-old\n"):
@@ -170,18 +170,18 @@ class MetricsTransitionTest(unittest.TestCase):
             plan = fixture()
             service(plan)["before"][key] = invalid
             with self.subTest(key=key), self.assertRaises(c.ContractError):
-                r.validate_plan(plan, "runtime_private")
+                r.validate_plan(plan)
 
     def test_even_same_suffix_foreign_revision_is_rejected(self):
         plan = fixture()
         service(plan)["before"]["latest_ready_revision"] = "projects/other/locations/asia-southeast2/services/mypage-api/revisions/mypage-api-before"
         with self.assertRaises(c.ContractError):
-            r.validate_plan(plan, "runtime_private")
+            r.validate_plan(plan)
         plan = fixture()
         prefix = "projects/" + c.PROJECT + "/locations/asia-southeast2/services/mypage-api/revisions/"
         for key in ("latest_ready_revision", "latest_created_revision"):
             service(plan)["before"][key] = prefix + "mypage-api-before"
-        self.assertEqual(r.validate_plan(plan, "runtime_private")["updates"], 1)
+        self.assertEqual(r.validate_plan(plan)["updates"], 1)
 
     def test_configuration_changes_cannot_hide_with_the_toggle(self):
         mutations = (
@@ -204,7 +204,7 @@ class MetricsTransitionTest(unittest.TestCase):
             plan = fixture()
             mutation(service(plan)["after"])
             with self.subTest(mutation=mutation), self.assertRaises(c.ContractError):
-                r.validate_plan(plan, "runtime_private")
+                r.validate_plan(plan)
 
     def test_configuration_unknowns_remain_fail_closed(self):
         for mask in ({"template": True}, {"template": [{"containers": [{"env": True}]}]},
@@ -212,28 +212,28 @@ class MetricsTransitionTest(unittest.TestCase):
             plan = fixture()
             service(plan)["after_unknown"].update(mask)
             with self.subTest(mask=mask), self.assertRaises(c.ContractError):
-                r.validate_plan(plan, "runtime_private")
+                r.validate_plan(plan)
 
     def test_toggle_must_change_only_the_expected_boolean(self):
         for enabled in (True, False):
             plan = fixture(enabled)
             value(plan)["read_metrics_enabled"] = not enabled
             with self.assertRaises(c.ContractError):
-                r.validate_plan(plan, "runtime_private")
+                r.validate_plan(plan)
         for mutation in (lambda env: env.append({"name": m.METRICS_ENV, "value": "true"}),
                          lambda env: env[1].update(value="false"),
                          lambda env: env[1].update(value_source=[{"secret_key_ref": [{"secret": "unreviewed", "version": "1"}]}])):
             plan = fixture()
             mutation(m.container(service(plan)["after"])["env"])
             with self.assertRaises(c.ContractError):
-                r.validate_plan(plan, "runtime_private")
+                r.validate_plan(plan)
 
     def test_other_resource_mutation_import_or_inventory_change_is_rejected(self):
         for actions in (["create"], ["update"], ["delete"], ["delete", "create"], ["read"]):
             plan = fixture()
             plan["resource_changes"][0]["change"]["actions"] = actions
             with self.subTest(actions=actions), self.assertRaises(c.ContractError):
-                r.validate_plan(plan, "runtime_private")
+                r.validate_plan(plan)
         for mutation in (
             lambda p: p["resource_changes"].pop(0),
             lambda p: p["resource_changes"].append(deepcopy(p["resource_changes"][0])),
@@ -245,14 +245,14 @@ class MetricsTransitionTest(unittest.TestCase):
             plan = fixture()
             mutation(plan)
             with self.assertRaises(c.ContractError):
-                r.validate_plan(plan, "runtime_private")
+                r.validate_plan(plan)
 
     def test_drift_and_incomplete_plans_are_not_accepted(self):
         for values in ({"resource_drift": [{"address": r.SERVICE}]}, {"complete": False},
                        {"errored": True}, {"deferred_changes": [1]}, {"action_invocations": [1]},
                        {"checks": [{"status": "unknown"}]}):
             with self.subTest(values=values), self.assertRaises(c.ContractError):
-                r.validate_plan(fixture() | values, "runtime_private")
+                r.validate_plan(fixture() | values)
 
     def test_full_plan_commitment_binds_revision_and_operation(self):
         plan = fixture()
@@ -279,7 +279,7 @@ class MetricsTransitionTest(unittest.TestCase):
             state = applied_state(plan)
             mutation(state)
             with self.subTest(mutation=mutation), self.assertRaises(c.ContractError):
-                m.validate_readback(state, plan, "runtime_private")
+                m.validate_readback(state, plan)
 
     def test_rollback_binds_newly_observed_revision_not_the_old_plan(self):
         plan = fixture(False)
@@ -287,16 +287,16 @@ class MetricsTransitionTest(unittest.TestCase):
         before = service(plan)["before"]
         before.update(latest_ready_revision="mypage-api-enabled", latest_created_revision="mypage-api-enabled")
         before["traffic_statuses"][0]["revision"] = "mypage-api-enabled"
-        self.assertEqual(r.validate_plan(plan, "runtime_private")["updates"], 1)
+        self.assertEqual(r.validate_plan(plan)["updates"], 1)
         value(plan)["read_metrics_from_revision"] = "mypage-api-before"
         with self.assertRaises(c.ContractError):
-            r.validate_plan(plan, "runtime_private")
+            r.validate_plan(plan)
 
     def test_errors_do_not_echo_rejected_configuration(self):
         plan = fixture()
         m.container(service(plan)["after"])["env"][0]["value"] = "synthetic-sensitive-value"
         with self.assertRaises(c.ContractError) as caught:
-            r.validate_plan(plan, "runtime_private")
+            r.validate_plan(plan)
         self.assertNotIn("synthetic-sensitive-value", str(caught.exception))
 
 

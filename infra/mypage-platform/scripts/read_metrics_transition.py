@@ -110,7 +110,7 @@ def cicd_image_drifts(plan, value):
     return accepted, remaining
 
 
-def recovery_transition(plan, stage, value):
+def recovery_transition(plan, value):
     """新たにStateだけを復旧する前に、1回の適用済み切替を証明する。
 
     元のPlanは変更せず、両方のHMACにdrift全体を残す。
@@ -135,24 +135,24 @@ def recovery_transition(plan, stage, value):
     service = next((x["change"] for x in projected.get("resource_changes", []) if x.get("address") == r.SERVICE), None)
     c.need(service is not None and service.get("after") == change.get("after"), "metrics-recovery-result")
     service.update(actions=["update"], before=deepcopy(change.get("before")))
-    validate_plan(projected, stage, value)
+    validate_plan(projected, value)
     prior = plan.get("prior_state", {}).get("values")
     c.need(type(prior) is dict, "metrics-recovery-prior-state")
-    validate_readback({"values": prior}, projected, stage)
+    validate_readback({"values": prior}, projected)
     return projected
 
 
-def validate_plan(plan, stage, value):
+def validate_plan(plan, value):
     """環境変数1個の切替だけを許可し、イメージ配備や汎用ランタイム更新は許可しない。"""
     c.need(value["read_metrics_from_revision"] != "", "metrics-transition-declaration")
     _, remaining_drift = cicd_image_drifts(plan, value)
-    recovered = recovery_transition(plan, stage, value)
+    recovered = recovery_transition(plan, value)
     if recovered is not None:
-        return validate_plan(recovered, stage, value) | {"updates": 0, "stateRecovery": True}
+        return validate_plan(recovered, value) | {"updates": 0, "stateRecovery": True}
     c.need(not remaining_drift, "metrics-transition-drift")
     changes = plan.get("resource_changes")
     c.need(type(changes) is list, "metrics-transition-resources")
-    expected = r.resource_contract(stage)
+    expected = r.plan_resources(plan)
     seen = set()
     service_change = None
     for item in changes:
@@ -206,15 +206,15 @@ def validate_plan(plan, stage, value):
     # so remove only these already-validated observations from this projection.
     # The original Plan, including all drift, remains unchanged for HMAC/review.
     checked["resource_drift"] = []
-    result = r.validate_initial_plan(checked, stage)
+    result = r.validate_initial_plan(checked)
     return result | {"updates": 1}
 
 
-def validate_readback(state, plan, stage):
+def validate_readback(state, plan):
     """古い配信リビジョンを受け入れず、保存Planの結果を検証する。"""
     value = r.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
-    plan = recovery_transition(plan, stage, value) or plan
-    validate_plan(plan, stage, value)
+    plan = recovery_transition(plan, value) or plan
+    validate_plan(plan, value)
     resources = {}
 
     def walk(module):
@@ -226,7 +226,7 @@ def validate_readback(state, plan, stage):
             walk(child)
 
     walk(state.get("values", {}).get("root_module", {}))
-    c.need(set(resources) == set(r.resource_contract(stage)), "metrics-readback-resources")
+    c.need(set(resources) == set(r.plan_resources(plan)), "metrics-readback-resources")
     for planned in plan["resource_changes"]:
         observed = resources[planned["address"]]
         c.need(observed.get("mode") == "managed" and
@@ -255,23 +255,22 @@ def readback_saved(env):
 
     c.context(env, "apply")
     c.need(env.get("MYPAGE_ROLE") == "apply", "metrics-readback-role")
-    stage = c.stage_for_mode(env["MYPAGE_MODE"])
-    c.need(stage in {"runtime_private", "runtime_public"}, "metrics-readback-stage")
     root = ops.directory(env)
     c.need(root.is_dir() and not root.is_symlink(), "metrics-readback-evidence")
     saved = root / "foundation.tfplan"
     receipt = json.loads((root / "prepared.json").read_text())
     c.need(receipt == {"sha256": hashlib.sha256(saved.read_bytes()).hexdigest(), "source": env["GITHUB_SHA"]},
            "metrics-readback-plan-receipt")
-    work = root / "source/environments/dev"
+    # 本番も同じApplyジョブでこの確認を通る（計測切替は宣言できないため即終了する）。
+    work = root / ("source/environments/" + c.CONFIG["state"])
     plan = json.loads(ops.run(["terraform", "show", "-json", str(saved)], cwd=work))
-    value = r.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
-    if not value["read_metrics_from_revision"]:
+    value, _ = r.declared(plan)
+    if value is None or not value["read_metrics_from_revision"]:
         print("Metrics transition not requested; existing runtime release checks unchanged.")
         return
     state = json.loads(ops.run(["terraform", "show", "-json"], cwd=work))
     from read_metrics_live import verify_state_live
-    verify_state_live(env, state, plan, stage)
+    verify_state_live(env, state, plan)
     print("DEV metrics transition live API and State readback passed.")
 
 

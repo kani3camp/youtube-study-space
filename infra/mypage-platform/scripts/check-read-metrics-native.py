@@ -27,10 +27,10 @@ for rendered, enabled in zip(plans, (True, False)):
     # 既存のネイティブチェッカーと同様に、テスト描画用メタデータを変換する。
     # プロバイダーが生成したaction・before/after・unknownは書き換えない。
     envelope = {"format_version": rendered["plan_format_version"], "complete": True, "errored": False,
-                "variables": {"stage": {"value": "runtime_private"}, "runtime_settings": {"value": settings}},
+                "variables": {"runtime_settings": {"value": settings}, "public_invoker": {"value": False}},
                 "resource_changes": rendered.get("resource_changes", []),
                 "resource_drift": rendered.get("resource_drift", []),
                 "deferred_changes": rendered.get("deferred_changes", [])}
-    need(r.validate_plan(envelope, "runtime_private") == {"resources": len(envelope["resource_changes"]), "creates": 0, "updates": 1},
+    need(r.validate_plan(envelope) == {"resources": len(envelope["resource_changes"]), "creates": 0, "updates": 1},
          "metrics-native-admission")
 print("Native mocked metrics enable/disable Plans each admitted exactly one update; no cloud I/O.")

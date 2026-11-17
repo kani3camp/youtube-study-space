@@ -26,7 +26,8 @@ def plan_fixture():
     for address, values in c.resource_contract().items():
         changes.append({'address': address, 'mode': 'managed', 'provider_name': 'registry.terraform.io/hashicorp/google',
                         'change': {'actions': ['create'], 'after': deepcopy(values), 'after_unknown': {}}})
-    return {'format_version': '1.2', 'complete': True, 'errored': False, 'variables': {'stage': {'value': 'foundation'}},
+    return {'format_version': '1.2', 'complete': True, 'errored': False,
+            'variables': {'runtime_settings': {'value': None}, 'public_invoker': {'value': False}},
             'resource_changes': changes}
 
 
@@ -68,10 +69,22 @@ class FoundationTest(unittest.TestCase):
         self.assertNotEqual(c.commitment(plan, "v", "a" * 40, "k" * 32),
                             c.commitment(changed, "v", "a" * 40, "k" * 32))
 
-    def test_desired_modes_use_the_reviewed_environment_stage(self):
-        stage = (ROOT / 'infra/mypage-platform/environments' / c.CONFIG['state'] / 'desired-stage.txt').read_text().strip()
-        self.assertEqual(c.stage_for_mode('desired-plan'), stage)
-        self.assertEqual(c.stage_for_mode('desired-apply'), stage)
+    def test_every_environment_declares_its_runtime_without_a_stage_selection(self):
+        for environment in ('dev', 'prod'):
+            root = ROOT / 'infra/mypage-platform/environments' / environment
+            self.assertFalse((root / 'desired-stage.txt').exists())
+            text = (root / 'main.tf').read_text()
+            self.assertNotIn('variable "stage"', text)
+            self.assertNotIn('count', text.split('module "platform"', 1)[1].split('}', 1)[0])
+        module = (ROOT / 'infra/mypage-platform/modules/runtime/main.tf').read_text()
+        self.assertNotIn('var.stage', module)
+        self.assertEqual(c.MODES, ('desired-plan', 'desired-apply'))
+        for mode in c.MODES:
+            c.validate_mode(mode)
+        for retired in ('foundation-plan', 'registry-apply', 'maintenance-operator-plan', 'maintenance-upgrade-apply',
+                        'runtime-private-plan', 'runtime-public-apply', '', None):
+            with self.subTest(mode=retired), self.assertRaisesRegex(c.ContractError, '^mypage-mode$'):
+                c.validate_mode(retired)
 
     def test_maintenance_creates_require_every_fixed_name_to_be_unowned(self):
         project = c.PROJECT
@@ -141,33 +154,92 @@ class FoundationTest(unittest.TestCase):
         self.assertEqual(ops.runtime_settings(env | {'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(legacy)}), clean)
         with self.assertRaisesRegex(c.ContractError, '^runtime-settings-fields$'):
             ops.runtime_settings(env | {'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(value | {'unreviewed': 'x'})})
-    def test_missing_dev_maintenance_job_resolves_reviewed_bootstrap_tag_without_secret_digest(self):
-        env = {'GITHUB_SHA': 'f' * 40, 'MYPAGE_GCP_ACCESS_TOKEN': 'private-token'}
-        prefix = ('projects/' + c.PROJECT + '/locations/' + c.REGION +
-                  '/repositories/mypage/packages/mypage-api')
-        digest = 'd' * 64
+    def test_service_lookup_distinguishes_absence_from_other_failures(self):
+        env = {'MYPAGE_GCP_ACCESS_TOKEN': 'private-token'}
+        with patch.object(ops, 'request', return_value={'name': 'existing'}) as request:
+            self.assertTrue(ops.service_exists(env))
+        self.assertTrue(request.call_args.args[0].endswith(
+            '/projects/' + c.PROJECT + '/locations/' + c.REGION + '/services/mypage-api'))
 
-        def cloud(url, _token):
-            if url.endswith('/jobs/mypage-maintenance-operator'):
-                raise ops.urllib.error.HTTPError(url, 404, 'not found', None, None)
-            self.assertTrue(url.endswith('/tags/' + ops.MAINTENANCE_BOOTSTRAP_SOURCE_SHA))
-            return {'version': prefix + '/versions/sha256:' + digest}
+        def absent(url, _token):
+            raise ops.urllib.error.HTTPError(url, 404, 'not found', None, None)
 
-        dockerfile = ('go build -tags timetzdata -trimpath -ldflags="-s -w" '
-                      '-o /out/mypage-maintenance-operator ./cmd/mypage-maintenance-operator\n'
-                      'COPY --from=build /out/mypage-maintenance-operator /app/mypage-maintenance-operator\n')
-        with patch.object(ops, 'request', side_effect=cloud), \
-             patch.object(ops, 'run', side_effect=['', dockerfile]) as run:
-            self.assertEqual(ops.maintenance_bootstrap_image(env, 'runtime_public'),
-                             ops.runtime_contract.REPOSITORY + '@sha256:' + digest)
-        self.assertIn('merge-base', run.call_args_list[0].args[0])
-        self.assertEqual(run.call_args_list[1].args[0][:2], ['git', 'show'])
+        with patch.object(ops, 'request', side_effect=absent):
+            self.assertFalse(ops.service_exists(env))
+        for code in (401, 403, 500):
+            def failed(url, _token, code=code):
+                raise ops.urllib.error.HTTPError(url, code, 'failed', None, None)
 
-        with patch.object(ops, 'request', return_value={'name': 'existing-job'}), \
-             patch.object(ops, 'run') as run:
-            self.assertEqual(ops.maintenance_bootstrap_image(env, 'runtime_public'), '')
-            run.assert_not_called()
-    def test_maintenance_operator_stage_writes_admitted_runtime_settings(self):
+            with self.subTest(code=code), patch.object(ops, 'request', side_effect=failed), \
+                    self.assertRaisesRegex(c.ContractError, '^runtime-service-lookup$'):
+                ops.service_exists(env)
+
+    def prepare_plan_arguments(self, *, settings, service):
+        """Run prepare with fixed native/cloud stubs; return (terraform plan args, import file written)."""
+        value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
+        env = {'MYPAGE_ROLE': 'plan', 'MYPAGE_MODE': 'desired-plan', 'GITHUB_EVENT_NAME': 'workflow_dispatch',
+               'MYPAGE_STATE_ACCOUNT': '123456789012', 'MYPAGE_BACKEND_ROLE_ID': 'FIXTURE_ROLE',
+               'GITHUB_SHA': 'a' * 40, 'MYPAGE_PLAN_HMAC_KEY': 'k' * 32,
+               'MYPAGE_GCP_WIF_PROVIDER': 'projects/' + c.PROJECT_NUMBER + '/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions',
+               'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(value) if settings else ''}
+        commands = []
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            work = root / 'source/environments/dev'
+            work.mkdir(parents=True)
+            env['GITHUB_OUTPUT'] = str(root / 'output')
+            (root / 'foundation.tfplan').write_bytes(b'synthetic saved plan')
+            if settings:
+                (root / 'runtime-settings.json').write_bytes(c.canonical({'runtime_settings': ops.runtime_settings(env)}))
+
+            def run(args, **kwargs):
+                commands.append(args)
+                if args[:3] == ['aws', 'sts', 'get-caller-identity']:
+                    return json.dumps({'Account': '123456789012', 'UserId': 'FIXTURE_ROLE:session',
+                                       'Arn': 'arn:aws:sts::123456789012:assumed-role/youtube-study-space-' + c.GITHUB_ENVIRONMENT + '-plan/s'})
+                if args[:2] == ['terraform', 'version']:
+                    return json.dumps({'terraform_version': (ROOT / 'infra/mypage-platform/.terraform-version').read_text().strip()})
+                declared = {'runtime_settings': {'value': ops.runtime_settings(env)}, 'public_invoker': {'value': service}}
+                return json.dumps({'variables': declared}) if args[:2] == ['terraform', 'show'] else ''
+
+            with patch.object(c, 'context'), patch.object(ops, 'directory', return_value=root), \
+                    patch.object(ops, 'run', side_effect=run), patch.object(ops, 'state_version', return_value='absent'), \
+                    patch.object(ops, 'service_exists', return_value=service), \
+                    patch.object(ops, 'verify_runtime_inputs') as inputs, \
+                    patch.object(ops, 'verify_owner_public_invoker') as owner, \
+                    patch.object(ops, 'validate_plan', return_value=({'resources': 0, 'creates': 0}, ())), \
+                    patch.object(ops, 'reject_unowned_resources'), redirect_stdout(io.StringIO()):
+                ops.prepare(env)
+            imported = (work / 'owner-public-invoker-import.tf').exists()
+        self.assertEqual(inputs.called, settings)
+        self.assertEqual(owner.called, service)
+        return next(args for args in commands if args[:2] == ['terraform', 'plan']), imported
+
+    def test_prepare_declares_runtime_and_public_invoker_only_from_external_facts(self):
+        # 初回構築: Secret値・imageがまだ無い → 基盤だけ。
+        args, imported = self.prepare_plan_arguments(settings=False, service=False)
+        self.assertFalse(any(arg.startswith('-var') for arg in args))
+        self.assertFalse(imported)
+        # runtime settingsが揃った → 実行系を作るが、まだ無いServiceの公開invokerは宣言しない。
+        args, imported = self.prepare_plan_arguments(settings=True, service=False)
+        self.assertEqual([arg for arg in args if arg.startswith('-var')][0].split('=', 1)[0], '-var-file')
+        self.assertNotIn('-var=public_invoker=true', args)
+        self.assertFalse(imported)
+        # Serviceが実在する（DEVの現状）→ オーナーの公開invokerを検証してimportする。
+        args, imported = self.prepare_plan_arguments(settings=True, service=True)
+        self.assertIn('-var=public_invoker=true', args)
+        self.assertTrue(imported)
+        # 既存Serviceに対して実行設定が欠けたら、実行系を消すPlanを作らずに停止する。
+        with self.assertRaisesRegex(c.ContractError, '^runtime-settings-required$'):
+            self.prepare_plan_arguments(settings=False, service=True)
+
+    def test_missing_runtime_settings_mean_a_base_only_plan(self):
+        self.assertIsNone(ops.runtime_settings({'MYPAGE_RUNTIME_SETTINGS_JSON': ''}))
+        self.assertIsNone(ops.runtime_settings({}))
+        with self.assertRaises(ValueError):
+            ops.runtime_settings({'MYPAGE_RUNTIME_SETTINGS_JSON': 'x' * 65537})
+
+    def test_preflight_writes_admitted_runtime_settings_only_when_provided(self):
         value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
         env = {
             'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
@@ -175,7 +247,7 @@ class FoundationTest(unittest.TestCase):
             'GITHUB_ACTOR': 'kani3camp', 'GITHUB_ACTOR_ID': '54093651', 'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
             'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_REF': c.REF, 'GITHUB_WORKFLOW_REF': c.CALLER,
             'TF_WORKSPACE': 'default', 'GITHUB_SHA': 'a' * 40, 'MYPAGE_EXPECTED_SHA': 'a' * 40,
-            'MYPAGE_MODE': 'maintenance-operator-plan', 'MYPAGE_ROLE': 'plan',
+            'MYPAGE_MODE': 'desired-plan', 'MYPAGE_ROLE': 'plan',
             'MYPAGE_STATE_ACCOUNT': '123456789012', 'MYPAGE_STATE_BUCKET': 'synthetic-state-bucket',
             'MYPAGE_BACKEND_ROLE_ARN': 'arn:aws:iam::123456789012:role/youtube-study-space-mypage-dev-plan',
             'MYPAGE_BACKEND_ROLE_ID': 'AROA' + 'A' * 17,
@@ -184,17 +256,24 @@ class FoundationTest(unittest.TestCase):
             'MYPAGE_PLAN_HMAC_KEY': 'synthetic-test-key-with-more-than-32-bytes',
             'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(value),
         }
-        expected = ops.runtime_settings(env, 'maintenance_operator')
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / 'private'
+        expected = ops.runtime_settings(env)
+        for settings in (True, False):
+            with self.subTest(settings=settings), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / 'private'
 
-            def copytree(_source, destination, **_kwargs):
-                (destination / 'environments/dev').mkdir(parents=True)
+                def copytree(_source, destination, **_kwargs):
+                    (destination / 'environments/dev').mkdir(parents=True)
 
-            with patch.object(ops, 'directory', return_value=root), patch.object(ops.shutil, 'copytree', side_effect=copytree):
-                ops.stage(env)
-            written = json.loads((root / 'runtime-settings.json').read_text())
-            self.assertEqual(written, {'runtime_settings': expected})
+                staged = env if settings else env | {'MYPAGE_RUNTIME_SETTINGS_JSON': ''}
+                with patch.object(ops, 'directory', return_value=root), patch.object(ops.shutil, 'copytree', side_effect=copytree):
+                    ops.preflight(staged)
+                if settings:
+                    written = json.loads((root / 'runtime-settings.json').read_text())
+                    self.assertEqual(written, {'runtime_settings': expected})
+                else:
+                    self.assertFalse((root / 'runtime-settings.json').exists())
+                # The import is decided only after the credentialed Service lookup.
+                self.assertFalse((root / 'source/environments/dev/owner-public-invoker-import.tf').exists())
 
     def plan_error_entries(self, native):
         private = 'private-command-output-and-credential-marker'
@@ -210,24 +289,24 @@ class FoundationTest(unittest.TestCase):
 
     def test_native_plan_failures_publish_only_public_error_addresses_and_status(self):
         private = 'private-command-output-and-credential-marker'
-        job_iam = 'module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_invoker[0]'
-        secret_address = 'module.platform[0].private_secret.credential_marker'
+        job_iam = 'module.platform.google_cloud_run_v2_job_iam_member.maintenance_invoker[0]'
+        secret_address = 'module.platform.private_secret.credential_marker'
         plain = (
             # -no-color: Terraform 1.16 prints plain diagnostics without box characters.
             "Error: Error reading thing: googleapi: Error 403: " + private + " with " + secret_address + ",\n\n"
             "  with " + secret_address + ",\n"
-            "  with module.platform[0].google_service_account.maintenance_operator[98765432101234567890],\n"
+            "  with module.platform.google_service_account.maintenance_operator[98765432101234567890],\n"
             "  on body-text line 7\n"
             "  with " + job_iam + ",\n"
             "  on ../../modules/runtime/main.tf line 1, in resource \"x\" \"y\":\n"
             "   1: resource \"x\" \"y\" { " + private + " }\n\n"
-            "Warning: not an error Error 404\n\n  with module.platform[0].google_service_account.maintenance_operator[0],\n\n"
+            "Warning: not an error Error 404\n\n  with module.platform.google_service_account.maintenance_operator[0],\n\n"
             "Error: " + private + " without address or status\n\n"
             "Error: Error 418 " + private + "\n\n  with " + secret_address + ",\n\n"
-            "Error: missing status\n\n  with module.platform[0].google_iam_workload_identity_pool.maintenance_github[0],\n"
+            "Error: missing status\n\n  with module.platform.google_iam_workload_identity_pool.maintenance_github[0],\n"
             "  on ../../modules/runtime/main.tf line 2:\n\n"
             "Error: Error 403 undefined index\n\n"
-            "  with module.platform[0].google_service_account.maintenance_operator[98765432101234567890],\n"
+            "  with module.platform.google_service_account.maintenance_operator[98765432101234567890],\n"
             "  on ../../modules/runtime/main.tf line 3:\n\n"
             "Error: Error 403 location-less body line\n\n  with " + job_iam + ",\n")
         entries, printed = self.plan_error_entries(plain)
@@ -235,7 +314,7 @@ class FoundationTest(unittest.TestCase):
             {'address': job_iam, 'status': '403'},
             {'address': '<withheld>', 'status': '<withheld>'},
             {'address': '<withheld>', 'status': '<withheld>'},
-            {'address': 'module.platform[0].google_iam_workload_identity_pool.maintenance_github[0]', 'status': '<withheld>'},
+            {'address': 'module.platform.google_iam_workload_identity_pool.maintenance_github[0]', 'status': '<withheld>'},
             {'address': '<withheld>', 'status': '403'},
             {'address': '<withheld>', 'status': '403'},
         ])
@@ -289,7 +368,7 @@ class FoundationTest(unittest.TestCase):
         prefix = 'projects/' + c.PROJECT + '/locations/asia-southeast2/repositories/mypage/packages/mypage-api'
         tag = {'version': prefix + '/versions/sha256:' + value['image_digest'].split('@sha256:')[1]}
         with patch.object(ops, 'request', side_effect=[tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
-            ops.verify_runtime_inputs(env, value, 'runtime_private')
+            ops.verify_runtime_inputs(env, value)
         urls = [call.args[0] for call in request.call_args_list]
         self.assertEqual(urls[0], 'https://artifactregistry.googleapis.com/v1/' + prefix + '/tags/' + env['GITHUB_SHA'])
         self.assertEqual(urls[1:], [
@@ -305,7 +384,7 @@ class FoundationTest(unittest.TestCase):
             output = io.StringIO()
             with patch.object(sys, 'argv', ['foundation_ops.py', 'execute']), \
                     patch.object(ops, 'request', side_effect=responses), \
-                    patch.object(ops, 'prepare', side_effect=lambda ignored: ops.verify_runtime_inputs(env, value, 'runtime_private')), \
+                    patch.object(ops, 'prepare', side_effect=lambda ignored: ops.verify_runtime_inputs(env, value)), \
                     redirect_stderr(output):
                 self.assertEqual(ops.main(), 1)
             self.assertIn('check=' + expected + '.', output.getvalue())
@@ -319,7 +398,7 @@ class FoundationTest(unittest.TestCase):
         tag = {'version': prefix + '/versions/sha256:' + value['image_digest'].split('@sha256:')[1]}
         with patch.object(ops, 'run', side_effect=['', '']) as run, \
                 patch.object(ops, 'request', side_effect=[tag, *[{'state': 'ENABLED'} for _ in range(3)]]) as request:
-            ops.verify_runtime_inputs(env, value, 'runtime_private')
+            ops.verify_runtime_inputs(env, value)
         self.assertEqual(run.call_args_list[0].args[0], ['git', 'fetch', '--no-tags', '--depth=1', 'origin', 'b' * 40])
         self.assertTrue(request.call_args_list[0].args[0].endswith('/tags/' + 'b' * 40))
         self.assertEqual(run.call_args_list[1].args[0],
@@ -327,21 +406,13 @@ class FoundationTest(unittest.TestCase):
         with patch.object(ops, 'run', side_effect=['', ValueError('unreviewed-ancestor')]), \
              patch.object(ops, 'request') as request:
             with self.assertRaises(ValueError):
-                ops.verify_runtime_inputs(env, value, 'runtime_private')
+                ops.verify_runtime_inputs(env, value)
             request.assert_not_called()
         for source in ['--upload-pack=private', 'b' * 39, 'B' * 40]:
             with self.subTest(source=source), patch.object(ops, 'run') as run:
                 with self.assertRaisesRegex(c.ContractError, '^runtime-image-source-sha$'):
-                    ops.verify_runtime_inputs(env, value | {'image_source_sha': source}, 'runtime_private')
+                    ops.verify_runtime_inputs(env, value | {'image_source_sha': source})
                 run.assert_not_called()
-
-    def test_maintenance_operator_uses_the_shared_bootstrap_image_contract(self):
-        value = json.loads((ROOT / 'infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json').read_text())
-        operator = ops.runtime_contract.settings(value, 'maintenance_operator')
-        self.assertEqual(operator['image_digest'], value['image_digest'])
-        self.assertEqual(operator['image_source_sha'], '')
-        self.assertNotIn('maintenance_operator_image_digest', operator)
-        self.assertNotIn('maintenance_operator_image_source_sha', operator)
 
     def test_public_invoker_preflight_requires_the_exact_unconditional_owner_binding(self):
         env = {'MYPAGE_GCP_ACCESS_TOKEN': 'private-token-marker'}
@@ -355,19 +426,13 @@ class FoundationTest(unittest.TestCase):
             with self.subTest(policy=policy), patch.object(ops, 'request', return_value=policy), self.assertRaisesRegex(c.ContractError, '^runtime-owner-public-invoker$'):
                 ops.verify_owner_public_invoker(env)
 
-    def test_registry_stage_adds_only_the_immutable_dev_repository(self):
+    def test_base_plan_adds_only_the_immutable_environment_repository(self):
         plan = plan_fixture()
-        plan['variables']['stage']['value'] = 'registry'
+        address = 'module.platform.google_artifact_registry_repository.mypage'
         for item in plan['resource_changes']:
-            item['change']['actions'] = ['no-op']
-        address = 'module.platform[0].google_artifact_registry_repository.mypage[0]'
-        plan['resource_changes'].append({
-            'address': address, 'mode': 'managed', 'provider_name': 'registry.terraform.io/hashicorp/google',
-            'change': {'actions': ['create'], 'after': deepcopy(c.resource_contract('registry')[address]), 'after_unknown': {}},
-        })
-        self.assertEqual(c.stage_for_mode('registry-plan'), 'registry')
-        self.assertEqual(c.stage_for_mode('registry-apply'), 'registry')
-        self.assertEqual(c.validate_plan(plan, 'registry'), {'resources': 9, 'creates': 1})
+            item['change']['actions'] = ['create'] if item['address'] == address else ['no-op']
+        plan['resource_changes'].sort(key=lambda item: item['address'] == address)
+        self.assertEqual(c.validate_plan(plan), {'resources': 9, 'creates': 1})
         for key, bad in (
             ('project', 'youtube-study-space'), ('location', 'asia-northeast2'), ('repository_id', 'gcf-artifacts'),
             ('format', 'NPM'), ('mode', 'REMOTE_REPOSITORY'), ('cleanup_policy_dry_run', False),
@@ -377,16 +442,12 @@ class FoundationTest(unittest.TestCase):
             rejected = deepcopy(plan)
             rejected['resource_changes'][-1]['change']['after'][key] = bad
             with self.subTest(field=key), self.assertRaises(ValueError):
-                c.validate_plan(rejected, 'registry')
+                c.validate_plan(rejected)
         for actions in (['update'], ['delete'], ['delete', 'create']):
             rejected = deepcopy(plan)
             rejected['resource_changes'][-1]['change']['actions'] = actions
             with self.subTest(actions=actions), self.assertRaises(ValueError):
-                c.validate_plan(rejected, 'registry')
-        # 明示的に有効にする段階から、旧Foundationモードへリポジトリを混入させない。
-        plan['variables']['stage']['value'] = 'foundation'
-        with self.assertRaises(ValueError):
-            c.validate_plan(plan)
+                c.validate_plan(rejected)
 
     def test_post_apply_noop_accepts_only_the_same_secret_resource_name(self):
         plan = plan_fixture()
@@ -396,7 +457,7 @@ class FoundationTest(unittest.TestCase):
                 short = item['change']['after']['secret_id']
                 item['change']['after']['secret_id'] = 'projects/' + c.PROJECT + '/secrets/' + short
         original = deepcopy(plan)
-        self.assertEqual(c.validate_plan(plan), {'resources': 8, 'creates': 0})
+        self.assertEqual(c.validate_plan(plan), {'resources': 9, 'creates': 0})
         self.assertEqual(plan, original)
         iam = next(i for i, item in enumerate(plan['resource_changes'])
                    if '.google_secret_manager_secret_iam_member.' in item['address'])
@@ -429,11 +490,11 @@ class FoundationTest(unittest.TestCase):
         self.assertIn('check=resource-value-project', output.getvalue())
         self.assertNotIn(private, output.getvalue())
 
-    def test_only_eight_expected_private_resources_are_admitted(self):
-        self.assertEqual(c.validate_plan(plan_fixture()), {'resources': 8, 'creates': 8})
+    def test_only_nine_expected_base_resources_are_admitted(self):
+        self.assertEqual(c.validate_plan(plan_fixture()), {'resources': 9, 'creates': 9})
         changes = plan_fixture()['resource_changes']
         changes[0]['change']['actions'] = ['no-op']
-        self.assertEqual(c.validate_plan(plan_fixture() | {'resource_changes': changes})['creates'], 7)
+        self.assertEqual(c.validate_plan(plan_fixture() | {'resource_changes': changes})['creates'], 8)
 
     def test_rejects_deletion_public_access_foreign_principals_secret_versions_and_unknowns(self):
         mutations = [
@@ -442,13 +503,13 @@ class FoundationTest(unittest.TestCase):
             lambda p: p['resource_changes'].append({'address': 'google_cloud_run_v2_service_iam_member.public_invoker'}),
             lambda p: p['resource_changes'].append({'address': 'google_secret_manager_secret_version.raw_value'}),
             lambda p: p['resource_changes'][0]['change']['after'].update(project='youtube-study-space'),
-            lambda p: p['resource_changes'][-1]['change']['after'].update(member='allUsers'),
-            lambda p: p['resource_changes'][-1]['change']['after'].update(condition=[{'expression': 'true'}]),
+            lambda p: p['resource_changes'][-2]['change']['after'].update(member='allUsers'),
+            lambda p: p['resource_changes'][-2]['change']['after'].update(condition=[{'expression': 'true'}]),
             lambda p: p['resource_changes'][0]['change']['after_unknown'].update(account_id=True),
             lambda p: p['resource_changes'].pop(),
             lambda p: p.update(complete=False),
             lambda p: p.update(resource_drift=[{'address': 'unreviewed'}]),
-            lambda p: p['variables']['stage'].update(value='runtime_public'),
+            lambda p: p['resource_changes'].append({'address': 'module.platform.google_cloud_run_v2_service.api[0]'}),
             lambda p: p['resource_changes'][1]['change']['after']['replication'][0].update(user_managed=[{}]),
         ]
         for mutate in mutations:
@@ -464,15 +525,6 @@ class FoundationTest(unittest.TestCase):
         self.assertEqual(digest, c.commitment(plan | {'timestamp': 'later'}, 'absent', 'a' * 40, key))
         for changed, version, sha in ((plan | {'applyable': False}, 'absent', 'a' * 40), (plan, 'new-version', 'a' * 40), (plan, 'absent', 'b' * 40), (plan | {'resource_drift': [{'address': 'changed'}]}, 'absent', 'a' * 40)):
             self.assertNotEqual(digest, c.commitment(changed, version, sha, key))
-
-    def test_metadata_first_stage_cannot_grant_iam(self):
-        plan = plan_fixture()
-        plan['variables']['stage']['value'] = 'foundation_metadata'
-        plan['resource_changes'] = [x for x in plan['resource_changes'] if '_iam_member.' not in x['address']]
-        self.assertEqual(c.validate_plan(plan, 'foundation_metadata'), {'resources': 4, 'creates': 4})
-        plan['resource_changes'].append(plan_fixture()['resource_changes'][-1])
-        with self.assertRaises(ValueError):
-            c.validate_plan(plan, 'foundation_metadata')
 
     def test_provider_actions_cannot_bypass_resource_boundary(self):
         plan = plan_fixture() | {'action_invocations': [{'address': 'action.google_arbitrary.call'}]}
@@ -545,10 +597,11 @@ class FoundationTest(unittest.TestCase):
                'GITHUB_ACTOR': 'kani3camp', 'GITHUB_ACTOR_ID': '54093651', 'GITHUB_TRIGGERING_ACTOR': 'kani3camp',
                'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_REF': c.REF, 'GITHUB_WORKFLOW_REF': c.CALLER,
                'TF_WORKSPACE': 'default', 'GITHUB_SHA': 'a' * 40, 'MYPAGE_EXPECTED_SHA': 'a' * 40,
-               'MYPAGE_MODE': 'foundation-plan'}
+               'MYPAGE_MODE': 'desired-plan'}
         c.context(env, 'plan')
         for key, bad in (('GITHUB_EVENT_NAME', 'pull_request'), ('GITHUB_REF', 'refs/heads/main'),
-                         ('GITHUB_ACTOR_ID', '1234'), ('GITHUB_RUN_ATTEMPT', '2'), ('MYPAGE_EXPECTED_SHA', 'b' * 40)):
+                         ('GITHUB_ACTOR_ID', '1234'), ('GITHUB_RUN_ATTEMPT', '2'), ('MYPAGE_EXPECTED_SHA', 'b' * 40),
+                         ('MYPAGE_MODE', 'runtime-public-plan')):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 c.context(env | {key: bad}, 'plan')
         with self.assertRaises(ValueError):
@@ -584,7 +637,7 @@ class FoundationTest(unittest.TestCase):
 class RuntimeDriftDiagnosticTest(unittest.TestCase):
     def test_drift_detail_shows_only_fixed_addresses_and_action_names(self):
         secret = 'synthetic-private-value'
-        service = 'module.platform[0].google_cloud_run_v2_service.api[0]'
+        service = 'module.platform.google_cloud_run_v2_service.api[0]'
         plan = {
             'resource_drift': [
                 {'address': service, 'change': {'actions': ['update'], 'before': {'image': secret}, 'after': {'image': secret}}},
@@ -592,9 +645,9 @@ class RuntimeDriftDiagnosticTest(unittest.TestCase):
             ],
             'resource_changes': [
                 {'address': service, 'change': {'actions': ['update'], 'before': {'env': secret + '-old'}, 'after': {'env': secret}}},
-                {'address': 'module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]',
+                {'address': 'module.platform.google_cloud_run_v2_job.maintenance_operator[0]',
                  'change': {'actions': ['create'], 'after': {'image': secret}}},
-                {'address': 'module.platform[0].google_service_account.runtime', 'change': {'actions': ['no-op']}},
+                {'address': 'module.platform.google_service_account.runtime', 'change': {'actions': ['no-op']}},
             ],
         }
         output = io.StringIO()
@@ -610,7 +663,7 @@ class RuntimeDriftDiagnosticTest(unittest.TestCase):
         ])
         writes = json.loads(lines['Terraform planned writes'].removesuffix('.'))
         self.assertEqual([entry['address'] for entry in writes],
-                         ['module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]', service])
+                         ['module.platform.google_cloud_run_v2_job.maintenance_operator[0]', service])
         self.assertEqual(json.loads(lines['Terraform drift summary'].removesuffix('.')),
                          {'observedResources': 2, 'plannedWrites': 2})
         updates = json.loads(lines['Terraform planned update attributes'].removesuffix('.'))

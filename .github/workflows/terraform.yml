@@ -7,7 +7,7 @@ name: Terraform
 # that job's plan only when it matches the Plan job. DEV Core may select another
 # branch/SHA as its source; MyPage and Production use the dispatched commit.
 # Production Apply requires the GitHub Environment approval of
-# terraform-prod-apply (and mypage-prod-apply when MyPage production exists).
+# terraform-prod-apply (and mypage-prod-apply for MyPage).
 # A same-repository PR by the owner additionally gets an advisory DEV PR Plan
 # with the manual DEV Plan Environment and identity: lock-free, no commitment,
 # and it can never Apply (the cloud trust admits a PR to the Plan Environment only).
@@ -82,7 +82,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       target: ${{ steps.select.outputs.target }}
-      mypage_stage: ${{ steps.select.outputs.mypage_stage }}
+      mypage: ${{ steps.select.outputs.mypage }}
       validation_sha: ${{ steps.source.outputs.validation_sha }}
     steps:
       - name: Checkout trusted controller
@@ -91,7 +91,7 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Require a supported selection and resolve the reviewed MyPage stage
+      - name: Require a supported selection and resolve whether MyPage can run
         id: select
         env:
           ENVIRONMENT: ${{ inputs.environment }}
@@ -110,30 +110,19 @@ jobs:
             plan:all|plan:core|plan:mypage|apply:all|apply:core|apply:mypage) ;;
             *) echo "::error::Unsupported operation or component"; exit 1 ;;
           esac
-          file="infra/mypage-platform/environments/${target}/desired-stage.txt"
-          [[ -f "${file}" && ! -L "${file}" ]] || { echo "::error::Missing reviewed MyPage desired stage"; exit 1; }
-          stage="$(tr -d '[:space:]' < "${file}")"
-          case "${stage}" in
-            disabled|foundation_metadata|foundation|registry|maintenance_operator|maintenance_upgrade|runtime_private|runtime_public) ;;
-            *) echo "::error::Invalid reviewed MyPage desired stage"; exit 1 ;;
-          esac
+          # Every environment declares the full MyPage runtime; there is no stage.
           # The MyPage cloud trust admits only its pinned ref (foundation_contract.REF).
           # From any other ref MyPage cannot authenticate: skip it for component=all
           # so Core still runs, and refuse component=mypage with the reason.
-          if [[ "${stage}" != "disabled" ]]; then
-            mypage_ref="$(MYPAGE_TARGET="${ENVIRONMENT}" python3 -c 'import sys; sys.path.insert(0, "infra/mypage-platform/scripts"); import foundation_contract as c; print(c.REF)')"
-            if [[ "${GITHUB_REF:-}" != "${mypage_ref}" ]]; then
-              if [[ "${COMPONENT}" == "mypage" ]]; then
-                echo "::error::MyPage can only be operated from ${mypage_ref} (its cloud trust is pinned to that ref)."
-                exit 1
-              fi
-              echo "::notice::MyPage is skipped: its cloud trust is pinned to ${mypage_ref}. Core runs as selected."
-              stage=disabled
+          mypage=true
+          mypage_ref="$(MYPAGE_TARGET="${ENVIRONMENT}" python3 -c 'import sys; sys.path.insert(0, "infra/mypage-platform/scripts"); import foundation_contract as c; print(c.REF)')"
+          if [[ "${GITHUB_REF:-}" != "${mypage_ref}" ]]; then
+            if [[ "${COMPONENT}" == "mypage" ]]; then
+              echo "::error::MyPage can only be operated from ${mypage_ref} (its cloud trust is pinned to that ref)."
+              exit 1
             fi
-          fi
-          if [[ "${COMPONENT}" == "mypage" && "${stage}" == "disabled" ]]; then
-            echo "::error::MyPage is disabled for this environment; nothing to operate on."
-            exit 1
+            echo "::notice::MyPage is skipped: its cloud trust is pinned to ${mypage_ref}. Core runs as selected."
+            mypage=false
           fi
           # Only DEV Core can select another source. MyPage and Production
           # always use the dispatched commit, which is what gets validated.
@@ -149,7 +138,7 @@ jobs:
           fi
           {
             echo "target=${target}"
-            echo "mypage_stage=${stage}"
+            echo "mypage=${mypage}"
           } >> "$GITHUB_OUTPUT"
       # The controller checkout supplies the resolver; target code is never
       # imported or executed here. Owner/ref/caller/selector checks run before
@@ -199,7 +188,7 @@ jobs:
   mypage-plan:
     name: MyPage Plan
     needs: [select, validate]
-    if: ${{ (inputs.component == 'all' || inputs.component == 'mypage') && needs.select.outputs.mypage_stage != 'disabled' }}
+    if: ${{ (inputs.component == 'all' || inputs.component == 'mypage') && needs.select.outputs.mypage == 'true' }}
     permissions:
       contents: read
       id-token: write
@@ -278,7 +267,7 @@ jobs:
     env:
       OPERATION: ${{ inputs.operation }}
       COMPONENT: ${{ inputs.component }}
-      MYPAGE_STAGE: ${{ needs.select.outputs.mypage_stage }}
+      MYPAGE_SELECTED: ${{ needs.select.outputs.mypage }}
       SELECT_RESULT: ${{ needs.select.result }}
       VALIDATE_RESULT: ${{ needs.validate.result }}
       CORE_PLAN_RESULT: ${{ needs.core-plan.result }}
@@ -299,7 +288,7 @@ jobs:
           core=false
           mypage=false
           if [[ "${COMPONENT}" == "all" || "${COMPONENT}" == "core" ]]; then core=true; fi
-          if [[ ( "${COMPONENT}" == "all" || "${COMPONENT}" == "mypage" ) && "${MYPAGE_STAGE}" != "disabled" ]]; then mypage=true; fi
+          if [[ ( "${COMPONENT}" == "all" || "${COMPONENT}" == "mypage" ) && "${MYPAGE_SELECTED}" == "true" ]]; then mypage=true; fi
           # expect <name> <selected> <result>: selected jobs must succeed, others must skip.
           expect() {
             if [[ "$2" == "true" ]]; then

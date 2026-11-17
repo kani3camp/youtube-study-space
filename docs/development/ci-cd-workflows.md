@@ -57,7 +57,7 @@ GitHub Actions のワークフローを「人間が実行したいユースケ�
 | [`ci-gcp-terraform.yml`](../../.github/workflows/ci-gcp-terraform.yml) | UC1 Terraform fmt / validate / mock・native 認証なしテスト | **残す** | UC1 のまま維持（実 State の Plan は UC2 へ分離） |
 | `gcp-infrastructure-authenticated.yml` | Core + MyPage の Plan / Apply 合成（常に両方実行） | **統合→廃止（#4 で削除）** | `terraform.yml`（UC2/UC3）へ統合 |
 | [`gcp-terraform-authenticated.yml`](../../.github/workflows/gcp-terraform-authenticated.yml) | Core ルートの認証付き Plan / Apply | **残す（縮小）** | `terraform.yml` から呼ぶ Core 用 reusable workflow（到達不能 mode は #4 時点では維持、後に #1521 で整理） |
-| `mypage-infrastructure-authenticated.yml` | MyPage ルートの `desired-stage` 解決 | **統合→廃止（#4 で削除）** | `desired-stage` 解決を `terraform.yml` の `mypage` component へ移動 |
+| `mypage-infrastructure-authenticated.yml` | MyPage ルートの `desired-stage` 解決 | **統合→廃止（#4 で削除）** | `desired-stage` 解決を `terraform.yml` の `mypage` component へ移動（その後 `desired-stage` 自体を撤去し、全環境が同じ宣言を Plan / Apply） |
 | [`mypage-foundation-authenticated.yml`](../../.github/workflows/mypage-foundation-authenticated.yml) | MyPage ルートの認証付き Plan / Apply と image build（2 責務同居） | **残す（同居のまま）** | trust 変更を最小にするため `image-build` mode（`image_component` 入力付き）として維持し、各 Deploy ワークフローから呼び出し（group `mypage-<target>-foundation` で Terraform と直列化） |
 | [`mypage-hosting-authenticated.yml`](../../.github/workflows/mypage-hosting-authenticated.yml) | UC4 DEV Hosting の build / deploy / smoke | **残す（最上位化）** | `deploy-mypage-frontend.yml` から呼び出し |
 | [`mypage-backend-authenticated.yml`](../../.github/workflows/mypage-backend-authenticated.yml) | API Service と maintenance Job の同一 digest 同期デプロイ | **分割** | `deploy-mypage-api.yml`（Service のみ）と `deploy-mypage-maintenance.yml`（Job のみ）へ分割 |
@@ -85,7 +85,7 @@ GitHub Actions のワークフローを「人間が実行したいユースケ�
 | --- | --- | --- |
 | `gcp-terraform-authenticated.yml` の `migration-plan` / `migration-apply` と `terraform_migration.py` 認証経路 | どの caller からも渡されない | **撤去済み**（dev の #1521、統合ブランチへは #1526 で取り込み）。`terraform.yml` は `normal-plan` / `normal-apply` のみ呼ぶ |
 | 同 `normal-e2e` mode | caller なし | **撤去済み**（同上） |
-| `mypage-foundation-authenticated.yml` の `foundation-*` / `registry-*` / `maintenance-*` / `runtime-*` 等 | caller は `desired-plan` / `desired-apply` / `image-build` のみ | **維持（到達不能）**。初回構築の内部契約としてのみ保持し、`terraform.yml` からは呼ばない |
+| `mypage-foundation-authenticated.yml` の `foundation-*` / `registry-*` / `maintenance-*` / `runtime-*` 等 | caller は `desired-plan` / `desired-apply` / `image-build` のみ | **撤去済み**。内部 stage と `desired-stage.txt` を廃止し、契約は `desired-plan` / `desired-apply` だけを受け付ける |
 | `ci.yml` の push 自動 CD（`mypage-auto-cd`）と `backend_cd.py` | アプリケーションデプロイを自動化しない方針 | **撤去済み（#3）**。Backend WIF condition からも `push` を削除（オーナー作業） |
 | Backend release での Service / Job 同一 digest 同期（schema 3） | API と Operator を独立配備単位にするため | **撤去済み（#2）**。record は schema 4（API のみ） |
 | `mypage-maintenance.yml` の未固定 `actions/checkout@v7` | 他ワークフローは SHA でピン留め済み | **SHA 固定済み（#6）** |
@@ -155,11 +155,11 @@ GitHub Actions のワークフローを「人間が実行したいユースケ�
 | Deploy 対象 | Cloud Run Service `mypage-api` のみ | Cloud Run Job `mypage-maintenance-operator` のみ |
 | Deployer identity | `mypage-backend-deploy`（Job 権限・maintenance SA `actAs` を削除） | 新設 `mypage-operator-deploy`（Job `run.jobs.get/update` と maintenance runtime SA `actAs` のみ。SA/WIF/Environment は [`operator_identity.py`](../../infra/mypage-platform/scripts/operator_identity.py)、Job IAM は Terraform で作成） |
 | Release record | `mypage-backend-release-record`（schema 4、API digest のみ） | `mypage-operator-release-record`（schema 1、Operator digest のみ） |
-| Terraform | Service イメージは `ignore_changes` | Job イメージは `ignore_changes`（初回作成用 `maintenance_bootstrap_image_digest` のみ旧 `mypage-api` 固定ビルド） |
+| Terraform | Service イメージは `ignore_changes` | Job イメージは `ignore_changes`（初回作成時だけ `runtime_settings.image_digest` の `mypage-api` イメージ） |
 
 - 「API の更新で Job を変更しない」ことは、コード分岐だけでなく API deployer の IAM から Job 権限を外すことで強制しています。
 - `core/mypage` の `MaintenanceControl` や Firestore スキーマを変える PR では、後方・前方互換を保つか API・Operator 両方のデプロイが必要であることを PR 説明に明記してください（平常時に同一 digest へは同期しません）。
-- 旧 Backend release と Terraform 契約が Job イメージに `mypage-api` を要求していたため、#2 で「Backend release から Job 同期を外し Service のみ更新にする」「Terraform 契約と Operator 配備スクリプトで現在値として `mypage-api` と `mypage-maintenance-operator` の両方を許容する（初回作成用 `maintenance_bootstrap_image_digest` は固定の旧 API イメージのまま）」の 2 点を済ませたうえで初回 Operator deploy を実施しました。新しい環境では Job を固定の旧 API イメージで初回作成するため、旧パッケージの許容を外すと最初の Operator deploy が拒否されます。
+- 旧 Backend release と Terraform 契約が Job イメージに `mypage-api` を要求していたため、#2 で「Backend release から Job 同期を外し Service のみ更新にする」「Terraform 契約と Operator 配備スクリプトで現在値として `mypage-api` と `mypage-maintenance-operator` の両方を許容する（当時の初回作成用 `maintenance_bootstrap_image_digest` は固定の旧 API イメージ）」の 2 点を済ませたうえで初回 Operator deploy を実施しました。現在、新しい環境では Job を `runtime_settings.image_digest` の API イメージで初回作成するため、旧パッケージの許容を外すと最初の Operator deploy が拒否されます（API イメージには Operator バイナリが無く、Operator 配備までは Job を実行できません）。
 - API イメージから operator バイナリを外しても Job は配備済みの旧 digest（operator バイナリ入り）を参照し続けるため安全であり、#2 で同時に分離しました。旧 `mypage-backend-deploy` の Job binding と `actAs` は初回 Operator deploy 確認後に削除専用遷移で外しました（DEV は 2026-11-01 に完了し遷移コードは削除済み。今後の単独削除は 3.2 の手順で扱います）。
 
 ### 3.4 Rollback

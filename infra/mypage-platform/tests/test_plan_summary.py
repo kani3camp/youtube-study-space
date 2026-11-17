@@ -30,13 +30,13 @@ class PlanSummaryTest(unittest.TestCase):
             with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
                 summary = Path(directory) / 'summary'
                 with self.assertRaises(c.ContractError):
-                    ops.publish_plan_summary({'GITHUB_STEP_SUMMARY': str(summary)}, plan, 'foundation')
+                    ops.publish_plan_summary({'GITHUB_STEP_SUMMARY': str(summary)}, plan)
                 self.assertFalse(summary.exists())
 
     def test_counts_and_grouping_never_publish_plan_fields_names_or_values(self):
-        for stage, plan in (('foundation', plan_fixture()),
-                            ('foundation', refreshed_metadata_fixture()),
-                            ('runtime_public', runtime_fixture('runtime_public'))):
+        for runtime, plan in ((False, plan_fixture()),
+                              (False, refreshed_metadata_fixture()),
+                              (True, runtime_fixture(public=True))):
             marker = 'PRIVATE|<script>untrusted</script>\n# markdown'
             plan['outputs'] = {'secret': {'value': marker}}
             plan['terraform_version'] = marker
@@ -46,18 +46,19 @@ class PlanSummaryTest(unittest.TestCase):
             for item in plan.get('resource_drift', []):
                 item['change']['before']['private_metadata'] = marker
                 item['change']['after']['private_metadata'] = marker
-            validator = ops.runtime_contract.validate_plan if stage == 'runtime_public' else c.validate_plan
-            validator(plan, stage)
-            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as directory:
+            ops.runtime_contract.validate_plan(plan)
+            with self.subTest(runtime=runtime), tempfile.TemporaryDirectory() as directory:
                 summary = Path(directory) / 'summary'
-                ops.publish_plan_summary({'GITHUB_STEP_SUMMARY': str(summary)}, plan, stage)
+                ops.publish_plan_summary({'GITHUB_STEP_SUMMARY': str(summary)}, plan)
                 text = summary.read_text()
                 creates = sum(item['change']['actions'] == ['create'] for item in plan['resource_changes'])
                 self.assertIn(f'| create | {creates} |', text)
                 self.assertIn(f'| drift | {len(plan.get("resource_drift", []))} |', text)
                 self.assertIn('| Resource type | Actions | Count |', text)
                 self.assertIn('| `google_secret_manager_secret` |', text)
-                if stage == 'runtime_public':
+                self.assertIn('Runtime: declared' if runtime else 'Runtime: **not declared**', text)
+                self.assertIn('Public invoker: adopted' if runtime else 'Public invoker: not declared', text)
+                if runtime:
                     self.assertIn('| import | 1 |', text)
                     self.assertIn('| `google_cloud_run_v2_service` |', text)
                 for private in (marker, c.PROJECT, c.EMAIL, *c.SECRET_IDS.values()):
@@ -89,7 +90,7 @@ class PlanSummaryTest(unittest.TestCase):
                         return json.dumps({'terraform_version': (ROOT / 'infra/mypage-platform/.terraform-version').read_text().strip()})
                     return json.dumps(plan) if args[:2] == ['terraform', 'show'] else ''
                 ownership_error = c.ContractError('ownership') if rejected == 'ownership' else None
-                with patch.object(c, 'context'), patch.object(c, 'stage_for_mode', return_value='foundation'), \
+                with patch.object(c, 'context'), patch.object(ops, 'service_exists', return_value=False), \
                      patch.object(ops, 'directory', return_value=root), patch.object(ops, 'run', side_effect=run), \
                      patch.object(ops, 'state_version', side_effect=['v1', 'v2' if rejected == 'state' else 'v1']), \
                      patch.object(ops, 'reject_unowned_resources', side_effect=ownership_error), \

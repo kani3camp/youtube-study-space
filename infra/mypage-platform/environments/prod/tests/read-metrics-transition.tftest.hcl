@@ -17,10 +17,7 @@ variables {
   }
 }
 
-run "production_refuses_transition_in_runtime_private" {
-  command = plan
-  variables {
-    stage = "runtime_private"
-  }
+run "production_refuses_transition" {
+  command         = plan
   expect_failures = [var.runtime_settings]
 }

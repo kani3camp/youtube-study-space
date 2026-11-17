@@ -31,9 +31,9 @@ def environment(plan):
     return service_change(plan)["after"]["template"][0]["containers"][0]["env"]
 
 
-def plan_fixture(enabled, stage="runtime_private", action="no-op"):
+def plan_fixture(enabled, public=False, action="no-op"):
     value = r.settings(settings_fixture() | {"read_metrics_enabled": enabled})
-    resources = r.resource_contract(stage, value)
+    resources = r.resource_contract(public=public, value=value)
     env = [{"name": key, "value": val} for key, val in r.plain_environment(value).items()]
     for name, secret, field in (
         ("MYPAGE_OAUTH_CLIENT_ID", "mypage-oauth-client-id", "oauth_client_id_version"),
@@ -59,7 +59,7 @@ def plan_fixture(enabled, stage="runtime_private", action="no-op"):
     )
     return {
         "format_version": "1.2", "complete": True, "errored": False,
-        "variables": {"stage": {"value": stage}, "runtime_settings": {"value": value}},
+        "variables": {"runtime_settings": {"value": value}, "public_invoker": {"value": public}},
         "resource_changes": [
             {"address": address, "mode": "managed", "provider_name": "registry.terraform.io/hashicorp/google",
              "change": {"actions": ["no-op"] if address == r.INVOKER or address in r.maintenance_resource_contract() else [action],
@@ -100,12 +100,12 @@ class ReadMetricsTest(unittest.TestCase):
 
     def test_matching_create_and_noop_plans_preserve_resource_inventory(self):
         for enabled in (False, True):
-            for stage in ("runtime_private", "runtime_public"):
+            for public in (False, True):
                 for action in ("create", "no-op"):
-                    with self.subTest(enabled=enabled, stage=stage, action=action):
-                        plan = plan_fixture(enabled, stage, action)
+                    with self.subTest(enabled=enabled, public=public, action=action):
+                        plan = plan_fixture(enabled, public, action)
                         original = deepcopy(plan)
-                        self.assertEqual(r.validate_plan(plan, stage), {
+                        self.assertEqual(r.validate_plan(plan), {
                             "resources": len(plan["resource_changes"]),
                             "creates": 11 if action == "create" else 0,
                         })
@@ -114,52 +114,52 @@ class ReadMetricsTest(unittest.TestCase):
                                          [{"name": METRICS, "value": "true"}] if enabled else [])
 
     def test_unrequested_missing_duplicate_or_secret_backed_metrics_are_rejected(self):
-        for stage in ("runtime_private", "runtime_public"):
-            unrequested = plan_fixture(False, stage)
+        for public in (False, True):
+            unrequested = plan_fixture(False, public)
             environment(unrequested).append({"name": METRICS, "value": "true"})
             with self.assertRaises(c.ContractError):
-                r.validate_plan(unrequested, stage)
+                r.validate_plan(unrequested)
             for replacement in ([], [{"name": METRICS, "value": "true"}] * 2,
                                 [{"name": METRICS, "value": "false"}], [{"name": METRICS, "value": "TRUE"}],
                                 [{"name": METRICS, "value": True}],
                                 [{"name": METRICS, "value_source": [{"secret_key_ref": [{"secret": "private", "version": "1"}]}]}],
                                 [{"name": METRICS, "value": "true", "value_source": [{"secret_key_ref": [{"secret": "private", "version": "1"}]}]}]):
-                with self.subTest(stage=stage, replacement=replacement):
-                    plan = plan_fixture(True, stage)
+                with self.subTest(public=public, replacement=replacement):
+                    plan = plan_fixture(True, public)
                     env = environment(plan)
                     env[:] = [entry for entry in env if entry["name"] != METRICS] + replacement
                     with self.assertRaises(c.ContractError):
-                        r.validate_plan(plan, stage)
+                        r.validate_plan(plan)
 
     def test_unknown_environment_or_production_target_is_rejected(self):
-        for stage in ("runtime_private", "runtime_public"):
-            unknown = plan_fixture(True, stage)
+        for public in (False, True):
+            unknown = plan_fixture(True, public)
             service_change(unknown)["after_unknown"] = {"template": [{"containers": [{"env": True}]}]}
             with self.assertRaisesRegex(c.ContractError, "^runtime-config-unknown$"):
-                r.validate_plan(unknown, stage)
-            wrong_project = plan_fixture(True, stage)
+                r.validate_plan(unknown)
+            wrong_project = plan_fixture(True, public)
             service_change(wrong_project)["after"]["project"] = "youtube-study-space"
             with self.assertRaises(c.ContractError):
-                r.validate_plan(wrong_project, stage)
-            wrong_env = plan_fixture(True, stage)
+                r.validate_plan(wrong_project)
+            wrong_env = plan_fixture(True, public)
             next(e for e in environment(wrong_env) if e["name"] == "MYPAGE_ENVIRONMENT")["value"] = "production"
             with self.assertRaises(c.ContractError):
-                r.validate_plan(wrong_env, stage)
+                r.validate_plan(wrong_env)
 
     def test_metrics_opt_in_does_not_authorize_serving_updates_or_replacements(self):
-        for stage in ("runtime_private", "runtime_public"):
+        for public in (False, True):
             for enabled in (False, True):
                 for actions in (["update"], ["delete", "create"], ["create", "delete"], ["delete"]):
-                    with self.subTest(stage=stage, enabled=enabled, actions=actions):
-                        plan = plan_fixture(enabled, stage)
+                    with self.subTest(public=public, enabled=enabled, actions=actions):
+                        plan = plan_fixture(enabled, public)
                         service_change(plan)["actions"] = actions
                         with self.assertRaisesRegex(c.ContractError, "^runtime-resource-action$"):
-                            r.validate_plan(plan, stage)
+                            r.validate_plan(plan)
 
     def test_metrics_drift_cannot_be_disguised_as_empty_metadata_refresh(self):
-        for stage in ("runtime_private", "runtime_public"):
+        for public in (False, True):
             for enabled in (False, True):
-                plan = plan_fixture(enabled, stage)
+                plan = plan_fixture(enabled, public)
                 before = deepcopy(service_change(plan)["after"])
                 old_env = before["template"][0]["containers"][0]["env"]
                 if enabled:
@@ -169,8 +169,8 @@ class ReadMetricsTest(unittest.TestCase):
                 drift = deepcopy(next(item for item in plan["resource_changes"] if item["address"] == r.SERVICE))
                 drift["change"].update(actions=["update"], before=before)
                 plan["resource_drift"] = [drift]
-                with self.subTest(stage=stage, enabled=enabled), self.assertRaises(c.ContractError):
-                    r.validate_plan(plan, stage)
+                with self.subTest(public=public, enabled=enabled), self.assertRaises(c.ContractError):
+                    r.validate_plan(plan)
 
     def test_opt_in_changes_the_reviewed_plan_commitment(self):
         key = "synthetic-test-commitment-key-only-123456789"

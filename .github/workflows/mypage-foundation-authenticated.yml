@@ -72,7 +72,6 @@ jobs:
   target_contract:
     runs-on: ubuntu-latest
     outputs:
-      stage: ${{ steps.contract.outputs.stage }}
       is_apply: ${{ steps.contract.outputs.is_apply }}
     timeout-minutes: 5
     permissions:
@@ -101,14 +100,11 @@ jobs:
           mode = os.environ['MYPAGE_MODE']
           if mode == 'image-build':
               foundation_contract.context(os.environ, 'apply', image=True)
-              stage = 'image-build'
           else:
               # 保護されたEnvironmentへの要求やシークレットの公開より前に、
-              # 不正なref・SHA・actor・リポジトリを拒否する。
+              # 不正なmode・ref・SHA・actor・リポジトリを拒否する。
               foundation_contract.context(os.environ, 'plan')
-              stage = foundation_contract.stage_for_mode(mode)
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-              output.write('stage=' + stage + '\n')
               output.write('is_apply=' + str(mode.endswith('-apply')).lower() + '\n')
           PY
 
@@ -152,7 +148,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Preflight without cloud credentials
-        run: python3 infra/mypage-platform/scripts/foundation_ops.py stage
+        run: python3 infra/mypage-platform/scripts/foundation_ops.py preflight
       - name: Verify exact OIDC source and actor
         run: python3 infra/mypage-platform/scripts/foundation_ops.py oidc
       - name: Read pinned Terraform version
@@ -267,7 +263,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Preflight without cloud credentials
-        run: python3 infra/mypage-platform/scripts/foundation_ops.py stage
+        run: python3 infra/mypage-platform/scripts/foundation_ops.py preflight
       - name: Verify exact OIDC source and actor
         run: python3 infra/mypage-platform/scripts/foundation_ops.py oidc
       - name: Read pinned Terraform version
@@ -313,7 +309,8 @@ jobs:
           MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
         run: python3 infra/mypage-platform/scripts/foundation_ops.py apply
       - name: Verify metrics-only serving revision after Apply
-        if: ${{ steps.applied.outcome == 'success' && (inputs.mode == 'runtime-private-apply' || inputs.mode == 'runtime-public-apply' || (inputs.mode == 'desired-apply' && (needs.target_contract.outputs.stage == 'runtime_private' || needs.target_contract.outputs.stage == 'runtime_public'))) }}
+        # 計測切替を宣言していないPlanでは、スクリプトが何もせず終了する。
+        if: ${{ steps.applied.outcome == 'success' }}
         env:
           MYPAGE_GCP_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
         run: python3 infra/mypage-platform/scripts/read_metrics_transition.py readback

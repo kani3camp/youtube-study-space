@@ -4,7 +4,7 @@ MyPage の Cloud Run API 基盤・実行権限を管理するための Terraform
 
 > [!NOTE]
 > - 最新の適用・配備・試験状況は [統合 PR #1236](https://github.com/kani3camp/youtube-study-space/pull/1236) を参照してください。
-> - 2026-10-21 JST に Development 環境の専用 SA と 3 つの Secret メタデータを作成して専用 State に保存済みですが、以下の構築記録は各段階の観測であり、過去の未配備記述から現在状態を判断しないでください（公開前条件は [公開条件](../../docs/mypage/release/README.md) で確認します）。
+> - Development 環境は全構成（API・maintenance Job・公開 Invoker まで）を専用 State で管理しています。以下の構築記録は当時の観測であり、過去の未配備記述から現在状態を判断しないでください（公開前条件は [公開条件](../../docs/mypage/release/README.md) で確認します）。
 
 - アーキテクチャ / API 設計: [Notion 07｜技術アーキテクチャ](https://app.notion.com/p/3ef357a8d0ce81b5892ac1dc2c99e587) / [Notion 08｜API・デプロイ設計](https://app.notion.com/p/3ef357a8d0ce81cbbce9c2ae948ebfb3)
 - 関連資料: [GCP Terraform](../gcp/README.md) / [Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191) / [Go サーバー入口](../../system/cmd/mypage-server/main.go) / [OAuth TTL 専用ルート](../mypage-oauth-ttl/README.md) / [実構築記録](docs/development-foundation.md)
@@ -20,41 +20,36 @@ MyPage の Cloud Run API 基盤・実行権限を管理するための Terraform
 | `environments/dev` | `test-youtube-study-space` / `asia-southeast2` | `youtube-study-space/mypage-platform/dev/terraform.tfstate` |
 | `environments/prod` | `youtube-study-space` / `asia-northeast2` | `youtube-study-space/mypage-platform/prod/terraform.tfstate` |
 
-ツールは Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lock と既存 multi-platform provider lock を使用します。Development 専用の AWS backend Plan/Apply role、GCP WIF/構築 SA、GitHub Environment を接続してメタデータ段階の Plan/Apply と State readback まで確認済みです（[Development Foundation 構築](docs/development-foundation.md)を参照し、既存 `infra/gcp` 用 State role は流用しません。非公開 `backend.hcl` と認証情報はコミットしないでください）。
+ツールは Terraform CLI `1.16.4`、Google provider `8.5.0`、S3 native lock と既存 multi-platform provider lock を使用します。Development 専用の AWS backend Plan/Apply role、GCP WIF/構築 SA、GitHub Environment を接続して Plan/Apply と State readback を確認済みです（[Development Foundation 構築](docs/development-foundation.md)を参照し、既存 `infra/gcp` 用 State role は流用しません。非公開 `backend.hcl` と認証情報はコミットしないでください）。
 
 ---
 
-## 通常の desired state と内部 stage
+## 通常運用と宣言範囲（段階の選択はありません）
 
-通常運用では `Terraform`（`terraform.yml`）の `environment` / `operation=plan|apply` / `component=all|mypage` を使用します。MyPage はレビュー済みの `environments/{dev,prod}/desired-stage.txt`（現在 DEV=`runtime_public`、本番=`disabled`）を解決して固定で Plan/Apply するため、利用者が内部 stage を手動選択する必要はありません。
+通常運用では `Terraform`（`terraform.yml`）の `environment` / `operation=plan|apply` / `component=all|mypage` を使用します。DEV と本番は同じ module を同じ構成で宣言し、段階を選ぶ変数やファイルはありません（旧 `stage` 変数と `desired-stage.txt` は撤去済みで、既存 State のアドレスは `moved` ブロックで no-op のまま移しています）。MyPage は信頼設定が固定する ref（DEV は統合ブランチ、本番は `main`）からだけ実行でき、それ以外の ref から `component=all` を選ぶと Core だけを実行します。
 
-- オーナーの同一リポジトリ PR で MyPage ルートが変更されると DEV の desired state を対象に `-lock=false` で PR Plan を実行します。手動 Plan と同じ `mypage-foundation-authenticated.yml` の `foundation_plan` と `mypage-dev-plan` 環境（`mypage-foundation-plan` SA・`mypage-foundation` pool・Plan 用 AWS role）を共用し、Apply は手動 dispatch のみに限定します（DEV trust は 2026-10-31 更新済み、plan contract の判定のみ表示して commitment は残しません）。
-- 手動実行の MyPage Plan（Apply 内の Plan 権限ジョブを含む）は Plan 契約・所有権・State バージョンの検証に成功すると、Job Summary に操作別件数と `Resource type / Actions / Count` 表を表示します。削除を含む場合は受入済み Terraform アドレスと削除件数も出しますが、クラウド側の名前・ID・設定値・outputs・commitment は非公開です（なお `drift` は観測件数であり適用予定の変更件数ではありません。PR Plan は従来の件数表示を維持します）。
+- オーナーの同一リポジトリ PR で MyPage ルートが変更されると DEV を対象に `-lock=false` で PR Plan を実行します。手動 Plan と同じ `mypage-foundation-authenticated.yml` の `foundation_plan` と `mypage-dev-plan` 環境（`mypage-foundation-plan` SA・`mypage-foundation` pool・Plan 用 AWS role）を共用し、Apply は手動 dispatch のみに限定します（DEV trust は 2026-10-31 更新済み、plan contract の判定のみ表示して commitment は残しません）。
+- 手動実行の MyPage Plan（Apply 内の Plan 権限ジョブを含む）は Plan 契約・所有権・State バージョンの検証に成功すると、Job Summary に宣言範囲（Runtime / Public invoker）、操作別件数と `Resource type / Actions / Count` 表を表示します。削除を含む場合は受入済み Terraform アドレスと削除件数も出しますが、クラウド側の名前・ID・設定値・outputs・commitment は非公開です（なお `drift` は観測件数であり適用予定の変更件数ではありません。PR Plan は従来の件数表示を維持します）。
 
-### 内部 stage 一覧（初回構築・契約制御用の内部定義）
+### 宣言範囲を決めるのは Terraform 外の事実だけ
 
-ソースの既定値 `stage = "disabled"` はモジュール件数 `0`・新規 GCP 資源 `0` を意味します（実 State の状態と混同しないでください）。本番が `disabled` の間は認証情報不要で Core GCP のみを運用でき、本番 MyPage を進める際は `desired-stage.txt` の変更自体を PR でレビューして Environment・IAM・State の準備と同じ変更単位で扱います。
+Terraform が作れない前提（番号固定の Secret 値、環境別 Registry の image、オーナーが付与する公開 Invoker）がある資源だけは、その前提が実在するときに宣言します。CI はこれを Plan のたびに読み取り専用で判定し、Terraform 変数 `runtime_settings` / `public_invoker` として渡します（利用者が選ぶ入力ではありません）。
 
-| Stage | Terraform が管理する範囲 | 意図的に含めないもの |
+| 宣言の条件 | Terraform が管理する範囲 | 判定と停止条件 |
 | --- | --- | --- |
-| `disabled` | 新規リソースなし | State 変更 |
-| `foundation_metadata` | 専用 SA と 3 つの Secret メタデータのみ | IAM メンバー変更・Secret 値・Cloud Run |
-| `foundation` | 上記 + Secret ごとの Accessor IAM、SA 自身の Custom Token 用 signer IAM | Secret バージョン/値、Firestore 権限、Cloud Run、公開 Invoker |
-| `registry` | 上記 8 資源 + 専用 Docker リポジトリ `mypage`（不変タグ、cleanup dry-run、`prevent_destroy`） | イメージ push、Cloud Run、Firestore 権限、公開 Invoker |
-| `maintenance_operator` | 上記 + 固定 digest の単一 maintenance Job、専用 runtime/invoker SA、Firestore カスタムロール、環境別 WIF | Cloud Run API 作成/更新、制御文書の暗黙作成、一般 Invoker、GitHub runner の Firestore 権限 |
-| `maintenance_upgrade` | 既存 `runtime_public` を no-op に保ちつつ、maintenance Job と専用 IAM/WIF を追加 | 既存 Cloud Run API・Firestore メンバー・公開 Invoker の作成・更新・削除・置換 |
-| `runtime_private` | 上記 + `roles/datastore.user` メンバー + Cloud Run v2 API（`mypage-api`）本体 | `allUsers` invoker、Hosting 公開、scheduler / alert |
-| `runtime_public` | 上記 + 当該 Cloud Run サービスのみへの `roles/run.invoker`（`allUsers`） | ログイン必須 API の認証免除、一般告知 |
+| 常に | 専用 SA、3 つの Secret の器と Accessor IAM、SA 自身の Custom Token 用 signer IAM、専用 Docker リポジトリ `mypage`（不変タグ、cleanup dry-run、`prevent_destroy`）の 9 資源 | Secret 値・`google_secret_manager_secret_version` は作らない |
+| GitHub Environment の `MYPAGE_RUNTIME_SETTINGS_JSON` がある | 上記 + `roles/datastore.user` メンバー、Cloud Run v2 API（`mypage-api`）、maintenance Job（`mypage-maintenance-operator`）と専用 runtime/invoker SA・Firestore カスタムロール・環境別 WIF・Job IAM（DEV は Operator deployer 用の IAM も） | Plan 前に image の不変タグと 3 つの Secret 版が `ENABLED` であることを確認する。固定名の API が既に実在するのに設定が無い場合は `runtime-settings-required` で停止し、実行系を消す Plan は作らない |
+| 固定名の API が実在する | 上記 + 当該 Cloud Run サービスのみへの `roles/run.invoker`（`allUsers`）を固定 ID の `import` で State へ取り込む | オーナーの付与が無い・条件付き・`allAuthenticatedUsers` を含む場合は `runtime-owner-public-invoker` で停止する。Terraform がこのメンバーを新規作成する経路は無い |
 
 - Cloud Run は `mypage-api`・専用 SA / ADC で、`min_instance_count=0`、`max_instance_count=1`（DEV）/ `3`（PROD）、CPU 1 / RAM 512Mi、port `8080`、30 秒 timeout に設定します。
-- イメージは Artifact Registry のダイジェスト（`@sha256:...`）で固定し、タグや `latest` で不用意に差し替えません。**初回作成後の API Service と maintenance Job のコンテナイメージは CI/CD が所有し、Terraform は `lifecycle.ignore_changes` で変更しません。** API は [Backend CI 手順](../../docs/mypage/release/backend-ci.md)、Job は `Deploy Maintenance Operator` がそれぞれ独立して更新し、同じ digest へ同期しません（通常リリースごとに Terraform Plan/Apply や digest 変更 PR は実行しません）。なお実費は起動回数・Secret Manager・ログ量・API 呼び出しなどで変わるため未計測で月額 1 ドル未満とは断定せず、[Cloud Run 料金](https://cloud.google.com/run/pricing)と [Secret Manager 料金](https://cloud.google.com/secret-manager/pricing)を参考に別途試算・レビューします。
+- イメージは Artifact Registry のダイジェスト（`@sha256:...`）で固定し、タグや `latest` で不用意に差し替えません。**初回作成後の API Service と maintenance Job のコンテナイメージは CI/CD が所有し、Terraform は `lifecycle.ignore_changes` で変更しません。** 初回作成時は Service も Job も `runtime_settings.image_digest`（API の bootstrap image）で作られ、以降 API は [Backend CI 手順](../../docs/mypage/release/backend-ci.md)、Job は `Deploy Maintenance Operator` がそれぞれ独立して更新し、同じ digest へ同期しません（通常リリースごとに Terraform Plan/Apply や digest 変更 PR は実行しません）。なお実費は起動回数・Secret Manager・ログ量・API 呼び出しなどで変わるため未計測で月額 1 ドル未満とは断定せず、[Cloud Run 料金](https://cloud.google.com/run/pricing)と [Secret Manager 料金](https://cloud.google.com/secret-manager/pricing)を参考に別途試算・レビューします。
 
 ### Secret と IAM の境界
 
 1. Terraform は `mypage-oauth-client-id` / `mypage-oauth-client-secret` / `mypage-youtube-api-key` の器のみを管理し、値や `google_secret_manager_secret_version` は作成しません。Secret 値は非公開手順で投入した番号固定バージョンを環境変数へ参照させます（`latest` 禁止）。
 2. サーバー環境変数には `GOOGLE_CLOUD_PROJECT` および `MYPAGE_ENVIRONMENT` / `REGION` / `PROJECT_NUMBER` / `WEB_APP_ID` / `PUBLIC_ORIGIN` / `SIGNER_EMAIL` / `PRIVACY_VERSION` / `TERMS_VERSION` を渡し、実 OAuth トークンや Firebase ID トークンは Terraform に流しません。
 3. Signer 権限は専用 SA 自身の `roles/iam.serviceAccountTokenCreator`、Secret Accessor は各 secret、Firestore は `roles/datastore.user` をプロジェクト単位で付与します。現状 Firestore IAM はコレクション単位に絞れないため他データにも権限が及びます（D01 削除運用と合わせて実審査し、より限定的なカスタムロールの採否を評価します。運用 SA の他権限もオーナー確認まで勝手に付けません）。
-4. `INGRESS_TRAFFIC_ALL` は Hosting 転送用であり、`runtime_public` まで Invoker IAM は付与しません（公開時もアプリ側の Auth / App Check / SAC / Origin 検証を維持し、直 URL・Host/callback・Cookie `__session` の実経路試験は別条件とします）。また `MYPAGE_INFRASTRUCTURE_READY=true` は起動時の要求フラグであり、公開準備の完了証明ではありません。
+4. `INGRESS_TRAFFIC_ALL` は Hosting 転送用です。公開 Invoker はオーナーの付与を取り込むだけで、公開時もアプリ側の Auth / App Check / SAC / Origin 検証を維持し、直 URL・Host/callback・Cookie `__session` の実経路試験は別条件とします。また `MYPAGE_INFRASTRUCTURE_READY=true` は起動時の要求フラグであり、公開準備の完了証明ではありません。
 
 ※本ルートは Google APIs の所有権、Firebase Auth / App Check / Hosting site、IAM deployer、OAuth コンソールクライアント、Artifact Registry の既存資源、Firestore DB/インデックス、Cloud Scheduler/cleanup runner、監視通知先、Privacy 実削除は作成せず、既存 `google_project_service` と二重管理しません。
 
@@ -70,17 +65,46 @@ bash infra/mypage-platform/scripts/check-local.sh
 
 ---
 
-## 初回 bootstrap・公開準備の流れと停止条件
+## 本番の初回構築（`main` から）
 
-日常運用では `Terraform` の `operation=plan` で両 State の差分を確認し、承認した差分だけを `operation=apply` します。以下は空環境から構築する際の段階と停止条件です。
+本番も DEV と同じ宣言を `main` から Plan/Apply します。コード変更や dev→main の往復を挟まず、オーナーが Terraform 外の前提をそろえて同じ `Terraform` ワークフローを再実行するだけで宣言範囲が広がります。各 Apply の前には必ず `operation=plan` の Job Summary（宣言範囲・作成件数・資源種別）を確認してください。
 
-1. Live inventory 確認: DEV / PROD の既存 SA・Cloud Run・Secret・Firestore・Hosting・Google APIs・IAM と他の Terraform State 所有者の有無を読み取り専用で確認します（既存作成物があれば新規作成で上書きしません）。
-2. Backend / 権限準備: 専用 S3 キーと `.tflock`、AWS / GCP WIF の正確な ref・workflow・target・principal を確認します（[Development Foundation 経路](docs/development-foundation.md)は 8 資源のみ許可する専用検査を持ち、本番経路は `mypage-prod-plan/apply` の対象ブランチを `main` に固定して registry・image-build・maintenance operator/upgrade のみ許可しますが、本番の Environment・Secret・State 設定と実 Plan/Apply は未実施です）。
-3. Foundation Dev: 非公開 `backend.hcl` で空 State を初期化し、`stage="foundation"` の実 Plan と JSON を非公開保全して差分・IAM・コストを確認したうえ、独立レビューと承認後に保存済み Plan を適用して Secret 値を Terraform 外から投入・読み戻します。
-4. Maintenance 準備 Dev: `maintenance_operator` または既存 runtime を保持する `maintenance_upgrade` で単一 Job と専用 IAM/WIF を作成します（固定名の既存資源を事前照会し、State 外に同名資源があれば停止）。`enabled=false` で `config/mypage` を初期化し、Job の読み戻しを確認したうえで Backend と Frontend を配備します（[運用手順](../../docs/mypage/maintenance-mode.md)）。
-5. Private runtime Dev: digest 固定イメージ・設定・番号固定 Secret バージョンを一致確認して `runtime_private` へ適用し、稼働・signer・Firestore・App Check・Auth と本番同等経路を観測します（条件不成立・権限拡張・drift は停止して修正・再レビュー）。
-6. Public runtime Dev: Hosting `/api/**` 転送・OAuth コールバック・CSP / Cookie / Origin / rate limiting を実機検証し、`runtime_public` で公開 Invoker を明示承認します。Frontend Hosting は Terraform とは独立した配備ですが DEV では専用 Hosting ジョブで build/apply/readback を完結させます。
-7. Production: DEV 確認後、独立したターゲット・State・権限・ロールバック承認を得て同じ順序で実施します。
+### 0. Terraform を動かす前にオーナーが用意するもの
+
+1. Live inventory 確認: 本番プロジェクトの既存 SA・Cloud Run・Secret・Artifact Registry・Firestore・Hosting・Google APIs・IAM と他の Terraform State 所有者を読み取り専用で確認します（固定名の同名資源が State 外にあれば Plan の所有権検査が停止します。上書きのための import はしません）。
+2. State と実行用本人情報: 専用 S3 キー（`youtube-study-space/mypage-platform/prod/terraform.tfstate`）、Plan/Apply 用 AWS role（`youtube-study-space-mypage-prod-plan` / `-apply`）、GCP WIF pool `mypage-foundation` / provider `github-actions` と `mypage-foundation-plan` / `mypage-foundation-apply` SA を [Development Foundation 構築](docs/development-foundation.md) と同じ形で本番に作ります。信頼条件は `MYPAGE_TARGET=production python3 infra/mypage-platform/scripts/foundation_contract.py provider-condition` と `... trust-policy <AWS アカウント ID> plan|apply` が出力する `main` 固定の値を使います（本番は PR Plan を受け付けません）。
+3. GitHub Environments: `mypage-prod-plan` / `mypage-prod-apply`（対象ブランチ `main`、Apply は required reviewers 必須）と、削除を承認する場合だけ使う `mypage-prod-delete-approval`（reviewer 必須・管理者バイパス無効）を作り、`MYPAGE_STATE_BUCKET` / `MYPAGE_STATE_ACCOUNT` / `MYPAGE_BACKEND_ROLE_ARN` / `MYPAGE_BACKEND_ROLE_ID` / `MYPAGE_GCP_WIF_PROVIDER` / `MYPAGE_GCP_SERVICE_ACCOUNT` / `MYPAGE_PLAN_HMAC_KEY` を設定します。この時点では `MYPAGE_RUNTIME_SETTINGS_JSON` を**設定しません**。
+4. Firebase / OAuth: 本番 Firebase Web アプリ（`project_number=906336399194`、`public_origin=https://moku.work`）、Auth / App Check、Hosting サイト、Google OAuth クライアント（コールバック URL）と YouTube API キーを用意します（Terraform 管理外）。
+
+> [!IMPORTANT]
+> 本番の MyPage Environment を用意するまでは、本番の `Terraform` を `component=core` で実行してください。`component=all` は `main` から MyPage Plan も実行するため、未設定の間は MyPage Plan が失敗して Core Apply にも進みません。
+
+### 1. 1 回目の Apply（基盤 9 資源）
+
+`Terraform` を `environment=production` / `component=mypage` で `main` から `operation=plan` → `operation=apply` します。runtime settings が無いため、専用 SA・3 つの Secret の器・Accessor/signer IAM・Artifact Registry `mypage` の 9 資源だけを作成します。
+
+### 2. Terraform 外の前提をそろえる
+
+1. 3 つの Secret（`mypage-oauth-client-id` / `mypage-oauth-client-secret` / `mypage-youtube-api-key`）に値を非公開手順で追加し、各版番号を控えます（値は Terraform・GitHub・ログに置きません）。
+2. 本番 Artifact Registry `mypage/mypage-api` に API の不変タグ（40 桁のソース SHA）付き image を push し、digest を控えます。
+3. `mypage-prod-plan` と `mypage-prod-apply` の両方に `MYPAGE_RUNTIME_SETTINGS_JSON`（`image_digest`・`image_source_sha`・`project_number`・`web_app_id`・`public_origin`・`privacy_version`・`terms_version`・3 つの Secret 版番号）を同じ内容で設定します。
+
+### 3. 2 回目の Apply（実行系）
+
+同じ `Terraform` を再実行します。CI は image タグと Secret 版を読み取り確認したうえで、`roles/datastore.user`、Cloud Run API、maintenance Job（初回は API image で作成。API image には Operator のバイナリが無いため、手順 5 の Operator 配備までは実行できません）、maintenance 用 SA・カスタムロール・WIF・Job IAM を作成します。API はまだ存在しなかったため、公開 Invoker は宣言しません。
+
+### 4. 公開 Invoker の付与と 3 回目の Apply
+
+オーナーが `mypage-api` サービスに `roles/run.invoker` / `allUsers`（条件なし、1 メンバーのみ）を `etag` 保護で追加し、同じ `Terraform` を再実行して State へ取り込みます（import のみ、ほかの変更は 0 件）。API の作成後は、この付与が無い Plan は停止します。
+
+### 5. アプリケーションの初期化と配備
+
+1. Operator: maintenance Job を専用 Operator image へ更新し、generation 前進と設定不変を読み戻します。
+2. `config/mypage` 初期化: `Set Maintenance Mode`（`mypage-maintenance.yml`）を `environment=production`・`enabled=false` で実行します（[運用手順](../../docs/mypage/maintenance-mode.md)。GitHub Environment `mypage-maintenance-production` の作成が前提です）。
+3. Backend → Frontend の順に配備し、各読み戻しを確認します（Hosting 転送ホストの固定、Hosting `/api/**` 転送・OAuth コールバック・CSP / Cookie / Origin / rate limiting の実機確認と公開判断は [公開条件](../../docs/mypage/release/README.md) に従います）。
+
+> [!WARNING]
+> 2026-11 時点で、本番向けの image build と配備のワークフロー（`deploy-mypage-api.yml`・`deploy-mypage-maintenance.yml`・`deploy-mypage-frontend.yml`）は DEV だけを対象にしています。本番用 Operator deployer の IAM も未定義のため、手順 2-2 と手順 5 は、本番用の配備経路を別途レビューして追加するまで実行できません。
 
 > [!CAUTION]
 > 異常時はまず後続 apply や告知を停止してください。Cloud Run には `deletion_protection` と `prevent_destroy` があるため安易に `destroy` せず、Secret 値や TTL・既存資源の巻き戻しも行いません。リリース対（Frontend commit・Backend digest・同意版・検証証拠）と前世代互換を記録し、既知リビジョンへの forward-fix または明示ロールバックで対処します。
@@ -88,7 +112,7 @@ bash infra/mypage-platform/scripts/check-local.sh
 ### Runtime の診断と既存イメージの出所
 
 - `image_source_sha`（既定は空文字）は、不変タグを作成した 40 桁コミット SHA を指定する任意設定です（空なら実行元 SHA を要求）。配信イメージは CI/CD で独立更新されるため `system/` ツリーとの完全一致は求めませんが、Docker コンテキストは `system/` 全体であり、指定 SHA が現 HEAD の祖先かつ同じ不変タグが bootstrap digest を指すことを検証します（インフラ診断だけの変更でリビジョン更新を不要にするため、tag の作り替えや Cloud Run の更新・置換は拒否します）。
-- Maintenance Operator のイメージは `Deploy Maintenance Operator` が所有し、API リリースとは同じ digest へ同期しません。DEV 初回 Job 作成時のみ、分離前ビルドの固定 source SHA の `mypage-api` 不変タグを Plan 時に読み取り専用解決して一時入力に使います（旧 `maintenance_operator_*` 3 キーは移行互換のため読み捨て、private tfvars や Plan へは渡しません）。
+- Maintenance Operator のイメージは `Deploy Maintenance Operator` が所有し、API リリースとは同じ digest へ同期しません。Job を初めて作るときだけ `runtime_settings.image_digest` を使います（旧 `maintenance_operator_*` 3 キーは移行互換のため読み捨て、private tfvars や Plan へは渡しません）。
 
 ---
 
