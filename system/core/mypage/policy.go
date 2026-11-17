@@ -13,3 +13,10 @@ const (
 func CurrentPolicy() Policy {
 	return Policy{Privacy: CurrentPrivacyPolicyVersion, Terms: CurrentTermsVersion}
 }
+
+// ConsentVersionsHeader はAPIが受け付ける同意版を示す応答ヘッダー。公開本文の版だけを含む。
+const ConsentVersionsHeader = "X-MyPage-Consent-Versions"
+
+func (p Policy) header() string {
+	return "privacy=" + p.Privacy + ", terms=" + p.Terms
+}

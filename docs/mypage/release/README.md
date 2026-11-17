@@ -69,7 +69,7 @@ Hosting の画像接続先一覧（`img-src` 専用で `script` / `connect` / `f
 | 設定の用途 | 項目 | 受け渡し・検証 |
 | --- | --- | --- |
 | public browser | `VITE_FIREBASE_API_KEY/AUTH_DOMAIN/PROJECT_ID/APP_ID`, `VITE_APP_CHECK_SITE_KEY` | 公開 Web app 設定（secret / admin key / debug token 不可）。project 番号と app、登録 domain は別途照合 |
-| 同意版 | browser [`public-policy-config.ts`](../../../mypage/src/public-policy-config.ts) の `POLICY_VERSIONS`<br>server [`policy.go`](../../../system/core/mypage/policy.go) の `CurrentPrivacyPolicyVersion` / `CurrentTermsVersion` | 本文と同じくソースの定数で管理し、環境変数やマニフェストでは設定しない。両者の一致は `public-policy-config.test.ts` で検査。本文を改訂して再同意を求めるときは両方の版を上げ、同じコミットから Backend と Hosting を配備する（片方だけが新しい間は版の不一致でログイン開始を拒否） |
+| 同意版 | browser [`public-policy-config.ts`](../../../mypage/src/public-policy-config.ts) の `POLICY_VERSIONS`<br>server [`policy.go`](../../../system/core/mypage/policy.go) の `CurrentPrivacyPolicyVersion` / `CurrentTermsVersion` | 本文と同じくソースの定数で管理し、環境変数やマニフェストでは設定しない。両者の一致は `public-policy-config.test.ts` で検査。API は受け付ける版を応答ヘッダー `X-MyPage-Consent-Versions` で返し、Hosting 配備は画面の版と一致しない限り公開しない。本文を改訂して再同意を求めるときは両方の版を上げ、同じコミットから Backend → Hosting の順に配備する（その間は版の不一致でログイン開始を拒否） |
 | origin | `MYPAGE_PUBLIC_ORIGIN`<br>analytics 用 `VITE_MYPAGE_PUBLIC_ORIGIN` | 環境ごとの固定 HTTPS origin（Host / Origin をクライアントヘッダーから推測しない） |
 | server identity | `MYPAGE_ENVIRONMENT/REGION/PROJECT_NUMBER/WEB_APP_ID/SIGNER_EMAIL`, `GOOGLE_CLOUD_PROJECT` | `development`=`asia-southeast2`、`production`=`asia-northeast2`。signer は選択プロジェクトのもの |
 | server secret | `MYPAGE_OAUTH_CLIENT_ID/CLIENT_SECRET`, 任意 `MYPAGE_YOUTUBE_API_KEY` | 承認済みの秘密情報供給境界から渡し、repo・チャット・公開成果物・Vite に入れない |
@@ -138,7 +138,7 @@ DEV ページの更新は基盤 Terraform Apply とは別に `Deploy MyPage Fron
 
 1. 同じ Run 内でまず MyPage の認証なし CI（`ci-frontend.yml` の `mypage`: audit・cost model・フォント整合性・check・test・build）を通し、続くクラウド認証情報なしの Build ジョブで固定依存検査・check・typecheck・テスト・DEV 公開設定検査・ビルドを実行します。
 2. 成果物を別 Apply ジョブへ渡し、ソース SHA・Run ID・30 分の期限・設定・全ファイルの SHA256 を再検証してから専用 WIF と短命トークンで認証します（SA 鍵や Firebase ログイントークンは不使用）。
-3. 対象を `test-youtube-study-space` の `test--study-space` だけとし、現在の Hosting の CSP・書き換え等と API の固定オリジン・Ready リビジョンを照合したうえでリリースを切り替えます（自動再試行しない。同意版はソースの定数のため照合しません）。
+3. 対象を `test-youtube-study-space` の `test--study-space` だけとし、現在の Hosting の CSP・書き換え等と API の固定オリジン・Ready リビジョン・稼働中 API の同意版（`X-MyPage-Consent-Versions` と画面の `POLICY_VERSIONS`）を照合したうえでリリースを切り替えます（自動再試行しない）。
 4. 配備後は全ファイルのバイト列・`Cache-Control`・CSP・`/` と `/mypage`・匿名 API の 403・API メタデータ不変を確認し、別の認証なし Browser ジョブで匿名画面・Cookie 設定・同意バナー表示・同意前と拒否後の GA4 通信 0 件を確認します（実 GA4 送信・認証済み E2E・公開条件完了とは区別）。
 
 - GitHub Environment の `mypage-dev-hosting` には公開項目だけの `MYPAGE_HOSTING_PUBLIC_CONFIG_JSON` と専用プロバイダー名 `MYPAGE_HOSTING_WIF_PROVIDER` を Variables に設定し、デプロイ時に DEV の測定 ID・公開オリジン・固定 CSP 許可先（`https://www.googletagmanager.com/gtag/js`、`https://www.google-analytics.com`、`https://region1.google-analytics.com`）を補います（変数に残る旧項目の `VITE_MYPAGE_ANALYTICS_READY` と同意版・`publicPolicy` は検査前に取り除くため、変数から段階的に削除できます）。有効化後は検証用ブラウザでアクセス解析を許可し Network と GA4 Realtime で受信を照合し、拒否へ戻して通信が止まることも確認します。
@@ -153,6 +153,7 @@ DEV ページの更新は基盤 Terraform Apply とは別に `Deploy MyPage Fron
 ### 同意版の環境変数の廃止
 
 - Backend は同意版をソースの定数から決め、旧環境変数 `MYPAGE_PRIVACY_VERSION` / `MYPAGE_TERMS_VERSION` を参照しません。CI のイメージ配備は既存の環境変数を引き継ぐため、DEV の Cloud Run に旧変数が残っていても動作は変わりません。
+- 旧 Backend は `X-MyPage-Consent-Versions` を返さないため、反映時は Backend を先に配備してから Hosting を配備します（逆順では Hosting 配備が照合で停止します）。
 - Terraform は両変数を設定しなくなりました。DEV の Cloud Run には両変数が残っているため、次回の MyPage Terraform Plan（Runtime 段階）は削除を計画して現行ガードで停止します。対象 2 変数だけを外す遷移を別途レビューするまで、MyPage の Terraform Apply は行えません。
 - `MYPAGE_RUNTIME_SETTINGS_JSON` に残る `privacy_version` / `terms_version` は読み込み時に除外するため、Secret から段階的に削除できます。
 - 同意版が変わると、旧版で同意したアカウントは次回ログイン時に再同意を求められます（DEV の旧版は `dev-draft-*-30102f3`）。

@@ -30,6 +30,19 @@ func TestPublicMaintenanceStatusReturnsOnlyBoolean(t *testing.T) {
 	}
 }
 
+func TestAPIResponsesAdvertiseEnforcedConsentVersions(t *testing.T) {
+	h, _, v, _ := boundaryFixture()
+	v.appErr = errors.New("synthetic missing proof")
+	// 認証前に拒否する匿名の応答にも、実際に照合する版を付ける。
+	response := boundaryRequest(h, "GET", "/api/mypage", "")
+	if response.Code != http.StatusForbidden || response.Header().Get(ConsentVersionsHeader) != "privacy=p1, terms=t1" {
+		t.Fatalf("status=%d header=%q", response.Code, response.Header().Get(ConsentVersionsHeader))
+	}
+	if got := CurrentPolicy().header(); got != "privacy="+CurrentPrivacyPolicyVersion+", terms="+CurrentTermsVersion {
+		t.Fatalf("current header=%q", got)
+	}
+}
+
 func TestMaintenanceProtectedAPI(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
