@@ -7,7 +7,6 @@
 """
 import copy
 import json
-import re
 from pathlib import Path
 import tempfile
 import time
@@ -139,13 +138,6 @@ class ReleaseTest(unittest.TestCase):
         self.assertTrue(config['hosting']['inventory']['analyticsApproved'])
         self.assertEqual(config['hosting']['inventory']['frame'], ['https://frame.example'])
 
-    def test_frontend_consent_versions_match_the_source_constants(self):
-        # The API advertises its Go constants in the same form (system/core/mypage/policy.go).
-        source = (h.ROOT / 'system/core/mypage/policy.go').read_text()
-        privacy, terms = (re.search(r'^\s*' + name + r'\s*=\s*"([^"]+)"', source, re.M)[1]
-                          for name in ('CurrentPrivacyPolicyVersion', 'CurrentTermsVersion'))
-        self.assertEqual(h.frontend_consent_versions(), 'privacy=' + privacy + ', terms=' + terms)
-
     def test_existing_dev_manifest_drops_only_retired_policy_settings(self):
         manifest = json.loads((h.ROOT / 'docs/mypage/release/public-config.example.json').read_text())
         legacy = copy.deepcopy(manifest)
@@ -191,8 +183,7 @@ class ReleaseTest(unittest.TestCase):
             with self.subTest(change=change), patch.object(h, 'cloud', return_value=value | change), self.assertRaises(ValueError):
                 h.backend('synthetic-token')
 
-    def publication(self, package, *, moved=False, upload_foreign=False, upload_failure=False, smoke_failure=False, lost_ack=False,
-                    consent_mismatch=False):
+    def publication(self, package, *, moved=False, upload_foreign=False, upload_failure=False, smoke_failure=False, lost_ack=False):
         env = environment() | {'RUNNER_TEMP': str(package.parent), 'MYPAGE_HOSTING_PACKAGE_DIGEST': 'b' * 64}
         rest = hosting()
         csp = rest['headers'][0]['headers']
@@ -244,16 +235,13 @@ class ReleaseTest(unittest.TestCase):
             return 200, {}, b''
         with patch.object(h, 'directory', return_value=package), patch.object(h, 'validate_package', return_value=(release, config, rest)), \
              patch.object(h, 'verify_head'), patch.object(h, 'current', side_effect=current), \
-             patch.object(h, 'backend', return_value=api), patch.object(h, 'verify_public', side_effect=ValueError('smoke') if smoke_failure else None), \
-             patch.object(h, 'served_consent_versions',
-                          return_value='privacy=dev-draft-p, terms=dev-draft-t' if consent_mismatch else h.frontend_consent_versions()):
-            failure = moved or upload_foreign or upload_failure or smoke_failure or lost_ack or consent_mismatch
+             patch.object(h, 'backend', return_value=api), patch.object(h, 'verify_public', side_effect=ValueError('smoke') if smoke_failure else None):
             try:
                 h.deploy(env, request=request, transport=upload)
             except ValueError:
-                self.assertTrue(failure)
+                self.assertTrue(moved or upload_foreign or upload_failure or smoke_failure or lost_ack)
             else:
-                self.assertFalse(failure)
+                self.assertFalse(moved or upload_foreign or upload_failure or smoke_failure or lost_ack)
         return calls, package.parent / 'mypage-hosting-release-record.json'
 
     def test_stages_before_single_live_publish_and_preserves_rollback_receipt(self):
@@ -267,7 +255,7 @@ class ReleaseTest(unittest.TestCase):
             self.assertEqual(json.loads(receipt.read_bytes())['previousVersion'], 'sites/' + h.SITE + '/versions/old')
 
     def test_moved_release_foreign_upload_or_failed_upload_cannot_publish(self):
-        for option in ('moved', 'upload_foreign', 'upload_failure', 'consent_mismatch'):
+        for option in ('moved', 'upload_foreign', 'upload_failure'):
             with self.subTest(option=option), tempfile.TemporaryDirectory() as temp:
                 package = Path(temp) / 'package'
                 self.make_dist(package)
@@ -302,10 +290,7 @@ class ReleaseTest(unittest.TestCase):
             def public(url):
                 name = url.removeprefix(h.ORIGIN + '/')
                 if name == 'api/mypage':
-                    headers = {'Cache-Control': mode['cache']}
-                    if not mode.get('consent_missing'):
-                        headers[h.CONSENT_HEADER] = h.frontend_consent_versions()
-                    return 403, headers, h.canonical({'error': {'code': mode['code']}})
+                    return 403, {'Cache-Control': mode['cache']}, h.canonical({'error': {'code': mode['code']}})
                 if name == 'privacy_policy':
                     return mode.get('redirect', 302), {'Location': '/privacy'}, b''
                 name = h.POLICY_PAGES.get('/' + name, name)
@@ -329,10 +314,6 @@ class ReleaseTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'public-policy-html'):
                     h.verify_public(release, rest)
                 del mode['empty_policy']
-                mode['consent_missing'] = True
-                with self.assertRaisesRegex(ValueError, 'backend-consent-versions'):
-                    h.verify_public(release, rest)
-                del mode['consent_missing']
                 mode['cache'] = 'private, no-store'
                 h.verify_public(release, rest)
                 for cache in ('private', 'no-store, private, public', 'max-age=60', ''):

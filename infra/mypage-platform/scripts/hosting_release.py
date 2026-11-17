@@ -47,8 +47,6 @@ GA4_TAG = 'https://www.googletagmanager.com/gtag/js'
 GA4_COLLECTION = frozenset({
     'https://www.google-analytics.com', 'https://region1.google-analytics.com',
 })
-CONSENT_HEADER = 'X-MyPage-Consent-Versions'
-POLICY_SOURCE = ROOT / 'mypage/src/public-policy-config.ts'
 GA4_SOURCES = {
     'script-src': frozenset({GA4_TAG}),
     'connect-src': GA4_COLLECTION,
@@ -129,20 +127,6 @@ def translate(package):
              str(package / 'public-config.json'), str(package / 'paths.json'),
              str(package / 'hosting.json')])
     return json.loads((package / 'hosting.json').read_bytes())
-
-
-def frontend_consent_versions():
-    # 配備する画面と同じソースの定数から、APIに送る同意版を読む。
-    match = re.search(r"^export const POLICY_VERSIONS = \{ privacy: '([A-Za-z0-9._-]+)', terms: '([A-Za-z0-9._-]+)' \} as const$",
-                      POLICY_SOURCE.read_text(encoding='utf-8'), re.M)
-    need(match, 'frontend-consent-versions')
-    return 'privacy=' + match[1] + ', terms=' + match[2]
-
-
-def served_consent_versions():
-    # 稼働中のAPIが匿名リクエストにも返す、実際に照合する同意版。
-    _, headers, _ = http(ORIGIN + '/api/mypage')
-    return {k.lower(): v for k, v in headers.items()}.get(CONSENT_HEADER.lower())
 
 
 def drop_retired_policy_settings(config):
@@ -364,8 +348,6 @@ def deploy(env, *, request=cloud, transport=http):
     public_env = {x['name']: x.get('value') for x in api_before['template']['containers'][0]['env']
                   if x.get('name') == 'MYPAGE_PUBLIC_ORIGIN'}
     need(public_env == {'MYPAGE_PUBLIC_ORIGIN': ORIGIN}, 'backend-public-config')
-    # 画面と稼働中APIの同意版が異なるとログインを開始できないため、一致しない組み合わせは公開しない。
-    need(served_consent_versions() == frontend_consent_versions(), 'backend-consent-versions')
     created = request(API + 'sites/' + SITE + '/versions', token, method='POST', body={
         'config': hosting, 'labels': {'deployment-tool': 'github-actions', 'source-sha': env['GITHUB_SHA'],
                                      'workflow-run': env['GITHUB_RUN_ID']}})
@@ -441,8 +423,6 @@ def verify_public(release, hosting):
     cache = {k.lower(): v for k, v in headers.items()}.get('cache-control', '')
     need(status == 403 and json.loads(data).get('error', {}).get('code') == 'APP_CHECK_REQUIRED' and
          {part.strip().lower() for part in cache.split(',')} == {'no-store', 'private'}, 'anonymous-api')
-    consent = {k.lower(): v for k, v in headers.items()}.get(CONSENT_HEADER.lower())
-    need(consent == frontend_consent_versions(), 'backend-consent-versions')
 
 
 def main():

@@ -52,7 +52,7 @@ MyPage の Cloud Run API 基盤・実行権限を管理するための Terraform
 ### Secret と IAM の境界
 
 1. Terraform は `mypage-oauth-client-id` / `mypage-oauth-client-secret` / `mypage-youtube-api-key` の器のみを管理し、値や `google_secret_manager_secret_version` は作成しません。Secret 値は非公開手順で投入した番号固定バージョンを環境変数へ参照させます（`latest` 禁止）。
-2. サーバー環境変数には `GOOGLE_CLOUD_PROJECT` および `MYPAGE_ENVIRONMENT` / `REGION` / `PROJECT_NUMBER` / `WEB_APP_ID` / `PUBLIC_ORIGIN` / `SIGNER_EMAIL` を渡し（同意版は API イメージ内の定数）、実 OAuth トークンや Firebase ID トークンは Terraform に流しません。
+2. サーバー環境変数には `GOOGLE_CLOUD_PROJECT` および `MYPAGE_ENVIRONMENT` / `REGION` / `PROJECT_NUMBER` / `WEB_APP_ID` / `PUBLIC_ORIGIN` / `SIGNER_EMAIL` / `PRIVACY_VERSION` / `TERMS_VERSION` を渡し、実 OAuth トークンや Firebase ID トークンは Terraform に流しません。
 3. Signer 権限は専用 SA 自身の `roles/iam.serviceAccountTokenCreator`、Secret Accessor は各 secret、Firestore は `roles/datastore.user` をプロジェクト単位で付与します。現状 Firestore IAM はコレクション単位に絞れないため他データにも権限が及びます（D01 削除運用と合わせて実審査し、より限定的なカスタムロールの採否を評価します。運用 SA の他権限もオーナー確認まで勝手に付けません）。
 4. `INGRESS_TRAFFIC_ALL` は Hosting 転送用であり、`runtime_public` まで Invoker IAM は付与しません（公開時もアプリ側の Auth / App Check / SAC / Origin 検証を維持し、直 URL・Host/callback・Cookie `__session` の実経路試験は別条件とします）。また `MYPAGE_INFRASTRUCTURE_READY=true` は起動時の要求フラグであり、公開準備の完了証明ではありません。
 

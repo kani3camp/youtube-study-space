@@ -2,7 +2,6 @@ openapi: 3.1.0
 info:
   title: MyPage internal API
   version: 0.4.0
-  description: APIの応答には、受け付ける同意版を示す `X-MyPage-Consent-Versions`（例 `privacy=v1, terms=v1`）を付ける。値は公開本文の版だけで、利用者情報は含めない。
 servers:
 - url: /
 paths:

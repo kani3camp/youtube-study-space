@@ -65,10 +65,6 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'")
 	w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-	// 受け付ける同意版を公開する。Hosting配備は画面と稼働中APIの版の一致をこのヘッダーで確かめる。
-	if h.Auth != nil {
-		w.Header().Set(ConsentVersionsHeader, h.Auth.Policy.header())
-	}
 	method, known := routeMethods[r.URL.Path]
 	if !known {
 		writeAPIError(w, http.StatusNotFound, "INVALID_REQUEST", requestID)

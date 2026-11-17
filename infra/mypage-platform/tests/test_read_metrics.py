@@ -87,7 +87,7 @@ class ReadMetricsTest(unittest.TestCase):
             with self.subTest(value=invalid), self.assertRaisesRegex(c.ContractError, "^runtime-read-metrics-type$"):
                 r.settings(settings_fixture() | {"read_metrics_enabled": invalid})
         with self.assertRaisesRegex(c.ContractError, "^runtime-settings-types$"):
-            r.settings(settings_fixture() | {"read_metrics_enabled": True, "web_app_id": True})
+            r.settings(settings_fixture() | {"read_metrics_enabled": True, "privacy_version": True})
         with self.assertRaisesRegex(c.ContractError, "^runtime-settings-fields$"):
             r.settings(settings_fixture() | {"read_metrics_enabled": True, "unreviewed": "private-input-sentinel"})
 

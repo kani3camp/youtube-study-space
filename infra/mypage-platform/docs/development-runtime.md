@@ -48,7 +48,7 @@ bash system/scripts/check-mypage-operator-image.sh mypage-maintenance-operator:c
 ### DEV 認証情報の接続（2026-10-21）
 
 - 実行時確認を受け、MyPage 専用の OAuth Web クライアント（固定 Hosting コールバック）と YouTube API に限定したサーバーキーを作成し、DEV の既存 3 Secret へ値を保存してすべて version `1` / `ENABLED` をメタデータのみで確認しました（値は GitHub / チャット / CI へ非公開）。
-- Plan / Apply 両 Environment に公開設定・イメージ digest・3 個の番号固定 Secret 参照のみを含む `MYPAGE_RUNTIME_SETTINGS_JSON` を接続しました（実 OAuth / E2E の完了は意味しません）。
+- Plan / Apply 両 Environment に公開設定・同意版草案・イメージ digest・3 個の番号固定 Secret 参照のみを含む `MYPAGE_RUNTIME_SETTINGS_JSON` を接続しました（実 OAuth / E2E / 文面公開承認の完了は意味しません）。
 - Runtime public の [run 39546080459](https://github.com/kani3camp/youtube-study-space/actions/runs/39546080459) と [run 39547114678](https://github.com/kani3camp/youtube-study-space/actions/runs/39547114678) は `check=contract` で停止したため（空きローカル State では成功）、実行フェーズを区別して固定ラベルで診断できるよう整備しました。
 - 初回 [Runtime private Plan 39543529630](https://github.com/kani3camp/youtube-study-space/actions/runs/39543529630) が `registry-refresh-empty-labels-only` で停止したため（イメージ push により Registry 更新時刻が進んでいた）、同一固定 Registry の予定 `no-op` で空 labels 表現差と `update_time` の単調 RFC3339 UTC 増加（ナノ秒逆行や予定 write は拒否）のみ許容するガードを追加しました。一時 bootstrap 権限解除に伴う共有 IAM `etag` 変化も予定 `no-op` 時のみ許容します。
 
@@ -60,7 +60,7 @@ bash system/scripts/check-mypage-operator-image.sh mypage-maintenance-operator:c
 ### イメージと Runtime の実行順序
 
 - Registry 適用後に `image-build` で `linux/amd64` イメージをビルドし、40 桁 source SHA の不変タグとして push して `RepoDigest` と照合します（既存タグの上書きは拒否）。
-- Runtime 初回は `runtime-private`（11 資源：Registry 9 + Firestore 権限 + Cloud Run）から開始し、Hosting 接続時に `runtime-public`（12 資源：`allUsers` invoker 追加）へ進みます（`MYPAGE_RUNTIME_SETTINGS_JSON` は `runtime_settings` と同じキーを受け付け、旧 `history_coverage_json`・`privacy_version`・`terms_version` は読み込み時に除外）。
+- Runtime 初回は `runtime-private`（11 資源：Registry 9 + Firestore 権限 + Cloud Run）から開始し、Hosting 接続時に `runtime-public`（12 資源：`allUsers` invoker 追加）へ進みます（`MYPAGE_RUNTIME_SETTINGS_JSON` は `runtime_settings` と同じキーを受け付け、旧 `history_coverage_json` は読み込み時に除外）。
 - Cloud Run は Gen2、DEV `min=0 / max=1`、CPU 1 / 512Mi、request-based billing、startup boost なし、TCP startup probe、固定ランタイム SA を使用します（Invoker IAM check やアプリの Auth / App Check / Origin / SAC は維持し、前後 1 世代互換や rollback は [実経路 E2E](../../../docs/mypage/release/e2e.md) で別途確認します）。
 
 ### 専用 Registry の段階（履歴情報）
