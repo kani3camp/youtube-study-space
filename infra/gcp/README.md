@@ -2,65 +2,55 @@
 
 YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをTerraform管理するためのrootと運用入口です。実行結果や導入時の判断は[変更履歴](#実行記録と変更履歴)を参照してください。
 
-設計上の正本はNotion「GCP Terraform / IaC移行」、実装・CI・import状態の正本はこのrepository / GitHubです。
+設計上の一次定義は Notion「GCP Terraform / IaC移行」、実装・CI・import 状態の一次定義はこのリポジトリ / GitHub です。
 
 ## Firebase Authenticationのメール認証
 
-モニター用のメール・パスワード認証は、[認証用モジュール](modules/monitor-auth/README.md)で管理します。`beforeCreate`による新規登録制限は廃止し、公開登録と既存アカウントへのパスワード追加を許可します。モニターデータの閲覧はFirestoreの許可リストで制限します。DEVに適用済みの旧登録制限は、同手順の段階撤去を完了してから最終構成を使います。
+モニター用のメール・パスワード認証は、[認証用モジュール](modules/monitor-auth/README.md)で管理します。`beforeCreate`による新規登録制限は廃止済みで、公開登録と既存アカウントへのパスワード追加を許可しています。モニターデータの閲覧はFirestoreの許可リストで制限しており、DEVに適用済みの旧登録制限については段階撤去の完了後に最終構成へ切り替えます。
 
 ## 通常のGCP Infrastructure運用
 
-手動操作の入口は `Terraform`（[`terraform.yml`](../../.github/workflows/terraform.yml)）の `workflow_dispatch` です。利用者が選ぶのは次の3項目です。
+手動操作の入口は `Terraform`（[`terraform.yml`](../../.github/workflows/terraform.yml)）の `workflow_dispatch` です。利用者は以下の 3 項目を選択して実行します。
 
 - `environment`: `development` または `production`
 - `operation`: `plan` または `apply`
 - `component`: `all`（既定）・`core`・`mypage`
 
-DEVのCoreだけは、任意で `source_branch`（対象ブランチ）・`source_sha`（対象SHA、40桁）を指定し、実行元とは別のブランチ／コミットのHCLをPlan/Applyできます（下記）。両方空欄なら実行元自身のコミットです。
+Core GCP と MyPage は別々の Terraform State のまま同じ `Terraform` ワークフローで扱えます（`apply` 時は選択された Plan がすべて成功したあと `Core → MyPage` の順に実行。各 Apply ジョブで独立して再 Plan を行い、Plan ジョブと HMAC が一致した自身の保存済み Plan のみ適用します）。また、DEV の Core（`component=core`）のみ、`source_branch` / `source_sha`（40 桁）を指定して別ブランチ・コミットの HCL を Plan/Apply できます（MyPage と本番は実行元コミット固定）。
 
-Core GCPとMyPageは別々のTerraform Stateのまま、同じ `Terraform` 実行で扱えます。`plan` は選んだStateのPlanを完了させ、`apply` は選んだPlanがすべて成功した後にCore→MyPageの順でApplyへ進みます。Applyの各jobは自分で再Planし、Plan jobとHMACが一致した自分のplan fileだけを適用します。Stateを物理的に統合してblast radiusを広げず、手動UIだけを統一します。同じrunの最初に対象SHAを1つ確定し（[`terraform_source_pin.py`](../../.github/scripts/terraform_source_pin.py)）、そのコミットの資格情報なしのTerraform検査（`ci-gcp-terraform.yml`）を通してから、同じSHAでPlan/Applyします。検査中に対象ブランチが更新されても、別のコミットへ切り替わりません。Production Applyは `terraform-prod-apply` Environmentの承認を必須とします（required reviewersはownerがGitHubで設定する）。
+- 事前の SHA 固定と隔離検査: Run 冒頭で [`terraform_source_pin.py`](../../.github/scripts/terraform_source_pin.py) により対象 SHA を 1 つ確定し、認証なしの Terraform 検査（`ci-gcp-terraform.yml`）を通過した後に同じ SHA で Plan/Apply します（検査中に対象ブランチが進んでも切り替わりません。Production Apply は `terraform-prod-apply` の承認が必須）。
+- MyPage の扱い: 通常経路は最終 `desired-stage`（現在 `runtime_public` 相当）のみを対象とし、内部 stage は露出させません（イメージビルド・リリース・メンテナンス ON/OFF は Terraform Apply とは別操作です）。
 
-MyPageの通常経路は最終desired state（現在は `runtime_public` 相当）を常に対象とし、`foundation_metadata` / `foundation` / `registry` / `maintenance_*` / `runtime_private` を利用者が選択しません。これらのstageは初回bootstrapと既存の安全契約を維持する内部実装であり、通常workflowの操作面には露出させません。image build / releaseとmaintenance ON/OFFはTerraform Applyとは別操作です。
+### PR Plan（助言用、Apply しない）
 
-### PR Plan（助言用、Applyしない）
+オーナーが作成した同一リポジトリの PR で `infra/gcp/**` などが変更されると、`Terraform` の `pull_request` 経路が DEV の Core と MyPage を対象に PR Plan を実行します（PROD の Plan 環境は `main` 限定のため、PROD は手動 Plan のみ）。
 
-ownerが作成した同一repositoryのPRで `infra/gcp/**` などが変わると、`Terraform` の `pull_request` 経路がDEVのCoreとMyPageを **PR Plan** します。PRODのPlan Environmentは `main` 限定のため、PRODは手動Planだけです。
+- 手動 Plan と同じ reusable workflow（`gcp-terraform-authenticated.yml` の `pr-plan` mode）、Environment（`terraform-dev-plan`）、identity を共用し、PR 専用の identity / Environment は持ちません（2026-10-31 に統合・旧資源撤去）。
+- `-lock=false` で実行し、HMAC・saved plan・ジョブ出力・PR コメントは残さず、Job Summary に値を含まない要約だけを表示します（Apply 時は必ず手動 `Terraform` で再 Plan します）。
+- fork 由来 PR およびオーナー以外が起動した PR（協力者の PR）は資格情報取得前に **失敗として** 停止します（協力者の PR ではオーナーが手動 Plan を実行します）。
+- DEV PR Plan の再実行は、クラウド側の WIF 条件更新が未実施（[Issue #1562](https://github.com/kani3camp/youtube-study-space/issues/1562)）であるため、現環境の現行 WIF 条件（`run_attempt == 1` 制限）では認証段階で拒否されます。WIF 更新の反映後は、オーナーが最初に起動した同一リポジトリの DEV PR Plan に限り、GitHub が許可する write 権限保持者による再実行（`Re-run jobs` / `Re-run failed jobs`）が許可されます（正整数の `run_attempt` と署名済み OIDC の実行値一致、初回の不変オーナー `actor_id`、merge ref/SHA、Plan Environment 限定を検証し、他者起動 Run・手動 Plan/Apply・PROD の初回実行限定は維持します。反映手順は [認証・実行境界](docs/terraform-authentication-boundary.md#dev-pr-planの再実行) と [workflow 設計](../../docs/development/ci-cd-workflows.md#45-pr-plan-の再実行を有効にするowner) を参照）。
 
-- 手動Planと同じreusable（`gcp-terraform-authenticated.yml` の `pr-plan` mode）、Environment `terraform-dev-plan`、identity（`terraform-dev-normal-plan` SA、`terraform-normal` WIF、`youtube-study-space-terraform-dev-plan` AWS role）を使う。PR専用のidentity・Environmentはない。
-- `-lock=false` で実行し、HMAC・saved plan・job outputを残さない。結果はJob Summaryの値なし要約だけで、PRコメントは投稿しない。Applyは必ず手動 `Terraform` で再Planする。
-- fork由来PR、owner以外のactor、再実行は資格情報を取得する前に**失敗として**停止する（green skipにしない）。その場合はownerが手動 `Terraform` の `operation=plan` を実行する。
-- GCP WIFとAWS trustは、PRをPlan Environmentだけに許可する（PRのref `refs/pull/<n>/merge`、`terraform.yml` と同refのreusable、owner、初回実行）。Apply Environment・Apply identityは手動dispatchだけ。DEVのtrustとEnvironmentは2026-10-31にこの形へ更新済みで、旧PR Plan専用のidentity・Environmentは撤去済み。
+### 認証境界と対象ソースの指定ルール
 
-認証付きDEV操作の資格情報の境界は**クラウドtrustの本人検査**です。GCP WIF / AWS OIDCはowner immutable ID・repository・初回実行・同refの正規workflowを検証し、DEVはownerの任意の非`main` branchの手動dispatchと、ownerのPR Planを許可します。PR/fork、tag、`main`でのDEV通常操作、再実行は認証前に拒否します。Productionの通常操作は保護された`main`だけです。
+認証付き DEV 操作の資格情報境界はクラウド trust の本人検査です。GCP WIF / AWS OIDC はオーナーの不変 actor ID・repository・初回実行（WIF 更新反映後の DEV PR Plan 再実行を除く）・同一 ref の正規ワークフローを検証し、DEV ではオーナーの非 `main` ブランチからの手動 dispatch とオーナーの PR Plan を許可します（PR / fork・tag・`main` での DEV 操作や、手動 Plan/Apply の再実行は拒否、本番は保護された `main` のみ。DEV PR Plan の再実行は現行 WIF では拒否され、WIF 更新反映後に上記条件で許可されます）。DEV の Environment（`terraform-dev-plan` / `terraform-dev-apply`）自体はブランチ制限なし（`No restriction`）ですが、Secret には設定値のみを置き、クラウド資格情報は actor 検査で保護しています。
 
-DEVのEnvironment（`terraform-dev-plan` / `terraform-dev-apply`）はbranchで制限しません（No restriction）。DEV EnvironmentのSecretはrole ID・SA名・bucket・HMAC key・tfvarsなど資格情報ではない設定値だけで、write権限を持つ協力者のjobが読めても、クラウドの資格情報はactor検査で取得できません。forkのPRにはSecretもOIDCも渡りません。
-
-対象ソースの選択（実行元とは別のブランチ／SHAのHCLをPlan/Applyする機能）は、DEVのCore（`component=core`）だけで使えます。MyPageと本番は常に実行元のコミットを使い、対象ブランチ・SHAを指定すると選択の段階で拒否します。
-
-| source_branch | source_sha | 使用するソース |
+| `source_branch` | `source_sha` | 使用するソース（DEV `component=core` のみ指定可） |
 | --- | --- | --- |
-| 指定 | 空欄 | 選択時点のブランチHEADをSHAへ解決し固定 |
-| 空欄 | 指定 | 同一repositoryの通常ブランチ履歴から到達できる指定コミット |
+| 指定 | 空欄 | 選択時点のブランチ HEAD を SHA へ解決して固定 |
+| 空欄 | 指定 | 同一リポジトリの通常ブランチ履歴から到達可能な指定コミット |
 | 空欄 | 空欄 | 実行元自身のコミット |
-| 指定 | 指定 | ブランチHEADとSHAが一致する場合だけ実行 |
+| 指定 | 指定 | ブランチ HEAD と SHA が一致する場合のみ実行 |
 
-確定した対象SHAはActionsのSummaryに表示します。Applyで確認済みの同じコミットを使う場合は、`source_branch`を空欄にし、`source_sha`にPlanのSummaryの値を指定します（ブランチだけを指定すると、新しい実行の時点でHEADを再取得します）。資格情報なしの検査（`ci-gcp-terraform.yml`）は対象コミットのソースとテストをcheckoutし、実行元からビルドした隔離コンテナ（[`validate.sh`](../../.github/ci-validation/validate.sh)）内で実行します。対象コードにはrunnerの環境変数・Actionsのキャッシュ用トークン・コマンドファイル・Dockerソケットを渡さず、ソースは読み取り専用でマウントします。検査を指示するworkflow、対象SHAを確定する処理、資格情報付きのPlan／Apply実行器は実行元のコミットを使います。対象ブランチの`.github/`・`infra/gcp/scripts/`・`infra/gcp/tests/`を実行器として使いません。HCLやmodule自体もprovider等による実行を伴うため、選択するソースは本人がレビューしたものを使います。
+※確認済み Plan と同じコミットを Apply する場合は `source_branch` を空欄にし、`source_sha` に Plan の Summary に出た SHA を指定してください。なお資格情報なしの検査は runner の環境変数・Actions キャッシュ用トークン・コマンドファイル・Docker ソケットを渡さない隔離コンテナ（[`validate.sh`](../../.github/ci-validation/validate.sh)）内で対象コミットのソースを読み取り専用マウントして実行します。実行器は常に実行元コミットの `.github/`・`infra/gcp/scripts/`・`infra/gcp/tests/` を使用します。
 
-1. 通常のHCL追加・修正は任意の作業/統合ブランチ向けPRで進める。ownerのPRにはDEVのPR Planが付く。Environmentへのbranch登録は不要。`dev`は運用可能な統合結果だけを最終PRで受け入れる。
-2. 新しい非秘密入力は `normal.tfvars.json` に追加する。既存Environmentのprivate tfvarsを読み、
-   このcommitのファイルで上書きするため、既存リソースの選択・private inventoryを落とさない。
-   秘密値はコミットしない。新しいprivate入力は両DEV Environmentのmanaged入力を同じ内容へ更新する。
-3. delete/replaceが必要なら、同じPRの `normal-operations.json` に正確なaddressとactionsを記載する。
-   create/updateにはリソース別manifestやtype登録を要求しない。
-4. 作業PRのcredentialless CI・PR Plan・レビューを確認する。専用統合ブランチを使う作業ではCodexがそこへマージしてよい。
-5. 対象ブランチのHEADから `Terraform` を `environment=development` / `operation=plan` で実行し、Core GCPとMyPage両方のPlan結果を確認する（MyPageのtrustは統合branchのrefに固定）。
-6. 適用する場合は同一ブランチ・HEADで `operation=apply` を新規dispatchする。各Stateは独立したPlan/Apply identityとsaved plan検証を維持し、両Plan成功後にApplyへ進む。
-7. `GCP_NORMAL: PASS; role=apply` と事後full-root no-opを確認する。
-   別jobの再Plan HMAC比較はGitHub Actionsの `if` 条件で行い、**HMACをstep envやcommandへ渡さない**。一致しなければApplyを実行せず、セクション別比較の真偽値だけで `GCP_NORMAL_REPLAN: STOP` を表示する。値・address・HMACは公開しない。
-8. DEV実地検証と復旧確認を完了してから、専用統合ブランチ→`dev`の最終PR（1本）をレビュー用に残す。`dev`へのマージは本人だけが行う。
-   破壊的変更のレビュー指定は次のPRで削除する。未使用の指定も拒否される。
+### 通常運用の流れ（DEV）
 
-破壊的変更の指定例です。Terraform Planのactionsと順序まで一致させ、未使用の指定も残しません。
+1. HCL の追加・修正は作業/統合ブランチ向け PR で進めます（オーナーの PR には DEV PR Plan が付きます）。
+2. 新しい非秘密入力は `normal.tfvars.json` に追加します（既存 Environment の private tfvars を読み込んで上書きするため、秘密値はコミットせず、既存リソース選択を落とさないよう両 DEV Environment の managed 入力を同じ内容に更新します）。
+3. `delete` / `replace` が必要な場合は同じ PR の `normal-operations.json` に正確なアドレスと actions を記載します（破壊的変更の指定は次 PR で削除し、未使用の指定も拒否します）。
+4. 作業 PR の CI とレビューを確認後、対象ブランチ HEAD から `Terraform` を `environment=development` / `operation=plan` で実行し、Core と MyPage の Plan 結果を確認します。
+5. 適用する場合は同一ブランチ・HEAD で `operation=apply` を起動し、`GCP_NORMAL: PASS; role=apply` と事後 full-root no-op を確認します（HMAC 比較は GitHub Actions の `if` 条件で行い、step env やコマンドへ渡さずログにも出しません。不一致時は Apply せず `GCP_NORMAL_REPLAN: STOP` のみ表示します）。
+6. DEV 実地検証と復旧確認の完了後、専用統合ブランチから `dev` への最終 PR（1 本）を作成します（`dev` へのマージはオーナーが実施）。
 
 ```json
 {
@@ -71,13 +61,9 @@ DEVのEnvironment（`terraform-dev-plan` / `terraform-dev-apply`）はbranchで�
 }
 ```
 
-取得するソースは同一repositoryの固定SHAです。別checkoutから`environments/dev/`と`modules/`のHCL・入力・配備データだけを私用作業ディレクトリへコピーし、対象ブランチの`.github/`・`infra/gcp/scripts/`・`infra/gcp/tests/`はコピーしません。symlink、改変済みcheckout、未追跡の入力でcommitを上書きする操作は拒否します。登録制限用の配備ZIP生成・関数配備は撤去しました。
+※別チェックアウトからコピーするのは `environments/dev/` と `modules/` の HCL・入力・配備データのみで、symlink・未追跡入力・改変済みチェックアウトでの上書きは拒否します。
 
-HCLやmodule自体もprovider等による実行を伴うため、選択するソースは本人がレビューしたものを使います。この分離は、未レビューのHCLを安全に実行するsandboxではありません。Environment/OIDC、State、Planの契約は[実行契約](docs/terraform-authentication-boundary.md#devの通常planapply)を参照してください。
-
-S3 native locking、Versioning、環境別concurrencyを継続し、workspace・target apply・force-unlockは使いません。raw Plan/State/Secret/API応答をログ・artifactへ公開せず、公開結果は固定phase・操作件数とprovider schemaで検証したリソース種別/操作別件数に限定します。
-
-**有効化の順序:** このcontrol plane分離は、対応workflowと実行器を含む信頼済み実行元から利用できます。新しい実行元を許可する前に、そのブランチのworkflowと実行器をレビューしてください。HCLを試すだけのfeature branchを実行元へ一時昇格させません。DEV StateへPR #1467の旧登録制限資源を適用した状態では、認証用モジュールの段階撤去を完了するまで、その段階に合う固定SHAを選んでください。古いHCLによる意図しない資源削除は適用しません。
+有効化の順序: 新しい実行元を許可する前に、そのブランチのワークフローと実行器をレビューしてください（DEV State へ PR #1467 の旧登録制限資源を適用している間は、段階撤去が完了するまで整合する SHA を選び、意図しない削除を避けてください）。
 
 ### 一回限りのDEV基盤設定
 
@@ -97,7 +83,7 @@ S3 native locking、Versioning、環境別concurrencyを継続し、workspace・
 - データ本文の読書き、SA鍵、token発行、project IAM、WIF管理は通常SAへ付与しない。
   Secret本文、Storage object内容、BigQueryデータ操作は専用の権限審査対象。
   IAM管理のためだけに通常SAへOwner/Editorを付与しない。
-- Cloud Run等の実行SAには、project権限なしの共通 `terraform-dev-workload` を準備し、
+- Cloud Run等の実行SAにはproject権限なしの共通 `terraform-dev-workload` を準備し、
   通常Apply SAの`actAs`だけを当該SA上で許可する。業務別のruntime権限は別の明示的なIAM変更。
 
 設定後はSAのproject roleとtrust、WIFのissuer・mapping・条件、user-managed keyがないこと、
@@ -126,7 +112,7 @@ python3 infra/gcp/scripts/enable_normal_integration.py --apply
 
 ### 基盤変更の検証と復旧
 
-認証・実行基盤の変更は、offlineの契約テストとnative fixtureに加え、認証付きの通常Planで検証します。
+認証・実行基盤の変更はofflineの契約テストとnative fixtureに加え、認証付きの通常Planで検証します。
 実変更の検証が必要なら、レビュー済みのDEV用HCLを通常PRで追加し、通常Plan/Applyと事後no-opを確認します。
 削除・置換も`normal-operations.json`の明示レビューを通し、暗黙に一時資源を生成するモードは使いません。
 
@@ -178,7 +164,7 @@ python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply --enable-ap
 
 - `main` への認証付きworkflowのリリース後、まずPRODの既存30資源を対象とする認証付きfull-root no-op Planを実測してください。その後、必要最小限の変更についてPlan→承認済みApply→事後no-opを確認します。PRODで一時Pub/Sub CRUDテストを実施しません。
 
-**確認範囲：** GitHubコードとcredentialless CIでは本番の実IAM/State readback、実mainでの初回認証付きPlan/Applyの成功を証明できません。これらはSourceの実装と独立した有効化ゲートです。
+確認範囲について、GitHub コードと資格情報なしの CI では本番の実 IAM/State readback、実 `main` での初回認証付き Plan/Apply の成功を証明できません。これらはソースの実装とは独立した有効化の確認段階です。
 
 ## 完了済み移行経路の撤去
 
@@ -206,7 +192,7 @@ python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply --enable-ap
 ## Version policy
 
 - Terraform CLI: `.terraform-version` と各rootの `required_version` を一致させる
-- Google provider: 各rootの `required_providers` と `.terraform.lock.hcl` を正本にする
+- Google provider: 各rootの `required_providers` と `.terraform.lock.hcl` を基準にする
 - provider lockはTerraform operator / CIで使用する `linux_amd64` / `darwin_arm64` のchecksumを事前生成する
 - version更新は通常のdependency変更としてPRでreviewする
 - Notionにはpatch versionを複製しない
@@ -226,7 +212,7 @@ for env in dev prod; do
 done
 ```
 
-PRでは **GCP Terraform Validate** が必要な安全契約・Terraform root/module・nativeテストを検証します。
+PRでは GCP Terraform Validate が必要な安全契約・Terraform root/module・nativeテストを検証します。
 S3 State/Versioning/locking、OIDC/WIF・分離identity、secret非漏出・通常Plan/Applyの拒否契約と対応テストを維持します。
 復旧・監査は[State account recovery](docs/state-account-recovery.md)、[durable audit](docs/state-durable-audit.md)、
 [認証・実行境界](docs/terraform-authentication-boundary.md)を参照してください。
@@ -237,9 +223,9 @@ State infrastructureはTerraform本体の外側にある one-time bootstrap exce
 
 ### Architecture
 
-Issue #1155以降の検討を踏まえ、remote stateは **AWS S3の個人開発共通Terraform state control plane** に置きます。管理対象がGCPでもbackendを同じcloudへ置く必要はありません。
+Issue #1155以降の検討を踏まえ、remote stateは AWS S3 の個人開発共通 Terraform state control plane に置きます。管理対象がGCPでもbackendを同じcloudへ置く必要はありません。
 
-原則:
+次の原則で運用します。
 
 - 個人開発共通のstate bucketは原則1つ
 - product / environmentごとにstate keyを分離する
@@ -255,7 +241,7 @@ Issue #1155以降の検討を踏まえ、remote stateは **AWS S3の個人開発
 - backend roleへAWS workload用の広い権限を付与しない
 - 長期AWS access key / secret keyを作らない
 
-Issue #1161で **AWS Organizations配下の専用Terraform/state control-plane member account** と `ap-northeast-1`（東京）のS3 backendをbootstrap済みです。development / production workload accountへ共通stateを置かず、production workload accountがOrganizations management / payerを兼務している構成の見直しは別scopeとします。実account ID / bucket名 / role ARN等はpublic repositoryへ保存しません。
+Issue #1161で AWS Organizations 配下の専用 Terraform/state control-plane member account と `ap-northeast-1`（東京）のS3 backendをbootstrap済みです。development / production workload accountへ共通stateを置かず、production workload accountがOrganizations management / payerを兼務している構成の見直しは別scopeとします。実account ID / bucket名 / role ARN等はpublic repositoryへ保存しません。
 
 ### Public repository CI boundary
 
@@ -305,9 +291,7 @@ SSO/MFA、break-glass、責任者、private contactの確認は
 
 ## Import policy
 
-既存resourceは configuration-driven `import` block を標準とします。
-
-順序:
+既存resourceは configuration-driven `import` block を標準とし、次の順序で実施します。
 
 1. fresh inventory
 2. resource definition
@@ -317,7 +301,7 @@ SSO/MFA、break-glass、責任者、private contactの確認は
 6. import直後のplanを原則no-opへする
 7. importとは別PR / 別差分で設定改善を行う
 
-import acceptance:
+import の受け入れ条件は以下のとおりです。
 
 - create: 0
 - update: 0
@@ -345,7 +329,7 @@ bootstrapや障害調査にはoperatorの短期SSO/更新可能credentialを使�
 
 ## Production boundary
 
-production:
+Production 適用時は以下の条件を守ります。
 
 - 最初のimportは同resource typeをdevで確立してから
 - 本人初回workflow_dispatch限定。実行前の準備判定は[Production runbook](docs/production-readiness.md)に従う

@@ -1,37 +1,50 @@
-# GCS raw チャットを含む snapshot の cleanup
+# GCS の raw チャットを含むスナップショット削除手順
 
-[retirement runbook](raw-live-chat-archive-retirement-runbook.md) の GCS 操作条件。mixed Firestore export は raw chat と `users` / `user-activities` / `order-history` を含み得るため、raw kind だけの部分削除や bucket 全体への短期 lifecycle を使わない。対象は raw を含む **top-level snapshot prefix 全体**であり、その中の古い domain-data backup も失う。新しい clean snapshot と共有 export 基盤を維持する。
+[廃止 Runbook](raw-live-chat-archive-retirement-runbook.md) における GCS 操作の追加条件をまとめた手順書です。
 
-## Apply 前の条件
+> [!IMPORTANT]
+> 混合 Firestore エクスポートには `live-chat-history` だけでなく `users` / `user-activities` / `order-history` も含まれるため、raw kind だけの部分削除やバケット全体への短期ライフサイクルは使いません。削除対象は raw を含む **最上位スナップショットプレフィックス全体** であり、その中の古い業務データバックアップも同時に失われます（新しいクリーンなスナップショットと共有エクスポート基盤は維持します）。
 
-1. 対象 environment / credential project / 設定 bucket を毎回照合する。DEV の観測を PROD へ流用しない。
-2. 配備済み producer/export と自然実行の collection group を確認し、raw の再流入・予期しない再配備がないことを確認する。
-3. Firestore raw 0、versioning 無効、最後の raw snapshot より新しい clean snapshot 7世代以上、最新 export 72時間以内を fresh preview で確認する。
-4. bucket の location / storage class / soft delete / retention / lock と、全 candidate object の generation・retention expiration・temporary/event hold・object retention を private inventory に固定する。prefix 内の **全 object** が eligible であることを確認する。
-5. complete clean snapshot の復元可能性、保持する recovery coverage、失う古い backup、復旧経路・hard-delete 時期、request / soft-delete storage / COLDLINE early-deletion 費をレビューし、別途削除承認を得る。
+---
 
-Production の COLDLINE / 93日 retention は維持する。個々の実 metadata から eligibility を求め、prefix 名や DEV の日付から推測しない。retention 経過だけで storage-class 料金がなくなると仮定しない。
+## Apply 前の必須条件
 
-**現在の `privacy-gcs-admin` は versioning / soft delete と object 名による prefix を確認するが、retention / hold・snapshot の完全性や復元可能性を検証しない。全 raw prefix を対象とし、eligible な wave だけを選べない。** `ready_to_apply=true` だけでは削除を決定できず、一部 eligible な inventory に all-prefix apply を使わない。retention/hold を外したり、部分削除を retry loop にしない。必要な wave 対応・レビューを先に行う。
+1. 対象環境の照合: 環境・認証プロジェクト・バケット設定を毎回照合します（DEV の観測結果を PROD へ流用しません）。
+2. 流入停止の確認: 配備済みの producer / export と定期実行コレクションを確認し、raw データの再流入や予期しない再配備がないことを確認します。
+3. クリーン世代の確認: 事前の読み取り専用 `preview` で、Firestore raw が `0` 件、バケットの versioning が無効、最後の raw スナップショットより新しいクリーンなスナップショットが 7 世代以上、最新エクスポートが 72 時間以内であることを確認します。
+4. オブジェクト属性の棚卸し: バケットの location / storage class / soft delete / retention / lock、および全候補オブジェクトの generation・retention expiration・temporary/event hold・object retention 設定を非公開棚卸しに固定し、プレフィックス内の **すべてのオブジェクト** が削除可能（eligible）であることを確認します。
+5. 復元可能性と費用レビュー: クリーンなスナップショットから復元できること、失う古いバックアップの範囲、復旧経路、完全削除（hard-delete）時期、リクエスト費用・soft-delete 保管費・COLDLINE 早期削除費用をレビューし、別途削除承認を得ます（Production の COLDLINE / 93 日保持は維持し、個々の実メタデータから判定します。retention 経過だけで storage-class 料金がなくなると仮定しないでください）。
 
-## Guarded command
+> [!CAUTION]
+> 現在の `privacy-gcs-admin` は versioning / soft delete とオブジェクト名によるプレフィックスを確認しますが、retention / hold やスナップショットの完全性・復元可能性は検証しません。また全 raw プレフィックスを一括対象とし、一部のみ削除可能な状態（wave）を選べません。`ready_to_apply=true` だけで削除を実行せず、一部のみ eligible な状態では一括 apply を使わないでください（retention / hold を外したり、部分削除をリトライループで回したりせず、必要な対応・レビューを先に行います）。
 
-`system/` から、[対象表](raw-live-chat-archive-retirement-runbook.md#対象と実行境界)の値を明示する。preview は read-only。
+---
+
+## ガード付きコマンドの実行
+
+`system/` ディレクトリから、[対象と実行境界](raw-live-chat-archive-retirement-runbook.md#対象と実行境界) の値を明示して実行します。
 
 ```sh
+# 読み取り専用の事前確認（raw 件数・候補数・クリーン世代数・安全性チェック・確認トークンを出力）
 go run ./cmd/privacy-gcs-admin preview <environment> <project-id> <bucket>
 ```
 
-preview は raw row count、candidate prefix/object/bytes、最後の raw snapshot、clean 世代数、各 safety check、target-bound token を返す。前節の追加条件・人間の承認まで揃った場合だけ、直前 preview の値を使う。
+前節の追加条件と人間の承認がすべて揃った場合のみ、直前の `preview` 出力値を使って適用します（本番環境では `--allow-production` も必須）。
 
 ```sh
-go run ./cmd/privacy-gcs-admin apply   <environment> <project-id> <bucket>   --expected-prefixes <preview-count>   --expected-objects <preview-count>   --confirm '<exact-preview-token>'
+go run ./cmd/privacy-gcs-admin apply \
+  <environment> <project-id> <bucket> \
+  --expected-prefixes <preview-count> \
+  --expected-objects <preview-count> \
+  --confirm '<exact-preview-token>'
 ```
 
-production は `--allow-production` も必要。command は直前に再 scan し、target・raw count・clean 世代・件数・token の変化で停止する。各 prefix では non-raw object を先に削除し、最後まで raw marker を残すため、部分失敗後も対象を再発見できる。この再開特性は retention-aware wave 対応の代用にはならない。
+実行時は直前に再スキャンし、対象・raw 件数・クリーン世代・件数・トークンのいずれかが変化していたら停止します。各プレフィックス内では non-raw オブジェクトを先に削除し、最後まで raw マーカーを残すため部分失敗後も再発見できます（ただし retention を考慮した wave 分割の代替にはなりません）。
 
-## 結果と記録
+---
 
-live raw prefix 不在と共有基盤・clean recovery set の保持を確認する。soft delete 期間中は復元可能なので、live 削除成功と hard deletion 完了を分ける。soft-delete 期間は対象 bucket の実 metadata で確認する。
+## 結果の確認と記録
 
-公開記録は集約 count/bytes、eligibility 範囲、保持 backup coverage、費用と private manifest 参照だけにする。raw object 名、設定全文、token、business data は public log/artifact へ出さない。fresh preview で raw prefix 0なら削除を繰り返さない。両環境の移行完了後、一時 DELETE 機能を撤去する。一般 backup retention は raw archive 廃止とは独立して扱う。
+- 削除状態の区別: 本番名前空間から raw プレフィックスが消えた状態（live 削除成功）と、バケットの実メタデータ上の soft-delete 期間経過による完全削除（hard deletion）を区別して記録します。`preview` で raw プレフィックスが 0 件なら削除を繰り返しません。
+- 公開記録の範囲: 公開記録には集約件数・バイト数、eligibility 範囲、保持バックアップのカバー範囲、費用、非公開マニフェスト参照のみを残し、生オブジェクト名・設定全文・トークン・業務データは公開ログや成果物に出しません。
+- 移行完了後は一時的な `DELETE` 機能を撤去します（一般のバックアップ保持ポリシーは raw アーカイブ廃止とは独立して管理します）。

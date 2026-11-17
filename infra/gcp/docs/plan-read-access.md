@@ -1,83 +1,96 @@
-# DEV Planの構成参照権限
+# DEV Plan の構成参照権限
 
-CoreとMyPageのDEV Planは、[静的manifest](../policies/plan-metadata-read.json)を正本とする同一のproject custom roleを使用する。対象は `test-youtube-study-space` の `terraform-dev-normal-plan` と `mypage-foundation-plan` だけで、SA・WIF・Stateは別々のままにする。同じSAを使う手動DEV Planにも参照範囲が及ぶ。
+Core と MyPage の DEV Plan では、[静的マニフェスト](../policies/plan-metadata-read.json) を基準定義とする共通のプロジェクトカスタムロールを使用します（対象は `test-youtube-study-space` の `terraform-dev-normal-plan` と `mypage-foundation-plan` のみ。SA・WIF・State は別々のまま維持します）。同じ SA を使う手動 DEV Plan にもこの参照範囲が適用されます。
 
-manifestのfamilyごとに、明示permission、APIの返却内容、一次資料、設定に秘密値を置かないための前提を保存する。API・predefined roleの追加を自動追従せず、未分類permissionは拒否する。使用していないサービスも含むが、APIの有効化は行わない。請求、Secret payload、業務データ本文、credential発行、sign/decrypt、writeは付与しない。Secret metadataと既存AWS State読取りは別の扱いであり、State/lock policyはこのツールでは変更しない。
+---
 
-Cloud SQL instanceのget/listは、外部primary接続設定のpassword/clientKeyについて全返却形の非公開保証が確定していないため初期対象から除外する。GKEはcluster構成だけで、getCredentialsやKubernetes APIのSecret/Pod/ConfigMap参照を許可しない。Firestoreは `datastore.databases.getMetadata` を用い、transaction操作の `datastore.databases.get` を含めない。
+## 権限設計の基本ルール
 
-VM metadata、startup script、Run/Functionsの環境変数、Schedulerのbody/header、Pub/Subのpush URL、BigQueryのview/routine定義、監視の設定には平文秘密値を埋め込まない。構成参照permissionの許可は、そのAPIに誤って格納された秘密値を不可視にする保証ではない。返却値をIAMで分離できず既知の秘密値がある場合は、格納方法を修正するまで拡張を止める。Secret payloadやState本文を取得してこの確認を行わない。
+- マニフェストのサービス（family）ごとに、明示的な permission・API 返却内容・一次資料・平文秘密値を置かないための前提を記録しています（API や定義済みロールの変更に自動追従せず、未分類 permission は拒否）。
+- 未使用サービスの参照権限も含みますが、API 自体の有効化は行いません。
+- 課金情報・Secret の実値（payload）・業務データ本文・認証情報発行・署名/復号・書き込み権限は一切付与しません（Secret メタデータと AWS State 読み取りは別扱いとし、State/lock ポリシーはこのツールでは変更しません）。
+- 個別の除外ルール
+  - Cloud SQL instance の `get`/`list` は、外部接続設定の `password` / `clientKey` が返却から確実に除外される保証が未確定のため初期対象外としています。
+  - GKE はクラスタ構成のみを対象とし、`getCredentials` や Kubernetes API の Secret / Pod / ConfigMap 参照は許可しません。
+  - Firestore は `datastore.databases.getMetadata` を用い、トランザクション操作を含む `datastore.databases.get` は含めません。
+- 平文秘密値の禁止: VM メタデータ、スタートアップスクリプト、Run/Functions の環境変数、Scheduler の body/header、Pub/Sub push URL、BigQuery の view/routine 定義、監視設定には平文の秘密値を埋め込まないでください（既知の秘密値埋め込みが見つかった場合は修正まで権限拡張を止め、Secret 実値や State 本文を取得した検査は行いません）。
 
-## 生成・検証
+---
 
-[plan_read_access.py](../scripts/plan_read_access.py)はCore/MyPage共通の定義と差分生成器である。既定の実行はmanifestの検証だけでクラウドに接続しない。
+## 生成・検証（ローカル / 固定 CI）
+
+[plan_read_access.py](../scripts/plan_read_access.py) が Core / MyPage 共通の定義と差分生成器です（既定ではマニフェスト検証のみでクラウドには接続しません）。
 
 ```bash
 python3 infra/gcp/scripts/plan_read_access.py
 ```
 
-固定CIの `terraform-static` は、trusted controllerからイメージへコピーした [plan_policy.py](../../../.github/ci-validation/plan_policy.py) で、対象commitのJSONだけを検証する。対象commitのPythonを固定検査で実行しない。manifestがない過去commitも固定検査で停止するため、手動実行の対象SHAはmanifestを含むものを選ぶ。以前のHCLを使う場合も、レビュー済みのmanifestを含むソースとして検査し直す。テストは別コンテナで実行し、manifest・生成器・テストの変更はCore/MyPage両方のCIへ分類する。
+固定 CI の `terraform-static` は信頼済みコントローラー側からコピーした [plan_policy.py](../../../.github/ci-validation/plan_policy.py) を使って対象コミットの JSON だけを実行せずに検証します（マニフェストがない過去コミットも停止するため、手動指定の対象 SHA もレビュー済みマニフェストを含むものを選び、マニフェスト・生成器・テストの変更は Core/MyPage 両方の CI へ分類します）。
 
-Coreの `bootstrap_normal_ops.py` はPlanをこのmanifestから生成し、Applyは従来のcatalog/ROOTSから独立して生成する。Planの新familyをApply生成へ流用しない。既存共有roleの本文は広げず、旧Plan bindingから新roleへの移行には次の専用ツールを使う。通常bootstrapは移行済みの新role/bindingを読み取り確認するまでwrite処理へ進まない。MyPage Applyが共有している旧read roleも変更しない。
+Core の `bootstrap_normal_ops.py` は Plan 権限をこのマニフェストから生成し、Apply 権限は従来どおり独立して生成します（共有の旧 read ロールは広げず、移行済みの新ロール/バインディングを読み取るまで通常 bootstrap の書き込みは進めません）。
 
-## 読み取り棚卸しとdry-run
+---
 
-管理端末の既存gcloud認証を使う。Plan SAへ棚卸し用権限を追加したり、Plan SAをimpersonateして試行しない。必要なIAM/Cloud Assetの読み取り権限やAPIが足りない場合は停止し、通常bootstrapを代用しない。
+## 読み取り棚卸しと dry-run
+
+管理端末の既存 `gcloud` 認証で実行します（Plan SA へ棚卸し権限を足したり、Plan SA になりすましたり、通常 bootstrap で代用したりしないでください。権限不足時は停止します）。
 
 ```bash
-# 保存先は既存のprivateなディレクトリ。新しいファイルを指定する。
+# 保存先は既存の非公開ディレクトリ、出力先は新規ファイルパスを指定
 python3 infra/gcp/scripts/plan_read_access.py --live --export /private/plan-before.json
-# 取得済みsnapshotによるオフラインの差分確認（クラウド接続・反映不可）
+
+# 取得済みスナップショットを使ったオフライン差分確認（クラウド接続・反映なし）
 python3 infra/gcp/scripts/plan_read_access.py --snapshot /private/plan-before.json
 ```
 
-project/SAの同一性・有効状態、user-managed keyなし、project policy etag、旧role/new roleの期待範囲、permissionのGA/custom-role対応を確認する。無効な未使用APIは自動有効化しない。Cloud Assetはidentityを指定しresource/accessのfilterなしで解析し、`fullyExplored`、エラーなし、project policyとの一致を要求する。条件付き・間接・子resourceの追加grant、想定外role、既存禁止permission、解析不足を検出した場合は停止する。既存grantを勝手に削除して続行しない。
+- プロジェクト/SA の同一性・有効状態、user-managed key がないこと、プロジェクトポリシーの `etag`、新旧ロールの範囲、GA / カスタムロール対応を確認します。Cloud Asset Analyzer は identity を指定し resource/access フィルタなしで解析し、条件付き・間接・子リソースの追加付与や禁止 permission、解析不足（`fullyExplored != true`）が見つかった場合は既存付与を勝手に消さず停止します。
+- 出力は追加/削除 permission・Plan 対象名・確認 digest・review 待ち状態のみとし、生 IAM ポリシーは公開ログに出しません。`export` は `0600` で新規作成し、スナップショットや復旧記録・レビュー記録は Git や公開 Issue/artifact に保存しないでください。
 
-出力はpermissionの追加/削除、固定されたPlan対象名、確認digest、review待ちの状態に限定し、raw IAM policyを公開ログへ出さない。exportは0600で新規作成し、既存ファイルを上書きしない。snapshot、復旧記録、review記録はGit・public Issue・artifactへ保存しない。
+---
 
-## 反映前のレビュー
+## 反映前の管理者レビュー
 
-project scopeのAnalyzerだけでは、対象外resource type、他projectへのgrant、service account経由の間接アクセス、Kubernetes RBAC等の別認可、設定内の平文秘密値を網羅したとは扱えない。管理者は残る範囲を別途確認し、privateな根拠記録を作る。旧PR専用identityが残っている場合も、現行の権限拡張対象へ加えず、workflow/Environment/trust/利用状況と整理方針を記録する。存在確認と利用可能性の確認は区別する。
+プロジェクトスコープの Analyzer だけでは対象外リソースや他プロジェクトからの間接付与・設定内の平文秘密値を網羅できないため、管理者が残る範囲を確認し、非公開の根拠記録を作成します（旧 PR 専用 identity が残っていても存在確認と利用可能性の確認を分け、拡張対象には加えず整理方針のみ記録します）。
 
-review JSONは次のfieldを持たせる。すべての確認が終了した場合だけ対応するbooleanをtrueにする。ツールはこの記録を管理者の確認として扱い、技術的な完全証明として扱わない。
+全項目の確認が完了したら、レビュー JSON の各 boolean を `true` に設定します（これは管理者の確認記録であり、技術的な完全証明ではありません）。
 
-| field | 内容 |
+| フィールド | 確認内容 |
 | --- | --- |
-| `confirmation` | 最新dry-runのdigest。manifestと取得した全snapshotを束縛する |
-| `reviewed_at` | timezone付きISO日時。未来日時と24時間超を拒否 |
-| `evidence_reference` | privateな確認根拠の参照先 |
-| `resource_iam_review_complete` | Analyzer対象外を含むresource IAM確認済み |
-| `cross_project_grants_review_complete` | 他project・継承・間接経路確認済み |
-| `plaintext_secrets_absent` | 許可APIで読める設定に平文秘密値がないことを確認済み |
-| `no_other_members_of_plan_role` | 新common roleが子resourceを含め他identityへ付与されていないことを確認済み |
+| `confirmation` | 最新 dry-run の digest（マニフェストと全スナップショットに紐付け） |
+| `reviewed_at` | タイムゾーン付き ISO 日時（未来日時と 24 時間超は拒否） |
+| `evidence_reference` | 非公開の確認根拠資料の参照先 |
+| `resource_iam_review_complete` | Analyzer 対象外を含むリソース単位 IAM を確認済み |
+| `cross_project_grants_review_complete` | 他プロジェクト・継承・間接経路を確認済み |
+| `plaintext_secrets_absent` | 許可 API で読める設定に平文秘密値がないことを確認済み |
+| `no_other_members_of_plan_role` | 新共通ロールが子リソースを含め他 identity へ付与されていないことを確認済み |
 | `legacy_paths_reviewed` | 旧経路の残存理由・利用状況と整理方針を確認済み |
 
-CLIの `--live` 成功やコードのマージだけでは環境反映可能とは判断しない。review記録がないdry-runは `blocked_pending_operator_review: true` を出力する。
+※`--live` 成功やコードマージだけでは反映可能とみなさず、レビュー記録がない dry-run では `blocked_pending_operator_review: true` を出力します。
 
-## 明示的な環境反映指示を受けた場合
+---
 
-コード・CI・棚卸しを完了し、実行中のDEV Planを止め、復旧用のprivate保存先を用意する。既存State/lock・AWS trust・PROD・Apply SA・共有role本文は変更しない。PR再実行用WIF変更は [workflow設計](../../../docs/development/ci-cd-workflows.md#45-pr-plan-の再実行を有効にするowner) の別手順で行う。
+## 明示的な反映指示を受けた場合
+
+コード・CI・棚卸しを完了し、実行中の DEV Plan を止めて非公開のバックアップ先を用意します（既存 State/lock・AWS trust・PROD・Apply SA・共有ロール本文は変更しません。PR 再実行用 WIF の変更は [workflow 設計](../../../docs/development/ci-cd-workflows.md#45-pr-plan-の再実行を有効にするowner) を参照）。
 
 ```bash
-# 同じmanifestとfresh IAMに対するreviewを管理者が作った後にだけ実行する。
-# digestは実際のdry-run出力を指定。backupは存在しないディレクトリを指定する。
+# 同じマニフェストと最新の IAM 状態に対するレビュー作成後のみ実行
+# digest は実際の dry-run 出力を指定し、backup には未作成のディレクトリを指定
 python3 infra/gcp/scripts/plan_read_access.py --live --apply \
   --confirm ACTUAL_DRY_RUN_DIGEST --review /private/review.json \
   --backup /private/plan-access-backup
 ```
 
-ツールは再取得したIAMとreviewのdigestを照合し、0700のbackupディレクトリに更新前snapshotと提案内容を0600で保存してから、新common roleだけを作成/更新する。role本文のreadback後、project policyをetag付きで更新し、2 Plan SAの旧bindingだけを新roleへ置き換える。共有roleの他member、Apply、audit configを含むその他のpolicyは保存し、readbackで比較する。既存common roleの更新にもetagを用いる。
+- 再取得した IAM とレビューの digest を照合後、`0700` の backup ディレクトリへ更新前スナップショットと提案内容を `0600` で保存し、新共通ロールの作成/更新と 2 つの Plan SA のバインディング差し替えを `etag` 付きで実行します（その他のバインディングや監査設定は保持）。
+- permission 非対応・解析不足・レビュー不一致・`etag` 競合・読み戻し不一致時は停止します（ロール作成後にポリシー更新が失敗した場合は、実状態を読み戻して復旧か再 dry-run を選択）。
+- 反映後はリソース IAM を再確認し、変更範囲が想定どおりであることを照合したうえで、Core / MyPage の native Plan と再実行を確認して結果を Issue / PR に記録します（具体的な整理記録・未確認事項は [Issue #1562](https://github.com/kani3camp/youtube-study-space/issues/1562) で管理）。
 
-permissionの非対応、解析不足、review不一致、etag競合、readback不一致は停止条件である。途中失敗で自動的に次の段階へ進まない。特にrole作成成功・project policy更新失敗時はroleだけ残るため、実状態を読み戻して復旧か再dry-runを選ぶ。
+---
 
-反映後はresource IAMも再確認し、2 Plan SAから旧project bindingだけが外れたこと、Apply/PROD/AWSと共有role本文が不変であることを照合する。その後、指示された範囲でCore/MyPageのnative Planと再実行を確認し、実行結果をIssue/PRに記録する。Secret実値・State本文・raw plan JSONは公開しない。
+## 復旧手順
 
-## 復旧
-
-1. 実行中のDEV Planを停止する。復旧自体も環境更新なので明示的な指示の範囲で行う。
-2. backupの `before.json` と最新のproject policyをprivateに取得する。**古いproject policy全体をそのまま上書きしない。** 最新policyのetagと他member・audit configを維持し、対象2 Plan SAのbindingだけをbackupと同じrole/conditionへ戻したpolicyを作る。
-3. `gcloud projects set-iam-policy test-youtube-study-space /private/restored-policy.json` でetag付き更新を行い、最新値を取得して対象以外のbindingが変わらないことを照合する。競合したら再取得して作り直す。
-4. common roleが更新前から存在していた場合、他memberへの新たな付与がないことを確認し、現在etagを含めて保存済みrole定義へ戻しreadbackする。新規作成した場合はbinding解除だけでよく、role削除を復旧の必須条件にしない。共有legacy role、旧SA/WIF、Stateには触れない。
-5. 新token発行の停止と、発行済みtokenの有効期間を考慮した権限確認を別々に行う。binding解除が既存tokenを即時失効させるとは説明しない。
-
-棚卸し結果、未確認事項、個々の実行記録は [Issue #1562](https://github.com/kani3camp/youtube-study-space/issues/1562) で管理する。
+1. 実行中の DEV Plan を停止します（復旧も環境更新のため、明示的な指示の範囲内で実施）。
+2. backup の `before.json` と **最新のプロジェクトポリシー** を取得し、最新ポリシーの `etag` と他メンバー・監査設定を維持したまま、対象 2 つの Plan SA のバインディングだけを `before.json` と同じ状態へ戻したポリシーを作成します（古いプロジェクトポリシー全体でそのまま上書きしないでください）。
+3. `gcloud projects set-iam-policy test-youtube-study-space /private/restored-policy.json` で `etag` 付き更新を行い、読み戻して対象以外が変わっていないことを確認します。
+4. 共通ロールが更新前から存在していた場合は、他メンバーへの新規付与がないことを確認のうえ現 `etag` を含めて元定義へ戻して読み戻します（新規作成した場合はバインディング解除のみで構いません。共有 legacy ロール・旧 SA/WIF・State には触れません）。
+5. 新規トークン発行の停止と発行済みトークンの有効期限を考慮した確認を別々に行います（バインディング解除が既存トークンの即時失効を意味するわけではありません）。

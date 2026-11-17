@@ -1,95 +1,94 @@
-# MyPage Phase 0A–1 Lean化
+# MyPage Phase 0A–1 整理（Lean 化）の記録
 
-## 作業契約
+> [!NOTE]
+> この文書は統合ブランチ（`integration/mypage-canon-20261006`）上で行った実装・検証範囲の整理（Lean 化）の記録、および検証責任の分担をまとめたものです。実環境への配備や一般公開の承認を示すものではありません。
 
-- Goal: 現在の基本表示と安全な人的Privacy運用に必要な実装・検証だけを保守する。
-- Invariants: fresh YouTube OAuth/channel UID、Firebase Auth/App Check、IDOR拒否、SACの独立理由とfail closed、削除中の再生成防止、旧response破棄、7暦日削除・再開可能性、環境分離、秘密非公開を維持する。
-- Non-goals: Production配備・実データ削除・一般公開承認・devへのmerge、Premium/詳細分析/admin UI。
-- Acceptance: FSL/DEV明細/無効intake/未接続operator OIDCの撤去、公式SDK中心のApp Check、運用対象に限定した削除処理、Terraform/CIの重複解消、関連検証成功。
-- Verification: Go unit/lint/generate、MyPage check/test/build、Firestore Emulator/Rules、Terraform fmt/validate/testと危険操作guard、CI routing。実環境QAはローカル試験とは別Gate。
+## 整理の方針
 
-## ブランチと統合順
+- 目的: 現在の基本表示と安全な人的プライバシー運用に必要な実装・検証だけを保守対象に残します。
+- 維持する不変条件: fresh YouTube OAuth によるチャンネル UID 識別、Firebase Auth / App Check、IDOR 拒否、ServiceAccessControl（SAC）の独立理由と fail-closed、削除中の再生成防止、古いレスポンスの破棄、7 暦日削除と再開可能性、環境分離、秘密情報の非公開。
+- 対象外（Non-goals）: 本番配備・実データ削除・一般公開承認・`dev` へのマージ、および Premium 機能・詳細分析・管理画面 UI。
 
-目的別cleanup PR → `refactor/mypage-lean-20261029` → [#1489](https://github.com/kani3camp/youtube-study-space/pull/1489) → `integration/mypage-canon-20261006` → #1236 (`dev`、エージェントmerge禁止)。各sliceはcleanupブランチにのみ集約し、#1489と#1236のmergeは実施しない。
+---
 
-## 集約した変更
+## 集約した変更（#1482 〜 #1494 → #1489）
 
-| PR | 保守対象の削減 |
+開始コミット `50719cc18deb7c30b66cdb6bf0d63ab3c900aa02` 時点の `dev` 差分（430 ファイル・+61,357 / -1,547 行）から、約 114 ファイルで純減約 11,550 行の削減を行いました（集約後：約 395 ファイル・+49,800 / -1,546 行）。
+
+| PR | 整理・削減した保守対象 |
 | --- | --- |
-| [#1482](https://github.com/kani3camp/youtube-study-space/pull/1482) | MyPage FSL 3モデル・model regression/mutation。Seat 2モデルとconformanceは維持 |
-| [#1483](https://github.com/kani3camp/youtube-study-space/pull/1483) | DEV明細API/UI・encrypted cursor・tier・quota/lease/policy。月次/原記録writer/rebuildは維持 |
-| [#1484](https://github.com/kani3camp/youtube-study-space/pull/1484) | app内Privacy受付/状態/返信・未接続Google Operator OIDC/PKCE/JWKS/authority。人的窓口/fresh OAuthは維持 |
-| [#1485](https://github.com/kani3camp/youtube-study-space/pull/1485) | 独自App Check JWT/JWKS/cache/singleflight。公式Admin SDK + 固定project/app/時刻/fail closed wrapperへ集約 |
-| [#1486](https://github.com/kani3camp/youtube-study-space/pull/1486) | provider computed schema全体のallowlistとmetadata drift個別判定。実操作/重要設定/State/Plan commitmentを維持 |
-| [#1487](https://github.com/kani3camp/youtube-study-space/pull/1487) | build内tscと重複した独立Typecheck step |
-| [#1488](https://github.com/kani3camp/youtube-study-space/pull/1488) | 作業契約・検証責任の整合 |
-| [#1490](https://github.com/kani3camp/youtube-study-space/pull/1490) | 公式SDK試験fixtureのlint修正 |
-| [#1491](https://github.com/kani3camp/youtube-study-space/pull/1491) | Registry/Catalog/PreparedDeletion、合成Auth/BQ/vendorアダプターとsnapshot連動、実行用mock workflowを撤去し現在storeへ直接接続 |
-| [#1492](https://github.com/kani3camp/youtube-study-space/pull/1492) | 人的受付CLIを固定環境の所有者ADC/IAM・新規0600 handoffへ接続 |
-| [#1493](https://github.com/kani3camp/youtube-study-space/pull/1493) | 最終報告と旧コメントの整合 |
-| [#1494](https://github.com/kani3camp/youtube-study-space/pull/1494) | private checkpointのランダムowner保持と実行全体の排他ロックで二重起動を拒否 |
+| [#1482](https://github.com/kani3camp/youtube-study-space/pull/1482) | MyPage 専用 FSL 3 モデルと関連テストを撤去（Seat 2 モデルと conformance は維持） |
+| [#1483](https://github.com/kani3camp/youtube-study-space/pull/1483) | DEV 明細 API / UI、暗号化カーソル、tier、quota / lease / policy を撤去（月次・原記録 writer / rebuild は維持） |
+| [#1484](https://github.com/kani3camp/youtube-study-space/pull/1484) | アプリ内プライバシー受付・返信 UI と未接続の Operator OIDC / PKCE / JWKS を撤去（人的窓口と fresh OAuth は維持） |
+| [#1485](https://github.com/kani3camp/youtube-study-space/pull/1485) | 独自の App Check JWT / JWKS / cache / singleflight を撤去し、公式 Admin SDK + 薄い境界ラッパーへ集約 |
+| [#1486](https://github.com/kani3camp/youtube-study-space/pull/1486) | Terraform provider の computed 属性全体の allowlist と個別 drift 判定を撤去（重要設定・操作・State・Plan 整合の検証は維持） |
+| [#1487](https://github.com/kani3camp/youtube-study-space/pull/1487) | ビルド内の `tsc` と重複していた独立した Typecheck ステップを削除 |
+| [#1488](https://github.com/kani3camp/youtube-study-space/pull/1488) | 作業契約と検証責任の整合 |
+| [#1490](https://github.com/kani3camp/youtube-study-space/pull/1490) | 公式 SDK 試験フィクスチャの lint 修正 |
+| [#1491](https://github.com/kani3camp/youtube-study-space/pull/1491) | Registry / Catalog / PreparedDeletion・合成アダプター・mock ワークフローを撤去し、現行ストアへ直接接続 |
+| [#1492](https://github.com/kani3camp/youtube-study-space/pull/1492) | 人的受付 CLI を固定環境の所有者 ADC / IAM と新規 `0600` handoff ファイルへ接続 |
+| [#1493](https://github.com/kani3camp/youtube-study-space/pull/1493) | 記録文書と旧コメントの整合 |
+| [#1494](https://github.com/kani3camp/youtube-study-space/pull/1494) | 非公開 checkpoint のランダム owner 保持と排他ロックにより二重起動を拒否 |
 
-開始commitは`50719cc18deb7c30b66cdb6bf0d63ab3c900aa02`。同じ`dev`基準の差分は開始時430ファイル・追加61,357行/削除1,547行から、集約後約395ファイル・追加49,800行/削除1,546行へ変化した。cleanup自体は約114ファイル・追加1,650行/削除13,200行、純減約11,550行（最終報告の文言変更を除く概算）。主眼は未使用のUI・認証方式・合成store・独自parser・provider schema二重管理を保守対象から外すことにある。
+---
 
-## 維持する境界と検証の責任
+## 維持する境界と検証の責任分担
 
-| Failure mode | 主な検証層 |
+MyPage 専用 FSL は実装 conformance 未接続のため撤去し、以下の実装テストで各リスクを担保しています（既存の `SeatSession` conformance と `SeatAllocation` モデルは維持）。
+
+| リスク（Failure mode） | 主な検証層 |
 | --- | --- |
-| OAuth目的混同・二重consume・mint中の失効 | Go auth/support auth/access Emulator integration |
-| logout/uid変更/pagehide後の旧response復活 | Vitest memory/runtime |
-| moderation/privacyDeletionの独立性・古い許可の再使用 | serviceaccess unit/Firestore integration |
-| ブラウザからserver専用データへのアクセス | Firestore Rules allow/deny |
+| OAuth 目的混同・二重 consume・発行中の失効 | Go `auth` / `support auth` / `access` Emulator integration |
+| ログアウト・UID 変更・`pagehide` 後の旧レスポンス復活 | Vitest `memory` / `runtime` |
+| `moderation` / `privacyDeletion` の独立性・古い許可の再使用 | `serviceaccess` unit / Firestore integration |
+| ブラウザからサーバー専用データへのアクセス | Firestore Rules allow / deny |
 | 削除対象の取り違え・部分更新・古い世代での再開 | Firestore transaction integration・checkpoint unit |
-| Auth UIDの再作成・停止/再開確認の欠落 | current-store integration |
-| BQのACK消失・SQL対象混入・削除後の残存 | 実SDKを使うローカルHTTP試験・parameter/COUNT再読 |
+| Auth UID の再作成・停止/再開確認の欠落 | `current-store` integration |
+| BigQuery の ACK 消失・SQL 対象混入・削除後の残存 | 実 SDK を使うローカル HTTP 試験・パラメータ / `COUNT` 再読 |
 
-MyPage専用FSLは実装conformance未接続のため撤去した。上記の実装試験を維持し、SeatSession conformanceとSeatAllocationの独立モデルは維持する。
+- App Check の扱い: 公式 Admin Go SDK へ委譲し、SDK が検証しない正確な `issuer` / project number / Web App ID / `iat` や claim 型 panic の安全な拒否だけを薄いラッパーで補っています（起動時 JWKS 取得と鍵更新の実可用性は実環境での確認事項です）。
 
-App Checkは公式SDKの実APIを確認して置換した。SDKが固定しない正確なissuer/project number/Web App/iat等を薄いwrapperで確認し、SDKのclaim型assertion panicも認証拒否へ変換する。SDK管理のJWKS更新を採用し、独自の鍵cache/再取得状態機械を持たない。新しい鍵の反映タイミングと起動時JWKS取得はSDKの挙動に従うため、実環境の鍵更新可用性は別Gateとする。
+---
 
-## 削除運用の形
+## 削除運用であえて残した設計
 
-詳細は[削除Runbook](support-delete.md)と[人的窓口](support-operator.md)。verified SupportRequestとfresh OAuthを初回transactionで確保し、privacyDeletion・proof claim・checkpointを同時に記録する。対象を固定した現在Firestore、channel UIDのAuth、固定BQへ直接処理を行う。各storeを再読し、全writer再開を所有者が確認した後の最終transactionだけが関連参照をscrubして保護を解除する。moderationは独立して残る。
+詳細は [削除手順書](support-delete.md) と [人的 Privacy 運用](support-operator.md) を参照してください。
 
-BFF cache破棄、全writer停止/drain、古いqueue/import/restore排除、legacy mapping、backup/export、vendor/派生物、logは所有者Runbookの期限付きprivate Gateで照合する。宣言ファイルを自動処理や第三者検証の証拠とは扱わない。unknownや7暦日要件に反する残存コピーは完了を妨げる。
+- 固定 29 checkpoint と短い実行ループ: ストアごとの削除 → 再確認、停止 → drain → 再開の位置を保持し、ACK 消失時に先頭から新規データを再削除しないようにしています（任意のワークフロー登録機能は持ちません）。
+- checkpoint ファイルの owner 保持と排他ロック: 同一ファイルの二重起動を拒否し、別ファイルによる横入りもストア側の owner 照合で停止させます。消失・破損時は全旧実行の停止を確認する所有者回復まで保護を解除しません。
+- owner / revision / generation / CAS と証跡結合: SAC 変更や別実行からの割り込みを検出し、保護解除を最終トランザクションで確定します。
+- Auth creation timestamp の一時記録: 削除後に同じ UID で再作成されたアカウントを古い削除実行へ巻き込まないようにします（最終トランザクションで消去）。
+- 手動確認項目: SDK で個別削除・不存在を証明できない実コピーや全ランタイムは、合成アダプターで完了済みと偽らず所有者の手動確認として残します。
+- 本番ロールバックの方針: 削除済みデータの復元ではなく、既知サービスリビジョンへの復帰、writer 停止、`privacyDeletion` 維持、同一 checkpoint からの前進復旧を組み合わせます。
 
-あえて残した複雑性:
+---
 
-- 固定29 checkpointと短い実行ループ: store別delete/inspect、停止/drain/resumeの再開位置を保持し、ACK消失で先頭から新規データを再削除しない。任意workflowの登録機構は持たない。
-- private checkpointのowner保持/排他ロック: 同じfileの二重起動を拒否し、別fileを別ownerとしてStore側で止める。実行中にコピー・置換せず、消失/破損時は全旧実行の停止確認を伴う所有者回復をGateにする。
-- owner/revision/generation/CAS・証跡結合: SAC変更や別実行からの横入りを検出し、保護解除をtransactionで確定する。
-- Auth creation timestampの一時記録: UID再作成を古い削除実行へ取り込まない。最終transactionで消去する。
-- 手動Gate: SDKで個別削除・不存在を証明できない実コピーや全runtimeを、合成adapterで完了済みと偽らない。
-- 月次集計の再構築・移行・ロールバックは基盤の保守範囲とする。Phase 0Aの集計は原記録を読む。
+## Terraform と CI の整理
 
-Production rollbackは削除済みユーザーデータの復元を意味しない。既知サービスrevisionへの復帰、writer停止、privacyDeletion維持、同じcheckpointからの前進復旧を組み合わせる。
+- Terraform: provider が返す computed 属性全体の独自 allowlist を撤去し、型の妥当性は Terraform 本体の validate / mock test / plan に委ねつつ、重要な宣言値・許可リソース操作・State owner・保存済み Plan の HMAC 照合に集中しています。
+- CI: 通常の MyPage 変更では元から FSL ジョブを動かしていないためルーティングは広げず、`mypage` ビルド内の `tsc` と重複していた Typecheck ステップを削除しました。
 
-## TerraformとCI
+---
 
-providerが返すcomputed属性全体の独自schema/unknown allowlistを撤去した。Terraform native validate/mock test/planへ任せる部分と、重要な宣言値・許可したresource操作・State owner・saved-plan/HMACを確認する部分を分けた。public IAM、Secret値の混入、他State、delete/replace、想定外update、metrics/security driftは引き続き拒否する。provider metadataの全項目をテストで再列挙しない。
+## ローカル検証の記録（整理完了時点）
 
-通常MyPage変更では元々FSL jobを選択しておらず、routingを広げない。MyPage buildがtscを実行するため独立Typecheck stepを削除した。Go unit/Emulator/Rulesは異なるfailure modeを検証するため維持する。認証付きGCP操作は手動operationとして区別し、通常PR成功から実環境Readyを判定しない。meta-CIは追加していない。
+※GitHub Actions の実行結果は `#1489` の Checks を参照してください（ローカル実行と Actions 実行は分けて扱います）。
 
-## ローカル検証記録
-
-| 検証 | 変化・結果 |
+| 検証項目 | 結果と補足 |
 | --- | --- |
-| MyPage Vitest | 開始ソース207成功 → cleanup後195成功。撤去surface専用12件を削除し、auth/memory/runtime/基本表示を維持 |
-| MyPage check/build | 成功。build内でTypeScriptも検証 |
-| FSL | MyPage 3モデル撤去、残るSeat 2モデル + Go conformance成功 |
-| Terraform Python contract | 開始時87件 → 74件成功。撤去したcomputed metadata contract専用試験を削除 |
-| Terraform native | DEV/PROD各21 mock tests、fmt/validate、foundation/metrics plan成功 |
-| Go | 全unit成功、二重起動修正後もCLI/supportdelete unit成功、最終ソースのCI指定golangci-lintで0 issues |
-| Firestore Emulator/Client Rules | 全suite成功。追加current-store integrationで対象隔離・UID再作成拒否・完了後再実行・手動resumeを確認。resume時刻修正後も対象integration成功 |
-| i18n | `I18N_BASELINE=ja go generate ./...` 成功、意図しない生成diffなし |
-| CI routing/contract | path detector成功、既存CI contract 22件成功 |
+| MyPage Vitest | 207 件 → 整理後 195 件成功（撤去機能の専用テスト 12 件を削除。認証・メモリ・ランタイム・基本表示は維持） |
+| MyPage check / build | 成功（ビルド内で TypeScript 型検査も実施） |
+| FSL | MyPage 3 モデル撤去、Seat 2 モデル + Go conformance 成功 |
+| Terraform Python contract | 87 件 → 整理後 74 件成功（撤去した computed metadata テストを削除） |
+| Terraform native | DEV / PROD 各 21 mock tests、`fmt` / `validate`、foundation / metrics plan 成功 |
+| Go | 全 unit 成功、`golangci-lint`（CI 指定設定）0 issues |
+| Firestore Emulator / Rules | 全スイート成功（追加の current-store integration で対象隔離・UID 再作成拒否・手動 resume を確認） |
+| i18n | `I18N_BASELINE=ja go generate ./...` 成功（意図しない差分なし） |
+| CI routing / contract | パス検出成功、既存 CI 契約テスト 22 件成功 |
 
-GitHub Actionsの結果は#1489のChecksを別途参照する。ローカル実行とActions実行を混同しない。
+---
 
-## 公開前に残す実環境GateとPhase 2
+## 公開前に残っている実環境での確認事項と Phase 2
 
-DEVのfresh OAuth/App Check/Hosting実経路、鍵更新の可用性、S01/S04、原記録と集計結果の実データ照合、monitor/OBS認証、費用/監視通知、D02/D03・ログイン不要の人的窓口と返信到達、backup/vendor/log inventory、最小IAM、7暦日削除とProduction rollbackの実受入は対象リリースで確認する。初回削除確保前のfresh OAuth証跡がTTL消失済みなら、証拠を推測せず元受付期限内で本人確認を解決する。旧合成checkpointの実在有無も配備前に確認する。
-
-CLIの実装とローカル試験だけで一般公開Readyとは判断しない。今回、実環境でのCLI実行・配備・実データ削除は行っていない。
-
-Phase 2で仕様が確定した場合のみ、詳細履歴/Premium analytics、app内Privacy受付/返信、複数operator用OIDC/UIを再設計する。今回撤去した独自frameworkやFSLを、そのまま戻す前提にはしない。
+- 実環境での確認事項: DEV の fresh OAuth / App Check / Hosting 実経路、鍵更新可用性、Canon S01 / S04、原記録と集計結果の実データ照合、モニター / OBS 認証、費用と監視通知、D02 / D03・ログイン不要の人的窓口と返信到達、backup / vendor / log 棚卸し、最小 IAM、7 暦日削除と本番ロールバックの実受入（今回、実環境での CLI 実行・配備・実データ削除は行っていません）。
+- Phase 2 での再設計: 詳細履歴・Premium 分析、アプリ内プライバシー受付/返信、複数運用者向け OIDC / UI は仕様確定時に一から再設計します（今回撤去した独自フレームワークや FSL をそのまま戻す前提にはしません）。
