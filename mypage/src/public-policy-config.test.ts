@@ -1,186 +1,74 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-	PUBLIC_POLICY_FIELDS,
-	readPublicPolicyConfig,
-	validatePublicPolicyConfig,
+	OPERATOR_NAME,
+	POLICY_EFFECTIVE_DATE,
+	POLICY_VERSIONS,
+	publicPolicyConfig,
 } from './public-policy-config'
 
 afterEach(() => vi.unstubAllEnvs())
 
-const credentialPasswordSentinel = 'SYNTHETIC_PASSWORD_SENTINEL'
-
-// 不正URLのテスト値は、明らかな合成部品から実行時に作る。
-// Basic Auth URLそのものを公開せず、userinfoを拒否する検証を維持する。
-function credentialTestURL(hostname: string, withPassword: boolean) {
-	const url = new URL(`https://${hostname}`)
-	url.username = 'synthetic-test-user'
-	if (withPassword) url.password = credentialPasswordSentinel
-	return url.href
+// サーバーが同意を受け付ける版の定数。フロントエンドとずれるとログインを開始できない。
+function backendPolicyVersions() {
+	const source = readFileSync(
+		new URL('../../system/core/mypage/policy.go', import.meta.url),
+		'utf8',
+	)
+	const constant = (name: string) =>
+		source.match(new RegExp(`^\\s*${name}\\s*=\\s*"([^"]+)"`, 'm'))?.[1]
+	return {
+		privacy: constant('CurrentPrivacyPolicyVersion'),
+		terms: constant('CurrentTermsVersion'),
+	}
 }
 
-const input = {
-	VITE_PUBLIC_OPERATOR_NAME: 'Synthetic Service & Friends',
-	VITE_PUBLIC_CONTACT_URL: 'https://contact.example.invalid/general',
-	VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: '2026-10-07',
-	VITE_PUBLIC_TERMS_EFFECTIVE_DATE: '2026-10-08',
-	VITE_PUBLIC_JURISDICTION: '合成テスト裁判所',
+function calendarDate(value: string) {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+	const [year, month, day] = value.split('-').map(Number)
+	const date = new Date(Date.UTC(year, month - 1, day))
+	return (
+		date.getUTCFullYear() === year &&
+		date.getUTCMonth() === month - 1 &&
+		date.getUTCDate() === day
+	)
 }
 
-describe('public policy configuration', () => {
-	it('accepts explicit public display values without asserting approval', () => {
-		expect(validatePublicPolicyConfig(input)).toEqual({
-			config: {
-				operatorName: input.VITE_PUBLIC_OPERATOR_NAME,
-				contactURL: input.VITE_PUBLIC_CONTACT_URL,
-				privacyEffectiveDate: '2026-10-07',
-				termsEffectiveDate: '2026-10-08',
-				jurisdiction: '合成テスト裁判所',
-			},
-			issues: [],
-		})
+describe('public policy constants', () => {
+	it('uses the same consent versions as the backend', () => {
+		expect(backendPolicyVersions()).toEqual(POLICY_VERSIONS)
 	})
-	it('leaves absent values unset and never requires a public real name', () => {
-		const result = validatePublicPolicyConfig({})
-		expect(result.config).toEqual({})
-		expect(result.issues).toEqual(
-			PUBLIC_POLICY_FIELDS.filter((x) => x !== 'VITE_PUBLIC_OPERATOR_NAME').map(
-				(field) => ({ field, code: 'missing' }),
-			),
-		)
-		const { VITE_PUBLIC_OPERATOR_NAME: _label, ...withoutLabel } = input
-		expect(validatePublicPolicyConfig(withoutLabel).issues).toEqual([])
-		expect(
-			validatePublicPolicyConfig(withoutLabel).config.operatorName,
-		).toBeUndefined()
+	it('keeps the effective date unset or a real calendar date', () => {
+		if (POLICY_EFFECTIVE_DATE !== undefined)
+			expect(calendarDate(POLICY_EFFECTIVE_DATE)).toBe(true)
+		expect(calendarDate('2026-02-29')).toBe(false)
+		expect(calendarDate('2028-02-29')).toBe(true)
 	})
-	it('rejects the retired separate privacy contact field', () => {
-		expect(
-			validatePublicPolicyConfig({
-				...input,
-				VITE_PUBLIC_PRIVACY_CONTACT_URL: 'mailto:privacy@example.invalid',
-			}),
-		).toEqual({
-			config: {},
-			issues: [{ field: 'input', code: 'unknown-field' }],
-		})
-	})
-	it('prefers the fixed shared form for known Firebase projects', () => {
-		for (const [key, value] of Object.entries(input)) vi.stubEnv(key, value)
-		vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'test-youtube-study-space')
-		expect(readPublicPolicyConfig().config.contactURL).toBe(
+	it.each([
+		[
+			'test-youtube-study-space',
 			'https://docs.google.com/forms/d/e/1FAIpQLScKyaOQSxKIxs1znN72MlrDwHmJoQ94MnEuUK9UKD_fgqHEzg/viewform',
-		)
-	})
-	it.each([
-		'javascript:alert(1)',
-		'data:text/html,<script>synthetic</script>',
-		'http://contact.example.invalid',
-		'//contact.example.invalid',
-		credentialTestURL('contact.example.invalid', false),
-		'https://contact.example.invalid:8443',
-		'https://contact.example.invalid?prefill=synthetic',
-		'https://contact.example.invalid?',
-		'https://contact.example.invalid/#synthetic',
-		'https://contact.example.invalid/encoded%0a',
-		'https://contact.example.invalid/../private',
-		'https://127.0.0.1',
-		'https://localhost',
-		'https://contact.example.invalid/\nunsafe',
-		'mailto:a@example.invalid?subject=synthetic',
-		'mailto:a@example.invalid,b@example.invalid',
-		'mailto:a@example.invalid#synthetic',
-		'mailto:a%0d%0a@example.invalid',
-		'mailto:a..b@example.invalid',
-	])('rejects unsafe contact destination %s without echoing it', (url) => {
-		const result = validatePublicPolicyConfig({
-			...input,
-			VITE_PUBLIC_CONTACT_URL: url,
-		})
-		expect(result.config.contactURL).toBeUndefined()
-		expect(result.issues).toEqual([
-			{ field: 'VITE_PUBLIC_CONTACT_URL', code: 'invalid' },
-		])
-	})
-	it.each([
-		'<script>synthetic</script>',
-		'Synthetic\nName',
-		'\u202eSynthetic',
-		'A'.repeat(161),
-		'[要確定]',
-	])('keeps unsafe public text unset', (value) => {
-		const result = validatePublicPolicyConfig({
-			...input,
-			VITE_PUBLIC_OPERATOR_NAME: value,
-			VITE_PUBLIC_JURISDICTION: value,
-		})
-		expect(result.config.operatorName).toBeUndefined()
-		expect(result.config.jurisdiction).toBeUndefined()
-	})
-	it.each([
-		'2026-02-29',
-		'1900-02-29',
-		'2026-04-31',
-		'2026-13-01',
-		'2026-01-00',
-		'0000-01-01',
-		'26-01-01',
-		'2026-1-1',
-		'2026-10-07T00:00:00Z',
-	])('rejects impossible or ambiguous calendar date %s', (date) => {
-		const result = validatePublicPolicyConfig({
-			...input,
-			VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: date,
-		})
-		expect(result.config.privacyEffectiveDate).toBeUndefined()
-		expect(result.config.termsEffectiveDate).toBe('2026-10-08')
-		expect(result.issues).toEqual([
-			{ field: 'VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE', code: 'invalid' },
-		])
-	})
-	it.each([
-		'2000-02-29',
-		'2024-02-29',
-		'0001-01-01',
-		'0099-12-31',
-	])('accepts real calendar date %s independently of JS year coercion', (date) => {
-		expect(
-			validatePublicPolicyConfig({
-				...input,
-				VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: date,
-			}).config.privacyEffectiveDate,
-		).toBe(date)
-	})
-	it.each([
-		'VITE_OAUTH_CLIENT_SECRET',
-		'channelID',
-		'supportChallenge',
-		'approved',
-	])('rejects unexpected secret, user, proof or approval fields %s', (field) => {
-		const result = validatePublicPolicyConfig({
-			...input,
-			[field]: 'synthetic-private-value',
-		})
-		expect(result).toEqual({
-			config: {},
-			issues: [{ field: 'input', code: 'unknown-field' }],
-		})
-		expect(JSON.stringify(result)).not.toContain('synthetic-private-value')
-	})
-	it.each([
-		null,
-		[],
-		'synthetic',
-		1,
-	])('rejects malformed input envelopes', (value) => {
-		expect(validatePublicPolicyConfig(value)).toEqual({
-			config: {},
-			issues: [{ field: 'input', code: 'invalid' }],
+		],
+		[
+			'youtube-study-space',
+			'https://docs.google.com/forms/d/e/1FAIpQLSfTvdRD8r3QPOBMNjNwixzaITe5ca-BPst--ZOoK1aFZXAy2Q/viewform',
+		],
+	])('selects the fixed shared form for %s', (project, form) => {
+		vi.stubEnv('VITE_FIREBASE_PROJECT_ID', project)
+		expect(publicPolicyConfig()).toEqual({
+			operatorName: OPERATOR_NAME,
+			contactURL: form,
+			effectiveDate: POLICY_EFFECTIVE_DATE,
 		})
 	})
-	it('reads only the five explicitly public build fields', () => {
-		for (const [key, value] of Object.entries(input)) vi.stubEnv(key, value)
-		vi.stubEnv('VITE_OAUTH_CLIENT_SECRET', 'synthetic-private-value')
-		vi.stubEnv('VITE_SUPPORT_CHALLENGE', 'synthetic-proof-value')
-		expect(readPublicPolicyConfig()).toEqual(validatePublicPolicyConfig(input))
+	it.each([
+		undefined,
+		'',
+		'synthetic-unknown-project',
+	])('shows no contact destination for unknown project %s', (project) => {
+		vi.stubEnv('VITE_FIREBASE_PROJECT_ID', project)
+		vi.stubEnv('VITE_PUBLIC_CONTACT_URL', 'mailto:retired@example.invalid')
+		expect(publicPolicyConfig().contactURL).toBeUndefined()
+		expect(publicPolicyConfig().operatorName).toBe('らいど開発')
 	})
 })

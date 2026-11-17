@@ -138,6 +138,20 @@ class ReleaseTest(unittest.TestCase):
         self.assertTrue(config['hosting']['inventory']['analyticsApproved'])
         self.assertEqual(config['hosting']['inventory']['frame'], ['https://frame.example'])
 
+    def test_existing_dev_manifest_drops_only_retired_policy_settings(self):
+        manifest = json.loads((h.ROOT / 'docs/mypage/release/public-config.example.json').read_text())
+        legacy = copy.deepcopy(manifest)
+        legacy['publicPolicy'] = {'VITE_PUBLIC_JURISDICTION': 'retired'}
+        for section in ('deployment', 'backend'):
+            legacy[section] |= {'privacyVersion': 'dev-draft-p', 'termsVersion': 'dev-draft-t'}
+        legacy['frontend'] |= {'VITE_PRIVACY_POLICY_VERSION': 'dev-draft-p', 'VITE_TERMS_VERSION': 'dev-draft-t'}
+        h.drop_retired_policy_settings(legacy)
+        self.assertEqual(legacy, manifest)
+        unknown = copy.deepcopy(manifest)
+        unknown['frontend']['VITE_PUBLIC_CONTACT_URL'] = 'mailto:retired@example.invalid'
+        h.drop_retired_policy_settings(unknown)
+        self.assertIn('VITE_PUBLIC_CONTACT_URL', unknown['frontend'])
+
     def test_only_fixed_ga4_sources_can_change_on_analytics_activation(self):
         disabled = hosting()
         csp = disabled['headers'][0]['headers']
@@ -176,12 +190,12 @@ class ReleaseTest(unittest.TestCase):
         for directive, sources in h.GA4_SOURCES.items():
             csp['Content-Security-Policy'] += '; ' + directive + ' ' + ' '.join(sorted(sources))
         release = {'files': h.inventory(package / 'dist')}
-        config = {'deployment': {'projectNumber': '123', 'privacyVersion': 'p', 'termsVersion': 't'},
-                  'frontend': {}}
+        config = {'deployment': {'projectNumber': '123'}, 'frontend': {}}
+        # 旧リビジョンに残る同意版の環境変数は照合対象にしない。
         api = {'latestReadyRevision': 'projects/p/locations/l/services/s/revisions/r',
                'template': {'containers': [{'env': [
-                   {'name': 'MYPAGE_PRIVACY_VERSION', 'value': 'p'},
-                   {'name': 'MYPAGE_TERMS_VERSION', 'value': 't'},
+                   {'name': 'MYPAGE_PRIVACY_VERSION', 'value': 'retired-p'},
+                   {'name': 'MYPAGE_TERMS_VERSION', 'value': 'retired-t'},
                    {'name': 'MYPAGE_PUBLIC_ORIGIN', 'value': h.ORIGIN}]}]}}
         old = {'name': 'sites/' + h.SITE + '/releases/old', 'version': {'name': 'sites/' + h.SITE + '/versions/old'}}
         name = 'sites/' + h.SITE + '/versions/new'

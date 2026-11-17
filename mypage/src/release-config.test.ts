@@ -30,8 +30,6 @@ function fixture(): ReleaseConfig {
 		projectNumber: '123456789',
 		webAppID: '1:123456789:web:synthetic',
 		publicOrigin: 'https://example.invalid',
-		privacyVersion: 'synthetic-privacy-v1',
-		termsVersion: 'synthetic-terms-v1',
 	}
 	return {
 		schemaVersion: 1,
@@ -42,8 +40,6 @@ function fixture(): ReleaseConfig {
 			VITE_FIREBASE_PROJECT_ID: deployment.projectID,
 			VITE_FIREBASE_APP_ID: deployment.webAppID,
 			VITE_APP_CHECK_SITE_KEY: 'synthetic-public-site-key',
-			VITE_PRIVACY_POLICY_VERSION: deployment.privacyVersion,
-			VITE_TERMS_VERSION: deployment.termsVersion,
 			VITE_MYPAGE_GA4_ID: 'G-SYNTHETIC1',
 			VITE_MYPAGE_PUBLIC_ORIGIN: deployment.publicOrigin,
 		},
@@ -157,65 +153,29 @@ describe('offline public release configuration', () => {
 		expect(result.configurationValid).toBe(true)
 		expect(result.checks.backendCompanion).toBe('not-supplied')
 		expect(result.checks.hostingCandidate).toBe('not-supplied')
-		expect(result.checks.publicPolicy).toBe('not-supplied')
 		expect(result.releaseReady).toBe(false)
 	})
-	it('reuses safe publication validation while keeping optional operator identity and unresolved decisions pending', () => {
-		const input = fixture()
-		input.publicPolicy = {
-			VITE_PUBLIC_CONTACT_URL: 'mailto:contact@example.invalid',
-			VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: '2026-10-07',
-			VITE_PUBLIC_TERMS_EFFECTIVE_DATE: '2026-10-07',
-			VITE_PUBLIC_JURISDICTION: 'Synthetic public jurisdiction',
-		}
-		const result = checkReleaseConfig(input)
-		expect(result.configurationValid).toBe(true)
-		expect(result.checks.publicPolicy).toBe('consistent')
-		expect(result.releaseReady).toBe(false)
-		expect(result.pendingGates).toContain(
-			'D01-implementation-D02-policy-compliance-D03-public-values-and-publication-review',
-		)
-		for (const value of Object.values(input.publicPolicy))
-			expect(JSON.stringify(result)).not.toContain(value)
-		delete input.publicPolicy.VITE_PUBLIC_CONTACT_URL
-		diagnostic(
-			checkReleaseConfig(input),
-			'publicPolicy.VITE_PUBLIC_CONTACT_URL',
-			'MISSING_FIELD',
-		)
-		input.publicPolicy.VITE_PUBLIC_CONTACT_URL =
-			'mailto:private@example.invalid?body=PRIVATE_VALUE_SENTINEL'
-		diagnostic(
-			checkReleaseConfig(input),
-			'publicPolicy.VITE_PUBLIC_CONTACT_URL',
-			'INVALID_FIELD',
-		)
-		diagnostic(
-			checkReleaseConfig({
-				...input,
-				publicPolicy: {
-					...input.publicPolicy,
-					VITE_PUBLIC_CONTACT_URL: 'mailto:contact@example.invalid',
-					VITE_PUBLIC_PRIVACY_CONTACT_URL: 'mailto:privacy@example.invalid',
-				},
-			}),
-			'publicPolicy',
-			'UNEXPECTED_FIELD',
-		)
-		const forbidden = checkReleaseConfig({
-			...input,
-			publicPolicy: {
-				...input.publicPolicy,
-				PRIVATE_KEY_SENTINEL: 'PRIVATE_VALUE_SENTINEL',
-			},
-		})
-		diagnostic(forbidden, 'publicPolicy', 'UNEXPECTED_FIELD')
-		expect(JSON.stringify(forbidden)).not.toContain('SENTINEL')
+	// 同意版と公開文面の値はソースの定数で管理する。旧マニフェストの項目は黙って無視せず拒否する。
+	it.each([
+		['input', { publicPolicy: { VITE_PUBLIC_JURISDICTION: 'synthetic' } }],
+		['deployment', { deployment: { privacyVersion: 'synthetic-p' } }],
+		['backend', { backend: { termsVersion: 'synthetic-t' } }],
+		['frontend', { frontend: { VITE_PRIVACY_POLICY_VERSION: 'synthetic-p' } }],
+		['frontend', { frontend: { VITE_TERMS_VERSION: 'synthetic-t' } }],
+	] as const)('rejects retired policy fields under %s', (field, retired) => {
+		const input = fixture() as unknown as Record<
+			string,
+			Record<string, unknown>
+		>
+		for (const [section, values] of Object.entries(retired))
+			input[section] =
+				section === 'publicPolicy' ? values : { ...input[section], ...values }
+		diagnostic(checkReleaseConfig(input), field, 'UNEXPECTED_FIELD')
 	})
 	it.each([
 		['test-youtube-study-space', 'G-E31NHW939V'],
 		['youtube-study-space', 'G-ZJ1VPVT2L2'],
-	])('accepts a public manifest without a contact override for %s', (projectID, measurementID) => {
+	])('accepts a public manifest for %s with its registered measurement ID', (projectID, measurementID) => {
 		const input = fixture()
 		input.deployment.projectID = projectID
 		input.frontend.VITE_FIREBASE_PROJECT_ID = projectID
@@ -223,14 +183,8 @@ describe('offline public release configuration', () => {
 		input.frontend.VITE_MYPAGE_GA4_ID = measurementID
 		input.backend = { ...input.deployment }
 		if (input.hosting) input.hosting.projectID = projectID
-		input.publicPolicy = {
-			VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: '2026-10-07',
-			VITE_PUBLIC_TERMS_EFFECTIVE_DATE: '2026-10-07',
-			VITE_PUBLIC_JURISDICTION: 'Synthetic public jurisdiction',
-		}
 		const result = checkReleaseConfig(input)
 		expect(result.configurationValid).toBe(true)
-		expect(result.checks.publicPolicy).toBe('consistent')
 		expect(result.releaseReady).toBe(false)
 	})
 	it('reports missing and malformed fields using known field paths', () => {
@@ -242,14 +196,12 @@ describe('offline public release configuration', () => {
 			true,
 		)
 		input.deployment.projectNumber = '0123456789'
-		input.deployment.privacyVersion = 'contains whitespace'
 		const result = checkReleaseConfig(input)
 		for (const [field, code] of [
 			['frontend.VITE_FIREBASE_API_KEY', 'MISSING_FIELD'],
 			['frontend.VITE_APP_CHECK_SITE_KEY', 'MISSING_FIELD'],
 			['frontend.VITE_FIREBASE_AUTH_DOMAIN', 'INVALID_FIELD'],
 			['deployment.projectNumber', 'INVALID_FIELD'],
-			['deployment.privacyVersion', 'INVALID_FIELD'],
 		])
 			diagnostic(result, field, code)
 		diagnostic(checkReleaseConfig({}), 'deployment', 'MISSING_FIELD')
@@ -263,8 +215,6 @@ describe('offline public release configuration', () => {
 	it.each([
 		['VITE_FIREBASE_PROJECT_ID', 'other-synthetic-project'],
 		['VITE_FIREBASE_APP_ID', '1:999999999:web:other'],
-		['VITE_PRIVACY_POLICY_VERSION', 'other-privacy-v2'],
-		['VITE_TERMS_VERSION', 'other-terms-v2'],
 		['VITE_FIREBASE_AUTH_DOMAIN', 'other-synthetic-project.firebaseapp.com'],
 	] as const)('rejects mixed frontend %s', (key, value) => {
 		const input = fixture()
@@ -313,8 +263,6 @@ describe('offline public release configuration', () => {
 		'projectNumber',
 		'webAppID',
 		'publicOrigin',
-		'privacyVersion',
-		'termsVersion',
 	] as const)('rejects mixed backend %s', (key) => {
 		const input = fixture()
 		if (!input.backend) throw new Error('Missing synthetic companion')

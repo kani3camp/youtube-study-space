@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from './app'
 import { PrivacyPolicy, PublicPolicyContact, TermsOfUse } from './policies'
-import { PUBLIC_POLICY_FIELDS } from './public-policy-config'
+import { OPERATOR_NAME, type PublicPolicyConfig } from './public-policy-config'
 import { BrowserRuntime } from './runtime'
 import { renderStaticPolicies } from './static-policies'
 
@@ -25,12 +25,12 @@ function markup(children: ReactNode) {
 		<RouterContextProvider router={router}>{children}</RouterContextProvider>,
 	)
 }
-const publicValues = {
-	VITE_PUBLIC_OPERATOR_NAME: 'Synthetic Service & "Friends"',
-	VITE_PUBLIC_CONTACT_URL: 'mailto:contact@example.invalid',
-	VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: '2026-10-07',
-	VITE_PUBLIC_TERMS_EFFECTIVE_DATE: '2026-10-08',
-	VITE_PUBLIC_JURISDICTION: '合成テスト裁判所',
+// 施行日とお問い合わせ先が未設定の状態。
+const unset: PublicPolicyConfig = { operatorName: OPERATOR_NAME }
+const publicValues: PublicPolicyConfig = {
+	operatorName: 'Synthetic Service & "Friends"',
+	contactURL: 'https://contact.example.invalid/form',
+	effectiveDate: '2026-10-07',
 }
 
 describe('public policy rendering', () => {
@@ -88,8 +88,7 @@ describe('public policy rendering', () => {
 		expect(request).not.toHaveBeenCalled()
 	})
 	it('renders the complete policy documents and their links in static HTML', () => {
-		for (const [field, value] of Object.entries(publicValues))
-			vi.stubEnv(field, value)
+		vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'test-youtube-study-space')
 		const [privacy, terms] = renderStaticPolicies()
 		expect(privacy).toMatchObject({
 			filename: 'privacy.html',
@@ -132,8 +131,8 @@ describe('public policy rendering', () => {
 		)
 	})
 	it('shows public policy text without release notes or unconfigured values', () => {
-		const privacy = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
-		const terms = markup(<TermsOfUse publicPolicyInputs={{}} />)
+		const privacy = markup(<PrivacyPolicy config={unset} />)
+		const terms = markup(<TermsOfUse config={unset} />)
 		for (const html of [privacy, terms]) {
 			expect(html).not.toMatch(/公開前|公開承認済み|要確定|遅滞なく|非公開検証/)
 			expect(html).not.toContain('施行日')
@@ -153,7 +152,7 @@ describe('public policy rendering', () => {
 		expect(terms).not.toContain('app.notion.com')
 	})
 	it('preserves receipt-based deletion, purpose-bound proof and metadata retention distinctions', () => {
-		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
+		const html = markup(<PrivacyPolicy config={unset} />)
 		expect(html).toContain('遅くとも受付から7日以内に削除します。')
 		expect(html).toContain('この期限は依頼の受付時点から数えます。')
 		expect(html).toContain(
@@ -172,7 +171,7 @@ describe('public policy rendering', () => {
 		)
 	})
 	it('explains how to request action after a Google disconnect', () => {
-		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
+		const html = markup(<PrivacyPolicy config={unset} />)
 		expect(html).toContain(
 			'連携解除後のログイン状態の解除や保存データの削除をご希望の場合は、<a href="#contact">第16節のお問い合わせフォーム</a>へご連絡ください。',
 		)
@@ -184,8 +183,8 @@ describe('public policy rendering', () => {
 		)
 	})
 	it('uses one wording for channel association and links every privacy request to the shared contact form', () => {
-		const privacy = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
-		const terms = markup(<TermsOfUse publicPolicyInputs={{}} />)
+		const privacy = markup(<PrivacyPolicy config={unset} />)
+		const terms = markup(<TermsOfUse config={unset} />)
 		for (const html of [privacy, terms]) expect(html).not.toMatch(/ひも付/)
 		expect(terms).toContain('同じチャンネルIDに関連付けられたまま')
 		expect(privacy).toContain(
@@ -193,17 +192,14 @@ describe('public policy rendering', () => {
 		)
 		expect(privacy).not.toContain('問い合わせ窓口へご連絡ください。')
 	})
-	it('names the operator in the contact heading only when an operator name is published', () => {
-		expect(markup(<PrivacyPolicy publicPolicyInputs={{}} />)).toContain(
-			'<h2 id="contact">第16節 お問い合わせ</h2>',
-		)
-		expect(
-			markup(<PrivacyPolicy publicPolicyInputs={publicValues} />),
-		).toContain('<h2 id="contact">第16節 運営者・お問い合わせ</h2>')
+	it('names the public operator in the privacy contact section', () => {
+		const html = markup(<PrivacyPolicy config={unset} />)
+		expect(html).toContain('<h2 id="contact">第16節 運営者・お問い合わせ</h2>')
+		expect(html).toContain('運営者の公開表記：らいど開発')
 	})
 	it('explains fresh YouTube authorization and individual guidance in the privacy policy', () => {
 		const Policy = PrivacyPolicy
-		const html = markup(<Policy publicPolicyInputs={{}} />)
+		const html = markup(<Policy config={unset} />)
 		expect(html).toContain(
 			'通常のログインとは別にGoogle（YouTube）の認証手続きを行っていただきます。',
 		)
@@ -219,7 +215,7 @@ describe('public policy rendering', () => {
 		)
 	})
 	it('links the terms to request guidance and explains public chat', () => {
-		const html = markup(<TermsOfUse publicPolicyInputs={{}} />)
+		const html = markup(<TermsOfUse config={unset} />)
 		expect(html).toContain(
 			'YouTubeのライブチャットに入力した内容は他の視聴者にも公開されます。',
 		)
@@ -270,7 +266,7 @@ describe('public policy rendering', () => {
 		expect(html).not.toContain('contact.example.invalid/other')
 	})
 	it('keeps explicit Analytics opt-in separate from necessary Firebase communication', () => {
-		const html = markup(<PrivacyPolicy publicPolicyInputs={{}} />)
+		const html = markup(<PrivacyPolicy config={unset} />)
 		expect(html).toContain('アクセス解析は初期設定で無効です。')
 		expect(html).toContain('「アクセス解析を許可」を選んだ場合に限り')
 		expect(html).toContain(
@@ -283,66 +279,49 @@ describe('public policy rendering', () => {
 			'Google シグナル、利用者を識別するGA4のUser-IDは利用しません。',
 		)
 	})
-	it('shows configured destinations, effective dates and jurisdiction', () => {
-		const privacy = markup(<PrivacyPolicy publicPolicyInputs={publicValues} />)
-		const terms = markup(<TermsOfUse publicPolicyInputs={publicValues} />)
+	it('shows the configured destination and the shared effective date', () => {
+		const privacy = markup(<PrivacyPolicy config={publicValues} />)
+		const terms = markup(<TermsOfUse config={publicValues} />)
 		expect(privacy).toContain('Synthetic Service &amp; &quot;Friends&quot;')
 		expect(privacy).toContain('href="/contact">お問い合わせ</a>')
-		expect(privacy).toContain('href="mailto:contact@example.invalid"')
-		expect(terms).not.toContain('href="mailto:contact@example.invalid"')
+		expect(privacy).toContain('href="https://contact.example.invalid/form"')
+		expect(terms).not.toContain('href="https://contact.example.invalid/form"')
 		for (const html of [privacy, terms]) {
 			expect(html).not.toMatch(/公開前|公開承認済み|要確定|遅滞なく|非公開検証/)
+			expect(html).toContain('<time dateTime="2026-10-07">2026-10-07</time>')
 		}
-		expect(privacy).toContain('<time dateTime="2026-10-07">2026-10-07</time>')
-		expect(terms).toContain('<time dateTime="2026-10-08">2026-10-08</time>')
-		expect(terms).toContain('合成テスト裁判所')
+		expect(terms).toContain('訴訟の管轄裁判所は、法令の定めに従います。')
+		expect(terms).not.toContain('専属的合意管轄裁判所')
 	})
 	it('shows only the contact page link when no shared destination is configured', () => {
-		const html = markup(<PublicPolicyContact publicPolicyInputs={{}} />)
+		const html = markup(<PublicPolicyContact config={unset} />)
 		expect(html).toContain('href="/contact">お問い合わせ</a>')
 		expect(html).not.toContain('準備中')
 		expect(html.match(/href=/g)).toHaveLength(1)
 		expect(html).not.toContain('本人確認が完了')
 	})
-	it('never renders unsafe supplied values or falls back to invented contact and legal values', () => {
-		const values = {
-			...publicValues,
-			VITE_PUBLIC_OPERATOR_NAME: '<img src=x onerror=synthetic>',
-			VITE_PUBLIC_CONTACT_URL:
-				'https://contact.example.invalid/?supportChallenge=synthetic-proof',
-			VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: '2026-02-29',
-			VITE_PUBLIC_JURISDICTION: 'synthetic\u202e',
-		}
+	it('ignores retired public policy build settings', () => {
+		for (const [field, value] of Object.entries({
+			VITE_PUBLIC_OPERATOR_NAME: 'synthetic-retired-operator',
+			VITE_PUBLIC_CONTACT_URL: 'mailto:retired@example.invalid',
+			VITE_PUBLIC_PRIVACY_EFFECTIVE_DATE: '2000-01-01',
+			VITE_PUBLIC_TERMS_EFFECTIVE_DATE: '2000-01-02',
+			VITE_PUBLIC_JURISDICTION: 'synthetic-retired-court',
+		}))
+			vi.stubEnv(field, value)
 		const html = markup(
 			<>
-				<PrivacyPolicy publicPolicyInputs={values} />
-				<TermsOfUse publicPolicyInputs={values} />
+				<PrivacyPolicy />
+				<TermsOfUse />
 			</>,
 		)
-		expect(html).not.toContain('synthetic')
-		expect(html).not.toContain('<img')
-		expect(html).not.toContain('javascript:')
-		expect(html.match(/<time/g)).toHaveLength(1)
-		expect(html).not.toContain('専属的合意管轄裁判所')
-	})
-	it('renders only explicitly configured public Vite values', () => {
-		for (const field of PUBLIC_POLICY_FIELDS) vi.stubEnv(field, undefined)
-		const defaultHTML = markup(<PrivacyPolicy />)
-		expect(defaultHTML).not.toContain('<time')
-		expect(defaultHTML).not.toContain('mailto:')
-		for (const [field, value] of Object.entries(publicValues))
-			vi.stubEnv(field, value)
-		vi.stubEnv('VITE_PRIVATE_OPERATOR_NAME', 'synthetic-private-name')
-		const configuredHTML = markup(<PrivacyPolicy />)
-		expect(configuredHTML).toContain('href="mailto:contact@example.invalid"')
-		expect(configuredHTML).toContain(
-			'<time dateTime="2026-10-07">2026-10-07</time>',
-		)
-		expect(configuredHTML).not.toContain('synthetic-private-name')
+		expect(html).not.toContain('synthetic-retired')
+		expect(html).not.toContain('retired@example.invalid')
+		expect(html).not.toMatch(/2000-01-0[12]/)
+		expect(html).toContain('運営者の公開表記：らいど開発')
 	})
 	it('shows configured contact destinations without opening a login or executing a request', () => {
-		for (const [field, value] of Object.entries(publicValues))
-			vi.stubEnv(field, value)
+		vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'youtube-study-space')
 		const request = vi.fn<typeof fetch>()
 		const runtime = new BrowserRuntime(
 			null,
@@ -358,7 +337,11 @@ describe('public policy rendering', () => {
 				<Contact />
 			</RouterContextProvider>,
 		)
-		expect(html.match(/href="mailto:contact@example.invalid"/g)).toHaveLength(2)
+		expect(
+			html.match(
+				/href="https:\/\/docs\.google\.com\/forms\/d\/e\/1FAIpQLSfTvdRD8r3QPOBMNjNwixzaITe5ca-BPst--ZOoK1aFZXAy2Q\/viewform"/g,
+			),
+		).toHaveLength(2)
 		expect(html).toContain(
 			'通常のログインとは別にGoogleの認証手続きで対象のYouTubeチャンネルを確認します。',
 		)

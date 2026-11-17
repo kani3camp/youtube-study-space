@@ -12,28 +12,22 @@ import {
 	signOut,
 } from 'firebase/auth'
 import { RequestError } from './features/mypage/memory'
+import { POLICY_VERSIONS } from './public-policy-config'
 import { BrowserRuntime, type BrowserSession } from './runtime'
 
 // 公開Firebase設定だけを置く。管理者認証情報・OAuthクライアントシークレット・
 // デバッグトークン・ユーザーメタデータ・MyPageレスポンスをVite設定に含めない。
 export function initializeRuntime() {
 	const env = import.meta.env
-	const policy = {
-		privacy: env.VITE_PRIVACY_POLICY_VERSION ?? '',
-		terms: env.VITE_TERMS_VERSION ?? '',
-	}
+	// 同意する本文の版はソースの定数で固定し、ビルド設定では変えない。
+	const policy = { ...POLICY_VERSIONS }
 	const config = {
 		apiKey: env.VITE_FIREBASE_API_KEY,
 		authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
 		projectId: env.VITE_FIREBASE_PROJECT_ID,
 		appId: env.VITE_FIREBASE_APP_ID,
 	}
-	if (
-		!Object.values(config).every(Boolean) ||
-		!env.VITE_APP_CHECK_SITE_KEY ||
-		!policy.privacy ||
-		!policy.terms
-	)
+	if (!Object.values(config).every(Boolean) || !env.VITE_APP_CHECK_SITE_KEY)
 		return new BrowserRuntime(null, policy, fetch, 'LOGIN_UNAVAILABLE')
 	try {
 		const app = initializeApp(config)

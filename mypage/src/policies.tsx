@@ -1,54 +1,20 @@
 import { Link } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
 import { ExternalLink } from './features/mypage/view'
 import {
 	type PublicPolicyConfig,
-	readPublicPolicyConfig,
-	validatePublicPolicyConfig,
+	publicPolicyConfig,
 } from './public-policy-config'
 
-type PublicPolicyProps = { publicPolicyInputs?: unknown }
-
-function policyConfig(inputs: unknown): PublicPolicyConfig {
-	return (
-		inputs === undefined
-			? readPublicPolicyConfig()
-			: validatePublicPolicyConfig(inputs)
-	).config
-}
-
-export function ContactLink({
-	href,
-	children,
-	primary = false,
-}: {
-	href: string
-	children: ReactNode
-	primary?: boolean
-}) {
-	return href.startsWith('mailto:') ? (
-		<a
-			className={primary ? 'button primary' : 'external-link'}
-			href={href}
-			rel="noreferrer"
-		>
-			{children}
-		</a>
-	) : (
-		<ExternalLink href={href} primary={primary}>
-			{children}
-		</ExternalLink>
-	)
-}
+// テストでは公開値を差し替えられる。省略時はソースの定数と接続先プロジェクトから決める。
+type PublicPolicyProps = { config?: PublicPolicyConfig }
 
 export function PublicPolicyContact({
-	publicPolicyInputs,
+	config = publicPolicyConfig(),
 }: PublicPolicyProps = {}) {
-	const config = policyConfig(publicPolicyInputs)
-	const contactURL = config.contactURL
+	const { contactURL } = config
 	return (
 		<>
-			{config.operatorName && <p>運営者の公開表記：{config.operatorName}</p>}
+			<p>運営者の公開表記：{config.operatorName}</p>
 			<p>
 				使い方のご質問や不具合の報告、個人情報の開示・削除などのご請求は、
 				<Link to="/contact">お問い合わせ</Link>
@@ -56,11 +22,7 @@ export function PublicPolicyContact({
 			</p>
 			{contactURL && (
 				<p>
-					<ContactLink href={contactURL}>
-						{contactURL.startsWith('https://docs.google.com/forms/')
-							? 'お問い合わせフォーム'
-							: 'お問い合わせ窓口'}
-					</ContactLink>
+					<ExternalLink href={contactURL}>お問い合わせフォーム</ExternalLink>
 				</p>
 			)}
 		</>
@@ -77,8 +39,9 @@ function EffectiveDate({ value }: { value?: string }) {
 	)
 }
 
-export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
-	const config = policyConfig(publicPolicyInputs)
+export function PrivacyPolicy({
+	config = publicPolicyConfig(),
+}: PublicPolicyProps = {}) {
 	return (
 		<main className="main-content public-page">
 			<article className="card policy-page">
@@ -373,10 +336,8 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				<p>
 					マイページへのログインは請求の条件ではありません。回答できない場合や、一部の請求に対応できない場合は、その理由と状況をご案内します。
 				</p>
-				<h2 id="contact">
-					第16節 {config.operatorName ? '運営者・お問い合わせ' : 'お問い合わせ'}
-				</h2>
-				<PublicPolicyContact publicPolicyInputs={publicPolicyInputs} />
+				<h2 id="contact">第16節 運営者・お問い合わせ</h2>
+				<PublicPolicyContact config={config} />
 				<h2>第17節 このポリシーの変更</h2>
 				<p>
 					本サービスの機能、外部サービス、法令、GoogleやYouTubeのポリシーなどの変更に伴い、このポリシーを変更する場合があります。
@@ -385,14 +346,15 @@ export function PrivacyPolicy({ publicPolicyInputs }: PublicPolicyProps = {}) {
 					YouTube
 					APIから取得する情報や利用目的などについて、従来の同意の範囲を超える重要な変更を行う場合は、必要に応じて改めて同意を求めます。重要な変更は、本サービス上その他の適切な方法でお知らせします。
 				</p>
-				<EffectiveDate value={config.privacyEffectiveDate} />
+				<EffectiveDate value={config.effectiveDate} />
 			</article>
 		</main>
 	)
 }
 
-export function TermsOfUse({ publicPolicyInputs }: PublicPolicyProps = {}) {
-	const config = policyConfig(publicPolicyInputs)
+export function TermsOfUse({
+	config = publicPolicyConfig(),
+}: PublicPolicyProps = {}) {
 	return (
 		<main className="main-content public-page">
 			<article className="card policy-page">
@@ -642,17 +604,9 @@ export function TermsOfUse({ publicPolicyInputs }: PublicPolicyProps = {}) {
 				<h2>第17条（準拠法および管轄裁判所）</h2>
 				<ol>
 					<li>本規約は日本法に準拠し、日本法に従って解釈されます。</li>
-					{config.jurisdiction ? (
-						<li>
-							本サービスまたは本規約に関する訴訟については、
-							{config.jurisdiction}
-							を第一審の専属的合意管轄裁判所とします。ただし、適用法令により別の取り扱いが必要な場合は、その法令に従います。
-						</li>
-					) : (
-						<li>
-							本サービスまたは本規約に関する訴訟の管轄裁判所は、法令の定めに従います。
-						</li>
-					)}
+					<li>
+						本サービスまたは本規約に関する訴訟の管轄裁判所は、法令の定めに従います。
+					</li>
 				</ol>
 				<h2>第18条（お問い合わせ）</h2>
 				<p>
@@ -664,7 +618,7 @@ export function TermsOfUse({ publicPolicyInputs }: PublicPolicyProps = {}) {
 					</Link>
 					をご確認ください。
 				</p>
-				<EffectiveDate value={config.termsEffectiveDate} />
+				<EffectiveDate value={config.effectiveDate} />
 			</article>
 		</main>
 	)

@@ -24,7 +24,6 @@ result="$(docker run --rm --network=none --read-only \
 	-e MYPAGE_SIGNER_EMAIL=mypage-signer@demo-mypage.iam.gserviceaccount.com \
 	-e MYPAGE_OAUTH_CLIENT_ID=synthetic-client \
 	-e MYPAGE_OAUTH_CLIENT_SECRET=synthetic-secret \
-	-e MYPAGE_PRIVACY_VERSION=synthetic-p -e MYPAGE_TERMS_VERSION=synthetic-t \
 	"$image" --check-config)"
 python3 - "$result" <<'PY'
 import json

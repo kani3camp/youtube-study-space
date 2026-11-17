@@ -102,6 +102,10 @@ classify_path() {
 				system/core/repository/seat.go|system/core/repository/models.go|system/core/repository/seat_formalspec_test.go|system/core/timeutil/*)
 					formal_spec=true
 					;;
+				# The MyPage frontend test compares its consent versions with these constants.
+				system/core/mypage/policy.go)
+					mypage=true
+					;;
 			esac
 			matched=true
 			;;
