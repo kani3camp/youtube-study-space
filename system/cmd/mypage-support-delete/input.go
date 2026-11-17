@@ -95,7 +95,7 @@ func privateRegular(info os.FileInfo) bool {
 	return info != nil && info.Mode().IsRegular() && info.Mode().Perm() == 0o600 && info.Mode()&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky) == 0 && info.Size() <= maxInputBytes
 }
 
-// 入力ファイルは、開く前後で非公開の通常ファイルを維持する必要がある。
+// 入力ファイルは開く前後で非公開の通常ファイルを維持する必要がある。
 // Lstat後にパスが変わってもO_NOFOLLOWで末尾のシンボリックリンクを拒否し、
 // O_NONBLOCKで置換FIFOによる待機を防いでからfstatで拒否する。
 // ファイルパスや元のファイルシステムエラーを運用報告に含めない。

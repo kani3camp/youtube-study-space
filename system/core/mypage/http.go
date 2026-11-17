@@ -325,7 +325,7 @@ func strictBody(w http.ResponseWriter, r *http.Request, target any) error {
 }
 
 // encoding/jsonはフィールド名の大小文字を区別せず、重複キーも受け入れる。
-// 公開スキーマでは、完全一致する曖昧さのないフィールド名を必須とする。
+// 公開スキーマでは完全一致する曖昧さのないフィールド名を必須とする。
 func validObjectKeys(body []byte, target any) bool {
 	shape := reflect.TypeOf(target)
 	if shape == nil || shape.Kind() != reflect.Pointer || shape.Elem().Kind() != reflect.Struct {

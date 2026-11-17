@@ -61,7 +61,7 @@ func (s *FirestoreSupportStore) readRecovery(tx *firestore.Transaction, selector
 	} else if value.DeleteBy != nil {
 		return deny()
 	}
-	// 旧チャレンジの所有者は、受付と同じ読み取り集合内で一致する必要がある。
+	// 旧チャレンジの所有者は受付と同じ読み取り集合内で一致する必要がある。
 	old, err := tx.Get(s.Client.Collection("support-challenges").Doc(value.ChallengeHash))
 	if err != nil {
 		return nil, SupportRequest{}, fmt.Errorf("read recovery challenge index: %w", err)

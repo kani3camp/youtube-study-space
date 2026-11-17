@@ -14,7 +14,7 @@ import (
 
 // FirestoreDeletionEffects はソースコード上で定義された Firestore の削除対象コレクションを実装する。
 // RestoreGuard は、同一プロジェクト・世代・cutoff に対して全実行系の停止と完了待ち（drain）、
-// 棚卸し完了、古いキュー・import・restore からの再生成排除を独立して保証する必要がある（nil や不明時は変更しない）。
+// 棚卸し完了、古いキュー・import・restore からの再生成排除を独立して保証する必要がある（nil や不明な証拠では変更しない）。
 type FirestoreDeletionEffects struct {
 	Store        *FirestoreDeletionStore
 	RestoreGuard supportdelete.Effects

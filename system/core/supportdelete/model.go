@@ -124,7 +124,7 @@ func Steps() []Step {
 			steps = append(steps, Step{"delete", s})
 		}
 	}
-	// Canon 05では、主データ・Web・派生データ・分析データの消去後にAuthを削除する。
+	// Canon 05 では主データ・Web・派生データ・分析データの消去後に Auth を削除する。
 	// 一覧の並びは実行順序ではない。
 	steps = append(steps, Step{"delete", "firebase-auth"})
 	for _, s := range DeletionScopes() {

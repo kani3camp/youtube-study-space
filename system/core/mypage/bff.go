@@ -182,7 +182,7 @@ func (b *BFF) get(ctx context.Context, authorized authorizedWebAccount) (Respons
 				if b.cache == nil {
 					b.cache = make(map[cacheKey]cachedAggregate)
 				}
-				// キャッシュ対象の UID 数に上限を設け、上限時は 1 件追い出す。
+				// 攻撃者が指定できるキャッシュ対象の UID 数にも上限を設け、超過時は 1 件追い出す。
 				if len(b.cache) >= 1024 {
 					for victim := range b.cache {
 						delete(b.cache, victim)

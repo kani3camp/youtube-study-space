@@ -87,7 +87,7 @@ type AuthStore interface {
 	CompleteSession(context.Context, string, string, Policy, time.Time) error
 }
 
-// プロバイダー実装は、確認済みチャンネルを返す前に交換したOAuthトークンを破棄する。
+// プロバイダー実装は確認済みチャンネルを返す前に交換した OAuth トークンを破棄する。
 // 付与スコープにyoutube.readonlyがあることも確認する必要がある。
 type YouTubeOAuth interface {
 	AuthorizationURL(state string) string
