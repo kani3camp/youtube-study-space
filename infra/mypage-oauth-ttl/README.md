@@ -45,9 +45,25 @@ python3 infra/mypage-oauth-ttl/scripts/plan_contract.py \
 
 1. 従来の GCP Terraform（MyPage 抜き）を完了したあと、対象コミットをレビューして本ルートを適用対象にします（`dev` / `prod` へ直接マージしません）。
 2. MyPage Ready Gate・対象プロジェクト・既存 DB・State 所有権を確認します（既存 State で同フィールドを管理している場合は停止。IAM/認証は変更しません）。
-3. オーナー承認後に `dev` 環境の `init` を実行し、既存フィールド・TTL・インデックスの所有者と期限切れ文書の削除影響を事前に読み取り専用で照合します。
-4. `plan`、`show -json`、上記の契約検査を実行し、生の Plan と digest を非公開記録に残して独立レビュー・承認を受けます。
-5. 承認後に同一の保存済み Plan で `apply` を実行し、API 完了と TTL `ACTIVE` を読み取り専用で確認したうえで、承認済みの合成 OAuth トランザクションで 10 分境界の拒否と自然削除を実測します（実ユーザーデータはテストに使わない）。
+3. オーナー承認後に承認済み担当者が非公開バックエンド設定と `-lockfile=readonly` を指定して `dev` を初期化し、既存のフィールド・TTL・インデックスの所有者・期限切れ文書の削除影響を事前に読み取り専用で照合します（既存の管理ポリシーがある場合は独立した移行計画を別途レビュー）。
+
+```sh
+terraform -chdir=infra/mypage-oauth-ttl/environments/dev init -backend-config=/private/dev-backend.hcl -lockfile=readonly
+```
+
+4. 非公開の変数ファイルと保存先を指定して `plan` と JSON 出力を実行したうえで、上記の契約検査（`plan_contract.py`）を行い、生の Plan と固定ダイジェストを非公開記録に残して独立レビュー・承認を受けます（確定コミット・ロック済みプロバイダー・バックエンドと対象・Plan ハッシュ・インデックス不変を確認。契約検査の成功だけで `apply` はしません）。
+
+```sh
+terraform -chdir=infra/mypage-oauth-ttl/environments/dev plan -var-file=/private/dev.tfvars -out=/private/dev.tfplan
+terraform -chdir=infra/mypage-oauth-ttl/environments/dev show -json /private/dev.tfplan > /private/dev.plan.json
+```
+
+5. `apply` の別途承認後に、同じ保存済み Plan を指定して適用します（Plan・State・対象に変化がある場合は適用せず、再 Plan・再レビュー・再承認を行います）。適用後は API 完了と TTL `ACTIVE` を読み取り専用で確認したうえで、承認済みの合成 OAuth トランザクションで 10 分境界の拒否と自然削除を実測し、時刻・対象・フィールド・状態・結果を非公開のリリース記録へ残します（実ユーザーデータは使わず、`mock` 成功や `ACTIVE` 確認だけで自然削除を完了とみなさないでください）。
+
+```sh
+terraform -chdir=infra/mypage-oauth-ttl/environments/dev apply /private/dev.tfplan
+```
+
 6. `dev` 観測後に同じ手順を `prod` で実施します（自然削除の遅延・失敗時は `pending` / `STOP` とし、アプリ側の期限判定は緩めません）。
 
 > [!CAUTION]

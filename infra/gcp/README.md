@@ -27,11 +27,12 @@ Core GCP と MyPage は別々の Terraform State のまま同じ `Terraform` ワ
 
 - 手動 Plan と同じ reusable workflow（`gcp-terraform-authenticated.yml` の `pr-plan` mode）、Environment（`terraform-dev-plan`）、identity を共用し、PR 専用の identity / Environment は持ちません（2026-10-31 に統合・旧資源撤去）。
 - `-lock=false` で実行し、HMAC・saved plan・ジョブ出力・PR コメントは残さず、Job Summary に値を含まない要約だけを表示します（Apply 時は必ず手動 `Terraform` で再 Plan します）。
-- fork 由来 PR・オーナー以外の actor・再実行は資格情報取得前に **失敗として** 停止します（協力者の PR ではオーナーが手動 Plan を実行します）。
+- fork 由来 PR およびオーナー以外が起動した PR（協力者の PR）は資格情報取得前に **失敗として** 停止します（協力者の PR ではオーナーが手動 Plan を実行します）。
+- DEV PR Plan の再実行は、クラウド側の WIF 条件更新が未実施（[Issue #1562](https://github.com/kani3camp/youtube-study-space/issues/1562)）であるため、現環境の現行 WIF 条件（`run_attempt == 1` 制限）では認証段階で拒否されます。WIF 更新の反映後は、オーナーが最初に起動した同一リポジトリの DEV PR Plan に限り、GitHub が許可する write 権限保持者による再実行（`Re-run jobs` / `Re-run failed jobs`）が許可されます（正整数の `run_attempt` と署名済み OIDC の実行値一致、初回の不変オーナー `actor_id`、merge ref/SHA、Plan Environment 限定を検証し、他者起動 Run・手動 Plan/Apply・PROD の初回実行限定は維持します。反映手順は [認証・実行境界](docs/terraform-authentication-boundary.md#dev-pr-planの再実行) と [workflow 設計](../../docs/development/ci-cd-workflows.md#45-pr-plan-の再実行を有効にするowner) を参照）。
 
 ### 認証境界と対象ソースの指定ルール
 
-認証付き DEV 操作の資格情報境界はクラウド trust の本人検査です。GCP WIF / AWS OIDC はオーナーの不変 actor ID・repository・初回実行・同一 ref の正規ワークフローを検証し、DEV ではオーナーの非 `main` ブランチからの手動 dispatch とオーナーの PR Plan を許可します（PR / fork・tag・`main` での DEV 操作・再実行は拒否、本番は保護された `main` のみ）。DEV の Environment（`terraform-dev-plan` / `terraform-dev-apply`）自体はブランチ制限なし（`No restriction`）ですが、Secret には設定値のみを置き、クラウド資格情報は actor 検査で保護しています。
+認証付き DEV 操作の資格情報境界はクラウド trust の本人検査です。GCP WIF / AWS OIDC はオーナーの不変 actor ID・repository・初回実行（WIF 更新反映後の DEV PR Plan 再実行を除く）・同一 ref の正規ワークフローを検証し、DEV ではオーナーの非 `main` ブランチからの手動 dispatch とオーナーの PR Plan を許可します（PR / fork・tag・`main` での DEV 操作や、手動 Plan/Apply の再実行は拒否、本番は保護された `main` のみ。DEV PR Plan の再実行は現行 WIF では拒否され、WIF 更新反映後に上記条件で許可されます）。DEV の Environment（`terraform-dev-plan` / `terraform-dev-apply`）自体はブランチ制限なし（`No restriction`）ですが、Secret には設定値のみを置き、クラウド資格情報は actor 検査で保護しています。
 
 | `source_branch` | `source_sha` | 使用するソース（DEV `component=core` のみ指定可） |
 | --- | --- | --- |

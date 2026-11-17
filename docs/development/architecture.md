@@ -69,7 +69,7 @@ See [`../../youtube-monitor/README.md`](../../youtube-monitor/README.md) for bui
 OBS 上の `youtube-monitor` は Firebase のブラウザ Client SDK を使用します。現在のソースコードでは `seats`・`member-seats`・`menu`・`work-name-trend`・`config/constants` を読み取るために Firebase Auth でログインし、その UID が有効な許可リスト（`_monitor-readers/{uid}`）に登録されている必要があります（custom claim は参照せず、匿名ユーザーや許可リスト外の通常 MyPage ユーザーは拒否します）。
 
 - ソースコードが存在することと DEV/PROD の Rules やモニター資産が配備済みであることは別であり、Security Rules は WAF や費用上限の代替になりません（サーバー側の Go / Admin SDK は IAM とアプリ認可を使用）。
-- OBS ブラウザ上で一度対話的にログインし Firebase のローカル永続化を使う前提ですが、OBS / CEF 再起動時の挙動、トークン復元、シーン切替、認証失効時の通知・復旧は実環境で受入試験を行う必要があります（Firestore 購読を変更する場合は既存の `set_desired_max_seats` 制御ループを維持）。
+- OBS ブラウザ上で一度対話的にログインし Firebase のローカル永続化を使う前提です。DEV・本番で適用中の Rules と OBS 実機での再起動・長時間稼働後の復帰・認証失効時の通知と復旧等は 2026-11-15（`v4.33.0` / [#1459](https://github.com/kani3camp/youtube-study-space/issues/1459)）で運営者確認済みですが、クライアント構成や Firestore 購読を変更する場合は既存の `set_desired_max_seats` 制御ループを維持しつつ同範囲の受入試験を再確認してください。
 - 関連資料は [モニター課題 #1459](https://github.com/kani3camp/youtube-study-space/issues/1459) / [Firebase Rules 案内](../../firebase/README.md) / [MyPage Phase 0B 条件 #1133](https://github.com/kani3camp/youtube-study-space/issues/1133) を参照してください。
 
 Server-side Go repository tests and browser Client SDK security rules answer different questions:

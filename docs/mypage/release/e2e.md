@@ -12,9 +12,9 @@ Phase 0A の運営者限定試験と並行して準備できますが、以下�
 
 | Gate | 実経路での確認内容 | 現状 |
 | --- | --- | --- |
-| **MON-01 Rules** | 匿名・通常 MyPage ユーザーから `seats` / `member-seats` / `menu` / `work-name-trend` / `config/constants` の読み取りが拒否されること。有効な許可リスト（`_monitor-readers/{uid}`）の認証済み UID のみ（custom claim 不要）で必要な読み取りが成功し、全クライアントの書き込みが拒否されること | ソース・Emulator 契約あり（DEV / PROD 実環境未実証） |
-| **MON-02 OBS** | 実 OBS / CEF 上で、ブラウザソースの Interact ログイン、`browserLocalPersistence`、シーン切替、OBS・PC 再起動、24 時間相当稼働、トークン更新・失効・通知・再ログインを確認 | 未実証 |
-| **MON-03 cutover** | DEV / PROD で Rules バージョン・モニター購読・seat-count API 回帰・バックアウト手順を整合させること（認証不能時に匿名 read へ無断ロールバックしない） | 未実証 |
+| **MON-01 Rules** | 匿名・通常 MyPage ユーザーから `seats` / `member-seats` / `menu` / `work-name-trend` / `config/constants` の読み取りが拒否されること。有効な許可リスト（`_monitor-readers/{uid}`）の認証済み UID のみ（custom claim 不要）で必要な読み取りが成功し、全クライアントの書き込みが拒否されること | ソース・Client SDK テスト成功。2026-11-15（`v4.33.0` / [#1459](https://github.com/kani3camp/youtube-study-space/issues/1459)）に DEV・本番で適用中 Rules への許可 Monitor 購読と匿名・許可リスト外拒否を運営者確認済み（個別リビジョン・期限切れ/別プロジェクトトークンの個別ケースは未掲載） |
+| **MON-02 OBS** | 実 OBS / CEF 上で、ブラウザソースの Interact ログイン、`browserLocalPersistence`、シーン切替、OBS・PC 再起動、24 時間相当稼働、トークン更新・失効・通知・再ログインを確認 | 2026-11-15（[#1459](https://github.com/kani3camp/youtube-study-space/issues/1459)）に OBS 実機でソース更新・OBS/PC 再起動・長時間稼働後の購読復帰・失効/通信断復旧・運営者通知・App Check 強制時接続を運営者確認済み（OBS ログ自体は未掲載） |
+| **MON-03 cutover** | DEV / PROD で Rules バージョン・モニター購読・seat-count API 回帰・バックアウト手順を整合させること（認証不能時に匿名 read へ無断ロールバックしない） | 2026-11-15（`v4.33.0` / [#1459](https://github.com/kani3camp/youtube-study-space/issues/1459)）に匿名読み取り廃止を本番リリースし、DEV → 本番切替手順・匿名再許可なし復旧方針・`POST /set_desired_max_seats` 回帰を運営者確認済み |
 | **COST-01 limits** | Cloud Run の DEV（min 0 / max 1）・PROD（min 0 / max 3）を実環境で確認。timeout / body / query 上限と UID 制限・S01 を Hosting 経由と `run.app` 直アクセスの両方で検証 | 一部ソースあり（実経路要確認） |
 | **COST-02 notify** | Billing Budget 通知の着信と、Cloud Monitoring での Run / Firestore reads / 429 / 5xx / instance / YouTube quota の異常通知を確認 | 未実証 |
 | **COST-03 cap** | Billing alert は上限停止（hard cap）ではない点を踏まえ、Cloud Run Spend Cap の対象範囲や他サービスへの影響を検証したうえで採否を判断（Firestore には独立した抑止策が必要） | 採否未決 |
