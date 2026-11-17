@@ -71,8 +71,6 @@ func TestCheckConfigurationRejectsRuntimeMistakesWithoutDisclosureOrBootstrap(t 
 		{"signer", "MYPAGE_SIGNER_EMAIL", "private@demo-other.iam.gserviceaccount.com"},
 		{"OAuth ID", "MYPAGE_OAUTH_CLIENT_ID", ""},
 		{"OAuth secret", "MYPAGE_OAUTH_CLIENT_SECRET", ""},
-		{"privacy", "MYPAGE_PRIVACY_VERSION", ""},
-		{"terms", "MYPAGE_TERMS_VERSION", ""},
 		{"port text", "PORT", "private-invalid-port"},
 		{"port zero", "PORT", "0"},
 		{"port negative", "PORT", "-1"},

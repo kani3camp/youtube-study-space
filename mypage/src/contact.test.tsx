@@ -7,11 +7,9 @@ import {
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ContactPage } from './contact'
-import { PUBLIC_POLICY_FIELDS } from './public-policy-config'
 
 beforeEach(() => {
 	vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'synthetic-unknown-project')
-	for (const field of PUBLIC_POLICY_FIELDS) vi.stubEnv(field, undefined)
 })
 afterEach(() => vi.unstubAllEnvs())
 
@@ -40,29 +38,11 @@ describe('contact destinations and request guidance', () => {
 		expect(html).toContain('href="/privacy"')
 		expect(html).not.toContain('href="/login')
 	})
-	it('links both cards to the single shared destination with no user data added', () => {
-		vi.stubEnv('VITE_PUBLIC_CONTACT_URL', 'mailto:contact@example.invalid')
-		const html = markup({ proofRef: 'synthetic-private-proof' })
-		expect(html.match(/class="button primary"/g)).toHaveLength(2)
-		expect(html.match(/href="mailto:contact@example.invalid"/g)).toHaveLength(2)
-		expect(html.match(/メールで問い合わせる/g)).toHaveLength(2)
-		expect(html).not.toContain('お問い合わせフォームを開く')
-		expect(html).toContain(
-			'class="contact-address">contact@example.invalid</span>',
-		)
-		expect(html).toContain('href="/privacy">プライバシーポリシー</a>')
-		expect(html).not.toContain('運営者の氏名または名称・住所')
-		for (const href of html.matchAll(/href="([^"]+)"/g)) {
-			expect(href[1]).not.toContain('synthetic-private-proof')
-			expect(href[1]).not.toContain('?')
-		}
-	})
-	it('prefers the fixed shared form for known projects and keeps proof out of the form URL', () => {
+	it('links both cards to the fixed shared form for known projects and keeps proof out of the form URL', () => {
 		vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'test-youtube-study-space')
-		vi.stubEnv('VITE_PUBLIC_CONTACT_URL', 'mailto:override@example.invalid')
 		const html = markup({ proofRef: 'synthetic-private-proof' })
-		expect(html).not.toContain('override@example.invalid')
 		expect(html).toContain('synthetic-private-proof')
+		expect(html.match(/class="button primary"/g)).toHaveLength(2)
 		const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map((match) => match[1])
 		expect(
 			hrefs.filter((href) => href.startsWith('https://docs.google.com/')),
@@ -71,19 +51,18 @@ describe('contact destinations and request guidance', () => {
 			'https://docs.google.com/forms/d/e/1FAIpQLScKyaOQSxKIxs1znN72MlrDwHmJoQ94MnEuUK9UKD_fgqHEzg/viewform',
 		])
 		expect(html.match(/お問い合わせフォームを開く/g)).toHaveLength(2)
-		expect(hrefs.join(' ')).not.toContain('synthetic-private-proof')
-	})
-	it('omits unsafe configured destinations', () => {
-		for (const url of [
-			'javascript:synthetic',
-			'https://contact.example.invalid/?supportChallenge=synthetic',
-		]) {
-			vi.stubEnv('VITE_PUBLIC_CONTACT_URL', url)
-			const html = markup()
-			expect(html).not.toContain('class="button primary"')
-			expect(html).not.toContain('synthetic')
-			expect(html).not.toContain('supportChallenge')
+		expect(html).toContain('href="/privacy">プライバシーポリシー</a>')
+		expect(html).toContain('運営者・サービスの公開表記：らいど開発')
+		for (const href of hrefs) {
+			expect(href).not.toContain('synthetic-private-proof')
+			expect(href).not.toContain('?')
 		}
+	})
+	it('ignores the retired contact URL build setting for unknown projects', () => {
+		vi.stubEnv('VITE_PUBLIC_CONTACT_URL', 'mailto:retired@example.invalid')
+		const html = markup()
+		expect(html).not.toContain('class="button primary"')
+		expect(html).not.toContain('retired@example.invalid')
 	})
 	it('explains human follow-up and preserves proof success independently of intake availability', () => {
 		const html = markup({ proofRef: 'synthetic<&proof' })

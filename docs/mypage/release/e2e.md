@@ -35,7 +35,7 @@ Phase 0A の運営者限定試験と並行して準備できますが、以下�
 
 | ID | 試験内容 | 合格条件 | ローカル事前検証の根拠 |
 | --- | --- | --- | --- |
-| **P01** | 匿名で `/`・`/privacy`・`/terms`・`/contact` へアクセスと API 前同意 | ログイン不要で公開パスに到達でき、窓口・施行日・管轄・本文の版が承認済み設定と一致 | public policy tests / privacy-qa |
+| **P01** | 匿名で `/`・`/privacy`・`/terms`・`/contact` へアクセスと API 前同意 | ログイン不要で公開パスに到達でき、運営者表記・窓口・施行日・本文の版がソースの定数と一致 | public policy tests / privacy-qa |
 | **A01** | 同意 → start → Google → callback → チャンネル確認 → session complete → MyPage | `youtube.readonly` のみ要求。確認前にトークン発行せず、UID は確認チャンネル、登録済み記録のみ表示 | server integration / runtime-qa |
 | **A02** | scope 拒否 / callback 失敗 / 確認キャンセル、期限切れ / リプレイ | トークン永続保存なし。適切な説明と再開始導線があり、誤発行や遅延復活がない | provider / auth / HTTP tests |
 | **A03** | 通常アカウント / Brand Account / 複数チャンネル（意図とデフォルトが異なる場合） | 誤チャンネルを確定しない。再試行手順と Google 側の選択挙動を記録 | 実 Google 試験（代替不可） |

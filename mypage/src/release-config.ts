@@ -1,9 +1,4 @@
 import { type HostingInputs, hostingCandidate } from './hosting.ts'
-import {
-	contactFormForProject,
-	type PublicPolicyField,
-	validatePublicPolicyConfig,
-} from './public-policy-config.ts'
 
 // オフラインの公開設定だけを扱う。Firebaseのimport、ブラウザ初期化、
 // 環境変数の読み取りは行わず、リリース準備完了も宣言しない。
@@ -15,8 +10,6 @@ const deploymentFields = [
 	'projectNumber',
 	'webAppID',
 	'publicOrigin',
-	'privacyVersion',
-	'termsVersion',
 ] as const
 const frontendFields = [
 	'VITE_FIREBASE_API_KEY',
@@ -24,8 +17,6 @@ const frontendFields = [
 	'VITE_FIREBASE_PROJECT_ID',
 	'VITE_FIREBASE_APP_ID',
 	'VITE_APP_CHECK_SITE_KEY',
-	'VITE_PRIVACY_POLICY_VERSION',
-	'VITE_TERMS_VERSION',
 	'VITE_MYPAGE_GA4_ID',
 	'VITE_MYPAGE_PUBLIC_ORIGIN',
 ] as const
@@ -41,7 +32,6 @@ export type ReleaseConfig = {
 	// 任意の公開用補助宣言であり、サーバー環境変数の書き出しではない。
 	backend?: ReleaseDeployment
 	hosting?: HostingInputs
-	publicPolicy?: Partial<Record<PublicPolicyField, string>>
 }
 export type ReleaseDiagnostic = {
 	field: string
@@ -62,7 +52,6 @@ export type ReleaseConfigReport = {
 	checks: {
 		backendCompanion: 'not-supplied' | 'invalid' | 'consistent'
 		hostingCandidate: 'not-supplied' | 'invalid' | 'consistent'
-		publicPolicy: 'not-supplied' | 'invalid' | 'consistent'
 	}
 	diagnostics: ReleaseDiagnostic[]
 	pendingGates: string[]
@@ -76,7 +65,6 @@ function report(diagnostics: ReleaseDiagnostic[]): ReleaseConfigReport {
 		checks: {
 			backendCompanion: 'not-supplied',
 			hostingCandidate: 'not-supplied',
-			publicPolicy: 'not-supplied',
 		},
 		diagnostics,
 		// 入力された準備完了・レビュー済みフラグは宣言であり、証拠ではない。
@@ -243,14 +231,6 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 			origin,
 			'Supply the fixed HTTPS origin without a path, port, credentials, query or fragment.',
 		)
-		for (const key of ['privacyVersion', 'termsVersion'])
-			required(
-				config,
-				key,
-				path,
-				(x) => identifier(x, 128),
-				'Supply the selected policy version identifier using letters, digits, dot, underscore or hyphen.',
-			)
 		return config
 	}
 
@@ -260,7 +240,6 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 		'frontend',
 		'backend',
 		'hosting',
-		'publicPolicy',
 	])
 	if (!root) return report(diagnostics)
 	if (root.schemaVersion !== 1)
@@ -276,8 +255,6 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 			'VITE_FIREBASE_API_KEY',
 			'VITE_APP_CHECK_SITE_KEY',
 			'VITE_FIREBASE_PROJECT_ID',
-			'VITE_PRIVACY_POLICY_VERSION',
-			'VITE_TERMS_VERSION',
 		])
 			required(
 				frontend,
@@ -315,8 +292,6 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 			for (const [key, companion] of [
 				['VITE_FIREBASE_PROJECT_ID', 'projectID'],
 				['VITE_FIREBASE_APP_ID', 'webAppID'],
-				['VITE_PRIVACY_POLICY_VERSION', 'privacyVersion'],
-				['VITE_TERMS_VERSION', 'termsVersion'],
 			] as const)
 				equal(
 					frontend[key],
@@ -385,36 +360,6 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 			)
 	}
 	const result = report(diagnostics)
-	if (root.publicPolicy !== undefined) {
-		const policy = validatePublicPolicyConfig(root.publicPolicy)
-		const fixedContactForm = contactFormForProject(
-			frontend?.VITE_FIREBASE_PROJECT_ID,
-		)
-		const issues = policy.issues.filter(
-			(issue) =>
-				!(
-					fixedContactForm &&
-					issue.field === 'VITE_PUBLIC_CONTACT_URL' &&
-					issue.code === 'missing'
-				),
-		)
-		for (const issue of issues) {
-			const field =
-				issue.field === 'input' ? 'publicPolicy' : `publicPolicy.${issue.field}`
-			add(
-				field,
-				issue.code === 'missing'
-					? 'MISSING_FIELD'
-					: issue.code === 'unknown-field'
-						? 'UNEXPECTED_FIELD'
-						: 'INVALID_FIELD',
-				issue.code === 'unknown-field'
-					? 'Supply only the explicit public publication fields; keep secrets and private operator information outside this manifest.'
-					: 'Supply the selected public publication value: safe text, an HTTPS/single-recipient mailto contact without query or fragment, or a real YYYY-MM-DD date. The operator display label is optional; publication review remains pending.',
-			)
-		}
-		result.checks.publicPolicy = issues.length === 0 ? 'consistent' : 'invalid'
-	}
 	if (root.backend !== undefined) {
 		const start = diagnostics.length
 		const backend = deployment(root.backend, 'backend')

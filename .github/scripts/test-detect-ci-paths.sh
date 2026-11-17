@@ -54,6 +54,7 @@ assert_exact_groups mypage docs/mypage/openapi.yaml
 assert_exact_groups "youtube_monitor mypage" biome.json
 assert_exact_groups "system firestore_integration" system/core/mypage/store.go
 assert_exact_groups "system firestore_integration" system/cmd/mypage-server/main.go
+assert_exact_groups "system firestore_integration mypage" system/core/mypage/policy.go
 assert_exact_groups "system firestore_integration" system/core/workspaceapp/app.go
 assert_exact_groups "system firestore_integration" system/core/repository/firestore_controller.go
 assert_exact_groups "system firestore_integration" system/core/workspaceapp/workspace_app_private_test.go
