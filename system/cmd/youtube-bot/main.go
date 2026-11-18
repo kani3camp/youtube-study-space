@@ -101,7 +101,6 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	const MinimumTryTimesToNotify = 2
 	numContinuousRetrieveNextPageTokenFailed := 0
 	numContinuousListMessagesFailed := 0
-	var lastChatFetched time.Time
 	var waitAtLeastMilliSec1 float64
 	var waitAtLeastMilliSec2 float64
 	var sleepInterval time.Duration
@@ -137,8 +136,8 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			numContinuousRetrieveNextPageTokenFailed = 0
 		}
 
-		// fetch chat messages
-		chatMessages, nextPageToken, pollingIntervalMillis, err := app.ListLiveChatMessages(ctx, pageToken)
+		// fetch and process chat messages
+		lastChatFetched, pollingIntervalMillis, err := pollLiveChatPage(ctx, app, ngWordConfig, pageToken)
 		if err != nil {
 			numContinuousListMessagesFailed += 1
 			if numContinuousListMessagesFailed >= MinimumTryTimesToNotify {
@@ -151,42 +150,6 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		} else {
 			numContinuousListMessagesFailed = 0
 		}
-		lastChatFetched = timeutil.JstNow()
-
-		// save nextPageToken
-		if err := app.SaveNextPageToken(ctx, nextPageToken); err != nil {
-			app.MessageToOwnerWithError(ctx, "(1回目) failed to save next page token", err)
-			// 少し待ってから再試行
-			time.Sleep(3 * time.Second)
-			err2 := app.SaveNextPageToken(ctx, nextPageToken)
-			if err2 != nil {
-				app.MessageToOwnerWithError(ctx, "(2回目) failed to save next page token", err2)
-				// pass
-			}
-		}
-
-		// process the command (includes not command)
-		for _, chatMessage := range chatMessages {
-			if youtubebot.IsFanFundingEvent(chatMessage) {
-				app.MessageToOwner(ctx, fmt.Sprintf("Fan funding event:\n```%# v```", pretty.Formatter(chatMessage)))
-			}
-
-			// only if chatMessage has text message content
-			if !youtubebot.HasTextMessageByAuthor(chatMessage) {
-				continue
-			}
-
-			message := youtubebot.ExtractTextMessageByAuthor(chatMessage)
-			channelID := youtubebot.ExtractAuthorChannelID(chatMessage)
-			displayName := youtubebot.ExtractAuthorDisplayName(chatMessage)
-			profileImageURL := youtubebot.ExtractAuthorProfileImageURL(chatMessage)
-			isModerator := youtubebot.IsChatMessageByModerator(chatMessage)
-			isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
-			isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
-			if err := app.ProcessMessage(ctx, ngWordConfig, message, channelID, displayName, profileImageURL, isModerator, isOwner, isMember); err != nil {
-				app.MessageToOwnerWithError(ctx, "error in ProcessMessage()", err)
-			}
-		}
 
 		waitAtLeastMilliSec1 = math.Max(float64((time.Duration(pollingIntervalMillis)*time.Millisecond - timeutil.
 			JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
@@ -195,6 +158,50 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 		slog.Info(fmt.Sprintf("waiting for %.2f seconds...\n\n", sleepInterval.Seconds()))
 		time.Sleep(sleepInterval)
 	}
+}
+
+func pollLiveChatPage(ctx context.Context, app *workspaceapp.WorkspaceApp, ngWordConfig workspaceapp.NGWordConfig, pageToken string) (time.Time, int, error) {
+	chatMessages, nextPageToken, pollingIntervalMillis, err := app.ListLiveChatMessages(ctx, pageToken)
+	if err != nil {
+		return time.Time{}, 0, fmt.Errorf("fetch live chat page: %w", err)
+	}
+	lastChatFetched := timeutil.JstNow()
+
+	// save nextPageToken
+	if err := app.SaveNextPageToken(ctx, nextPageToken); err != nil {
+		app.MessageToOwnerWithError(ctx, "(1回目) failed to save next page token", err)
+		// 少し待ってから再試行
+		time.Sleep(3 * time.Second)
+		err2 := app.SaveNextPageToken(ctx, nextPageToken)
+		if err2 != nil {
+			app.MessageToOwnerWithError(ctx, "(2回目) failed to save next page token", err2)
+			// pass
+		}
+	}
+
+	// process the command (includes not command)
+	for _, chatMessage := range chatMessages {
+		if youtubebot.IsFanFundingEvent(chatMessage) {
+			app.MessageToOwner(ctx, fmt.Sprintf("Fan funding event:\n```%# v```", pretty.Formatter(chatMessage)))
+		}
+
+		// only if chatMessage has text message content
+		if !youtubebot.HasTextMessageByAuthor(chatMessage) {
+			continue
+		}
+
+		message := youtubebot.ExtractTextMessageByAuthor(chatMessage)
+		channelID := youtubebot.ExtractAuthorChannelID(chatMessage)
+		displayName := youtubebot.ExtractAuthorDisplayName(chatMessage)
+		profileImageURL := youtubebot.ExtractAuthorProfileImageURL(chatMessage)
+		isModerator := youtubebot.IsChatMessageByModerator(chatMessage)
+		isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
+		isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
+		if err := app.ProcessMessage(ctx, ngWordConfig, message, channelID, displayName, profileImageURL, isModerator, isOwner, isMember); err != nil {
+			app.MessageToOwnerWithError(ctx, "error in ProcessMessage()", err)
+		}
+	}
+	return lastChatFetched, pollingIntervalMillis, nil
 }
 
 func loadNGWordConfig(

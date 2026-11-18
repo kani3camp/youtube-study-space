@@ -111,7 +111,7 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 			return nil, "", 0, err
 		}
 	case 500:
-		return nil, "", 0, nil
+		return nil, "", 0, err
 	default:
 		slog.Warn("Unknown status code.", "code", errGoogle.Code)
 		return nil, "", 0, err
