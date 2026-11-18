@@ -154,7 +154,8 @@ DEV ページの更新は基盤 Terraform Apply とは別に `Deploy MyPage Fron
 
 - 同じコミットから Backend（`Deploy MyPage API`）を先に配備し、続けて Frontend（`Deploy MyPage Frontend`）を配備します。画面と API の版が異なる間は、ログイン開始が `POLICY_VERSION_OUTDATED` で拒否されます（誤った版の同意は記録されません）。
 - 配備後に実ブラウザで同意してログインを開始し、Google の認証画面へ進むことを確認します。
-- Backend は旧環境変数 `MYPAGE_PRIVACY_VERSION` / `MYPAGE_TERMS_VERSION` を参照しません。Terraform が Cloud Run に設定している両変数は未使用の残置で、基盤の段階制御の撤去と合わせて後続 PR で削除します。
+- Backend は旧環境変数 `MYPAGE_PRIVACY_VERSION` / `MYPAGE_TERMS_VERSION` を参照せず、Terraform もこの 2 変数を Cloud Run に設定しません。既存の Service に残っている場合、次の基盤 Plan は 2 変数だけを外す in-place update を計画し、Plan 契約はこの更新だけを許可します（image・他の環境変数とその順序・Secret 参照・権限・トラフィックの変更や置換が混ざれば停止します。2 変数が消えた後は該当しないため、許可は一度で失効します）。この Apply は新しいリビジョンを作るため、実行中は `Deploy MyPage API` を走らせないでください。
+- GitHub Environment の `MYPAGE_RUNTIME_SETTINGS_JSON` に残る旧 `privacy_version` / `terms_version` は読み込み時に除外されるため、編集は不要です。
 - 同意版が変わると、旧版で同意したアカウントは次回ログイン時に再同意を求められます（DEV の旧版は `dev-draft-*-30102f3`）。
 
 ### 静的配信キャッシュの仕様

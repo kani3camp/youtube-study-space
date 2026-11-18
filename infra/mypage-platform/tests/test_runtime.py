@@ -353,6 +353,117 @@ class RuntimeTest(unittest.TestCase):
         with self.assertRaisesRegex(c.ContractError, "^refresh-planned-state$"):
             c.validate_refresh(moved, resources, r.state_only_service_update)
 
+    RETIRED_ENV = [{"name": "MYPAGE_PRIVACY_VERSION", "value": "dev-draft-p"},
+                   {"name": "MYPAGE_TERMS_VERSION", "value": "dev-draft-t"}]
+
+    def retired_env_plan(self, *, drift=False):
+        """既存Serviceの旧同意版env 2個だけをTerraformが外すPlan（他資源はno-op）。"""
+        plan = fixture(public=True)
+        for item in plan["resource_changes"]:
+            item["change"]["actions"] = ["no-op"]
+        item = next(item for item in plan["resource_changes"] if item["address"] == r.SERVICE)
+        after = item["change"]["after"]
+        after.update(uid="fixed-service-uid")
+        after["template"][0]["containers"][0]["image"] = r.REPOSITORY + "@sha256:" + "c" * 64
+        before = deepcopy(after)
+        env = before["template"][0]["containers"][0]["env"]
+        signer = next(i for i, entry in enumerate(env) if entry["name"] == "MYPAGE_SIGNER_EMAIL")
+        env[signer + 1:signer + 1] = deepcopy(self.RETIRED_ENV)
+        before.update(etag="synthetic-etag", generation="6", observed_generation="6", reconciling=False,
+                      latest_ready_revision="mypage-api-00006-abc", latest_created_revision="mypage-api-00006-abc")
+        # 更新で値が決まらない出力専用属性はafterに無く、after_unknownでtrueになる。
+        item["change"].update(actions=["update"], before=before, after_unknown={
+            "etag": True, "generation": True, "observed_generation": True, "reconciling": True,
+            "latest_ready_revision": True, "latest_created_revision": True})
+        if drift:
+            # CI/CDが配備した新しいimageをrefreshで観測し、計画はその状態から始まる。
+            state = deepcopy(before)
+            state.update(generation="1", observed_generation="1")
+            state["template"][0]["containers"][0]["image"] = value_image = r.REPOSITORY + "@sha256:" + "a" * 64
+            self.assertNotEqual(value_image, after["template"][0]["containers"][0]["image"])
+            plan["resource_drift"] = [{"address": r.SERVICE, "mode": "managed",
+                                       "provider_name": "registry.terraform.io/hashicorp/google",
+                                       "change": {"actions": ["update"], "before": state, "after": deepcopy(before)}}]
+        return plan, item
+
+    def test_only_the_exact_retired_consent_env_removal_is_accepted_as_an_update(self):
+        for drift in (False, True):
+            plan, item = self.retired_env_plan(drift=drift)
+            self.assertEqual(r.retired_env_removal(r.SERVICE, item["change"]),
+                             {"template", "etag", "generation", "observed_generation", "reconciling",
+                              "latest_ready_revision", "latest_created_revision"})
+            saved = deepcopy(plan)
+            with self.subTest(drift=drift):
+                self.assertEqual(r.validate_plan(plan), {"resources": len(plan["resource_changes"]), "creates": 0})
+                self.assertEqual(plan, saved)
+        # 位置に依らず、2変数がそろって外れるなら同じ遷移として扱う。
+        plan, item = self.retired_env_plan()
+        env = item["change"]["before"]["template"][0]["containers"][0]["env"]
+        env[:] = [e for e in env if e["name"] not in r.RETIRED_SERVICE_ENV] + deepcopy(self.RETIRED_ENV)
+        self.assertIsNotNone(r.retired_env_removal(r.SERVICE, item["change"]))
+        r.validate_plan(plan)
+
+    def test_retired_consent_env_removal_combined_with_any_other_change_is_rejected(self):
+        before_env = lambda ch: ch["before"]["template"][0]["containers"][0]["env"]
+        after_env = lambda ch: ch["after"]["template"][0]["containers"][0]["env"]
+        for name, mutate in (
+            ("image", lambda ch: ch["after"]["template"][0]["containers"][0].update(image=r.REPOSITORY + "@sha256:" + "e" * 64)),
+            ("other-env-value", lambda ch: after_env(ch)[0].update(value="other")),
+            ("other-env-added", lambda ch: after_env(ch).append({"name": "INJECTED", "value": "x"})),
+            ("other-env-removed", lambda ch: after_env(ch).pop(0)),
+            ("other-env-reordered", lambda ch: after_env(ch).reverse()),
+            ("secret-version", lambda ch: after_env(ch)[-1]["value_source"][0]["secret_key_ref"][0].update(version="latest")),
+            ("timeout", lambda ch: ch["after"]["template"][0].update(timeout="60s")),
+            ("ingress", lambda ch: ch["after"].update(ingress="INGRESS_TRAFFIC_INTERNAL_ONLY")),
+            ("traffic", lambda ch: ch["after"]["traffic"][0].update(percent=50)),
+            ("deletion-policy", lambda ch: ch["after"].update(deletion_policy="DELETE")),
+            ("uid", lambda ch: ch["after"].update(uid="other-service")),
+            ("config-unknown", lambda ch: ch["after_unknown"].update(template=[{"containers": [{"env": True}]}])),
+            ("uri-unknown", lambda ch: ch["after_unknown"].update(uri=True)),
+            ("only-one-removed", lambda ch: after_env(ch).append(deepcopy(self.RETIRED_ENV[1]))),
+            ("both-kept", lambda ch: after_env(ch).extend(deepcopy(self.RETIRED_ENV))),
+            ("only-one-in-state", lambda ch: before_env(ch).remove(self.RETIRED_ENV[0])),
+            ("duplicate-in-state", lambda ch: before_env(ch).append(deepcopy(self.RETIRED_ENV[0]))),
+            ("secret-backed-in-state", lambda ch: next(e for e in before_env(ch) if e["name"] == "MYPAGE_TERMS_VERSION").update(
+                value_source=[{"secret_key_ref": [{"secret": "mypage-oauth-client-secret", "version": "2"}]}])),
+            ("replace-paths", lambda ch: ch.update(replace_paths=[["template"]])),
+            ("delete-create", lambda ch: ch.update(actions=["delete", "create"])),
+            ("create-delete", lambda ch: ch.update(actions=["create", "delete"])),
+            ("importing", lambda ch: ch.update(importing={"id": "x"})),
+        ):
+            rejected, changed = self.retired_env_plan()
+            mutate(changed["change"])
+            with self.subTest(name=name):
+                self.assertIsNone(r.retired_env_removal(r.SERVICE, changed["change"]))
+                with self.assertRaises(c.ContractError):
+                    r.validate_plan(rejected)
+        # Never for any other resource.
+        _, item = self.retired_env_plan()
+        self.assertIsNone(r.retired_env_removal(r.MAINTENANCE_JOB, item["change"]))
+
+    def test_retired_consent_env_allowance_expires_once_the_env_is_gone(self):
+        # 2変数が消えた後のServiceでは一致する遷移が無く、通常のno-op契約に戻る。
+        _, item = self.retired_env_plan()
+        gone = deepcopy(item["change"])
+        gone["before"]["template"][0]["containers"][0]["env"] = deepcopy(
+            gone["after"]["template"][0]["containers"][0]["env"])
+        self.assertIsNone(r.retired_env_removal(r.SERVICE, gone))
+        # State に旧envが残ったままのno-op（削除しないPlan）は受け入れない。
+        plan, item = self.retired_env_plan()
+        item["change"].update(actions=["no-op"], after=deepcopy(item["change"]["before"]), after_unknown={})
+        with self.assertRaisesRegex(c.ContractError, "^runtime-environment-set$"):
+            r.validate_plan(plan)
+        # refreshで観測しただけ（Planが外さない）でも同じく拒否する。
+        plan, item = self.retired_env_plan(drift=True)
+        item["change"].update(actions=["no-op"], after=deepcopy(item["change"]["before"]), after_unknown={})
+        with self.assertRaisesRegex(c.ContractError, "^runtime-environment-set$"):
+            r.validate_plan(plan)
+        # 外すupdateは、refresh後のStateから始まらなければならない。
+        plan, item = self.retired_env_plan(drift=True)
+        plan["resource_drift"][0]["change"]["after"]["etag"] = "other-etag"
+        with self.assertRaisesRegex(c.ContractError, "^runtime-retired-environment-refresh$"):
+            r.validate_plan(plan)
+
     def noop_plan(self, public=True):
         plan = fixture(public)
         for item in plan["resource_changes"]:

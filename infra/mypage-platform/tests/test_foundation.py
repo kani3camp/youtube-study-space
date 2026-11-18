@@ -150,8 +150,13 @@ class FoundationTest(unittest.TestCase):
             'maintenance_operator_image_digest': 'private-retired-digest',
             'maintenance_operator_image_source_sha': 'private-retired-source',
             'history_coverage_json': '[{"start":"2026-10-01T00:00:00Z","end":"2026-10-02T00:00:00Z"}]',
+            # 同意版はソースの定数になった。既存Secretに残る値は検査も転記もしない。
+            'privacy_version': 'dev-draft-p',
+            'terms_version': 'dev-draft-t',
         }
         self.assertEqual(ops.runtime_settings(env | {'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(legacy)}), clean)
+        self.assertNotIn('privacy_version', clean)
+        self.assertNotIn('terms_version', clean)
         with self.assertRaisesRegex(c.ContractError, '^runtime-settings-fields$'):
             ops.runtime_settings(env | {'MYPAGE_RUNTIME_SETTINGS_JSON': json.dumps(value | {'unreviewed': 'x'})})
     def test_service_lookup_distinguishes_absence_from_other_failures(self):

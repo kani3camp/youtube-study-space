@@ -48,7 +48,7 @@ PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/ser
 PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
 # After a read, the provider records Job IAM members with the full Job path, not the short name.
 MAINTENANCE_JOB_FULL_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/jobs/mypage-maintenance-operator"
-FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin", "privacy_version", "terms_version",
+FIELDS = {"image_digest", "project_number", "web_app_id", "public_origin",
           "oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version", "image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
 
 
@@ -126,8 +126,6 @@ def settings(value):
     c.need(value["project_number"] == c.PROJECT_NUMBER, "runtime-project-number")
     c.need(re.fullmatch("1:" + value["project_number"] + r":web:[A-Za-z0-9]+", value["web_app_id"]), "runtime-app-project")
     c.need(value["public_origin"] == ORIGIN, "runtime-origin")
-    for field in ("privacy_version", "terms_version"):
-        c.need(re.fullmatch(r"[A-Za-z0-9._-]{1,64}", value[field]), "runtime-policy-version")
     for field in ("oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version"):
         c.need(re.fullmatch(r"[1-9][0-9]*", value[field]), "runtime-secret-version")
     c.need(value["hosting_backend_host"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]+\.a\.run\.app", value["hosting_backend_host"]), "runtime-hosting-backend")
@@ -266,8 +264,7 @@ def plain_environment(value):
     env = {"GOOGLE_CLOUD_PROJECT": c.PROJECT, "MYPAGE_ENVIRONMENT": c.ENVIRONMENT, "MYPAGE_REGION": c.REGION,
            "MYPAGE_SIGNER_EMAIL": c.EMAIL, "MYPAGE_INFRASTRUCTURE_READY": "true"}
     for name, field in (("MYPAGE_PROJECT_NUMBER", "project_number"), ("MYPAGE_WEB_APP_ID", "web_app_id"),
-                        ("MYPAGE_PUBLIC_ORIGIN", "public_origin"), ("MYPAGE_PRIVACY_VERSION", "privacy_version"),
-                        ("MYPAGE_TERMS_VERSION", "terms_version")):
+                        ("MYPAGE_PUBLIC_ORIGIN", "public_origin")):
         env[name] = value[field]
     if value["hosting_backend_host"]:
         env["MYPAGE_HOSTING_BACKEND_HOST"] = value["hosting_backend_host"]
@@ -495,8 +492,11 @@ def validate_cicd_image_refresh(before, after, value):
     if not any(entry.get("name") == "MYPAGE_HOSTING_BACKEND_HOST" for entry in old_env):
         # Historical initial Hosting binding is the sole permitted env addition.
         old_config["hosting_backend_host"] = ""
-    validate_service(before, {}, old_config, ["no-op"])
-    validate_service(after, {}, value | {"image_digest": new_image}, ["no-op"])
+    # The State may still hold the retired consent-version env (both entries,
+    # unchanged below). This observation does not accept them: the planned
+    # after must drop them (retired_env_removal) or validate_service rejects it.
+    validate_service(without_retired_env(before)[0], {}, old_config, ["no-op"])
+    validate_service(without_retired_env(after)[0], {}, value | {"image_digest": new_image}, ["no-op"])
     # Keep only the configured security boundary stable. Revision/etag and
     # provider-normalized computed fields may legitimately differ.
     for key in ("project", "name", "location", "ingress", "deletion_policy",
@@ -569,6 +569,74 @@ def state_only_service_update(address, change):
     return changed
 
 
+# 固定したCloud Runプロバイダーの出力専用属性。設定のupdateでunknownになり得るが、
+# 設定そのものではない。template・env・secrets・identity・trafficは含めない。
+SERVICE_COMPUTED = frozenset({
+    "etag", "generation", "observed_generation", "update_time", "last_modifier",
+    "latest_created_revision", "latest_ready_revision", "terminal_condition",
+    "conditions", "traffic_statuses", "reconciling",
+})
+
+# 同意版はソースの定数（system/core/mypage/policy.go）になり、Backendはこの2変数を参照しない。
+# 既存Serviceに残る2変数をTerraformが外すin-place updateだけを、レビュー済みの遷移として許す。
+RETIRED_SERVICE_ENV = frozenset({"MYPAGE_PRIVACY_VERSION", "MYPAGE_TERMS_VERSION"})
+
+
+def without_retired_env(service):
+    """旧同意版envを除いたServiceのコピーと、除いたかどうかを返す。
+
+    旧env は2変数がそろい、平文の版文字列を持つ既知の形だけを受け入れる。片方だけ、
+    重複、Secret参照などは拒否する。
+    """
+    c.need(type(service) is dict, "runtime-retired-environment")
+    copy = deepcopy(service)
+    container = one(one(copy.get("template"), "runtime-retired-environment").get("containers"),
+                    "runtime-retired-environment")
+    env = container.get("env")
+    c.need(type(env) is list and all(type(item) is dict for item in env), "runtime-retired-environment")
+    retired = [item for item in env if item.get("name") in RETIRED_SERVICE_ENV]
+    if not retired:
+        return copy, False
+    c.need(len(retired) == len(RETIRED_SERVICE_ENV) and {item["name"] for item in retired} == RETIRED_SERVICE_ENV and
+           all(set(item) <= {"name", "value", "value_source"} and not item.get("value_source") and
+               type(item.get("value")) is str and re.fullmatch(r"[A-Za-z0-9._-]{1,64}", item["value"])
+               for item in retired), "runtime-retired-environment")
+    container["env"] = [item for item in env if item.get("name") not in RETIRED_SERVICE_ENV]
+    return copy, True
+
+
+def retired_env_removal(address, change):
+    """旧同意版env 2個を外すだけのService in-place updateなら、変わる属性名を返す。他はNone。
+
+    beforeに2変数がそろい、afterには無く、それ以外の設定（image・他のenvとその順序・
+    Secret参照・identity・traffic等）がbeforeと完全に同じであることを要求する。
+    unknownはプロバイダーの出力専用属性だけに限る。2変数が消えた後は一致しないため、
+    この許可は一度きりで自然に失効する。
+    """
+    if (address != SERVICE or change.get("actions") != ["update"] or change.get("replace_paths")
+            or change.get("importing")):
+        return None
+    before, after, unknown = change.get("before"), change.get("after"), change.get("after_unknown") or {}
+    if type(before) is not dict or type(after) is not dict or type(unknown) is not dict:
+        return None
+    try:
+        if c.has_unknown({key: value for key, value in unknown.items() if key not in SERVICE_COMPUTED}):
+            return None
+        stripped, removed = without_retired_env(before)
+        _, remaining = without_retired_env(after)
+    except c.ContractError:
+        return None
+    configuration = lambda service: {key: value for key, value in service.items() if key not in SERVICE_COMPUTED}
+    if not removed or remaining or configuration(stripped) != configuration(after):
+        return None
+    return {key for key in set(before) | set(after) if before.get(key) != after.get(key)}
+
+
+def reviewed_service_update(address, change):
+    """Refresh検査に渡す、レビュー済みServiceのupdateで変わる属性名（無ければNone）。"""
+    return state_only_service_update(address, change) or retired_env_removal(address, change)
+
+
 def validate_initial_plan(plan):
     value, public = declared(plan)
     c.need(value is not None, "runtime-plan-settings")
@@ -581,7 +649,8 @@ def validate_initial_plan(plan):
     foundation["resource_drift"] = []
     refreshed = deepcopy(plan)
     refreshed["resource_drift"] = list(plan.get("resource_drift", []) or [])
-    c.validate_refresh(refreshed, expected, state_only_service_update)
+    c.validate_refresh(refreshed, expected, reviewed_service_update)
+    planned = {item.get("address"): item.get("change", {}) for item in changes}
     # Native refresh must remain a no-op. Only the CI/CD-owned Service/Job
     # images and provider-computed metadata may drift; never mask config changes.
     for observation in refreshed["resource_drift"]:
@@ -590,6 +659,9 @@ def validate_initial_plan(plan):
             c.need(change.get("actions") == ["update"] and
                    not c.has_unknown(change.get("after_unknown")), "runtime-refresh-action")
             validate_cicd_image_refresh(change.get("before"), change.get("after"), value)
+            if retired_env_removal(SERVICE, planned.get(SERVICE, {})):
+                # 旧env除去のupdateは、refresh後のStateそのものから始まらなければならない。
+                c.need(planned[SERVICE].get("before") == change.get("after"), "runtime-retired-environment-refresh")
         elif observation.get("address") == MAINTENANCE_JOB:
             c.need(change.get("actions") == ["update"] and
                    not c.has_unknown(change.get("after_unknown")), "runtime-refresh-action")
@@ -608,8 +680,11 @@ def validate_initial_plan(plan):
         # この検査の許可範囲を暗黙に広げない。例外は、remote writeを伴わない
         # ServiceのState取り込み（state_only_service_update）だけで、no-opとして検証する。
         state_only = bool(state_only_service_update(address, change))
-        actions = ["no-op"] if state_only else change.get("actions")
-        # 例外のもう1つは、既存のmaintenance providerを短いgoogle.subjectとjob_workflow_refへ
+        # 2つ目の例外は、旧同意版env 2個だけを外すServiceのin-place update（retired_env_removal）。
+        # afterは他の設定と同じくno-opの最終状態として検証する（imageはCI/CDが所有）。
+        retired_env = bool(retired_env_removal(address, change))
+        actions = ["no-op"] if state_only or retired_env else change.get("actions")
+        # 3つ目の例外は、既存のmaintenance providerを短いgoogle.subjectとjob_workflow_refへ
         # 直す、レビュー済みのin-place update（reviewed_provider_update）だけ。
         c.need((actions in [["create"], ["no-op"]] or reviewed_provider_update(address, change)) and
                not change.get("replace_paths"), "runtime-resource-action")

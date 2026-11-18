@@ -31,8 +31,6 @@ variable "runtime_settings" {
     project_number              = string
     web_app_id                  = string
     public_origin               = string
-    privacy_version             = string
-    terms_version               = string
     oauth_client_id_version     = string
     oauth_client_secret_version = string
     youtube_api_key_version     = string
@@ -267,14 +265,6 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "MYPAGE_SIGNER_EMAIL"
         value = local.runtime_email
-      }
-      env {
-        name  = "MYPAGE_PRIVACY_VERSION"
-        value = var.runtime_settings.privacy_version
-      }
-      env {
-        name  = "MYPAGE_TERMS_VERSION"
-        value = var.runtime_settings.terms_version
       }
       # 明示的に有効化した場合だけ使う。モジュールを直接呼んでも本番では無効にする。
       # この実装だけでは配信リビジョンの更新を承認しない。
