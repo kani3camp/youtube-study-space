@@ -60,12 +60,12 @@ bash system/scripts/check-mypage-operator-image.sh mypage-maintenance-operator:c
 ### イメージと Runtime の実行順序
 
 - Registry 適用後に `image-build` で `linux/amd64` イメージをビルドし、40 桁 source SHA の不変タグとして push して `RepoDigest` と照合します（既存タグの上書きは拒否）。
-- Runtime 初回は `runtime-private`（11 資源：Registry 9 + Firestore 権限 + Cloud Run）から開始し、Hosting 接続時に `runtime-public`（12 資源：`allUsers` invoker 追加）へ進みます（`MYPAGE_RUNTIME_SETTINGS_JSON` は `runtime_settings` と同じキーを受け付け、旧 `history_coverage_json` は読み込み時に除外）。
+- 当時の Runtime 初回は旧 `runtime-private` 段階（11 資源：Registry 9 + Firestore 権限 + Cloud Run）から開始し、Hosting 接続時に旧 `runtime-public` 段階（12 資源：`allUsers` invoker 追加）へ進みました。現在は段階の選択が無く、`MYPAGE_RUNTIME_SETTINGS_JSON` の有無とオーナーの公開 Invoker の実在から宣言範囲が決まります（[README](../README.md#宣言範囲を決めるのは-terraform-外の事実だけ)。同 JSON は `runtime_settings` と同じキーを受け付け、旧 `history_coverage_json` は読み込み時に除外）。
 - Cloud Run は Gen2、DEV `min=0 / max=1`、CPU 1 / 512Mi、request-based billing、startup boost なし、TCP startup probe、固定ランタイム SA を使用します（Invoker IAM check やアプリの Auth / App Check / Origin / SAC は維持し、前後 1 世代互換や rollback は [実経路 E2E](../../../docs/mypage/release/e2e.md) で別途確認します）。
 
 ### 専用 Registry の段階（履歴情報）
 
-※当時は `registry-plan` / `registry-apply` を明示指定して 9 資源（既存 Foundation 8 資源 + 専用 Registry 1 資源、初回 create 権限は 1 資源作成・読み戻し後に解除）を導入していましたが、現在の通常運用では `Terraform`（`terraform.yml`）が `desired-stage.txt` に基づき最終状態を一括 Plan / Apply します。
+※当時は `registry-plan` / `registry-apply` を明示指定して 9 資源（既存 Foundation 8 資源 + 専用 Registry 1 資源、初回 create 権限は 1 資源作成・読み戻し後に解除）を導入していましたが、現在は段階の選択も `desired-stage.txt` も無く、`Terraform`（`terraform.yml`）が環境の宣言を一括 Plan / Apply します。
 
 - 2026-10-21 JST の Cloud Shell 再確認で、Foundation の IAM、Secret version 0 件、3 SA の user-managed key 0 件、DEV Cloud Run 0 件（同 region の既存 Artifact Registry は `gcf-artifacts` のみ）を確認しました（Google Auth Platform の自動作成 Web クライアントは流用しません）。
 - 実際の稼働リビジョン・イメージ digest・Hosting リリース・同意版・試験結果は [release-record.example.json](../../../docs/mypage/release/release-record.example.json) に一対で記録します（OAuth コードや生ログは公開 PR / CI 成果物に残しません）。

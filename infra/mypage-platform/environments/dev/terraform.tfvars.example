@@ -1,9 +1,9 @@
-# Default; no resources created. Do not put secret values in Terraform variables.
-stage = "disabled"
-
-# Later, after exact target / state / IAM review: "foundation",
-# "runtime_private" or "runtime_public". Populate runtime_settings from
-# reviewed private/public identifiers and PINNED secret VERSION NUMBERS only.
+# There is no stage. Without runtime_settings only the 9 base resources are
+# declared. Do not put secret values in Terraform variables. CI derives both
+# inputs from facts outside Terraform; operators never choose them:
+# - runtime_settings: reviewed public identifiers and PINNED secret VERSION
+#   NUMBERS only (from the GitHub Environment MYPAGE_RUNTIME_SETTINGS_JSON).
+# - public_invoker: true only once the owner's allUsers binding exists; CI imports it.
 
 # DEV snapshot observation capability (default OFF): inside a complete, reviewed
 # runtime_settings object, set read_metrics_enabled = true. This is a boolean;
@@ -28,8 +28,8 @@ stage = "disabled"
 # Verify the DEV apply identity already has the required update/get permissions;
 # do not expand IAM or bypass a rejected Plan as part of the toggle.
 #
-# Use the EXISTING runtime-private/public-plan and matching -apply workflow
-# modes with exact source SHA. Independent Plan agreement, saved Plan hash,
+# Use the normal Terraform workflow (desired-plan / desired-apply) with the
+# exact source SHA. Independent Plan agreement, saved Plan hash,
 # State-version binding and the 30-minute age limit remain mandatory.
 # For metrics only, the provider's ordinary update Plan is NOT applied: Google
 # provider 8.5.0 omits etag. A live Cloud Run GET must match the original Plan's

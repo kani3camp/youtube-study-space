@@ -140,14 +140,14 @@ class PrPlanTest(unittest.TestCase):
             if args[:2] == ['terraform', 'version']:
                 return json.dumps({'terraform_version': (ROOT / 'infra/mypage-platform/.terraform-version').read_text().strip()})
             if args[:2] == ['terraform', 'show']:
-                return json.dumps({})
+                return json.dumps({'variables': {'runtime_settings': {'value': None}, 'public_invoker': {'value': False}}})
             return ''
         with tempfile.TemporaryDirectory() as temporary:
             env = pr_env() | {'RUNNER_TEMP': temporary, 'GITHUB_OUTPUT': str(Path(temporary) / 'output'),
                               'MYPAGE_STATE_ACCOUNT': '123456789012', 'MYPAGE_BACKEND_ROLE_ID': 'AROA' + 'A' * 17}
             ops.directory(env).mkdir(mode=0o700)
             with patch.object(ops, 'run', side_effect=run), patch.object(ops, 'state_version', return_value='absent'), \
-                 patch.object(c, 'stage_for_mode', return_value='foundation'), \
+                 patch.object(ops, 'service_exists', return_value=False), \
                  patch.object(c, 'validate_plan', return_value={'resources': 8, 'creates': 0}), \
                  patch.object(ops, 'reject_unowned_resources'), redirect_stdout(io.StringIO()) as output:
                 ops.prepare(env)

@@ -1,37 +1,36 @@
 # Every case uses provider mocks. No ADC, project API, Secret Manager or S3 State calls.
 mock_provider "google" {}
 
-run "disabled_by_default" {
+run "base_only_without_runtime_settings" {
   command = plan
   assert {
-    condition     = length(module.platform) == 0 && output.stage == "disabled"
-    error_message = "Default must create no MyPage resources."
+    condition     = !module.platform.runtime_enabled && !module.platform.public_invoker_enabled && output.service_url == null
+    error_message = "Without runtime settings no API, Job or public invoker may be declared."
   }
 }
 
-run "foundation_is_private" {
+run "reject_public_invoker_without_runtime" {
   command = plan
   variables {
-    stage = "foundation"
+    public_invoker = true
   }
-  assert {
-    condition     = length(module.platform) == 1 && !module.platform[0].runtime_enabled && !module.platform[0].public_invoker_enabled
-    error_message = "Foundation must not deploy an API or public invoker."
-  }
-}
-
-run "reject_invalid_stage" {
-  command = plan
-  variables {
-    stage = "unreviewed"
-  }
-  expect_failures = [var.stage]
+  expect_failures = [var.public_invoker]
 }
 
 run "reject_runtime_without_reviewed_inputs" {
   command = plan
   variables {
-    stage = "runtime_private"
+    runtime_settings = {
+      image_digest                = ""
+      project_number              = ""
+      web_app_id                  = ""
+      public_origin               = ""
+      privacy_version             = ""
+      terms_version               = ""
+      oauth_client_id_version     = ""
+      oauth_client_secret_version = ""
+      youtube_api_key_version     = ""
+    }
   }
   expect_failures = [var.runtime_settings]
 }
@@ -39,7 +38,6 @@ run "reject_runtime_without_reviewed_inputs" {
 run "reject_foreign_project_number" {
   command = plan
   variables {
-    stage = "runtime_private"
     runtime_settings = {
       image_digest                = "asia-southeast2-docker.pkg.dev/test-youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       project_number              = "906336399194"
@@ -55,10 +53,9 @@ run "reject_foreign_project_number" {
   expect_failures = [var.runtime_settings]
 }
 
-run "runtime_private_is_not_public" {
+run "runtime_is_not_public_by_default" {
   command = plan
   variables {
-    stage = "runtime_private"
     runtime_settings = {
       image_digest                = "asia-southeast2-docker.pkg.dev/test-youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       project_number              = "48101442817"
@@ -72,15 +69,14 @@ run "runtime_private_is_not_public" {
     }
   }
   assert {
-    condition     = module.platform[0].runtime_enabled && !module.platform[0].public_invoker_enabled && module.platform[0].max_instances == 1
-    error_message = "Private runtime must not grant allUsers."
+    condition     = module.platform.runtime_enabled && !module.platform.public_invoker_enabled && module.platform.max_instances == 1
+    error_message = "Runtime settings alone must not grant allUsers."
   }
 }
 
-run "public_invoker_requires_explicit_stage" {
+run "public_invoker_requires_explicit_adoption" {
   command = plan
   variables {
-    stage = "runtime_public"
     runtime_settings = {
       image_digest                = "asia-southeast2-docker.pkg.dev/test-youtube-study-space/mypage/mypage-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       project_number              = "48101442817"
@@ -92,9 +88,10 @@ run "public_invoker_requires_explicit_stage" {
       oauth_client_secret_version = "2"
       youtube_api_key_version     = "3"
     }
+    public_invoker = true
   }
   assert {
-    condition     = module.platform[0].runtime_enabled && module.platform[0].public_invoker_enabled && module.platform[0].max_instances == 1
-    error_message = "Only the explicit public stage can grant allUsers."
+    condition     = module.platform.runtime_enabled && module.platform.public_invoker_enabled && module.platform.max_instances == 1
+    error_message = "Only the explicit adoption input may declare allUsers."
   }
 }

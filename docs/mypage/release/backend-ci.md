@@ -106,7 +106,7 @@ Maintenance Job `mypage-maintenance-operator` のイメージは、API Service �
 4. 成否にかかわらず `mypage-operator-release-record`（schema 1、旧イメージ・旧 generation を含む）を 14 日間保存し、受領ジョブが `mypage-operator-verified-record` を残します（自動再試行・自動ロールバックなし）。
 
 - ロールバック: `mode=deploy-existing` で既知の良好な `mypage-maintenance-operator@sha256:...` とその `image_source_sha` を指定し、タグ/digest 一致と祖先コミット確認のうえ Job だけを更新します。
-- 現在値における旧パッケージの許容: 新規環境では Job を固定の旧 API イメージ（`maintenance_bootstrap_image_digest`）で初回作成するため、最初の Operator 配備までの現在値として旧 `mypage/mypage-api` パッケージも受け入れます（配備先は専用パッケージのみ）。
+- 現在値における旧パッケージの許容: 新規環境では Job を runtime settings の API イメージ（`runtime_settings.image_digest`）で初回作成するため、最初の Operator 配備までの現在値として `mypage/mypage-api` パッケージも受け入れます（配備先は専用パッケージのみ。API イメージには Operator バイナリが無いため、Operator 配備まで Job は実行できません）。
 
 ### 初回有効化（リポジトリ外のオーナー作業）
 

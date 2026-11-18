@@ -24,30 +24,26 @@ OPERATOR_REPOSITORY = IMAGE_REGISTRY + "mypage-maintenance-operator"
 # 初回Operator配備でJobが専用packageへ移ったことを確認してから旧packageを外す。
 OPERATOR_DEPLOYER = "mypage-operator-deploy@" + c.PROJECT + ".iam.gserviceaccount.com"
 MAINTENANCE_JOB_IMAGE = "(?:" + re.escape(REPOSITORY) + "|" + re.escape(OPERATOR_REPOSITORY) + r")@sha256:[a-f0-9]{64}"
-SERVICE = "module.platform[0].google_cloud_run_v2_service.api[0]"
-FIRESTORE = "module.platform[0].google_project_iam_member.firestore_user[0]"
-INVOKER = "module.platform[0].google_cloud_run_v2_service_iam_member.public_invoker[0]"
-MAINTENANCE_OPERATOR_SA = "module.platform[0].google_service_account.maintenance_operator[0]"
-MAINTENANCE_INVOKER_SA = "module.platform[0].google_service_account.maintenance_invoker[0]"
-MAINTENANCE_ROLE = "module.platform[0].google_project_iam_custom_role.maintenance_firestore[0]"
-MAINTENANCE_FIRESTORE = "module.platform[0].google_project_iam_member.maintenance_firestore[0]"
-MAINTENANCE_POOL = "module.platform[0].google_iam_workload_identity_pool.maintenance_github[0]"
-MAINTENANCE_PROVIDER = "module.platform[0].google_iam_workload_identity_pool_provider.maintenance_github[0]"
-MAINTENANCE_WIF = "module.platform[0].google_service_account_iam_member.maintenance_workload_identity[0]"
-MAINTENANCE_JOB = "module.platform[0].google_cloud_run_v2_job.maintenance_operator[0]"
-MAINTENANCE_JOB_INVOKER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_invoker[0]"
-MAINTENANCE_READ_ROLE = "module.platform[0].google_project_iam_custom_role.maintenance_execution_read[0]"
-MAINTENANCE_JOB_READER = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_reader[0]"
-MAINTENANCE_IMAGE_ROLE = "module.platform[0].google_project_iam_custom_role.maintenance_image_release[0]"
-MAINTENANCE_IMAGE_BINDING = "module.platform[0].google_cloud_run_v2_job_iam_member.maintenance_image_release[0]"
-MAINTENANCE_IMAGE_ACT_AS = "module.platform[0].google_service_account_iam_member.maintenance_image_release_act_as[0]"
-OPERATOR_IMAGE_BINDING = "module.platform[0].google_cloud_run_v2_job_iam_member.operator_image_release[0]"
-OPERATOR_IMAGE_ACT_AS = "module.platform[0].google_service_account_iam_member.operator_image_release_act_as[0]"
+SERVICE = c.MODULE + ".google_cloud_run_v2_service.api[0]"
+FIRESTORE = c.MODULE + ".google_project_iam_member.firestore_user[0]"
+INVOKER = c.MODULE + ".google_cloud_run_v2_service_iam_member.public_invoker[0]"
+MAINTENANCE_OPERATOR_SA = c.MODULE + ".google_service_account.maintenance_operator[0]"
+MAINTENANCE_INVOKER_SA = c.MODULE + ".google_service_account.maintenance_invoker[0]"
+MAINTENANCE_ROLE = c.MODULE + ".google_project_iam_custom_role.maintenance_firestore[0]"
+MAINTENANCE_FIRESTORE = c.MODULE + ".google_project_iam_member.maintenance_firestore[0]"
+MAINTENANCE_POOL = c.MODULE + ".google_iam_workload_identity_pool.maintenance_github[0]"
+MAINTENANCE_PROVIDER = c.MODULE + ".google_iam_workload_identity_pool_provider.maintenance_github[0]"
+MAINTENANCE_WIF = c.MODULE + ".google_service_account_iam_member.maintenance_workload_identity[0]"
+MAINTENANCE_JOB = c.MODULE + ".google_cloud_run_v2_job.maintenance_operator[0]"
+MAINTENANCE_JOB_INVOKER = c.MODULE + ".google_cloud_run_v2_job_iam_member.maintenance_invoker[0]"
+MAINTENANCE_READ_ROLE = c.MODULE + ".google_project_iam_custom_role.maintenance_execution_read[0]"
+MAINTENANCE_JOB_READER = c.MODULE + ".google_cloud_run_v2_job_iam_member.maintenance_reader[0]"
+MAINTENANCE_IMAGE_ROLE = c.MODULE + ".google_project_iam_custom_role.maintenance_image_release[0]"
+MAINTENANCE_IMAGE_BINDING = c.MODULE + ".google_cloud_run_v2_job_iam_member.maintenance_image_release[0]"
+MAINTENANCE_IMAGE_ACT_AS = c.MODULE + ".google_service_account_iam_member.maintenance_image_release_act_as[0]"
+OPERATOR_IMAGE_BINDING = c.MODULE + ".google_cloud_run_v2_job_iam_member.operator_image_release[0]"
+OPERATOR_IMAGE_ACT_AS = c.MODULE + ".google_service_account_iam_member.operator_image_release_act_as[0]"
 MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, MAINTENANCE_JOB_READER, OPERATOR_IMAGE_BINDING, OPERATOR_IMAGE_ACT_AS}
-MODES = {"maintenance-operator-plan": "maintenance_operator", "maintenance-operator-apply": "maintenance_operator",
-         "maintenance-upgrade-plan": "maintenance_upgrade", "maintenance-upgrade-apply": "maintenance_upgrade",
-         "runtime-private-plan": "runtime_private", "runtime-private-apply": "runtime_private",
-         "runtime-public-plan": "runtime_public", "runtime-public-apply": "runtime_public"}
 PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/services/mypage-api"
 PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
 # After a read, the provider records Job IAM members with the full Job path, not the short name.
@@ -115,35 +111,45 @@ def reviewed_provider_update(address, change):
             after.get("attribute_mapping") == maintenance_provider_mapping())
 
 
-def settings(value, stage=None):
-    c.need(stage is None or stage in set(MODES.values()), "runtime-settings-stage")
-    operator_only = stage == "maintenance_operator"
+def settings(value):
     optional = {"image_source_sha", "hosting_backend_host", "previous_image_digest", "read_metrics_enabled", "read_metrics_from_revision"}
-    required = {"image_digest"} if operator_only else FIELDS - optional
+    required = FIELDS - optional
     c.need(type(value) is dict and set(value) <= FIELDS and set(value) >= required, "runtime-settings-fields")
     defaults = {field: "" for field in FIELDS} | {"read_metrics_enabled": False}
-    # Bootstrap-only maintenance stages use the same application image as the API.
-    # No per-operator digest/source fields exist in environment JSON.
-    value = defaults | ({"image_digest": value["image_digest"],
-                         "image_source_sha": value.get("image_source_sha", "")} if operator_only else value)
+    value = defaults | value
     # JSONの受入検査は、意図的にTerraformの型変換より厳しくする。
     c.need(type(value["read_metrics_enabled"]) is bool, "runtime-read-metrics-type")
     c.need(c.TARGET == "development" or (not value["read_metrics_enabled"] and value["read_metrics_from_revision"] == ""), "runtime-production-read-metrics")
     c.need(all(type(v) is str for k, v in value.items() if k != "read_metrics_enabled"), "runtime-settings-types")
     c.need(re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["image_digest"]), "runtime-image")
     c.need(value["image_source_sha"] == "" or re.fullmatch(r"[a-f0-9]{40}", value["image_source_sha"]), "runtime-image-source-sha")
-    if not operator_only:
-        c.need(value["project_number"] == c.PROJECT_NUMBER, "runtime-project-number")
-        c.need(re.fullmatch("1:" + value["project_number"] + r":web:[A-Za-z0-9]+", value["web_app_id"]), "runtime-app-project")
-        c.need(value["public_origin"] == ORIGIN, "runtime-origin")
-        for field in ("privacy_version", "terms_version"):
-            c.need(re.fullmatch(r"[A-Za-z0-9._-]{1,64}", value[field]), "runtime-policy-version")
-        for field in ("oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version"):
-            c.need(re.fullmatch(r"[1-9][0-9]*", value[field]), "runtime-secret-version")
-        c.need(value["hosting_backend_host"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]+\.a\.run\.app", value["hosting_backend_host"]), "runtime-hosting-backend")
-        c.need(value["previous_image_digest"] == "" or re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["previous_image_digest"]), "runtime-previous-image")
-        c.need(value["read_metrics_from_revision"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", value["read_metrics_from_revision"]), "runtime-read-metrics-revision")
+    c.need(value["project_number"] == c.PROJECT_NUMBER, "runtime-project-number")
+    c.need(re.fullmatch("1:" + value["project_number"] + r":web:[A-Za-z0-9]+", value["web_app_id"]), "runtime-app-project")
+    c.need(value["public_origin"] == ORIGIN, "runtime-origin")
+    for field in ("privacy_version", "terms_version"):
+        c.need(re.fullmatch(r"[A-Za-z0-9._-]{1,64}", value[field]), "runtime-policy-version")
+    for field in ("oauth_client_id_version", "oauth_client_secret_version", "youtube_api_key_version"):
+        c.need(re.fullmatch(r"[1-9][0-9]*", value[field]), "runtime-secret-version")
+    c.need(value["hosting_backend_host"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]+\.a\.run\.app", value["hosting_backend_host"]), "runtime-hosting-backend")
+    c.need(value["previous_image_digest"] == "" or re.fullmatch(re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", value["previous_image_digest"]), "runtime-previous-image")
+    c.need(value["read_metrics_from_revision"] == "" or re.fullmatch(r"mypage-api-[a-z0-9-]{1,50}", value["read_metrics_from_revision"]), "runtime-read-metrics-revision")
     return value
+
+
+def declared(plan):
+    """Planが自身の変数で宣言した構成（runtime_settings または None、public invoker）を返す。
+
+    段階の選択値は無い。runtime_settingsがnullなら基盤資源だけ、値があれば実行系も、
+    public_invokerがtrueならオーナー追加済みの公開invokerの取り込みも宣言する。
+    """
+    variables = plan.get("variables", {})
+    c.need(type(variables) is dict, "plan-variables")
+    raw = variables.get("runtime_settings", {}).get("value")
+    public = variables.get("public_invoker", {}).get("value", False)
+    c.need(type(public) is bool, "plan-public-invoker")
+    value = None if raw is None else settings(raw)
+    c.need(value is not None or not public, "plan-public-invoker")
+    return value, public
 
 
 def maintenance_resource_contract(value=None):
@@ -232,19 +238,20 @@ def maintenance_resource_contract(value=None):
     return resources
 
 
-def resource_contract(stage, value=None):
-    c.need(stage in {"maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"}, "runtime-stage")
-    base_stage = "registry"
-    resources = c.resource_contract(base_stage) | maintenance_resource_contract(value)
-    if stage == "maintenance_operator":
+def resource_contract(*, runtime=True, public=True, value=None):
+    """宣言された構成の期待資源。runtime=Falseは基盤だけ、publicは公開invokerの取り込みを含む。"""
+    c.need(runtime or not public, "runtime-public-without-service")
+    resources = c.resource_contract()
+    if not runtime:
         return resources
+    resources |= maintenance_resource_contract(value)
     resources |= {
         FIRESTORE: {"project": c.PROJECT, "role": "roles/datastore.user", "member": "serviceAccount:" + c.EMAIL},
         SERVICE: {"project": c.PROJECT, "name": "mypage-api", "location": c.REGION,
                   "ingress": "INGRESS_TRAFFIC_ALL", "deletion_policy": "PREVENT",
                   "deletion_protection": True, "invoker_iam_disabled": False, "launch_stage": "GA"},
     }
-    if stage in {"maintenance_upgrade", "runtime_public"}:
+    if public:
         resources[INVOKER] = {"project": c.PROJECT, "location": c.REGION, "name": "mypage-api",
                               "role": "roles/run.invoker", "member": "allUsers"}
     return resources
@@ -292,7 +299,7 @@ def validate_planned_revision(after, desired, service, actions, check):
            and re.fullmatch(re.escape(service) + r"-[a-z0-9-]{1,50}", desired), check)
 
 
-def validate_maintenance_resource(address, after, unknown, value, actions, bootstrap_image=None):
+def validate_maintenance_resource(address, after, unknown, value, actions):
     operator_email = "mypage-maintenance-job@" + c.PROJECT + ".iam.gserviceaccount.com"
     invoker_email = "mypage-maintenance-invoker@" + c.PROJECT + ".iam.gserviceaccount.com"
     if address in {MAINTENANCE_OPERATOR_SA, MAINTENANCE_INVOKER_SA}:
@@ -341,7 +348,8 @@ def validate_maintenance_resource(address, after, unknown, value, actions, boots
         c.need(type(image) is str and re.fullmatch(MAINTENANCE_JOB_IMAGE, image),
                "maintenance-job-image")
         if actions == ["create"]:
-            c.need(image == (bootstrap_image or value["image_digest"]), "maintenance-job-bootstrap-image")
+            # 初回作成だけはレビュー済みのAPI bootstrap digestを使う（以降はCI/CDが所有）。
+            c.need(image == value["image_digest"], "maintenance-job-bootstrap-image")
         c.need(container.get("command") == [expected_command] and not container.get("args"), "maintenance-job-image-command")
         environment = container.get("env")
         c.need(type(environment) is list and all(type(item) is dict for item in environment), "maintenance-job-environment")
@@ -521,12 +529,20 @@ def validate_cicd_image_refresh(before, after, value):
     return new_image
 
 
-def validate_plan(plan, stage):
-    value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
+def plan_resources(plan, value=None):
+    """Planの宣言から期待資源を求める。値を渡すと各資源の固定値も含める。"""
+    declared_value, public = declared(plan)
+    return resource_contract(runtime=declared_value is not None, public=public, value=value)
+
+
+def validate_plan(plan):
+    value, _ = declared(plan)
+    if value is None:
+        return c.validate_plan(plan)
     if value["read_metrics_from_revision"]:
         from read_metrics_transition import validate_plan as validate_transition
-        return validate_transition(plan, stage, value)
-    return validate_initial_plan(plan, stage)
+        return validate_transition(plan, value)
+    return validate_initial_plan(plan)
 
 
 # Terraform-side attributes the Service may adopt without a remote write.
@@ -553,16 +569,14 @@ def state_only_service_update(address, change):
     return changed
 
 
-def validate_initial_plan(plan, stage):
-    value = settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
-    c.need(plan.get("variables", {}).get("stage", {}).get("value") == stage, "runtime-plan-stage")
-    expected = resource_contract(stage, value)
+def validate_initial_plan(plan):
+    value, public = declared(plan)
+    c.need(value is not None, "runtime-plan-settings")
+    expected = resource_contract(runtime=True, public=public, value=value)
     changes = plan.get("resource_changes", [])
     c.need(type(changes) is list, "runtime-plan-resources")
-    base_stage = "registry"
-    base = set(c.resource_contract(base_stage))
+    base = set(c.resource_contract())
     foundation = deepcopy(plan)
-    foundation["variables"]["stage"]["value"] = base_stage
     foundation["resource_changes"] = [item for item in changes if item.get("address") in base]
     foundation["resource_drift"] = []
     refreshed = deepcopy(plan)
@@ -580,17 +594,7 @@ def validate_initial_plan(plan, stage):
             c.need(change.get("actions") == ["update"] and
                    not c.has_unknown(change.get("after_unknown")), "runtime-refresh-action")
             validate_cicd_job_image_refresh(change.get("before"), change.get("after"), value)
-    c.validate_plan(foundation, base_stage)
-    bootstrap_input = plan.get("variables", {}).get("maintenance_bootstrap_image_digest", {}).get("value", "")
-    c.need(bootstrap_input == "" or
-           (c.TARGET == "development" and re.fullmatch(
-               re.escape(REPOSITORY) + r"@sha256:[a-f0-9]{64}", bootstrap_input)),
-           "maintenance-bootstrap-image")
-    service_after = next((item.get("change", {}).get("after") for item in changes
-                          if item.get("address") == SERVICE), None)
-    maintenance_bootstrap_image = (bootstrap_input or
-                                   (service_image(service_after)
-                                    if type(service_after) is dict else value["image_digest"]))
+    c.validate_plan(foundation)
     seen = set()
     for item in changes:
         address = item.get("address")
@@ -609,16 +613,14 @@ def validate_initial_plan(plan, stage):
         # 直す、レビュー済みのin-place update（reviewed_provider_update）だけ。
         c.need((actions in [["create"], ["no-op"]] or reviewed_provider_update(address, change)) and
                not change.get("replace_paths"), "runtime-resource-action")
-        # desired-state runtime stages may create an exact missing maintenance
-        # boundary. Foreign same-name resources are rejected before Apply and
-        # all maintenance fields remain constrained by the contract below.
-        if stage == "maintenance_upgrade" and address not in maintenance_resource_contract():
-            c.need(actions == ["no-op"], "maintenance-upgrade-runtime-noop")
+        # 欠けた実行系資源は同じexact契約で初回作成できる。State外の同名資源は
+        # Apply前にfoundation_ops.reject_unowned_resourcesが拒否する。
         importing = change.get("importing")
         if address == INVOKER:
-            c.need(stage in {"maintenance_upgrade", "runtime_public"} and change.get("actions") == ["no-op"], "runtime-invoker-owner-managed")
+            # 公開invokerはオーナーが追加し、CIは固定IDのimportでStateへ取り込むだけ。
+            c.need(change.get("actions") == ["no-op"], "runtime-invoker-owner-managed")
             if importing:
-                c.need(stage == "runtime_public" and importing == {"id": PUBLIC_INVOKER_IMPORT_ID}, "runtime-invoker-import")
+                c.need(importing == {"id": PUBLIC_INVOKER_IMPORT_ID}, "runtime-invoker-import")
         else:
             c.need(not importing, "runtime-resource-action")
         after, unknown = change.get("after"), change.get("after_unknown", {})
@@ -638,8 +640,7 @@ def validate_initial_plan(plan, stage):
                 valid = after.get(key) == expected_value
             c.need(valid and not c.has_unknown(unknown.get(key)), "runtime-resource-value-" + address + "-" + key)
         if address in maintenance_resource_contract():
-            validate_maintenance_resource(address, after, unknown, value, change.get("actions"),
-                                          maintenance_bootstrap_image)
+            validate_maintenance_resource(address, after, unknown, value, change.get("actions"))
         elif address == SERVICE:
             if actions == ["no-op"]:
                 # ignore_changes makes the actual serving digest authoritative.

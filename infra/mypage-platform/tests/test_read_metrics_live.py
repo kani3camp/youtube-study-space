@@ -31,8 +31,8 @@ TOKEN = "synthetic-access-token"
 VERSION = {"VersionId": "synthetic-version", "ETag": "synthetic-state-etag", "ContentLength": 42}
 
 
-def fixture(enabled=True, stage="runtime_private"):
-    plan = base_fixture(enabled, stage)
+def fixture(enabled=True, public=False):
+    plan = base_fixture(enabled, public)
     service(plan)["before"].update(uid="synthetic-service-uid", etag="source-etag")
     service(plan)["after"]["uid"] = "synthetic-service-uid"
     state = applied_state(plan)
@@ -136,14 +136,14 @@ class MetricsLiveTest(unittest.TestCase):
 
     def test_recovery_proves_exact_toggle_without_mutating_native_plan(self):
         for enabled in (True, False):
-            for stage in ("runtime_private", "runtime_public"):
-                plan, state = fixture(enabled, stage)
+            for public in (False, True):
+                plan, state = fixture(enabled, public)
                 recovered = recovery_plan(plan, state)
                 original = deepcopy(recovered)
-                result = m.validate_plan(recovered, stage, r.settings(recovered["variables"]["runtime_settings"]["value"]))
+                result = m.validate_plan(recovered, r.settings(recovered["variables"]["runtime_settings"]["value"]))
                 self.assertTrue(result["stateRecovery"])
                 self.assertEqual(result["updates"], 0)
-                m.validate_readback(state, recovered, stage)
+                m.validate_readback(state, recovered)
                 self.assertEqual(recovered, original)
                 self.assertNotEqual(c.commitment(recovered, VERSION, "a" * 40, "synthetic-key-for-recovery-contract-tests"),
                                     c.commitment(recovered | {"resource_drift":[]}, VERSION, "a" * 40, "synthetic-key-for-recovery-contract-tests"))
@@ -156,8 +156,8 @@ class MetricsLiveTest(unittest.TestCase):
                     lambda p: p["prior_state"]["values"]["root_module"]["child_modules"][0]["resources"].pop(),
                 ):
                     changed = deepcopy(recovered); mutate(changed)
-                    with self.subTest(enabled=enabled, stage=stage, mutation=mutate), self.assertRaises(c.ContractError):
-                        m.validate_plan(changed, stage, r.settings(changed["variables"]["runtime_settings"]["value"]))
+                    with self.subTest(enabled=enabled, public=public, mutation=mutate), self.assertRaises(c.ContractError):
+                        m.validate_plan(changed, r.settings(changed["variables"]["runtime_settings"]["value"]))
 
     def test_recovery_applies_only_fresh_refresh_without_patch(self):
         for enabled in (True, False):
@@ -179,7 +179,7 @@ class MetricsLiveTest(unittest.TestCase):
                 env = {"MYPAGE_ROLE":"apply", "MYPAGE_PLAN_TIME":str(time.time()), "MYPAGE_GCP_ACCESS_TOKEN":TOKEN}
                 with patch.object(c, "context"), patch.object(ops, "run", side_effect=run), patch.object(ops, "state_version", return_value=VERSION), \
                      patch.object(live, "request", return_value=after) as request, patch.object(live, "conditional_update") as update:
-                    live.apply_saved(env, root, recovered, "runtime_private")
+                    live.apply_saved(env, root, recovered)
                 update.assert_not_called()
                 self.assertTrue(all(call.args == (TOKEN, live.SERVICE_URL) for call in request.call_args_list))
                 self.assertTrue(all(cmd[-1] == str(root / "metrics-refresh.tfplan") for cmd in commands if cmd[1] == "apply"))
@@ -243,7 +243,7 @@ class MetricsLiveTest(unittest.TestCase):
 
     def test_normal_state_cannot_hide_rolled_back_or_failed_live_service(self):
         plan, state = fixture()
-        m.validate_readback(state, plan, "runtime_private")
+        m.validate_readback(state, plan)
         mutations = (
             lambda x: x.update(etag="different-etag"),
             lambda x: x.update(generation="9", observedGeneration="9"),
@@ -260,7 +260,7 @@ class MetricsLiveTest(unittest.TestCase):
             response = api_service(actual(state))
             mutate(response)
             with self.subTest(mutation=mutate), patch.object(live, "request", return_value=response), self.assertRaises(c.ContractError):
-                live.verify_state_live({"MYPAGE_GCP_ACCESS_TOKEN": TOKEN}, state, plan, "runtime_private")
+                live.verify_state_live({"MYPAGE_GCP_ACCESS_TOKEN": TOKEN}, state, plan)
 
     def test_plan_followed_by_external_change_is_not_accepted_as_new_baseline(self):
         plan, _ = fixture()
@@ -390,12 +390,12 @@ class MetricsLiveTest(unittest.TestCase):
             "change": {"actions": ["update"], "before": job_state_before,
                        "after": deepcopy(state_job), "after_unknown": {}},
         })
-        self.assertEqual(live.validate_refresh(refresh, plan, "runtime_private"), state)
+        self.assertEqual(live.validate_refresh(refresh, plan), state)
 
     def test_refresh_only_rejects_any_unrelated_drift_or_remote_write(self):
         plan, state = fixture()
         refresh = refresh_plan(plan, state)
-        self.assertEqual(live.validate_refresh(refresh, plan, "runtime_private"), state)
+        self.assertEqual(live.validate_refresh(refresh, plan), state)
         mutations = (
             lambda p: p.update(complete=False),
             lambda p: p.update(action_invocations=[1]),
@@ -411,7 +411,7 @@ class MetricsLiveTest(unittest.TestCase):
             changed = deepcopy(refresh)
             mutation(changed)
             with self.subTest(mutation=mutation), self.assertRaises(c.ContractError):
-                live.validate_refresh(changed, plan, "runtime_private")
+                live.validate_refresh(changed, plan)
 
     def test_apply_uses_only_saved_refresh_plan_and_rechecks_api_after_state_write(self):
         for enabled in (True, False):
@@ -433,7 +433,7 @@ class MetricsLiveTest(unittest.TestCase):
                     return ""
                 env = {"MYPAGE_ROLE": "apply", "MYPAGE_GCP_ACCESS_TOKEN": TOKEN, "MYPAGE_PLAN_TIME": str(time.time())}
                 with patch.object(c, "context"), patch.object(ops, "run", side_effect=run), patch.object(ops, "state_version", return_value=VERSION), patch.object(live, "conditional_update", return_value=after), patch.object(live, "request", side_effect=[before, after, after]) as request:
-                    live.apply_saved(env, root, plan, "runtime_private")
+                    live.apply_saved(env, root, plan)
                 self.assertEqual(request.call_count, 3)
                 self.assertFalse(any("foundation.tfplan" in x for cmd in commands if cmd[1] == "apply" for x in cmd))
 
@@ -443,7 +443,7 @@ class MetricsLiveTest(unittest.TestCase):
             root = Path(directory)
             (root / "metrics-state-version.json").write_text(json.dumps(VERSION))
             with patch.object(c, "context"), patch.object(ops, "state_version", return_value=VERSION | {"VersionId": "changed"}), patch.object(live, "request") as request, self.assertRaises(c.ContractError):
-                live.apply_saved({"MYPAGE_ROLE": "apply"}, root, plan, "runtime_private")
+                live.apply_saved({"MYPAGE_ROLE": "apply"}, root, plan)
             request.assert_not_called()
 
     def test_foundation_entrypoint_never_applies_native_provider_metrics_update(self):
@@ -454,11 +454,11 @@ class MetricsLiveTest(unittest.TestCase):
             sha = "a" * 40
             receipt = {"sha256": hashlib.sha256(b"reviewed-plan").hexdigest(), "source": sha}
             (root / "prepared.json").write_text(json.dumps(receipt))
-            env = {"MYPAGE_ROLE": "apply", "MYPAGE_MODE": "runtime-private-apply", "GITHUB_SHA": sha,
+            env = {"MYPAGE_ROLE": "apply", "MYPAGE_MODE": "desired-apply", "GITHUB_SHA": sha,
                    "MYPAGE_PLAN_TIME": str(time.time())}
             with patch.object(c, "context"), patch.object(ops, "directory", return_value=root), patch.object(ops, "run", return_value=json.dumps(plan)) as run, patch.object(live, "apply_saved") as apply:
                 ops.apply_saved(env)
-            apply.assert_called_once_with(env, root, plan, "runtime_private")
+            apply.assert_called_once_with(env, root, plan)
             self.assertFalse(any(call.args[0][:2] == ["terraform", "apply"] for call in run.call_args_list))
 
     def test_expired_or_tampered_saved_plan_stops_before_conditional_mutation(self):
@@ -468,7 +468,7 @@ class MetricsLiveTest(unittest.TestCase):
                 root = Path(directory)
                 (root / "foundation.tfplan").write_bytes(b"plan")
                 (root / "prepared.json").write_text(json.dumps({"sha256": "wrong", "source": "a" * 40}))
-                env = {"MYPAGE_ROLE": "apply", "MYPAGE_MODE": "runtime-private-apply", "GITHUB_SHA": "a" * 40,
+                env = {"MYPAGE_ROLE": "apply", "MYPAGE_MODE": "desired-apply", "GITHUB_SHA": "a" * 40,
                        "MYPAGE_PLAN_TIME": str(time.time() - (1801 if expired else 1))}
                 with patch.object(c, "context"), patch.object(ops, "directory", return_value=root), patch.object(live, "apply_saved") as apply, self.assertRaises(c.ContractError):
                     ops.apply_saved(env)
@@ -480,7 +480,7 @@ class MetricsLiveTest(unittest.TestCase):
             root = Path(directory)
             (root / "foundation.tfplan").write_bytes(b"plan")
             (root / "prepared.json").write_text(json.dumps({"sha256": hashlib.sha256(b"plan").hexdigest(), "source": "a" * 40}))
-            env = {"MYPAGE_ROLE": "apply", "MYPAGE_MODE": "runtime-private-apply", "GITHUB_SHA": "a" * 40,
+            env = {"MYPAGE_ROLE": "apply", "MYPAGE_MODE": "desired-apply", "GITHUB_SHA": "a" * 40,
                    "MYPAGE_GCP_ACCESS_TOKEN": TOKEN}
             response = api_service(actual(state))
             response["trafficStatuses"][0]["revision"] = "mypage-api-before"

@@ -23,19 +23,8 @@ variable "environment" {
   }
 }
 
-variable "stage" {
-  type = string
-  validation {
-    condition     = contains(["foundation_metadata", "foundation", "registry", "maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage)
-    error_message = "Invalid MyPage module stage."
-  }
-}
-
-variable "maintenance_bootstrap_image_digest" {
-  type    = string
-  default = ""
-}
-
+# nullのときは、Terraform外の前提（番号固定のSecret値と環境別Registryのimage）が
+# まだ無いことを表す。その間はAPI・maintenance Jobなど実行系の資源を宣言しない。
 variable "runtime_settings" {
   type = object({
     image_digest                = string
@@ -52,16 +41,29 @@ variable "runtime_settings" {
     previous_image_digest       = optional(string, "")
     read_metrics_enabled        = optional(bool, false)
   })
+  default = null
+}
+
+# オーナーが追加した allUsers invoker を State へ取り込むときだけ true にする。
+# CIはIAM setter権限を持たないため、Terraformがこのメンバーを新規作成する経路は無い。
+variable "public_invoker" {
+  type    = bool
+  default = false
+  validation {
+    condition     = !var.public_invoker || var.runtime_settings != null
+    error_message = "The public invoker requires the runtime Service."
+  }
 }
 
 locals {
-  deploy_api                     = contains(["maintenance_upgrade", "runtime_private", "runtime_public"], var.stage)
-  public_api                     = contains(["maintenance_upgrade", "runtime_public"], var.stage)
+  # 実行系（Cloud Run API・maintenance Jobとその専用IAM/WIF・Firestore権限）は、
+  # Terraform外の前提をそろえてruntime_settingsを渡したときだけ宣言する。
+  deploy_api                     = var.runtime_settings != null
+  public_api                     = local.deploy_api && var.public_invoker
   runtime_email                  = "${google_service_account.runtime.account_id}@${var.project_id}.iam.gserviceaccount.com"
   runtime_principal              = "serviceAccount:${local.runtime_email}"
   max_instances                  = var.environment == "development" ? 1 : 3
-  maintenance_operator           = contains(["maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage)
-  maintenance_image_release      = local.maintenance_operator && var.environment == "development"
+  maintenance_image_release      = local.deploy_api && var.environment == "development"
   maintenance_ref                = var.environment == "production" ? "refs/heads/main" : "refs/heads/integration/mypage-canon-20261006"
   maintenance_project_number     = var.environment == "production" ? "906336399194" : "48101442817"
   maintenance_github_environment = "mypage-maintenance-${var.environment}"
@@ -72,8 +74,8 @@ locals {
   operator_deployer_email        = "mypage-operator-deploy@${var.project_id}.iam.gserviceaccount.com"
 }
 
-# 呼び出し元が既定のdisabled段階から切り替えた場合だけ、これらの資源を作成する。
 # 管理対象は新しいMyPageメタデータであり、既存のBot/Firestore資源は含めない。
+# Service Account・Secretの器・Registryは、Secret値の投入とimage pushより前に必要なので常に宣言する。
 resource "google_service_account" "runtime" {
   project      = var.project_id
   account_id   = "mypage-api"
@@ -87,7 +89,6 @@ resource "google_service_account" "runtime" {
 # 環境専用のイメージ保存先を、ダイジェスト生成前に構築する。
 # 既存Functionsのリポジトリや、他のArtifact Registry所有者は変更しない。
 resource "google_artifact_registry_repository" "mypage" {
-  count                  = contains(["registry", "maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"], var.stage) ? 1 : 0
   project                = var.project_id
   location               = var.region
   repository_id          = "mypage"
@@ -141,7 +142,6 @@ resource "google_secret_manager_secret" "youtube_api_key" {
 
 # IAMメンバーは追加だけを行い、プロジェクトのIAMポリシーやバインディング全体を置き換えない。
 resource "google_secret_manager_secret_iam_member" "oauth_client_id_runtime" {
-  count     = var.stage == "foundation_metadata" ? 0 : 1
   project   = var.project_id
   secret_id = google_secret_manager_secret.oauth_client_id.secret_id
   role      = "roles/secretmanager.secretAccessor"
@@ -149,7 +149,6 @@ resource "google_secret_manager_secret_iam_member" "oauth_client_id_runtime" {
 }
 
 resource "google_secret_manager_secret_iam_member" "oauth_client_secret_runtime" {
-  count     = var.stage == "foundation_metadata" ? 0 : 1
   project   = var.project_id
   secret_id = google_secret_manager_secret.oauth_client_secret.secret_id
   role      = "roles/secretmanager.secretAccessor"
@@ -157,7 +156,6 @@ resource "google_secret_manager_secret_iam_member" "oauth_client_secret_runtime"
 }
 
 resource "google_secret_manager_secret_iam_member" "youtube_api_key_runtime" {
-  count     = var.stage == "foundation_metadata" ? 0 : 1
   project   = var.project_id
   secret_id = google_secret_manager_secret.youtube_api_key.secret_id
   role      = "roles/secretmanager.secretAccessor"
@@ -167,15 +165,14 @@ resource "google_secret_manager_secret_iam_member" "youtube_api_key_runtime" {
 # Firebase Custom Tokenの署名にはIAM signBlobを使う。
 # 専用ランタイムサービスアカウントだけに付与し、プロジェクト内の全サービスアカウントへ広げない。
 resource "google_service_account_iam_member" "runtime_signer" {
-  count              = var.stage == "foundation_metadata" ? 0 : 1
   service_account_id = "projects/${var.project_id}/serviceAccounts/${local.runtime_email}"
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = local.runtime_principal
 }
 
 # 現在のBFFはStudy Spaceの履歴を読み、自身のアカウントとOAuthメタデータだけを書き込む。
-# Firestore IAMはコレクション単位で制限できないため、runtime_private有効化前に
-# プロジェクト全体のdatastore.user権限の影響をレビューする。
+# Firestore IAMはコレクション単位で制限できないため、プロジェクト全体のdatastore.user権限は
+# APIを作成するときだけ付与する。
 resource "google_project_iam_member" "firestore_user" {
   count   = local.deploy_api ? 1 : 0
   project = var.project_id
@@ -345,7 +342,7 @@ resource "google_cloud_run_v2_service" "api" {
   }
 }
 
-# 未認証の外部アクセスを許可するのは、明示したruntime_public段階だけとする。
+# 未認証の外部アクセスは、オーナーが追加したメンバーを取り込む場合だけ宣言する。
 # 各アプリケーションエンドポイントは引き続きAuth/App Check/Originを検証する。
 resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
   count    = local.public_api ? 1 : 0
@@ -359,7 +356,7 @@ resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
 # メンテナンスは独立した認証・権限の系統を使う。GitHubはこのJobだけを実行できる。
 # Firestore権限は持たず、Terraform配備用の本人情報も再利用できない。
 resource "google_service_account" "maintenance_operator" {
-  count           = local.maintenance_operator ? 1 : 0
+  count           = local.deploy_api ? 1 : 0
   project         = var.project_id
   account_id      = "mypage-maintenance-job"
   display_name    = "MyPage maintenance state operator"
@@ -372,7 +369,7 @@ resource "google_service_account" "maintenance_operator" {
 }
 
 resource "google_service_account" "maintenance_invoker" {
-  count           = local.maintenance_operator ? 1 : 0
+  count           = local.deploy_api ? 1 : 0
   project         = var.project_id
   account_id      = "mypage-maintenance-invoker"
   display_name    = "MyPage maintenance GitHub invoker"
@@ -385,7 +382,7 @@ resource "google_service_account" "maintenance_invoker" {
 }
 
 resource "google_project_iam_custom_role" "maintenance_firestore" {
-  count           = local.maintenance_operator ? 1 : 0
+  count           = local.deploy_api ? 1 : 0
   project         = var.project_id
   role_id         = "mypageMaintenanceOperator"
   title           = "MyPage maintenance control writer"
@@ -404,7 +401,7 @@ resource "google_project_iam_custom_role" "maintenance_firestore" {
 }
 
 resource "google_project_iam_member" "maintenance_firestore" {
-  count   = local.maintenance_operator ? 1 : 0
+  count   = local.deploy_api ? 1 : 0
   project = var.project_id
   role    = "projects/${var.project_id}/roles/mypageMaintenanceOperator"
   member  = "serviceAccount:${local.maintenance_operator_email}"
@@ -416,7 +413,7 @@ resource "google_project_iam_member" "maintenance_firestore" {
 }
 
 resource "google_iam_workload_identity_pool" "maintenance_github" {
-  count                     = local.maintenance_operator ? 1 : 0
+  count                     = local.deploy_api ? 1 : 0
   project                   = var.project_id
   workload_identity_pool_id = "mypage-maintenance"
   display_name              = "MyPage maintenance GitHub"
@@ -427,7 +424,7 @@ resource "google_iam_workload_identity_pool" "maintenance_github" {
 }
 
 resource "google_iam_workload_identity_pool_provider" "maintenance_github" {
-  count                              = local.maintenance_operator ? 1 : 0
+  count                              = local.deploy_api ? 1 : 0
   project                            = var.project_id
   workload_identity_pool_id          = google_iam_workload_identity_pool.maintenance_github[0].workload_identity_pool_id
   workload_identity_pool_provider_id = "github"
@@ -458,7 +455,7 @@ resource "google_iam_workload_identity_pool_provider" "maintenance_github" {
 }
 
 resource "google_service_account_iam_member" "maintenance_workload_identity" {
-  count              = local.maintenance_operator ? 1 : 0
+  count              = local.deploy_api ? 1 : 0
   service_account_id = "projects/${var.project_id}/serviceAccounts/${local.maintenance_invoker_email}"
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/projects/${local.maintenance_project_number}/locations/global/workloadIdentityPools/mypage-maintenance/attribute.workflow_ref/kani3camp/youtube-study-space/.github/workflows/mypage-maintenance.yml@${local.maintenance_ref}"
@@ -470,7 +467,7 @@ resource "google_service_account_iam_member" "maintenance_workload_identity" {
 }
 
 resource "google_cloud_run_v2_job" "maintenance_operator" {
-  count               = local.maintenance_operator ? 1 : 0
+  count               = local.deploy_api ? 1 : 0
   project             = var.project_id
   name                = "mypage-maintenance-operator"
   location            = var.region
@@ -487,11 +484,9 @@ resource "google_cloud_run_v2_job" "maintenance_operator" {
       timeout               = "60s"
       execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
       containers {
-        # DEV first creation receives an ephemeral digest resolved from a
-        # reviewed immutable Artifact Registry tag. Existing runtime stages can
-        # otherwise inherit the refreshed Service image; no digest is persisted
-        # in GitHub runtime-settings JSON for this Job.
-        image   = var.maintenance_bootstrap_image_digest != "" ? var.maintenance_bootstrap_image_digest : (local.deploy_api ? google_cloud_run_v2_service.api[0].template[0].containers[0].image : var.runtime_settings.image_digest)
+        # Only the first creation uses the reviewed API bootstrap digest. The
+        # Deploy Maintenance Operator workflow then owns the Job image.
+        image   = var.runtime_settings.image_digest
         command = ["/app/mypage-maintenance-operator"]
         resources {
           limits = {
@@ -568,7 +563,7 @@ resource "google_cloud_run_v2_job_iam_member" "operator_image_release" {
 # gcloud validates argument overrides by reading the Job, then polls the
 # Execution for --wait. jobsExecutorWithOverrides does not include these reads.
 resource "google_project_iam_custom_role" "maintenance_execution_read" {
-  count           = local.maintenance_operator ? 1 : 0
+  count           = local.deploy_api ? 1 : 0
   project         = var.project_id
   role_id         = "mypageMaintenanceExecutionRead"
   title           = "MyPage maintenance execution reader"
@@ -583,7 +578,7 @@ resource "google_project_iam_custom_role" "maintenance_execution_read" {
 }
 
 resource "google_cloud_run_v2_job_iam_member" "maintenance_reader" {
-  count    = local.maintenance_operator ? 1 : 0
+  count    = local.deploy_api ? 1 : 0
   project  = var.project_id
   location = var.region
   name     = google_cloud_run_v2_job.maintenance_operator[0].name
@@ -598,7 +593,7 @@ resource "google_cloud_run_v2_job_iam_member" "maintenance_reader" {
 }
 
 resource "google_cloud_run_v2_job_iam_member" "maintenance_invoker" {
-  count    = local.maintenance_operator ? 1 : 0
+  count    = local.deploy_api ? 1 : 0
   project  = var.project_id
   location = var.region
   name     = google_cloud_run_v2_job.maintenance_operator[0].name
@@ -627,20 +622,16 @@ output "service_url" {
   value = local.deploy_api ? google_cloud_run_v2_service.api[0].uri : null
 }
 
-output "maintenance_operator_enabled" {
-  value = local.maintenance_operator
-}
-
 output "maintenance_workload_identity_provider" {
-  value = local.maintenance_operator ? google_iam_workload_identity_pool_provider.maintenance_github[0].name : null
+  value = local.deploy_api ? google_iam_workload_identity_pool_provider.maintenance_github[0].name : null
 }
 
 output "maintenance_invoker_service_account" {
-  value = local.maintenance_operator ? local.maintenance_invoker_email : null
+  value = local.deploy_api ? local.maintenance_invoker_email : null
 }
 
 output "maintenance_job_name" {
-  value = local.maintenance_operator ? google_cloud_run_v2_job.maintenance_operator[0].name : null
+  value = local.deploy_api ? google_cloud_run_v2_job.maintenance_operator[0].name : null
 }
 
 # Security Current Canonで定めた環境別の容量上限を適用する。
@@ -654,4 +645,30 @@ output "read_metrics_env_values" {
     for item in google_cloud_run_v2_service.api[0].template[0].containers[0].env : item.value
     if item.name == "MYPAGE_READ_METRICS"
   ] : []
+}
+
+# 段階変数の撤去で常設になった資源の、旧count付きアドレスからの移動（no-op）。
+moved {
+  from = google_artifact_registry_repository.mypage[0]
+  to   = google_artifact_registry_repository.mypage
+}
+
+moved {
+  from = google_secret_manager_secret_iam_member.oauth_client_id_runtime[0]
+  to   = google_secret_manager_secret_iam_member.oauth_client_id_runtime
+}
+
+moved {
+  from = google_secret_manager_secret_iam_member.oauth_client_secret_runtime[0]
+  to   = google_secret_manager_secret_iam_member.oauth_client_secret_runtime
+}
+
+moved {
+  from = google_secret_manager_secret_iam_member.youtube_api_key_runtime[0]
+  to   = google_secret_manager_secret_iam_member.youtube_api_key_runtime
+}
+
+moved {
+  from = google_service_account_iam_member.runtime_signer[0]
+  to   = google_service_account_iam_member.runtime_signer
 }

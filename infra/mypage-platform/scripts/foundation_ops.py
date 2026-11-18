@@ -2,7 +2,7 @@
 """MyPage基盤のTerraform Planを作り、検査し、承認後に適用するための実行役。元のクラウド出力は非公開のまま保つ。
 
 目的: 検査を通ったPlanだけを同じ内容のまま適用し、公開する要約には値や名前を出さない。未知のリソースや削除が紛れ込む事故を防ぐ。
-使われる場面: MyPage Foundation Authenticated ワークフロー(.github/workflows/mypage-foundation-authenticated.yml)の stage・oidc・execute・apply・cleanup の各ステップ。image_ops.py や read_metrics_live.py からも部品として読み込まれる。
+使われる場面: MyPage Foundation Authenticated ワークフロー(.github/workflows/mypage-foundation-authenticated.yml)の preflight・oidc・execute・apply・cleanup の各ステップ。image_ops.py や read_metrics_live.py からも部品として読み込まれる。
 失敗したとき: 基盤のPlanまたはApplyが中断される。自動の再試行はしない。
 なくした場合: MyPage基盤のPlan・Applyワークフローが動かなくなる。
 """
@@ -27,10 +27,8 @@ import runtime_contract
 
 REPO = Path(__file__).resolve().parents[3]
 PHASE = "context"
-# DEV one-time bootstrap anchor. This exact source was built successfully by
-# Actions run 40985997924 and contains /app/mypage-maintenance-operator.
-# It is resolved to an immutable digest only while the Job does not exist.
-MAINTENANCE_BOOTSTRAP_SOURCE_SHA = "ace38d8237a186325629321641fe8dff58e83bdf"
+# オーナーの公開invokerを取り込むときだけ、prepareが書くJSON var-file。
+PUBLIC_INVOKER_FILE = "public-invoker.json"
 
 
 def need(value):
@@ -108,12 +106,12 @@ DIAGNOSTIC_ADDRESS = re.compile(r"^(?:\u2502)?[ ]*with (\S+),\n(?:\u2502)?[ ]*on
 def defined_addresses():
     """Repository-defined MyPage module addresses; nothing taken from native output is trusted.
 
-    MyPage resources use count 0/1, so only the bare address and index [0] are public.
+    MyPage resources use count 0/1 at most, so only the bare address and index [0] are public.
     """
     names = set()
     for path in sorted((REPO / "infra/mypage-platform/modules").rglob("*.tf")):
         for kind, name in re.findall(r'^resource "([a-z0-9_]+)" "([a-z0-9_]+)"', path.read_text(), re.MULTILINE):
-            base = "module.platform[0]." + kind + "." + name
+            base = contract.MODULE + "." + kind + "." + name
             names |= {base, base + "[0]"}
     return names
 
@@ -154,7 +152,7 @@ def directory(env):
     return path
 
 
-def stage(env):
+def preflight(env):
     kind = env["MYPAGE_ROLE"]
     contract.context(env, kind)
     need(re.fullmatch(r"[0-9]{12}", env.get("MYPAGE_STATE_ACCOUNT", "")))
@@ -175,12 +173,9 @@ def stage(env):
                "encrypt": True, "use_lockfile": True, "workspace_key_prefix": contract.WORKSPACE_PREFIX,
                "allowed_account_ids": [env["MYPAGE_STATE_ACCOUNT"]]}
     (root / "backend.json").write_bytes(contract.canonical(backend))
-    stage_name = contract.stage_for_mode(env["MYPAGE_MODE"])
-    if stage_name in set(runtime_contract.MODES.values()):
-        value = runtime_settings(env, stage_name)
+    value = runtime_settings(env)
+    if value is not None:
         (root / "runtime-settings.json").write_bytes(contract.canonical({"runtime_settings": value}))
-        if stage_name == "runtime_public":
-            (root / ("source/environments/" + contract.CONFIG["state"] + "/owner-public-invoker-import.tf")).write_text(runtime_contract.public_invoker_import_config())
     print("Environment-bound foundation preflight passed; no cloud credentials requested yet.")
 
 
@@ -225,12 +220,12 @@ def state_version(env):
 
 def reject_unowned_resources(env, plan):
     # このState外の同名資源を、新規作成で取り込まない。
-    urls = {"module.platform[0].google_service_account.runtime":
+    urls = {contract.MODULE + ".google_service_account.runtime":
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/" + contract.EMAIL}
-    urls.update({"module.platform[0].google_secret_manager_secret." + name:
+    urls.update({contract.MODULE + ".google_secret_manager_secret." + name:
                  "https://secretmanager.googleapis.com/v1/projects/" + contract.PROJECT + "/secrets/" + secret_id
                  for name, secret_id in contract.SECRET_IDS.items()})
-    urls["module.platform[0].google_artifact_registry_repository.mypage[0]"] = (
+    urls[contract.MODULE + ".google_artifact_registry_repository.mypage"] = (
         "https://artifactregistry.googleapis.com/v1/projects/" + contract.PROJECT +
         "/locations/" + contract.REGION + "/repositories/mypage")
     urls[runtime_contract.SERVICE] = (
@@ -264,9 +259,12 @@ def reject_unowned_resources(env, plan):
             contract.need(False, "unowned-resource-exists")
 
 
-def runtime_settings(env, stage=None):
+def runtime_settings(env):
+    """Environmentの実行設定を返す。未設定（初回構築でSecret値・imageがまだ無い）ならNone。"""
     raw = env.get("MYPAGE_RUNTIME_SETTINGS_JSON", "")
-    need(0 < len(raw.encode()) <= 65536)
+    if raw == "":
+        return None
+    need(len(raw.encode()) <= 65536)
     def pairs(items):
         result = {}
         for key, value in items:
@@ -279,54 +277,33 @@ def runtime_settings(env, stage=None):
     retired = {"maintenance_operator_enabled", "maintenance_operator_image_digest",
                "maintenance_operator_image_source_sha", "history_coverage_json"}
     parsed = {key: item for key, item in parsed.items() if key not in retired}
-    value = runtime_contract.settings(parsed, stage)
+    value = runtime_contract.settings(parsed)
     # After the first Terraform creation, CI/CD owns the Cloud Run image.
     # This fixed host remains Terraform-owned; no release JSON overlays the image.
-    if stage != "maintenance_operator" and contract.TARGET == "development":
+    if contract.TARGET == "development":
         value = runtime_contract.settings(
             value | {"hosting_backend_host": "mypage-api-eu5mhkcewq-et.a.run.app",
-                     "previous_image_digest": ""}, stage)
+                     "previous_image_digest": ""})
     provider = re.fullmatch(r"projects/([0-9]+)/locations/global/workloadIdentityPools/mypage-foundation/providers/github-actions",
                             env.get("MYPAGE_GCP_WIF_PROVIDER", ""))
     need(provider and provider[1] == contract.PROJECT_NUMBER)
-    if stage != "maintenance_operator":
-        need(value["project_number"] == provider[1])
+    need(value["project_number"] == provider[1])
     return value
 
 
-def maintenance_bootstrap_image(env, stage):
-    if stage not in set(runtime_contract.MODES.values()):
-        return ""
+def service_exists(env):
+    """固定名のCloud Run APIが実在するかを読み取りだけで確かめる（404以外の失敗は停止）。"""
     url = ("https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" +
-           contract.REGION + "/jobs/mypage-maintenance-operator")
+           contract.REGION + "/services/mypage-api")
     try:
         request(url, env["MYPAGE_GCP_ACCESS_TOKEN"])
     except urllib.error.HTTPError as error:
-        contract.need(error.code == 404, "maintenance-job-lookup")
-    else:
-        return ""
-    # Production needs a separately approved artifact and release identity.
-    contract.need(contract.TARGET == "development", "production-maintenance-bootstrap-unapproved")
-    source = MAINTENANCE_BOOTSTRAP_SOURCE_SHA
-    run(["git", "merge-base", "--is-ancestor", source, env["GITHUB_SHA"]],
-        cwd=REPO, check="maintenance-bootstrap-source-ancestor")
-    # The anchor predates the API/operator image split; read its combined Dockerfile.
-    dockerfile = run(["git", "show", source + ":system/Dockerfile.mypage"],
-                     cwd=REPO, check="maintenance-bootstrap-source")
-    contract.need("go build -tags timetzdata -trimpath -ldflags=\"-s -w\" -o /out/mypage-maintenance-operator" in dockerfile and
-                  "COPY --from=build /out/mypage-maintenance-operator /app/mypage-maintenance-operator" in dockerfile,
-                  "maintenance-bootstrap-source")
-    prefix = ("projects/" + contract.PROJECT + "/locations/" + contract.REGION +
-              "/repositories/mypage/packages/mypage-api")
-    tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source,
-                  env["MYPAGE_GCP_ACCESS_TOKEN"])
-    version = tag.get("version", "")
-    match = re.fullmatch(re.escape(prefix + "/versions/sha256:") + r"([a-f0-9]{64})", version)
-    contract.need(match is not None, "maintenance-bootstrap-image")
-    return runtime_contract.REPOSITORY + "@sha256:" + match[1]
+        contract.need(error.code == 404, "runtime-service-lookup")
+        return False
+    return True
 
 
-def verify_runtime_inputs(env, value, stage):
+def verify_runtime_inputs(env, value):
     # Terraform's initial image is an immutable bootstrap input, not the live
     # application release. Validate its provenance without requiring the current
     # HEAD's source tree to equal an older, already released image.
@@ -340,13 +317,12 @@ def verify_runtime_inputs(env, value, stage):
     tag = request("https://artifactregistry.googleapis.com/v1/" + prefix + "/tags/" + source, env["MYPAGE_GCP_ACCESS_TOKEN"])
     expected = prefix + "/versions/sha256:" + value["image_digest"].split("@sha256:")[1]
     contract.need(tag.get("version") == expected, "runtime-source-image-digest")
-    if stage != "maintenance_operator":
-        for name, field in (("mypage-oauth-client-id", "oauth_client_id_version"),
-                            ("mypage-oauth-client-secret", "oauth_client_secret_version"),
-                            ("mypage-youtube-api-key", "youtube_api_key_version")):
-            metadata = request("https://secretmanager.googleapis.com/v1/projects/" + contract.PROJECT + "/secrets/" + name + "/versions/" + value[field],
-                               env["MYPAGE_GCP_ACCESS_TOKEN"])
-            contract.need(metadata.get("state") == "ENABLED", "runtime-secret-version-enabled")
+    for name, field in (("mypage-oauth-client-id", "oauth_client_id_version"),
+                        ("mypage-oauth-client-secret", "oauth_client_secret_version"),
+                        ("mypage-youtube-api-key", "youtube_api_key_version")):
+        metadata = request("https://secretmanager.googleapis.com/v1/projects/" + contract.PROJECT + "/secrets/" + name + "/versions/" + value[field],
+                           env["MYPAGE_GCP_ACCESS_TOKEN"])
+        contract.need(metadata.get("state") == "ENABLED", "runtime-secret-version-enabled")
 
 
 def verify_owner_public_invoker(env):
@@ -360,14 +336,14 @@ def verify_owner_public_invoker(env):
 
 # Resource addresses are fixed by this repository's module (count indices only),
 # so they are not private. Anything else is withheld.
-PUBLIC_ADDRESS = re.compile(r"module\.platform\[0\]\.[a-z0-9_]+\.[a-z0-9_]+(?:\[[0-9]+\])?")
+PUBLIC_ADDRESS = re.compile(re.escape(contract.MODULE) + r"\.[a-z0-9_]+\.[a-z0-9_]+(?:\[[0-9]+\])?")
 PUBLIC_ACTIONS = frozenset({"no-op", "create", "read", "update", "delete"})
 
 # These two resources rely on lifecycle.prevent_destroy alone, which Terraform
 # stops checking if their resource blocks are removed entirely from the source.
 LIFECYCLE_PROTECTED = {
-    "module.platform[0].google_service_account.runtime",
-    "module.platform[0].google_artifact_registry_repository.mypage[0]",
+    contract.MODULE + ".google_service_account.runtime",
+    contract.MODULE + ".google_artifact_registry_repository.mypage",
 }
 
 
@@ -431,21 +407,15 @@ def describe_runtime_drift(plan):
         key=lambda entry: entry["address"]), sort_keys=True) + ".")
 
 
-def stage_resources(stage):
-    if stage in runtime_contract.MODES.values():
-        return runtime_contract.resource_contract(stage)
-    return contract.resource_contract(stage)
-
-
-def plan_without_deletions(plan, stage):
+def plan_without_deletions(plan):
     """Keep normal validation intact; separately validate standalone State-owned deletions."""
     changes = plan.get("resource_changes", [])
     removed = [item for item in changes if "delete" in item.get("change", {}).get("actions", [])]
     if not removed:
         return plan, ()
-    expected = stage_resources(stage)
+    expected = runtime_contract.plan_resources(plan)
     prior = plan.get("prior_state", {}).get("values", {}).get("root_module", {})
-    platform = [module for module in prior.get("child_modules", []) if module.get("address") == "module.platform[0]"]
+    platform = [module for module in prior.get("child_modules", []) if module.get("address") == contract.MODULE]
     contract.need(len(platform) == 1, "deletion-state-module")
     resources = {item["address"]: item for item in platform[0].get("resources", [])}
     addresses = set()
@@ -474,14 +444,12 @@ def plan_without_deletions(plan, stage):
     return plan | {"resource_changes": remaining}, tuple(sorted(addresses))
 
 
-def validate_plan(plan, stage):
-    checked, deletions = plan_without_deletions(plan, stage)
-    if stage in runtime_contract.MODES.values():
-        if deletions:
-            value = runtime_contract.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
-            contract.need(not value["read_metrics_from_revision"], "deletion-metrics-transition")
-        return runtime_contract.validate_plan(checked, stage), deletions
-    return contract.validate_plan(checked, stage), deletions
+def validate_plan(plan):
+    checked, deletions = plan_without_deletions(plan)
+    value, _ = runtime_contract.declared(plan)
+    if deletions and value is not None:
+        contract.need(not value["read_metrics_from_revision"], "deletion-metrics-transition")
+    return runtime_contract.validate_plan(checked), deletions
 
 
 def require_deletion_opt_in(env, deletions):
@@ -489,12 +457,12 @@ def require_deletion_opt_in(env, deletions):
         contract.need(env.get("MYPAGE_ALLOW_DELETIONS") == "true", "enable-allow-mypage-deletions-to-apply")
 
 
-def publish_plan_summary(env, plan, stage, deletions=()):
+def publish_plan_summary(env, plan, deletions=()):
     """固定資源種別・操作・件数と検証済みの削除アドレスをJob Summaryへ公開する。"""
     if not env.get("GITHUB_STEP_SUMMARY"):
         return
     # 種別は期待資源か検証済みの削除アドレスから求め、Planのtypeや設定値は使わない。
-    types = {address: address.rsplit(".", 2)[-2] for address in (*stage_resources(stage), *deletions)}
+    types = {address: address.rsplit(".", 2)[-2] for address in (*runtime_contract.plan_resources(plan), *deletions)}
     actions = {("no-op",): "no-op", ("read",): "read", ("create",): "create", ("update",): "update",
                ("delete",): "delete", ("delete", "create"): "replace", ("create", "delete"): "replace"}
     grouped = Counter()
@@ -506,8 +474,11 @@ def publish_plan_summary(env, plan, stage, deletions=()):
         counts[action] += 1
         counts["import"] += int(isinstance(item["change"].get("importing"), dict))
     counts["drift"] = len(plan.get("resource_drift", []) or [])
+    value, public = runtime_contract.declared(plan)
     lines = ["### MyPage Terraform Plan", "", f"Environment: `{contract.ENVIRONMENT}`",
-             f"Stage: `{stage}`", "", "Plan contract: **PASS**", "",
+             "Runtime: " + ("declared" if value is not None else "**not declared** (runtime settings not provided)"),
+             "Public invoker: " + ("adopted from the owner binding" if public else "not declared"),
+             "", "Plan contract: **PASS**", "",
              "| Action | Count |", "| --- | ---: |"]
     lines += [f"| {action} | {counts[action]} |" for action in
               ("create", "update", "delete", "replace", "read", "no-op", "import", "drift")]
@@ -543,30 +514,48 @@ def prepare(env):
     run(["terraform", "init", "-input=false", "-lockfile=readonly", "-no-color", "-backend-config=" + str(root / "backend.json")], cwd=work)
     PHASE = "plan"
     saved = root / "foundation.tfplan"
-    stage = contract.stage_for_mode(env["MYPAGE_MODE"])
     # PR Plan is advisory and never blocks a manual Plan or Apply; Apply always re-plans.
     lock = "-lock=false" if contract.is_pr(env) else "-lock-timeout=60s"
-    arguments = ["terraform", "plan", "-input=false", "-no-color", lock, "-var=stage=" + stage, "-out=" + str(saved)]
-    value = None
-    if stage in set(runtime_contract.MODES.values()):
-        PHASE = "runtime-inputs"
-        value = runtime_settings(env, stage)
-        contract.need(json.loads((root / "runtime-settings.json").read_text()) == {"runtime_settings": value}, "runtime-staged-settings")
-        bootstrap_image = maintenance_bootstrap_image(env, stage)
-        verify_runtime_inputs(env, value, stage)
-        if bootstrap_image:
-            arguments.append("-var=maintenance_bootstrap_image_digest=" + bootstrap_image)
-        if stage in {"maintenance_upgrade", "runtime_public"}:
-            verify_owner_public_invoker(env)
-        arguments.append("-var-file=" + str(root / "runtime-settings.json"))
+    arguments = ["terraform", "plan", "-input=false", "-no-color", lock, "-out=" + str(saved)]
+    # 段階の選択値は無い。宣言する範囲は、Terraform外の前提が実在するかだけで決まる。
+    # - runtime settings（番号固定Secret版・環境別image）があれば実行系を宣言する。
+    # - 固定名のAPIが既に実在すれば、settingsとオーナーの公開invokerは必須（無ければ停止）。
+    PHASE = "runtime-inputs"
+    value = runtime_settings(env)
+    settings_file = root / "runtime-settings.json"
+    contract.need((json.loads(settings_file.read_text()) == {"runtime_settings": value}) if value is not None
+                  else not settings_file.exists(), "runtime-staged-settings")
+    service = service_exists(env)
+    contract.need(value is not None or not service, "runtime-settings-required")
+    if value is not None:
+        verify_runtime_inputs(env, value)
+        arguments.append("-var-file=" + str(settings_file))
+    if service:
+        verify_owner_public_invoker(env)
+        (work / "owner-public-invoker-import.tf").write_text(runtime_contract.public_invoker_import_config())
+        # CLIの-varはPlanに未変換の文字列として記録されるため、JSON var-fileで真偽値として渡す。
+        public_file = root / PUBLIC_INVOKER_FILE
+        public_file.write_bytes(contract.canonical({"public_invoker": True}))
+        arguments.append("-var-file=" + str(public_file))
     PHASE = "terraform-plan"
     run(arguments, cwd=work, check="terraform-plan")
     plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work))
     PHASE = "plan-contract"
+    # Planの宣言は、上で観測した事実（settingsの有無・Serviceの実在）と一致しなければならない。
+    variables = plan.get("variables", {})
+    declared = variables.get("runtime_settings", {}).get("value")
+    if declared != value:
+        # 値は出さず、レビュー済みフィールド名のうち一致しないものだけを示す。
+        names = sorted(runtime_contract.FIELDS & (set(declared or {}) | set(value or {})))
+        print("Declared runtime settings mismatch: " + json.dumps({
+            "declared": declared is not None, "observed": value is not None,
+            "fields": [name for name in names if (declared or {}).get(name) != (value or {}).get(name)]}) + ".")
+    contract.need(declared == value, "plan-declared-runtime-settings")
+    public = variables.get("public_invoker", {}).get("value")
+    contract.need(public is service, "plan-declared-public-invoker-" + ("unset" if public is None else type(public).__name__))
     if value is not None:
-        need(plan.get("variables", {}).get("runtime_settings", {}).get("value") == value)
         describe_runtime_drift(plan)
-    summary, deletions = validate_plan(plan, stage)
+    summary, deletions = validate_plan(plan)
     reject_unowned_resources(env, plan)
     need(state_version(env) == version)
     if contract.is_pr(env):
@@ -581,7 +570,7 @@ def prepare(env):
                 stream.write("### MyPage PR Plan\n\n" + message + "\n")
         return
     if kind == "plan":
-        publish_plan_summary(env, plan, stage, deletions)
+        publish_plan_summary(env, plan, deletions)
     require_deletion_opt_in(env, deletions)
     digest = contract.commitment(plan, version, env["GITHUB_SHA"], env["MYPAGE_PLAN_HMAC_KEY"])
     (root / "prepared.json").write_bytes(contract.canonical({"sha256": hashlib.sha256(saved.read_bytes()).hexdigest(), "source": env["GITHUB_SHA"]}))
@@ -606,19 +595,18 @@ def apply_saved(env):
     need(receipt == {"sha256": hashlib.sha256(saved.read_bytes()).hexdigest(), "source": env["GITHUB_SHA"]})
     work = root / ("source/environments/" + contract.CONFIG["state"])
     PHASE = "apply"
-    stage = contract.stage_for_mode(env["MYPAGE_MODE"])
     plan = json.loads(run(["terraform", "show", "-json", str(saved)], cwd=work, check="saved-plan-show"))
-    _, deletions = validate_plan(plan, stage)
+    _, deletions = validate_plan(plan)
     require_deletion_opt_in(env, deletions)
     if deletions:
         contract.need(env.get("MYPAGE_DELETION_APPROVED") == "true", "deletion-approval-required")
-    if stage in runtime_contract.MODES.values():
-        value = runtime_contract.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"), stage)
+    value, _ = runtime_contract.declared(plan)
+    if value is not None:
         if value["read_metrics_from_revision"]:
             # プロバイダー8.5.0は更新時にetagを省略するため、更新Planは絶対に適用しない。
             # 条件付きAPI変更と、検証済みのrefresh-only Stateを使う。
             import read_metrics_live
-            result = read_metrics_live.apply_saved(env, root, plan, stage)
+            result = read_metrics_live.apply_saved(env, root, plan)
             print("DEV metrics State-only recovery and live/State verification passed." if result == "state-recovery" else
                   "DEV metrics conditional update and live/State verification passed.")
             return
@@ -631,7 +619,7 @@ def apply_saved(env):
         for child in module.get("child_modules", []):
             walk(child)
     walk(state["values"]["root_module"])
-    need(addresses == set(stage_resources(stage)))
+    need(addresses == set(runtime_contract.plan_resources(plan)))
     need(state_version(env) != "absent")
     print("Environment-bound foundation saved Plan applied and expected State resources read back.")
 
@@ -645,8 +633,8 @@ def main():
             path = directory(os.environ)
             if path.exists():
                 shutil.rmtree(path)
-        elif command == "stage":
-            stage(os.environ)
+        elif command == "preflight":
+            preflight(os.environ)
         elif command == "oidc":
             oidc(os.environ)
         elif command == "execute":

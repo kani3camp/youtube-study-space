@@ -66,6 +66,8 @@ IMAGE_COMPONENTS = {
                              "check": "system/scripts/check-mypage-operator-image.sh",
                              "caller": workflow_ref("deploy-mypage-maintenance.yml")},
 }
+# 環境ルートが呼ぶ唯一のmodule。count/for_eachを持たない。
+MODULE = "module.platform"
 STATE_KEY = "youtube-study-space/mypage-platform/" + CONFIG["state"] + "/terraform.tfstate"
 WORKSPACE_PREFIX = "youtube-study-space/mypage-platform/" + CONFIG["state"] + "/workspaces"
 EMAIL = "mypage-api@" + PROJECT + ".iam.gserviceaccount.com"
@@ -189,30 +191,12 @@ def backend_policy(bucket, kind):
     ]}
 
 
-def desired_stage():
-    path = Path(__file__).resolve().parents[1] / "environments" / CONFIG["state"] / "desired-stage.txt"
-    need(path.is_file() and not path.is_symlink(), "desired-stage-file")
-    stage = path.read_text(encoding="utf-8").strip()
-    need(stage in {"disabled", "foundation_metadata", "foundation", "registry",
-                   "maintenance_operator", "maintenance_upgrade", "runtime_private", "runtime_public"},
-         "desired-stage-value")
-    return stage
+# 手動Terraform（terraform.yml）が呼ぶ唯一のMyPage操作。環境ごとの宣言を常にそのままPlan/Applyする。
+MODES = ("desired-plan", "desired-apply")
 
 
-def stage_for_mode(mode):
-    from runtime_contract import MODES
-    if mode in {"desired-plan", "desired-apply"}:
-        return desired_stage()
-    if mode in MODES:
-        if TARGET == "production":
-            need(mode in {"maintenance-operator-plan", "maintenance-operator-apply",
-                          "maintenance-upgrade-plan", "maintenance-upgrade-apply"}, "production-maintenance-mode")
-        return MODES[mode]
-    if mode in {"registry-plan", "registry-apply"}:
-        return "registry"
-    need(TARGET == "development", "production-maintenance-mode")
-    need(mode in {"foundation-plan", "foundation-apply", "foundation-metadata-plan", "foundation-metadata-apply"})
-    return "foundation_metadata" if mode.startswith("foundation-metadata-") else "foundation"
+def validate_mode(mode):
+    need(mode in MODES, "mypage-mode")
 
 
 def pr_context(env):
@@ -230,7 +214,6 @@ def pr_context(env):
     need(env.get("GITHUB_WORKFLOW_REF") == WORKFLOWS + "terraform.yml@" + env["GITHUB_REF"], "pr-plan-caller")
     sha = env.get("GITHUB_SHA", "")
     need(re.fullmatch(r"[a-f0-9]{40}", sha) and env.get("MYPAGE_EXPECTED_SHA") == sha, "pr-plan-sha")
-    stage_for_mode("desired-plan")
 
 
 def is_pr(env):
@@ -254,38 +237,34 @@ def context(env, kind, *, image=False):
     if image:
         need(kind == "apply" and env.get("MYPAGE_MODE") == "image-build")
     else:
-        stage_for_mode(env.get("MYPAGE_MODE"))
+        validate_mode(env.get("MYPAGE_MODE"))
         need(kind != "apply" or env["MYPAGE_MODE"].endswith("-apply"))
 
 
-def resource_contract(stage="foundation"):
-    need(stage in {"disabled", "foundation_metadata", "foundation", "registry"})
-    if stage == "disabled":
-        return {}
+def resource_contract():
+    """Terraform外の前提（Secret値・image）より前に必要で、常に宣言する基盤資源。"""
     resources = {"google_service_account.runtime": {"project": PROJECT, "account_id": "mypage-api"}}
     for name, secret_id in SECRET_IDS.items():
         resources["google_secret_manager_secret." + name] = {
             "project": PROJECT, "secret_id": secret_id, "deletion_protection": True,
             "replication": [{"auto": [{"customer_managed_encryption": []}], "user_managed": []}],
         }
-        resources["google_secret_manager_secret_iam_member." + name + "_runtime[0]"] = {
+        resources["google_secret_manager_secret_iam_member." + name + "_runtime"] = {
             "project": PROJECT, "secret_id": secret_id, "role": "roles/secretmanager.secretAccessor",
             "member": "serviceAccount:" + EMAIL,
         }
-    resources["google_service_account_iam_member.runtime_signer[0]"] = {
+    resources["google_service_account_iam_member.runtime_signer"] = {
         "service_account_id": "projects/" + PROJECT + "/serviceAccounts/" + EMAIL,
         "role": "roles/iam.serviceAccountTokenCreator", "member": "serviceAccount:" + EMAIL,
     }
-    if stage == "registry":
-        resources["google_artifact_registry_repository.mypage[0]"] = {
-            "project": PROJECT, "location": REGION, "repository_id": "mypage",
-            "description": "YouTube Study Space MyPage " + ENVIRONMENT + " images",
-            "format": "DOCKER", "mode": "STANDARD_REPOSITORY",
-            "cleanup_policy_dry_run": True, "docker_config": [{"immutable_tags": True}],
-            "remote_repository_config": [], "virtual_repository_config": [], "cleanup_policies": [],
-        }
-    return {"module.platform[0]." + key: value for key, value in resources.items()
-            if stage != "foundation_metadata" or "_iam_member." not in key}
+    resources["google_artifact_registry_repository.mypage"] = {
+        "project": PROJECT, "location": REGION, "repository_id": "mypage",
+        "description": "YouTube Study Space MyPage " + ENVIRONMENT + " images",
+        "format": "DOCKER", "mode": "STANDARD_REPOSITORY",
+        "cleanup_policy_dry_run": True, "docker_config": [{"immutable_tags": True}],
+        "remote_repository_config": [], "virtual_repository_config": [], "cleanup_policies": [],
+    }
+    return {MODULE + "." + key: value for key, value in resources.items()}
 
 
 def has_unknown(value):
@@ -336,16 +315,15 @@ def validate_refresh(plan, resources, state_only=None):
                  {k: v for k, v in observed.items() if k not in allowed}, "refresh-planned-state")
 
 
-def validate_plan(plan, stage="foundation"):
+def validate_plan(plan):
     need(plan.get("format_version") == "1.2", "plan-format")
     need(plan.get("complete") is True, "plan-complete")
     need(plan.get("errored") is False, "plan-errored")
-    validate_refresh(plan, resource_contract(stage))
+    validate_refresh(plan, resource_contract())
     need(not plan.get("deferred_changes"), "deferred-changes")
     need(not plan.get("action_invocations") and not plan.get("deferred_action_invocations"), "provider-actions")
     need(all(item.get("status") == "pass" for item in plan.get("checks", []) or []), "plan-checks")
-    need(plan.get("variables", {}).get("stage", {}).get("value") == stage, "plan-stage")
-    contract, seen = resource_contract(stage), set()
+    contract, seen = resource_contract(), set()
     for item in plan.get("resource_changes", []):
         address = item.get("address")
         need(address in contract and address not in seen and item.get("mode") == "managed", "resource-address-mode")
@@ -363,7 +341,7 @@ def validate_plan(plan, stage="foundation"):
                 need(not replication[0].get("user_managed") and len(replication[0].get("auto", [])) == 1, "secret-auto-replication")
                 need(not replication[0]["auto"][0].get("customer_managed_encryption"), "secret-encryption")
             elif key == "secret_id" and address in {
-                "module.platform[0].google_secret_manager_secret_iam_member." + name + "_runtime[0]"
+                MODULE + ".google_secret_manager_secret_iam_member." + name + "_runtime"
                 for name in SECRET_IDS
             }:
                 # Google 8.5.0では、作成・再取得後のIAM資源のSecret識別子を完全リソース名で保存する。

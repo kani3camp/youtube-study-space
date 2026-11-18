@@ -224,7 +224,7 @@ def conditional_update(token, before, target):
     return read_metrics_v1.conditional_update(token, before, target)
 
 
-def validate_refresh(refresh, plan, stage):
+def validate_refresh(refresh, plan):
     """観測済み計測遷移と出力メタデータだけをStateに取り込める。"""
     c.need(refresh.get("format_version") == plan["format_version"] and refresh.get("complete") is True and
            refresh.get("errored") is False, "metrics-refresh-envelope")
@@ -234,7 +234,7 @@ def validate_refresh(refresh, plan, stage):
     seen = set()
     for item in refresh.get("resource_changes", []):
         change = item.get("change", {})
-        c.need(item.get("address") in r.resource_contract(stage) and item["address"] not in seen and
+        c.need(item.get("address") in r.plan_resources(plan) and item["address"] not in seen and
                change.get("actions") == ["no-op"] and not change.get("importing") and
                not change.get("replace_paths") and not c.has_unknown(change.get("after_unknown")),
                "metrics-refresh-no-remote-write")
@@ -263,26 +263,27 @@ def validate_refresh(refresh, plan, stage):
     prior = refresh.get("prior_state", {}).get("values")
     c.need(type(prior) is dict, "metrics-refresh-prior-state")
     state = {"values": prior}
-    m.validate_readback(state, plan, stage)
+    m.validate_readback(state, plan)
     c.need(change.get("after") == state_service(state), "metrics-refresh-result")
     return state
 
 
-def verify_state_live(env, state, plan, stage):
+def verify_state_live(env, state, plan):
     """Stateは必要だが、管理元APIのGETを代替しない。"""
-    m.validate_readback(state, plan, stage)
+    m.validate_readback(state, plan)
     match_state(request(env.get("MYPAGE_GCP_ACCESS_TOKEN"), SERVICE_URL), state_service(state))
 
 
-def apply_saved(env, root, plan, stage):
+def apply_saved(env, root, plan):
     """foundation_opsが保存Planの受領情報と経過時間を検証した後だけ呼ぶ。"""
     import foundation_ops as ops
 
     c.context(env, "apply")
     c.need(env.get("MYPAGE_ROLE") == "apply", "metrics-live-role")
-    value = r.settings(plan.get("variables", {}).get("runtime_settings", {}).get("value"))
-    m.validate_plan(plan, stage, value)
-    recovered = m.recovery_transition(plan, stage, value)
+    value, public = r.declared(plan)
+    c.need(value is not None, "metrics-live-settings")
+    m.validate_plan(plan, value)
+    recovered = m.recovery_transition(plan, value)
     baseline = json.loads((root / "metrics-state-version.json").read_text())
     c.need(type(baseline) is dict and baseline == ops.state_version(env), "metrics-live-state-version")
     before = request(env.get("MYPAGE_GCP_ACCESS_TOKEN"), SERVICE_URL)
@@ -299,17 +300,18 @@ def apply_saved(env, root, plan, stage):
     work = root / "source/environments/dev"
     refresh_file = root / "metrics-refresh.tfplan"
     ops.run(["terraform", "plan", "-refresh-only", "-input=false", "-no-color", "-lock-timeout=60s",
-             "-var=stage=" + stage, "-var-file=" + str(root / "runtime-settings.json"),
+             "-var-file=" + str(root / "runtime-settings.json"),
+             *(["-var-file=" + str(root / ops.PUBLIC_INVOKER_FILE)] if public else []),
              "-out=" + str(refresh_file)], cwd=work, check="terraform-plan")
     digest = hashlib.sha256(refresh_file.read_bytes()).hexdigest()
     refresh = json.loads(ops.run(["terraform", "show", "-json", str(refresh_file)], cwd=work, check="metrics-refresh-show"))
-    state = validate_refresh(refresh, transition, stage)
+    state = validate_refresh(refresh, transition)
     match_state(live, state_service(state))
-    verify_state_live(env, state, transition, stage)
+    verify_state_live(env, state, transition)
     c.need(ops.state_version(env) == baseline, "metrics-live-state-version")
     # 独立して検証したrefresh-onlyファイルのバイト列ハッシュを保持する。
     c.need(hashlib.sha256(refresh_file.read_bytes()).hexdigest() == digest, "metrics-refresh-receipt")
     ops.run(["terraform", "apply", "-input=false", "-no-color", str(refresh_file)], cwd=work, check="metrics-refresh-apply")
     state = json.loads(ops.run(["terraform", "show", "-json"], cwd=work, check="metrics-final-state-show"))
-    verify_state_live(env, state, transition, stage)
+    verify_state_live(env, state, transition)
     return "state-recovery" if recovered is not None else "updated"

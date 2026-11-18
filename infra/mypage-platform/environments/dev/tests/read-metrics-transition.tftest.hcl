@@ -22,7 +22,6 @@ mock_provider "google" {
 }
 
 variables {
-  stage = "runtime_private"
   runtime_settings = merge(jsondecode(file("tests/runtime-settings.fixture.json")), {
     read_metrics_enabled       = false
     read_metrics_from_revision = ""
@@ -42,7 +41,7 @@ run "enable_metrics_only" {
     })
   }
   assert {
-    condition     = length(module.platform[0].read_metrics_env_values) == 1 && module.platform[0].read_metrics_env_values[0] == "true"
+    condition     = length(module.platform.read_metrics_env_values) == 1 && module.platform.read_metrics_env_values[0] == "true"
     error_message = "An explicit DEV enable must emit one metrics environment entry."
   }
 }
@@ -66,7 +65,7 @@ run "disable_metrics_only" {
     })
   }
   assert {
-    condition     = length(module.platform[0].read_metrics_env_values) == 0
+    condition     = length(module.platform.read_metrics_env_values) == 0
     error_message = "An explicit DEV disable must remove the metrics environment entry."
   }
 }

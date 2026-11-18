@@ -19,33 +19,33 @@ from test_runtime import fixture as runtime_fixture
 import deletion_approval as approval
 
 
-ADDRESS = "module.platform[0].google_service_account_iam_member.retired[0]"
+ADDRESS = "module.platform.google_service_account_iam_member.retired[0]"
 PROVIDER = "registry.terraform.io/hashicorp/google"
 PRIVATE = "secret_value_not_for_logs"
 NAME = "mypage-dev-delete-approval"
 
 
-def deletion_plan(stage="foundation"):
-    plan = plan_fixture() if stage == "foundation" else runtime_fixture(stage)
+def deletion_plan(runtime=False):
+    plan = runtime_fixture(public=True) if runtime else plan_fixture()
     values = {"id": PRIVATE}
     item = {"address": ADDRESS, "mode": "managed", "provider_name": PROVIDER}
     plan["resource_changes"].append(item | {"change": {"actions": ["delete"], "before": values, "after": None}})
     plan["prior_state"] = {"values": {"root_module": {"child_modules": [
-        {"address": "module.platform[0]", "resources": [item | {"values": deepcopy(values)}]},
+        {"address": "module.platform", "resources": [item | {"values": deepcopy(values)}]},
     ]}}}
     return plan
 
 
 class DeletionPlanTest(unittest.TestCase):
     def test_a_retired_state_owned_address_can_be_planned_without_exposing_values(self):
-        for stage in ("foundation", "runtime_public"):
-            plan = deletion_plan(stage)
-            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as directory:
-                _, deletions = ops.validate_plan(plan, stage)
+        for runtime in (False, True):
+            plan = deletion_plan(runtime)
+            with self.subTest(runtime=runtime), tempfile.TemporaryDirectory() as directory:
+                _, deletions = ops.validate_plan(plan)
                 self.assertEqual(deletions, (ADDRESS,))
                 self.assertEqual(plan["resource_changes"][-1]["change"]["actions"], ["delete"])
                 summary = Path(directory) / "summary"
-                ops.publish_plan_summary({"GITHUB_STEP_SUMMARY": str(summary)}, plan, stage, deletions)
+                ops.publish_plan_summary({"GITHUB_STEP_SUMMARY": str(summary)}, plan, deletions)
                 output = summary.read_text()
                 self.assertIn("Standalone deletes: **1**", output)
                 self.assertIn(ADDRESS, output)
@@ -73,7 +73,7 @@ class DeletionPlanTest(unittest.TestCase):
             plan = deletion_plan()
             mutation(plan)
             with self.subTest(plan=plan["resource_changes"][-1]), self.assertRaises(c.ContractError):
-                ops.validate_plan(plan, "foundation")
+                ops.validate_plan(plan)
         for policy in ({"deletion_protection": True}, {"deletion_policy": "PREVENT"},
                        {"deletion_policy": "ABANDON"}):
             plan = deletion_plan()
@@ -81,7 +81,7 @@ class DeletionPlanTest(unittest.TestCase):
             before.update(policy)
             plan["prior_state"]["values"]["root_module"]["child_modules"][0]["resources"][0]["values"] = before
             with self.subTest(policy=policy), self.assertRaisesRegex(c.ContractError, "deletion-protected-resource"):
-                ops.validate_plan(plan, "foundation")
+                ops.validate_plan(plan)
 
     def test_opt_in_is_required_only_when_a_delete_would_be_applied(self):
         ops.require_deletion_opt_in({"MYPAGE_ROLE": "plan", "MYPAGE_OPERATION": "plan"}, (ADDRESS,))
@@ -101,7 +101,7 @@ class DeletionPlanTest(unittest.TestCase):
                 sha = "a" * 40
                 (root / "foundation.tfplan").write_bytes(saved)
                 (root / "prepared.json").write_text(json.dumps({"sha256": hashlib.sha256(saved).hexdigest(), "source": sha}))
-                env = {"MYPAGE_ROLE": "apply", "MYPAGE_MODE": "foundation-apply", "GITHUB_SHA": sha,
+                env = {"MYPAGE_ROLE": "apply", "MYPAGE_MODE": "desired-apply", "GITHUB_SHA": sha,
                        "MYPAGE_PLAN_TIME": str(time.time()), "MYPAGE_ALLOW_DELETIONS": opt_in,
                        "MYPAGE_DELETION_APPROVED": approved}
                 def run(args, **kwargs):
@@ -110,7 +110,7 @@ class DeletionPlanTest(unittest.TestCase):
                     if args[:2] == ["terraform", "apply"]:
                         return ""
                     return json.dumps({"values": {"root_module": {"resources": [
-                        {"address": address} for address in c.resource_contract("foundation")
+                        {"address": address} for address in c.resource_contract()
                     ]}}})
                 with patch.object(c, "context"), patch.object(ops, "directory", return_value=root), \
                      patch.object(ops, "state_version", return_value="new"), patch.object(ops, "run", side_effect=run) as native:

@@ -1,55 +1,31 @@
 # The deployment guard consumes this real native Plan JSON in credentialless CI.
+# There is no stage: the declared set follows only the inputs CI derives from
+# facts outside Terraform (runtime settings, and the owner's public binding).
 mock_provider "google" {}
 
-run "foundation_metadata_contract" {
+run "base_contract" {
   command = plan
-  variables {
-    stage = "foundation_metadata"
-  }
-}
-
-run "foundation_contract" {
-  command = plan
-  variables {
-    stage = "foundation"
-  }
-}
-
-run "registry_contract" {
-  command = plan
-  variables {
-    stage = "registry"
-  }
   assert {
-    condition     = !module.platform[0].runtime_enabled && !module.platform[0].public_invoker_enabled
-    error_message = "Registry provisioning cannot activate the API."
+    condition     = !module.platform.runtime_enabled && !module.platform.public_invoker_enabled
+    error_message = "Without runtime settings only the base resources may be declared."
   }
 }
 
-run "maintenance_operator_contract" {
+run "runtime_contract" {
   command = plan
   variables {
-    stage            = "maintenance_operator"
     runtime_settings = jsondecode(file("tests/runtime-settings.fixture.json"))
   }
   assert {
-    condition     = !module.platform[0].runtime_enabled && !module.platform[0].public_invoker_enabled && module.platform[0].maintenance_operator_enabled
-    error_message = "The maintenance bootstrap stage must provision only the operator boundary, never activate the API."
+    condition     = module.platform.runtime_enabled && !module.platform.public_invoker_enabled
+    error_message = "Runtime settings declare the runtime but never the owner-managed public invoker."
   }
 }
 
-run "runtime_private_contract" {
+run "public_invoker_contract" {
   command = plan
   variables {
-    stage            = "runtime_private"
     runtime_settings = jsondecode(file("tests/runtime-settings.fixture.json"))
-  }
-}
-
-run "runtime_public_contract" {
-  command = plan
-  variables {
-    stage            = "runtime_public"
-    runtime_settings = jsondecode(file("tests/runtime-settings.fixture.json"))
+    public_invoker   = true
   }
 }

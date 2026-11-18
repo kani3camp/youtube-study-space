@@ -19,7 +19,7 @@ YouTube Study SpaceのDevelopment／Productionで採用済みのGCP resourceをT
 Core GCP と MyPage は別々の Terraform State のまま同じ `Terraform` ワークフローで扱えます（`apply` 時は選択された Plan がすべて成功したあと `Core → MyPage` の順に実行。各 Apply ジョブで独立して再 Plan を行い、Plan ジョブと HMAC が一致した自身の保存済み Plan のみ適用します）。また、DEV の Core（`component=core`）のみ、`source_branch` / `source_sha`（40 桁）を指定して別ブランチ・コミットの HCL を Plan/Apply できます（MyPage と本番は実行元コミット固定）。
 
 - 事前の SHA 固定と隔離検査: Run 冒頭で [`terraform_source_pin.py`](../../.github/scripts/terraform_source_pin.py) により対象 SHA を 1 つ確定し、認証なしの Terraform 検査（`ci-gcp-terraform.yml`）を通過した後に同じ SHA で Plan/Apply します（検査中に対象ブランチが進んでも切り替わりません。Production Apply は `terraform-prod-apply` の承認が必須）。
-- MyPage の扱い: 通常経路は最終 `desired-stage`（現在 `runtime_public` 相当）のみを対象とし、内部 stage は露出させません（イメージビルド・リリース・メンテナンス ON/OFF は Terraform Apply とは別操作です）。
+- MyPage の扱い: DEV・本番とも環境の宣言をそのまま Plan / Apply し、段階の選択はありません（宣言範囲は [MyPage Platform Terraform](../mypage-platform/README.md#宣言範囲を決めるのは-terraform-外の事実だけ) を参照。イメージビルド・リリース・メンテナンス ON/OFF は Terraform Apply とは別操作です）。本番の MyPage Environment を用意するまでは、本番は `component=core` で実行します。
 
 ### PR Plan（助言用、Apply しない）
 

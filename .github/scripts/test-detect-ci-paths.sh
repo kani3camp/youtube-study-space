@@ -76,7 +76,7 @@ assert_exact_groups gcp_terraform infra/gcp/modules/monitor-auth/main.tf
 assert_exact_groups gcp_terraform infra/gcp/scripts/monitor_auth.py
 assert_exact_groups gcp_terraform infra/gcp/environments/prod/main.tf
 assert_exact_groups "gcp_terraform mypage" infra/mypage-platform/environments/dev/main.tf
-assert_exact_groups "gcp_terraform mypage" infra/mypage-platform/environments/dev/desired-stage.txt
+assert_exact_groups "gcp_terraform mypage" infra/mypage-platform/environments/prod/terraform.tfvars.example
 assert_exact_groups "gcp_terraform mypage" infra/mypage-platform/scripts/foundation_contract.py
 assert_exact_groups "gcp_terraform mypage" infra/mypage-oauth-ttl/environments/dev/main.tf
 assert_exact_groups "gcp_terraform mypage" infra/mypage-oauth-ttl/scripts/check-local.sh

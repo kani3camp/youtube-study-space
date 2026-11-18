@@ -146,15 +146,18 @@ class TerraformWorkflowTest(unittest.TestCase):
         self.assertIn("(inputs.environment == 'development' && 'mypage-dev-cloud-run' || 'mypage-prod-cloud-run')",
                       self.workflow['concurrency']['group'])
 
-    def test_selection_rejects_unknown_values_and_disabled_mypage(self):
+    def test_selection_rejects_unknown_values_and_mypage_outside_its_pinned_ref(self):
         valid = {'ENVIRONMENT': 'development', 'OPERATION': 'plan', 'COMPONENT': 'all'}
         self.assertEqual(self.run_step('select', **valid), 0)
         for change in ({'ENVIRONMENT': 'staging'}, {'OPERATION': 'destroy'}, {'COMPONENT': 'both'}):
             with self.subTest(change=change):
                 self.assertNotEqual(self.run_step('select', **(valid | change)), 0)
-        # Production MyPage is disabled by its reviewed desired stage.
+        # There is no stage: Production MyPage runs from main, its pinned ref, and from nowhere else.
+        production = valid | {'ENVIRONMENT': 'production', 'COMPONENT': 'mypage'}
+        self.assertEqual(self.run_step('select', **(production | {'GITHUB_REF': 'refs/heads/main'})), 0)
+        self.assertNotEqual(self.run_step('select', **production), 0)
+        self.assertNotEqual(self.run_step('select', **(production | {'GITHUB_REF': 'refs/heads/dev'})), 0)
         self.assertEqual(self.run_step('select', **(valid | {'ENVIRONMENT': 'production'})), 0)
-        self.assertNotEqual(self.run_step('select', **(valid | {'ENVIRONMENT': 'production', 'COMPONENT': 'mypage'})), 0)
         # Only DEV Core may select another source branch/SHA.
         for source in ({'SOURCE_BRANCH': 'feature/x'}, {'SOURCE_SHA': 'b' * 40}):
             self.assertEqual(self.run_step('select', **(valid | {'COMPONENT': 'core'} | source)), 0)
@@ -175,15 +178,14 @@ class TerraformWorkflowTest(unittest.TestCase):
 
     def test_mypage_runs_only_from_the_ref_its_cloud_trust_pins(self):
         pinned = 'refs/heads/integration/mypage-canon-20261006'
-        stage = (ROOT / 'infra/mypage-platform/environments/dev/desired-stage.txt').read_text().strip()
-        self.assertNotEqual(stage, 'disabled')
+        self.assertFalse((ROOT / 'infra/mypage-platform/environments/dev/desired-stage.txt').exists())
         base = {'ENVIRONMENT': 'development', 'OPERATION': 'plan'}
         code, outputs, _ = self.select_outputs(**base, COMPONENT='all', GITHUB_REF=pinned)
-        self.assertEqual((code, outputs.get('mypage_stage')), (0, stage))
+        self.assertEqual((code, outputs.get('mypage')), (0, 'true'))
         # From another ref (for example dev before the trust moves) Core still runs and MyPage is skipped.
         for ref in ('refs/heads/dev', 'refs/heads/feature/x', ''):
             code, outputs, log = self.select_outputs(**base, COMPONENT='all', GITHUB_REF=ref)
-            self.assertEqual((code, outputs.get('mypage_stage')), (0, 'disabled'), ref)
+            self.assertEqual((code, outputs.get('mypage')), (0, 'false'), ref)
             self.assertIn('MyPage is skipped', log)
             code, _, log = self.select_outputs(**base, COMPONENT='mypage', GITHUB_REF=ref)
             self.assertNotEqual(code, 0)
@@ -266,7 +268,7 @@ class TerraformWorkflowTest(unittest.TestCase):
         gate = self.jobs['gate']
         self.assertEqual(gate['if'], "${{ always() && github.event_name == 'workflow_dispatch' }}")
         self.assertEqual(set(gate['needs']), {name for name in self.jobs if name != 'gate' and not name.startswith('pr-')})
-        ok = {'SELECT_RESULT': 'success', 'VALIDATE_RESULT': 'success', 'MYPAGE_STAGE': 'runtime_public'}
+        ok = {'SELECT_RESULT': 'success', 'VALIDATE_RESULT': 'success', 'MYPAGE_SELECTED': 'true'}
         def results(core_plan, mypage_plan, core_apply, mypage_apply):
             return {'CORE_PLAN_RESULT': core_plan, 'MYPAGE_PLAN_RESULT': mypage_plan,
                     'CORE_APPLY_RESULT': core_apply, 'MYPAGE_APPLY_RESULT': mypage_apply}
@@ -277,7 +279,7 @@ class TerraformWorkflowTest(unittest.TestCase):
             ('apply', 'all', results('skipped', 'success', 'success', 'success'), ok),
             ('apply', 'core', results('skipped', 'skipped', 'success', 'skipped'), ok),
             ('apply', 'mypage', results('skipped', 'success', 'skipped', 'success'), ok),
-            ('apply', 'all', results('skipped', 'skipped', 'success', 'skipped'), ok | {'MYPAGE_STAGE': 'disabled'}),
+            ('apply', 'all', results('skipped', 'skipped', 'success', 'skipped'), ok | {'MYPAGE_SELECTED': 'false'}),
         )
         for operation, component, values, base in passing:
             with self.subTest(operation=operation, component=component, values=values):
