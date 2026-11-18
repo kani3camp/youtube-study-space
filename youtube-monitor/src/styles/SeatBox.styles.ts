@@ -19,9 +19,24 @@ export const seat = css`
     transform-origin: top left;
     box-sizing: border-box;
     overflow: hidden;
-    border: ${seatBorderWidthPx}px solid rgba(84, 75, 62, 0.12);
-    box-shadow: 0 0.2rem 0.55rem rgba(70, 58, 43, 0.08);
+    border: ${seatBorderWidthPx}px solid rgba(255, 255, 255, 0.66);
+    box-shadow:
+        0 0.2rem 0.55rem rgba(30, 38, 45, 0.2),
+        inset 0 0 0 ${seatBorderWidthPx}px rgba(39, 47, 54, 0.16);
     font-family: ${fontFamily};
+`
+
+export const seatSurface = css`
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+	background:
+		linear-gradient(rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.42)),
+		linear-gradient(135deg, var(--seat-surface-start), var(--seat-surface-end));
+	opacity: 0.6;
+	backdrop-filter: blur(1.5px) saturate(1.08);
+	-webkit-backdrop-filter: blur(1.5px) saturate(1.08);
 `
 
 export const accentBar = css`
@@ -34,6 +49,7 @@ export const accentBar = css`
 	width: 100%;
 	box-sizing: border-box;
 	pointer-events: none;
+	z-index: 2;
 `
 
 export const seatBody = css`
@@ -43,6 +59,10 @@ export const seatBody = css`
     flex-direction: column;
     min-height: 0;
     padding: 0.35em ${seatBodyHorizontalPaddingEm}em 0.34em;
+    z-index: 1;
+    text-shadow:
+        0 1px 1px rgba(255, 255, 255, 0.75),
+        0 0 2px rgba(255, 255, 255, 0.3);
 `
 
 export const headerRow = css`
