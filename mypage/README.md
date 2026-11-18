@@ -24,5 +24,6 @@ CI では `mypage/**` の変更に対して上記の検証を実行します。
 ## 依存関係とビルドのセキュリティ検査
 
 - Node.js / 脆弱性検査: Node はルートの `.node-version` / `.nvmrc` を使用します。CI では開発依存も含めて `pnpm audit --audit-level=high` を実行し、High / Critical を検出した場合は失敗させます（Go 側は `govulncheck -test ./...`）。
+  - 一時的な除外: `package.json` の `pnpm.auditConfig.ignoreGhsas` で [GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf)（picomatch 4.0.7 以下の ReDoS、修正版なし）だけを除外しています。picomatch は `vite` / `@tailwindcss/vite` 経由のビルド時依存で、リポジトリ内の固定パターンにだけ使われます。外部から glob パターンを受け取る経路はなく、配信物にも含まれません。修正版が出た時点か勧告が取り下げられた時点で、除外を外して依存を更新してください。除外を増やすときも、同じように理由と外す条件をここに書きます。
 - コンテナ検査: MyPage のビルドイメージは Trivy で OS とライブラリの High / Critical を検査します（修正版のない指摘も自動除外せず、検査失敗や脆弱性 DB 取得失敗を成功とみなしません）。
 - Dependabot の扱い: MyPage フロントエンド・Go・Docker の日次更新設定はリポジトリの既定ブランチへマージされてから有効になるため、統合ブランチ上の CI 成功だけで日次運用が始まっているとはみなさないでください（PR #1236 の完了時に更新先ブランチも見直します）。
