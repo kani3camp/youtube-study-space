@@ -21,7 +21,7 @@ def fixture(enabled=True, public=False):
     value = r.settings({
         "image_digest": r.REPOSITORY + "@sha256:" + "a" * 64,
         "project_number": c.PROJECT_NUMBER, "web_app_id": "1:" + c.PROJECT_NUMBER + ":web:synthetic",
-        "public_origin": r.ORIGIN, "privacy_version": "synthetic-p", "terms_version": "synthetic-t",
+        "public_origin": r.ORIGIN,
         "oauth_client_id_version": "1", "oauth_client_secret_version": "2", "youtube_api_key_version": "3",
         "read_metrics_enabled": enabled, "read_metrics_from_revision": "mypage-api-before",
     })

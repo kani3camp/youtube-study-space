@@ -47,7 +47,7 @@ Terraform が作れない前提（番号固定の Secret 値、環境別 Registr
 ### Secret と IAM の境界
 
 1. Terraform は `mypage-oauth-client-id` / `mypage-oauth-client-secret` / `mypage-youtube-api-key` の器のみを管理し、値や `google_secret_manager_secret_version` は作成しません。Secret 値は非公開手順で投入した番号固定バージョンを環境変数へ参照させます（`latest` 禁止）。
-2. サーバー環境変数には `GOOGLE_CLOUD_PROJECT` および `MYPAGE_ENVIRONMENT` / `REGION` / `PROJECT_NUMBER` / `WEB_APP_ID` / `PUBLIC_ORIGIN` / `SIGNER_EMAIL` / `PRIVACY_VERSION` / `TERMS_VERSION` を渡し、実 OAuth トークンや Firebase ID トークンは Terraform に流しません。
+2. サーバー環境変数には `GOOGLE_CLOUD_PROJECT` および `MYPAGE_ENVIRONMENT` / `REGION` / `PROJECT_NUMBER` / `WEB_APP_ID` / `PUBLIC_ORIGIN` / `SIGNER_EMAIL` を渡し、実 OAuth トークンや Firebase ID トークンは Terraform に流しません。同意版はソースの定数（[`policy.go`](../../system/core/mypage/policy.go)）で管理し、環境変数では渡しません。
 3. Signer 権限は専用 SA 自身の `roles/iam.serviceAccountTokenCreator`、Secret Accessor は各 secret、Firestore は `roles/datastore.user` をプロジェクト単位で付与します。現状 Firestore IAM はコレクション単位に絞れないため他データにも権限が及びます（D01 削除運用と合わせて実審査し、より限定的なカスタムロールの採否を評価します。運用 SA の他権限もオーナー確認まで勝手に付けません）。
 4. `INGRESS_TRAFFIC_ALL` は Hosting 転送用です。公開 Invoker はオーナーの付与を取り込むだけで、公開時もアプリ側の Auth / App Check / SAC / Origin 検証を維持し、直 URL・Host/callback・Cookie `__session` の実経路試験は別条件とします。また `MYPAGE_INFRASTRUCTURE_READY=true` は起動時の要求フラグであり、公開準備の完了証明ではありません。
 
@@ -87,7 +87,7 @@ bash infra/mypage-platform/scripts/check-local.sh
 
 1. 3 つの Secret（`mypage-oauth-client-id` / `mypage-oauth-client-secret` / `mypage-youtube-api-key`）に値を非公開手順で追加し、各版番号を控えます（値は Terraform・GitHub・ログに置きません）。
 2. 本番 Artifact Registry `mypage/mypage-api` に API の不変タグ（40 桁のソース SHA）付き image を push し、digest を控えます。
-3. `mypage-prod-plan` と `mypage-prod-apply` の両方に `MYPAGE_RUNTIME_SETTINGS_JSON`（`image_digest`・`image_source_sha`・`project_number`・`web_app_id`・`public_origin`・`privacy_version`・`terms_version`・3 つの Secret 版番号）を同じ内容で設定します。
+3. `mypage-prod-plan` と `mypage-prod-apply` の両方に `MYPAGE_RUNTIME_SETTINGS_JSON`（`image_digest`・`image_source_sha`・`project_number`・`web_app_id`・`public_origin`・3 つの Secret 版番号）を同じ内容で設定します（同意版は設定しません。旧 `privacy_version` / `terms_version` が残っていても読み込み時に除外され、それ以外の未知のキーは拒否されます）。
 
 ### 3. 2 回目の Apply（実行系）
 

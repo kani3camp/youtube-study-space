@@ -24,8 +24,6 @@ variable "runtime_settings" {
     project_number              = string
     web_app_id                  = string
     public_origin               = string
-    privacy_version             = string
-    terms_version               = string
     oauth_client_id_version     = string
     oauth_client_secret_version = string
     youtube_api_key_version     = string
@@ -53,8 +51,6 @@ variable "runtime_settings" {
       var.runtime_settings.project_number == "48101442817" &&
       can(regex("^1:48101442817:web:[A-Za-z0-9]+$", var.runtime_settings.web_app_id)) &&
       var.runtime_settings.public_origin == "https://test--study-space.web.app" &&
-      can(regex("^[A-Za-z0-9._-]{1,64}$", var.runtime_settings.privacy_version)) &&
-      can(regex("^[A-Za-z0-9._-]{1,64}$", var.runtime_settings.terms_version)) &&
       alltrue([
         for version in [
           var.runtime_settings.oauth_client_id_version,

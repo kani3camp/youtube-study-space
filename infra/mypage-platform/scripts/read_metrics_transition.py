@@ -12,13 +12,9 @@ import foundation_contract as c
 import runtime_contract as r
 
 METRICS_ENV = "MYPAGE_READ_METRICS"
-# 固定したCloud Runプロバイダーの出力専用属性。
+# 固定したCloud Runプロバイダーの出力専用属性（runtime_contractと共有）。
 # 設定内のunknownは隠さず、template・env・secrets・identity・trafficも対象にする。
-COMPUTED = frozenset({
-    "etag", "generation", "observed_generation", "update_time", "last_modifier",
-    "latest_created_revision", "latest_ready_revision", "terminal_condition",
-    "conditions", "traffic_statuses", "reconciling",
-})
+COMPUTED = r.SERVICE_COMPUTED
 
 
 def revision_name(value):

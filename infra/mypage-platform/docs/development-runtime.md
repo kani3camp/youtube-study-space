@@ -60,7 +60,7 @@ bash system/scripts/check-mypage-operator-image.sh mypage-maintenance-operator:c
 ### イメージと Runtime の実行順序
 
 - Registry 適用後に `image-build` で `linux/amd64` イメージをビルドし、40 桁 source SHA の不変タグとして push して `RepoDigest` と照合します（既存タグの上書きは拒否）。
-- 当時の Runtime 初回は旧 `runtime-private` 段階（11 資源：Registry 9 + Firestore 権限 + Cloud Run）から開始し、Hosting 接続時に旧 `runtime-public` 段階（12 資源：`allUsers` invoker 追加）へ進みました。現在は段階の選択が無く、`MYPAGE_RUNTIME_SETTINGS_JSON` の有無とオーナーの公開 Invoker の実在から宣言範囲が決まります（[README](../README.md#宣言範囲を決めるのは-terraform-外の事実だけ)。同 JSON は `runtime_settings` と同じキーを受け付け、旧 `history_coverage_json` は読み込み時に除外）。
+- 当時の Runtime 初回は旧 `runtime-private` 段階（11 資源：Registry 9 + Firestore 権限 + Cloud Run）から開始し、Hosting 接続時に旧 `runtime-public` 段階（12 資源：`allUsers` invoker 追加）へ進みました。現在は段階の選択が無く、`MYPAGE_RUNTIME_SETTINGS_JSON` の有無とオーナーの公開 Invoker の実在から宣言範囲が決まります（[README](../README.md#宣言範囲を決めるのは-terraform-外の事実だけ)。同 JSON は `runtime_settings` と同じキーを受け付け、旧 `history_coverage_json`・`privacy_version`・`terms_version` は読み込み時に除外）。
 - Cloud Run は Gen2、DEV `min=0 / max=1`、CPU 1 / 512Mi、request-based billing、startup boost なし、TCP startup probe、固定ランタイム SA を使用します（Invoker IAM check やアプリの Auth / App Check / Origin / SAC は維持し、前後 1 世代互換や rollback は [実経路 E2E](../../../docs/mypage/release/e2e.md) で別途確認します）。
 
 ### 専用 Registry の段階（履歴情報）
