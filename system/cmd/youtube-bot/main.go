@@ -10,9 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"cloud.google.com/go/firestore"
-	"google.golang.org/api/youtube/v3"
-
 	"app.modules/core/workspaceapp"
 
 	"github.com/kr/pretty"
@@ -104,7 +101,6 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	const MinimumTryTimesToNotify = 2
 	numContinuousRetrieveNextPageTokenFailed := 0
 	numContinuousListMessagesFailed := 0
-	var lastChatFetched time.Time
 	var waitAtLeastMilliSec1 float64
 	var waitAtLeastMilliSec2 float64
 	var sleepInterval time.Duration
@@ -126,11 +122,9 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			lastCheckedDesiredMaxSeats = timeutil.JstNow()
 		}
 
-		result, err := pollLiveChatOnce(ctx, app, func(ctx context.Context, chatMessage *youtube.LiveChatMessage) {
-			processChatMessage(ctx, app, ngWordConfig, chatMessage)
-		})
-		switch {
-		case errors.Is(err, errReadNextPageToken):
+		// page token取得
+		pageToken, err := app.GetNextPageToken(ctx, nil)
+		if err != nil {
 			numContinuousRetrieveNextPageTokenFailed += 1
 			if numContinuousRetrieveNextPageTokenFailed >= MinimumTryTimesToNotify {
 				app.MessageToOwnerWithError(ctx, "（"+strconv.Itoa(numContinuousRetrieveNextPageTokenFailed)+"回目） failed to retrieve next page token", err)
@@ -138,8 +132,13 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			waitSeconds := CalculateRetryIntervalSec(RetryIntervalCalculationBase, numContinuousRetrieveNextPageTokenFailed)
 			time.Sleep(time.Duration(waitSeconds) * time.Second)
 			continue
-		case errors.Is(err, errListLiveChatMessages):
+		} else {
 			numContinuousRetrieveNextPageTokenFailed = 0
+		}
+
+		// fetch and process chat messages
+		lastChatFetched, pollingIntervalMillis, err := pollLiveChatPage(ctx, app, ngWordConfig, pageToken)
+		if err != nil {
 			numContinuousListMessagesFailed += 1
 			if numContinuousListMessagesFailed >= MinimumTryTimesToNotify {
 				app.MessageToOwnerWithError(ctx, "（"+strconv.Itoa(numContinuousListMessagesFailed)+
@@ -148,12 +147,11 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			waitSeconds := CalculateRetryIntervalSec(RetryIntervalCalculationBase, numContinuousListMessagesFailed)
 			time.Sleep(time.Duration(waitSeconds) * time.Second)
 			continue
+		} else {
+			numContinuousListMessagesFailed = 0
 		}
-		numContinuousRetrieveNextPageTokenFailed = 0
-		numContinuousListMessagesFailed = 0
-		lastChatFetched = result.fetchedAt
 
-		waitAtLeastMilliSec1 = math.Max(float64((time.Duration(result.pollingIntervalMillis)*time.Millisecond - timeutil.
+		waitAtLeastMilliSec1 = math.Max(float64((time.Duration(pollingIntervalMillis)*time.Millisecond - timeutil.
 			JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
 		waitAtLeastMilliSec2 = math.Max(float64((time.Duration(app.Configs.Constants.SleepIntervalMilli)*time.Millisecond - timeutil.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
 		sleepInterval = time.Duration(math.Max(waitAtLeastMilliSec1, waitAtLeastMilliSec2)) * time.Millisecond
@@ -162,88 +160,50 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	}
 }
 
-var (
-	errReadNextPageToken    = errors.New("read next page token")
-	errListLiveChatMessages = errors.New("list live chat messages")
-)
-
-// liveChatPoller はチャット取得1回分に必要な操作。テストでは取得位置の保存先を差し替える。
-type liveChatPoller interface {
-	GetNextPageToken(ctx context.Context, tx *firestore.Transaction) (string, error)
-	ListLiveChatMessages(ctx context.Context, pageToken string) ([]*youtube.LiveChatMessage, string, int, error)
-	SaveNextPageToken(ctx context.Context, nextPageToken string) error
-	MessageToOwnerWithError(ctx context.Context, message string, argErr error)
-}
-
-type liveChatPollResult struct {
-	fetchedAt             time.Time
-	pollingIntervalMillis int
-}
-
-// pollLiveChatOnce は保存済みの取得位置からチャットを1回取得する。
-// 取得に失敗したときは取得位置を更新せず、メッセージも処理しない。次回は同じ取得位置から再取得する。
-// 返すエラーは errReadNextPageToken か errListLiveChatMessages のどちらかを含む。
-func pollLiveChatOnce(
-	ctx context.Context,
-	poller liveChatPoller,
-	handleMessage func(context.Context, *youtube.LiveChatMessage),
-) (liveChatPollResult, error) {
-	pageToken, err := poller.GetNextPageToken(ctx, nil)
+// pollLiveChatPage は pageToken の位置からチャットを1ページ取得し、取得位置を保存してからメッセージを処理する。
+// 取得に失敗したときは取得位置を保存せず、メッセージも処理しない。呼び出し元は保存済みの同じ取得位置から再試行する。
+func pollLiveChatPage(ctx context.Context, app *workspaceapp.WorkspaceApp, ngWordConfig workspaceapp.NGWordConfig, pageToken string) (time.Time, int, error) {
+	chatMessages, nextPageToken, pollingIntervalMillis, err := app.ListLiveChatMessages(ctx, pageToken)
 	if err != nil {
-		return liveChatPollResult{}, fmt.Errorf("%w: %w", errReadNextPageToken, err)
+		return time.Time{}, 0, fmt.Errorf("fetch live chat page: %w", err)
 	}
+	lastChatFetched := timeutil.JstNow()
 
-	chatMessages, nextPageToken, pollingIntervalMillis, err := poller.ListLiveChatMessages(ctx, pageToken)
-	if err != nil {
-		return liveChatPollResult{}, fmt.Errorf("%w: %w", errListLiveChatMessages, err)
-	}
-	result := liveChatPollResult{
-		fetchedAt:             timeutil.JstNow(),
-		pollingIntervalMillis: pollingIntervalMillis,
-	}
-
-	if err := poller.SaveNextPageToken(ctx, nextPageToken); err != nil {
-		poller.MessageToOwnerWithError(ctx, "(1回目) failed to save next page token", err)
+	// save nextPageToken
+	if err := app.SaveNextPageToken(ctx, nextPageToken); err != nil {
+		app.MessageToOwnerWithError(ctx, "(1回目) failed to save next page token", err)
 		// 少し待ってから再試行
 		time.Sleep(3 * time.Second)
-		if err2 := poller.SaveNextPageToken(ctx, nextPageToken); err2 != nil {
-			poller.MessageToOwnerWithError(ctx, "(2回目) failed to save next page token", err2)
+		err2 := app.SaveNextPageToken(ctx, nextPageToken)
+		if err2 != nil {
+			app.MessageToOwnerWithError(ctx, "(2回目) failed to save next page token", err2)
 			// pass
 		}
 	}
 
+	// process the command (includes not command)
 	for _, chatMessage := range chatMessages {
-		handleMessage(ctx, chatMessage)
-	}
-	return result, nil
-}
+		if youtubebot.IsFanFundingEvent(chatMessage) {
+			app.MessageToOwner(ctx, fmt.Sprintf("Fan funding event:\n```%# v```", pretty.Formatter(chatMessage)))
+		}
 
-// processChatMessage はチャット1件を処理する（コマンド以外の投稿も含む）。
-func processChatMessage(
-	ctx context.Context,
-	app *workspaceapp.WorkspaceApp,
-	ngWordConfig workspaceapp.NGWordConfig,
-	chatMessage *youtube.LiveChatMessage,
-) {
-	if youtubebot.IsFanFundingEvent(chatMessage) {
-		app.MessageToOwner(ctx, fmt.Sprintf("Fan funding event:\n```%# v```", pretty.Formatter(chatMessage)))
-	}
+		// only if chatMessage has text message content
+		if !youtubebot.HasTextMessageByAuthor(chatMessage) {
+			continue
+		}
 
-	// only if chatMessage has text message content
-	if !youtubebot.HasTextMessageByAuthor(chatMessage) {
-		return
+		message := youtubebot.ExtractTextMessageByAuthor(chatMessage)
+		channelID := youtubebot.ExtractAuthorChannelID(chatMessage)
+		displayName := youtubebot.ExtractAuthorDisplayName(chatMessage)
+		profileImageURL := youtubebot.ExtractAuthorProfileImageURL(chatMessage)
+		isModerator := youtubebot.IsChatMessageByModerator(chatMessage)
+		isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
+		isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
+		if err := app.ProcessMessage(ctx, ngWordConfig, message, channelID, displayName, profileImageURL, isModerator, isOwner, isMember); err != nil {
+			app.MessageToOwnerWithError(ctx, "error in ProcessMessage()", err)
+		}
 	}
-
-	message := youtubebot.ExtractTextMessageByAuthor(chatMessage)
-	channelID := youtubebot.ExtractAuthorChannelID(chatMessage)
-	displayName := youtubebot.ExtractAuthorDisplayName(chatMessage)
-	profileImageURL := youtubebot.ExtractAuthorProfileImageURL(chatMessage)
-	isModerator := youtubebot.IsChatMessageByModerator(chatMessage)
-	isOwner := youtubebot.IsChatMessageByOwner(chatMessage)
-	isMember := isOwner || youtubebot.IsChatMessageByMember(chatMessage)
-	if err := app.ProcessMessage(ctx, ngWordConfig, message, channelID, displayName, profileImageURL, isModerator, isOwner, isMember); err != nil {
-		app.MessageToOwnerWithError(ctx, "error in ProcessMessage()", err)
-	}
+	return lastChatFetched, pollingIntervalMillis, nil
 }
 
 func loadNGWordConfig(
