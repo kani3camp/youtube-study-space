@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { POLICY_EFFECTIVE_DATE } from './public-policy-config'
 import {
 	checkReleaseConfig,
 	checkReleaseConfigJSON,
@@ -117,7 +118,9 @@ describe('offline public release configuration', () => {
 			input.hosting.environment = 'production'
 			input.hosting.region = 'asia-northeast2'
 		}
-		const production = checkReleaseConfigJSON(JSON.stringify(input))
+		const production = checkReleaseConfigJSON(JSON.stringify(input), {
+			policyEffectiveDate: '2026-11-20',
+		})
 		expect(production.configurationValid).toBe(true)
 		for (const result of [development, production]) {
 			expect(result.releaseReady).toBe(false)
@@ -183,7 +186,12 @@ describe('offline public release configuration', () => {
 		input.frontend.VITE_MYPAGE_GA4_ID = measurementID
 		input.backend = { ...input.deployment }
 		if (input.hosting) input.hosting.projectID = projectID
-		const result = checkReleaseConfig(input)
+		const result = checkReleaseConfig(
+			input,
+			projectID === 'youtube-study-space'
+				? { policyEffectiveDate: '2026-11-20' }
+				: undefined,
+		)
 		expect(result.configurationValid).toBe(true)
 		expect(result.releaseReady).toBe(false)
 	})
@@ -319,27 +327,31 @@ describe('offline public release configuration', () => {
 		delete input.hosting
 		delete input.frontend.VITE_MYPAGE_GA4_ID
 		delete input.frontend.VITE_MYPAGE_PUBLIC_ORIGIN
-		const missing = checkReleaseConfig(input)
+		const options =
+			environment === 'production'
+				? { policyEffectiveDate: '2026-11-20' }
+				: undefined
+		const missing = checkReleaseConfig(input, options)
 		diagnostic(missing, 'frontend.VITE_MYPAGE_GA4_ID', 'MISSING_FIELD')
 		diagnostic(missing, 'frontend.VITE_MYPAGE_PUBLIC_ORIGIN', 'MISSING_FIELD')
 		input.frontend.VITE_MYPAGE_PUBLIC_ORIGIN = input.deployment.publicOrigin
 		input.frontend.VITE_MYPAGE_GA4_ID = wrongID
 		diagnostic(
-			checkReleaseConfig(input),
+			checkReleaseConfig(input, options),
 			'frontend.VITE_MYPAGE_GA4_ID',
 			'MISMATCH',
 		)
 		input.frontend.VITE_MYPAGE_GA4_ID = 'invalid'
 		diagnostic(
-			checkReleaseConfig(input),
+			checkReleaseConfig(input, options),
 			'frontend.VITE_MYPAGE_GA4_ID',
 			'INVALID_FIELD',
 		)
 		input.frontend.VITE_MYPAGE_GA4_ID = measurementID
-		expect(checkReleaseConfig(input).configurationValid).toBe(true)
+		expect(checkReleaseConfig(input, options).configurationValid).toBe(true)
 		input.frontend.VITE_MYPAGE_PUBLIC_ORIGIN = 'https://other.invalid'
 		diagnostic(
-			checkReleaseConfig(input),
+			checkReleaseConfig(input, options),
 			'frontend.VITE_MYPAGE_PUBLIC_ORIGIN',
 			'MISMATCH',
 		)
@@ -460,6 +472,67 @@ describe('offline public release configuration', () => {
 			'INVALID_JSON',
 		)
 	})
+	it('allows unset policy effective date in development and rejects invalid dates', () => {
+		const input = fixture()
+		expect(
+			checkReleaseConfig(input, { policyEffectiveDate: undefined })
+				.configurationValid,
+		).toBe(true)
+		expect(
+			checkReleaseConfig(input, { policyEffectiveDate: '2026-11-20' })
+				.configurationValid,
+		).toBe(true)
+		for (const invalid of ['', '2026-02-30', '2026-02-29', 'TBD', 20261120]) {
+			const result = checkReleaseConfig(input, {
+				policyEffectiveDate: invalid,
+			})
+			diagnostic(result, 'policy.effectiveDate', 'INVALID_FIELD')
+		}
+	})
+	it.each([
+		['production environment', 'production', 'demo-synthetic-mypage'],
+		['production project ID', 'development', 'youtube-study-space'],
+	] as const)('requires a valid policy effective date for %s', (_label, environment, projectID) => {
+		const input = fixture()
+		input.deployment.environment = environment
+		input.deployment.projectID = projectID
+		input.frontend.VITE_FIREBASE_PROJECT_ID = projectID
+		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = `${projectID}.firebaseapp.com`
+		if (projectID === 'youtube-study-space')
+			input.frontend.VITE_MYPAGE_GA4_ID = 'G-ZJ1VPVT2L2'
+		input.backend = { ...input.deployment }
+		if (input.hosting) {
+			input.hosting.environment = environment
+			input.hosting.projectID = projectID
+			input.hosting.region =
+				environment === 'production' ? 'asia-northeast2' : 'asia-southeast2'
+		}
+		for (const missing of [undefined, '']) {
+			const result = checkReleaseConfig(input, {
+				policyEffectiveDate: missing,
+			})
+			diagnostic(result, 'policy.effectiveDate', 'MISSING_FIELD')
+			expect(
+				result.diagnostics.find((d) => d.field === 'policy.effectiveDate')
+					?.action,
+			).toContain('POLICY_EFFECTIVE_DATE')
+		}
+		for (const invalid of ['2026-02-30', '2026-02-29', 'TBD', 20261120, null]) {
+			const result = checkReleaseConfig(input, {
+				policyEffectiveDate: invalid,
+			})
+			diagnostic(result, 'policy.effectiveDate', 'INVALID_FIELD')
+		}
+		expect(
+			checkReleaseConfig(input, { policyEffectiveDate: '2026-11-20' })
+				.configurationValid,
+		).toBe(true)
+		expect(
+			checkReleaseConfigJSON(JSON.stringify(input), {
+				policyEffectiveDate: '2028-02-29',
+			}).configurationValid,
+		).toBe(true)
+	})
 })
 
 describe('explicit bounded configuration CLI', () => {
@@ -519,6 +592,26 @@ describe('explicit bounded configuration CLI', () => {
 			diagnostic(JSON.parse(result.stdout), 'input', 'INVALID_JSON')
 		} finally {
 			rmSync(directory, { recursive: true, force: true })
+		}
+	})
+	it('enforces POLICY_EFFECTIVE_DATE on production manifests via CLI', () => {
+		const input = fixture()
+		input.deployment.environment = 'production'
+		input.backend = { ...input.deployment }
+		if (input.hosting) {
+			input.hosting.environment = 'production'
+			input.hosting.region = 'asia-northeast2'
+		}
+		const result = cli(['--stdin'], JSON.stringify(input))
+		expect(result.stderr).toBe('')
+		const report: ReleaseConfigReport = JSON.parse(result.stdout)
+		expect(report.releaseReady).toBe(false)
+		if (POLICY_EFFECTIVE_DATE === undefined) {
+			expect(result.status).toBe(1)
+			diagnostic(report, 'policy.effectiveDate', 'MISSING_FIELD')
+		} else {
+			expect(result.status).toBe(0)
+			expect(report.configurationValid).toBe(true)
 		}
 	})
 })

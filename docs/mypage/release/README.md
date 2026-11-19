@@ -58,6 +58,7 @@ go run ./cmd/mypage-server --check-config
 
 - バックエンド検査は既存の安全なプロセス環境からサーバー専用シークレットを読みますが、コマンド引数・マニフェスト・Vite へは移さず、固定の `status` / `field` / `code` だけを出します。
 - 公開設定チェッカーは 64 KiB 以内の明示 JSON を読み、秘密値・デバッグ値・未知フィールドや、プロジェクト・アプリ・オリジンの不一致を拒否します（任意のバックエンド補助宣言は非秘密情報のみを持ち、Hosting 設定には既存検証処理を再利用）。
+- 本番向け設定（`deployment.environment: "production"` または `deployment.projectID: "youtube-study-space"`）の検査では、[`public-policy-config.ts`](../../../mypage/src/public-policy-config.ts) の `POLICY_EFFECTIVE_DATE` に実在する `YYYY-MM-DD` の日付が設定されていることを必須とし、未設定または不正値のときは `policy.effectiveDate` の診断で拒否します（開発向け設定では未設定を許容し、設定時は日付形式を検査します）。
 - マニフェストの最上位項目は `schemaVersion: 1`、`deployment`、`frontend` と任意の `backend`、`hosting` です。`deployment` / `backend` は `environment`、`projectID`、`projectNumber`、`webAppID`、`publicOrigin` の 5 項目を持ち、`frontend` は [例](public-config.example.json) と [公開スキーマ](../../../mypage/src/release-config.ts)、`hosting` は [HostingInputs](../../../mypage/src/hosting.ts) を参照します（任意入力の省略時は `not-supplied` として未検証のまま残ります）。同意版と公開文面の値はマニフェストに含めず、旧項目（`publicPolicy`、`privacyVersion` / `termsVersion`、`VITE_PRIVACY_POLICY_VERSION` / `VITE_TERMS_VERSION`）は未知フィールドとして拒否します。
 
 両検査とも外部登録・鍵の真正性・権限や利用枠・公開本文の承認は確認せず、`configurationValid=true` / `configuration=valid` でも基盤と実環境の E2E は未完了です（`MYPAGE_INFRASTRUCTURE_READY=true` も起動に必要な宣言であり、確認完了の証拠にはなりません）。
@@ -74,7 +75,7 @@ Hosting の画像接続先一覧（`img-src` 専用で `script` / `connect` / `f
 | server identity | `MYPAGE_ENVIRONMENT/REGION/PROJECT_NUMBER/WEB_APP_ID/SIGNER_EMAIL`, `GOOGLE_CLOUD_PROJECT` | `development`=`asia-southeast2`、`production`=`asia-northeast2`。signer は選択プロジェクトのもの |
 | server secret | `MYPAGE_OAUTH_CLIENT_ID/CLIENT_SECRET`, 任意 `MYPAGE_YOUTUBE_API_KEY` | 承認済みの秘密情報供給境界から渡し、repo・チャット・公開成果物・Vite に入れない |
 | GA4（リリース必須） | `VITE_MYPAGE_GA4_ID`, `VITE_MYPAGE_PUBLIC_ORIGIN` | 環境別の測定 ID と公開オリジン（送信には利用者の同意が必要） |
-| 公開案内 | [`public-policy-config.ts`](../../../mypage/src/public-policy-config.ts) の `OPERATOR_NAME`・`POLICY_EFFECTIVE_DATE` | 運営者の公開表記は `らいど開発`。施行日は両文書で共通とし、未設定の間は表示しない。管轄裁判所は特定せず、利用規約で法令の定めに従うと記載 |
+| 公開案内 | [`public-policy-config.ts`](../../../mypage/src/public-policy-config.ts) の `OPERATOR_NAME`・`POLICY_EFFECTIVE_DATE` | 運営者の公開表記は `らいど開発`。施行日は両文書で共通とし、未設定の間は表示しない（本番公開向けの設定事前検査では `YYYY-MM-DD` の有効な日付を必須化）。管轄裁判所は特定せず、利用規約で法令の定めに従うと記載 |
 | お問い合わせ先 | [`public-policy-config.ts`](../../../mypage/src/public-policy-config.ts) の `contactForms` | 一般・プライバシーのお問い合わせで共通フォームを使用。`VITE_FIREBASE_PROJECT_ID` が `test-youtube-study-space` または `youtube-study-space` の場合だけ環境別固定 URL を表示し、未知・未設定プロジェクトではお問い合わせボタンを表示しない |
 | ライブ・メンテナンス告知 | [`youtube-channel.ts`](../../../mypage/src/youtube-channel.ts)（キーは `VITE_FIREBASE_PROJECT_ID`） | DEV は `UChBj4xZePvWyGmTKct5FBcg`、PROD は `UCXuD2XmPTdpVy7zmwbFVZWg` の `/live`・`/posts` を使用（公開トップとマイページで共通）。未知・未設定プロジェクトでは両導線を非表示にしフォールバックせず、変更にはソースレビューと再ビルドを必須化 |
 | Bot 設定案 | `MYPAGE_PUBLIC_ENTRY_URL`（runtime 未接続） | 承認済み public 入口のみ（user 固有 query/token 不可）。0A/0B は未設定、Phase 1 承認後に設定 |

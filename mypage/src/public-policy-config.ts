@@ -7,8 +7,20 @@
 export const POLICY_VERSIONS = { privacy: 'v1', terms: 'v1' } as const
 
 // 両文書の施行日（YYYY-MM-DD）。初回本番公開日とし、公開直前に設定する。
-// 未設定の間は施行日を表示しない。
+// 未設定の間は施行日を表示しない。本番向け設定の事前検査では有効な日付の設定を必須とする。
 export const POLICY_EFFECTIVE_DATE: string | undefined = undefined
+
+export function isValidCalendarDate(value: unknown): value is string {
+	if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+		return false
+	const [year, month, day] = value.split('-').map(Number)
+	const date = new Date(Date.UTC(year, month - 1, day))
+	return (
+		date.getUTCFullYear() === year &&
+		date.getUTCMonth() === month - 1 &&
+		date.getUTCDate() === day
+	)
+}
 
 // 運営者の公開表記。
 export const OPERATOR_NAME = 'らいど開発'
