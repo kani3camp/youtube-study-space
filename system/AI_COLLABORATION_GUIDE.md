@@ -60,6 +60,6 @@ locale/metadata/generator を変更した場合は生成物の差分も確認し
 
 ## Go toolchain とベースイメージ
 
-Go の minor/major を上げる場合は、`system/go.mod` と `Dockerfile.lambda` / `Dockerfile.fargate` の Go builder tag を同一 minor に揃えます。
+Go のバージョン（minor/major を含む）を上げる場合は、`system/go.mod` と `Dockerfile.lambda` / `Dockerfile.fargate` / `Dockerfile.mypage-api` / `Dockerfile.mypage-maintenance-operator` の Go builder tag を揃えます。
 
 具体的な digest の取得方法、Dependabot PR の確認、dev/prod への適用順序を含む **base image 更新運用の詳細な正本は [`README.md`](./README.md) の「base image 更新運用」**です。このAIガイドでは詳細手順を重複させません。
