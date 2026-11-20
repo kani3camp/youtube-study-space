@@ -44,6 +44,30 @@ MAINTENANCE_IMAGE_ACT_AS = c.MODULE + ".google_service_account_iam_member.mainte
 OPERATOR_IMAGE_BINDING = c.MODULE + ".google_cloud_run_v2_job_iam_member.operator_image_release[0]"
 OPERATOR_IMAGE_ACT_AS = c.MODULE + ".google_service_account_iam_member.operator_image_release_act_as[0]"
 MAINTENANCE_FIXED_IAM_MEMBERS = {MAINTENANCE_FIRESTORE, MAINTENANCE_JOB_INVOKER, MAINTENANCE_JOB_READER, OPERATOR_IMAGE_BINDING, OPERATOR_IMAGE_ACT_AS}
+# Production deployer identities (DEV's equivalents are owner-created outside this State).
+RELEASE_COMPONENTS = ("backend", "operator", "hosting")
+RELEASE_SA = {name: c.MODULE + ".google_service_account." + name + "_deployer[0]" for name in RELEASE_COMPONENTS}
+RELEASE_POOL = {name: c.MODULE + ".google_iam_workload_identity_pool." + name + "_release[0]" for name in RELEASE_COMPONENTS}
+RELEASE_PROVIDER = {name: c.MODULE + ".google_iam_workload_identity_pool_provider." + name + "_release[0]" for name in RELEASE_COMPONENTS}
+RELEASE_FEDERATION = {name: c.MODULE + ".google_service_account_iam_member." + name + "_release_federation[0]" for name in RELEASE_COMPONENTS}
+BACKEND_RELEASE_ROLE = c.MODULE + ".google_project_iam_custom_role.backend_release[0]"
+BACKEND_RELEASE_ACT_AS = c.MODULE + ".google_service_account_iam_member.backend_release_act_as[0]"
+RELEASE_REGISTRY_READER = {name: c.MODULE + ".google_artifact_registry_repository_iam_member." + name + "_release_reader[0]"
+                           for name in ("backend", "operator")}
+RELEASE_PROJECT_ROLES = {
+    c.MODULE + ".google_project_iam_member.backend_release_hosting_viewer[0]": ("backend", "roles/firebasehosting.viewer"),
+    c.MODULE + ".google_project_iam_member.backend_release_quota[0]": ("backend", "roles/serviceusage.serviceUsageConsumer"),
+    c.MODULE + ".google_project_iam_member.operator_release_quota[0]": ("operator", "roles/serviceusage.serviceUsageConsumer"),
+    c.MODULE + ".google_project_iam_member.hosting_release_admin[0]": ("hosting", "roles/firebasehosting.admin"),
+    c.MODULE + ".google_project_iam_member.hosting_release_quota[0]": ("hosting", "roles/serviceusage.serviceUsageConsumer"),
+}
+RELEASE_TITLES = {"backend": "Backend", "operator": "Operator", "hosting": "Hosting"}
+RELEASE_SA_DESCRIPTIONS = {
+    "backend": "Keyless GitHub deployer that updates only the mypage-api Service image.",
+    "operator": "Keyless GitHub deployer that updates only the maintenance Job image.",
+    "hosting": "Keyless GitHub deployer that publishes only the MyPage Hosting site.",
+}
+REGISTRY_FULL_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/repositories/mypage"
 PUBLIC_INVOKER_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/services/mypage-api"
 PUBLIC_INVOKER_IMPORT_ID = PUBLIC_INVOKER_NAME + " roles/run.invoker allUsers"
 # After a read, the provider records Job IAM members with the full Job path, not the short name.
@@ -188,26 +212,24 @@ def maintenance_resource_contract(value=None):
                                  "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceExecutionRead",
                                  "member": "serviceAccount:" + invoker_email},
     }
-    # The backend image deployer is intentionally DEV-only until a separate
-    # Production release identity is approved. Never create a dangling prod
-    # principal or silently grant a future same-name service account access.
-    if c.TARGET == "development":
-        resources |= {
-            MAINTENANCE_IMAGE_ROLE: {"project": c.PROJECT, "role_id": "mypageMaintenanceImageRelease",
-                                     "title": "MyPage maintenance image release",
-                                     "description": "Allows the existing backend deployer to read and update only the maintenance Cloud Run Job.",
-                                     "stage": "GA", "deletion_policy": "PREVENT",
-                                     "permissions": ["run.jobs.get", "run.jobs.update"]},
-            # 契約が宣言するJob imageの更新者は専用Operator deployerだけ。旧Backend deployerの
-            # 2 bindingは初回Operator配備の確認後に削除し、DEVの読み戻しで完了を確認した。
-            # 契約は現在、削除を一切許可しない。
-            OPERATOR_IMAGE_BINDING: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator",
-                                     "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceImageRelease",
-                                     "member": "serviceAccount:" + OPERATOR_DEPLOYER},
-            OPERATOR_IMAGE_ACT_AS: {"service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + operator_email,
-                                    "role": "roles/iam.serviceAccountUser",
-                                    "member": "serviceAccount:" + OPERATOR_DEPLOYER},
-        }
+    # Job imageの更新者は両環境とも専用Operator deployerだけ（DEVのSAはオーナー作成、
+    # 本番のSAはrelease_resource_contractが宣言する）。契約は削除を一切許可しない。
+    # DEVの既存ロールは、作成時の説明文のまま更新しない。
+    resources |= {
+        MAINTENANCE_IMAGE_ROLE: {"project": c.PROJECT, "role_id": "mypageMaintenanceImageRelease",
+                                 "title": "MyPage maintenance image release",
+                                 "description": ("Allows the existing backend deployer to read and update only the maintenance Cloud Run Job."
+                                                 if c.TARGET == "development" else
+                                                 "Allows the Operator deployer to read and update only the maintenance Cloud Run Job."),
+                                 "stage": "GA", "deletion_policy": "PREVENT",
+                                 "permissions": ["run.jobs.get", "run.jobs.update"]},
+        OPERATOR_IMAGE_BINDING: {"project": c.PROJECT, "location": c.REGION, "name": "mypage-maintenance-operator",
+                                 "role": "projects/" + c.PROJECT + "/roles/mypageMaintenanceImageRelease",
+                                 "member": "serviceAccount:" + OPERATOR_DEPLOYER},
+        OPERATOR_IMAGE_ACT_AS: {"service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + operator_email,
+                                "role": "roles/iam.serviceAccountUser",
+                                "member": "serviceAccount:" + OPERATOR_DEPLOYER},
+    }
     if value is not None:
         resources[MAINTENANCE_PROVIDER] |= {
             "attribute_condition": maintenance_provider_condition(),
@@ -236,6 +258,74 @@ def maintenance_resource_contract(value=None):
     return resources
 
 
+def release_resource_contract():
+    """本番の配備用本人情報（Backend / Operator / Hosting）。DEVでは空。
+
+    Cloud Run Service上の配備者バインディング（Backend の mypageBackendRelease、
+    Hosting の roles/run.viewer）はCIにService IAMの変更権限を渡さないためオーナーが付与し、
+    この契約には含めない。
+    """
+    if c.TARGET != "production":
+        return {}
+    resources = {}
+    for name in RELEASE_COMPONENTS:
+        account = c.release_account(name)
+        title = RELEASE_TITLES[name]
+        resources[RELEASE_SA[name]] = {
+            "project": c.PROJECT, "account_id": c.RELEASES[name]["account_id"],
+            "display_name": "MyPage " + title + " release", "description": RELEASE_SA_DESCRIPTIONS[name],
+            "disabled": False, "deletion_policy": "PREVENT"}
+        resources[RELEASE_POOL[name]] = {
+            "project": c.PROJECT, "workload_identity_pool_id": c.RELEASES[name]["pool"],
+            "display_name": "MyPage " + title + " release",
+            "description": "Environment-scoped GitHub Actions trust for the MyPage " + title + " deploy.",
+            "disabled": False, "mode": "FEDERATION_ONLY", "deletion_policy": "PREVENT"}
+        resources[RELEASE_PROVIDER[name]] = {
+            "project": c.PROJECT, "workload_identity_pool_id": c.RELEASES[name]["pool"],
+            "workload_identity_pool_provider_id": c.RELEASE_PROVIDER,
+            "display_name": "MyPage " + title + " workflow",
+            "description": "GitHub OIDC provider restricted to the reviewed " + title + " deploy.",
+            "disabled": False, "deletion_policy": "PREVENT",
+            "attribute_condition": c.release_condition(name),
+            "attribute_mapping": {"google.subject": c.RELEASE_SUBJECT},
+            "oidc": [{"issuer_uri": "https://token.actions.githubusercontent.com", "allowed_audiences": []}]}
+        resources[RELEASE_FEDERATION[name]] = {
+            "service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + account,
+            "role": "roles/iam.workloadIdentityUser", "member": c.release_member(name)}
+    resources[BACKEND_RELEASE_ROLE] = {
+        "project": c.PROJECT, "role_id": "mypageBackendRelease", "title": "MyPage Backend release",
+        "description": "Allows the Backend deployer to read and update the mypage-api Service it is bound on.",
+        "stage": "GA", "deletion_policy": "PREVENT", "permissions": ["run.services.get", "run.services.update"]}
+    resources[BACKEND_RELEASE_ACT_AS] = {
+        "service_account_id": "projects/" + c.PROJECT + "/serviceAccounts/" + c.EMAIL,
+        "role": "roles/iam.serviceAccountUser", "member": "serviceAccount:" + c.release_account("backend")}
+    for name, address in RELEASE_REGISTRY_READER.items():
+        resources[address] = {"project": c.PROJECT, "location": c.REGION, "repository": "mypage",
+                              "role": "roles/artifactregistry.reader",
+                              "member": "serviceAccount:" + c.release_account(name)}
+    for address, (name, role) in RELEASE_PROJECT_ROLES.items():
+        resources[address] = {"project": c.PROJECT, "role": role, "member": "serviceAccount:" + c.release_account(name)}
+    return resources
+
+
+def validate_release_resource(address, after, unknown, actions):
+    """固定値の一致は呼び出し元が検査する。ここでは削除保護とunknownの扱いだけを確かめる。"""
+    if address in RELEASE_SA.values():
+        c.need(after.get("disabled") is False and after.get("deletion_policy") == "PREVENT",
+               "release-service-account-disabled")
+    elif address == BACKEND_RELEASE_ROLE:
+        c.need(after.get("deletion_policy") == "PREVENT" and
+               (after.get("deleted") is None if actions == ["create"] else after.get("deleted") in {None, False}),
+               "release-role-deleted")
+    elif address in RELEASE_PROVIDER.values():
+        oidc = one(after.get("oidc"), "release-provider-oidc")
+        empty_options(oidc, ("jwks_json",))
+        c.need(not c.has_unknown({k: unknown.get(k) for k in ("attribute_condition", "attribute_mapping", "oidc")}),
+               "release-provider-unknown")
+    else:
+        c.need(not c.has_unknown(unknown.get("condition")), "release-iam-unknown")
+
+
 def resource_contract(*, runtime=True, public=True, value=None):
     """宣言された構成の期待資源。runtime=Falseは基盤だけ、publicは公開invokerの取り込みを含む。"""
     c.need(runtime or not public, "runtime-public-without-service")
@@ -243,6 +333,7 @@ def resource_contract(*, runtime=True, public=True, value=None):
     if not runtime:
         return resources
     resources |= maintenance_resource_contract(value)
+    resources |= release_resource_contract()
     resources |= {
         FIRESTORE: {"project": c.PROJECT, "role": "roles/datastore.user", "member": "serviceAccount:" + c.EMAIL},
         SERVICE: {"project": c.PROJECT, "name": "mypage-api", "location": c.REGION,
@@ -711,11 +802,20 @@ def validate_initial_plan(plan):
                 valid = after.get(key) in {expected_value, PUBLIC_INVOKER_NAME}
             elif address in {MAINTENANCE_JOB_INVOKER, MAINTENANCE_JOB_READER, OPERATOR_IMAGE_BINDING} and key == "name":
                 valid = after.get(key) in {expected_value, MAINTENANCE_JOB_FULL_NAME}
+            elif address in RELEASE_REGISTRY_READER.values() and key == "repository":
+                # After a read, the provider records the repository with its full path.
+                valid = after.get(key) in {expected_value, REGISTRY_FULL_NAME}
+            elif address in RELEASE_PROVIDER.values() and key == "oidc":
+                oidc = one(after.get(key), "release-provider-oidc")
+                valid = (oidc.get("issuer_uri") == "https://token.actions.githubusercontent.com" and
+                         oidc.get("allowed_audiences") in (None, []))
             else:
                 valid = after.get(key) == expected_value
             c.need(valid and not c.has_unknown(unknown.get(key)), "runtime-resource-value-" + address + "-" + key)
         if address in maintenance_resource_contract():
             validate_maintenance_resource(address, after, unknown, value, change.get("actions"))
+        elif address in release_resource_contract():
+            validate_release_resource(address, after, unknown, change.get("actions"))
         elif address == SERVICE:
             if actions == ["no-op"]:
                 # ignore_changes makes the actual serving digest authoritative.

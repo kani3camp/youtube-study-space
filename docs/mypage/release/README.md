@@ -19,8 +19,8 @@
 | --- | --- |
 | 基盤・鍵を使わない認証・環境別 State | [MyPage 基盤](../../../infra/mypage-platform/README.md) |
 | OAuth トランザクションの TTL | [専用 Terraform](../../../infra/mypage-oauth-ttl/README.md)（アプリ側の 10 分失効と非同期 TTL 削除を区別） |
-| バックエンドイメージ更新 | [バックエンド CI](backend-ci.md)（PR 統合後検査 → image-build → digest 検証 → Cloud Run image 配備。Terraform は通常リリースで起動しません） |
-| フロントエンド | 本ページの「[DEV Hosting を CI で配備する](#dev-hosting-を-ci-で配備する)」と「[静的配信キャッシュの仕様](#静的配信キャッシュの仕様)」 |
+| バックエンドイメージ更新 | [バックエンド CI](backend-ci.md)（PR 統合後検査 → image-build → digest 検証 → Cloud Run image 配備。Terraform は通常リリースで起動しません。本番の差分は同文書の「本番の配備」） |
+| フロントエンド | 本ページの「[Hosting を CI で配備する](#hosting-を-ci-で配備する)」と「[静的配信キャッシュの仕様](#静的配信キャッシュの仕様)」 |
 | メタデータ保持・監視 | [削除処理と独立監視](metadata-monitoring.md)（ソース実装と実スケジューラー・出力先接続を区別） |
 | 横断削除 | [削除手順](../support-delete.md)・[調査対象](../support-delete-inventory.md)（CLI 実装やローカル検証だけでは実削除運用の受入完了とみなしません） |
 
@@ -131,11 +131,11 @@ Go 変更の必須検査は [AGENTS.md](../../../AGENTS.md) に従い生成後�
 
 ---
 
-## DEV Hosting を CI で配備する
+## Hosting を CI で配備する
 
 ビルド時に既存の React コンポーネントから規約本文を含む静的 HTML を生成します。Firebase Hosting は `/privacy` と `/terms` にその HTML を返すため、ログインや JavaScript の実行なしで本文を読めます（JavaScript が動くブラウザでは Cookie 設定や画面内遷移も引き続き利用可能）。Google OAuth 同意画面に登録済みの `/privacy_policy` は HTTP 302 で `/privacy` へ転送します（反映にはフロントエンド再デプロイが必要）。
 
-DEV ページの更新は基盤 Terraform Apply とは別に `Deploy MyPage Frontend`（[`deploy-mypage-frontend.yml`](../../../.github/workflows/deploy-mypage-frontend.yml)）を統合ブランチ `integration/mypage-canon-20261006` から手動実行します（実行 SHA は選択 ref の `github.sha` を使い手入力しない。PR 実行・`main`・他ブランチ・別所有者・再実行・SHA 不一致は拒否し、失敗時は同じ Run を再実行せず現在状態を確認して新しく実行）。
+ページの更新は基盤 Terraform Apply とは別に `Deploy MyPage Frontend`（[`deploy-mypage-frontend.yml`](../../../.github/workflows/deploy-mypage-frontend.yml)）を手動実行します。DEV は統合ブランチ `integration/mypage-canon-20261006` から `environment=development`、本番は `main` から `environment=production` で実行し、同じジョブとスクリプトを使います（実行 SHA は選択 ref の `github.sha` を使い手入力しない。PR 実行・環境と ref の組み合わせ違い・別所有者・再実行・SHA 不一致は拒否し、失敗時は同じ Run を再実行せず現在状態を確認して新しく実行）。以下は DEV の値で説明し、本番の差分は手順の後に示します。
 
 1. 同じ Run 内でまず MyPage の認証なし CI（`ci-frontend.yml` の `mypage`: audit・cost model・フォント整合性・check・test・build）を通し、続くクラウド認証情報なしの Build ジョブで固定依存検査・check・typecheck・テスト・DEV 公開設定検査・ビルドを実行します。
 2. 成果物を別 Apply ジョブへ渡し、ソース SHA・Run ID・30 分の期限・設定・全ファイルの SHA256 を再検証してから専用 WIF と短命トークンで認証します（SA 鍵や Firebase ログイントークンは不使用）。
@@ -144,7 +144,21 @@ DEV ページの更新は基盤 Terraform Apply とは別に `Deploy MyPage Fron
 
 - GitHub Environment の `mypage-dev-hosting` には公開項目だけの `MYPAGE_HOSTING_PUBLIC_CONFIG_JSON` と専用プロバイダー名 `MYPAGE_HOSTING_WIF_PROVIDER` を Variables に設定し、デプロイ時に DEV の測定 ID・公開オリジン・固定 CSP 許可先（`https://www.googletagmanager.com/gtag/js`、`https://www.google-analytics.com`、`https://region1.google-analytics.com`）を補います（変数に残る旧項目の `VITE_MYPAGE_ANALYTICS_READY` と同意版・`publicPolicy` は検査前に取り除くため、変数から段階的に削除できます）。有効化後は検証用ブラウザでアクセス解析を許可し Network と GA4 Realtime で受信を照合し、拒否へ戻して通信が止まることも確認します。
 - 権限は専用の `mypage-hosting` WIF pool/provider と `mypage-hosting-deploy` SA に分離します。Firebase Hosting にはカスタムロールがないため DEV プロジェクトに `roles/firebasehosting.admin` を付与しつつ、サイト 1 個への限定は固定 API/配備仕様と厳格な WIF 受入検査で担保します（加えて `mypage-api` 1 サービスの `roles/run.viewer` と DEV `roles/serviceusage.serviceUsageConsumer` だけを追加）。
-- Firebase のリリース切替 API には compare-and-swap がないため実行中は別経路の更新を避け、リリース記録は切替 API 呼び出し前に `unknown` で保存して応答確認後に `confirmed` へ更新します（成否にかかわらず CI 成果物で 14 日間保存、ビルド成果物は 1 日で期限切れ。失敗時は `previousVersion` / `previousRelease` と現在配信を照合して手動復旧判断）。本番経路は公開条件・独立 Environment/権限レビュー後に追加します。
+- Firebase のリリース切替 API には compare-and-swap がないため実行中は別経路の更新を避け、リリース記録は切替 API 呼び出し前に `unknown` で保存して応答確認後に `confirmed` へ更新します（成否にかかわらず CI 成果物で 14 日間保存、ビルド成果物は 1 日で期限切れ。失敗時は `previousVersion` / `previousRelease` と現在配信を照合して手動復旧判断）。
+- 一度も公開していないサイト（リリース 0 件）への初回公開に限り、比較する現在の設定が無いため設定の照合を省き、記録の `previousRelease` / `previousVersion` は `null` になります。
+
+### 本番 Hosting の差分
+
+| 項目 | DEV | 本番 |
+| --- | --- | --- |
+| Environment（build / apply とも） | `mypage-dev-hosting` | `mypage-prod-hosting`（`main` 限定・Required reviewers 必須。1 回の Run で build と apply の 2 回承認） |
+| 公開オリジン・測定 ID | `https://test--study-space.web.app`・`G-E31NHW939V` | `https://moku.work`・`G-ZJ1VPVT2L2` |
+| Hosting サイト ID・Cloud Run ホスト名 | ソースの固定値 | Environment 変数 `MYPAGE_HOSTING_SITE` / `MYPAGE_HOSTING_BACKEND_HOST`（サイトの `defaultUrl`、Service の `uri` と照合） |
+| 配備者 SA・WIF | オーナーが作成した `mypage-hosting-deploy` / `mypage-hosting` | MyPage Terraform が作成（`roles/firebasehosting.admin` と quota 用権限）。`mypage-api` への `roles/run.viewer` はオーナーが付与 |
+| 成果物名・concurrency group | `mypage-dev-hosting-*` | `mypage-prod-hosting-*` |
+
+- `MYPAGE_HOSTING_PUBLIC_CONFIG_JSON` は本番の公開項目（`deployment.environment: "production"` と本番の project・Web アプリ・オリジン）で用意し、配備時の検査は本番向けの条件（`POLICY_EFFECTIVE_DATE` 必須など）を適用します。
+- 本番の初回は、Terraform が bootstrap image で作成した API に対して Frontend を先に公開し、その後に Backend を配備します（[バックエンド CI](backend-ci.md#本番の配備)）。
 
 ### 作業集計 API の切り替え
 

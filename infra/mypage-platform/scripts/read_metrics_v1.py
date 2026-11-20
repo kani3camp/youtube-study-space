@@ -15,7 +15,7 @@ import foundation_contract as c
 import runtime_contract as r
 import read_metrics_transition as m
 
-URL = "https://asia-southeast2-run.googleapis.com/apis/serving.knative.dev/v1/namespaces/" + c.PROJECT + "/services/mypage-api"
+URL = "https://" + c.REGION + "-run.googleapis.com/apis/serving.knative.dev/v1/namespaces/" + c.PROJECT + "/services/mypage-api"
 OUTPUT_ANNOTATIONS = {"serving.knative.dev/lastModifier", "run.googleapis.com/operation-id"}
 
 

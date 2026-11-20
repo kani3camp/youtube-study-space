@@ -21,13 +21,17 @@ TARGETS = {
         "project": "test-youtube-study-space", "project_number": "48101442817",
         "region": "asia-southeast2", "ref": "refs/heads/integration/mypage-canon-20261006",
         "state": "dev", "environment": "development", "github_environment": "mypage-dev",
-        "origin": "https://test--study-space.web.app",
+        "origin": "https://test--study-space.web.app", "max_instances": 1, "ga4_id": "G-E31NHW939V",
+        "hosting_site": "test--study-space", "backend_host": "mypage-api-eu5mhkcewq-et.a.run.app",
     },
     "production": {
         "project": "youtube-study-space", "project_number": "906336399194",
         "region": "asia-northeast2", "ref": "refs/heads/main",
         "state": "prod", "environment": "production", "github_environment": "mypage-prod",
-        "origin": "https://moku.work",
+        "origin": "https://moku.work", "max_instances": 3, "ga4_id": "G-ZJ1VPVT2L2",
+        # サイトIDとCloud Runのホスト名は本番の資源を作るまで決まらない。配備ワークフローが
+        # GitHub Environmentの変数で受け取り、配備スクリプトが実資源の読み戻しと照合する。
+        "hosting_site": None, "backend_host": None,
     },
 }
 if TARGET not in TARGETS:
@@ -40,6 +44,8 @@ REF = CONFIG["ref"]
 ENVIRONMENT = CONFIG["environment"]
 GITHUB_ENVIRONMENT = CONFIG["github_environment"]
 ORIGIN = CONFIG["origin"]
+MAX_INSTANCES = CONFIG["max_instances"]
+GA4_ID = CONFIG["ga4_id"]
 REPOSITORY = "kani3camp/youtube-study-space"
 WORKFLOWS = REPOSITORY + "/.github/workflows/"
 
@@ -66,6 +72,66 @@ IMAGE_COMPONENTS = {
                              "check": "system/scripts/check-mypage-operator-image.sh",
                              "caller": workflow_ref("deploy-mypage-maintenance.yml")},
 }
+# アプリの配備単位。caller・reusable・SA・WIF pool の名前は DEV と本番で共通で、
+# GitHub Environment だけが環境ごとの接頭辞（mypage-dev / mypage-prod）を持つ。
+RELEASES = {
+    "backend": {"caller": workflow_ref("deploy-mypage-api.yml"),
+                "reusable": workflow_ref("mypage-backend-authenticated.yml"),
+                "account_id": "mypage-backend-deploy", "pool": "mypage-backend"},
+    "operator": {"caller": workflow_ref("deploy-mypage-maintenance.yml"),
+                 "reusable": workflow_ref("mypage-operator-authenticated.yml"),
+                 "account_id": "mypage-operator-deploy", "pool": "mypage-operator"},
+    "hosting": {"caller": workflow_ref("deploy-mypage-frontend.yml"),
+                "reusable": workflow_ref("mypage-hosting-authenticated.yml"),
+                "account_id": "mypage-hosting-deploy", "pool": "mypage-hosting"},
+}
+RELEASE_PROVIDER = "github-actions"
+# Google STS limits google.subject to 127 bytes, so the custom OIDC sub is not used.
+RELEASE_SUBJECT = 'assertion.repository_id+":"+assertion.environment+":"+assertion.actor_id'
+
+
+def release_environment(component):
+    need(component in RELEASES, "release-component")
+    return GITHUB_ENVIRONMENT + "-" + component
+
+
+def release_account(component):
+    need(component in RELEASES, "release-component")
+    return RELEASES[component]["account_id"] + "@" + PROJECT + ".iam.gserviceaccount.com"
+
+
+def release_provider(component):
+    need(component in RELEASES, "release-component")
+    return ("projects/" + PROJECT_NUMBER + "/locations/global/workloadIdentityPools/" +
+            RELEASES[component]["pool"] + "/providers/" + RELEASE_PROVIDER)
+
+
+def release_member(component):
+    """The only principal that may impersonate the deployer SA: its own Environment and the owner."""
+    need(component in RELEASES, "release-component")
+    return ("principal://iam.googleapis.com/projects/" + PROJECT_NUMBER + "/locations/global/workloadIdentityPools/" +
+            RELEASES[component]["pool"] + "/subject/340900071:" + release_environment(component) + ":54093651")
+
+
+def release_condition(component):
+    """Only the owner's first manual run of the component's Deploy workflow on the target ref.
+
+    Pushes, PRs, other refs, identities, retries and the other environment remain denied.
+    """
+    need(component in RELEASES, "release-component")
+    values = {"repository_id": "340900071", "repository_owner_id": "54093651",
+              "actor_id": "54093651", "actor": "kani3camp", "repository": REPOSITORY,
+              "ref": REF, "workflow_ref": RELEASES[component]["caller"],
+              "job_workflow_ref": RELEASES[component]["reusable"],
+              "event_name": "workflow_dispatch", "run_attempt": "1",
+              "environment": release_environment(component)}
+    values["sub"] = ":".join(key + ":" + values[key].replace(":", "%3A") for key in CLAIM_KEYS)
+    condition = ("(" + " && ".join("assertion." + key + " == " + json.dumps(value) for key, value in values.items()) +
+                 " && assertion.workflow_sha == assertion.job_workflow_sha)")
+    need(len(condition) <= CONDITION_LIMIT, "release-condition-length")
+    return condition
+
+
 # 環境ルートが呼ぶ唯一のmodule。count/for_eachを持たない。
 MODULE = "module.platform"
 STATE_KEY = "youtube-study-space/mypage-platform/" + CONFIG["state"] + "/terraform.tfstate"

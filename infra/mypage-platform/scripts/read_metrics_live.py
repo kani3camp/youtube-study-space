@@ -19,10 +19,10 @@ import foundation_contract as c
 import runtime_contract as r
 import read_metrics_transition as m
 
-SERVICE_NAME = "projects/" + c.PROJECT + "/locations/asia-southeast2/services/mypage-api"
+SERVICE_NAME = "projects/" + c.PROJECT + "/locations/" + c.REGION + "/services/mypage-api"
 SERVICE_URL = "https://run.googleapis.com/v2/" + SERVICE_NAME
 PATCH_URL = SERVICE_URL + "?updateMask=template.containers,template.revision&allowMissing=false"
-OPERATION = re.compile(r"projects/" + re.escape(c.PROJECT) + r"/locations/asia-southeast2/operations/[A-Za-z0-9_-]+")
+OPERATION = re.compile(r"projects/" + re.escape(c.PROJECT) + r"/locations/" + re.escape(c.REGION) + r"/operations/[A-Za-z0-9_-]+")
 # 出力専用メタデータだけを除去する。未知のAPI設定は無視せず、前後比較の対象に残す。
 API_OUTPUTS = frozenset({
     "@type", "uid", "generation", "observedGeneration", "createTime", "updateTime",

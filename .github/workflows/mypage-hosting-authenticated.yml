@@ -1,8 +1,11 @@
-name: MyPage DEV Hosting Release
+name: MyPage Hosting Release
 
 on:
   workflow_call:
     inputs:
+      environment:
+        required: true
+        type: string
       expected_sha:
         required: true
         type: string
@@ -10,20 +13,25 @@ on:
 permissions: {}
 
 concurrency:
-  group: mypage-dev-hosting
+  group: ${{ inputs.environment == 'production' && 'mypage-prod-hosting' || 'mypage-dev-hosting' }}
   cancel-in-progress: false
 
 env:
+  MYPAGE_TARGET: ${{ inputs.environment }}
   MYPAGE_HOSTING_EXPECTED_SHA: ${{ inputs.expected_sha }}
 
 jobs:
   build:
-    name: MyPage DEV Hosting Build
+    name: MyPage Hosting Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: mypage-dev-hosting
+    environment: ${{ inputs.environment == 'production' && 'mypage-prod-hosting' || 'mypage-dev-hosting' }}
     permissions:
       contents: read
+    env:
+      # Production only (DEV uses the fixed values in the source).
+      MYPAGE_HOSTING_SITE: ${{ vars.MYPAGE_HOSTING_SITE }}
+      MYPAGE_HOSTING_BACKEND_HOST: ${{ vars.MYPAGE_HOSTING_BACKEND_HOST }}
     outputs:
       digest: ${{ steps.package.outputs.digest }}
     steps:
@@ -50,7 +58,7 @@ jobs:
           pnpm check
           pnpm typecheck
           pnpm test
-      - name: Build and seal the DEV release package
+      - name: Build and seal the release package
         id: package
         env:
           MYPAGE_HOSTING_PUBLIC_CONFIG_JSON: ${{ vars.MYPAGE_HOSTING_PUBLIC_CONFIG_JSON }}
@@ -58,20 +66,24 @@ jobs:
       - name: Upload only validated public files and metadata
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: mypage-dev-hosting-package
+          name: ${{ inputs.environment == 'production' && 'mypage-prod-hosting-package' || 'mypage-dev-hosting-package' }}
           path: ${{ runner.temp }}/mypage-hosting-release
           if-no-files-found: error
           retention-days: 1
 
   apply:
-    name: MyPage DEV Hosting Apply
+    name: MyPage Hosting Apply
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: mypage-dev-hosting
+    environment: ${{ inputs.environment == 'production' && 'mypage-prod-hosting' || 'mypage-dev-hosting' }}
     permissions:
       contents: read
       id-token: write
+    env:
+      # Production only (DEV uses the fixed values in the source).
+      MYPAGE_HOSTING_SITE: ${{ vars.MYPAGE_HOSTING_SITE }}
+      MYPAGE_HOSTING_BACKEND_HOST: ${{ vars.MYPAGE_HOSTING_BACKEND_HOST }}
     steps:
       - name: Checkout exact source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -79,6 +91,7 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Admit the selected execution context before credentials
+        id: target
         run: python3 infra/mypage-platform/scripts/hosting_release.py context
       - name: Setup Node.js for pure configuration validation
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -87,20 +100,20 @@ jobs:
       - name: Download this run's build package
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          name: mypage-dev-hosting-package
+          name: ${{ inputs.environment == 'production' && 'mypage-prod-hosting-package' || 'mypage-dev-hosting-package' }}
           path: ${{ runner.temp }}/mypage-hosting-release
-      - name: Authenticate through dedicated DEV Hosting WIF
+      - name: Authenticate through dedicated Hosting WIF
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           workload_identity_provider: ${{ vars.MYPAGE_HOSTING_WIF_PROVIDER }}
-          service_account: mypage-hosting-deploy@test-youtube-study-space.iam.gserviceaccount.com
-          project_id: test-youtube-study-space
+          service_account: ${{ steps.target.outputs.service_account }}
+          project_id: ${{ steps.target.outputs.project }}
           create_credentials_file: false
           export_environment_variables: false
           token_format: access_token
           access_token_lifetime: 900s
-      - name: Publish DEV only and verify every public file and API boundary
+      - name: Publish the target site only and verify every public file and API boundary
         env:
           GITHUB_TOKEN: ${{ github.token }}
           MYPAGE_HOSTING_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
@@ -110,13 +123,13 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: mypage-dev-hosting-release-record
+          name: ${{ inputs.environment == 'production' && 'mypage-prod-hosting-release-record' || 'mypage-dev-hosting-release-record' }}
           path: ${{ runner.temp }}/mypage-hosting-release-record.json
           if-no-files-found: warn
           retention-days: 14
 
   browser:
-    name: MyPage DEV Hosting Browser Smoke
+    name: MyPage Hosting Browser Smoke
     needs: apply
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -132,5 +145,5 @@ jobs:
         run: |
           python3 -m pip install -r mypage/visual-requirements.txt
           python3 -m playwright install --with-deps chromium
-      - name: Verify the live DEV page and GA4 consent boundary
+      - name: Verify the live page and GA4 consent boundary
         run: python3 mypage/scripts/hosting-smoke.py

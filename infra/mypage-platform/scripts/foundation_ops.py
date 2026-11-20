@@ -247,7 +247,16 @@ def reject_unowned_resources(env, plan):
             "https://iam.googleapis.com/v1/projects/" + contract.PROJECT_NUMBER + "/locations/global/workloadIdentityPools/mypage-maintenance/providers/github",
         runtime_contract.MAINTENANCE_JOB:
             "https://run.googleapis.com/v2/projects/" + contract.PROJECT + "/locations/" + contract.REGION + "/jobs/mypage-maintenance-operator",
+        runtime_contract.BACKEND_RELEASE_ROLE:
+            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/roles/mypageBackendRelease",
     })
+    for name in runtime_contract.RELEASE_COMPONENTS:
+        pool = ("https://iam.googleapis.com/v1/projects/" + contract.PROJECT_NUMBER +
+                "/locations/global/workloadIdentityPools/" + contract.RELEASES[name]["pool"])
+        urls[runtime_contract.RELEASE_SA[name]] = (
+            "https://iam.googleapis.com/v1/projects/" + contract.PROJECT + "/serviceAccounts/" + contract.release_account(name))
+        urls[runtime_contract.RELEASE_POOL[name]] = pool
+        urls[runtime_contract.RELEASE_PROVIDER[name]] = pool + "/providers/" + contract.RELEASE_PROVIDER
     for item in plan["resource_changes"]:
         if item["address"] not in urls or item["change"]["actions"] != ["create"]:
             continue

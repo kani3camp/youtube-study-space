@@ -1,7 +1,7 @@
-"""MyPageのWebページ(静的ファイル)をDEVのFirebase Hostingへ公開し、公開後に読み直して確かめる。
+"""MyPageのWebページ(静的ファイル)を対象環境(MYPAGE_TARGET。既定はDEV)のFirebase Hostingへ公開し、公開後に読み直して確かめる。
 
 目的: 想定外のファイル(非公開ファイルやAPIを隠すもの)が公開される、設定が黙って変わる、公開が競合する、といった事故を防ぐ。
-使われる場面: MyPage DEV Hosting Release ワークフロー(.github/workflows/mypage-hosting-authenticated.yml)の context・build・deploy の各ステップ。CI Frontend の mypage-check でも、ビルド結果の一覧検査(inventory)だけが読み込まれる。
+使われる場面: MyPage Hosting Release ワークフロー(.github/workflows/mypage-hosting-authenticated.yml)の context・build・deploy の各ステップ。CI Frontend の mypage-check でも、ビルド結果の一覧検査(inventory)だけが読み込まれる。
 失敗したとき: Hosting配備が中断される。自動の再試行・巻き戻しはしない。CI Frontend では inventory の失敗でPRをマージできない。
 なくした場合: DEV Hosting配備ワークフローが動かなくなり、CI Frontend のビルド成果物の検査も失われる。
 
@@ -23,18 +23,27 @@ import urllib.error
 import urllib.request
 from urllib.parse import urljoin
 
+import foundation_contract as c
+
 ROOT = Path(__file__).resolve().parents[3]
-PROJECT = 'test-youtube-study-space'
-SITE = 'test--study-space'
-ORIGIN = 'https://' + SITE + '.web.app'
-REPOSITORY = 'kani3camp/youtube-study-space'
-REF = 'refs/heads/integration/mypage-canon-20261006'
-WORKFLOWS = REPOSITORY + '/.github/workflows/'
-CALLER = WORKFLOWS + 'deploy-mypage-frontend.yml@' + REF
+TARGET = c.TARGET
+ENVIRONMENT = c.ENVIRONMENT
+PROJECT = c.PROJECT
+# DEVはソースの固定値を使う。本番は資源作成後にしか決まらないため、配備ワークフローが
+# GitHub Environmentの変数で渡し、context()で形式を、配備時に実資源との一致を検査する。
+SITE = c.CONFIG['hosting_site'] or os.environ.get('MYPAGE_HOSTING_SITE', '')
+BACKEND_HOST = c.CONFIG['backend_host'] or os.environ.get('MYPAGE_HOSTING_BACKEND_HOST', '')
+SITE_PATTERN = re.compile(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?')
+BACKEND_HOST_PATTERN = re.compile(r'mypage-api-[a-z0-9]+-[a-z0-9]{2,4}\.a\.run\.app')
+ORIGIN = c.ORIGIN
+REPOSITORY = c.REPOSITORY
+REF = c.REF
+WORKFLOWS = c.WORKFLOWS
+CALLER = c.RELEASES['hosting']['caller']
 # Deploy workflows whose release scripts share this owner/ref/run admission.
-CALLERS = frozenset({CALLER, WORKFLOWS + 'deploy-mypage-api.yml@' + REF})
+CALLERS = frozenset({CALLER, c.RELEASES['backend']['caller']})
 API = 'https://firebasehosting.googleapis.com/v1beta1/'
-RUN = 'https://run.googleapis.com/v2/projects/' + PROJECT + '/locations/asia-southeast2/services/mypage-api'
+RUN = 'https://run.googleapis.com/v2/projects/' + PROJECT + '/locations/' + c.REGION + '/services/mypage-api'
 MAX_FILE = 4 * 1024 * 1024
 MAX_TOTAL = 20 * 1024 * 1024
 IMMUTABLE = 'public, max-age=31536000, immutable'
@@ -42,7 +51,7 @@ POLICY_PAGES = {'/privacy': 'privacy.html', '/terms': 'terms.html'}
 POLICY_REWRITES = [{'glob': route + '{,/}', 'path': '/' + filename}
                    for route, filename in POLICY_PAGES.items()]
 POLICY_REDIRECTS = [{'glob': '/privacy_policy{,/}', 'statusCode': 302, 'location': '/privacy'}]
-DEV_GA4_ID = 'G-E31NHW939V'
+GA4_ID = c.GA4_ID
 GA4_TAG = 'https://www.googletagmanager.com/gtag/js'
 GA4_COLLECTION = frozenset({
     'https://www.google-analytics.com', 'https://region1.google-analytics.com',
@@ -81,6 +90,22 @@ def context(env, *, caller=CALLER):
     need(re.fullmatch('[a-f0-9]{40}', env.get('GITHUB_SHA', '')), 'source-sha')
     need(env.get('MYPAGE_HOSTING_EXPECTED_SHA') == env['GITHUB_SHA'], 'expected-sha')
     need(re.fullmatch('[0-9]+', env.get('GITHUB_RUN_ID', '')), 'run-id')
+    need(SITE_PATTERN.fullmatch(SITE), 'hosting-site')
+    need(BACKEND_HOST_PATTERN.fullmatch(BACKEND_HOST), 'hosting-backend-host')
+
+
+def publish_target(env):
+    """Expose the source-defined auth target to the workflow; never derived from inputs."""
+    output = env.get('GITHUB_OUTPUT')
+    if output:
+        with open(output, 'a', encoding='utf-8') as stream:
+            stream.write('service_account=' + c.release_account('hosting') + '\n')
+            stream.write('project=' + PROJECT + '\n')
+
+
+def context_command(env):
+    context(env)
+    publish_target(env)
 
 
 def directory(env):
@@ -125,7 +150,7 @@ def translate(package):
     (package / 'paths.json').write_bytes(canonical(sorted(files)))
     command(['node', 'mypage/scripts/hosting-release-config.mjs',
              str(package / 'public-config.json'), str(package / 'paths.json'),
-             str(package / 'hosting.json')])
+             str(package / 'hosting.json'), TARGET])
     return json.loads((package / 'hosting.json').read_bytes())
 
 
@@ -140,11 +165,11 @@ def drop_retired_policy_settings(config):
         config.get('frontend', {}).pop(key, None)
 
 
-def configure_dev_analytics(config):
+def configure_analytics(config):
     frontend = config['frontend']
     # Accept the existing GitHub Environment manifest during migration.
     frontend.pop('VITE_MYPAGE_ANALYTICS_READY', None)
-    frontend.update(VITE_MYPAGE_GA4_ID=DEV_GA4_ID, VITE_MYPAGE_PUBLIC_ORIGIN=ORIGIN)
+    frontend.update(VITE_MYPAGE_GA4_ID=GA4_ID, VITE_MYPAGE_PUBLIC_ORIGIN=ORIGIN)
     inventory = config['hosting']['inventory']
     inventory['analyticsApproved'] = True
     for key, directive in (('script', 'script-src'), ('connect', 'connect-src'), ('image', 'img-src')):
@@ -160,14 +185,14 @@ def build(env):
     need(len(raw) <= 65536, 'public-config-size')
     config = json.loads(raw)
     drop_retired_policy_settings(config)
-    configure_dev_analytics(config)
+    configure_analytics(config)
     # 値をビルド環境変数に使う前に、標準の検証処理を実行する。
     (package / 'public-config.json').write_bytes(canonical(config))
-    # 候補への変換時に、DEVの識別情報とアクセス解析の設定も検証する。
+    # 候補への変換時に、対象環境の識別情報とアクセス解析の設定も検証する。
     (package / 'paths.json').write_bytes(canonical([]))
     command(['node', 'mypage/scripts/hosting-release-config.mjs',
              str(package / 'public-config.json'), str(package / 'paths.json'),
-             str(package / 'hosting.json')])
+             str(package / 'hosting.json'), TARGET])
     check_ga4_csp(json.loads((package / 'hosting.json').read_bytes()))
     build_env = {k: v for k, v in env.items() if not k.startswith('VITE_') and
                  k not in {'MYPAGE_HOSTING_PUBLIC_CONFIG_JSON', 'GITHUB_TOKEN',
@@ -186,7 +211,7 @@ def build(env):
     digest = sha(canonical(release))
     with open(env['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
         output.write('digest=' + digest + '\n')
-    print('DEV Hosting package prepared; no cloud credentials or deployment.')
+    print(ENVIRONMENT + ' Hosting package prepared; no cloud credentials or deployment.')
 
 
 def validate_package(package, env):
@@ -258,8 +283,13 @@ def cloud(url, token, *, method='GET', body=None):
 
 
 def current(token):
+    """Return the live release, or None for a site that has never been published."""
     listing = cloud(API + 'sites/' + SITE + '/releases?pageSize=1', token)
     releases = listing.get('releases', [])
+    need(type(releases) is list, 'current-release')
+    if not releases:
+        need(not listing.get('nextPageToken'), 'current-release')
+        return None
     need(len(releases) == 1 and releases[0].get('type') == 'DEPLOY', 'current-release')
     item = releases[0]
     need(re.fullmatch('sites/' + SITE + '/releases/[A-Za-z0-9_-]+', item.get('name', '')), 'release-name')
@@ -278,7 +308,7 @@ def backend(token):
          len(value.get('trafficStatuses', [])) == 1 and
          value['trafficStatuses'][0].get('percent') == 100 and
          value['trafficStatuses'][0].get('revision') == ready.rsplit('/', 1)[-1], 'backend-ready')
-    need(value.get('uri') == 'https://mypage-api-eu5mhkcewq-et.a.run.app', 'backend-uri')
+    need(value.get('uri') == 'https://' + BACKEND_HOST, 'backend-uri')
     return value
 
 
@@ -289,7 +319,7 @@ def verify_head(env):
 
 
 def stable_config(config):
-    # 不変アセットのキャッシュ規則と、DEV GA4の固定送信先だけを比較から除く。
+    # 不変アセットのキャッシュ規則と、GA4の固定送信先だけを比較から除く。
     need(set(config) in ({'headers', 'rewrites'}, {'headers', 'rewrites', 'redirects'}),
          'hosting-config-scope')
     headers = config['headers']
@@ -338,12 +368,13 @@ def deploy(env, *, request=cloud, transport=http):
     verify_head(env)
     token = env['MYPAGE_HOSTING_ACCESS_TOKEN']
     site = request(API + 'projects/' + PROJECT + '/sites/' + SITE, token)
-    need(site.get('defaultUrl') == ORIGIN and site.get('name', '').split('/')[1] in
+    need(site.get('defaultUrl') == 'https://' + SITE + '.web.app' and site.get('name', '').split('/')[1] in
          {PROJECT, config['deployment']['projectNumber']}, 'site-project')
     before = current(token)
-    version = request(API + before['version']['name'], token)
-    need(version.get('status') == 'FINALIZED' and
-         hosting_settings_match(version['config'], hosting), 'hosting-settings-changed')
+    if before is not None:
+        version = request(API + before['version']['name'], token)
+        need(version.get('status') == 'FINALIZED' and
+             hosting_settings_match(version['config'], hosting), 'hosting-settings-changed')
     api_before = backend(token)
     public_env = {x['name']: x.get('value') for x in api_before['template']['containers'][0]['env']
                   if x.get('name') == 'MYPAGE_PUBLIC_ORIGIN'}
@@ -372,13 +403,14 @@ def deploy(env, *, request=cloud, transport=http):
         need(200 <= status < 300, 'upload-status')
     finalized = request(API + name + '?updateMask=status', token, method='PATCH', body={'status': 'FINALIZED'})
     need(finalized.get('name') == name and finalized.get('status') == 'FINALIZED', 'finalize-readback')
-    need(current(token)['name'] == before['name'], 'hosting-moved')
+    need(current(token) == before, 'hosting-moved')
     need(backend(token) == api_before, 'backend-moved')
     verify_head(env)
-    record = {'schemaVersion': 1, 'environment': 'development', 'sourceSHA': env['GITHUB_SHA'],
+    record = {'schemaVersion': 1, 'environment': ENVIRONMENT, 'sourceSHA': env['GITHUB_SHA'],
               'workflowRun': 'https://github.com/' + REPOSITORY + '/actions/runs/' + env['GITHUB_RUN_ID'],
               'packageSHA256': env['MYPAGE_HOSTING_PACKAGE_DIGEST'], 'hostingRelease': None,
-              'hostingVersion': name, 'previousRelease': before['name'], 'previousVersion': before['version']['name'],
+              'hostingVersion': name, 'previousRelease': before and before['name'],
+              'previousVersion': before and before['version']['name'],
               'backendRevision': api_before['latestReadyRevision'].rsplit('/', 1)[-1],
               'analyticsEnabled': True, 'realGA4Verified': False,
               'publishStatus': 'unknown', 'publicReadback': 'pending'}
@@ -387,7 +419,7 @@ def deploy(env, *, request=cloud, transport=http):
     # unknownを維持し、この書き込みは再試行しない。
     record_path.write_bytes(canonical(record))
     published = request(API + 'sites/' + SITE + '/releases?versionName=' + name, token,
-                        method='POST', body={'message': 'CI DEV MyPage ' + env['GITHUB_SHA']})
+                        method='POST', body={'message': 'CI ' + ENVIRONMENT + ' MyPage ' + env['GITHUB_SHA']})
     need(published.get('version', {}).get('name') == name and published.get('type') == 'DEPLOY', 'release-response')
     record.update(hostingRelease=published.get('name'), publishStatus='confirmed')
     record_path.write_bytes(canonical(record))
@@ -395,7 +427,7 @@ def deploy(env, *, request=cloud, transport=http):
     verify_public(release, hosting)
     record['publicReadback'] = 'passed'
     record_path.write_bytes(canonical(record))
-    print('DEV Hosting release verified: ' + name + '; backend unchanged.')
+    print(ENVIRONMENT + ' Hosting release verified: ' + name + '; backend unchanged.')
 
 
 def verify_public(release, hosting):
@@ -428,10 +460,10 @@ def verify_public(release, hosting):
 def main():
     try:
         need(len(sys.argv) == 2 and sys.argv[1] in {'context', 'build', 'deploy'}, 'arguments')
-        {'context': context, 'build': build, 'deploy': deploy}[sys.argv[1]](dict(os.environ))
+        {'context': context_command, 'build': build, 'deploy': deploy}[sys.argv[1]](dict(os.environ))
     except Exception as error:
         label = str(error) if type(error) is ValueError and re.fullmatch('[a-z0-9-]+', str(error)) else 'execution'
-        print('::error::DEV Hosting stopped: ' + label + '. No automatic retry or rollback.', file=sys.stderr)
+        print('::error::' + ENVIRONMENT + ' Hosting stopped: ' + label + '. No automatic retry or rollback.', file=sys.stderr)
         return 1
     return 0
 

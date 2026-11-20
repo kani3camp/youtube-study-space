@@ -1,17 +1,48 @@
 name: Deploy MyPage Frontend
 
-# Builds this commit and publishes only the DEV Firebase Hosting site. It never
-# changes Cloud Run or Terraform. Production stays absent until the public
-# release gate (#1133) approves a separate identity.
+# Builds this commit and publishes only the selected environment's Firebase
+# Hosting site. It never changes Cloud Run or Terraform. DEV runs only from the
+# integration branch and Production only from main; the release script and the
+# per-environment WIF trust both enforce it.
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment (development runs from the integration branch, production from main)
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
 
 permissions:
   contents: read
 
 jobs:
+  select:
+    name: Validate Deploy Selection
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    env:
+      TARGET: ${{ inputs.environment }}
+    steps:
+      - name: Require the target's own branch
+        run: |
+          set -euo pipefail
+          case "${TARGET}:${GITHUB_REF}" in
+            development:refs/heads/integration/mypage-canon-20261006|production:refs/heads/main) ;;
+            *)
+              echo "::error::Each environment deploys only from its own branch."
+              exit 1
+              ;;
+          esac
+
   validate:
     name: Credentialless MyPage Validation
+    needs: select
     # The integration ruleset requires CI Gate on each PR but not on the exact
     # merged tree; re-run the deployed domain's checks for this commit.
     uses: ./.github/workflows/ci-frontend.yml
@@ -21,11 +52,12 @@ jobs:
       mypage: true
 
   hosting:
-    name: Deploy DEV Hosting
-    needs: validate
+    name: Deploy Hosting
+    needs: [select, validate]
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/mypage-hosting-authenticated.yml
     with:
+      environment: ${{ inputs.environment }}
       expected_sha: ${{ github.sha }}
