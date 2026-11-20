@@ -29,11 +29,22 @@ Options:
 
 Cleanup scope:
   1. Prune stale/prunable git worktree metadata (`git worktree prune`)
-  2. Remove clean, unlocked worktrees under `.worktrees/` whose checked-out branch
-     has upstream tracking status `[gone]`
+  2. Remove unlocked worktrees under `.worktrees/` whose checked-out branch has
+     upstream tracking status `[gone]`, only when
+       - the branch is integrated into a retained remote-tracking ref, and
+       - the worktree has no modified, untracked, or ignored files other than
+         regenerable ones (node_modules/, .next/, storybook-static/, ...)
   3. Delete local branches not checked out in any worktree whose upstream tracking
-     status is `[gone]` (never deletes `main`, `dev`, `integration/*`, or current HEAD)
-  4. (With `--include-artifacts`) Remove regenerable local build artifacts
+     status is `[gone]` and that are integrated into a retained remote-tracking ref
+     (never deletes `main`, `dev`, `integration/*`, or current HEAD)
+  4. (With `--include-artifacts`) Remove regenerable local build artifacts whose
+     real path is the expected path inside the main worktree
+
+Retained remote-tracking refs are `<remote>/main`, `<remote>/dev`, and
+`<remote>/integration/*`. A branch counts as integrated when its tip is an
+ancestor of one of them, or when merging it into one of them changes nothing
+(e.g. after a squash merge). Branches and worktrees that cannot be confirmed are
+listed as `[keep]` and left untouched.
 
 Tip: Run `git fetch --prune` beforehand to refresh `[gone]` upstream tracking status.
 EOF
@@ -97,6 +108,33 @@ array_contains() {
 	return 1
 }
 
+# Ignored files that are safe to delete together with a worktree because a
+# build or package install regenerates them. Anything else (e.g. `.env`,
+# `public/audio/*`) keeps the worktree.
+is_regenerable_ignored_path() {
+	local path="$1"
+	if [[ "$path" == */ ]]; then
+		path="${path%/}"
+		case "$path" in
+			docs-site/build)
+				return 0
+				;;
+		esac
+		case "${path##*/}" in
+			node_modules|.next|storybook-static|.docusaurus|.turbo|coverage|__pycache__|cdk.out)
+				return 0
+				;;
+		esac
+		return 1
+	fi
+	case "${path##*/}" in
+		.DS_Store|*.tsbuildinfo|next-env.d.ts)
+			return 0
+			;;
+	esac
+	return 1
+}
+
 CURRENT_TOPLEVEL_RAW="$(git rev-parse --show-toplevel)"
 CURRENT_TOPLEVEL_REAL="$(canonical_dir "$CURRENT_TOPLEVEL_RAW")"
 CURRENT_HEAD_BRANCH="$(git symbolic-ref --quiet --short HEAD || true)"
@@ -118,6 +156,62 @@ fi
 
 MAIN_ROOT_REAL="$(canonical_dir "$MAIN_ROOT_RAW")"
 WORKTREES_DIR_PREFIX="${MAIN_ROOT_REAL}/.worktrees/"
+
+# merge-tree writes tree objects. Keep them in a scratch object directory so
+# that dry-run leaves the repository's object store untouched.
+REPO_OBJECTS_DIR="$(git -C "$MAIN_ROOT_REAL" rev-parse --path-format=absolute --git-path objects)"
+SCRATCH_DIR="$(mktemp -d "${TMPDIR:-/tmp}/cleanup-local-git.XXXXXX")"
+trap 'rm -rf -- "$SCRATCH_DIR"' EXIT
+mkdir -p "${SCRATCH_DIR}/objects"
+
+RETAINED_REFS=()
+while IFS= read -r ref; do
+	remote_branch="${ref#refs/remotes/}"
+	remote_branch="${remote_branch#*/}"
+	case "$remote_branch" in
+		main|dev|integration/*)
+			RETAINED_REFS+=("$ref")
+			;;
+	esac
+done < <(git -C "$MAIN_ROOT_REAL" for-each-ref --format='%(refname)' refs/remotes)
+
+# Prints the retained ref that already contains the branch and returns 0.
+# Returns 1 when integration cannot be confirmed.
+find_integrating_ref() {
+	local branch="$1"
+	local tip ref merged_tree ref_tree
+
+	if ((${#RETAINED_REFS[@]} == 0)); then
+		return 1
+	fi
+	if ! tip="$(git -C "$MAIN_ROOT_REAL" rev-parse --verify --quiet "refs/heads/${branch}^{commit}")"; then
+		return 1
+	fi
+
+	for ref in "${RETAINED_REFS[@]}"; do
+		if git -C "$MAIN_ROOT_REAL" merge-base --is-ancestor "$tip" "$ref" 2>/dev/null; then
+			echo "${ref#refs/remotes/}"
+			return 0
+		fi
+	done
+
+	for ref in "${RETAINED_REFS[@]}"; do
+		if ! merged_tree="$(
+			GIT_OBJECT_DIRECTORY="${SCRATCH_DIR}/objects" \
+				GIT_ALTERNATE_OBJECT_DIRECTORIES="$REPO_OBJECTS_DIR" \
+				git -C "$MAIN_ROOT_REAL" merge-tree --write-tree --no-messages "$ref" "$tip" 2>/dev/null
+		)"; then
+			continue
+		fi
+		merged_tree="${merged_tree%%$'\n'*}"
+		ref_tree="$(git -C "$MAIN_ROOT_REAL" rev-parse "${ref}^{tree}")"
+		if [[ "$merged_tree" == "$ref_tree" ]]; then
+			echo "${ref#refs/remotes/} (content already merged)"
+			return 0
+		fi
+	done
+	return 1
+}
 
 if [[ "$APPLY" == true ]]; then
 	echo "Mode: APPLY (cleanup will be executed)"
@@ -153,7 +247,7 @@ echo
 # -----------------------------------------------------------------------------
 # 2. Clean, unlocked [gone] worktrees under .worktrees/
 # -----------------------------------------------------------------------------
-echo "== 2. Clean [gone] worktrees under .worktrees/ =="
+echo "== 2. Integrated, clean [gone] worktrees under .worktrees/ =="
 
 PLANNED_REMOVED_WORKTREES=()
 wt_candidates_found=false
@@ -213,24 +307,50 @@ process_worktree_entry() {
 		return 0
 	fi
 
-	local status_output
-	if ! status_output="$(git -C "$wt_real" status --porcelain 2>/dev/null)"; then
+	local integrated_ref
+	if ! integrated_ref="$(find_integrating_ref "$wt_branch")"; then
+		echo "  [keep] not integrated into retained refs (review manually): ${wt_real} (branch: ${wt_branch})"
+		return 0
+	fi
+
+	local status_file="${SCRATCH_DIR}/status"
+	if ! git -C "$wt_real" status --porcelain=v1 -z --ignored=traditional --untracked-files=normal >"$status_file" 2>/dev/null; then
 		echo "  [skip] failed to inspect git status: ${wt_real}"
 		return 0
 	fi
-	if [[ -n "$status_output" ]]; then
+
+	local entry has_changes=false
+	local kept_ignored=()
+	while IFS= read -r -d '' entry; do
+		if [[ "${entry:0:3}" == "!! " ]]; then
+			if ! is_regenerable_ignored_path "${entry:3}"; then
+				kept_ignored+=("${entry:3}")
+			fi
+		else
+			has_changes=true
+		fi
+	done <"$status_file"
+
+	if [[ "$has_changes" == true ]]; then
 		echo "  [skip] dirty worktree: ${wt_real} (branch: ${wt_branch})"
+		return 0
+	fi
+	if ((${#kept_ignored[@]} > 0)); then
+		echo "  [keep] ignored local files present: ${wt_real} (branch: ${wt_branch})"
+		for entry in "${kept_ignored[@]}"; do
+			echo "         - ${entry}"
+		done
 		return 0
 	fi
 
 	if [[ "$APPLY" == true ]]; then
 		if git -C "$MAIN_ROOT_REAL" worktree remove "$wt_real"; then
-			echo "  [removed] worktree: ${wt_real} (branch: ${wt_branch})"
+			echo "  [removed] worktree: ${wt_real} (branch: ${wt_branch}, integrated: ${integrated_ref})"
 		else
 			echo "  [warn] failed to remove worktree (kept): ${wt_real} (branch: ${wt_branch})" >&2
 		fi
 	else
-		echo "  [dry-run] remove worktree: ${wt_real} (branch: ${wt_branch}, upstream: [gone])"
+		echo "  [dry-run] remove worktree: ${wt_real} (branch: ${wt_branch}, integrated: ${integrated_ref})"
 		PLANNED_REMOVED_WORKTREES+=("$wt_real")
 	fi
 }
@@ -282,7 +402,7 @@ echo
 # -----------------------------------------------------------------------------
 # 3. Local [gone] branches not checked out in any remaining worktree
 # -----------------------------------------------------------------------------
-echo "== 3. Local [gone] branches (not checked out in any worktree) =="
+echo "== 3. Integrated local [gone] branches (not checked out in any worktree) =="
 
 ACTIVE_WT_BRANCHES=()
 
@@ -353,11 +473,16 @@ while IFS=$'\t' read -r branch track; do
 		continue
 	fi
 
+	if ! integrated_ref="$(find_integrating_ref "$branch")"; then
+		echo "  [keep] not integrated into retained refs (review manually): ${branch}"
+		continue
+	fi
+
 	if [[ "$APPLY" == true ]]; then
 		git -C "$MAIN_ROOT_REAL" branch -D -- "$branch" >/dev/null
-		echo "  [deleted] branch: ${branch}"
+		echo "  [deleted] branch: ${branch} (integrated: ${integrated_ref})"
 	else
-		echo "  [dry-run] delete branch: ${branch} (upstream: [gone])"
+		echo "  [dry-run] delete branch: ${branch} (integrated: ${integrated_ref})"
 	fi
 done < <(git -C "$MAIN_ROOT_REAL" for-each-ref --format='%(refname:short)%09%(upstream:track)' refs/heads)
 
@@ -383,13 +508,18 @@ else
 			echo "  [absent] ${rel_path}"
 			continue
 		fi
+		artifact_real="$(canonical_dir "$artifact_path")"
+		if [[ "$artifact_real" != "$artifact_path" ]]; then
+			echo "  [skip] resolves to a different real path (not removing): ${rel_path} -> ${artifact_real}"
+			continue
+		fi
 		if [[ -n "$(git -C "$MAIN_ROOT_REAL" ls-files -- "$rel_path")" ]]; then
 			echo "  [skip] contains tracked files: ${rel_path}"
 			continue
 		fi
-		size="$(du -sh "$artifact_path" | awk '{print $1}')"
+		size="$(du -sh "$artifact_real" | awk '{print $1}')"
 		if [[ "$APPLY" == true ]]; then
-			rm -rf -- "$artifact_path"
+			rm -rf -- "$artifact_real"
 			echo "  [removed] artifact: ${rel_path} (${size})"
 		else
 			echo "  [dry-run] remove artifact: ${rel_path} (${size})"
