@@ -101,9 +101,6 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 	const MinimumTryTimesToNotify = 2
 	numContinuousRetrieveNextPageTokenFailed := 0
 	numContinuousListMessagesFailed := 0
-	var waitAtLeastMilliSec1 float64
-	var waitAtLeastMilliSec2 float64
-	var sleepInterval time.Duration
 
 	for {
 		// max_seatsを変えるか確認
@@ -151,10 +148,10 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			numContinuousListMessagesFailed = 0
 		}
 
-		waitAtLeastMilliSec1 = math.Max(float64((time.Duration(pollingIntervalMillis)*time.Millisecond - timeutil.
-			JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
-		waitAtLeastMilliSec2 = math.Max(float64((time.Duration(app.Configs.Constants.SleepIntervalMilli)*time.Millisecond - timeutil.JstNow().Sub(lastChatFetched)).Milliseconds()), 0)
-		sleepInterval = time.Duration(math.Max(waitAtLeastMilliSec1, waitAtLeastMilliSec2)) * time.Millisecond
+		// YouTubeが指定するポーリング間隔と、設定の最小間隔の長い方まで、前回の取得時刻から待つ
+		pollingInterval := time.Duration(pollingIntervalMillis) * time.Millisecond
+		minimumInterval := time.Duration(app.Configs.Constants.SleepIntervalMilli) * time.Millisecond
+		sleepInterval := timeutil.NoNegativeDuration(max(pollingInterval, minimumInterval) - timeutil.JstNow().Sub(lastChatFetched))
 		slog.Info(fmt.Sprintf("waiting for %.2f seconds...\n\n", sleepInterval.Seconds()))
 		time.Sleep(sleepInterval)
 	}
