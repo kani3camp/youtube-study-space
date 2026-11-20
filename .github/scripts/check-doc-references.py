@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import unquote
@@ -83,8 +84,36 @@ def iter_local_links(text: str):
             yield destination
 
 
-def collect_governed_docs(root: Path) -> list[str]:
+def list_git_tracked_files(root: Path) -> list[str] | None:
+    if not (root / ".git").exists():
+        return None
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z"],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return [
+        entry.decode("utf-8", errors="surrogateescape")
+        for entry in result.stdout.split(b"\0")
+        if entry
+    ]
+
+
+def collect_governed_docs(root: Path, tracked_files: list[str] | None = None) -> list[str]:
     targets = set(TARGETS)
+    if tracked_files is not None:
+        prefixes = tuple(f"{rel_dir}/" for rel_dir in GOVERNED_DOC_DIRS)
+        for relative in tracked_files:
+            if not relative.endswith(".md") or not relative.startswith(prefixes):
+                continue
+            if any(part in SKIP_DIR_NAMES for part in Path(relative).parts):
+                continue
+            if (root / relative).is_file():
+                targets.add(relative)
+        return sorted(targets)
+
     for rel_dir in GOVERNED_DOC_DIRS:
         base = root / rel_dir
         if not base.is_dir():
@@ -96,7 +125,16 @@ def collect_governed_docs(root: Path) -> list[str]:
     return sorted(targets)
 
 
-def iter_scanned_files(root: Path):
+def iter_scanned_files(root: Path, tracked_files: list[str] | None = None):
+    if tracked_files is not None:
+        for relative in sorted(tracked_files):
+            path = root / relative
+            if any(part in SKIP_DIR_NAMES for part in Path(relative).parts):
+                continue
+            if path.suffix.lower() in SCANNED_EXTENSIONS and path.is_file():
+                yield path
+        return
+
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIR_NAMES)
         for filename in sorted(filenames):
@@ -114,7 +152,8 @@ def find_line_matches(text: str, pattern: re.Pattern[str]):
 
 def main() -> int:
     errors: list[str] = []
-    governed_docs = collect_governed_docs(ROOT)
+    tracked_files = list_git_tracked_files(ROOT)
+    governed_docs = collect_governed_docs(ROOT, tracked_files)
 
     for relative in governed_docs:
         source = ROOT / relative
@@ -134,7 +173,7 @@ def main() -> int:
                 f"{relative}:{lineno}: ephemeral PR-scoped phrasing is not allowed in governed docs -> {matched}"
             )
 
-    for path in iter_scanned_files(ROOT):
+    for path in iter_scanned_files(ROOT, tracked_files):
         relative = path.relative_to(ROOT).as_posix()
         try:
             text = path.read_text(encoding="utf-8")

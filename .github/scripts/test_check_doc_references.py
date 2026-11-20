@@ -6,6 +6,7 @@ from contextlib import redirect_stderr, redirect_stdout
 import importlib.util
 import io
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -111,6 +112,45 @@ class DocumentationReferencesTests(unittest.TestCase):
                 checker, "TARGETS", ()
             ), redirect_stdout(io.StringIO()):
                 self.assertEqual(checker.main(), 0)
+
+    def test_untracked_and_ignored_files_are_skipped_in_git_repo(self):
+        marker = "[NOTE" + " FOR REVIEW]"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / ".gitignore").write_text(".local-notes/\n", encoding="utf-8")
+
+            ignored_note = root / ".local-notes/review.md"
+            ignored_note.parent.mkdir(parents=True)
+            ignored_note.write_text(f"{marker} local scratch\n", encoding="utf-8")
+
+            untracked_doc = root / "docs/local-draft.md"
+            untracked_doc.parent.mkdir(parents=True)
+            untracked_doc.write_text(
+                "このPRの下書き [broken](missing.md)\n", encoding="utf-8"
+            )
+
+            tracked_doc = root / "docs/spec.md"
+            tracked_doc.write_text("現行仕様。\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "-C", str(root), "add", ".gitignore", "docs/spec.md"],
+                check=True,
+            )
+
+            with patch.object(checker, "ROOT", root), patch.object(
+                checker, "TARGETS", ()
+            ), redirect_stdout(io.StringIO()):
+                self.assertEqual(checker.main(), 0)
+
+            subprocess.run(
+                ["git", "-C", str(root), "add", "docs/local-draft.md"],
+                check=True,
+            )
+            with patch.object(checker, "ROOT", root), patch.object(
+                checker, "TARGETS", ()
+            ), redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(checker.main(), 1)
+            self.assertIn("docs/local-draft.md", err.getvalue())
 
 
 if __name__ == "__main__":
