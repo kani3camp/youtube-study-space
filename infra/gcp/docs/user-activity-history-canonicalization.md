@@ -53,7 +53,7 @@ runtimeのtemporary trust/bindings/inputs撤回とSA disableはoperatorのreadba
 
 現状9列を正確に定義してno-op importする案は技術的に別案ですが、環境別timestamp許容と
 module/ownership方針の変更が必要で、現在の合意とは異なります。schema ignoreが必須な案では
-ありませんが、ignoreでdriftを隠す案も採用しません。このPRでは9列案を実装しません。
+ありませんが、ignoreでdriftを隠す案も採用しません。9列案は実装しません。
 [module](../modules/retained-user-activity-history/main.tf)のcanonical8列構造とdevelopment adoption gateを
 維持し、既存列descriptionはprivate metadataから保持します。
 

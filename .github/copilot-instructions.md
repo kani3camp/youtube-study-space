@@ -1,8 +1,8 @@
 # GitHub Copilot Instructions for YouTube Study Space
 
-Read and follow [`../AGENTS.md`](../AGENTS.md) first. It is the canonical repository-wide contract for language, authorization, security, branching/PR policy, validation, and task-specific references.
+Read and follow [`../AGENTS.md`](../AGENTS.md) first. It is the canonical repository-wide contract for language, authorization, security, branching/PR policy, documentation/comment lifecycle, validation, task-specific references, and pull request review standards (`Pull Request Reviews`).
 
-This file contains only GitHub Copilot-specific review guidance.
+This file contains only GitHub Copilot-specific review formatting guidance.
 
 ## Pull request review format
 
@@ -21,12 +21,3 @@ Examples:
 - `issue (blocking): トランザクション内でエラーハンドリングが抜けています。`
 - `suggestion: このエラーメッセージにコンテキストを足すとデバッグしやすくなります。`
 - `question: この分岐で〇〇のケースは考慮済みでしょうか。`
-
-## Review focus
-
-- Review comments and summaries are in Japanese unless requested otherwise.
-- Prioritize correctness, security, data integrity, regressions, and repository contracts over style trivia.
-- For Go changes, pay particular attention to Firestore transaction boundaries and error identity/context.
-- Preserve meaningful `NOTE` comments. `[NOTE FOR REVIEW]` is temporary and should not become permanent clutter.
-- For seat semantics, privacy/data-retention changes, Firestore security/access, and monitor layout/seat-count changes, follow the task-specific reference table in `AGENTS.md`.
-- A PR based on `dev` may be reviewed and updated, but must not be merged by an agent.

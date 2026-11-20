@@ -7,7 +7,7 @@ This file is the repository-wide operating contract for coding agents. Tool-spec
 - ユーザーへの説明、PRでのやり取り、プロジェクトのドキュメントは、別の指定がない限り日本語で記述する。
 - External mutations require user authorization. A direct request to create/edit/push a branch, commit, pull request, deploy, or other external state counts as authorization for the requested scope; do not ask again for the same operation. Obtain new authorization before expanding beyond that scope or performing a materially different destructive/production operation.
 - Do not expose, log, copy, or move credentials/secrets into client-readable locations.
-- Preserve important `NOTE` comments. Temporary review-only explanations may use `[NOTE FOR REVIEW]` and should not become permanent clutter.
+- Preserve important `NOTE` comments. Do not commit temporary or review-only comments; put review context in the PR description or review comments instead.
 
 ## Start Every Task
 
@@ -23,10 +23,12 @@ This file is the repository-wide operating contract for coding agents. Tool-spec
    - **Verification**: deterministic checks proving those conditions.
 6. Resolve ambiguity from current code, tests, docs, and existing contracts first. Ask for user judgment only when materially different product semantics remain possible.
 
-## Documentation Lifecycle
+## Documentation and Comment Lifecycle
 
-- Git管理するドキュメントは、実装後も保守する現行仕様・設計上の判断・開発手順・運用/復旧手順など、恒久的に参照するものに限定する。
-- 個別の変更タスクの実装計画、調査メモ、進捗、作業チェックリスト、実行/検証記録はGitHub IssueまたはPRで管理する。計画だけのMarkdownや一時的な作業記録をリポジトリへ追加しない。
+- Git管理するドキュメントとコードコメントは、実装後も保守する現行仕様・不変条件・罠・設計理由（Why）・開発手順・運用/復旧手順など、恒久的に参照するものに限定する。
+- 個別の変更タスクの実装計画、調査メモ、進捗、作業チェックリスト、実行/検証記録、レビュー専用コメントはGitHub IssueまたはPRで管理する。計画だけのMarkdownや一時的な作業記録、PR作成時点の文脈に依存する一人称表現をリポジトリへ追加しない。
+- コードコメントは「修正前は〜だった」のような変更履歴の語りではなく、現行コードの不変条件や設計意図を記述する。
+- 段階移行や互換期間など、やむを得ず一時的な記述や暫定対応をコミットする場合は、削除条件（何が完了したら消すか）を明記し、条件達成時に必ず削除する。
 - 実装PRでは、確定した仕様・設計判断・再利用する手順を既存の正本へ反映する。個々の実行結果や未完了事項はIssue/PRへ残し、必要なら恒久ドキュメントから参照する。未実装の計画を現行仕様として記載しない。
 - タスク契約などのローカル作業メモは追跡対象にしない。既存文書の整理では、現在も必要な仕様・手順・設計根拠を失わないよう確認し、一括削除しない。
 
@@ -43,10 +45,11 @@ Do not hard-code volatile versions or duplicate package metadata in agent guidan
 
 Major areas:
 
-- `system/`: Go backend, repository/application logic, batch/Lambda entrypoints.
+- `system/`: Go backend, repository/application logic, batch/Lambda entrypoints. See [`system/AI_COLLABORATION_GUIDE.md`](system/AI_COLLABORATION_GUIDE.md) for package-specific details.
 - `youtube-monitor/`: Next.js livestream UI. **It currently also participates in max-seat control**, so layout changes are not always display-only. Read `youtube-monitor/README.md` and `docs/development/architecture.md` before changing room/seat layout behavior.
 - `firebase/`: Firestore rules and emulator configuration.
 - `aws-cdk/`: AWS infrastructure.
+- `infra/gcp/`: GCP Terraform infrastructure and authentication/plan boundaries. Read [`infra/gcp/README.md`](infra/gcp/README.md) and [`infra/gcp/docs/terraform-authentication-boundary.md`](infra/gcp/docs/terraform-authentication-boundary.md) before changing GCP Terraform or authenticated workflow contracts.
 - `docs-site/`: Docusaurus documentation.
 - `tools/`: standalone operational/development tools.
 
@@ -63,6 +66,7 @@ Read these before changing the corresponding behavior:
 | Data storage, forwarding, retention, or deletion | [`docs/privacy/`](docs/privacy/) | Privacy runbooks define retained vs retired data paths and migration constraints. |
 | Monitor layout or room definitions | [`youtube-monitor/README.md`](youtube-monitor/README.md), [`docs/development/architecture.md`](docs/development/architecture.md) | The monitor computes desired seat counts and may send control requests. |
 | Promotional/SNS/thumbnail design | [`docs/design/DESIGN.md`](docs/design/DESIGN.md) | Brand/production guidance only; it is not the livestream UI implementation specification. |
+| GCP Terraform / authenticated workflows | [`infra/gcp/README.md`](infra/gcp/README.md), [`infra/gcp/docs/terraform-authentication-boundary.md`](infra/gcp/docs/terraform-authentication-boundary.md) | Defines normal Plan/Apply boundaries, Environment/OIDC trust, protected Plan/Apply contracts, and non-secret input rules. |
 | GitHub PR review handling | Canonical source per area: [`formal-spec/`](formal-spec/) for seat state/allocation; Notion via Notion MCP search/fetch for Notion-designed areas (e.g. mypage); GitHub for implementation/test/deploy state | Check the area's canonical source before judging review threads; escalate diffs that stay undecidable after cross-checking spec against implementation evidence. If Notion MCP is unavailable, keep reviewing what GitHub evidence can decide and hold only Notion-dependent judgments, naming the reference and why it is unconfirmed. |
 
 ## Quality Ownership
@@ -124,9 +128,20 @@ pnpm cdk:synth
 
 Do not deploy infrastructure unless the requested scope explicitly authorizes that deployment.
 
-### Documentation (`docs-site/`)
+### GCP Terraform (`infra/gcp/`)
+
+Read [`infra/gcp/README.md`](infra/gcp/README.md) and `.github/ci-validation/validate.sh` for the static and native validation suites (`terraform fmt -check -recursive infra/gcp`, `terraform validate`, and the Python/native contract tests). Do not run authenticated Plan/Apply workflows or mutate cloud state without explicit user authorization.
+
+### Documentation (`docs-site/` and repository docs)
 
 Use the package scripts defined in `docs-site/package.json` for lint/typecheck/build. Inspect scripts before assuming whether a command writes files.
+
+For repository-wide Markdown link and ephemeral-note guardrails, run from the repository root:
+
+```sh
+python3 .github/scripts/test_check_doc_references.py
+python3 .github/scripts/check-doc-references.py
+```
 
 ### CI and path routing
 
@@ -157,3 +172,16 @@ A new file/path that should trigger existing validation must be classified by CI
 - Never claim a check ran locally when it only ran in GitHub Actions.
 - For stacked/integration-branch PRs, show the stack and base relationship clearly. Before merging/rebasing, re-check that each PR contains only its intended delta.
 - If review uncovers a repeatable defect, include the prevention-layer decision (test/lint/CI/rules/architecture/instruction) as part of completing the fix.
+
+## Pull Request Reviews
+
+All review agents (Copilot, Claude, Codex, Antigravity, etc.) follow these shared review standards:
+
+- レビューコメントと要約は別の指定がない限り日本語で記述する。
+- **優先順位**: correctness、security、data integrity、既存契約・回帰を最優先する。CI・formatter・linter が機械的に担保している事項、賞賛のみのコメント、価値の低い nitpick は避ける。
+- **重大度の明示**: 指摘には重大度と意図を明示する（例: Conventional Comments の `issue (blocking):` / `suggestion:` / `question:` / `todo:` / `chore:` / `note:`）。変更スコープ外の無関係なリファクタ提案は blocking に混ぜない。
+- **事実と正本の突合**: PR 本文の Goal / Invariants / Non-goals / Verification を鵜呑みにせず、実 diff・CI 結果・対象領域の正本（`Task-specific Contracts` 参照）と突き合わせる。
+- **周辺コードと再利用の確認**: 変更箇所単体だけでなく、呼び出し元・別バリアント（横型/縦型など）・類似分岐に同じ不具合がないか確認する。既存の共通ユーティリティ（例: `system/core/timeutil` など）や既存テストヘルパーで簡潔に置き換えられる箇所も確認する。
+- **Go 変更の重点観点**: Firestore トランザクション境界、エラーラップと `errors.Is` / `errors.As` の互換性、テストの並行安全性（別ゴルーチン内での `t.FailNow` / `require.*` 呼び出し等）を重点確認する。
+- **一時的記述の排除**: 恒久ドキュメントやコードコメントに、PR作成時点限りの文脈・レビュー専用メモ・削除条件のない暫定記述が残っていないか確認する。
+- **マージ境界**: `dev` 向け PR のレビュー・更新は認可された範囲で行ってよいが、マージはエージェントが行わない。
