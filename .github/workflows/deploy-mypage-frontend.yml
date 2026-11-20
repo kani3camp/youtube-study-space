@@ -1,23 +1,31 @@
 name: Deploy MyPage Frontend
 
-# Entry point registered on the default branch only. GitHub accepts
-# workflow_dispatch only for workflow files that exist on the default branch,
-# but runs the file of the selected ref. The real workflow lives on
-# integration/mypage-canon-20261006 (Issue #1500); select that branch in
-# "Use workflow from". This file is replaced when the integration branch
-# reaches dev. Keep the inputs identical to the integration branch's file.
+# Builds this commit and publishes only the DEV Firebase Hosting site. It never
+# changes Cloud Run or Terraform. Production stays absent until the public
+# release gate (#1133) approves a separate identity.
 on:
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
-  integration-only:
-    name: Run from the integration branch
-    runs-on: ubuntu-latest
-    timeout-minutes: 1
-    steps:
-      - name: Refuse to run from this ref
-        run: |
-          echo "::error::Run Deploy MyPage Frontend with 'Use workflow from: integration/mypage-canon-20261006'. This ref only registers the entry point."
-          exit 1
+  validate:
+    name: Credentialless MyPage Validation
+    # The integration ruleset requires CI Gate on each PR but not on the exact
+    # merged tree; re-run the deployed domain's checks for this commit.
+    uses: ./.github/workflows/ci-frontend.yml
+    with:
+      youtube_monitor: false
+      docs_site: false
+      mypage: true
+
+  hosting:
+    name: Deploy DEV Hosting
+    needs: validate
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-hosting-authenticated.yml
+    with:
+      expected_sha: ${{ github.sha }}

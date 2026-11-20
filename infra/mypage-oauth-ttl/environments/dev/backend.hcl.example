@@ -1,0 +1,6 @@
+# Placeholder for an existing, approved state bucket; never create it here.
+bucket       = "REPLACE_WITH_APPROVED_EXISTING_STATE_BUCKET"
+region       = "REPLACE_WITH_APPROVED_BACKEND_REGION"
+key          = "mypage-oauth-ttl/development/terraform.tfstate"
+encrypt      = true
+use_lockfile = true

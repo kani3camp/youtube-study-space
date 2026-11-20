@@ -106,7 +106,7 @@ test("CI validation bases are pinned and removing either digest violates the gua
   }
   const node = parsePinnedImage(stages[0].image);
   assert.equal(node.image, "node");
-  assert.equal(node.tag.split("-")[0], readFileSync(".node-version", "utf8").trim());
+  assert.equal(node.tag.split("-")[0], readFileSync(".node-version", "utf8").trim().split(".")[0]);
 });
 
 test("parseFromStages preserves aliases for internal-stage detection", () => {

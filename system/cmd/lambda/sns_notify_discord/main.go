@@ -15,6 +15,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"google.golang.org/api/option"
 )
 
 func init() {
@@ -27,26 +28,38 @@ const (
 	notifyPrefix            = "[SNS] "
 )
 
+type snsNotifyApp interface {
+	MessageToOwnerOrError(ctx context.Context, message string) error
+	CloseFirestoreClient()
+}
+
+var (
+	firestoreClientOptionSNS = awsruntime.FirestoreClientOption
+	newSNSWorkspaceApp       = func(ctx context.Context, isTest bool, clientOption option.ClientOption) (snsNotifyApp, error) {
+		return workspaceapp.NewWorkspaceApp(ctx, isTest, clientOption)
+	}
+)
+
 func handler(ctx context.Context, evt events.SNSEvent) error {
 	// Lambdaタイムアウトの5秒前にキャンセルされる派生コンテキストを作成
 	gracefulCtx, cancel := awsruntime.CreateGracefulContext(ctx, awsruntime.DefaultGraceSeconds)
 	defer cancel()
 
-	clientOption, err := awsruntime.FirestoreClientOption()
+	clientOption, err := firestoreClientOptionSNS()
 	if err != nil {
-		slog.Error("failed to get Firestore client option", "err", err)
-		return fmt.Errorf("load Firestore client option: %w", err)
+		slog.Error("failed to get Firestore client option", logging.ErrorClassAttrs("firestore_option_failed", err)...)
+		return &logging.ClassifiedError{Message: "load Firestore client option failed", Cause: err}
 	}
 
-	app, err := workspaceapp.NewWorkspaceApp(gracefulCtx, false, clientOption)
+	app, err := newSNSWorkspaceApp(gracefulCtx, false, clientOption)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			// NOTE: このLambdaは通知Lambda自体なので、タイムアウト時はログに出力するのみ（自分自身への通知は循環になる）
-			slog.Error("timeout warning in sns_notify_discord during initialization", "err", err)
+			slog.Error("timeout warning in sns_notify_discord during initialization", logging.ErrorClassAttrs("deadline_exceeded", err)...)
 			return nil
 		}
-		slog.Error("failed to init WorkspaceApp", "err", err)
-		return fmt.Errorf("initialize workspace app: %w", err)
+		slog.Error("failed to init WorkspaceApp", logging.ErrorClassAttrs("workspace_init_failed", err)...)
+		return &logging.ClassifiedError{Message: "initialize workspace app failed", Cause: err}
 	}
 	defer app.CloseFirestoreClient()
 
@@ -68,14 +81,20 @@ func handler(ctx context.Context, evt events.SNSEvent) error {
 			}
 		}
 
-		// Log full message before truncation for console inspection
-		slog.InfoContext(gracefulCtx, "sns notify full message", "record_index", i, "subject", subject, "message_full", message)
+		slog.InfoContext(gracefulCtx, "sns notification dispatch", "record_index", i, "status", "started")
 
 		notify := buildDiscordNotification(subject, message)
 		if err := app.MessageToOwnerOrError(gracefulCtx, notify); err != nil {
-			slog.ErrorContext(gracefulCtx, "failed to send SNS notification to owner", "record_index", i, "err", err)
-			return fmt.Errorf("send SNS notification to owner: %w", err)
+			errorClass := "delivery_failed"
+			if errors.Is(err, context.DeadlineExceeded) {
+				errorClass = "deadline_exceeded"
+			} else if errors.Is(err, context.Canceled) {
+				errorClass = "canceled"
+			}
+			slog.ErrorContext(gracefulCtx, "failed to send SNS notification to owner", append([]any{"record_index", i}, logging.ErrorClassAttrs(errorClass, err)...)...)
+			return &logging.ClassifiedError{Message: "send SNS notification to owner: " + errorClass, Cause: err}
 		}
+		slog.InfoContext(gracefulCtx, "sns notification dispatch", "record_index", i, "status", "sent")
 	}
 
 	// 処理完了後にコンテキストがキャンセルされていたらログ出力

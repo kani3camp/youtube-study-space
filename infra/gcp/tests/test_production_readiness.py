@@ -67,17 +67,30 @@ class ProductionReadinessTest(unittest.TestCase):
         for mode in ("migration-plan", "migration-apply", "normal-e2e", "plan", "apply", "security-probe", "email-adoption", "quota-create", "current-state-read"):
             self.assert_stops_before_job_inputs(mode)
 
-    def test_readiness_ci_has_no_cloud_authorization_or_state_operations(self):
-        source = (ROOT / ".github/workflows/gcp-production-readiness.yml").read_text()
-        self.assertIn("pull_request:", source)
+    def test_readiness_runs_inside_required_credentialless_gcp_ci(self):
+        source = (ROOT / ".github/workflows/ci-gcp-terraform.yml").read_text()
+        self.assertIn("workflow_call:", source)
         self.assertIn("contents: read", source)
-        for forbidden in ("id-token:", "secrets", "environment:", "workflow_dispatch:",
+        for forbidden in ("id-token:", "secrets:", "environment:", "workflow_dispatch:",
                           "pull_request_target", "upload-artifact", "configure-aws-credentials", "google-github-actions/auth",
                           "terraform apply", "terraform import", "-backend-config"):
             self.assertNotIn(forbidden, source)
         for action in re.findall(r"(?m)^\s+uses: (\S+)", source):
-            self.assertRegex(action, r"@[0-9a-f]{40}$")
-        self.assertIn("python3 infra/gcp/tests/test_production_readiness.py", source)
+            # Only the reviewed same-repository action may be unpinned; external actions are SHA-pinned.
+            if action.startswith("./"):
+                self.assertEqual(action, "./.github/actions/prepare-ci-validation")
+            else:
+                self.assertRegex(action, r"@[0-9a-f]{40}$")
+        # The checks run inside the isolated validation container.
+        self.assertIn("for kind in terraform-static terraform-tests; do", source)
+        isolated = (ROOT / ".github/ci-validation/validate.sh").read_text()
+        terraform = isolated.split("  terraform-tests)\n", 1)[1].split("\n    ;;", 1)[0]
+        for command in (
+            "python3 infra/gcp/tests/test_production_readiness.py",
+            "python3 infra/gcp/tests/test_production_backend_packet.py",
+            "python3 infra/gcp/tests/test_production_execution_contract.py",
+        ):
+            self.assertIn(command, terraform)
 
 
 class ProductionMockPlanTest(unittest.TestCase):

@@ -105,6 +105,8 @@ go generate ./...
 ### ビルド/イメージ
 - Fargateバッチ: `system/Dockerfile.fargate`
 - Lambda群: `system/Dockerfile.lambda`
+- MyPage Cloud Run API: `system/Dockerfile.mypage-api`
+- MyPage Maintenance Operator（Cloud Run Job）: `system/Dockerfile.mypage-maintenance-operator`
 
 ### 手動実行（ローカル確認用）
 ```bash
@@ -114,7 +116,7 @@ docker buildx build --platform linux/arm64 -f system/Dockerfile.fargate system -
 
 ### base image 更新運用
 
-`Dockerfile.lambda` / `Dockerfile.fargate` の `FROM` は、`image:tag@sha256:...` の形式で **digest 固定** している（再現可能ビルドのため。詳細は issue #693）。digest の更新は基本的に Dependabot の docker ecosystem PR に任せる。
+`Dockerfile.lambda` / `Dockerfile.fargate` / `Dockerfile.mypage-api` / `Dockerfile.mypage-maintenance-operator` の `FROM` は、`image:tag@sha256:...` の形式で **digest 固定** している（再現可能ビルドのため。詳細は issue #693）。digest の更新は基本的に Dependabot の docker ecosystem PR に任せる。
 
 - **Dependabot からの digest 更新 PR が来たとき**:
   - `Base Image Update Report` workflow が、旧/新 digest、現在タグの digest、一致判定を同じ PR コメントへ自動で投稿・更新する
@@ -123,11 +125,13 @@ docker buildx build --platform linux/arm64 -f system/Dockerfile.fargate system -
   - Amazon ECR Public のイメージでは、対応する ECR Public Gallery へのリンクもコメントに表示する
   - `gcr.io` のイメージでは、対応する Google Artifact Registry のイメージ画面へのリンクもコメントに表示する
   - registry の現在タグと pinned digest を検証できない場合はコメント／Actions warningで明示するが、この report workflow 自体は advisory としてマージをブロックしない
-  1. `aws-cdk/` で `pnpm cdk:diff --profile <dev プロファイル>` を実行し、変更が digest 差し替えだけであることを確認
-  2. `pnpm cdk:deploy --profile <dev プロファイル>` で dev 環境にデプロイしてスモーク確認
-  3. 問題なければ prod プロファイルで同じ手順を実行
-  4. プロファイル切り替えの詳細は [`aws-cdk/README.md`](../aws-cdk/README.md) を参照
-- **手動で base image を更新したいとき**（Go の minor 上げ、セキュリティパッチの即時適用等）:
+  - AWS Lambda / Fargate（`Dockerfile.lambda` / `Dockerfile.fargate`）の更新適用:
+    1. `aws-cdk/` で `pnpm cdk:diff --profile <dev プロファイル>` を実行し、変更が digest 差し替えだけであることを確認
+    2. `pnpm cdk:deploy --profile <dev プロファイル>` で dev 環境にデプロイしてスモーク確認
+    3. 問題なければ prod プロファイルで同じ手順を実行
+    4. プロファイル切り替えの詳細は [`aws-cdk/README.md`](../aws-cdk/README.md) を参照
+  - MyPage Cloud Run API / Maintenance Operator（`Dockerfile.mypage-api` / `Dockerfile.mypage-maintenance-operator`）の更新適用は [`docs/mypage/release/backend-ci.md`](../docs/mypage/release/backend-ci.md) の配備手順に従う
+- **手動で base image を更新したいとき**（Go のバージョン上げ、セキュリティパッチの即時適用等）:
   ```bash
   # タグに対する最新 digest を取得
   docker buildx imagetools inspect docker.io/library/golang:1.25 --format '{{.Manifest.Digest}}'
@@ -135,4 +139,4 @@ docker buildx build --platform linux/arm64 -f system/Dockerfile.fargate system -
   docker buildx imagetools inspect gcr.io/distroless/static-debian12:nonroot --format '{{.Manifest.Digest}}'
   ```
   取得した `sha256:...` を Dockerfile の `FROM ...@sha256:...` に差し替えて PR を出す。
-- **Go の minor / major を上げる場合**は、`go.mod` の `go x.yy` と Dockerfile の `golang:x.yy@sha256:...` のタグを同一 minor に揃えること。この「base image 更新運用」を `system/` における詳細手順の正本とする。
+- **Go のバージョン（minor / major を含む）を上げる場合**は、`go.mod` の `go` バージョンと全 Dockerfile（`Dockerfile.lambda` / `Dockerfile.fargate` / `Dockerfile.mypage-api` / `Dockerfile.mypage-maintenance-operator`）の `golang:<version>@sha256:...` タグを揃えること。この「base image 更新運用」を `system/` における詳細手順の正本とする。
