@@ -11,7 +11,7 @@ import (
 	"google.golang.org/api/googleapi"
 )
 
-// HTTP 500 を成功扱いにすると空の取得位置が保存され、処理済みの投稿が再実行される（#1620）。
+// HTTP 500 は呼び出し元へエラーとして返し、取得位置を進めさせない。
 func TestListMessagesReturnsErrorOnInternalServerError(t *testing.T) {
 	var requestedPageTokens []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

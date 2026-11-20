@@ -28,8 +28,7 @@ import (
 	"app.modules/core/youtubebot"
 )
 
-// YouTube API が一時的に HTTP 500 を返しても取得位置を失わず、復旧後は新着分だけを処理する（#1620）。
-// 修正前は 500 が成功扱いになり、空の取得位置が保存されて処理済みの投稿が再実行され得た。
+// YouTube API が一時的に HTTP 500 を返しても取得位置を失わず、復旧後は新着分だけを処理する。
 func TestPollLiveChatPageResumesFromSavedTokenAfterHTTP500(t *testing.T) {
 	const (
 		savedToken  = "saved-page-token"
