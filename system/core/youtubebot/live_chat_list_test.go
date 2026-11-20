@@ -2,7 +2,6 @@ package youtubebot
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -30,7 +29,7 @@ func TestListMessagesReturnsErrorOnInternalServerError(t *testing.T) {
 	messages, nextPageToken, pollingIntervalMillis, err := bot.ListMessages(context.Background(), "saved-token")
 
 	var apiErr *googleapi.Error
-	require.True(t, errors.As(err, &apiErr), "err = %v", err)
+	require.ErrorAs(t, err, &apiErr)
 	assert.Equal(t, http.StatusInternalServerError, apiErr.Code)
 	assert.Nil(t, messages)
 	assert.Empty(t, nextPageToken)
