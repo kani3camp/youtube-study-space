@@ -13,6 +13,7 @@ import (
 	"firebase.google.com/go/v4/appcheck"
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,7 +42,7 @@ func signedAppCheckSDK(t *testing.T, key *rsa.PrivateKey) FirebaseAppCheckClient
 	t.Helper()
 	body := publicJWKS(t, key, "synthetic-key")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, json.NewEncoder(w).Encode(json.RawMessage(body)))
+		assert.NoError(t, json.NewEncoder(w).Encode(json.RawMessage(body)))
 	}))
 	t.Cleanup(server.Close)
 	previous := appcheck.JWKSUrl

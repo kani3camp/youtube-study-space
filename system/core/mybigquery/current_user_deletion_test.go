@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/bigquery"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
 )
@@ -30,34 +31,52 @@ func TestCurrentArchiveDeletionUsesBoundParameterStableJobAndReread(t *testing.T
 		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tables/"):
 			if !strings.HasSuffix(r.URL.Path, "/user-activity-history") {
 				w.WriteHeader(404)
-				require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": 404, "message": "not found"}}))
+				assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": 404, "message": "not found"}}))
 				return
 			}
 			body = map[string]any{"schema": map[string]any{"fields": []any{map[string]any{"name": "user_id", "type": "STRING"}}}}
 		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/datasets/"):
 			body = map[string]any{"location": "US"}
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/jobs"):
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&queryBody))
+			if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&queryBody)) {
+				w.WriteHeader(500)
+				return
+			}
 			configuration, ok := queryBody["configuration"].(map[string]any)
-			require.True(t, ok)
+			if !assert.True(t, ok) {
+				w.WriteHeader(500)
+				return
+			}
 			config, ok := configuration["query"].(map[string]any)
-			require.True(t, ok)
-			require.Equal(t, "DELETE FROM `"+project+".firestore_export.user-activity-history` WHERE user_id = @channel", config["query"])
-			require.NotContains(t, config["query"], channel)
+			if !assert.True(t, ok) {
+				w.WriteHeader(500)
+				return
+			}
+			assert.Equal(t, "DELETE FROM `"+project+".firestore_export.user-activity-history` WHERE user_id = @channel", config["query"])
+			assert.NotContains(t, config["query"], channel)
 			params, ok := config["queryParameters"].([]any)
-			require.True(t, ok)
+			if !assert.True(t, ok) {
+				w.WriteHeader(500)
+				return
+			}
 			parameter, ok := params[0].(map[string]any)
-			require.True(t, ok)
+			if !assert.True(t, ok) {
+				w.WriteHeader(500)
+				return
+			}
 			value, ok := parameter["parameterValue"].(map[string]any)
-			require.True(t, ok)
-			require.Equal(t, channel, value["value"])
+			if !assert.True(t, ok) {
+				w.WriteHeader(500)
+				return
+			}
+			assert.Equal(t, channel, value["value"])
 			deletes++
 			body = queryBody
 			queryBody["status"] = map[string]any{"state": "DONE"}
 			if lostACK {
 				lostACK = false
 				w.WriteHeader(409)
-				require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": 409, "message": "job already exists"}}))
+				assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"code": 409, "message": "job already exists"}}))
 				return
 			}
 		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/jobs/"):
@@ -72,7 +91,7 @@ func TestCurrentArchiveDeletionUsesBoundParameterStableJobAndReread(t *testing.T
 			w.WriteHeader(500)
 			return
 		}
-		require.NoError(t, json.NewEncoder(w).Encode(body))
+		assert.NoError(t, json.NewEncoder(w).Encode(body))
 	}))
 	defer server.Close()
 	client, err := bigquery.NewClient(ctx, project, option.WithEndpoint(server.URL), option.WithoutAuthentication())

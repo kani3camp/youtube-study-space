@@ -1,44 +1,28 @@
 # YouTube Study Space - AI協業ガイド（system）
 
 > [!IMPORTANT]
-> リポジトリ共通のAI協業ルールは [`../AGENTS.md`](../AGENTS.md) が正です。認可、ブランチ/PR運用、検証、安全性についてこの文書と食い違う場合は `AGENTS.md` に従ってください。この文書は `system/` 固有の実装案内だけを扱います。
+> リポジトリ共通のAI協業ルール（認可、ブランチ/PR運用、レビュー基準、通常検証コマンド、Task-specific Contracts、安全性）は [`../AGENTS.md`](../AGENTS.md) が正です。この文書は `AGENTS.md` と重複しない `system/` 固有の構成・生成物・ベースイメージ案内だけを扱います。
 
-## `system/` の役割
+## `system/` の役割とパッケージ構成
 
-`system/` は Go バックエンド、定期ジョブ、Lambda/Fargate エントリポイントを含みます。
+`system/` は Go バックエンド、定期ジョブ、Lambda/Fargate エントリポイント、運用・監査CLIを含みます。
 
-- `cmd/youtube-bot/`: YouTube Live Chat をポーリングする実運用Bot
+- `cmd/youtube-bot/`: YouTube Live Chat をポーリングする実運用Bot（`go run ./cmd/youtube-bot` は実環境操作であり通常の検証コマンドではない）
 - `cmd/batch/`: Fargate 日次バッチ
 - `cmd/lambda/`: 定期・補助 Lambda
+- `cmd/i18n-gen/`: i18n 型付きラッパー生成ツール
+- `cmd/*-admin/`, `cmd/*-audit/`: プライバシー・データ移行・監査向けの個別運用CLI
 - `core/workspaceapp/`: コマンド処理、席管理、休憩、バリデーション、バッチロジック
 - `core/repository/`: Firestore データアクセス
 - `core/youtubebot/`: YouTube Live Chat API
 - `core/guardians/`: ライブ監視
 - `core/moderatorbot/`: Discord/モデレーション
-- `core/mybigquery/`: BigQuery
+- `core/mybigquery/`, `core/mystorage/`: BigQuery / Cloud Storage
 - `core/i18n/`: locale と型付き翻訳ラッパー
+- `core/timeutil/`, `core/utils/`, `core/studyspaceerror/`, `core/wordsreader/`: 日時計算・コマンド解析・共通エラー・NGワード読込
 - `internal/`: AWS runtime、管理者操作、logging など
 
-Go/toolchain と依存バージョンは [`go.mod`](./go.mod) を正とし、この文書には固定値を重複させません。
-
-## 安全な検証と実サービス起動を分ける
-
-通常のコード検証:
-
-```bash
-cd system
-go test -shuffle=on ./...
-golangci-lint run --timeout=5m --config=.golangci.yml
-I18N_BASELINE=ja go generate ./...
-```
-
-Firestore Emulator の意味論が必要な変更では、リポジトリルートから:
-
-```bash
-bash .github/scripts/run-firestore-integration-tests.sh
-```
-
-`go run ./cmd/youtube-bot` は通常のテストではありません。設定済みの Google/YouTube/Discord 等へ接続し、チャット応答・通知・Firestore 状態変更を行い得ます。実環境スモークテストが明示的に依頼された場合だけ使用し、起動時に表示される Google Cloud Project ID が対象環境であることを確認してください。
+Go/toolchain と依存バージョンは [`go.mod`](./go.mod) を正とし、この文書には固定値を重複させません。検証コマンドと契約文書の一覧は [`../AGENTS.md`](../AGENTS.md) を参照してください。
 
 ## i18n
 
@@ -48,15 +32,6 @@ bash .github/scripts/run-firestore-integration-tests.sh
 - 生成: `I18N_BASELINE=ja go generate ./...`
 
 locale/metadata/generator を変更した場合は生成物の差分も確認してください。
-
-## 重要な契約
-
-- 席状態・割当ロジック: [`../formal-spec/README.md`](../formal-spec/README.md) と [`../formal-spec/fsl/README.md`](../formal-spec/fsl/README.md)
-- Firestore Emulator / Rules の検証区分: [`../firebase/README.md`](../firebase/README.md)
-- 保存・転送・削除・retention: [`../docs/privacy/`](../docs/privacy/)
-- システム全体と monitor の席数制御: [`../docs/development/architecture.md`](../docs/development/architecture.md)
-
-形式仕様の一部は実装との照合が接続済み、一部は未接続です。CI を通すためだけに仕様を弱めないでください。
 
 ## Go toolchain とベースイメージ
 
