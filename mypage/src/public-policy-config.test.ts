@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+	isValidCalendarDate,
 	OPERATOR_NAME,
 	POLICY_EFFECTIVE_DATE,
 	POLICY_VERSIONS,
@@ -23,26 +24,17 @@ function backendPolicyVersions() {
 	}
 }
 
-function calendarDate(value: string) {
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-	const [year, month, day] = value.split('-').map(Number)
-	const date = new Date(Date.UTC(year, month - 1, day))
-	return (
-		date.getUTCFullYear() === year &&
-		date.getUTCMonth() === month - 1 &&
-		date.getUTCDate() === day
-	)
-}
-
 describe('public policy constants', () => {
 	it('uses the same consent versions as the backend', () => {
 		expect(backendPolicyVersions()).toEqual(POLICY_VERSIONS)
 	})
 	it('keeps the effective date unset or a real calendar date', () => {
 		if (POLICY_EFFECTIVE_DATE !== undefined)
-			expect(calendarDate(POLICY_EFFECTIVE_DATE)).toBe(true)
-		expect(calendarDate('2026-02-29')).toBe(false)
-		expect(calendarDate('2028-02-29')).toBe(true)
+			expect(isValidCalendarDate(POLICY_EFFECTIVE_DATE)).toBe(true)
+		expect(isValidCalendarDate('2026-02-29')).toBe(false)
+		expect(isValidCalendarDate('2026-02-30')).toBe(false)
+		expect(isValidCalendarDate('2028-02-29')).toBe(true)
+		expect(isValidCalendarDate(20261120)).toBe(false)
 	})
 	it.each([
 		[

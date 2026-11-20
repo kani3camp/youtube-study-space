@@ -1,4 +1,8 @@
 import { type HostingInputs, hostingCandidate } from './hosting.ts'
+import {
+	isValidCalendarDate,
+	POLICY_EFFECTIVE_DATE,
+} from './public-policy-config.ts'
 
 // オフラインの公開設定だけを扱う。Firebaseのimport、ブラウザ初期化、
 // 環境変数の読み取りは行わず、リリース準備完了も宣言しない。
@@ -55,6 +59,9 @@ export type ReleaseConfigReport = {
 	}
 	diagnostics: ReleaseDiagnostic[]
 	pendingGates: string[]
+}
+export type ReleaseConfigCheckOptions = {
+	policyEffectiveDate?: unknown
 }
 
 function report(diagnostics: ReleaseDiagnostic[]): ReleaseConfigReport {
@@ -124,7 +131,14 @@ function origin(value: unknown): value is string {
 	}
 }
 
-export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
+export function checkReleaseConfig(
+	input: unknown,
+	options?: ReleaseConfigCheckOptions,
+): ReleaseConfigReport {
+	const policyEffectiveDate =
+		options && Object.hasOwn(options, 'policyEffectiveDate')
+			? options.policyEffectiveDate
+			: POLICY_EFFECTIVE_DATE
 	const diagnostics: ReleaseDiagnostic[] = []
 	const add = (
 		field: string,
@@ -249,6 +263,31 @@ export function checkReleaseConfig(input: unknown): ReleaseConfigReport {
 			'Use public manifest schema version 1.',
 		)
 	const selected = deployment(root.deployment, 'deployment')
+	const isProduction =
+		selected?.environment === 'production' ||
+		selected?.projectID === 'youtube-study-space'
+	if (isProduction) {
+		if (policyEffectiveDate === undefined || policyEffectiveDate === '')
+			add(
+				'policy.effectiveDate',
+				'MISSING_FIELD',
+				'Set POLICY_EFFECTIVE_DATE in mypage/src/public-policy-config.ts to a YYYY-MM-DD calendar date before production release.',
+			)
+		else if (!isValidCalendarDate(policyEffectiveDate))
+			add(
+				'policy.effectiveDate',
+				'INVALID_FIELD',
+				'Set POLICY_EFFECTIVE_DATE in mypage/src/public-policy-config.ts to a valid YYYY-MM-DD calendar date.',
+			)
+	} else if (
+		policyEffectiveDate !== undefined &&
+		!isValidCalendarDate(policyEffectiveDate)
+	)
+		add(
+			'policy.effectiveDate',
+			'INVALID_FIELD',
+			'Set POLICY_EFFECTIVE_DATE in mypage/src/public-policy-config.ts to a valid YYYY-MM-DD calendar date.',
+		)
 	const frontend = fields(root.frontend, 'frontend', frontendFields)
 	if (frontend) {
 		for (const key of [
@@ -542,13 +581,16 @@ function hasUniqueKeys(source: string): boolean {
 	return walk(0)
 }
 
-export function checkReleaseConfigJSON(source: string): ReleaseConfigReport {
+export function checkReleaseConfigJSON(
+	source: string,
+	options?: ReleaseConfigCheckOptions,
+): ReleaseConfigReport {
 	if (new TextEncoder().encode(source).length > releaseConfigMaxBytes)
 		return releaseInputFailure('INPUT_TOO_LARGE')
 	try {
 		const input: unknown = JSON.parse(source)
 		if (!hasUniqueKeys(source)) return releaseInputFailure('INVALID_JSON')
-		return checkReleaseConfig(input)
+		return checkReleaseConfig(input, options)
 	} catch {
 		return releaseInputFailure('INVALID_JSON')
 	}
