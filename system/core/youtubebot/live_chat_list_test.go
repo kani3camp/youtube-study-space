@@ -15,7 +15,7 @@ import (
 func TestListMessagesReturnsErrorOnInternalServerError(t *testing.T) {
 	var requestedPageTokens []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/youtube/v3/liveChat/messages", r.URL.Path)
+		assert.Equal(t, "/youtube/v3/liveChat/messages", r.URL.Path)
 		requestedPageTokens = append(requestedPageTokens, r.URL.Query().Get("pageToken"))
 		writeGoogleAPIError(t, w, http.StatusInternalServerError, "backendError")
 	}))
