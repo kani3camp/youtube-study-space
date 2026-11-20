@@ -45,8 +45,10 @@ Major areas:
 
 - `system/`: Go backend, repository/application logic, batch/Lambda entrypoints.
 - `youtube-monitor/`: Next.js livestream UI. **It currently also participates in max-seat control**, so layout changes are not always display-only. Read `youtube-monitor/README.md` and `docs/development/architecture.md` before changing room/seat layout behavior.
+- `mypage/`: React/TypeScript/Vite frontend for MyPage (`mypage/README.md`, `docs/mypage/README.md`).
 - `firebase/`: Firestore rules and emulator configuration.
 - `aws-cdk/`: AWS infrastructure.
+- `infra/`: Terraform infrastructure for GCP (`infra/gcp/`), MyPage Cloud Run/API platform (`infra/mypage-platform/`), and MyPage OAuth TTL (`infra/mypage-oauth-ttl/`).
 - `docs-site/`: Docusaurus documentation.
 - `tools/`: standalone operational/development tools.
 
@@ -62,7 +64,10 @@ Read these before changing the corresponding behavior:
 | Firestore repository/application semantics | [`firebase/README.md`](firebase/README.md) | Distinguishes normal Go tests, Firestore Emulator integration tests, and client security-rule behavior. |
 | Data storage, forwarding, retention, or deletion | [`docs/privacy/`](docs/privacy/) | Privacy runbooks define retained vs retired data paths and migration constraints. |
 | Monitor layout or room definitions | [`youtube-monitor/README.md`](youtube-monitor/README.md), [`docs/development/architecture.md`](docs/development/architecture.md) | The monitor computes desired seat counts and may send control requests. |
+| MyPage frontend, API, or release config | [`docs/mypage/README.md`](docs/mypage/README.md), [`docs/mypage/release/README.md`](docs/mypage/release/README.md) | Distinguishes implemented behavior, credentialless release-config checks, and live-environment E2E/release gates. Local checks do not prove live readiness or release approval. |
+| GCP / MyPage Terraform infrastructure | [`infra/mypage-platform/README.md`](infra/mypage-platform/README.md), [`infra/gcp/docs/terraform-authentication-boundary.md`](infra/gcp/docs/terraform-authentication-boundary.md) | Separates credentialless local/CI validation from owner-authenticated Plan/Apply boundaries, isolated per-environment States, and protected destructive changes. |
 | Promotional/SNS/thumbnail design | [`docs/design/DESIGN.md`](docs/design/DESIGN.md) | Brand/production guidance only; it is not the livestream UI implementation specification. |
+| GitHub PR review handling | Canonical source per area: [`formal-spec/`](formal-spec/) for seat state/allocation; Notion via Notion MCP search/fetch for Notion-designed areas (e.g. mypage); GitHub for implementation/test/deploy state | Check the area's canonical source before judging review threads; escalate diffs that stay undecidable after cross-checking spec against implementation evidence. If Notion MCP is unavailable, keep reviewing what GitHub evidence can decide and hold only Notion-dependent judgments, naming the reference and why it is unconfirmed. |
 
 ## Quality Ownership
 
@@ -113,6 +118,24 @@ pnpm build:ci
 
 Read `youtube-monitor/README.md` for the environment variables required by `pnpm build:ci` and the CI-safe dummy values. `pnpm build` and `pnpm start` are operational commands that also validate locally provisioned runtime image/audio assets. Keep horizontal/vertical or other variants sharing domain/data behavior unless the requirement is intentionally variant-specific. When shared behavior changes, cover the relevant variants rather than assuming one rendering path represents all of them.
 
+### MyPage frontend (`mypage/`)
+
+```sh
+cd mypage
+pnpm check
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+For credentialless release public-config manifest validation, run from the repository root:
+
+```sh
+node mypage/scripts/check-release-config.mjs --file docs/mypage/release/public-config.example.json
+```
+
+See [`mypage/README.md`](mypage/README.md) and [`docs/mypage/release/README.md`](docs/mypage/release/README.md) for additional security, font, and Hosting checks.
+
 ### AWS CDK (`aws-cdk/`)
 
 ```sh
@@ -122,6 +145,19 @@ pnpm cdk:synth
 ```
 
 Do not deploy infrastructure unless the requested scope explicitly authorizes that deployment.
+
+### Terraform infrastructure (`infra/`)
+
+Run credentialless local checks from the repository root:
+
+```sh
+bash infra/mypage-platform/scripts/check-local.sh
+bash infra/mypage-oauth-ttl/scripts/check-local.sh
+```
+
+`infra/mypage-platform/scripts/check-local.sh` runs the `infra/mypage-platform/{tests,scripts}` unit tests, `terraform fmt -check -diff -recursive infra/mypage-platform`, cross-root/environment `.terraform.lock.hcl` `cmp` checks, `init -backend=false -input=false -lockfile=readonly` / `validate` / `test` for `dev` and `prod`, and the native contract checks (`check-foundation-native.py` and `check-read-metrics-native.py`). For `infra/gcp/`, see [`infra/gcp/README.md`](infra/gcp/README.md) for the matching credentialless `fmt`/`init`/`validate` and Python contract test commands.
+
+Do not run authenticated `terraform apply` or mutate remote State unless explicitly authorized; normal Plan/Apply runs through the protected GitHub Actions workflow (`terraform.yml`).
 
 ### Documentation (`docs-site/`)
 

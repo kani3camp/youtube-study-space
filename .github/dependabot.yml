@@ -27,7 +27,9 @@ updates:
   # major は個別PR
   # =========================
   - package-ecosystem: gomod
-    directory: /system
+    directories:
+      - /system
+      - /tools/room-image-prompt
     schedule:
       interval: monthly
       time: "09:00"
@@ -54,6 +56,7 @@ updates:
       - /youtube-monitor
       - /aws-cdk
       - /docs-site
+      - /firebase
       - /tools/menu-image-generator
       - /tools/video-maker/1000-minutes-simulator
       - /tools/figma-plugin/room-layout-analyzer
@@ -79,7 +82,7 @@ updates:
           - minor
           - patch
 
-  # MyPageフロントエンド（#1236でdevへ統合済み）
+  # MyPageフロントエンド（脆弱性対応を早めるため日次更新。既定ブランチへ統合後に有効化）
   - package-ecosystem: npm
     directory: /mypage
     schedule:
@@ -120,3 +123,12 @@ updates:
         update-types:
           - minor
           - patch
+
+  # =========================
+  # Terraform（意図的に Dependabot 対象外・手動管理）
+  # =========================
+  # infra/{gcp,mypage-platform,mypage-oauth-ttl}/environments/{dev,prod}/.terraform.lock.hcl
+  # は、マルチプラットフォーム checksum（linux_amd64 / darwin_arm64）および dev/prod・ルート間の
+  # lockfile 一致を CI（.github/ci-validation/validate.sh / infra/mypage-platform/scripts/check-local.sh）
+  # で強制しており、保護された環境別 Plan/Apply レビューとネイティブテスト更新を伴うため、
+  # Dependabot の自動 PR ではなく手動 PR で一括更新する。

@@ -13,7 +13,6 @@ TARGETS = (
     "README.md",
     "README.en.md",
     "AGENTS.md",
-    "CLAUDE.md",
     ".github/copilot-instructions.md",
     "system/AI_COLLABORATION_GUIDE.md",
     "youtube-monitor/README.md",
