@@ -89,23 +89,24 @@ bash infra/mypage-platform/scripts/check-local.sh
 
 1. 3 つの Secret（`mypage-oauth-client-id` / `mypage-oauth-client-secret` / `mypage-youtube-api-key`）に値を非公開手順で追加し、各版番号を控えます（値は Terraform・GitHub・ログに置きません）。
 2. `Deploy MyPage API` を `main` から `environment=production`・`mode=build-only` で実行し、本番 Artifact Registry `mypage/mypage-api` に API の不変タグ（40 桁のソース SHA）付き image を push して digest を控えます（Service がまだ無いため配備ジョブは起動しません）。
-3. `mypage-prod-plan` と `mypage-prod-apply` の両方に `MYPAGE_RUNTIME_SETTINGS_JSON`（`image_digest`・`image_source_sha`・`project_number`・`web_app_id`・`public_origin`・`hosting_backend_host`・3 つの Secret 版番号）を同じ内容で設定します（同意版は設定しません。旧 `privacy_version` / `terms_version` が残っていても読み込み時に除外され、それ以外の未知のキーは拒否されます）。`hosting_backend_host` は API の `*.a.run.app` ホスト名で、Backend / Hosting の配備スクリプトが Service の環境変数との一致を要求します。Service 作成後の環境変数の追加は Plan 契約が許可しないため、作成前に値を確定します。
+3. `mypage-prod-plan` と `mypage-prod-apply` の両方に `MYPAGE_RUNTIME_SETTINGS_JSON`（`image_digest`・`image_source_sha`・`project_number`・`web_app_id`・`public_origin`・3 つの Secret 版番号）を同じ内容で設定します（同意版は設定しません。旧 `privacy_version` / `terms_version` が残っていても読み込み時に除外され、それ以外の未知のキーは拒否されます）。`hosting_backend_host` は Service の作成後に決まるため、この時点では設定しません（手順 4）。
 
 ### 3. 2 回目の Apply（実行系）
 
 同じ `Terraform` を再実行します。CI は image タグと Secret 版を読み取り確認したうえで、`roles/datastore.user`、Cloud Run API、maintenance Job（初回は API image で作成。API image には Operator のバイナリが無いため、手順 5 の Operator 配備までは実行できません）、maintenance 用 SA・カスタムロール・WIF・Job IAM、Backend / Operator / Hosting の配備者の SA・WIF pool/provider（`main` 固定の条件）・権限を作成します。API はまだ存在しなかったため、公開 Invoker は宣言しません。
 
-### 4. Service 上のバインディング・配備用変数と 3 回目の Apply
+### 4. ホスト名の固定・Service 上のバインディング・配備用変数と 3 回目の Apply
 
-1. オーナーが `mypage-api` サービスに次の 3 つ（いずれも条件なし）を `etag` 保護で追加します。CI に Service の IAM 変更権限を渡さないため、どれも Terraform では作りません。
+1. Hosting 転送ホストの固定: 作成された `mypage-api` の `uri` から `*.a.run.app` ホスト名を読み取り、オーナーが Service に環境変数 `MYPAGE_HOSTING_BACKEND_HOST=<ホスト名>` だけを追加します（image・他の環境変数・Secret 参照・権限は変えない新しいリビジョン）。同じ値を `MYPAGE_RUNTIME_SETTINGS_JSON` の `hosting_backend_host` に（`mypage-prod-plan` / `mypage-prod-apply` の両方へ）追加します。次の Plan はこの 1 変数の追加だけを State の refresh として受け入れ、更新は計画しません（他の差分が混ざれば停止します）。Backend / Hosting の配備スクリプトは、この環境変数と Service の `uri` の一致を要求します。
+2. オーナーが `mypage-api` サービスに次の 3 つ（いずれも条件なし）を `etag` 保護で追加します。CI に Service の IAM 変更権限を渡さないため、どれも Terraform では作りません。
    - `roles/run.invoker` / `allUsers`（1 メンバーのみ）
    - `projects/youtube-study-space/roles/mypageBackendRelease` / `serviceAccount:mypage-backend-deploy@youtube-study-space.iam.gserviceaccount.com`
    - `roles/run.viewer` / `serviceAccount:mypage-hosting-deploy@youtube-study-space.iam.gserviceaccount.com`
-2. 配備用 Environment に変数を設定します（いずれも公開値で Secret ではありません）。
+3. 配備用 Environment に変数を設定します（いずれも公開値で Secret ではありません。`MYPAGE_HOSTING_BACKEND_HOST` は手順 4-1 と同じ値）。
    - `mypage-prod-backend`: `MYPAGE_BACKEND_WIF_PROVIDER`（`projects/906336399194/locations/global/workloadIdentityPools/mypage-backend/providers/github-actions`）、`MYPAGE_HOSTING_SITE`、`MYPAGE_HOSTING_BACKEND_HOST`
    - `mypage-prod-operator`: `MYPAGE_OPERATOR_WIF_PROVIDER`（`.../workloadIdentityPools/mypage-operator/providers/github-actions`）
    - `mypage-prod-hosting`: `MYPAGE_HOSTING_WIF_PROVIDER`（`.../workloadIdentityPools/mypage-hosting/providers/github-actions`）、`MYPAGE_HOSTING_SITE`、`MYPAGE_HOSTING_BACKEND_HOST`、本番の `MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`
-3. 同じ `Terraform` を再実行して公開 Invoker を State へ取り込みます（import のみ、ほかの変更は 0 件）。API の作成後は、公開 Invoker の付与が無い Plan は停止します。
+4. 同じ `Terraform` を再実行して公開 Invoker を State へ取り込みます（import と手順 4-1 の refresh のみで、ほかの変更は 0 件）。API の作成後は、公開 Invoker の付与が無い Plan は停止します。
 
 ### 5. アプリケーションの初期化と配備
 
@@ -114,7 +115,7 @@ bash infra/mypage-platform/scripts/check-local.sh
 1. Operator: `Deploy Maintenance Operator` で maintenance Job を専用 Operator image へ更新し、generation 前進と設定不変を読み戻します。
 2. `config/mypage` 初期化: `Set Maintenance Mode`（`mypage-maintenance.yml`）を `environment=production`・`enabled=false` で実行します（[運用手順](../../docs/mypage/maintenance-mode.md)。GitHub Environment `mypage-maintenance-production` の作成が前提です）。
 3. Frontend: `Deploy MyPage Frontend` で初回の Hosting 公開を行います。Backend の配備後確認は Hosting 経由の配信を前提とし、未公開のサイトでは書き込み前に停止するため、初回だけは Terraform が bootstrap image で作成した API に対して Frontend を先に公開します。
-4. Backend: `Deploy MyPage API`（`mode=build-and-deploy`）を実行し、読み戻しと匿名 smoke を確認します。2 回目以降のリリースは Backend → Frontend の順です（Hosting `/api/**` 転送・OAuth コールバック・CSP / Cookie / Origin / rate limiting の実機確認と公開判断は [公開条件](../../docs/mypage/release/README.md) に従います）。
+4. Backend: `main` が手順 2-2 と同じ SHA のままなら、`Deploy MyPage API` を `mode=deploy-existing` で、手順 2-2 の digest と source SHA を指定して実行します（同じ SHA の不変タグは作り直せないため `build-and-deploy` は `image-tag-already-exists` で停止します。Service は既にその image のため書き込みはせず、読み戻しと匿名 smoke だけを行います）。`main` が進んでいれば `mode=build-and-deploy` を使います。2 回目以降のリリースは Backend → Frontend の順です（Hosting `/api/**` 転送・OAuth コールバック・CSP / Cookie / Origin / rate limiting の実機確認と公開判断は [公開条件](../../docs/mypage/release/README.md) に従います）。
 
 > [!CAUTION]
 > 異常時はまず後続 apply や告知を停止してください。Cloud Run には `deletion_protection` と `prevent_destroy` があるため安易に `destroy` せず、Secret 値や TTL・既存資源の巻き戻しも行いません。リリース対（Frontend commit・Backend digest・同意版・検証証拠）と前世代互換を記録し、既知リビジョンへの forward-fix または明示ロールバックで対処します。

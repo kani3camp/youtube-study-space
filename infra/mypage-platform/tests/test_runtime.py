@@ -634,6 +634,41 @@ class RuntimeTest(unittest.TestCase):
         bad(lambda p: p["resource_drift"][0]["change"].update(after_unknown={"template": True}))
 
 
+    def test_owner_added_hosting_backend_host_is_adopted_as_the_only_env_addition(self):
+        # A new environment creates the Service before its *.a.run.app host is known.
+        # The owner then adds only MYPAGE_HOSTING_BACKEND_HOST and records the same
+        # value in the runtime settings; the next Plan adopts it without an update.
+        plan = fixture(public=True)
+        for item in plan["resource_changes"]:
+            item["change"]["actions"] = ["no-op"]
+            item["change"].pop("importing", None)
+        settings = plan["variables"]["runtime_settings"]["value"]
+        settings["hosting_backend_host"] = "mypage-api-observed-et.a.run.app"
+        after = service(plan)["after"]
+        before = deepcopy(after)
+        before.update(uid="fixed-service-uid", generation="1")
+        after.update(uid="fixed-service-uid", generation="2")
+        after["template"][0]["containers"][0]["env"].append({
+            "name": "MYPAGE_HOSTING_BACKEND_HOST", "value": settings["hosting_backend_host"]
+        })
+        drift = deepcopy(next(item for item in plan["resource_changes"] if item["address"] == r.SERVICE))
+        drift["change"].update(actions=["update"], before=before)
+        plan["resource_drift"] = [drift]
+        self.assertEqual(r.validate_plan(deepcopy(plan)),
+                         {"resources": len(plan["resource_changes"]), "creates": 0})
+        for mutate in (
+            # Any other env addition alongside the host stays rejected.
+            lambda p: p["resource_drift"][0]["change"]["after"]["template"][0]["containers"][0]["env"].append(
+                {"name": "MYPAGE_UNREVIEWED", "value": "x"}),
+            # The added host must equal the reviewed runtime settings value.
+            lambda p: p["resource_drift"][0]["change"]["after"]["template"][0]["containers"][0]["env"][-1].update(
+                value="mypage-api-other-et.a.run.app"),
+        ):
+            rejected = deepcopy(plan)
+            mutate(rejected)
+            with self.subTest(mutation=mutate), self.assertRaises(ValueError):
+                r.validate_plan(rejected)
+
     def test_security_capacity_image_and_environment_changes_are_rejected(self):
         changes = [
             lambda a: a.update(invoker_iam_disabled=True),
