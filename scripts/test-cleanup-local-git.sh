@@ -91,6 +91,17 @@ setup_repo() {
 	g commit -q -m "squash topic-squashed"
 	commit_file "$REPO" README.md after-squash
 
+	# 3b. Remote deleted, then local-only commits whose net effect is empty.
+	g switch -q -c topic-reverted
+	commit_file "$REPO" reverted-base.txt v1
+	publish_then_delete_remote topic-reverted
+	g switch -q dev
+	g merge -q --ff-only topic-reverted
+	g switch -q topic-reverted
+	commit_file "$REPO" draft.txt draft
+	g revert --no-edit HEAD >/dev/null
+	g switch -q dev
+
 	# 4. Merged worktrees: one with an ignored local file, one with only node_modules.
 	for name in wt-env wt-deps; do
 		g switch -q -c "$name"
@@ -151,7 +162,13 @@ fi
 
 expect_branch_kept topic-unpushed "keeps [gone] branch with commits not in retained refs"
 expect_branch_deleted topic-merged "deletes [gone] branch merged into origin/dev"
-expect_branch_deleted topic-squashed "deletes [gone] branch squash-merged into origin/dev"
+expect_branch_kept topic-squashed "keeps squash-merged branch whose commits are not in retained refs"
+if grep -Fq "content matches origin/dev (likely squash-merged, review and delete manually): topic-squashed" "${WORK}/apply.log"; then
+	pass "reports squash-merged branch as a manual-review candidate"
+else
+	fail "reports squash-merged branch as a manual-review candidate"
+fi
+expect_branch_kept topic-reverted "keeps branch whose local-only commits revert each other"
 
 expect_path_exists "${REPO}/.worktrees/wt-env/.env" "keeps worktree with non-regenerable ignored file"
 expect_branch_kept wt-env "keeps branch of worktree with non-regenerable ignored file"

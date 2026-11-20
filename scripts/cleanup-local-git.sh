@@ -41,10 +41,11 @@ Cleanup scope:
      real path is the expected path inside the main worktree
 
 Retained remote-tracking refs are `<remote>/main`, `<remote>/dev`, and
-`<remote>/integration/*`. A branch counts as integrated when its tip is an
-ancestor of one of them, or when merging it into one of them changes nothing
-(e.g. after a squash merge). Branches and worktrees that cannot be confirmed are
-listed as `[keep]` and left untouched.
+`<remote>/integration/*`. A branch counts as integrated only when its tip is an
+ancestor of one of them, so every commit on it is still reachable after deletion.
+Other branches and worktrees are listed as `[keep]` and left untouched. When
+merging such a branch into a retained ref would change nothing (e.g. after a
+squash merge), the `[keep]` line says so; delete it manually after review.
 
 Tip: Run `git fetch --prune` beforehand to refresh `[gone]` upstream tracking status.
 EOF
@@ -175,26 +176,36 @@ while IFS= read -r ref; do
 	esac
 done < <(git -C "$MAIN_ROOT_REAL" for-each-ref --format='%(refname)' refs/remotes)
 
-# Prints the retained ref that already contains the branch and returns 0.
-# Returns 1 when integration cannot be confirmed.
+branch_tip() {
+	git -C "$MAIN_ROOT_REAL" rev-parse --verify --quiet "refs/heads/${1}^{commit}"
+}
+
+# Prints the retained ref whose history contains the branch tip and returns 0.
+# Only this check authorizes deletion: every commit on the branch stays reachable.
 find_integrating_ref() {
-	local branch="$1"
-	local tip ref merged_tree ref_tree
+	local tip ref
 
-	if ((${#RETAINED_REFS[@]} == 0)); then
+	if ((${#RETAINED_REFS[@]} == 0)) || ! tip="$(branch_tip "$1")"; then
 		return 1
 	fi
-	if ! tip="$(git -C "$MAIN_ROOT_REAL" rev-parse --verify --quiet "refs/heads/${branch}^{commit}")"; then
-		return 1
-	fi
-
 	for ref in "${RETAINED_REFS[@]}"; do
 		if git -C "$MAIN_ROOT_REAL" merge-base --is-ancestor "$tip" "$ref" 2>/dev/null; then
 			echo "${ref#refs/remotes/}"
 			return 0
 		fi
 	done
+	return 1
+}
 
+# Prints the retained ref into which merging the branch changes no files and
+# returns 0. This is only a hint for manual review (e.g. squash-merged
+# branches); matching content does not mean the branch's commits are retained.
+find_content_merged_ref() {
+	local tip ref merged_tree ref_tree
+
+	if ((${#RETAINED_REFS[@]} == 0)) || ! tip="$(branch_tip "$1")"; then
+		return 1
+	fi
 	for ref in "${RETAINED_REFS[@]}"; do
 		if ! merged_tree="$(
 			GIT_OBJECT_DIRECTORY="${SCRATCH_DIR}/objects" \
@@ -206,11 +217,21 @@ find_integrating_ref() {
 		merged_tree="${merged_tree%%$'\n'*}"
 		ref_tree="$(git -C "$MAIN_ROOT_REAL" rev-parse "${ref}^{tree}")"
 		if [[ "$merged_tree" == "$ref_tree" ]]; then
-			echo "${ref#refs/remotes/} (content already merged)"
+			echo "${ref#refs/remotes/}"
 			return 0
 		fi
 	done
 	return 1
+}
+
+# Prints the [keep] line for a branch whose tip is not in any retained ref.
+print_not_integrated() {
+	local label="$1" branch="$2" content_ref
+	if content_ref="$(find_content_merged_ref "$branch")"; then
+		echo "  [keep] not an ancestor of retained refs; content matches ${content_ref} (likely squash-merged, review and delete manually): ${label}"
+	else
+		echo "  [keep] not integrated into retained refs (review manually): ${label}"
+	fi
 }
 
 if [[ "$APPLY" == true ]]; then
@@ -309,7 +330,7 @@ process_worktree_entry() {
 
 	local integrated_ref
 	if ! integrated_ref="$(find_integrating_ref "$wt_branch")"; then
-		echo "  [keep] not integrated into retained refs (review manually): ${wt_real} (branch: ${wt_branch})"
+		print_not_integrated "${wt_real} (branch: ${wt_branch})" "$wt_branch"
 		return 0
 	fi
 
@@ -474,7 +495,7 @@ while IFS=$'\t' read -r branch track; do
 	fi
 
 	if ! integrated_ref="$(find_integrating_ref "$branch")"; then
-		echo "  [keep] not integrated into retained refs (review manually): ${branch}"
+		print_not_integrated "$branch" "$branch"
 		continue
 	fi
 
