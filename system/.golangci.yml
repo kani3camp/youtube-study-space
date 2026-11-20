@@ -4,6 +4,7 @@ linters:
   default: standard
   enable:
     - nolintlint
+    - testifylint
     - wrapcheck
   settings:
     errcheck:
@@ -13,6 +14,11 @@ linters:
       allow-unused: false
       require-explanation: true
       require-specific: true
+    testifylint:
+      disable-all: true
+      enable:
+        - error-is-as
+        - go-require
 
 formatters:
   enable:
