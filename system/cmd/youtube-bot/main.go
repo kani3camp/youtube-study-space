@@ -149,7 +149,7 @@ func Bot(ctx context.Context, clientOption option.ClientOption) {
 			numContinuousListMessagesFailed = 0
 		}
 
-		// YouTubeが指定するポーリング間隔と、設定の最小間隔の長い方まで、前回の取得時刻から待つ
+		// 前回の取得時刻から、YouTube指定のポーリング間隔と設定上の最小間隔のうち長い方だけ待つ
 		pollingInterval := time.Duration(pollingIntervalMillis) * time.Millisecond
 		minimumInterval := time.Duration(app.Configs.Constants.SleepIntervalMilli) * time.Millisecond
 		sleepInterval := timeutil.NoNegativeDuration(max(pollingInterval, minimumInterval) - timeutil.JstNow().Sub(lastChatFetched))

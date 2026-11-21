@@ -225,7 +225,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			if inOption.MinWorkOrderOption.IsDurationMinSet {
 				switch currentSeat.State {
 				case repository.WorkState:
-					// 作業時間を（入室時間から自動退室までの時間）を変更
+					// 作業時間（入室から自動退室までの時間）を変更する
 					realtimeEntryDurationMin := int(timeutil.NoNegativeDuration(currentSeat.RealtimeEntryDurationMin(jstNow)).Minutes())
 					requestedUntil := currentSeat.EnteredAt.Add(time.Duration(inOption.MinWorkOrderOption.DurationMin) * time.Minute)
 
@@ -468,7 +468,7 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 		if changeOption.IsDurationMinSet {
 			switch currentSeat.State {
 			case repository.WorkState:
-				// 作業時間（入室時間から自動退室までの時間）を変更
+				// 作業時間（入室から自動退室までの時間）を変更する
 				realtimeEntryDurationMin := int(timeutil.NoNegativeDuration(jstNow.Sub(currentSeat.EnteredAt)).Minutes())
 				requestedUntil := currentSeat.EnteredAt.Add(time.Duration(changeOption.DurationMin) * time.Minute)
 

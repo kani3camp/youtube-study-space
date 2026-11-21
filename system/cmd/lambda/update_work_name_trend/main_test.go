@@ -178,7 +178,7 @@ func TestUpdateWorkNameTrendLogsSafeDiagnosticDetail(t *testing.T) {
 	restore := stubUpdateTrendDeps(t, status.Error(codes.PermissionDenied, privateValue), nil, nil, nil)
 	t.Cleanup(restore)
 
-	// 旧実装(origin/dev)と同様、再試行を誘発しないよう成功扱いで返す。
+	// 再試行を誘発しないよう成功扱いで返す。
 	if err := UpdateWorkNameTrend(context.Background()); err != nil {
 		t.Fatalf("expected handled error, got %v", err)
 	}

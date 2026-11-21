@@ -71,9 +71,9 @@ func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.Inf
 }
 
 func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) error {
-	// ユーザードキュメントはすでにあり、登録されていないプロパティだった場合、そのままプロパティを保存したら自動で作成される。
-	// また、読み込みのときにそのプロパティがなくても大丈夫。自動で初期値が割り当てられる。
-	// ただし、ユーザードキュメントがそもそもない場合は、書き込んでもエラーにはならないが、登録日が記録されないため、要登録。
+	// ユーザードキュメントが既に存在する場合、未登録のプロパティは保存時に自動で作成され、
+	// 読み込み時に存在しないプロパティにも自動で初期値が割り当てられる。
+	// ただし、ユーザードキュメント自体が存在しない場合は、書き込んでもエラーにならない一方、登録日が記録されないため事前の登録が必要。
 
 	// オプションが1つ以上指定されているか？
 	if len(myOptions) == 0 {
@@ -166,14 +166,14 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 				if err := app.Repository.UpdateUserDefaultStudyMin(tx, app.ProcessedUserID, myOption.IntValue); err != nil {
 					return fmt.Errorf("in UpdateUserDefaultStudyMin: %w", err)
 				}
-				// 値が0はリセットのこと。
+				// 値が0の場合は設定をリセットする。
 				if myOption.IntValue == 0 {
 					replyMessage += i18nmsg.CommandMyResetDefaultWork()
 				} else {
 					replyMessage += i18nmsg.CommandMySetDefaultWork(myOption.IntValue)
 				}
 			case utils.FavoriteColor:
-				// 値が""はリセットのこと。
+				// 値が""の場合は設定をリセットする。
 				colorCode := utils.ColorNameToColorCode(myOption.StringValue)
 				if err := app.Repository.UpdateUserFavoriteColor(tx, app.ProcessedUserID, colorCode); err != nil {
 					return fmt.Errorf("in UpdateUserFavoriteColor: %w", err)

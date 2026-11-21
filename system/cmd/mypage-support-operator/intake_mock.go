@@ -31,7 +31,7 @@ func fixedMockIntake(p proposal, input humanRequest) bool {
 	return humanAction(p.Action) && p.Mock && !p.Execute && p.Environment == "development" && p.Project == humanMockProject && intakePurpose(p.Purpose) && input == mockRequestForAction(p.Purpose, p.Action)
 }
 
-// この固定の偽物はCLIの接続だけを検証する。ストアの動作と新たなOAuth認証は、
+// この固定モックはCLIの接続だけを検証する。ストアの動作と新たなOAuth認証は、
 // 実ライブラリとエミュレーターで別途検証する。
 // SDK・通信・永続状態・本人確認・削除は模擬しない。
 type mockSupportCreator struct {
