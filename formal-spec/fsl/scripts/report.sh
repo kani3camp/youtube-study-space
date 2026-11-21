@@ -5,8 +5,9 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 fsl_root="$(cd -- "$script_dir/.." && pwd)"
 fslc="${FSLC:-$("$script_dir/install.sh")}"
-depth="${FSL_REPORT_DEPTH:-8}"
+source "$script_dir/settings.sh"
 spec_name="${1:-seat_session}"
+depth="${FSL_REPORT_DEPTH:-$(fsl_default_depth "$spec_name")}"
 spec="$fsl_root/specs/$spec_name.fsl"
 output="${2:-$fsl_root/generated/reports/$spec_name.html}"
 

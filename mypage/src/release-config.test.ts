@@ -1,0 +1,617 @@
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
+import { POLICY_EFFECTIVE_DATE } from './public-policy-config'
+import {
+	checkReleaseConfig,
+	checkReleaseConfigJSON,
+	type ReleaseConfig,
+	type ReleaseConfigReport,
+	releaseConfigMaxBytes,
+} from './release-config'
+
+const credentialPasswordSentinel = 'SYNTHETIC_PASSWORD_SENTINEL'
+
+// 不正URLのテスト値は、明らかな合成部品から実行時に作る。
+// Basic Auth URLそのものを公開せず、userinfoを拒否する検証を維持する。
+function credentialTestURL(hostname: string, withPassword: boolean) {
+	const url = new URL(`https://${hostname}`)
+	url.username = 'synthetic-test-user'
+	if (withPassword) url.password = credentialPasswordSentinel
+	return url.href
+}
+
+function fixture(): ReleaseConfig {
+	const deployment = {
+		environment: 'development' as const,
+		projectID: 'demo-synthetic-mypage',
+		projectNumber: '123456789',
+		webAppID: '1:123456789:web:synthetic',
+		publicOrigin: 'https://example.invalid',
+	}
+	return {
+		schemaVersion: 1,
+		deployment,
+		frontend: {
+			VITE_FIREBASE_API_KEY: 'synthetic-public-api-key',
+			VITE_FIREBASE_AUTH_DOMAIN: `${deployment.projectID}.firebaseapp.com`,
+			VITE_FIREBASE_PROJECT_ID: deployment.projectID,
+			VITE_FIREBASE_APP_ID: deployment.webAppID,
+			VITE_APP_CHECK_SITE_KEY: 'synthetic-public-site-key',
+			VITE_MYPAGE_GA4_ID: 'G-SYNTHETIC1',
+			VITE_MYPAGE_PUBLIC_ORIGIN: deployment.publicOrigin,
+		},
+		backend: { ...deployment },
+		hosting: {
+			environment: deployment.environment,
+			projectID: deployment.projectID,
+			publicOrigin: deployment.publicOrigin,
+			serviceID: 'synthetic-mypage',
+			region: 'asia-southeast2',
+			target: 'synthetic-web',
+			inventory: {
+				reviewed: true,
+				script: [
+					'https://scripts.example.invalid/enterprise.js',
+					'https://www.googletagmanager.com/gtag/js',
+				],
+				connect: [
+					'https://api.example.invalid',
+					'https://www.google-analytics.com',
+					'https://region1.google-analytics.com',
+				],
+				frame: ['https://frames.example.invalid'],
+				image: [
+					'https://images.example.invalid',
+					'https://www.google-analytics.com',
+					'https://region1.google-analytics.com',
+					'https://yt3.ggpht.com',
+					'https://yt3.googleusercontent.com',
+				],
+				analyticsApproved: true,
+			},
+		},
+	}
+}
+function diagnostic(result: ReleaseConfigReport, field: string, code: string) {
+	expect(result.configurationValid).toBe(false)
+	expect(result.diagnostics).toEqual(
+		expect.arrayContaining([expect.objectContaining({ field, code })]),
+	)
+}
+function cli(args: string[], input?: string | Uint8Array) {
+	return spawnSync(
+		process.execPath,
+		[
+			fileURLToPath(
+				new URL('../scripts/check-release-config.mjs', import.meta.url),
+			),
+			...args,
+		],
+		{
+			input,
+			encoding: 'utf8',
+			timeout: 10_000,
+			env: {
+				...process.env,
+				VITE_FIREBASE_API_KEY: 'AMBIENT_SECRET_SENTINEL',
+				GOOGLE_APPLICATION_CREDENTIALS: '/private/AMBIENT_CREDENTIAL_SENTINEL',
+				FIRESTORE_EMULATOR_HOST: 'external.example.invalid:8080',
+			},
+		},
+	)
+}
+
+describe('offline public release configuration', () => {
+	it('validates development and production pairs without claiming readiness or echoing values', () => {
+		const input = fixture()
+		const development = checkReleaseConfig(input)
+		expect(development.configurationValid).toBe(true)
+		expect(development.checks.backendCompanion).toBe('consistent')
+		expect(development.checks.hostingCandidate).toBe('consistent')
+		input.deployment.environment = 'production'
+		input.backend = { ...input.deployment }
+		if (input.hosting) {
+			input.hosting.environment = 'production'
+			input.hosting.region = 'asia-northeast2'
+		}
+		const production = checkReleaseConfigJSON(JSON.stringify(input), {
+			policyEffectiveDate: '2026-11-20',
+		})
+		expect(production.configurationValid).toBe(true)
+		for (const result of [development, production]) {
+			expect(result.releaseReady).toBe(false)
+			expect(result.pendingGates).toContain(
+				'project-app-auth-domain-registration',
+			)
+			expect(result.pendingGates).toContain(
+				'real-hosting-oauth-app-check-auth-e2e',
+			)
+			expect(result.pendingGates).toContain(
+				'D01-implementation-D02-policy-compliance-D03-public-values-and-publication-review',
+			)
+		}
+		for (const value of Object.values(input.deployment))
+			expect(JSON.stringify(production)).not.toContain(value)
+	})
+	it('rejects a Hosting manifest that blocks channel avatars', () => {
+		const input = fixture()
+		if (!input.hosting) throw new Error('missing fixture Hosting companion')
+		input.hosting.inventory.image = ['https://www.gstatic.com/recaptcha/']
+		const result = checkReleaseConfig(input)
+		expect(result.configurationValid).toBe(false)
+		expect(result.checks.hostingCandidate).toBe('invalid')
+		expect(result.diagnostics).toContainEqual(
+			expect.objectContaining({ field: 'hosting', code: 'INVALID_FIELD' }),
+		)
+	})
+	it('keeps absent backend and Hosting companions explicitly unverified', () => {
+		const input = fixture()
+		delete input.backend
+		delete input.hosting
+		const result = checkReleaseConfig(input)
+		expect(result.configurationValid).toBe(true)
+		expect(result.checks.backendCompanion).toBe('not-supplied')
+		expect(result.checks.hostingCandidate).toBe('not-supplied')
+		expect(result.releaseReady).toBe(false)
+	})
+	// 同意版と公開文面の値はソースの定数で管理する。旧マニフェストの項目は黙って無視せず拒否する。
+	it.each([
+		['input', { publicPolicy: { VITE_PUBLIC_JURISDICTION: 'synthetic' } }],
+		['deployment', { deployment: { privacyVersion: 'synthetic-p' } }],
+		['backend', { backend: { termsVersion: 'synthetic-t' } }],
+		['frontend', { frontend: { VITE_PRIVACY_POLICY_VERSION: 'synthetic-p' } }],
+		['frontend', { frontend: { VITE_TERMS_VERSION: 'synthetic-t' } }],
+	] as const)('rejects retired policy fields under %s', (field, retired) => {
+		const input = fixture() as unknown as Record<
+			string,
+			Record<string, unknown>
+		>
+		for (const [section, values] of Object.entries(retired))
+			input[section] =
+				section === 'publicPolicy' ? values : { ...input[section], ...values }
+		diagnostic(checkReleaseConfig(input), field, 'UNEXPECTED_FIELD')
+	})
+	it.each([
+		['test-youtube-study-space', 'G-E31NHW939V'],
+		['youtube-study-space', 'G-ZJ1VPVT2L2'],
+	])('accepts a public manifest for %s with its registered measurement ID', (projectID, measurementID) => {
+		const input = fixture()
+		input.deployment.projectID = projectID
+		input.frontend.VITE_FIREBASE_PROJECT_ID = projectID
+		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = `${projectID}.firebaseapp.com`
+		input.frontend.VITE_MYPAGE_GA4_ID = measurementID
+		input.backend = { ...input.deployment }
+		if (input.hosting) input.hosting.projectID = projectID
+		const result = checkReleaseConfig(
+			input,
+			projectID === 'youtube-study-space'
+				? { policyEffectiveDate: '2026-11-20' }
+				: undefined,
+		)
+		expect(result.configurationValid).toBe(true)
+		expect(result.releaseReady).toBe(false)
+	})
+	it('reports missing and malformed fields using known field paths', () => {
+		const input = fixture()
+		delete input.frontend.VITE_FIREBASE_API_KEY
+		input.frontend.VITE_APP_CHECK_SITE_KEY = ''
+		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = credentialTestURL(
+			'example.invalid',
+			true,
+		)
+		input.deployment.projectNumber = '0123456789'
+		const result = checkReleaseConfig(input)
+		for (const [field, code] of [
+			['frontend.VITE_FIREBASE_API_KEY', 'MISSING_FIELD'],
+			['frontend.VITE_APP_CHECK_SITE_KEY', 'MISSING_FIELD'],
+			['frontend.VITE_FIREBASE_AUTH_DOMAIN', 'INVALID_FIELD'],
+			['deployment.projectNumber', 'INVALID_FIELD'],
+		])
+			diagnostic(result, field, code)
+		diagnostic(checkReleaseConfig({}), 'deployment', 'MISSING_FIELD')
+		diagnostic(checkReleaseConfig([]), 'input', 'INVALID_FIELD')
+		diagnostic(
+			checkReleaseConfig({ ...fixture(), schemaVersion: 2 }),
+			'schemaVersion',
+			'INVALID_FIELD',
+		)
+	})
+	it.each([
+		['VITE_FIREBASE_PROJECT_ID', 'other-synthetic-project'],
+		['VITE_FIREBASE_APP_ID', '1:999999999:web:other'],
+		['VITE_FIREBASE_AUTH_DOMAIN', 'other-synthetic-project.firebaseapp.com'],
+	] as const)('rejects mixed frontend %s', (key, value) => {
+		const input = fixture()
+		input.frontend[key] = value
+		diagnostic(checkReleaseConfig(input), `frontend.${key}`, 'MISMATCH')
+	})
+	it.each([
+		'linked-synthetic-site.firebaseapp.com',
+		'linked-synthetic-site.web.app',
+	])('accepts a Hosting site ID distinct from the project ID: %s', (authDomain) => {
+		const input = fixture()
+		input.deployment.publicOrigin = 'https://linked-synthetic-site.web.app'
+		if (!input.backend || !input.hosting)
+			throw new Error('Synthetic fixture unavailable')
+		input.backend.publicOrigin = input.deployment.publicOrigin
+		input.hosting.publicOrigin = input.deployment.publicOrigin
+		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = authDomain
+		input.frontend.VITE_MYPAGE_PUBLIC_ORIGIN = input.deployment.publicOrigin
+		const result = checkReleaseConfig(input)
+		expect(result.configurationValid).toBe(true)
+		expect(result.releaseReady).toBe(false)
+		expect(result.pendingGates).toContain(
+			'project-app-auth-domain-registration',
+		)
+		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = 'other-site.firebaseapp.com'
+		diagnostic(
+			checkReleaseConfig(input),
+			'frontend.VITE_FIREBASE_AUTH_DOMAIN',
+			'MISMATCH',
+		)
+	})
+	it('rejects app/project-number mismatch and leaves custom-domain registration pending', () => {
+		const input = fixture()
+		input.deployment.webAppID = '1:987654321:web:synthetic'
+		diagnostic(checkReleaseConfig(input), 'deployment.webAppID', 'MISMATCH')
+		const custom = fixture()
+		custom.frontend.VITE_FIREBASE_AUTH_DOMAIN = 'auth.example.invalid'
+		expect(checkReleaseConfig(custom).configurationValid).toBe(true)
+		expect(checkReleaseConfig(custom).pendingGates).toContain(
+			'project-app-auth-domain-registration',
+		)
+	})
+	it.each([
+		'environment',
+		'projectID',
+		'projectNumber',
+		'webAppID',
+		'publicOrigin',
+	] as const)('rejects mixed backend %s', (key) => {
+		const input = fixture()
+		if (!input.backend) throw new Error('Missing synthetic companion')
+		if (key === 'environment') input.backend.environment = 'production'
+		else if (key === 'publicOrigin')
+			input.backend.publicOrigin = 'https://other.invalid'
+		else input.backend[key] = 'other-synthetic-value'
+		const result = checkReleaseConfig(input)
+		diagnostic(result, `backend.${key}`, 'MISMATCH')
+		expect(result.checks.backendCompanion).toBe('invalid')
+	})
+	it.each([
+		'http://example.invalid',
+		credentialTestURL('example.invalid', true),
+		'https://example.invalid/',
+		'https://example.invalid/login',
+		'https://example.invalid?code=private',
+		'https://example.invalid#private',
+		'https://example.invalid:8443',
+	])('rejects noncanonical origin %s', (value) => {
+		const input = fixture()
+		input.deployment.publicOrigin = value
+		diagnostic(
+			checkReleaseConfig(input),
+			'deployment.publicOrigin',
+			'INVALID_FIELD',
+		)
+	})
+	it.each([
+		{
+			environment: 'development',
+			projectID: 'test-youtube-study-space',
+			measurementID: 'G-E31NHW939V',
+			wrongID: 'G-ZJ1VPVT2L2',
+		},
+		{
+			environment: 'production',
+			projectID: 'youtube-study-space',
+			measurementID: 'G-ZJ1VPVT2L2',
+			wrongID: 'G-E31NHW939V',
+		},
+	] as const)('requires $environment GA4 release configuration', ({
+		environment,
+		projectID,
+		measurementID,
+		wrongID,
+	}) => {
+		const input = fixture()
+		input.deployment.environment = environment
+		input.deployment.projectID = projectID
+		input.frontend.VITE_FIREBASE_PROJECT_ID = projectID
+		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = `${projectID}.firebaseapp.com`
+		input.backend = { ...input.deployment }
+		delete input.hosting
+		delete input.frontend.VITE_MYPAGE_GA4_ID
+		delete input.frontend.VITE_MYPAGE_PUBLIC_ORIGIN
+		const options =
+			environment === 'production'
+				? { policyEffectiveDate: '2026-11-20' }
+				: undefined
+		const missing = checkReleaseConfig(input, options)
+		diagnostic(missing, 'frontend.VITE_MYPAGE_GA4_ID', 'MISSING_FIELD')
+		diagnostic(missing, 'frontend.VITE_MYPAGE_PUBLIC_ORIGIN', 'MISSING_FIELD')
+		input.frontend.VITE_MYPAGE_PUBLIC_ORIGIN = input.deployment.publicOrigin
+		input.frontend.VITE_MYPAGE_GA4_ID = wrongID
+		diagnostic(
+			checkReleaseConfig(input, options),
+			'frontend.VITE_MYPAGE_GA4_ID',
+			'MISMATCH',
+		)
+		input.frontend.VITE_MYPAGE_GA4_ID = 'invalid'
+		diagnostic(
+			checkReleaseConfig(input, options),
+			'frontend.VITE_MYPAGE_GA4_ID',
+			'INVALID_FIELD',
+		)
+		input.frontend.VITE_MYPAGE_GA4_ID = measurementID
+		expect(checkReleaseConfig(input, options).configurationValid).toBe(true)
+		input.frontend.VITE_MYPAGE_PUBLIC_ORIGIN = 'https://other.invalid'
+		diagnostic(
+			checkReleaseConfig(input, options),
+			'frontend.VITE_MYPAGE_PUBLIC_ORIGIN',
+			'MISMATCH',
+		)
+	})
+	it('requires GA4 script and collection sources in the release CSP inventory', () => {
+		const input = fixture()
+		if (!input.hosting) throw new Error('Missing synthetic hosting')
+		input.hosting.inventory.analyticsApproved = false
+		input.hosting.inventory.script = [
+			'https://scripts.example.invalid/enterprise.js',
+		]
+		input.hosting.inventory.connect = ['https://api.example.invalid']
+		input.hosting.inventory.image = [
+			'https://yt3.ggpht.com',
+			'https://yt3.googleusercontent.com',
+		]
+		const missing = checkReleaseConfig(input)
+		diagnostic(missing, 'hosting.inventory.analyticsApproved', 'INVALID_FIELD')
+		for (const key of ['script', 'connect', 'image'])
+			diagnostic(missing, `hosting.inventory.${key}`, 'MISMATCH')
+	})
+	it('reuses Hosting region/source/review rejection without returning a deployment candidate', () => {
+		const input = fixture()
+		if (!input.hosting) throw new Error('Missing synthetic hosting')
+		input.hosting.region = 'asia-northeast2'
+		diagnostic(checkReleaseConfig(input), 'hosting', 'INVALID_FIELD')
+		input.hosting.region = 'asia-southeast2'
+		input.hosting.environment = 'production'
+		diagnostic(checkReleaseConfig(input), 'hosting.environment', 'MISMATCH')
+		input.hosting.environment = 'development'
+		input.hosting.inventory.reviewed = false
+		diagnostic(checkReleaseConfig(input), 'hosting', 'INVALID_FIELD')
+		input.hosting.inventory.reviewed = true
+		expect(checkReleaseConfig(input).configurationValid).toBe(true)
+		input.hosting.inventory.connect = [
+			credentialTestURL('api.example.invalid', true),
+		]
+		const result = checkReleaseConfig(input)
+		diagnostic(result, 'hosting', 'INVALID_FIELD')
+		expect(JSON.stringify(result)).not.toContain(credentialPasswordSentinel)
+		expect(result).not.toHaveProperty('firebase')
+	})
+	it.each([
+		'VITE_OAUTH_CLIENT_SECRET',
+		'VITE_YOUTUBE_API_KEY',
+		'VITE_FIREBASE_ADMIN_CREDENTIAL',
+		'FIREBASE_APPCHECK_DEBUG_TOKEN',
+		'GOOGLE_APPLICATION_CREDENTIALS',
+		'PRIVATE_KEY_SENTINEL',
+	])('rejects forbidden public field %s without echoing keys/values', (key) => {
+		const input = fixture()
+		const result = checkReleaseConfig({
+			...input,
+			frontend: { ...input.frontend, [key]: 'PRIVATE_VALUE_SENTINEL' },
+		})
+		diagnostic(result, 'frontend', 'UNEXPECTED_FIELD')
+		expect(JSON.stringify(result)).not.toContain(key)
+		expect(JSON.stringify(result)).not.toContain('PRIVATE_VALUE_SENTINEL')
+	})
+	it('rejects secret fields and fabricated readiness evidence throughout the manifest', () => {
+		const input = fixture()
+		for (const [value, field] of [
+			[{ ...input, infrastructureReady: true }, 'input'],
+			[
+				{
+					...input,
+					deployment: { ...input.deployment, credential: 'private' },
+				},
+				'deployment',
+			],
+			[
+				{ ...input, backend: { ...input.backend, oauthSecret: 'private' } },
+				'backend',
+			],
+			[
+				{ ...input, hosting: { ...input.hosting, credential: 'private' } },
+				'hosting',
+			],
+			[
+				{
+					...input,
+					hosting: {
+						...input.hosting,
+						inventory: { ...input.hosting?.inventory, debugToken: 'private' },
+					},
+				},
+				'hosting.inventory',
+			],
+		] as const)
+			diagnostic(checkReleaseConfig(value), field, 'UNEXPECTED_FIELD')
+	})
+	it('rejects malformed, duplicate, escaped-duplicate, overnested and oversized JSON safely', () => {
+		for (const source of [
+			'{"secret":"PRIVATE_SENTINEL",',
+			'{"schemaVersion":1,"schemaVersion":2}',
+			'{"schemaVersion":1,"\\u0073chemaVersion":1}',
+			'{"frontend":{"VITE_FIREBASE_API_KEY":"first","VITE_FIREBASE_API_KEY":"PRIVATE_SENTINEL"}}',
+			`${'['.repeat(20)}0${']'.repeat(20)}`,
+		]) {
+			const result = checkReleaseConfigJSON(source)
+			diagnostic(result, 'input', 'INVALID_JSON')
+			expect(JSON.stringify(result)).not.toContain('PRIVATE_SENTINEL')
+		}
+		diagnostic(
+			checkReleaseConfigJSON(' '.repeat(releaseConfigMaxBytes + 1)),
+			'input',
+			'INPUT_TOO_LARGE',
+		)
+		diagnostic(
+			checkReleaseConfigJSON('あ'.repeat(releaseConfigMaxBytes / 2)),
+			'input',
+			'INPUT_TOO_LARGE',
+		)
+		const validJSON = checkReleaseConfigJSON(
+			JSON.stringify({ arbitrary: [{ 'quote"': 'a,}\\"' }] }),
+		)
+		expect(validJSON.diagnostics.map((x) => x.code)).not.toContain(
+			'INVALID_JSON',
+		)
+	})
+	it('allows unset policy effective date in development and rejects invalid dates', () => {
+		const input = fixture()
+		expect(
+			checkReleaseConfig(input, { policyEffectiveDate: undefined })
+				.configurationValid,
+		).toBe(true)
+		expect(
+			checkReleaseConfig(input, { policyEffectiveDate: '2026-11-20' })
+				.configurationValid,
+		).toBe(true)
+		for (const invalid of ['', '2026-02-30', '2026-02-29', 'TBD', 20261120]) {
+			const result = checkReleaseConfig(input, {
+				policyEffectiveDate: invalid,
+			})
+			diagnostic(result, 'policy.effectiveDate', 'INVALID_FIELD')
+		}
+	})
+	it.each([
+		['production environment', 'production', 'demo-synthetic-mypage'],
+		['production project ID', 'development', 'youtube-study-space'],
+	] as const)('requires a valid policy effective date for %s', (_label, environment, projectID) => {
+		const input = fixture()
+		input.deployment.environment = environment
+		input.deployment.projectID = projectID
+		input.frontend.VITE_FIREBASE_PROJECT_ID = projectID
+		input.frontend.VITE_FIREBASE_AUTH_DOMAIN = `${projectID}.firebaseapp.com`
+		if (projectID === 'youtube-study-space')
+			input.frontend.VITE_MYPAGE_GA4_ID = 'G-ZJ1VPVT2L2'
+		input.backend = { ...input.deployment }
+		if (input.hosting) {
+			input.hosting.environment = environment
+			input.hosting.projectID = projectID
+			input.hosting.region =
+				environment === 'production' ? 'asia-northeast2' : 'asia-southeast2'
+		}
+		for (const missing of [undefined, '']) {
+			const result = checkReleaseConfig(input, {
+				policyEffectiveDate: missing,
+			})
+			diagnostic(result, 'policy.effectiveDate', 'MISSING_FIELD')
+			expect(
+				result.diagnostics.find((d) => d.field === 'policy.effectiveDate')
+					?.action,
+			).toContain('POLICY_EFFECTIVE_DATE')
+		}
+		for (const invalid of ['2026-02-30', '2026-02-29', 'TBD', 20261120, null]) {
+			const result = checkReleaseConfig(input, {
+				policyEffectiveDate: invalid,
+			})
+			diagnostic(result, 'policy.effectiveDate', 'INVALID_FIELD')
+		}
+		expect(
+			checkReleaseConfig(input, { policyEffectiveDate: '2026-11-20' })
+				.configurationValid,
+		).toBe(true)
+		expect(
+			checkReleaseConfigJSON(JSON.stringify(input), {
+				policyEffectiveDate: '2028-02-29',
+			}).configurationValid,
+		).toBe(true)
+	})
+})
+
+describe('explicit bounded configuration CLI', () => {
+	it('accepts stdin/selected file, ignores ambient configuration and emits only sanitized verdicts', () => {
+		const directory = mkdtempSync(join(tmpdir(), 'mypage-release-config-'))
+		try {
+			const path = join(directory, 'PRIVATE_FILENAME_SENTINEL.json')
+			writeFileSync(path, JSON.stringify(fixture()))
+			for (const result of [
+				cli(['--stdin'], JSON.stringify(fixture())),
+				cli(['--file', path]),
+			]) {
+				expect(result.status).toBe(0)
+				expect(result.stderr).toBe('')
+				const report: ReleaseConfigReport = JSON.parse(result.stdout)
+				expect(report.configurationValid).toBe(true)
+				expect(report.releaseReady).toBe(false)
+				expect(result.stdout).not.toMatch(
+					/SENTINEL|synthetic-public-api-key|123456789|example\.invalid/,
+				)
+			}
+		} finally {
+			rmSync(directory, { recursive: true, force: true })
+		}
+	})
+	it('rejects implicit input, filesystem errors, unsupported options and private malformed JSON without disclosure', () => {
+		for (const [args, input] of [
+			[[], JSON.stringify(fixture())],
+			[['--file', '/missing/PRIVATE_PATH_SENTINEL.json'], undefined],
+			[['--file', tmpdir()], undefined],
+			[['--stdin', '--secret', 'PRIVATE_ARG_SENTINEL'], '{}'],
+			[['--stdin'], '{"PRIVATE_KEY_SENTINEL":"PRIVATE_VALUE_SENTINEL",'],
+			[
+				['--stdin'],
+				JSON.stringify({ ...fixture(), secret: 'PRIVATE_VALUE_SENTINEL' }),
+			],
+		] as const) {
+			const result = cli([...args], input)
+			expect(result.status).toBe(1)
+			expect(result.stderr).toBe('')
+			expect(result.stdout).not.toContain('SENTINEL')
+			expect(JSON.parse(result.stdout).releaseReady).toBe(false)
+		}
+	})
+	it('enforces file/stdin byte bounds and rejects malformed UTF-8', () => {
+		const directory = mkdtempSync(join(tmpdir(), 'mypage-release-config-'))
+		try {
+			const path = join(directory, 'oversized.json')
+			const input = ' '.repeat(releaseConfigMaxBytes + 1)
+			writeFileSync(path, input)
+			for (const result of [cli(['--file', path]), cli(['--stdin'], input)]) {
+				expect(result.status).toBe(1)
+				diagnostic(JSON.parse(result.stdout), 'input', 'INPUT_TOO_LARGE')
+			}
+			const result = cli(['--stdin'], Uint8Array.from([0xff, 0xfe]))
+			expect(result.status).toBe(1)
+			diagnostic(JSON.parse(result.stdout), 'input', 'INVALID_JSON')
+		} finally {
+			rmSync(directory, { recursive: true, force: true })
+		}
+	})
+	it('enforces POLICY_EFFECTIVE_DATE on production manifests via CLI', () => {
+		const input = fixture()
+		input.deployment.environment = 'production'
+		input.backend = { ...input.deployment }
+		if (input.hosting) {
+			input.hosting.environment = 'production'
+			input.hosting.region = 'asia-northeast2'
+		}
+		const result = cli(['--stdin'], JSON.stringify(input))
+		expect(result.stderr).toBe('')
+		const report: ReleaseConfigReport = JSON.parse(result.stdout)
+		expect(report.releaseReady).toBe(false)
+		if (POLICY_EFFECTIVE_DATE === undefined) {
+			expect(result.status).toBe(1)
+			diagnostic(report, 'policy.effectiveDate', 'MISSING_FIELD')
+		} else {
+			expect(result.status).toBe(0)
+			expect(report.configurationValid).toBe(true)
+		}
+	})
+})

@@ -1,0 +1,6 @@
+# There is no stage. Without runtime_settings only the 9 base resources are
+# declared. Do not put secret values in Terraform variables. CI derives both
+# inputs from facts outside Terraform; operators never choose them:
+# - runtime_settings: reviewed public identifiers and PINNED secret VERSION
+#   NUMBERS only (from the GitHub Environment MYPAGE_RUNTIME_SETTINGS_JSON).
+# - public_invoker: true only once the owner's allUsers binding exists; CI imports it.

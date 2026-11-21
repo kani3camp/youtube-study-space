@@ -1,22 +1,29 @@
 name: Deploy MyPage API
 
-# Entry point registered on the default branch only. GitHub accepts
-# workflow_dispatch only for workflow files that exist on the default branch,
-# but runs the file of the selected ref. The real workflow lives on
-# integration/mypage-canon-20261006 (Issue #1500); select that branch in
-# "Use workflow from". This file is replaced when the integration branch
-# reaches dev. Keep the inputs identical to the integration branch's file.
+# Updates only the selected environment's Cloud Run Service image. It never
+# changes the maintenance Job (Deploy Maintenance Operator) and never runs
+# Terraform. DEV runs only from the integration branch and Production only from
+# main; the release script and the per-environment WIF trust both enforce it.
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: Target environment (development runs from the integration branch, production from main)
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
       mode:
-        description: build-and-deploy builds this commit; deploy-existing reuses a verified image (rollback)
+        description: build-and-deploy builds this commit; deploy-existing reuses a verified image (rollback); build-only pushes this commit's image without deploying
         required: true
         default: build-and-deploy
         type: choice
         options:
           - build-and-deploy
           - deploy-existing
+          - build-only
       image_digest:
         description: deploy-existing only. Exact mypage-api@sha256 digest
         required: false
@@ -26,15 +33,92 @@ on:
         required: false
         type: string
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
-  integration-only:
-    name: Run from the integration branch
+  select:
+    name: Validate Deploy Selection
     runs-on: ubuntu-latest
-    timeout-minutes: 1
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    env:
+      TARGET: ${{ inputs.environment }}
+      MODE: ${{ inputs.mode }}
+      IMAGE_DIGEST: ${{ inputs.image_digest }}
+      IMAGE_SOURCE_SHA: ${{ inputs.image_source_sha }}
     steps:
-      - name: Refuse to run from this ref
+      - name: Require a supported target and an unambiguous image selection
         run: |
-          echo "::error::Run Deploy MyPage API with 'Use workflow from: integration/mypage-canon-20261006'. This ref only registers the entry point."
-          exit 1
+          set -euo pipefail
+          case "${TARGET}:${GITHUB_REF}" in
+            development:refs/heads/integration/mypage-canon-20261006|production:refs/heads/main) ;;
+            *)
+              echo "::error::Each environment deploys only from its own branch."
+              exit 1
+              ;;
+          esac
+          case "${MODE}" in
+            build-and-deploy|build-only)
+              [[ -z "${IMAGE_DIGEST}" && -z "${IMAGE_SOURCE_SHA}" ]] || {
+                echo "::error::${MODE} builds this commit; do not pass an image."
+                exit 1
+              }
+              ;;
+            deploy-existing)
+              [[ -n "${IMAGE_DIGEST}" && -n "${IMAGE_SOURCE_SHA}" ]] || {
+                echo "::error::deploy-existing requires both image_digest and image_source_sha."
+                exit 1
+              }
+              ;;
+            *)
+              echo "::error::Unsupported deploy mode."
+              exit 1
+              ;;
+          esac
+
+  validate:
+    name: Credentialless System Validation
+    needs: select
+    # The integration ruleset requires CI Gate on each PR but not on the exact
+    # merged tree; re-run the deployed domain's checks for this commit.
+    uses: ./.github/workflows/ci-system.yml
+    with:
+      system: true
+      firestore_integration: true
+
+  build:
+    name: Build API Image
+    needs: [select, validate]
+    if: ${{ inputs.mode == 'build-and-deploy' || inputs.mode == 'build-only' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-foundation-authenticated.yml
+    with:
+      target: ${{ inputs.environment }}
+      mode: image-build
+      expected_sha: ${{ github.sha }}
+      image_component: api
+    secrets:
+      MYPAGE_GCP_WIF_PROVIDER: ${{ secrets.MYPAGE_GCP_WIF_PROVIDER }}
+      MYPAGE_GCP_SERVICE_ACCOUNT: ${{ secrets.MYPAGE_GCP_SERVICE_ACCOUNT }}
+
+  deploy:
+    name: Deploy API Service Image
+    needs: [select, validate, build]
+    # Run after a successful build, or without a build for an explicit rollback.
+    # build-only never deploys (it publishes the bootstrap image before the
+    # Service exists). !cancelled() (not always()) so that cancelling the run
+    # never starts a deploy.
+    if: ${{ !cancelled() && inputs.mode != 'build-only' && needs.select.result == 'success' && needs.validate.result == 'success' && (needs.build.result == 'success' || (inputs.mode == 'deploy-existing' && needs.build.result == 'skipped')) }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mypage-backend-authenticated.yml
+    with:
+      environment: ${{ inputs.environment }}
+      expected_sha: ${{ github.sha }}
+      image_digest: ${{ inputs.mode == 'build-and-deploy' && needs.build.outputs.image_digest || inputs.image_digest }}
+      image_source_sha: ${{ inputs.mode == 'build-and-deploy' && github.sha || inputs.image_source_sha }}
