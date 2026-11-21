@@ -1,7 +1,7 @@
 /**
  * ポモドーロタイマー用計算関数
  * @param {number} elapsedSeconds 経過時間（秒）
- * @return {[number, number, boolean]} 今の状態の残り時間, プログレスバーの残りパーセント, 作業中かどうか
+ * @return {[number, number, boolean]} 現在の状態の残り時間（秒）, プログレスバーの残り割合（%）, 作業中かどうか
  */
 export const calcPomodoroRemaining = (elapsedSeconds: number) => {
 	const elapsedMinutes = Math.floor(elapsedSeconds / 60)
@@ -19,7 +19,7 @@ export const calcPomodoroRemaining = (elapsedSeconds: number) => {
 		}
 	}
 
-	// 残り時間・プログレスバー用の進捗パーセントを求める
+	// 残り時間とプログレスバー用の残り割合（%）を求める
 	const remainingSeconds: number = sumMinutes * 60 - elapsedSeconds
 	const remainingPercentage: number = isStudying
 		? (remainingSeconds / (25 * 60)) * 100

@@ -1,5 +1,5 @@
 /**
- * ランダムにBGMを選ぶ．
+ * ランダムにBGMを選ぶ。
  * @return {string} 現在のBGMファイルのパス
  */
 export async function getCurrentRandomBgm(): Promise<string> {

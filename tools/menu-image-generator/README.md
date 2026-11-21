@@ -18,13 +18,13 @@ pnpm install
 pnpm exec puppeteer browsers install chrome
 ```
 
-Puppeteer が利用する Chrome は `pnpm install` では入らないため、初回セットアップ時に上記コマンドで別途インストールしてください。
+Puppeteerが利用するChromeは`pnpm install`ではインストールされないため、初回セットアップ時に上記コマンドで別途インストールしてください。
 
 ### 2. Firebase認証の設定
 
 1. Firebase Consoleからサービスアカウントの秘密鍵JSONファイルをダウンロード
 2. `env.example`をコピーして`.env`を作成
-3. `GOOGLE_APPLICATION_CREDENTIALS`にJSONファイルのパスを設定
+3. `.env`の`GOOGLE_APPLICATION_CREDENTIALS`に秘密鍵JSONファイルのパスを設定
 
 ```shell
 cp env.example .env

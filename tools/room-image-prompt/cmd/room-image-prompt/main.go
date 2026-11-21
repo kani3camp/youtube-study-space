@@ -30,9 +30,9 @@ const (
 使い方:
   room-image-prompt [オプション]
 
-引数なしで、同梱データと座席数（7〜11）の乱数をテンプレに連結した結果を output/ に保存し、
+引数なしで実行すると、同梱データと座席数（7〜11）を乱数で選んでテンプレートに組み合わせた結果を output/ に保存し、
 同じ本文をクリップボードへコピーします。標準エラーに出力ファイル名とコピー成否、標準出力に
-保存したファイルの絶対パスを1行で出します。
+保存したファイルの絶対パスを1行で出力します。
 
 オプション:
 `
@@ -59,12 +59,12 @@ func run() error {
 	configureUsage(fs, io.Discard)
 
 	version := fs.Bool("version", false, "バージョンを表示して終了")
-	outPath := fs.String("out", "", "出力ファイルパス（省略時はカレントの output/prompt-<タイムスタンプ>.txt）")
+	outPath := fs.String("out", "", "出力ファイルパス（省略時はカレントディレクトリの output/prompt-<タイムスタンプ>.txt）")
 	seedStr := fs.String("seed", "", "乱数シード（10進 uint64）。省略時は非固定")
 	styleName := fs.String("style", "", "内蔵スタイル名（legacy または生成済み direction-*）。省略時は legacy")
-	styleFile := fs.String("style-file", "", "任意スタイルを読み込む UTF-8 テキストファイル（-style と同時指定不可）")
+	styleFile := fs.String("style-file", "", "任意のスタイルを読み込む UTF-8 テキストファイル（-style と同時指定不可）")
 	lookName := fs.String("look", "", "内蔵Look名（auto / none / bundled look）。省略時は auto")
-	lookFile := fs.String("look-file", "", "任意Lookを読み込む UTF-8 テキストファイル（-look と同時指定不可）")
+	lookFile := fs.String("look-file", "", "任意の Look を読み込む UTF-8 テキストファイル（-look と同時指定不可）")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		configureUsage(fs, os.Stderr)
@@ -103,15 +103,15 @@ func run() error {
 	}
 	tmpl, err := theme.ReadTemplate(fsys)
 	if err != nil {
-		return fmt.Errorf("テンプレート読込: %w", err)
+		return fmt.Errorf("テンプレート読み込み: %w", err)
 	}
 	style, err := resolveStyle(fsys, *styleName, *styleFile)
 	if err != nil {
-		return fmt.Errorf("スタイル読込: %w", err)
+		return fmt.Errorf("スタイル読み込み: %w", err)
 	}
 	look, err := resolveLook(fsys, *lookName, *lookFile, rng)
 	if err != nil {
-		return fmt.Errorf("look読込: %w", err)
+		return fmt.Errorf("Look 読み込み: %w", err)
 	}
 	visualGuidance := composeVisualGuidance(style, look.Text)
 	styledTemplate, err := theme.ApplyStyle(tmpl, visualGuidance)
@@ -124,7 +124,7 @@ func run() error {
 	if dest == "" {
 		wd, err := os.Getwd()
 		if err != nil {
-			return fmt.Errorf("カレントディレクトリ: %w", err)
+			return fmt.Errorf("カレントディレクトリ取得: %w", err)
 		}
 		dest, err = writeDefaultOutput(wd, body)
 		if err != nil {
@@ -177,14 +177,14 @@ func resolveStyle(fsys fs.FS, styleName, styleFile string) (string, error) {
 	case "", legacyStyleName:
 		style, err := theme.ReadLegacyStyle(fsys)
 		if err != nil {
-			return "", fmt.Errorf("legacy style 読込: %w", err)
+			return "", fmt.Errorf("legacy style 読み込み: %w", err)
 		}
 		return style, nil
 	default:
 		if strings.HasPrefix(styleName, "direction-") {
 			style, err := theme.ReadDirectionStyle(fsys, styleName)
 			if err != nil {
-				return "", fmt.Errorf("named style %q 読込: %w", styleName, err)
+				return "", fmt.Errorf("named style %q 読み込み: %w", styleName, err)
 			}
 			return style, nil
 		}
@@ -211,7 +211,7 @@ func resolveLook(fsys fs.FS, lookName, lookFile string, rng *rand.Rand) (lookpro
 
 	selection, err := lookprofile.Resolve(fsys, lookName, rng)
 	if err != nil {
-		return lookprofile.Selection{}, fmt.Errorf("bundled look解決: %w", err)
+		return lookprofile.Selection{}, fmt.Errorf("bundled Look 解決: %w", err)
 	}
 	return selection, nil
 }
@@ -284,7 +284,7 @@ func writeFileExclusive(path, body string) error {
 		return fmt.Errorf("出力書き込み: %w", writeErr)
 	}
 	if closeErr != nil {
-		return fmt.Errorf("出力ファイルを閉じる: %w", closeErr)
+		return fmt.Errorf("出力ファイルのクローズ: %w", closeErr)
 	}
 	return nil
 }
