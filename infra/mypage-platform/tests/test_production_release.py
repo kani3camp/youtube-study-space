@@ -16,7 +16,7 @@ import textwrap
 import unittest
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
-SITE = "moku-work-site"
+SITE = "study-space"
 HOST = "mypage-api-abc123def4-dt.a.run.app"
 
 
@@ -72,7 +72,7 @@ CONTEXT = """
 
 class ProductionReleaseTest(unittest.TestCase):
     def test_release_scripts_admit_only_main_and_production_values(self):
-        result = run_production(CONTEXT, MYPAGE_HOSTING_SITE=SITE, MYPAGE_HOSTING_BACKEND_HOST=HOST)
+        result = run_production(CONTEXT, MYPAGE_HOSTING_BACKEND_HOST=HOST)
         for name in ("backend", "operator", "hosting"):
             with self.subTest(release=name):
                 self.assertEqual(result[name]["main"], "admitted")
@@ -86,16 +86,44 @@ class ProductionReleaseTest(unittest.TestCase):
             "operator_environment": "mypage-prod-operator", "ga4": "G-ZJ1VPVT2L2",
             "backend_account": "mypage-backend-deploy@youtube-study-space.iam.gserviceaccount.com", "max": 3})
 
-    def test_production_site_and_host_must_be_supplied_and_well_formed(self):
-        for extra in ({}, {"MYPAGE_HOSTING_SITE": SITE}, {"MYPAGE_HOSTING_BACKEND_HOST": HOST},
-                      {"MYPAGE_HOSTING_SITE": "Bad_Site", "MYPAGE_HOSTING_BACKEND_HOST": HOST},
-                      {"MYPAGE_HOSTING_SITE": SITE, "MYPAGE_HOSTING_BACKEND_HOST": "evil.example.com"}):
+    def test_production_host_must_be_supplied_and_well_formed(self):
+        for extra in ({}, {"MYPAGE_HOSTING_BACKEND_HOST": "evil.example.com"}):
             with self.subTest(extra=extra):
                 result = run_production(CONTEXT, **extra)
-                self.assertIn(result["backend"]["main"], {"hosting-site", "hosting-backend-host"})
-                self.assertIn(result["hosting"]["main"], {"hosting-site", "hosting-backend-host"})
-                # The operator release never reads the Hosting site or the Service host.
+                self.assertEqual(result["backend"]["main"], "hosting-backend-host")
+                self.assertEqual(result["hosting"]["main"], "hosting-backend-host")
+                # The operator release never reads the Service host.
                 self.assertEqual(result["operator"]["main"], "admitted")
+
+    def test_production_site_is_the_reviewed_source_value_not_an_input(self):
+        result = run_production(CONTEXT, MYPAGE_HOSTING_SITE="another-site", MYPAGE_HOSTING_BACKEND_HOST=HOST)
+        self.assertEqual(result["targets"]["site"], SITE)
+
+    def test_production_revisions_are_read_in_the_production_region(self):
+        result = run_production("""
+            import json
+            import foundation_contract as c
+            import read_metrics_live as live
+            import read_metrics_transition as m
+
+            def full(region, name):
+                return "projects/" + c.PROJECT + "/locations/" + region + "/services/mypage-api/revisions/" + name
+
+            revision = full(c.REGION, "mypage-api-00002-abc")
+            service = {"name": live.SERVICE_NAME, "terminalCondition": {"state": "CONDITION_SUCCEEDED"},
+                       "generation": "2", "observedGeneration": "2", "etag": "etag-1", "uid": "uid-1",
+                       "latestReadyRevision": revision, "latestCreatedRevision": revision,
+                       "trafficStatuses": [{"type": "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST", "percent": 100,
+                                            "revision": revision}]}
+            result = {"ready": live.ready(service)}
+            try:
+                m.revision_name(full("asia-southeast2", "mypage-api-00002-abc"))
+                result["dev_region"] = "admitted"
+            except ValueError as error:
+                result["dev_region"] = str(error)
+            print(json.dumps(result))
+        """)
+        self.assertEqual(result, {"ready": "mypage-api-00002-abc", "dev_region": "metrics-transition-revision"})
 
     def test_production_wif_conditions_pin_main_and_each_units_own_environment(self):
         result = run_production("""

@@ -153,7 +153,8 @@ Go 変更の必須検査は [AGENTS.md](../../../AGENTS.md) に従い生成後�
 | --- | --- | --- |
 | Environment（build / apply とも） | `mypage-dev-hosting` | `mypage-prod-hosting`（`main` 限定・承認者なし・管理者バイパス無効） |
 | 公開オリジン・測定 ID | `https://test--study-space.web.app`・`G-E31NHW939V` | `https://moku.work`・`G-ZJ1VPVT2L2` |
-| Hosting サイト ID・Cloud Run ホスト名 | ソースの固定値 | Environment 変数 `MYPAGE_HOSTING_SITE` / `MYPAGE_HOSTING_BACKEND_HOST`（サイトの `defaultUrl`、Service の `uri` と照合） |
+| Hosting サイト ID | ソースの固定値（`test--study-space`） | ソースの固定値（既定サイト `study-space`。`moku.work` と `www.moku.work` をこのサイトに接続） |
+| Cloud Run ホスト名 | ソースの固定値 | Environment 変数 `MYPAGE_HOSTING_BACKEND_HOST`（Service の `uri` と照合） |
 | 配備者 SA・WIF | オーナーが作成した `mypage-hosting-deploy` / `mypage-hosting` | MyPage Terraform が作成（`roles/firebasehosting.admin` と quota 用権限）。`mypage-api` への `roles/run.viewer` はオーナーが付与 |
 | 成果物名・concurrency group | `mypage-dev-hosting-*` | `mypage-prod-hosting-*` |
 

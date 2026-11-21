@@ -29,8 +29,7 @@ jobs:
     permissions:
       contents: read
     env:
-      # Production only (DEV uses the fixed values in the source).
-      MYPAGE_HOSTING_SITE: ${{ vars.MYPAGE_HOSTING_SITE }}
+      # Production only (DEV uses the fixed value in the source).
       MYPAGE_HOSTING_BACKEND_HOST: ${{ vars.MYPAGE_HOSTING_BACKEND_HOST }}
     outputs:
       digest: ${{ steps.package.outputs.digest }}
@@ -81,8 +80,7 @@ jobs:
       contents: read
       id-token: write
     env:
-      # Production only (DEV uses the fixed values in the source).
-      MYPAGE_HOSTING_SITE: ${{ vars.MYPAGE_HOSTING_SITE }}
+      # Production only (DEV uses the fixed value in the source).
       MYPAGE_HOSTING_BACKEND_HOST: ${{ vars.MYPAGE_HOSTING_BACKEND_HOST }}
     steps:
       - name: Checkout exact source

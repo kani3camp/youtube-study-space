@@ -31,7 +31,7 @@ ENVIRONMENT = c.ENVIRONMENT
 PROJECT = c.PROJECT
 # DEVはソースの固定値を使う。本番は資源作成後にしか決まらないため、配備ワークフローが
 # GitHub Environmentの変数で渡し、context()で形式を、配備時に実資源との一致を検査する。
-SITE = c.CONFIG['hosting_site'] or os.environ.get('MYPAGE_HOSTING_SITE', '')
+SITE = c.CONFIG['hosting_site']
 BACKEND_HOST = c.CONFIG['backend_host'] or os.environ.get('MYPAGE_HOSTING_BACKEND_HOST', '')
 SITE_PATTERN = re.compile(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?')
 BACKEND_HOST_PATTERN = re.compile(r'mypage-api-[a-z0-9]+-[a-z0-9]{2,4}\.a\.run\.app')

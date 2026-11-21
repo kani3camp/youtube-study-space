@@ -19,7 +19,7 @@ COMPUTED = r.SERVICE_COMPUTED
 
 def revision_name(value):
     pattern = (r"(?:projects/" + re.escape(c.PROJECT) +
-               r"/locations/asia-southeast2/services/mypage-api/revisions/)?"
+               r"/locations/" + re.escape(c.REGION) + r"/services/mypage-api/revisions/)?"
                r"(mypage-api-[a-z0-9-]{1,50})")
     match = re.fullmatch(pattern, value) if type(value) is str else None
     c.need(match is not None, "metrics-transition-revision")

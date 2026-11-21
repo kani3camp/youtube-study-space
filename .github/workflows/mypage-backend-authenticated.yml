@@ -41,9 +41,8 @@ jobs:
       MYPAGE_BACKEND_EXPECTED_SHA: ${{ inputs.expected_sha }}
       MYPAGE_BACKEND_IMAGE_DIGEST: ${{ inputs.image_digest }}
       MYPAGE_BACKEND_IMAGE_SOURCE_SHA: ${{ inputs.image_source_sha }}
-      # Production only (DEV uses the fixed values in the source): the public
-      # site and Cloud Run host, verified against the live resources.
-      MYPAGE_HOSTING_SITE: ${{ vars.MYPAGE_HOSTING_SITE }}
+      # Production only (DEV uses the fixed value in the source): the
+      # Cloud Run host, verified against the live Service.
       MYPAGE_HOSTING_BACKEND_HOST: ${{ vars.MYPAGE_HOSTING_BACKEND_HOST }}
     steps:
       - name: Checkout reviewed source

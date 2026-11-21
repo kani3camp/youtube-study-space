@@ -29,9 +29,9 @@ TARGETS = {
         "region": "asia-northeast2", "ref": "refs/heads/main",
         "state": "prod", "environment": "production", "github_environment": "mypage-prod",
         "origin": "https://moku.work", "max_instances": 3, "ga4_id": "G-ZJ1VPVT2L2",
-        # サイトIDとCloud Runのホスト名は本番の資源を作るまで決まらない。配備ワークフローが
+        # Cloud Runのホスト名は本番のServiceを作るまで決まらない。配備ワークフローが
         # GitHub Environmentの変数で受け取り、配備スクリプトが実資源の読み戻しと照合する。
-        "hosting_site": None, "backend_host": None,
+        "hosting_site": "study-space", "backend_host": None,
     },
 }
 if TARGET not in TARGETS:

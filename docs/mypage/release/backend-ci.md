@@ -52,14 +52,15 @@ flowchart TD
 | image build の Environment | `mypage-dev-apply` | `mypage-prod-apply` |
 | Backend / Operator の Environment | `mypage-dev-backend` / `mypage-dev-operator` | `mypage-prod-backend` / `mypage-prod-operator`（`main` 限定・承認者なし・管理者バイパス無効） |
 | 配備者 SA・WIF pool の作成 | オーナーのスクリプト（[backend_identity.py](../../../infra/mypage-platform/scripts/backend_identity.py)・[operator_identity.py](../../../infra/mypage-platform/scripts/operator_identity.py)） | MyPage Terraform（[modules/runtime](../../../infra/mypage-platform/modules/runtime/main.tf)） |
-| Hosting サイト ID・Cloud Run ホスト名 | ソースの固定値 | Environment 変数 `MYPAGE_HOSTING_SITE` / `MYPAGE_HOSTING_BACKEND_HOST`（形式を検査し、実資源の読み戻しと照合） |
+| Hosting サイト ID | ソースの固定値（`test--study-space`） | ソースの固定値（既定サイト `study-space`） |
+| Cloud Run ホスト名 | ソースの固定値 | Environment 変数 `MYPAGE_HOSTING_BACKEND_HOST`（形式を検査し、Service の `uri` と照合） |
 | 最大インスタンス数 | 1 | 3 |
 | concurrency group | `mypage-dev-cloud-run` | `mypage-prod-cloud-run` |
 
 - 入口の検査: 最初の `select` ジョブ、配備スクリプトの `context`（資格情報の取得前）、環境別 WIF 条件の 3 か所で「環境と ref の組」を要求します。本番の WIF 条件は `main`・各配備単位の caller と reusable・Environment・`workflow_dispatch`・`run_attempt == 1`・オーナーに固定されます（PR Plan は受け付けません）。
-- 承認: 本番の `build-and-deploy` は image build（`mypage-prod-apply`）と配備（`mypage-prod-backend` / `mypage-prod-operator`）でそれぞれ承認を求めます。
+- 承認: 本番の image build は承認者必須の `mypage-prod-apply` で動くため、`build-and-deploy` と `build-only` では承認が 1 回入ります。配備用の `mypage-prod-backend` / `mypage-prod-operator` には承認者を置かないため、`deploy-existing`（ロールバックを含む）は承認なしで進みます。
 - Service 作成前の image: Terraform の 2 回目の Apply に使う API の bootstrap image は、`Deploy MyPage API` を `mode=build-only` で実行して push します（配備ジョブは起動しません）。記録した digest と source SHA を `MYPAGE_RUNTIME_SETTINGS_JSON` に設定します。不変タグは SHA ごとに 1 回しか作れないため、同じ SHA で後から配備するときは `mode=deploy-existing` にその digest と source SHA を指定します。
-- Hosting 転送ホスト: 本番の `*.a.run.app` ホスト名は Service の作成後に決まります。オーナーが Service に `MYPAGE_HOSTING_BACKEND_HOST` だけを追加し、同じ値を runtime settings の `hosting_backend_host` と配備用 Environment の変数に設定します（Plan はこの 1 変数の追加だけを refresh として受け入れます。手順は [MyPage 基盤の本番初回構築](../../../infra/mypage-platform/README.md#本番の初回構築main-から)）。
+- Hosting 転送ホスト: 本番の `*.a.run.app` ホスト名は Service の作成後に決まります。オーナーが Service に `MYPAGE_HOSTING_BACKEND_HOST` だけを追加し、同じ値を runtime settings の `hosting_backend_host` と配備用 Environment の変数 `MYPAGE_HOSTING_BACKEND_HOST` に設定します（Plan はこの 1 変数の追加だけを refresh として受け入れます。手順は [MyPage 基盤の本番初回構築](../../../infra/mypage-platform/README.md#本番の初回構築main-から)）。
 - Hosting との順序: Backend の配備後確認は Hosting 経由の配信を前提とするため、一度も公開していないサイトでは書き込み前に `backend-hosting-unpublished` で停止します。本番の初回は Terraform が bootstrap image で作成した Service に対して Frontend を先に公開し、その後に Backend を配備します。2 回目以降は Backend → Frontend の順です。
 - CI の失敗と配備状態: 書き込みの後に失敗した Run でも配備済みの場合があります。成否にかかわらず保存される `mypage-backend-release-record` / `mypage-operator-release-record` の `publishStatus` / `jobStatus`（`unknown` / `accepted` / `confirmed`）と旧 digest・旧リビジョンを確認し、Cloud Run の実状態を読み戻してから判断します。同じ Run の再実行は `run_attempt == 1` の制約で拒否されるため、確認後に新しい Run を起動します。
 - ロールバック: DEV と同じく、既知の良好な digest と source SHA を指定する `mode=deploy-existing` の新しい配備として行います（source SHA は `main` HEAD の祖先であることを要求します）。

@@ -104,9 +104,9 @@ bash infra/mypage-platform/scripts/check-local.sh
    - `projects/youtube-study-space/roles/mypageBackendRelease` / `serviceAccount:mypage-backend-deploy@youtube-study-space.iam.gserviceaccount.com`
    - `roles/run.viewer` / `serviceAccount:mypage-hosting-deploy@youtube-study-space.iam.gserviceaccount.com`
 3. 配備用 Environment に変数を設定します（いずれも公開値で Secret ではありません。`MYPAGE_HOSTING_BACKEND_HOST` は手順 4-1 と同じ値）。
-   - `mypage-prod-backend`: `MYPAGE_BACKEND_WIF_PROVIDER`（`projects/906336399194/locations/global/workloadIdentityPools/mypage-backend/providers/github-actions`）、`MYPAGE_HOSTING_SITE`、`MYPAGE_HOSTING_BACKEND_HOST`
+   - `mypage-prod-backend`: `MYPAGE_BACKEND_WIF_PROVIDER`（`projects/906336399194/locations/global/workloadIdentityPools/mypage-backend/providers/github-actions`）、`MYPAGE_HOSTING_BACKEND_HOST`
    - `mypage-prod-operator`: `MYPAGE_OPERATOR_WIF_PROVIDER`（`.../workloadIdentityPools/mypage-operator/providers/github-actions`）
-   - `mypage-prod-hosting`: `MYPAGE_HOSTING_WIF_PROVIDER`（`.../workloadIdentityPools/mypage-hosting/providers/github-actions`）、`MYPAGE_HOSTING_SITE`、`MYPAGE_HOSTING_BACKEND_HOST`、本番の `MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`
+   - `mypage-prod-hosting`: `MYPAGE_HOSTING_WIF_PROVIDER`（`.../workloadIdentityPools/mypage-hosting/providers/github-actions`）、`MYPAGE_HOSTING_BACKEND_HOST`、本番の `MYPAGE_HOSTING_PUBLIC_CONFIG_JSON`
 4. 同じ `Terraform` を再実行して公開 Invoker を State へ取り込みます（import と手順 4-1 の refresh のみで、ほかの変更は 0 件）。API の作成後は、公開 Invoker の付与が無い Plan は停止します。
 
 ### 5. アプリケーションの初期化と配備
@@ -115,7 +115,7 @@ bash infra/mypage-platform/scripts/check-local.sh
 
 1. Operator: `Deploy Maintenance Operator` で maintenance Job を専用 Operator image へ更新し、generation 前進と設定不変を読み戻します。
 2. `config/mypage` 初期化: `Set Maintenance Mode`（`mypage-maintenance.yml`）を `environment=production`・`enabled=false` で実行します（[運用手順](../../docs/mypage/maintenance-mode.md)。GitHub Environment `mypage-maintenance-production` の作成が前提です）。
-3. Frontend: `Deploy MyPage Frontend` で初回の Hosting 公開を行います。Backend の配備後確認は Hosting 経由の配信を前提とし、未公開のサイトでは書き込み前に停止するため、初回だけは Terraform が bootstrap image で作成した API に対して Frontend を先に公開します。
+3. Frontend: `Deploy MyPage Frontend` で初回の Hosting 公開を行います。前提として、`mypage/src/public-policy-config.ts` の `POLICY_EFFECTIVE_DATE` が設定済みであること（本番の公開設定検査が必須とする）と、Hosting サイト `study-space` への `moku.work` の接続と TLS 証明書の発行が完了していること（公開後の確認は `https://moku.work` に対して行う）を確かめます。Backend の配備後確認は Hosting 経由の配信を前提とし、未公開のサイトでは書き込み前に停止するため、初回だけは Terraform が bootstrap image で作成した API に対して Frontend を先に公開します。
 4. Backend: `main` が手順 2-2 と同じ SHA のままなら、`Deploy MyPage API` を `mode=deploy-existing` で、手順 2-2 の digest と source SHA を指定して実行します（同じ SHA の不変タグは作り直せないため `build-and-deploy` は `image-tag-already-exists` で停止します。Service は既にその image のため書き込みはせず、読み戻しと匿名 smoke だけを行います）。`main` が進んでいれば `mode=build-and-deploy` を使います。2 回目以降のリリースは Backend → Frontend の順です（Hosting `/api/**` 転送・OAuth コールバック・CSP / Cookie / Origin / rate limiting の実機確認と公開判断は [公開条件](../../docs/mypage/release/README.md) に従います）。
 
 > [!CAUTION]
