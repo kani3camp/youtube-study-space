@@ -116,7 +116,7 @@ GitHub Actions のワークフローを「人間が実行したいユースケ�
 
 - 内部用 reusable workflow（`gcp-terraform-authenticated.yml` 等）には `workflow_dispatch` を持たせません。
 - Frontend / API / Operator の各 Deploy ワークフローは DEV と本番で同じ定義を使い、`environment` 入力で対象を選びます。DEV は統合ブランチ、本番は `main` からだけ実行でき、最初の `select` ジョブ・配備スクリプトの `context`・環境別 WIF 条件の 3 か所で同じ組み合わせを要求します（DEV の Run を本番 ref から、本番の Run を統合ブランチから起動すると資格情報の取得前に停止します）。認証に使う SA と project は入力から組み立てず、配備スクリプトがソースの固定値から出力します。
-- 本番の配備用 GitHub Environment は `mypage-prod-backend` / `mypage-prod-operator` / `mypage-prod-hosting`（いずれも `main` 限定・Required reviewers 必須）で、本番 image build は既存の `mypage-prod-apply` を使います。本番の配備手順と初回の順序は [Backend CI](../mypage/release/backend-ci.md#本番の配備) と [MyPage 基盤の本番初回構築](../../infra/mypage-platform/README.md#本番の初回構築main-から) を参照してください。
+- 本番の配備用 GitHub Environment は `mypage-prod-backend` / `mypage-prod-operator` / `mypage-prod-hosting`（いずれも `main` 限定・承認者なし・管理者バイパス無効）で、本番 image build は既存の `mypage-prod-apply` を使います。本番の配備手順と初回の順序は [Backend CI](../mypage/release/backend-ci.md#本番の配備) と [MyPage 基盤の本番初回構築](../../infra/mypage-platform/README.md#本番の初回構築main-から) を参照してください。
 - PR や `push` を契機とした自動デプロイは行いません。公開の判断は配備経路とは独立に公開 Gate（[#1133](https://github.com/kani3camp/youtube-study-space/issues/1133)）で行います。
 - 各 Deploy ワークフローは資格情報を取得する前に配備対象ドメインの認証なし検査を同じ Run 内で実行します（API / Operator は `ci-system.yml`、Frontend は `ci-frontend.yml` の `mypage`）。Ruleset が要求する PR ごとの `CI Gate` は統合後のツリーそのものを検査しないため、対象ドメインの検査で担保します。
 

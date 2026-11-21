@@ -50,7 +50,7 @@ flowchart TD
 | 実行できる ref | `integration/mypage-canon-20261006` | `main` |
 | GCP project / region | `test-youtube-study-space` / `asia-southeast2` | `youtube-study-space` / `asia-northeast2` |
 | image build の Environment | `mypage-dev-apply` | `mypage-prod-apply` |
-| Backend / Operator の Environment | `mypage-dev-backend` / `mypage-dev-operator` | `mypage-prod-backend` / `mypage-prod-operator`（`main` 限定・Required reviewers 必須） |
+| Backend / Operator の Environment | `mypage-dev-backend` / `mypage-dev-operator` | `mypage-prod-backend` / `mypage-prod-operator`（`main` 限定・承認者なし・管理者バイパス無効） |
 | 配備者 SA・WIF pool の作成 | オーナーのスクリプト（[backend_identity.py](../../../infra/mypage-platform/scripts/backend_identity.py)・[operator_identity.py](../../../infra/mypage-platform/scripts/operator_identity.py)） | MyPage Terraform（[modules/runtime](../../../infra/mypage-platform/modules/runtime/main.tf)） |
 | Hosting サイト ID・Cloud Run ホスト名 | ソースの固定値 | Environment 変数 `MYPAGE_HOSTING_SITE` / `MYPAGE_HOSTING_BACKEND_HOST`（形式を検査し、実資源の読み戻しと照合） |
 | 最大インスタンス数 | 1 | 3 |
