@@ -7,9 +7,9 @@ import {
 	sidebarCardVerticalInsetPx,
 } from '../lib/constants'
 
-/** 目盛り（メモリ）の高さ。バー上端で止まるよう labelBarGapPx と調整 */
+/** 目盛りの高さ。下端がバー上端で止まるよう labelBarGapPx と合わせて調整する */
 const scaleTickHeightPx = 7
-/** ラベルとバーの間の隙間（メモリがバーに食い込まないようにする） */
+/** ラベルとバーの間の隙間（目盛りがバーに食い込まないようにする） */
 const labelBarGapPx = 6
 
 export const shape = css`
@@ -69,7 +69,7 @@ export const label = css`
     font-family: ${fontFamily};
     transform: translateX(-50%);
 
-    /* メモリはバーとの隙間内に収め、バー内には食い込まない（下端がバー上端で止まる） */
+    /* 目盛りはバーとの隙間内に収め、バー内には食い込まないようにする（下端がバー上端で止まる） */
     &::after {
         content: '';
         position: absolute;

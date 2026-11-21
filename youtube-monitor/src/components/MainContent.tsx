@@ -81,7 +81,7 @@ const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 		return map
 	}, [menuItems])
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: initFirestore は初期化時のみ呼びたい意図的な設計
+	// biome-ignore lint/correctness/useExhaustiveDependencies: initFirestore は初期化時のみ呼ぶ意図的な設計
 	useEffect(() => {
 		if (process.env.NEXT_PUBLIC_API_KEY === undefined) {
 			alert(
@@ -120,7 +120,7 @@ const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 	/**
 	 * 入室状況もしくはレイアウト編成に変更があったら、全ページを更新する。
 	 */
-	// biome-ignore lint/correctness/useExhaustiveDependencies: これらの依存関係は意図的に指定しています
+	// biome-ignore lint/correctness/useExhaustiveDependencies: これらの依存関係は意図的に指定
 	useEffect(() => {
 		updatePageProps()
 	}, [
@@ -135,7 +135,7 @@ const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 	 * 入室状況やシステム設定が変更されたら、座席数を見直す。
 	 * システム設定（max_seats, min_vacancy_rate等）は、システム管理者が手動で更新しない限り初期化時のみ変更される。
 	 */
-	// biome-ignore lint/correctness/useExhaustiveDependencies: これらの依存関係は意図的に指定しています
+	// biome-ignore lint/correctness/useExhaustiveDependencies: これらの依存関係は意図的に指定
 	useEffect(() => {
 		reviewMaxSeats()
 	}, [
@@ -309,7 +309,7 @@ const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 	 * 座席数の増減が必要な場合は、APIにリクエストを送信し、ルーム数を調整する。
 	 */
 	const reviewMaxSeats = async () => {
-		// 関数の開始時に全ての状態のスナップショットを取る
+		// 関数の開始時にすべての状態のスナップショットを取る
 		const snapshotGeneralMaxSeats = latestGeneralMaxSeats
 		const snapshotGeneralSeats = [...latestGeneralSeats]
 		const snapshotMemberMaxSeats = latestMemberMaxSeats
@@ -366,8 +366,8 @@ const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 
 		// TODO: レイアウト的にmaxSeatsより大きい番号の席が含まれそうであれば、それらの席は表示しない
 
-		// リクエストが送信されたら、すぐに反映されるわけではないのでとりあえずレイアウトを用意して表示する
-		// 必要分（＝r.seatsにある席は全てカバーする）だけ臨時レイアウトを追加
+		// 席数変更リクエストはすぐには反映されないため、変更前の席数に合わせてレイアウトを表示する。
+		// 変更前の席数に対して基本レイアウトだけでは足りない場合は、臨時レイアウトを追加する。
 		setGeneralLayouts(
 			buildRoomLayouts(
 				allRooms.generalBasicRooms,
