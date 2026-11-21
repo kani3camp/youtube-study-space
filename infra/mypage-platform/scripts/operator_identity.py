@@ -5,33 +5,26 @@
 失敗したとき: 作成が止まるだけでCIには影響しない。部分実行後は状態を手で調べる必要がある。
 なくした場合: DEVオペレーター配備用の権限を作る手順がなくなる。backend_identity.py と作りが近いため、将来まとめられる可能性がある。
 
-補足: Job IAM(`run.jobs.get/update`)と実行SAへのactAsはTerraform(runtime module)が付与する。このスクリプトはSA・WIF pool/provider・Environmentだけを作り、Cloud Run Job・API Service・Terraform State・本番対象には触れない。既存名があれば停止し、部分実行後は復旧前に状態を調べる。
+補足: Job IAM(`run.jobs.get/update`)と実行SAへのactAsはTerraform(runtime module)が付与する。このスクリプトはDEVのSA・WIF pool/provider・Environmentだけを作り、Cloud Run Job・API Service・Terraform State・本番対象には触れない(本番の同じ本人情報はMyPage Terraformが宣言する)。既存名があれば停止し、部分実行後は復旧前に状態を調べる。
 """
-import json
 import sys
 
 import backend_identity as backend
 import foundation_contract as c
 import operator_release as release
 
-ACCOUNT_ID = 'mypage-operator-deploy'
-ACCOUNT = ACCOUNT_ID + '@' + c.PROJECT + '.iam.gserviceaccount.com'
+ACCOUNT_ID = c.RELEASES['operator']['account_id']
+ACCOUNT = c.release_account('operator')
 ENVIRONMENT = release.ENVIRONMENT
-POOL = 'mypage-operator'
+POOL = c.RELEASES['operator']['pool']
 VARIABLE = 'MYPAGE_OPERATOR_WIF_PROVIDER'
 PROJECT_ROLES = ('roles/serviceusage.serviceUsageConsumer',)
 
 
 def condition():
-    # Only the owner's first manual run of the reviewed Deploy workflow on the
-    # integration ref. Pushes, PRs, other refs, identities, retries and prod are denied.
-    values = {'repository_id': '340900071', 'repository_owner_id': '54093651',
-              'actor_id': '54093651', 'actor': 'kani3camp', 'repository': c.REPOSITORY,
-              'ref': c.REF, 'workflow_ref': release.CALLER, 'job_workflow_ref': release.REUSABLE,
-              'event_name': 'workflow_dispatch', 'run_attempt': '1', 'environment': ENVIRONMENT}
-    values['sub'] = ':'.join(key + ':' + values[key].replace(':', '%3A') for key in c.CLAIM_KEYS)
-    return '(' + ' && '.join('assertion.' + key + ' == ' + json.dumps(value) for key, value in values.items()) + \
-        ' && assertion.workflow_sha == assertion.job_workflow_sha)'
+    # 本番の同じ本人情報はMyPage Terraformが宣言する。このスクリプトはDEVだけを扱う。
+    c.need(c.TARGET == 'development', 'operator-bootstrap-target')
+    return c.release_condition('operator')
 
 
 def member(number):

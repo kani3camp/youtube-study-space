@@ -1,6 +1,6 @@
 """DEV環境のバックエンド配備専用の権限(サービスアカウント・認証連携・GitHub Environment)を、所有者が最初に1回作るための手動スクリプト。既定はプレビュー。
 
-目的: バックエンド配備ワークフローに、DEVのmypage-api更新だけができる独立した権限を渡し、本番や他の権限を巻き込まない。
+目的: バックエンド配備ワークフローに、DEVのmypage-api更新だけができる独立した権限を渡し、本番や他の権限を巻き込まない。本番の同じ権限はMyPage Terraform(modules/runtime)が宣言する。
 使われる場面: 所有者がローカルで手動実行する(--apply で作成、--update-condition で条件更新。手順は docs/mypage/release/backend-ci.md)。ワークフローからは呼ばれない。operator_identity.py と test_backend_release.py から部品として読み込まれる。
 失敗したとき: 作成が止まるだけでCIには影響しない。既存名があれば停止し、途中まで作った状態は手で調べる必要がある。
 なくした場合: DEVバックエンド配備用の権限を再作成・条件更新する手順がなくなる。operator_identity.py も動かなくなる。
@@ -15,25 +15,20 @@ import sys
 
 import foundation_contract as c
 
-ACCOUNT = 'mypage-backend-deploy@' + c.PROJECT + '.iam.gserviceaccount.com'
+ACCOUNT = c.release_account('backend')
 ENVIRONMENT = 'mypage-dev-backend'
-POOL = 'mypage-backend'
+POOL = c.RELEASES['backend']['pool']
 ROLE = 'mypageBackendRelease'
 PERMISSIONS = ['run.services.get', 'run.services.update']
-REUSABLE = c.workflow_ref('mypage-backend-authenticated.yml')
-CALLER = c.IMAGE_COMPONENTS['api']['caller']
+REUSABLE = c.RELEASES['backend']['reusable']
+CALLER = c.RELEASES['backend']['caller']
 
 
 def condition():
-    # Only the owner's first manual run of Deploy MyPage API. Pushes, PRs, other
-    # refs, identities, retries and prod remain denied.
-    values = {'repository_id': '340900071', 'repository_owner_id': '54093651',
-              'actor_id': '54093651', 'actor': 'kani3camp', 'repository': c.REPOSITORY,
-              'ref': c.REF, 'workflow_ref': CALLER, 'job_workflow_ref': REUSABLE,
-              'event_name': 'workflow_dispatch', 'run_attempt': '1', 'environment': ENVIRONMENT}
-    values['sub'] = ':'.join(key + ':' + values[key].replace(':', '%3A') for key in c.CLAIM_KEYS)
-    return '(' + ' && '.join('assertion.' + key + ' == ' + json.dumps(value) for key, value in values.items()) + \
-        ' && assertion.workflow_sha == assertion.job_workflow_sha)'
+    # 本番の同じ本人情報はMyPage Terraformが宣言する。このスクリプトはDEVだけを扱う。
+    c.need(c.TARGET == 'development' and c.release_environment('backend') == ENVIRONMENT,
+           'backend-bootstrap-target')
+    return c.release_condition('backend')
 
 
 def update_condition():
@@ -157,6 +152,7 @@ def readback(number):
 if __name__ == '__main__':
     try:
         c.need(sys.argv[1:] in ([], ['--apply'], ['--update-condition']), 'backend-bootstrap-arguments')
+        c.need(c.TARGET == 'development', 'backend-bootstrap-target')
         if sys.argv[1:] == ['--apply']:
             apply()
         elif sys.argv[1:] == ['--update-condition']:

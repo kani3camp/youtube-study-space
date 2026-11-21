@@ -3,9 +3,23 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { hostingCandidate } from '../src/hosting.ts'
 import { checkReleaseConfigJSON } from '../src/release-config.ts'
 
+// 配備スクリプトが選んだ対象環境と、マニフェストの宣言が一致する場合だけ候補を出力する。
+const TARGETS = {
+	development: {
+		projectID: 'test-youtube-study-space',
+		publicOrigin: 'https://test--study-space.web.app',
+	},
+	production: {
+		projectID: 'youtube-study-space',
+		publicOrigin: 'https://moku.work',
+	},
+}
+
 try {
-	if (process.argv.length !== 5) throw new Error()
-	const [, , manifestPath, pathsPath, outputPath] = process.argv
+	if (process.argv.length !== 6) throw new Error()
+	const [, , manifestPath, pathsPath, outputPath, target] = process.argv
+	if (!Object.hasOwn(TARGETS, target)) throw new Error()
+	const expected = TARGETS[target]
 	const source = await readFile(manifestPath, 'utf8')
 	const report = checkReleaseConfigJSON(source)
 	if (
@@ -15,9 +29,9 @@ try {
 		throw new Error()
 	const config = JSON.parse(source)
 	if (
-		config.deployment.environment !== 'development' ||
-		config.deployment.projectID !== 'test-youtube-study-space' ||
-		config.deployment.publicOrigin !== 'https://test--study-space.web.app'
+		config.deployment.environment !== target ||
+		config.deployment.projectID !== expected.projectID ||
+		config.deployment.publicOrigin !== expected.publicOrigin
 	)
 		throw new Error()
 	const paths = JSON.parse(await readFile(pathsPath, 'utf8'))

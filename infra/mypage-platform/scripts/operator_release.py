@@ -1,7 +1,7 @@
-"""ソースを固定して、DEVのメンテナンス用Cloud Run Job(mypage-maintenance-operator)のイメージだけを入れ替える。
+"""ソースを固定して、対象環境(MYPAGE_TARGET。既定はDEV)のメンテナンス用Cloud Run Job(mypage-maintenance-operator)のイメージだけを入れ替える。
 
 目的: メンテナンスモード用のJobの更新で、イメージ以外が変わる・競合する更新を上書きする、といった事故を防ぐ。Job自体は実行しない。
-使われる場面: MyPage DEV Maintenance Operator Release ワークフロー(.github/workflows/mypage-operator-authenticated.yml)の context と deploy の各ステップ。
+使われる場面: MyPage Maintenance Operator Release ワークフロー(.github/workflows/mypage-operator-authenticated.yml)の context と deploy の各ステップ。
 失敗したとき: Jobの更新が中断される。自動の再試行・巻き戻しはしない。
 なくした場合: mypage-operator-authenticated.yml の配備が動かなくなる。構造は backend_release.py と似ている。
 
@@ -23,8 +23,10 @@ import runtime_contract as runtime
 
 COMPONENT = c.IMAGE_COMPONENTS['maintenance-operator']
 CALLER = COMPONENT['caller']
-REUSABLE = c.workflow_ref('mypage-operator-authenticated.yml')
-ENVIRONMENT = 'mypage-dev-operator'
+REUSABLE = c.RELEASES['operator']['reusable']
+ENVIRONMENT = c.release_environment('operator')
+if CALLER != c.RELEASES['operator']['caller']:
+    raise ValueError('operator-caller')
 PACKAGE = ('projects/' + c.PROJECT + '/locations/' + c.REGION + '/repositories/mypage/packages/' +
            COMPONENT['package'])
 REGISTRY = 'https://artifactregistry.googleapis.com/v1/' + PACKAGE
@@ -44,7 +46,6 @@ JOB_OUTPUTS = frozenset({
 
 def context(env):
     """Reject every context except the owner's first manual run of the reviewed workflow."""
-    c.need(c.TARGET == 'development', 'operator-target')
     expected = {
         'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
         'GITHUB_REPOSITORY_OWNER_ID': '54093651', 'GITHUB_ACTOR_ID': '54093651',
@@ -64,6 +65,26 @@ def context(env):
     if digest:
         c.need(re.fullmatch(DIGEST, digest), 'operator-release-digest')
         c.need(re.fullmatch(r'[a-f0-9]{40}', source), 'operator-release-source')
+
+
+def publish_target(env):
+    """Expose the source-defined auth target to the workflow; never derived from inputs."""
+    output = env.get('GITHUB_OUTPUT')
+    if output:
+        with open(output, 'a', encoding='utf-8') as stream:
+            stream.write('service_account=' + c.release_account('operator') + '\n')
+            stream.write('project=' + c.PROJECT + '\n')
+
+
+def receipt(env):
+    """Independently re-read this run's record before it is preserved as verified."""
+    record = json.loads(Path(env['RECORD']).read_bytes())
+    c.need(record.get('schemaVersion') == 1 and record.get('sourceSHA') == env['GITHUB_SHA'] and
+           record.get('environment') == c.ENVIRONMENT and
+           record.get('jobStatus') in ('confirmed', 'unchanged') and
+           record.get('readback') == 'passed', 'operator-receipt')
+    c.need(type(record.get('imageDigest')) is str and re.fullmatch(DIGEST, record['imageDigest']),
+           'operator-receipt-image')
 
 
 def registry_tag(token, source):
@@ -177,7 +198,7 @@ def job_baseline(job, value, *, target=False):
     env = {entry.get('name'): entry.get('value') for entry in entries}
     c.need(len(env) == len(entries) and env == {
         'GOOGLE_CLOUD_PROJECT': c.PROJECT,
-        'MYPAGE_ENVIRONMENT': 'development',
+        'MYPAGE_ENVIRONMENT': c.ENVIRONMENT,
     }, 'operator-job-env')
     resources = container.get('resources', {})
     c.need(resources.get('limits') == {'cpu': '1', 'memory': '512Mi'}, 'operator-job-resources')
@@ -250,7 +271,7 @@ def deploy(env):
     before = job_request(token)
     current = job_baseline(before, value)
     unchanged = current == value['image_digest']
-    record = {'schemaVersion': 1, 'environment': 'development', 'sourceSHA': env['GITHUB_SHA'],
+    record = {'schemaVersion': 1, 'environment': c.ENVIRONMENT, 'sourceSHA': env['GITHUB_SHA'],
               'workflowRun': 'https://github.com/' + c.REPOSITORY + '/actions/runs/' + env['GITHUB_RUN_ID'],
               'imageSourceSHA': value['image_source_sha'], 'imageDigest': value['image_digest'],
               'previousImageDigest': current, 'previousGeneration': before['generation'],
@@ -274,22 +295,25 @@ def deploy(env):
     hosting.verify_head(env)
     record['readback'] = 'passed'
     save()
-    print('DEV maintenance operator Job uses the verified immutable image; not executed, API untouched.')
+    print(c.ENVIRONMENT + ' maintenance operator Job uses the verified immutable image; not executed, API untouched.')
 
 
 def main():
     os.umask(0o077)
     try:
-        c.need(sys.argv[1:] in (['context'], ['deploy']), 'operator-command')
+        c.need(sys.argv[1:] in (['context'], ['deploy'], ['receipt']), 'operator-command')
         if sys.argv[1] == 'context':
             context(os.environ)
             declaration(os.environ)
+            publish_target(os.environ)
+        elif sys.argv[1] == 'receipt':
+            receipt(os.environ)
         else:
             deploy(os.environ)
         return 0
     except Exception as error:
         label = str(error) if type(error) in (ValueError, c.ContractError) and re.fullmatch('[a-z0-9-]+', str(error)) else 'execution'
-        print('::error::DEV Operator STOP: ' + label + '. No automatic retry or rollback.', file=sys.stderr)
+        print('::error::' + c.ENVIRONMENT + ' Operator STOP: ' + label + '. No automatic retry or rollback.', file=sys.stderr)
         return 1
 
 
