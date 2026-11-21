@@ -61,7 +61,7 @@ locals {
   runtime_email                  = "${google_service_account.runtime.account_id}@${var.project_id}.iam.gserviceaccount.com"
   runtime_principal              = "serviceAccount:${local.runtime_email}"
   max_instances                  = var.environment == "development" ? 1 : 3
-  maintenance_image_release      = local.deploy_api && var.environment == "development"
+  maintenance_image_release      = local.deploy_api
   maintenance_ref                = var.environment == "production" ? "refs/heads/main" : "refs/heads/integration/mypage-canon-20261006"
   maintenance_project_number     = var.environment == "production" ? "906336399194" : "48101442817"
   maintenance_github_environment = "mypage-maintenance-${var.environment}"
@@ -70,6 +70,48 @@ locals {
   foundation_plan_email          = "mypage-foundation-plan@${var.project_id}.iam.gserviceaccount.com"
   foundation_apply_email         = "mypage-foundation-apply@${var.project_id}.iam.gserviceaccount.com"
   operator_deployer_email        = "mypage-operator-deploy@${var.project_id}.iam.gserviceaccount.com"
+  backend_deployer_email         = "mypage-backend-deploy@${var.project_id}.iam.gserviceaccount.com"
+  hosting_deployer_email         = "mypage-hosting-deploy@${var.project_id}.iam.gserviceaccount.com"
+
+  # 本番のアプリ配備用本人情報（Backend / Operator / Hosting）。DEVの同名の本人情報は
+  # オーナーの手動スクリプトが作成済みでこのStateの外にあるため、ここでは本番だけを宣言する。
+  # Cloud Run Service（mypage-api）上の配備者バインディングはCIにService IAMの変更権限を
+  # 渡さないためTerraform外（オーナー付与）とし、ここでは宣言しない。
+  release_identities = local.deploy_api && var.environment == "production"
+  release_workflows  = "kani3camp/youtube-study-space/.github/workflows/"
+  release_files = {
+    backend  = ["deploy-mypage-api.yml", "mypage-backend-authenticated.yml"]
+    operator = ["deploy-mypage-maintenance.yml", "mypage-operator-authenticated.yml"]
+    hosting  = ["deploy-mypage-frontend.yml", "mypage-hosting-authenticated.yml"]
+  }
+  # infra/mypage-platform/scripts/foundation_contract.py の release_condition と同じ文字列を作る
+  # （Plan契約が完全一致を検査する）。主張の順序も同じにする。
+  release_claims = {
+    for component, files in local.release_files : component => [
+      ["repository_id", "340900071"],
+      ["repository_owner_id", "54093651"],
+      ["actor_id", "54093651"],
+      ["actor", "kani3camp"],
+      ["repository", "kani3camp/youtube-study-space"],
+      ["ref", local.maintenance_ref],
+      ["workflow_ref", "${local.release_workflows}${files[0]}@${local.maintenance_ref}"],
+      ["job_workflow_ref", "${local.release_workflows}${files[1]}@${local.maintenance_ref}"],
+      ["event_name", "workflow_dispatch"],
+      ["run_attempt", "1"],
+      ["environment", "mypage-prod-${component}"],
+    ]
+  }
+  release_conditions = {
+    for component, claims in local.release_claims : component => format(
+      "(%s && assertion.sub == \"%s\" && assertion.workflow_sha == assertion.job_workflow_sha)",
+      join(" && ", [for claim in claims : "assertion.${claim[0]} == \"${claim[1]}\""]),
+      join(":", [
+        for key in ["repository_id", "repository_owner_id", "environment", "ref", "workflow_ref", "job_workflow_ref", "event_name"] :
+        "${key}:${replace(one([for claim in claims : claim[1] if claim[0] == key]), ":", "%3A")}"
+      ])
+    )
+  }
+  release_subject = "assertion.repository_id+\":\"+assertion.environment+\":\"+assertion.actor_id"
 }
 
 # 管理対象は新しいMyPageメタデータであり、既存のBot/Firestore資源は含めない。
@@ -505,15 +547,14 @@ resource "google_cloud_run_v2_job" "maintenance_operator" {
   }
 }
 
-# The description predates the dedicated operator deployer. It is kept as-is
-# so the existing role is not updated in place (the runtime contract only
-# admits create/no-op for it).
+# The DEV role keeps its original description because the runtime contract
+# admits only create/no-op for it; Production creates it with the accurate one.
 resource "google_project_iam_custom_role" "maintenance_image_release" {
   count           = local.maintenance_image_release ? 1 : 0
   project         = var.project_id
   role_id         = "mypageMaintenanceImageRelease"
   title           = "MyPage maintenance image release"
-  description     = "Allows the existing backend deployer to read and update only the maintenance Cloud Run Job."
+  description     = var.environment == "development" ? "Allows the existing backend deployer to read and update only the maintenance Cloud Run Job." : "Allows the Operator deployer to read and update only the maintenance Cloud Run Job."
   deletion_policy = "PREVENT"
   permissions     = ["run.jobs.get", "run.jobs.update"]
   stage           = "GA"
@@ -523,17 +564,18 @@ resource "google_project_iam_custom_role" "maintenance_image_release" {
   }
 }
 
-# The legacy backend deployer's Job binding and maintenance SA actAs were
-# removed after the first verified operator release (DEV read back
-# 2026-11-01). The dedicated operator deployer below is the only Job image
-# releaser, and the plan contract no longer admits any deletion.
+# The dedicated operator deployer is the only Job image releaser. DEV's
+# deployer SA is owner-created; Production's is declared below.
 resource "google_service_account_iam_member" "operator_image_release_act_as" {
   count              = local.maintenance_image_release ? 1 : 0
   service_account_id = "projects/${var.project_id}/serviceAccounts/${local.maintenance_operator_email}"
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${local.operator_deployer_email}"
 
-  depends_on = [google_service_account.maintenance_operator]
+  depends_on = [
+    google_service_account.maintenance_operator,
+    google_service_account.operator_deployer,
+  ]
 }
 
 resource "google_cloud_run_v2_job_iam_member" "operator_image_release" {
@@ -547,6 +589,7 @@ resource "google_cloud_run_v2_job_iam_member" "operator_image_release" {
   depends_on = [
     google_project_iam_custom_role.maintenance_image_release,
     google_cloud_run_v2_job.maintenance_operator,
+    google_service_account.operator_deployer,
   ]
 }
 
@@ -594,6 +637,274 @@ resource "google_cloud_run_v2_job_iam_member" "maintenance_invoker" {
     google_service_account.maintenance_invoker,
     google_cloud_run_v2_job.maintenance_operator,
   ]
+}
+
+# Production application deployers. Each deploy unit has its own keyless SA,
+# WIF pool/provider and GitHub Environment. The provider admits only the
+# owner's first manual run of that unit's Deploy workflow from main, and the SA
+# trusts only that Environment's subject.
+
+resource "google_service_account" "backend_deployer" {
+  count           = local.release_identities ? 1 : 0
+  project         = var.project_id
+  account_id      = "mypage-backend-deploy"
+  display_name    = "MyPage Backend release"
+  description     = "Keyless GitHub deployer that updates only the mypage-api Service image."
+  disabled        = false
+  deletion_policy = "PREVENT"
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_service_account" "operator_deployer" {
+  count           = local.release_identities ? 1 : 0
+  project         = var.project_id
+  account_id      = "mypage-operator-deploy"
+  display_name    = "MyPage Operator release"
+  description     = "Keyless GitHub deployer that updates only the maintenance Job image."
+  disabled        = false
+  deletion_policy = "PREVENT"
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_service_account" "hosting_deployer" {
+  count           = local.release_identities ? 1 : 0
+  project         = var.project_id
+  account_id      = "mypage-hosting-deploy"
+  display_name    = "MyPage Hosting release"
+  description     = "Keyless GitHub deployer that publishes only the MyPage Hosting site."
+  disabled        = false
+  deletion_policy = "PREVENT"
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_iam_workload_identity_pool" "backend_release" {
+  count                     = local.release_identities ? 1 : 0
+  project                   = var.project_id
+  workload_identity_pool_id = "mypage-backend"
+  display_name              = "MyPage Backend release"
+  description               = "Environment-scoped GitHub Actions trust for the MyPage Backend deploy."
+  disabled                  = false
+  mode                      = "FEDERATION_ONLY"
+  deletion_policy           = "PREVENT"
+}
+
+resource "google_iam_workload_identity_pool_provider" "backend_release" {
+  count                              = local.release_identities ? 1 : 0
+  project                            = var.project_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.backend_release[0].workload_identity_pool_id
+  workload_identity_pool_provider_id = "github-actions"
+  display_name                       = "MyPage Backend workflow"
+  description                        = "GitHub OIDC provider restricted to the reviewed Backend deploy."
+  disabled                           = false
+  deletion_policy                    = "PREVENT"
+  attribute_mapping = {
+    "google.subject" = local.release_subject
+  }
+  attribute_condition = local.release_conditions["backend"]
+  oidc {
+    issuer_uri        = "https://token.actions.githubusercontent.com"
+    allowed_audiences = []
+  }
+}
+
+resource "google_service_account_iam_member" "backend_release_federation" {
+  count              = local.release_identities ? 1 : 0
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.backend_deployer_email}"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principal://iam.googleapis.com/projects/${local.maintenance_project_number}/locations/global/workloadIdentityPools/mypage-backend/subject/340900071:mypage-prod-backend:54093651"
+
+  depends_on = [
+    google_service_account.backend_deployer,
+    google_iam_workload_identity_pool_provider.backend_release,
+  ]
+}
+
+resource "google_iam_workload_identity_pool" "operator_release" {
+  count                     = local.release_identities ? 1 : 0
+  project                   = var.project_id
+  workload_identity_pool_id = "mypage-operator"
+  display_name              = "MyPage Operator release"
+  description               = "Environment-scoped GitHub Actions trust for the MyPage Operator deploy."
+  disabled                  = false
+  mode                      = "FEDERATION_ONLY"
+  deletion_policy           = "PREVENT"
+}
+
+resource "google_iam_workload_identity_pool_provider" "operator_release" {
+  count                              = local.release_identities ? 1 : 0
+  project                            = var.project_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.operator_release[0].workload_identity_pool_id
+  workload_identity_pool_provider_id = "github-actions"
+  display_name                       = "MyPage Operator workflow"
+  description                        = "GitHub OIDC provider restricted to the reviewed Operator deploy."
+  disabled                           = false
+  deletion_policy                    = "PREVENT"
+  attribute_mapping = {
+    "google.subject" = local.release_subject
+  }
+  attribute_condition = local.release_conditions["operator"]
+  oidc {
+    issuer_uri        = "https://token.actions.githubusercontent.com"
+    allowed_audiences = []
+  }
+}
+
+resource "google_service_account_iam_member" "operator_release_federation" {
+  count              = local.release_identities ? 1 : 0
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.operator_deployer_email}"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principal://iam.googleapis.com/projects/${local.maintenance_project_number}/locations/global/workloadIdentityPools/mypage-operator/subject/340900071:mypage-prod-operator:54093651"
+
+  depends_on = [
+    google_service_account.operator_deployer,
+    google_iam_workload_identity_pool_provider.operator_release,
+  ]
+}
+
+resource "google_iam_workload_identity_pool" "hosting_release" {
+  count                     = local.release_identities ? 1 : 0
+  project                   = var.project_id
+  workload_identity_pool_id = "mypage-hosting"
+  display_name              = "MyPage Hosting release"
+  description               = "Environment-scoped GitHub Actions trust for the MyPage Hosting deploy."
+  disabled                  = false
+  mode                      = "FEDERATION_ONLY"
+  deletion_policy           = "PREVENT"
+}
+
+resource "google_iam_workload_identity_pool_provider" "hosting_release" {
+  count                              = local.release_identities ? 1 : 0
+  project                            = var.project_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.hosting_release[0].workload_identity_pool_id
+  workload_identity_pool_provider_id = "github-actions"
+  display_name                       = "MyPage Hosting workflow"
+  description                        = "GitHub OIDC provider restricted to the reviewed Hosting deploy."
+  disabled                           = false
+  deletion_policy                    = "PREVENT"
+  attribute_mapping = {
+    "google.subject" = local.release_subject
+  }
+  attribute_condition = local.release_conditions["hosting"]
+  oidc {
+    issuer_uri        = "https://token.actions.githubusercontent.com"
+    allowed_audiences = []
+  }
+}
+
+resource "google_service_account_iam_member" "hosting_release_federation" {
+  count              = local.release_identities ? 1 : 0
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.hosting_deployer_email}"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principal://iam.googleapis.com/projects/${local.maintenance_project_number}/locations/global/workloadIdentityPools/mypage-hosting/subject/340900071:mypage-prod-hosting:54093651"
+
+  depends_on = [
+    google_service_account.hosting_deployer,
+    google_iam_workload_identity_pool_provider.hosting_release,
+  ]
+}
+
+# The owner binds this role on the mypage-api Service (outside Terraform).
+resource "google_project_iam_custom_role" "backend_release" {
+  count           = local.release_identities ? 1 : 0
+  project         = var.project_id
+  role_id         = "mypageBackendRelease"
+  title           = "MyPage Backend release"
+  description     = "Allows the Backend deployer to read and update the mypage-api Service it is bound on."
+  deletion_policy = "PREVENT"
+  permissions     = ["run.services.get", "run.services.update"]
+  stage           = "GA"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_service_account_iam_member" "backend_release_act_as" {
+  count              = local.release_identities ? 1 : 0
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.runtime_email}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${local.backend_deployer_email}"
+
+  depends_on = [google_service_account.backend_deployer]
+}
+
+resource "google_artifact_registry_repository_iam_member" "backend_release_reader" {
+  count      = local.release_identities ? 1 : 0
+  project    = var.project_id
+  location   = var.region
+  repository = "mypage"
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${local.backend_deployer_email}"
+
+  depends_on = [
+    google_artifact_registry_repository.mypage,
+    google_service_account.backend_deployer,
+  ]
+}
+
+resource "google_artifact_registry_repository_iam_member" "operator_release_reader" {
+  count      = local.release_identities ? 1 : 0
+  project    = var.project_id
+  location   = var.region
+  repository = "mypage"
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${local.operator_deployer_email}"
+
+  depends_on = [
+    google_artifact_registry_repository.mypage,
+    google_service_account.operator_deployer,
+  ]
+}
+
+resource "google_project_iam_member" "backend_release_hosting_viewer" {
+  count   = local.release_identities ? 1 : 0
+  project = var.project_id
+  role    = "roles/firebasehosting.viewer"
+  member  = "serviceAccount:${local.backend_deployer_email}"
+
+  depends_on = [google_service_account.backend_deployer]
+}
+
+resource "google_project_iam_member" "backend_release_quota" {
+  count   = local.release_identities ? 1 : 0
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "serviceAccount:${local.backend_deployer_email}"
+
+  depends_on = [google_service_account.backend_deployer]
+}
+
+resource "google_project_iam_member" "operator_release_quota" {
+  count   = local.release_identities ? 1 : 0
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "serviceAccount:${local.operator_deployer_email}"
+
+  depends_on = [google_service_account.operator_deployer]
+}
+
+resource "google_project_iam_member" "hosting_release_admin" {
+  count   = local.release_identities ? 1 : 0
+  project = var.project_id
+  role    = "roles/firebasehosting.admin"
+  member  = "serviceAccount:${local.hosting_deployer_email}"
+
+  depends_on = [google_service_account.hosting_deployer]
+}
+
+resource "google_project_iam_member" "hosting_release_quota" {
+  count   = local.release_identities ? 1 : 0
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "serviceAccount:${local.hosting_deployer_email}"
+
+  depends_on = [google_service_account.hosting_deployer]
 }
 
 output "runtime_enabled" {

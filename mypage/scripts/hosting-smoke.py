@@ -1,15 +1,18 @@
-"""DEVに公開したMyPageを、ログインなしの利用者として実際のブラウザで開き、基本の画面が動くか確かめる。
+"""対象環境(MYPAGE_TARGET。既定はDEV)に公開したMyPageを、ログインなしの利用者として実際のブラウザで開き、基本の画面が動くか確かめる。
 
 目的: 公開直後に、ログイン画面・メンテナンス表示・Cookie設定・利用規約などが正しく出ること、同意前にGA4(アクセス解析)へ送信していないことを確認する。
-使われる場面: MyPage DEV Hosting Release ワークフロー(.github/workflows/mypage-hosting-authenticated.yml)の browser ジョブ。判定部分(protected_destination)は mypage/scripts/test_hosting_smoke.py も使う。
+使われる場面: MyPage Hosting Release ワークフロー(.github/workflows/mypage-hosting-authenticated.yml)の browser ジョブ。判定部分(protected_destination)は mypage/scripts/test_hosting_smoke.py も使う。
 失敗したとき: Hosting配備後の確認ジョブが失敗する(公開自体はすでに行われており、自動の巻き戻しはない)。
 なくした場合: DEV公開後のブラウザでの疎通確認が失われる。
 
 補足: ログイン・GA4への送信・HARは使わない。
 """
+import os
 from urllib.parse import urlsplit
 
-ORIGIN = 'https://test--study-space.web.app'
+# 配備ワークフローが渡す対象環境の公開オリジン。未指定はDEV。
+ORIGINS = {'development': 'https://test--study-space.web.app', 'production': 'https://moku.work'}
+ORIGIN = ORIGINS[os.environ.get('MYPAGE_TARGET', 'development')]
 STATUS_PATH = '/api/public/mypage-status'
 
 
@@ -89,7 +92,7 @@ def main():
         context = browser.new_context(viewport={'width': 390, 'height': 960})
         smoke(context.new_page())
         browser.close()
-    print('PASS: live anonymous DEV UI, maintenance routing, Cookie settings, GA4 requests=0. Real GA4 sending remains unverified.')
+    print('PASS: live anonymous ' + ORIGIN + ' UI, maintenance routing, Cookie settings, GA4 requests=0. Real GA4 sending remains unverified.')
 
 
 if __name__ == '__main__':

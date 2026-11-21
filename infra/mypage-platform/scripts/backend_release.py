@@ -1,7 +1,7 @@
-"""ソースを固定して、DEVのCloud Run(mypage-api)のコンテナイメージだけを入れ替える。
+"""ソースを固定して、対象環境(MYPAGE_TARGET。既定はDEV)のCloud Run(mypage-api)のコンテナイメージだけを入れ替える。
 
-目的: DEVのバックエンド配備で、イメージ以外の設定が勝手に変わったり、競合する別の更新を上書きしたりする事故を防ぎ、配備前後の記録を残す。
-使われる場面: MyPage DEV Backend Release ワークフロー(.github/workflows/mypage-backend-authenticated.yml)の context と deploy の各ステップ。
+目的: バックエンド配備で、イメージ以外の設定が勝手に変わったり、競合する別の更新を上書きしたりする事故を防ぎ、配備前後の記録を残す。
+使われる場面: MyPage Backend Release ワークフロー(.github/workflows/mypage-backend-authenticated.yml)の context と deploy の各ステップ。
 失敗したとき: 配備が中断される。自動の再試行・巻き戻しはせず、記録を見て手で判断する。
 なくした場合: mypage-backend-authenticated.yml の配備が動かなくなる。
 
@@ -23,11 +23,11 @@ import runtime_contract as runtime
 
 ROOT = Path(__file__).resolve().parents[3]
 REGISTRY = ('https://artifactregistry.googleapis.com/v1/projects/' + c.PROJECT +
-            '/locations/asia-southeast2/repositories/mypage/packages/mypage-api')
+            '/locations/' + c.REGION + '/repositories/mypage/packages/mypage-api')
 
 
 CALLER = c.IMAGE_COMPONENTS['api']['caller']
-if CALLER not in hosting.CALLERS:
+if CALLER not in hosting.CALLERS or CALLER != c.RELEASES['backend']['caller']:
     raise ValueError('backend-caller')
 
 
@@ -62,7 +62,29 @@ def declaration(env, token=None):
         c.need(re.fullmatch(re.escape(runtime.REPOSITORY) + r'@sha256:[a-f0-9]{64}', digest),
                'backend-release-digest')
     return {'image_digest': digest, 'image_source_sha': source,
-            'hosting_backend_host': 'mypage-api-eu5mhkcewq-et.a.run.app'}
+            'hosting_backend_host': hosting.BACKEND_HOST}
+
+def publish_target(env):
+    """Expose the source-defined auth target to the workflow; never derived from inputs."""
+    output = env.get('GITHUB_OUTPUT')
+    if output:
+        with open(output, 'a', encoding='utf-8') as stream:
+            stream.write('service_account=' + c.release_account('backend') + '\n')
+            stream.write('project=' + c.PROJECT + '\n')
+
+
+def receipt(env):
+    """Independently re-read this run's record before it is preserved as verified."""
+    record = json.loads(Path(env['RECORD']).read_bytes())
+    c.need(record.get('schemaVersion') == 4 and record.get('sourceSHA') == env['GITHUB_SHA'] and
+           record.get('environment') == c.ENVIRONMENT and
+           record.get('publishStatus') in ('confirmed', 'unchanged') and
+           record.get('publicReadback') == 'passed', 'backend-receipt')
+    c.need(type(record.get('imageDigest')) is str and
+           re.fullmatch(re.escape(runtime.REPOSITORY) + r'@sha256:[a-f0-9]{64}', record['imageDigest']),
+           'backend-receipt-image')
+    c.need(not any(key.startswith('maintenanceJob') for key in record), 'backend-receipt-scope')
+
 
 def verify_source(env, value):
     hosting.verify_head(env)
@@ -103,16 +125,16 @@ def baseline(service, value, *, target=False):
            and len({x['name'] for x in entries}) == len(entries), 'backend-env')
     values = {x['name']: x.get('value') for x in entries}
     c.need(values.get('MYPAGE_PROJECT_NUMBER') == c.PROJECT_NUMBER, 'backend-project-number')
-    c.need(values.get('MYPAGE_ENVIRONMENT') == 'development' and
+    c.need(values.get('MYPAGE_ENVIRONMENT') == c.ENVIRONMENT and
            values.get('GOOGLE_CLOUD_PROJECT') == c.PROJECT and
            values.get('MYPAGE_PUBLIC_ORIGIN') == hosting.ORIGIN and
            values.get('MYPAGE_HOSTING_BACKEND_HOST') == value['hosting_backend_host'] and
            values.get('MYPAGE_READ_METRICS') in (None, 'false'), 'backend-runtime-boundary')
     c.need(service['template'].get('serviceAccount') == c.EMAIL and
-           service['template'].get('scaling', {}).get('maxInstanceCount') == 1 and
+           service['template'].get('scaling', {}).get('maxInstanceCount') == c.MAX_INSTANCES and
            service['template'].get('scaling', {}).get('minInstanceCount', 0) == 0,
            'backend-runtime-boundary')
-    c.need(service.get('scaling', {}).get('maxInstanceCount', 1) == 1 and
+    c.need(service.get('scaling', {}).get('maxInstanceCount', c.MAX_INSTANCES) == c.MAX_INSTANCES and
            service.get('scaling', {}).get('minInstanceCount', 0) == 0, 'backend-service-scaling')
     traffic = runtime.one(service.get('traffic'), 'backend-traffic')
     c.need(traffic == {'type': 'TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST', 'percent': 100},
@@ -149,7 +171,7 @@ def public_get(url):
     import urllib.error
     import urllib.request
     c.need(url in (hosting.ORIGIN + '/api/mypage',
-                   'https://mypage-api-eu5mhkcewq-et.a.run.app/api/mypage'), 'backend-smoke-url')
+                   'https://' + hosting.BACKEND_HOST + '/api/mypage'), 'backend-smoke-url')
     try:
         with urllib.request.build_opener(live.NoRedirect()).open(url, timeout=30) as response:
             return response.status, response.headers, response.read(65537)
@@ -162,7 +184,7 @@ def smoke():
     # 上流から返る任意の400/403だけでは証拠にならない。
     for url, wanted_status, wanted_code in (
         (hosting.ORIGIN + '/api/mypage', 403, 'APP_CHECK_REQUIRED'),
-        ('https://mypage-api-eu5mhkcewq-et.a.run.app/api/mypage', 400, 'INVALID_REQUEST'),
+        ('https://' + hosting.BACKEND_HOST + '/api/mypage', 400, 'INVALID_REQUEST'),
     ):
         status, headers, data = public_get(url)
         c.need(len(data) <= 65536 and status == wanted_status and
@@ -185,12 +207,14 @@ def deploy(env):
     unchanged = current_image == value['image_digest']
     previous, number = baseline(before, value, target=unchanged)
     hosting_before = hosting.current(token)
+    # 配備後の疎通確認はHosting経由の配信を前提とする。未公開のサイトでは書き込み前に停止する。
+    c.need(hosting_before is not None, 'backend-hosting-unpublished')
     c.need(live.request(token, live.SERVICE_URL) == before, 'backend-moved')
     hosting.verify_head(env)
     c.need(hosting.current(token) == hosting_before, 'backend-hosting-moved')
     # The maintenance Job is a separate deploy unit (Deploy Maintenance Operator);
     # this release never reads or updates it.
-    record = {'schemaVersion': 4, 'environment': 'development', 'sourceSHA': env['GITHUB_SHA'],
+    record = {'schemaVersion': 4, 'environment': c.ENVIRONMENT, 'sourceSHA': env['GITHUB_SHA'],
               'workflowRun': 'https://github.com/' + c.REPOSITORY + '/actions/runs/' + env['GITHUB_RUN_ID'],
               'imageSourceSHA': value['image_source_sha'], 'imageDigest': value['image_digest'],
               'previousImageDigest': current_image, 'previousRevision': previous,
@@ -237,22 +261,25 @@ def deploy(env):
     hosting.verify_head(env)
     record['publicReadback'] = 'passed'
     save()
-    print('DEV Backend Service serves the verified immutable image; maintenance Job and Terraform untouched.')
+    print(c.ENVIRONMENT + ' Backend Service serves the verified immutable image; maintenance Job and Terraform untouched.')
 
 
 def main():
     os.umask(0o077)
     try:
-        c.need(sys.argv[1:] in (['context'], ['deploy']), 'backend-command')
+        c.need(sys.argv[1:] in (['context'], ['deploy'], ['receipt']), 'backend-command')
         if sys.argv[1] == 'context':
             context(os.environ)
             declaration(os.environ)
+            publish_target(os.environ)
+        elif sys.argv[1] == 'receipt':
+            receipt(os.environ)
         else:
             deploy(os.environ)
         return 0
     except Exception as error:
         label = str(error) if type(error) in (ValueError, c.ContractError) and re.fullmatch('[a-z0-9-]+', str(error)) else 'execution'
-        print('::error::DEV Backend STOP: ' + label + '. No automatic retry or rollback.', file=sys.stderr)
+        print('::error::' + c.ENVIRONMENT + ' Backend STOP: ' + label + '. No automatic retry or rollback.', file=sys.stderr)
         return 1
 
 

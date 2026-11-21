@@ -480,7 +480,11 @@ class RuntimeTest(unittest.TestCase):
         text = (ROOT / "infra/mypage-platform/modules/runtime/main.tf").read_text()
         self.assertNotIn('"maintenance_image_release_act_as"', text)
         self.assertNotIn('resource "google_cloud_run_v2_job_iam_member" "maintenance_image_release"', text)
-        self.assertNotIn("mypage-backend-deploy", text)
+        # The Backend deployer never regains any access to the maintenance Job or its runtime SA.
+        for block in text.split('\nresource "')[1:]:
+            if block.startswith(("google_cloud_run_v2_job_iam_member", "google_service_account_iam_member\" \"operator")):
+                self.assertNotIn("backend_deployer", block)
+                self.assertNotIn("mypage-backend-deploy", block)
 
     def test_operator_image_resources_cannot_be_deleted(self):
         base = self.noop_plan()
@@ -490,16 +494,23 @@ class RuntimeTest(unittest.TestCase):
             with self.subTest(address=address), self.assertRaises(c.ContractError):
                 r.validate_plan(rejected)
 
-    def test_backend_image_release_binding_is_dev_only(self):
+    def test_only_the_operator_deployer_releases_the_job_image_in_both_environments(self):
         value = r.settings(json.loads((ROOT / "infra/mypage-platform/environments/dev/tests/runtime-settings.fixture.json").read_text()))
-        with patch.object(r.c, "TARGET", "production"):
-            resources = r.maintenance_resource_contract(value)
-        self.assertNotIn(r.MAINTENANCE_IMAGE_ROLE, resources)
-        self.assertNotIn(r.MAINTENANCE_IMAGE_BINDING, resources)
-        self.assertNotIn(r.MAINTENANCE_IMAGE_ACT_AS, resources)
-        self.assertNotIn(r.OPERATOR_IMAGE_BINDING, resources)
-        self.assertNotIn(r.OPERATOR_IMAGE_ACT_AS, resources)
-        self.assertIn(r.MAINTENANCE_JOB, resources)
+        for target in ("development", "production"):
+            with self.subTest(target=target), patch.object(r.c, "TARGET", target):
+                resources = r.maintenance_resource_contract(value)
+                self.assertIn(r.MAINTENANCE_IMAGE_ROLE, resources)
+                self.assertIn(r.OPERATOR_IMAGE_BINDING, resources)
+                self.assertIn(r.OPERATOR_IMAGE_ACT_AS, resources)
+                self.assertNotIn(r.MAINTENANCE_IMAGE_BINDING, resources)
+                self.assertNotIn(r.MAINTENANCE_IMAGE_ACT_AS, resources)
+                self.assertTrue(resources[r.OPERATOR_IMAGE_BINDING]["member"].startswith("serviceAccount:mypage-operator-deploy@"))
+
+    def test_release_identities_are_declared_only_for_production(self):
+        self.assertEqual(r.release_resource_contract(), {})
+        self.assertFalse(set(r.resource_contract(runtime=True, public=True)) &
+                         {address for group in (r.RELEASE_SA, r.RELEASE_POOL, r.RELEASE_PROVIDER, r.RELEASE_FEDERATION)
+                          for address in group.values()})
 
     def test_runtime_with_and_without_public_invoker_has_exact_resources_and_pinned_secrets(self):
         for public in (False, True):
@@ -622,6 +633,41 @@ class RuntimeTest(unittest.TestCase):
         # Unknown/mismatched planned after cannot be used to bypass refresh.
         bad(lambda p: p["resource_drift"][0]["change"].update(after_unknown={"template": True}))
 
+
+    def test_owner_added_hosting_backend_host_is_adopted_as_the_only_env_addition(self):
+        # A new environment creates the Service before its *.a.run.app host is known.
+        # The owner then adds only MYPAGE_HOSTING_BACKEND_HOST and records the same
+        # value in the runtime settings; the next Plan adopts it without an update.
+        plan = fixture(public=True)
+        for item in plan["resource_changes"]:
+            item["change"]["actions"] = ["no-op"]
+            item["change"].pop("importing", None)
+        settings = plan["variables"]["runtime_settings"]["value"]
+        settings["hosting_backend_host"] = "mypage-api-observed-et.a.run.app"
+        after = service(plan)["after"]
+        before = deepcopy(after)
+        before.update(uid="fixed-service-uid", generation="1")
+        after.update(uid="fixed-service-uid", generation="2")
+        after["template"][0]["containers"][0]["env"].append({
+            "name": "MYPAGE_HOSTING_BACKEND_HOST", "value": settings["hosting_backend_host"]
+        })
+        drift = deepcopy(next(item for item in plan["resource_changes"] if item["address"] == r.SERVICE))
+        drift["change"].update(actions=["update"], before=before)
+        plan["resource_drift"] = [drift]
+        self.assertEqual(r.validate_plan(deepcopy(plan)),
+                         {"resources": len(plan["resource_changes"]), "creates": 0})
+        for mutate in (
+            # Any other env addition alongside the host stays rejected.
+            lambda p: p["resource_drift"][0]["change"]["after"]["template"][0]["containers"][0]["env"].append(
+                {"name": "MYPAGE_UNREVIEWED", "value": "x"}),
+            # The added host must equal the reviewed runtime settings value.
+            lambda p: p["resource_drift"][0]["change"]["after"]["template"][0]["containers"][0]["env"][-1].update(
+                value="mypage-api-other-et.a.run.app"),
+        ):
+            rejected = deepcopy(plan)
+            mutate(rejected)
+            with self.subTest(mutation=mutate), self.assertRaises(ValueError):
+                r.validate_plan(rejected)
 
     def test_security_capacity_image_and_environment_changes_are_rejected(self):
         changes = [

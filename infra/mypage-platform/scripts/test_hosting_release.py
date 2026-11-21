@@ -129,9 +129,9 @@ class ReleaseTest(unittest.TestCase):
         config = {'frontend': {'VITE_MYPAGE_ANALYTICS_READY': 'false', 'VITE_FIREBASE_APP_ID': 'synthetic'},
                   'hosting': {'inventory': {'script': ['https://www.google.com/recaptcha/'],
                                             'connect': [], 'image': [], 'frame': ['https://frame.example']}}}
-        h.configure_dev_analytics(config)
-        h.configure_dev_analytics(config)
-        self.assertEqual(config['frontend'], {'VITE_MYPAGE_GA4_ID': h.DEV_GA4_ID,
+        h.configure_analytics(config)
+        h.configure_analytics(config)
+        self.assertEqual(config['frontend'], {'VITE_MYPAGE_GA4_ID': 'G-E31NHW939V',
                          'VITE_MYPAGE_PUBLIC_ORIGIN': h.ORIGIN, 'VITE_FIREBASE_APP_ID': 'synthetic'})
         self.assertEqual(config['hosting']['inventory']['connect'], sorted(h.GA4_COLLECTION))
         self.assertEqual(config['hosting']['inventory']['script'], ['https://www.google.com/recaptcha/', h.GA4_TAG])
@@ -183,7 +183,8 @@ class ReleaseTest(unittest.TestCase):
             with self.subTest(change=change), patch.object(h, 'cloud', return_value=value | change), self.assertRaises(ValueError):
                 h.backend('synthetic-token')
 
-    def publication(self, package, *, moved=False, upload_foreign=False, upload_failure=False, smoke_failure=False, lost_ack=False):
+    def publication(self, package, *, moved=False, upload_foreign=False, upload_failure=False, smoke_failure=False, lost_ack=False,
+                    first_publish=False):
         env = environment() | {'RUNNER_TEMP': str(package.parent), 'MYPAGE_HOSTING_PACKAGE_DIGEST': 'b' * 64}
         rest = hosting()
         csp = rest['headers'][0]['headers']
@@ -200,7 +201,7 @@ class ReleaseTest(unittest.TestCase):
         old = {'name': 'sites/' + h.SITE + '/releases/old', 'version': {'name': 'sites/' + h.SITE + '/versions/old'}}
         name = 'sites/' + h.SITE + '/versions/new'
         calls = []
-        state = {'current': old, 'reads': 0}
+        state = {'current': None if first_publish else old, 'reads': 0}
         def current(token):
             state['reads'] += 1
             if moved and state['reads'] == 2:
@@ -253,6 +254,27 @@ class ReleaseTest(unittest.TestCase):
             self.assertEqual(len(writes), 1)
             self.assertEqual(json.loads(receipt.read_bytes())['publicReadback'], 'passed')
             self.assertEqual(json.loads(receipt.read_bytes())['previousVersion'], 'sites/' + h.SITE + '/versions/old')
+
+    def test_never_published_site_gets_one_release_without_previous_references(self):
+        with tempfile.TemporaryDirectory() as temp:
+            package = Path(temp) / 'package'
+            self.make_dist(package)
+            calls, receipt = self.publication(package, first_publish=True)
+            self.assertEqual(sum(method == 'POST' and '/releases?' in url for method, url in calls), 1)
+            self.assertFalse(any(url.endswith('/versions/old') for _, url in calls))
+            record = json.loads(receipt.read_bytes())
+            self.assertEqual((record['previousRelease'], record['previousVersion']), (None, None))
+            self.assertEqual(record['publicReadback'], 'passed')
+
+    def test_current_release_is_absent_only_for_an_empty_complete_listing(self):
+        for listing, expected in (({}, None), ({'releases': []}, None)):
+            with self.subTest(listing=listing), patch.object(h, 'cloud', return_value=listing):
+                self.assertIs(h.current('synthetic-token'), expected)
+        for listing in ({'releases': [], 'nextPageToken': 'x'}, {'releases': 'x'},
+                        {'releases': [{'type': 'ROLLBACK'}]}):
+            with self.subTest(listing=listing), patch.object(h, 'cloud', return_value=listing), \
+                    self.assertRaises(ValueError):
+                h.current('synthetic-token')
 
     def test_moved_release_foreign_upload_or_failed_upload_cannot_publish(self):
         for option in ('moved', 'upload_foreign', 'upload_failure'):
