@@ -36,6 +36,8 @@ CONTEXT = """
     import backend_release as b
     import hosting_release as h
     import operator_release as o
+    import image_ops
+    import read_metrics_v1 as v1
 
     def base(caller):
         return {'GITHUB_REPOSITORY': c.REPOSITORY, 'GITHUB_REPOSITORY_ID': '340900071',
@@ -65,7 +67,8 @@ CONTEXT = """
         }
     result['targets'] = {'site': h.SITE, 'host': h.BACKEND_HOST, 'origin': h.ORIGIN, 'run': h.RUN,
                          'registry': b.REGISTRY, 'operator_environment': o.ENVIRONMENT, 'ga4': h.GA4_ID,
-                         'backend_account': c.release_account('backend'), 'max': c.MAX_INSTANCES}
+                         'backend_account': c.release_account('backend'), 'max': c.MAX_INSTANCES,
+                         'run_v1': v1.URL, 'job': o.JOB_NAME, 'image_prefix': image_ops.PREFIX}
     print(json.dumps(result))
 """
 
@@ -84,7 +87,11 @@ class ProductionReleaseTest(unittest.TestCase):
             "registry": ("https://artifactregistry.googleapis.com/v1/projects/youtube-study-space/locations/"
                          "asia-northeast2/repositories/mypage/packages/mypage-api"),
             "operator_environment": "mypage-prod-operator", "ga4": "G-ZJ1VPVT2L2",
-            "backend_account": "mypage-backend-deploy@youtube-study-space.iam.gserviceaccount.com", "max": 3})
+            "backend_account": "mypage-backend-deploy@youtube-study-space.iam.gserviceaccount.com", "max": 3,
+            "run_v1": ("https://asia-northeast2-run.googleapis.com/apis/serving.knative.dev/v1/namespaces/"
+                       "youtube-study-space/services/mypage-api"),
+            "job": "projects/youtube-study-space/locations/asia-northeast2/jobs/mypage-maintenance-operator",
+            "image_prefix": "projects/youtube-study-space/locations/asia-northeast2/repositories/mypage"})
 
     def test_production_host_must_be_supplied_and_well_formed(self):
         for extra in ({}, {"MYPAGE_HOSTING_BACKEND_HOST": "evil.example.com"}):

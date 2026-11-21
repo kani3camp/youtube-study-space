@@ -66,7 +66,7 @@ def run(args, *, cwd=None, codes=(0,), check="native-command"):
         # ネイティブ診断、コマンド引数、拒否データから取り出した権限名は出力しない。
         diagnostics = result.stdout + result.stderr
         for permission in (
-            "artifactregistry.repositories.get", "iam.roles.get", "iam.serviceAccounts.get", "iam.serviceAccounts.getIamPolicy",
+            "artifactregistry.repositories.get", "artifactregistry.repositories.getIamPolicy", "iam.roles.get", "iam.serviceAccounts.get", "iam.serviceAccounts.getIamPolicy",
             "iam.workloadIdentityPoolProviders.get", "iam.workloadIdentityPools.get",
             "iam.workloadIdentityPools.getAttestationRules",
             "resourcemanager.projects.get", "resourcemanager.projects.getIamPolicy",
