@@ -3,7 +3,6 @@ package mypage
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -91,7 +90,7 @@ func TestDryRunDependencyErrorIdentityAndInvalidCountsStayUnknown(t *testing.T) 
 	_, err := BuildDryRun(context.Background(), s, dryRunReaderFunc(func(context.Context, DryRunSelector) (DryRunSnapshot, error) {
 		return DryRunSnapshot{}, context.Canceled
 	}))
-	require.True(t, errors.Is(err, context.Canceled))
+	require.ErrorIs(t, err, context.Canceled)
 	negative := -1
 	v.Counts["users"] = InventoryCount{State: "known", Count: &negative, Scope: "channel"}
 	report, err := BuildDryRun(context.Background(), s, dryRunReaderFunc(func(context.Context, DryRunSelector) (DryRunSnapshot, error) { return v, nil }))

@@ -111,3 +111,6 @@ firestore-debug.log
 .idea/copilot.data.migration.ask2agent.xml
 .idea/copilot.data.migration.edit.xml
 .idea/go.imports.xml
+
+# ローカル開発用の git worktree
+.worktrees/

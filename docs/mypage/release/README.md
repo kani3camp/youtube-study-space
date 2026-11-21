@@ -13,7 +13,7 @@
 
 開発・本番とも Firebase Hosting（React/Vite）、`/api/**` の書き換え、Cloud Run Go BFF、Firebase Authentication、Firestore で構成します。Cloudflare はドメイン登録と DNS だけに使い、初期構成に Managed WAF・Cloud Armor・専用外部 LB・Cloud Run Web は含めません。
 
-標準の `run.app` にも直接到達できるため、Hosting と直接 Run の両方で認証・App Check・SAC・Origin・UID 制限・Canon S01/S04 を検証します。公開ドメインは `https://moku.work/` とし、登録の Active 状態・DNS/TLS・OAuth コールバック・本番配備は対象環境を再読み取りして確認します。
+標準の `run.app` にも直接到達できるため、Hosting と直接 Run の両方で認証・App Check・SAC・Origin・UID 制限・Canon S01/S04 を検証します。公開ドメインは `https://moku.work/` とし、登録の Active 状態・DNS/TLS・OAuth コールバック・本番配備は対象環境を再読み取りして確認します。`www.moku.work` は本番 Hosting サイトにリダイレクト専用のカスタムドメインとして追加し、`https://moku.work/` へ恒久転送します（Cloudflare 側は DNS only）。`www` ではアプリを配信しないため、OAuth のリダイレクト URI・承認済みドメイン・App Check・CSP・Origin の許可には加えません。Hosting から `www` を外すときは、DNS レコードも同時に外します（宛先のないレコードを残すとサブドメインを乗っ取られる余地になるため）。
 
 | 対象 | 手順と確認境界 |
 | --- | --- |

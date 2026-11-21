@@ -9,6 +9,6 @@ alwaysApply: true
 
 - 特に `NOTE` で始まるコメントは意図を含むため、安易に削除しない（移動は可）。
 - コードを言い換えただけで保守価値のないコメントは削除してよい。
-- 一時的なレビュー説明は `[NOTE FOR REVIEW]` を使用し、恒久コメントとして残さない。
+- レビュー専用説明などの一時的なコメントはコミットせず、PR本文やレビューコメントに書く（詳細は `AGENTS.md` の `Documentation and Comment Lifecycle` に従う）。
 
 Gitコミット、push、PR、merge の判断は `AGENTS.md` の認可・PRルールに従う。

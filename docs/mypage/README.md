@@ -232,7 +232,7 @@ go run ./cmd/mypage-operator-dryrun < /path/to/private-synthetic-reference
 
 - 任意のアクセス解析の状態は `unset` / `granted` / `denied` とし、`unset` では操作を妨げない選択画面を出します（拒否・未選択でも主要操作を利用可能）。選択した `granted` / `denied` 文字列だけをファーストパーティーストレージに保存し UID・チャンネル・プロフィールと結び付けず、`storage` イベントで別タブの拒否を受け取った場合も即座に送信を停止します（保存失敗時は現在ページの選択を適用しつつ保存失敗を表示）。
 - `AnalyticsGate` は同意前に開始・送信せず過去イベントのキュー保存や再送もしません。固定ルート・タイトルと完全一致した公開 UTM の組み合わせだけを渡し、コールバック・`code`/`state`/`error`/`supportChallenge`・任意クエリ/フラグメント・`referrer`/`title` 入力・本人データを渡す API は持ちません（通常ログインの 4 イベントだけをパラメーターなしで扱います）。
-- 実ローダーは測定 ID が設定され公開オリジンがブラウザのオリジンと一致する環境で同意後にスクリプトを読み込みます（必須の Firebase/App Check/reCAPTCHA 通信とは別同意）。公開ポリシーと利用規約の本文（privacy v1 / terms v1）は運営者が承認済みです。運営者の公開表記・窓口 URL・同意版・施行日はソースの定数で管理し、施行日は初回本番公開の直前に設定します（[公開設定](release/README.md#設定の受け渡し)）。
+- 実ローダーは測定 ID が設定され公開オリジンがブラウザのオリジンと一致する環境で同意後にスクリプトを読み込みます（必須の Firebase/App Check/reCAPTCHA 通信とは別同意）。公開ポリシーと利用規約の本文（privacy v1 / terms v1）は運営者が承認済みです。運営者の公開表記・窓口 URL・同意版・施行日はソースの定数で管理します。施行日は両文書とも初回本番公開日です（[公開設定](release/README.md#設定の受け渡し)）。
 - 全 API レスポンスに `no-store` / `nosniff` / `no-referrer`、`default-src none` / `frame-ancestors none`、不要なデバイス権限の拒否を設定します（Hosting HTML の CSP 許可リストとコールバック基盤ログの秘匿処理は公開準備後に検証）。
 
 ### モックで検証できる GA4 コマンドアダプター
