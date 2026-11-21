@@ -13,7 +13,7 @@
 
 開発・本番とも Firebase Hosting（React/Vite）、`/api/**` の書き換え、Cloud Run Go BFF、Firebase Authentication、Firestore で構成します。Cloudflare はドメイン登録と DNS だけに使い、初期構成に Managed WAF・Cloud Armor・専用外部 LB・Cloud Run Web は含めません。
 
-標準の `run.app` にも直接到達できるため、Hosting と直接 Run の両方で認証・App Check・SAC・Origin・UID 制限・Canon S01/S04 を検証します。公開ドメインは `https://moku.work/` とし、登録の Active 状態・DNS/TLS・OAuth コールバック・本番配備は対象環境を再読み取りして確認します。`www.moku.work` は本番 Hosting サイトにリダイレクト専用のカスタムドメインとして追加し、`https://moku.work/` へ恒久転送します（Cloudflare 側は DNS only）。`www` ではアプリを配信しないため、OAuth のリダイレクト URI・承認済みドメイン・App Check・CSP・Origin の許可には加えません。Hosting から `www` を外すときは、DNS レコードも同時に外します（宛先のないレコードを残すとサブドメインを乗っ取られる余地になるため）。
+標準の `run.app` にも直接到達できるため、Hosting 経由と Cloud Run の直接 URL の両方で認証・App Check・SAC・Origin・UID 制限・Canon S01/S04 を検証します。公開ドメインは `https://moku.work/` とし、登録の Active 状態・DNS/TLS・OAuth コールバック・本番配備は対象環境を再読み取りして確認します。`www.moku.work` は本番 Hosting サイトにリダイレクト専用のカスタムドメインとして追加し、`https://moku.work/` へ恒久転送します（Cloudflare 側は DNS only）。`www` ではアプリを配信しないため、OAuth のリダイレクト URI・承認済みドメイン・App Check・CSP・Origin の許可対象には加えません。Hosting から `www` を外すときは、DNS レコードも同時に外します（宛先のないレコードを残すとサブドメインを乗っ取られる余地になるため）。
 
 | 対象 | 手順と確認境界 |
 | --- | --- |
@@ -36,8 +36,8 @@ MyPage の GA4 には各 Firebase プロジェクトに接続済みの `mypage` 
 
 - 両プロパティで広告連携・Google Signals・広告パーソナライズを使わず、保持 14 か月と新規活動による保持期間リセット OFF を確認し、SPA 側で手動ページビューを送るため Enhanced Measurement の履歴変更時自動ページビューなど重複送信を無効にします。
 - `VITE_MYPAGE_GA4_ID=<その環境の測定 ID>` と `VITE_MYPAGE_PUBLIC_ORIGIN=<その環境の HTTPS origin>` を環境別フロントエンドのリリース設定に必ず含めます（測定 ID は公開値でありシークレット扱いしません。公開マニフェスト整合性検査と Hosting CSP の別途承認が必要）。
-- 未接続時は初回の同意バナーを表示せず、既存の v1 同意設定は接続前に取得した選択のため再利用せず v2 へ更新します（GA4 有効化後の初回アクセスで、Google Analytics や Cookie を使うサイト改善のためのアクセス解析を案内し、明示的に同意/拒否を選んでもらいます）。
-- DEV から先に実ブラウザで、同意前・拒否中の GA4 通信 0 件、許可後の実イベントと URL 秘匿、拒否変更後の非送信と Cookie、Realtime 表示、CSP、外部送信表示を確認します（ローカル合成テストは実ベンダー動作を証明せず、DEV 結果を本番検証に読み替えません）。
+- GA4 未接続時は初回の同意バナーを表示しません。既存の v1 同意設定は接続前に取得した選択であるため再利用せず、v2 へ更新します（GA4 有効化後の初回アクセスで、Google Analytics や Cookie を使うサイト改善のためのアクセス解析を案内し、明示的に同意/拒否を選んでもらいます）。
+- DEV から先に実ブラウザで、同意前・拒否中の GA4 通信 0 件、許可後の実イベントと URL 秘匿、拒否への変更後の非送信と Cookie 状態、Realtime 表示、CSP、外部送信表示を確認します（ローカル合成テストは実ベンダー動作を証明せず、DEV 結果を本番検証に読み替えません）。
 
 ---
 
@@ -56,16 +56,16 @@ cd system
 go run ./cmd/mypage-server --check-config
 ```
 
-- バックエンド検査は既存の安全なプロセス環境からサーバー専用シークレットを読みますが、コマンド引数・マニフェスト・Vite へは移さず、固定の `status` / `field` / `code` だけを出します。
-- 公開設定チェッカーは 64 KiB 以内の明示 JSON を読み、秘密値・デバッグ値・未知フィールドや、プロジェクト・アプリ・オリジンの不一致を拒否します（任意のバックエンド補助宣言は非秘密情報のみを持ち、Hosting 設定には既存検証処理を再利用）。
+- バックエンド検査は既存の安全なプロセス環境からサーバー専用シークレットを読み取りますが、コマンド引数・マニフェスト・Vite へは移さず、固定の `status` / `field` / `code` だけを出します。
+- 公開設定チェッカーは 64 KiB 以内の明示 JSON を読み、秘密値・デバッグ値・未知フィールドや、プロジェクト・アプリ・オリジンの不一致を拒否します（任意のバックエンド補助宣言は非秘密情報のみを持ち、Hosting 設定には既存検証処理を再利用します）。
 - 本番向け設定（`deployment.environment: "production"` または `deployment.projectID: "youtube-study-space"`）の検査では、[`public-policy-config.ts`](../../../mypage/src/public-policy-config.ts) の `POLICY_EFFECTIVE_DATE` に実在する `YYYY-MM-DD` の日付が設定されていることを必須とし、未設定または不正値のときは `policy.effectiveDate` の診断で拒否します（開発向け設定では未設定を許容し、設定時は日付形式を検査します）。
-- マニフェストの最上位項目は `schemaVersion: 1`、`deployment`、`frontend` と任意の `backend`、`hosting` です。`deployment` / `backend` は `environment`、`projectID`、`projectNumber`、`webAppID`、`publicOrigin` の 5 項目を持ち、`frontend` は [例](public-config.example.json) と [公開スキーマ](../../../mypage/src/release-config.ts)、`hosting` は [HostingInputs](../../../mypage/src/hosting.ts) を参照します（任意入力の省略時は `not-supplied` として未検証のまま残ります）。同意版と公開文面の値はマニフェストに含めず、旧項目（`publicPolicy`、`privacyVersion` / `termsVersion`、`VITE_PRIVACY_POLICY_VERSION` / `VITE_TERMS_VERSION`）は未知フィールドとして拒否します。
+- マニフェストの最上位項目は `schemaVersion: 1`、`deployment`、`frontend` と任意の `backend`、`hosting` です。`deployment` / `backend` は `environment`、`projectID`、`projectNumber`、`webAppID`、`publicOrigin` の 5 項目を持ち、`frontend` は [例](public-config.example.json) と [公開スキーマ](../../../mypage/src/release-config.ts)、`hosting` は [HostingInputs](../../../mypage/src/hosting.ts) を参照します（任意の項目を省略した場合は `not-supplied` となり、未検証のまま残ります）。同意版と公開文面の値はマニフェストに含めず、旧項目（`publicPolicy`、`privacyVersion` / `termsVersion`、`VITE_PRIVACY_POLICY_VERSION` / `VITE_TERMS_VERSION`）は未知フィールドとして拒否します。
 
 両検査とも外部登録・鍵の真正性・権限や利用枠・公開本文の承認は確認せず、`configurationValid=true` / `configuration=valid` でも基盤と実環境の E2E は未完了です（`MYPAGE_INFRASTRUCTURE_READY=true` も起動に必要な宣言であり、確認完了の証拠にはなりません）。
 
 ### 設定の受け渡し
 
-Hosting の画像接続先一覧（`img-src` 専用で `script` / `connect` / `frame` は広げない）には、チャンネル画像用の `https://yt3.ggpht.com` と `https://yt3.googleusercontent.com` の両オリジンを明示します（reCAPTCHA 画像だけの一覧は事前検査で拒否。将来別の画像オリジンが返った場合は実配信元を確認して一覧を再レビュー）。
+Hosting の画像接続先一覧（`img-src` 専用で `script` / `connect` / `frame` は広げない）には、チャンネル画像用の `https://yt3.ggpht.com` と `https://yt3.googleusercontent.com` の両オリジンを明示します（reCAPTCHA 画像だけの一覧は事前検査で拒否します。将来別の画像オリジンが返った場合は実配信元を確認して一覧を再レビューします）。
 
 | 設定の用途 | 項目 | 受け渡し・検証 |
 | --- | --- | --- |
@@ -85,12 +85,12 @@ Hosting の画像接続先一覧（`img-src` 専用で `script` / `connect` / `f
 `/contact` は使い方・不具合・ご意見の一般窓口と、Google 連携解除後の連絡やデータ削除・開示・訂正・全ログイン解除などのプライバシー窓口を分けて案内します。受付と返信は人的窓口で行い、[本人確認・運用 CLI](../support-operator.md) を利用します。
 
 - 窓口 URL はソースの `contactForms` で Firebase プロジェクトごとに固定し、環境変数やマニフェストでは設定しません（URL 変更にはソースレビューと再ビルドが必要）。未知・未設定のプロジェクトでは窓口を推測せず、お問い合わせボタンを表示しません。
-- プライバシー請求に FAQ 事前読了やマイページへのログインを求めず、受付後は原則同じチャンネルを新しい YouTube の許可（fresh OAuth）で確認します（通常ログインだけでは実行せず、利用できない場合は窓口で個別方法を案内）。
+- プライバシー請求に FAQ 事前読了やマイページへのログインを求めず、受付後は原則同じチャンネルを新しい YouTube OAuth 認証（fresh OAuth）で確認します（通常ログインだけでは実行せず、利用できない場合は窓口で個別の確認方法を案内します）。
 
 #### お問い合わせ窓口の公開前条件（ソースのマージ条件には含めない）
 
 - マイページ未ログイン・利用制限中でも窓口に到達できることと、Google 未ログイン状態で環境別フォームから試験回答を送信し運営者の受信・返信・依頼者への到達まで実証すること（OAuth 同意画面の support email や既存匿名窓口は自動転用しない）。
-- フォーム回答の保管場所・閲覧権限・保持期間・削除方法と担当を確定すること（受付時刻・返信先・対応担当・期限は人的窓口で管理し、対応結果は元の窓口から返し、実データ削除と 7 暦日以内の期限管理を別途実証）。
+- フォーム回答の保管場所・閲覧権限・保持期間・削除方法と担当を確定すること（受付時刻・返信先・対応担当・期限は人的窓口で管理し、対応結果は元の窓口から返し、実データ削除と 7 暦日以内の期限管理を別途実証します）。
 - [Google 側で連携を解除した利用者への対応](../support-operator.md#google側で連携を解除した利用者への対応) を開発環境で通し確認し、正式手順化と fresh OAuth 不可時の本人確認の最低基準を公開前に判断すること。
 
 確定済みの事項:
@@ -135,14 +135,14 @@ Go 変更の必須検査は [AGENTS.md](../../../AGENTS.md) に従い生成後�
 
 ビルド時に既存の React コンポーネントから規約本文を含む静的 HTML を生成します。Firebase Hosting は `/privacy` と `/terms` にその HTML を返すため、ログインや JavaScript の実行なしで本文を読めます（JavaScript が動くブラウザでは Cookie 設定や画面内遷移も引き続き利用可能）。Google OAuth 同意画面に登録済みの `/privacy_policy` は HTTP 302 で `/privacy` へ転送します（反映にはフロントエンド再デプロイが必要）。
 
-ページの更新は基盤 Terraform Apply とは別に `Deploy MyPage Frontend`（[`deploy-mypage-frontend.yml`](../../../.github/workflows/deploy-mypage-frontend.yml)）を手動実行します。DEV は統合ブランチ `integration/mypage-canon-20261006` から `environment=development`、本番は `main` から `environment=production` で実行し、同じジョブとスクリプトを使います（実行 SHA は選択 ref の `github.sha` を使い手入力しない。PR 実行・環境と ref の組み合わせ違い・別所有者・再実行・SHA 不一致は拒否し、失敗時は同じ Run を再実行せず現在状態を確認して新しく実行）。以下は DEV の値で説明し、本番の差分は手順の後に示します。
+ページの更新は基盤 Terraform Apply とは別に `Deploy MyPage Frontend`（[`deploy-mypage-frontend.yml`](../../../.github/workflows/deploy-mypage-frontend.yml)）を手動実行します。DEV は統合ブランチ `integration/mypage-canon-20261006` から `environment=development`、本番は `main` から `environment=production` で実行し、同じジョブとスクリプトを使います（実行 SHA には選択した ref の `github.sha` を使い、手入力しません。PR 実行・環境と ref の組み合わせ違い・別所有者・再実行・SHA 不一致は拒否し、失敗時は同じ Run を再実行せず、現在の状態を確認して新しく実行します）。以下は DEV の値で説明し、本番の差分は手順の後に示します。
 
 1. 同じ Run 内でまず MyPage の認証なし CI（`ci-frontend.yml` の `mypage`: audit・cost model・フォント整合性・check・test・build）を通し、続くクラウド認証情報なしの Build ジョブで固定依存検査・check・typecheck・テスト・DEV 公開設定検査・ビルドを実行します。
 2. 成果物を別 Apply ジョブへ渡し、ソース SHA・Run ID・30 分の期限・設定・全ファイルの SHA256 を再検証してから専用 WIF と短命トークンで認証します（SA 鍵や Firebase ログイントークンは不使用）。
 3. 対象を `test-youtube-study-space` の `test--study-space` だけとし、現在の Hosting の CSP・書き換え等と API の固定オリジン・Ready リビジョンを照合したうえでリリースを切り替えます（自動再試行しない）。
 4. 配備後は全ファイルのバイト列・`Cache-Control`・CSP・`/` と `/mypage`・匿名 API の 403・API メタデータ不変を確認し、別の認証なし Browser ジョブで匿名画面・Cookie 設定・同意バナー表示・同意前と拒否後の GA4 通信 0 件を確認します（実 GA4 送信・認証済み E2E・公開条件完了とは区別）。
 
-- GitHub Environment の `mypage-dev-hosting` には公開項目だけの `MYPAGE_HOSTING_PUBLIC_CONFIG_JSON` と専用プロバイダー名 `MYPAGE_HOSTING_WIF_PROVIDER` を Variables に設定し、デプロイ時に DEV の測定 ID・公開オリジン・固定 CSP 許可先（`https://www.googletagmanager.com/gtag/js`、`https://www.google-analytics.com`、`https://region1.google-analytics.com`）を補います（変数に残る旧項目の `VITE_MYPAGE_ANALYTICS_READY` と同意版・`publicPolicy` は検査前に取り除くため、変数から段階的に削除できます）。有効化後は検証用ブラウザでアクセス解析を許可し Network と GA4 Realtime で受信を照合し、拒否へ戻して通信が止まることも確認します。
+- GitHub Environment の `mypage-dev-hosting` には公開項目だけの `MYPAGE_HOSTING_PUBLIC_CONFIG_JSON` と専用プロバイダー名 `MYPAGE_HOSTING_WIF_PROVIDER` を Variables に設定し、デプロイ時に DEV の測定 ID・公開オリジン・固定 CSP 許可先（`https://www.googletagmanager.com/gtag/js`、`https://www.google-analytics.com`、`https://region1.google-analytics.com`）を補います（変数に残る旧項目の `VITE_MYPAGE_ANALYTICS_READY` と同意版・`publicPolicy` は検査前に取り除くため、変数から段階的に削除できます）。有効化後は検証用ブラウザでアクセス解析を許可した状態で Network タブと GA4 Realtime の受信を照合し、拒否へ戻して通信が止まることも確認します。
 - 権限は専用の `mypage-hosting` WIF pool/provider と `mypage-hosting-deploy` SA に分離します。Firebase Hosting にはカスタムロールがないため DEV プロジェクトに `roles/firebasehosting.admin` を付与しつつ、サイト 1 個への限定は固定 API/配備仕様と厳格な WIF 受入検査で担保します（加えて `mypage-api` 1 サービスの `roles/run.viewer` と DEV `roles/serviceusage.serviceUsageConsumer` だけを追加）。
 - Firebase のリリース切替 API には compare-and-swap がないため実行中は別経路の更新を避け、リリース記録は切替 API 呼び出し前に `unknown` で保存して応答確認後に `confirmed` へ更新します（成否にかかわらず CI 成果物で 14 日間保存、ビルド成果物は 1 日で期限切れ。失敗時は `previousVersion` / `previousRelease` と現在配信を照合して手動復旧判断）。
 - 一度も公開していないサイト（リリース 0 件）への初回公開に限り、比較する現在の設定が無いため設定の照合を省き、記録の `previousRelease` / `previousVersion` は `null` になります。
@@ -183,8 +183,8 @@ Go 変更の必須検査は [AGENTS.md](../../../AGENTS.md) に従い生成後�
 node mypage/scripts/prepare-hosting.mjs --manifest /path/to/reviewed-public-config.json --dist /path/to/release/dist --output /path/to/release/firebase.json
 ```
 
-- 出力先は未作成ファイル・親ディレクトリは作成済みとし、Firebase CLI の仕様上、シンボリックリンク解決後も `dist` は出力設定の親ディレクトリ内の独立サブディレクトリである必要があります（マニフェストや非公開ファイルは置かない）。
-- 既知のハッシュ付き JS・CSS・フォントだけを 1 年間 `immutable` とし、HTML・API・未知のハッシュパスは `no-store` とします。ビルド元は追跡済みで変更のない Git worktree とし（QA アーカイブ内をビルドルートにすると Tailwind の走査が変わるため不可）、JS だけの更新時は直前のレビュー済み `dist` と CSS・全フォントの名前と SHA256 を機械比較します。
+- 出力先ファイルは未作成、親ディレクトリは作成済みとします。Firebase CLI の仕様上、シンボリックリンク解決後も `dist` は出力設定の親ディレクトリ内の独立サブディレクトリである必要があります（マニフェストや非公開ファイルは置かないでください）。
+- 既知のハッシュ付き JS・CSS・フォントだけを 1 年間 `immutable` とし、HTML・API・未知のハッシュパスは `no-store` とします。ビルド元は追跡済みで変更のない Git worktree とし（QA アーカイブ内をビルドルートにすると Tailwind の走査が変わるため不可）、JS だけの更新時は直前のレビュー済み `dist` と CSS・全フォントの名前と SHA256 を機械的に比較します。
 - Hosting Emulator で既知アセット、`/`、`/mypage`、`/api/mypage`、未知の `/assets/missing-12345678.js` の `Cache-Control` と CSP/`nosniff` を確認します（実バックエンドヘッダーやダウンロード量は別記録）。
 
 ---
@@ -197,7 +197,7 @@ node mypage/scripts/prepare-hosting.mjs --manifest /path/to/reviewed-public-conf
 - 記録内容は `user_lookups`、`seat_queries` / `seats_returned` / `seat_query_errors`（0〜2）、`segment_queries` / `segments_returned` / `segment_query_error`（true/false）、`elapsed_ms` の数値と真偽値のみで、UID・チャンネル ID・氏名・パス・作業名・生エラーなどは含めません。返却 0 件でも対応するエラー数・フラグが `0` / `false` の場合だけ正常な空結果とし、未実行は query 数 `0` で区別します（partial snapshot でトランザクションが成功する場合も失敗指標を残しますが、トランザクション全体の失敗時はコールバック自体が呼ばれません）。
 - この数値を Firestore の実課金読み取り数と混同しないでください（0 件クエリ最低課金、index entry read、transaction retry、アクセス制御別経路、AWS Batch 等は含まれません。実請求は Cloud Billing と、小規模データでの [Query Explain](https://firebase.google.com/docs/firestore/query-explain) により複数範囲条件を持つ `work-segments` の index entry read を確認します）。
 - 合成テスト対象は User 不存在、履歴 0/10/100/500/1000 件（可能なら 1001 件検知）、同一 ID の通常席/メンバー席、JST 日曜→月曜・月末境界、データ不整合、クエリ失敗と認証拒否とし、失敗や上限時に履歴を 0 として表示しないことも確認します。
-- 1 人・1 日あたりのリクエスト回数と毎回の処理量を組み合わせて実測原価を計算します（代表的な 2 時間滞在なら、定期 refresh は旧 60 秒 120 回→新 5 分 24 回が目標値。writer は [削除 inventory の起動経路](../support-delete-inventory.md#起動と再生成経路の調査先) と原記録 writer を照合）。
+- 1 人・1 日あたりのリクエスト回数と毎回の処理量を組み合わせて実測原価を計算します（代表的な 2 時間滞在なら、定期 refresh は旧 60 秒 120 回→新 5 分 24 回が目標値です。writer は [削除 inventory の起動経路](../support-delete-inventory.md#起動と再生成経路の調査先) と原記録 writer を照合）。
 
 ### 月次履歴の明示移行と復旧
 

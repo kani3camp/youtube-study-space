@@ -343,7 +343,7 @@ describe('public policy rendering', () => {
 			),
 		).toHaveLength(2)
 		expect(html).toContain(
-			'通常のログインとは別にGoogleの認証手続きで対象のYouTubeチャンネルを確認します。',
+			'ご依頼の受付後は、原則として通常のログインとは別のGoogle認証手続きで、対象のYouTubeチャンネルを確認します。',
 		)
 		expect(html).toContain(
 			'Google連携を解除済みなどで認証手続きを利用できない場合も',
