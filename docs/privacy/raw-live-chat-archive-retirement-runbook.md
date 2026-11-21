@@ -1,346 +1,85 @@
-# Raw live-chat archive retirement runbook
+# 生ライブチャット履歴アーカイブの廃止手順書（Runbook）
 
-## Goal
+YouTube の生データ `live-chat-history` の永続保存を廃止しつつ、メモリ上のチャットコマンド処理・モデレーションと Study Space の業務データを維持するための手順書です（生チャットから新しい作業履歴は生成しません。`users`・座席・work segment・作業時間・RP・注文・activity・membership はこの廃止の削除対象外です）。
 
-Retire persistent raw YouTube live-chat archival while preserving Study Space domain data and the normal in-memory command/moderation path.
+---
 
-Target end state:
+## 対象と実行境界
 
-```text
-YouTube Live Chat API
-  -> process in memory
-  -> command / moderation
-  -> Study Space domain data
-
-raw live-chat-history
-  -> no persistent archive
-```
-
-This runbook applies only to the raw `live-chat-history` archive. It does not delete or migrate `users`, seats, work segments, study time, RP, orders, user activities, membership data, or other Study Space domain data. Existing raw chat is not converted into new work history before deletion.
-
-## Non-negotiable safety rules
-
-1. Validate the full sequence in `development` before producer cutover or destructive cleanup in `production`.
-2. Never partially delete `kind_live-chat-history/**` from a mixed Firestore export snapshot. GCS deletion uses the complete top-level snapshot prefix.
-3. Never delete the mixed Firestore backup bucket or the `firestore_export` BigQuery dataset.
-4. Preserve `firestore_export.user-activity-history` and `firestore_export.order-history`.
-5. Every destructive preview/apply must identify the target environment, GCP project ID, and exact BigQuery table or GCS bucket.
-6. Production BigQuery/GCS apply commands are manual operator actions. Do not automate them as part of deploy/CI.
-7. Do not classify a GCP resource as removable from its name alone. Confirm that no retained data flow uses it.
-8. After both environments are complete, remove one-shot DELETE capabilities from the repository. Useful read-only audits may remain.
-
-## Migration components
-
-The migration is intentionally split into small changes:
-
-- #1002 prevents future GCS-to-BigQuery import of `live-chat-history`.
-- #1028 stops the youtube-bot runtime from writing raw messages to Firestore `live-chat-history`.
-- #997 provides the one-shot BigQuery raw-row purge capability.
-- #1029 strengthens the BigQuery purge with environment/project/table-bound guards.
-- #1001 provides guarded whole-prefix cleanup for mixed GCS Firestore export snapshots.
-- #1030 strengthens the GCS purge with environment/project/bucket-bound guards.
-- #1032 gates GCS cleanup on Firestore drain plus multiple newer clean snapshots.
-- #1031 provides a permanent read-only Firestore drain audit.
-
-Do not use a destructive command until the guard changes it depends on are present in the deployed/operator checkout.
-
-## Record the environment targets
-
-Before any deploy or deletion, record the actual values from read-only inventory. Do not copy project IDs or bucket names from memory.
-
-| Environment | GCP project ID | BigQuery dataset | Raw table | GCS Firestore export bucket |
+| 環境 | GCP プロジェクト | BigQuery データセット / 生テーブル | Firestore エクスポートバケット | AWS プロファイル |
 | --- | --- | --- | --- | --- |
-| development | `<fill from inventory>` | `firestore_export` | `live-chat-history` | `<fill from config/inventory>` |
-| production | `<fill from inventory>` | `firestore_export` | `live-chat-history` | `<fill from config/inventory>` |
+| `development` | `test-youtube-study-space` | `firestore_export` / `live-chat-history` | `firestore-backup-test-youtube-study-space` | `soraride-dev` |
+| `production` | `youtube-study-space` | `firestore_export` / `live-chat-history` | `firestore-backup-youtube-study-space` | `soraride-prod` |
 
-Run the repository inventory helper for both environments before cleanup planning:
+- プロジェクトの一致確認: 各操作では認証情報が解決したプロジェクトと明示したターゲットを照合します（GCS は Firestore 設定のバケットも照合）。`system/.env` の値や過去の記録だけで環境を判断しないでください。
+- 秘密・生情報の保護: 認証情報 JSON とそのパス、confirmation token、生棚卸し一覧はコミットや公開ログに出しません。
+- 実環境変更操作の制限: Bot は OBS / モニターと同じ配信 PC、日次バッチは AWS 上で動作します。Bot 起動・CDK デプロイ・データ削除（purge）は実環境を変更するため通常のローカル検証には使わず、Bot 起動時は表示された `Project ID` が対象と完全一致する場合のみ `yes` で続行します。
+- 記録管理: 実施記録・Day 0・対象ソースと成果物・承認・結果は対応する Issue / PR の非公開証跡参照で管理します（日付経過やマージだけで完了とみなしません）。
 
-```bash
-scripts/gcp/raw-chat-resource-inventory.sh development <development-project-id> \
-  > /tmp/raw-chat-development-inventory.txt
+### 変更してはいけない条件
 
-scripts/gcp/raw-chat-resource-inventory.sh production <production-project-id> \
-  > /tmp/raw-chat-production-inventory.txt
+- 必ず **development** の検証完了後に **production** へ進み、環境ごとに Day 0 を記録する。
+- 混合エクスポートの `kind_live-chat-history/**` のみを個別削除しない（削除単位は最上位スナップショット全体とし、[GCS の追加条件](gcs-raw-chat-cleanup.md) を満たすまで apply しない）。
+- 混合バケット、`firestore_export` データセット、`user-activity-history`、`order-history` とそれらの共有基盤は削除せず保持する。
+- `preview` の `ready_to_apply` やトークンを人間の承認代わりにせず、purge は個別承認済みの手動操作として実行する（デプロイや CI に組み込まない）。
+- リソース名だけで廃止専用と決めつけず、共有リソースや帰属不明の IAM は削除しない。
+
+---
+
+## 1. Producer（書き込み元）の切り替え
+
+1. Bot からの生 Firestore 書き込み除去と、日次バッチからの生 GCS → BigQuery インポート除外をソース・成果物で確認します（古い Bot・手動ランナー・再試行経路も確認）。
+2. development の配信 PC と AWS の両方へ変更を配備します（CDK は `aws-cdk/` の正規手順で対象プロファイルの差分を確認してからデプロイ）。
+3. 実際の development チャットで通常メッセージ、`!info`、テストユーザーの `!in` / `!out`、安全なモデレーション操作を行い、生保存停止がメモリ上の処理を壊していないことを確認します。
+4. 両ランタイムの切り替えと動作確認が成功した時点を **Day 0** とします（新規チャットで生レコードが増えた場合は直ちに停止し、残存する書き込み元を調査）。
+5. development でドレイン・クリーンなスナップショット取得・承認済み削除・保持データ検証を終えたあと、通常の `dev` → `main` リリースを経て production の配信 PC / AWS を更新します（`dev` から本番へ直接配備しません）。
+
+---
+
+## 2. ドレイン確認とクリーンなスナップショット取得
+
+`system/` ディレクトリから以下の読み取り専用コマンドを実行し、毎回環境・プロジェクト・バケットを明示します。
+
+```sh
+go run ./cmd/raw-chat-drain-audit <environment> <project-id>
+go run ./cmd/privacy-gcs-admin preview <environment> <project-id> <bucket>
+go run ./cmd/privacy-retention-admin preview-bigquery <environment> <project-id> <cutoff-rfc3339>
 ```
 
-This is read-only. Review Cloud Asset Inventory, Scheduler, Functions, Cloud Run services/jobs, Pub/Sub, Eventarc, service accounts/IAM, Firestore indexes, GCS buckets, and BigQuery resources. Save the output with the migration record rather than committing environment-specific credentials or sensitive configuration.
+Firestore の `total_rows=0` / `drained=true`、新規生書き込みがないこと、最後の生スナップショットより新しいクリーンなスナップショットが 7 世代以上あること、最新エクスポートが 72 時間以内であること、バケット/プロジェクト一致、versioning 無効を確認します（5 日保持と日次エクスポートの環境では約 12〜14 日かかる場合がありますが、日数の経過ではなく実カウントと `preview` 結果で判定します）。production でも独立して同じ条件を満たす必要があります。
 
-## Phase 1: development producer cutover
+---
 
-### 1. Preflight
+## 3. 手動 purge と完了確認
 
-Confirm the development deployment contains:
+BigQuery `preview` の対象が上表の dataset / raw table のみであることを確認し、直前の `preview` と同じ cutoff・件数・トークンを使って適用します（production では `--allow-production` も必須）。
 
-- the `live-chat-history` BigQuery archive exclusion from #1002;
-- the Firestore raw-write removal from #1028;
-- the read-only drain audit from #1031.
-
-Do not treat a merge to `dev` as proof that the development runtime has been deployed.
-
-### 2. Deploy to development only
-
-Deploy the producer/archive changes to the development environment. Record the exact deployment timestamp as **Day 0**.
-
-Do not deploy the producer cutover to production yet.
-
-### 3. Verify the service path still works
-
-Confirm representative live-chat commands/moderation behavior still operates. The message-processing path must continue to use the fetched in-memory YouTube message; it must not depend on a successful raw history write.
-
-### 4. Verify Firestore raw rows stop growing
-
-Run:
-
-```bash
-cd system
-go run ./cmd/raw-chat-drain-audit development <development-project-id>
-```
-
-Immediately after Day 0, `total_rows` may still be non-zero because pre-cutover rows remain. Re-run the audit after normal chat activity. The total must not increase from newly persisted raw messages and should decrease as the existing retention cleanup runs.
-
-If raw rows increase after the producer cutover, stop the migration and find the remaining writer before proceeding.
-
-## Phase 2: development wait window
-
-The current Firestore history retention is five days. Existing rows therefore do not disappear immediately after the producer stops.
-
-Expected sequence:
-
-```text
-Day 0
-  raw Firestore producer stops
-
-approximately Day 5-7
-  Firestore live-chat-history reaches 0
-
-then subsequent daily Firestore exports
-  begin producing raw-free GCS snapshots
-
-then preserve multiple clean generations
-  at least 7 clean snapshots newer than the newest raw snapshot
-```
-
-With daily exports this can commonly require roughly **12-14 days from Day 0**, but calendar age is not the authority. The read-only Firestore count and GCS preview safety gates are authoritative.
-
-### Firestore drain gate
-
-Do not proceed to GCS apply until:
-
-```json
-{
-  "total_rows": 0,
-  "drained": true
-}
-```
-
-is reported for development.
-
-### GCS clean-snapshot gate
-
-Use the final guarded GCS command only in preview mode:
-
-```bash
-cd system
-go run ./cmd/privacy-gcs-admin preview \
-  development <development-project-id> <development-bucket-name>
-```
-
-Do not apply until `ready_to_apply` is true. The command must verify at least:
-
-- Firestore raw row count is zero;
-- the expected project and configured bucket match the operator target;
-- object versioning is disabled;
-- raw-containing snapshot prefixes exist;
-- at least seven clean snapshot prefixes are newer than the newest raw snapshot;
-- the latest overall snapshot is recent.
-
-## Phase 3: development purge rehearsal and manual apply
-
-### BigQuery preview
-
-Use only the target-bound command from #1029:
-
-```bash
-cd system
-go run ./cmd/privacy-retention-admin preview-bigquery \
-  development <development-project-id> <cutoff-rfc3339>
-```
-
-Check the preview target contains exactly:
-
-- `environment = development`;
-- the expected development project ID;
-- dataset `firestore_export`;
-- table `live-chat-history`.
-
-### BigQuery apply
-
-The operator manually copies the candidate count and exact token from the immediately preceding preview:
-
-```bash
+```sh
 go run ./cmd/privacy-retention-admin apply-bigquery \
-  development <development-project-id> <cutoff-rfc3339> \
-  --expected-rows <preview-count> \
-  --confirm '<exact-preview-token>'
+  <environment> <project-id> <same-cutoff-rfc3339> \
+  --expected-rows <preview-count> --confirm '<exact-preview-token>'
 ```
 
-Do not reuse a token from another environment or an earlier preview.
+GCS については [GCS の追加条件](gcs-raw-chat-cleanup.md) で retention・hold・費用・復元カバー範囲を確認したうえで実施してください（一部のみ削除可能な状態で一括 apply は使いません）。
 
-### GCS preview and apply
+purge 後は、Firestore raw が 0 件、指定 cutoff の BigQuery 候補が 0 件、GCS 本番名前空間の raw プレフィックスが 0 件であること、および共有データセット・バケット・保持テーブルと通常サービスが正常であることを確認します（GCS は名前空間からの削除と soft-delete 期間後の完全削除を分けて記録し、失敗や `unknown` を完了扱いしません）。
 
-Run a fresh GCS preview immediately before apply. If any gate changed, stop and re-evaluate.
+---
 
-```bash
-go run ./cmd/privacy-gcs-admin preview \
-  development <development-project-id> <development-bucket-name>
+## 4. 専用資源と一時機能の撤去
+
+両環境のデータ削除完了後、認証済みの棚卸し環境で読み取り専用の調査スクリプト（またはコンソール調査）を実行します（通常の Bot / Go 管理コマンドはローカルの `gcloud` 設定に依存しません）。
+
+```sh
+scripts/gcp/raw-chat-resource-inventory.sh <environment> <project-id> > /path/to/private-inventory.txt
 ```
 
-The operator then manually uses only the values from that preview:
+- Cloud Asset、Scheduler、Functions、Cloud Run、Pub/Sub、Eventarc、SA / IAM、Firestore インデックス、GCS、BigQuery を調べ、`dedicated` / `shared` / `uncertain` に分類します。
+- BigQuery の `live-chat-history` テーブル自体の削除は、両環境の移行完了と保持データ参照元の不在を確認したうえでこの段階で行います（共有エクスポート・スケジューラー・SA / IAM・混合バケット・データセットと保持テーブルは残します）。
+- 最終整理 PR で BigQuery / GCS の一回限りの `DELETE` / `apply` 機能・一時テスト・役目を終えた移行文書を削除し、再出現を検知する `drain-audit` と読み取り専用棚卸しは維持します。
 
-```bash
-go run ./cmd/privacy-gcs-admin apply \
-  development <development-project-id> <development-bucket-name> \
-  --expected-prefixes <preview-value> \
-  --expected-objects <preview-value> \
-  --confirm '<exact-preview-token>'
-```
+---
 
-GCS soft delete means removal from the live namespace is not immediate hard deletion. Record the configured soft-delete retention and the expected hard-delete window.
+## 完了条件
 
-### Development verification
-
-Before production cutover, verify:
-
-- `raw-chat-drain-audit` still reports zero Firestore rows;
-- BigQuery raw purge post-check reports no candidate rows for the selected cutoff;
-- GCS post-check reports zero live raw-containing snapshot prefixes;
-- retained BigQuery tables and the mixed GCS bucket still exist;
-- representative Study Space functionality still works.
-
-## Phase 4: production producer cutover
-
-Only after the development sequence has been validated:
-
-1. confirm #1002 and #1028 are included in the production deployment artifact;
-2. deploy the producer/archive changes to production;
-3. record a separate production **Day 0** timestamp;
-4. do not run BigQuery/GCS apply immediately after deployment;
-5. monitor the raw Firestore count with the production target explicitly supplied.
-
-```bash
-cd system
-go run ./cmd/raw-chat-drain-audit production <production-project-id>
-```
-
-## Phase 5: production wait window
-
-Repeat the same gates used in development:
-
-1. wait for Firestore `live-chat-history` to reach zero, normally after the existing short retention window;
-2. wait for subsequent raw-free daily Firestore exports;
-3. retain at least seven clean snapshots newer than the final raw-containing snapshot;
-4. require the GCS preview to report `ready_to_apply = true`.
-
-Do not shorten this sequence merely because development succeeded.
-
-## Phase 6: production manual purge
-
-Production destructive operations are manual only.
-
-### BigQuery
-
-```bash
-cd system
-go run ./cmd/privacy-retention-admin preview-bigquery \
-  production <production-project-id> <cutoff-rfc3339>
-```
-
-After checking the exact target and candidate count, the operator may run:
-
-```bash
-go run ./cmd/privacy-retention-admin apply-bigquery \
-  production <production-project-id> <cutoff-rfc3339> \
-  --expected-rows <preview-count> \
-  --confirm '<exact-preview-token>' \
-  --allow-production
-```
-
-### GCS
-
-```bash
-go run ./cmd/privacy-gcs-admin preview \
-  production <production-project-id> <production-bucket-name>
-```
-
-Only when the fresh preview is ready may the operator run:
-
-```bash
-go run ./cmd/privacy-gcs-admin apply \
-  production <production-project-id> <production-bucket-name> \
-  --expected-prefixes <preview-value> \
-  --expected-objects <preview-value> \
-  --confirm '<exact-preview-token>' \
-  --allow-production
-```
-
-Record the before/after JSON from both tools.
-
-## Phase 7: GCP resource cleanup
-
-After raw data cleanup has completed in **both** environments, rerun the read-only resource inventory for development and production.
-
-Classify each candidate as `dedicated`, `shared`, or `uncertain`.
-
-Potential dedicated cleanup candidates:
-
-- BigQuery `firestore_export.live-chat-history` table;
-- Scheduler jobs used only for raw chat archival;
-- raw-chat-only Cloud Functions or Cloud Run jobs/services;
-- raw-chat-only Pub/Sub topics/subscriptions or Eventarc triggers;
-- service accounts used only by the retired raw archive;
-- IAM grants needed only by those dedicated resources;
-- Firestore indexes used only by retired raw history operations.
-
-Resources that remain:
-
-- BigQuery `firestore_export` dataset;
-- `user-activity-history`;
-- `order-history`;
-- the mixed Firestore backup GCS bucket;
-- any export/scheduler/function/service account/IAM resource also used by retained Study Space data.
-
-Do not delete an `uncertain` or shared resource. First inspect its target, trigger, code, IAM bindings, and consumers.
-
-Delete the obsolete BigQuery raw table itself only during this resource-cleanup phase, after confirming there is no retained consumer and both environment migrations are complete.
-
-## Phase 8: repository deletion-tool cleanup
-
-Once both environment migrations and cloud resource cleanup are complete, create a final cleanup PR. It should remove temporary destructive capabilities rather than leave dormant DELETE paths in the repository.
-
-Remove or reduce at least:
-
-- `privacy-retention-admin` BigQuery DELETE/apply capability;
-- `privacy-gcs-admin` GCS DELETE/apply capability;
-- one-shot purge helpers used only by this migration;
-- one-shot purge tests that no longer protect retained behavior;
-- migration-only code and documentation that is no longer operationally needed.
-
-Keep useful read-only checks, including Firestore raw-row drain/reappearance auditing and broader retention/resource inventory where they remain useful.
-
-## Final verification checklist
-
-The migration is complete only when all of the following are true for development and production:
-
-- [ ] youtube-bot no longer persists fetched raw messages to Firestore `live-chat-history`.
-- [ ] Firestore `live-chat-history` total row count is zero.
-- [ ] GCS-to-BigQuery transfer does not import `live-chat-history`.
-- [ ] no live GCS Firestore export snapshot contains `kind_live-chat-history`.
-- [ ] GCS soft-delete timing has been recorded and allowed to expire as required for hard deletion verification.
-- [ ] BigQuery `firestore_export.live-chat-history` has been removed in the final resource-cleanup phase.
-- [ ] `firestore_export.user-activity-history` remains.
-- [ ] `firestore_export.order-history` remains.
-- [ ] the `firestore_export` dataset remains.
-- [ ] the mixed GCS backup bucket remains.
-- [ ] raw-chat-only cloud resources/IAM/indexes identified by inventory have been removed, with shared resources preserved.
-- [ ] one-shot DELETE capabilities have been removed from the repository.
-- [ ] retained read-only audits still pass and do not expose a new raw persistence path.
+両環境について、producer / import 停止、Firestore raw 0 件、GCS 本番削除および完全削除確認、生 BigQuery テーブル撤去、共有データと基盤の保持、専用資源・IAM・インデックス撤去、一時 `DELETE` 機能の除去、読み取り専用監査の継続を根拠資料で確認して完了とします（ソースコード上の実装だけでは移行完了とみなしません）。

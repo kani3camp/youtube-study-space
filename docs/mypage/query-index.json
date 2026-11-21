@@ -1,0 +1,18 @@
+{
+  "collectionGroup": "work-segments",
+  "queryScope": "COLLECTION",
+  "fields": [
+    {
+      "fieldPath": "user-id",
+      "order": "ASCENDING"
+    },
+    {
+      "fieldPath": "ended-at",
+      "order": "ASCENDING"
+    },
+    {
+      "fieldPath": "started-at",
+      "order": "ASCENDING"
+    }
+  ]
+}

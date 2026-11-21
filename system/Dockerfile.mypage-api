@@ -1,0 +1,20 @@
+FROM golang:1.27.4@sha256:5e8afd493a7124a8586e134d9b532731161d4b9becf9dee5a5956b107426f93d AS build
+ENV GOTOOLCHAIN=local
+WORKDIR /src
+COPY go.mod go.sum ./
+# A digest update must keep the compiler identical to the canonical go.mod version.
+RUN test "$(go env GOVERSION)" = "go$(awk '$1 == "go" { print $2; exit }' go.mod)"
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
+ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -tags timetzdata -trimpath -ldflags="-s -w" -o /out/mypage-server ./cmd/mypage-server
+
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+WORKDIR /app
+ENV TZ=Asia/Tokyo PORT=8080
+COPY --from=build /out/mypage-server /app/mypage-server
+USER nonroot:nonroot
+EXPOSE 8080
+ENTRYPOINT ["/app/mypage-server"]

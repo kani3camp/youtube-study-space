@@ -21,7 +21,13 @@ type FirestoreControllerImplements struct {
 }
 
 func NewFirestoreController(ctx context.Context, clientOption option.ClientOption) (*FirestoreControllerImplements, error) {
-	client, err := firestore.NewClient(ctx, firestore.DetectProjectID, clientOption)
+	return NewFirestoreControllerForProject(ctx, firestore.DetectProjectID, clientOption)
+}
+
+// NewFirestoreControllerForProjectは、周囲のADCプロジェクトを使わず、
+// 明示して選んだプロジェクトに運用ツールを固定する。
+func NewFirestoreControllerForProject(ctx context.Context, projectID string, clientOption option.ClientOption) (*FirestoreControllerImplements, error) {
+	client, err := firestore.NewClient(ctx, projectID, clientOption)
 	if err != nil {
 		return nil, fmt.Errorf("in firestore.NewClient: %w", err)
 	}
@@ -174,6 +180,9 @@ func (c *FirestoreControllerImplements) workNameTrendCollection() *firestore.Col
 func (c *FirestoreControllerImplements) DeleteDocRef(ctx context.Context, tx *firestore.Transaction,
 	ref *firestore.DocumentRef,
 ) error {
+	if ref == nil || ref.Parent.ID == WorkSegments || ref.Parent.ID == WorkMonths {
+		return fmt.Errorf("history deletion requires fenced source and aggregate handling: %w", ErrWorkHistoryConflict)
+	}
 	return c.delete(ctx, tx, ref)
 }
 

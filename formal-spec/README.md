@@ -29,7 +29,7 @@ CI を緑にすること自体を目的に仕様を弱めてはいけません�
 - `SeatAllocation`: 入室・空席衝突・メンバー席アクセス・席移動・退室の安全条件
 - `system/core/repository/seat_formalspec_test.go`: `SeatSession` 用の `formalspec` build tag Go conformance adapter
 
-全 FSL spec は CI で bounded verification されます。`SeatSession` はさらに FSL が生成した conformance vector を oracle として実 `SeatDoc` と照合します。`SeatAllocation` は高位の安全モデルとして導入し、実装 conformance が未接続であることを明示します。
+全 FSL spec は CI で bounded verification されます。`SeatSession` はさらに FSL が生成した conformance vector を oracle として実 `SeatDoc` と照合します。`SeatAllocation` は独立した安全モデルで、実装との自動照合は未接続です。MyPageの安全条件は通常のGo/Vitest/Firestore Emulatorテストで検証します。
 
 vector / HTML は一時生成物でコミットせず、通常の `go test ./...` と本番ランタイムは FSL 非依存のまま維持します。
 

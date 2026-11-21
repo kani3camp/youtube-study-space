@@ -1,0 +1,180 @@
+package mypage
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/url"
+	"regexp"
+	"slices"
+	"strings"
+	"time"
+
+	"golang.org/x/oauth2"
+)
+
+const (
+	youtubeReadOnly    = "https://www.googleapis.com/auth/youtube.readonly"
+	youtubeChannelsURL = "https://www.googleapis.com/youtube/v3/channels"
+)
+
+// youtubeChannelFieldsはchannels.listの応答を必要な項目だけに絞る。
+// itemsが省略される0件応答を判定するため、pageInfo.totalResultsを必ず残す。
+const youtubeChannelFields = "nextPageToken,pageInfo(totalResults),items(id,snippet(title,customUrl,thumbnails(default(url))))"
+
+var youtubeChannelID = regexp.MustCompile(`^UC[A-Za-z0-9_-]{22}$`)
+
+// GoogleYouTubeOAuth は Resolve 処理中のみ短命のアクセストークンを使用する。
+// トークンソース・自動更新・再試行・認証情報のログ記録や保存は行わず、基盤と認証情報の確認後にサーバー専用シークレットを渡して使う。
+type GoogleYouTubeOAuth struct {
+	config oauth2.Config
+	client *http.Client
+}
+
+func NewGoogleYouTubeOAuth(clientID, clientSecret, publicOrigin string, client *http.Client) (*GoogleYouTubeOAuth, error) {
+	origin, err := url.Parse(publicOrigin)
+	if err != nil || origin.Scheme != "https" || origin.Host == "" || origin.User != nil || origin.Opaque != "" || origin.Path != "" || origin.RawQuery != "" || origin.ForceQuery || origin.Fragment != "" || clientID == "" || clientSecret == "" {
+		return nil, apiError("TEMPORARY_UNAVAILABLE")
+	}
+	bounded := http.Client{Timeout: 8 * time.Second}
+	if client != nil {
+		bounded = *client
+	}
+	if bounded.Timeout <= 0 || bounded.Timeout > 8*time.Second {
+		bounded.Timeout = 8 * time.Second
+	}
+	// コード・クライアントシークレット・Bearerトークンをリダイレクト先へ転送しない。
+	bounded.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
+	return &GoogleYouTubeOAuth{client: &bounded, config: oauth2.Config{
+		ClientID: clientID, ClientSecret: clientSecret,
+		RedirectURL: publicOrigin + "/api/auth/youtube/callback",
+		Scopes:      []string{youtubeReadOnly},
+		Endpoint:    oauth2.Endpoint{AuthURL: "https://accounts.google.com/o/oauth2/v2/auth", TokenURL: "https://oauth2.googleapis.com/token", AuthStyle: oauth2.AuthStyleInParams},
+	}}, nil
+}
+
+func (p *GoogleYouTubeOAuth) AuthorizationURL(state string) string {
+	return p.config.AuthCodeURL(state, oauth2.AccessTypeOnline, oauth2.SetAuthURLParam("prompt", "select_account"))
+}
+
+func (p *GoogleYouTubeOAuth) Resolve(ctx context.Context, code string) ([]Channel, error) {
+	if code == "" {
+		return nil, oauthFailure(oauthStageCode, apiError("OAUTH_FAILED"))
+	}
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, p.client)
+	token, err := p.config.Exchange(ctx, code)
+	if err != nil {
+		// oauth2.RetrieveErrorとURLエラーには、認証情報やプロバイダー本文が含まれ得る。
+		return nil, oauthFailure(oauthStageExchange, apiError("OAUTH_FAILED"))
+	}
+	scope, ok := token.Extra("scope").(string)
+	if !ok || !slices.Contains(strings.Fields(scope), youtubeReadOnly) {
+		return nil, oauthFailure(oauthStageScope, apiError("OAUTH_SCOPE_INSUFFICIENT"))
+	}
+	if token.AccessToken == "" || !strings.EqualFold(token.TokenType, "Bearer") || token.Expiry.IsZero() || !token.Valid() {
+		return nil, oauthFailure(oauthStageToken, apiError("OAUTH_FAILED"))
+	}
+	// 付与されていないはずのリフレッシュトークンも念のため破棄し、
+	// OAuth クライアントやトークンをプロバイダー・ストア・セッションに保持しない。
+	token.RefreshToken = ""
+	query := url.Values{"mine": {"true"}, "part": {"snippet"}, "maxResults": {"2"}, "fields": {youtubeChannelFields}}.Encode()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, youtubeChannelsURL+"?"+query, nil)
+	if err != nil {
+		return nil, oauthFailure(oauthStageChannelRequest, apiError("TEMPORARY_UNAVAILABLE"))
+	}
+	request.Header.Set("Authorization", "Bearer "+token.AccessToken)
+	request.Header.Set("Accept", "application/json")
+	response, err := p.client.Do(request)
+	// 公開メタデータを処理する前に、ローカルの認証情報参照を消去する。
+	token.AccessToken = ""
+	if err != nil {
+		return nil, oauthFailure(oauthStageChannelTransport, apiError("TEMPORARY_UNAVAILABLE"))
+	}
+	defer response.Body.Close() //nolint:errcheck // Closing a read-only response cannot change the proof; never log credential-bearing transport errors.
+	if response.StatusCode != http.StatusOK {
+		return nil, oauthFailure(oauthStageChannelStatus, apiError("CHANNEL_UNAVAILABLE"))
+	}
+	channel, err := decodePublicChannel(response.Body)
+	if err != nil {
+		return nil, oauthFailure(oauthStageChannelDecode, err)
+	}
+	return []Channel{channel}, nil
+}
+
+func decodePublicChannel(body io.Reader) (Channel, error) {
+	return decodeChannelResponse(body, false)
+}
+
+func decodeChannelResponse(body io.Reader, terminalAbsence bool) (Channel, error) {
+	data, err := io.ReadAll(io.LimitReader(body, 65537))
+	if err != nil || len(data) > 65536 {
+		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
+	}
+	var result struct {
+		NextPageToken string `json:"nextPageToken"`
+		Items         *[]struct {
+			ID      string `json:"id"`
+			Snippet struct {
+				Title      string `json:"title"`
+				CustomURL  string `json:"customUrl"`
+				Thumbnails struct {
+					Default struct {
+						URL string `json:"url"`
+					} `json:"default"`
+				} `json:"thumbnails"`
+			} `json:"snippet"`
+		} `json:"items"`
+		PageInfo json.RawMessage `json:"pageInfo"`
+	}
+	if json.Unmarshal(data, &result) != nil {
+		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
+	}
+	if result.Items == nil {
+		// YouTube Data APIは0件のときitemsを省略し得る。pageInfo.totalResultsが
+		// 数値の0と明示された場合だけ不在とし、それ以外の欠落は不正な応答として扱う。
+		if result.NextPageToken == "" && pageInfoReportsZeroResults(result.PageInfo) {
+			if terminalAbsence {
+				return Channel{}, ErrPublicChannelMissing
+			}
+			return Channel{}, apiError("CHANNEL_UNAVAILABLE")
+		}
+		return Channel{}, apiError("TEMPORARY_UNAVAILABLE")
+	}
+	if len(*result.Items) > 1 || result.NextPageToken != "" {
+		return Channel{}, apiError("CHANNEL_AMBIGUOUS")
+	}
+	if len(*result.Items) == 0 && terminalAbsence {
+		return Channel{}, ErrPublicChannelMissing
+	}
+	if len(*result.Items) != 1 {
+		return Channel{}, apiError("CHANNEL_UNAVAILABLE")
+	}
+	item := (*result.Items)[0]
+	if !youtubeChannelID.MatchString(item.ID) || strings.TrimSpace(item.Snippet.Title) == "" {
+		return Channel{}, apiError("CHANNEL_UNAVAILABLE")
+	}
+	channel := Channel{ID: item.ID, DisplayName: item.Snippet.Title}
+	// customUrlは現在の@handleではなく、旧カスタムURLの場合がある。
+	if strings.HasPrefix(item.Snippet.CustomURL, "@") {
+		channel.Handle = &item.Snippet.CustomURL
+	}
+	if avatar, err := url.Parse(item.Snippet.Thumbnails.Default.URL); err == nil && avatar.Scheme == "https" && avatar.Host != "" && avatar.User == nil && avatar.Opaque == "" {
+		channel.AvatarURL = &item.Snippet.Thumbnails.Default.URL
+	}
+	return channel, nil
+}
+
+// pageInfoReportsZeroResultsは、pageInfo.totalResultsが存在し、JSON数値の0である場合だけtrueを返す。
+// 欠落・null・文字列・負数・非ゼロ・pageInfoの型違いはすべてfalseとする。
+func pageInfoReportsZeroResults(raw json.RawMessage) bool {
+	var info struct {
+		TotalResults json.RawMessage `json:"totalResults"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &info) != nil {
+		return false
+	}
+	return string(info.TotalResults) == "0"
+}
