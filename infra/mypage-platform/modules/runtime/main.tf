@@ -85,7 +85,7 @@ locals {
     hosting  = ["deploy-mypage-frontend.yml", "mypage-hosting-authenticated.yml"]
   }
   # infra/mypage-platform/scripts/foundation_contract.py の release_condition と同じ文字列を作る
-  # （Plan契約が完全一致を検査する）。主張の順序も同じにする。
+  # （Plan契約が完全一致を検査する）。クレーム（claim）の順序も同じにする。
   release_claims = {
     for component, files in local.release_files : component => [
       ["repository_id", "340900071"],

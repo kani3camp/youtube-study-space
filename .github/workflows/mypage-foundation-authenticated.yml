@@ -63,7 +63,7 @@ permissions:
   contents: read
 
 # FoundationのApplyは、同じStateのPlanや別のApplyと競合させない。
-# PR Planはlockを取らない助言なので、手動のPlan / Applyを待たせない。
+# PR Planはlockを取らない確認用（advisory）のため、手動のPlan / Applyを待たせない。
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('mypage-pr-plan-{0}', inputs.pr_number) || format('mypage-{0}-foundation', inputs.target) }}
   cancel-in-progress: false
@@ -101,7 +101,7 @@ jobs:
           if mode == 'image-build':
               foundation_contract.context(os.environ, 'apply', image=True)
           else:
-              # 保護されたEnvironmentへの要求やシークレットの公開より前に、
+              # 保護されたEnvironmentの承認要求やシークレットへのアクセスより前に、
               # 不正なmode・ref・SHA・actor・リポジトリを拒否する。
               foundation_contract.context(os.environ, 'plan')
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:

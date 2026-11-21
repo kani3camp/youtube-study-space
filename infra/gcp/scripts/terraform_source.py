@@ -22,7 +22,7 @@ def branch(env):
     if not value:
         if env['NORMAL_TARGET'] == 'prod':
             return 'main'
-        # SHA直接指定に、実行元のbranch名を誤って付けない。
+        # SHAの直接指定時に、実行元のbranch名を誤って付けない。
         if env.get('NORMAL_SOURCE_SHA') or env.get('NORMAL_EXPECTED_SHA'):
             return ''
         return env['GITHUB_REF'].removeprefix('refs/heads/')
