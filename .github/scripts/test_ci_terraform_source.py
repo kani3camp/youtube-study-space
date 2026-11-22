@@ -118,7 +118,9 @@ class SelectedValidationSourceTest(unittest.TestCase):
         jobs = workflow['jobs']
         # PR Plans never select a source; only owner dispatches reach the resolver.
         self.assertEqual(jobs['select']['if'], "${{ github.event_name == 'workflow_dispatch' }}")
-        self.assertEqual(jobs['select']['steps'][0]['with'],
+        checkout = next(step for step in jobs['select']['steps']
+                        if step.get('uses', '').startswith('actions/checkout@'))
+        self.assertEqual(checkout['with'],
                          {'ref': '${{ github.sha }}', 'fetch-depth': 0, 'persist-credentials': False})
         selection = next(step for step in jobs['select']['steps'] if step.get('id') == 'source')
         self.assertEqual(selection['run'], 'python3 .github/scripts/terraform_source_pin.py')
