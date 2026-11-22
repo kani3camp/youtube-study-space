@@ -7,7 +7,7 @@ const GlobalStyles = () => <EmotionGlobal styles={globalStyle} />
 
 const preview: Preview = {
 	parameters: {
-		// Controls は addon-docs 等で表示される際のマッチャー（SB10 では addon-essentials は addon-docs に統合）
+		// addon-docs 等の Controls 表示で使われるマッチャー設定（SB10 では addon-essentials が addon-docs に統合）
 		controls: {
 			matchers: {
 				color: /(background|color)$/i,

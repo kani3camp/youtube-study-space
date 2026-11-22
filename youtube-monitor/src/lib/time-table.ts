@@ -23,7 +23,7 @@ export function getCurrentSection(now: Date = new Date()): TimeSection {
 		const starts = section.starts
 		const ends = section.ends
 
-		// 適当に初期化
+		// どの分岐にも一致しない場合に範囲外となるよう、endsDate を前日で初期化する
 		let startsDate = new Date(now)
 		let endsDate = new Date(now)
 		endsDate.setDate(endsDate.getDate() - 1)
@@ -44,7 +44,7 @@ export function getCurrentSection(now: Date = new Date()): TimeSection {
 				section.ends.m,
 			)
 		} else {
-			// 日付またがる時の場合
+			// 日付をまたぐセクションの場合
 			if (
 				(starts.h === now.getHours() && starts.m <= now.getMinutes()) ||
 				starts.h < now.getHours()
@@ -106,9 +106,8 @@ export function getNextSection(now: Date = new Date()): TimeSection {
 }
 
 /**
- * 指定されたセクションについて、`now` が含まれる、または
- * 日付をまたぐセクションの場合に `now` に隣接する
- * 開始日時・終了日時の具体的な Date 範囲を返します。
+ * 指定されたセクションに対応する開始日時・終了日時の Date 範囲を返します。
+ * 日付をまたぐセクションでは、`now` を含む範囲、または `now` に隣接する範囲を返します。
  */
 export function getSectionDateRange(
 	section: TimeSection,
@@ -185,7 +184,7 @@ export function remainingTime(
 		const diffHours: number = destHours - currentHours
 		return 60 * (diffHours - 1) + (60 - currentMinutes) + destMinutes
 	}
-	// 日付を跨いでいる
+	// 日付をまたいでいる場合
 	return (
 		60 * (23 - currentHours) +
 		(60 - currentMinutes) +
@@ -801,7 +800,7 @@ const TimeTable: TimeSection[] = [
 
 /**
  * タイムゾーンに依存しない時・分から、該当する時間割を取得します。
- * Date を使わないため、日本時間として取得済みの壁時計時刻にも利用できます。
+ * Date を使わないため、日本時間として取得済みの時刻（時・分）にも利用できます。
  */
 export function findSectionAtClockTime(
 	hours: number,
