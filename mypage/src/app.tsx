@@ -554,7 +554,6 @@ export function createApp(
 		}
 		return (
 			<main className="main-content public-page">
-				<Link to="/">オンライン作業部屋</Link>
 				<section className="card login-card">
 					<h1>
 						{supportMode ? 'お問い合わせの本人確認' : 'マイページへログイン'}
