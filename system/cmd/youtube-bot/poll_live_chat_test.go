@@ -99,10 +99,10 @@ func TestPollLiveChatPageResumesFromSavedTokenAfterHTTP500(t *testing.T) {
 			return f(ctx, &firestore.Transaction{})
 		},
 	).Times(2)
-	// 以下は新着の !seat を1回だけ処理するときの読み取り。
-	store.EXPECT().ReadUser(ctx, gomock.Any(), userID).Return(repository.UserDoc{}, nil)
-	store.EXPECT().ReadSeatWithUserID(ctx, userID, true).Return(repository.SeatDoc{}, status.Error(codes.NotFound, "no member seat"))
-	store.EXPECT().ReadSeatWithUserID(ctx, userID, false).Return(repository.SeatDoc{}, status.Error(codes.NotFound, "no general seat"))
+	// 以下は新着の !seat を1回だけ処理するときの読み取り。トランザクション内の読み取りにはトランザクション用の ctx が渡る。
+	store.EXPECT().ReadUser(gomock.Any(), gomock.Any(), userID).Return(repository.UserDoc{}, nil)
+	store.EXPECT().ReadSeatWithUserID(gomock.Any(), userID, true).Return(repository.SeatDoc{}, status.Error(codes.NotFound, "no member seat"))
+	store.EXPECT().ReadSeatWithUserID(gomock.Any(), userID, false).Return(repository.SeatDoc{}, status.Error(codes.NotFound, "no general seat"))
 	app := &workspaceapp.WorkspaceApp{
 		Configs:     &workspaceapp.Configs{},
 		Repository:  store,

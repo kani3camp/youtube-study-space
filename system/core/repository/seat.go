@@ -7,6 +7,28 @@ import (
 	"app.modules/core/timeutil"
 )
 
+// Equal は2つの座席ドキュメントが同じ状態を表すかを返す。楽観ロックの「スナップショット以降に変更が無いか」の判定に使う。
+// 時刻は time.Time.Equal で比較するため、タイムゾーン表現や単調時計の読み値の違いは差分とみなさない。
+// SeatDoc にフィールドを追加したときは、この比較にも必ず追加すること（seat_test.go で全フィールドの網羅を検査している）。
+func (s SeatDoc) Equal(other SeatDoc) bool {
+	return s.SeatID == other.SeatID &&
+		s.UserID == other.UserID &&
+		s.SessionID == other.SessionID &&
+		s.UserDisplayName == other.UserDisplayName &&
+		s.WorkName == other.WorkName &&
+		s.EnteredAt.Equal(other.EnteredAt) &&
+		s.Until.Equal(other.Until) &&
+		s.Appearance == other.Appearance &&
+		s.MenuCode == other.MenuCode &&
+		s.State == other.State &&
+		s.CurrentStateStartedAt.Equal(other.CurrentStateStartedAt) &&
+		s.CurrentStateUntil.Equal(other.CurrentStateUntil) &&
+		s.CurrentSegmentStartedAt.Equal(other.CurrentSegmentStartedAt) &&
+		s.CumulativeWorkSec == other.CumulativeWorkSec &&
+		s.DailyCumulativeWorkSec == other.DailyCumulativeWorkSec &&
+		s.UserProfileImageURL == other.UserProfileImageURL
+}
+
 func (s *SeatDoc) SetWorkName(name string) {
 	s.WorkName = name
 }

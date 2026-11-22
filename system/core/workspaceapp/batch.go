@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"reflect"
 	"strconv"
 	"time"
 
@@ -60,6 +59,7 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 	for _, seatSnapshot := range candidateSeatsSnapshot {
 		liveChatMessage := ""
 		txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+			liveChatMessage = ""        // リトライされても前の試行の結果を持ち越さない
 			jstNow := app.currentTime() // スナップショットごとに最新の時刻を取得
 			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageURL, false, false, isMemberRoom)
 
@@ -72,7 +72,7 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 				}
 				return fmt.Errorf("in ReadSeat(): %w", err)
 			}
-			if !reflect.DeepEqual(seat, seatSnapshot) {
+			if !seat.Equal(seatSnapshot) {
 				slog.Info("その座席に少しでも変更が加えられているのでスルー")
 				return nil
 			}
@@ -128,6 +128,7 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 	for _, seatSnapshot := range candidateSeatsSnapshot {
 		liveChatMessage := ""
 		txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+			liveChatMessage = ""        // リトライされても前の試行の結果を持ち越さない
 			jstNow := app.currentTime() // snapshotごとに最新の時刻を取得
 			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageURL, false, false, isMemberRoom)
 
@@ -140,7 +141,7 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 				}
 				return fmt.Errorf("in ReadSeat(): %w", err)
 			}
-			if !reflect.DeepEqual(seat, seatSnapshot) {
+			if !seat.Equal(seatSnapshot) {
 				slog.Info("その座席に少しでも変更が加えられているのでスルー")
 				return nil
 			}
@@ -229,6 +230,7 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 	for _, seatSnapshot := range seatsSnapshot {
 		var forcedMove bool // 長時間入室制限による強制席移動
 		txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+			forcedMove = false // リトライされても前の試行の結果を持ち越さない
 			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageURL, false, false, isMemberSeat)
 
 			// 現在も存在しているか
@@ -240,7 +242,7 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 				}
 				return fmt.Errorf("in ReadSeat(): %w", err)
 			}
-			if !reflect.DeepEqual(seat, seatSnapshot) {
+			if !seat.Equal(seatSnapshot) {
 				slog.Info("その座席に少しでも変更が加えられているのでスルー")
 				return nil
 			}

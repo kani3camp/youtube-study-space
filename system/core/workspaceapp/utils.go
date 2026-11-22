@@ -24,9 +24,9 @@ import (
 	"app.modules/internal/logging"
 )
 
-// IsSeatExist 席番号1～max-seatsの席かどうかを判定。
-func (app *WorkspaceApp) IsSeatExist(ctx context.Context, seatID int, isMemberSeat bool) (bool, error) {
-	realtimeConstants, err := app.Repository.ReadSystemConstantsConfig(ctx, nil)
+// IsSeatExist 席番号1～max-seatsの席かどうかを判定。tx が nil でなければトランザクション内で設定を読む。
+func (app *WorkspaceApp) IsSeatExist(ctx context.Context, tx *firestore.Transaction, seatID int, isMemberSeat bool) (bool, error) {
+	realtimeConstants, err := app.Repository.ReadSystemConstantsConfig(ctx, tx)
 	if err != nil {
 		return false, fmt.Errorf("in ReadSystemConstantsConfig: %w", err)
 	}
@@ -43,7 +43,7 @@ func (app *WorkspaceApp) IfSeatVacant(ctx context.Context, tx *firestore.Transac
 	if err != nil {
 		if status.Code(err) == codes.NotFound { // その座席のドキュメントは存在しない
 			// maxSeats以内かどうか
-			isExist, err := app.IsSeatExist(ctx, seatID, isMemberSeat)
+			isExist, err := app.IsSeatExist(ctx, tx, seatID, isMemberSeat)
 			if err != nil {
 				return false, fmt.Errorf("in IsSeatExist: %w", err)
 			}
@@ -493,31 +493,45 @@ func (app *WorkspaceApp) DeleteCollectionHistoryBeforeDate(ctx context.Context, 
 	return numRowsLiveChat, numRowsUserActivity, numRowsOrderHistory, nil
 }
 
-// DeleteIteratorDocs iterは最大500件とすること。
+// DeleteIteratorDocs iterの全ドキュメントを1トランザクションで削除し、削除件数を返す。iterは最大500件とすること。
+// iterは一度しか走査できないため、トランザクションの外で参照を読み切ってから削除する（リトライ時も同じ参照を削除する）。
 func (app *WorkspaceApp) DeleteIteratorDocs(ctx context.Context, iter *firestore.DocumentIterator) (int, error) {
-	count := 0 // iterのアイテムの件数
+	defer iter.Stop()
+	var refs []*firestore.DocumentRef
+	for {
+		doc, err := iter.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			return 0, fmt.Errorf("in iter.Next(): %w", err)
+		}
+		refs = append(refs, doc.Ref)
+	}
+	if len(refs) == 0 {
+		return 0, nil
+	}
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		// forで各docをdeleteしていく
-		for {
-			doc, err := iter.Next()
-			if errors.Is(err, iterator.Done) {
-				break
-			}
-			if err != nil {
-				return fmt.Errorf("in iter.Next(): %w", err)
-			}
-			count++
-			{
-				if err := app.Repository.DeleteDocRef(ctx, tx, doc.Ref); err != nil {
-					return fmt.Errorf("in DeleteDocRef(): %w", err)
-				}
+		for _, ref := range refs {
+			if err := app.Repository.DeleteDocRef(ctx, tx, ref); err != nil {
+				return fmt.Errorf("in DeleteDocRef(): %w", err)
 			}
 		}
 		return nil
 	})
-	return count, txErr
+	if txErr != nil {
+		return 0, txErr
+	}
+	return len(refs), nil
 }
 
+// CheckIfUserSittingTooMuchForSeat は、ユーザーがその座席に対して入室制限（長時間入室）を受けているかを返す。
+//
+// ホワイトリスト・ブラックリストは入退室履歴から導出した判定結果のキャッシュであり、
+// 判定のたびに読み取りの途中で呼ばれるため、Firestoreの「読み取りは書き込みより前」という制約上
+// トランザクション内の書き込みにはできない。そこでリストへの登録は runAfterCommit でコミット後に行う。
+// これにより、リトライされた試行やロールバックされたトランザクションがリストへ重複・残留登録することはない。
+// コミット後の登録に失敗してもキャッシュが作られないだけで、次回の判定は入退室履歴から再計算される。
 func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userID string, seatID int, isMemberSeat bool) (bool, error) {
 	jstNow := app.currentTime()
 
@@ -570,18 +584,24 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 		until := jstNow.Add(time.Duration(app.Configs.Constants.RecentThresholdMin)*time.Minute - totalEntryDuration)
 		if until.Sub(jstNow) > time.Duration(app.Configs.Constants.MinimumCheckLongTimeSittingIntervalMinutes)*time.Minute {
 			// ホワイトリストに登録
-			if err := app.Repository.CreateSeatLimitInWHITEList(ctx, seatID, userID, jstNow, until, isMemberSeat); err != nil {
-				return false, fmt.Errorf("in CreateSeatLimitInWHITEList(): %w", err)
-			}
-			slog.InfoContext(ctx, "seat limit saved", "list", "white")
+			runAfterCommit(ctx, func(ctx context.Context) {
+				if err := app.Repository.CreateSeatLimitInWHITEList(ctx, seatID, userID, jstNow, until, isMemberSeat); err != nil {
+					app.MessageToOwnerWithError(ctx, "in CreateSeatLimitInWHITEList()", err)
+					return
+				}
+				slog.InfoContext(ctx, "seat limit saved", "list", "white")
+			})
 		}
 	} else {
 		// ブラックリストに登録
 		until := jstNow.Add(time.Duration(app.Configs.Constants.LongTimeSittingPenaltyMinutes) * time.Minute)
-		if err := app.Repository.CreateSeatLimitInBLACKList(ctx, seatID, userID, jstNow, until, isMemberSeat); err != nil {
-			return false, fmt.Errorf("in CreateSeatLimitInBLACKList(): %w", err)
-		}
-		slog.InfoContext(ctx, "seat limit saved", "list", "black")
+		runAfterCommit(ctx, func(ctx context.Context) {
+			if err := app.Repository.CreateSeatLimitInBLACKList(ctx, seatID, userID, jstNow, until, isMemberSeat); err != nil {
+				app.MessageToOwnerWithError(ctx, "in CreateSeatLimitInBLACKList()", err)
+				return
+			}
+			slog.InfoContext(ctx, "seat limit saved", "list", "black")
+		})
 	}
 
 	return ifSittingTooMuch, nil
@@ -909,10 +929,11 @@ func (app *WorkspaceApp) exitRoomAt(
 		}
 		const allowedDiffSec = 10
 		if diffSec > allowedDiffSec {
-			app.MessageToOwner(ctx, fmt.Sprintf(
+			message := fmt.Sprintf(
 				"検算エラー: onlyWorkSegmentSec = %d, addedWorkedTimeSec = %d, diffSec = %d, allowedDiffSec = %d (userID=%s, seatID=%d)",
 				onlyWorkSegmentSec, addedWorkedTimeSec, diffSec, allowedDiffSec, previousSeat.UserID, previousSeat.SeatID,
-			))
+			)
+			runAfterCommit(ctx, func(ctx context.Context) { app.MessageToOwner(ctx, message) })
 		} else {
 			slog.DebugContext(ctx,
 				"work duration validation passed", "kind", "session",
@@ -937,10 +958,11 @@ func (app *WorkspaceApp) exitRoomAt(
 		}
 		const allowedDailyDiffSec = 10
 		if diffDailySec > allowedDailyDiffSec {
-			app.MessageToOwner(ctx, fmt.Sprintf(
+			message := fmt.Sprintf(
 				"検算エラー: onlyDailyWorkSec = %d, addedDailyWorkedTimeSec = %d, diffDailySec = %d, allowedDailyDiffSec = %d (userID=%s, seatID=%d)",
 				onlyDailyWorkSec, addedDailyWorkedTimeSec, diffDailySec, allowedDailyDiffSec, previousSeat.UserID, previousSeat.SeatID,
-			))
+			)
+			runAfterCommit(ctx, func(ctx context.Context) { app.MessageToOwner(ctx, message) })
 		} else {
 			slog.DebugContext(ctx,
 				"work duration validation passed", "kind", "daily",

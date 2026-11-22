@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -853,4 +854,55 @@ func TestSeatDoc_GenerateWorkSegment(t *testing.T) {
 		assert.Error(t, err)
 		assert.Zero(t, workSegment)
 	})
+}
+
+func TestSeatDoc_EqualComparesInstantsNotLocations(t *testing.T) {
+	seat := mustSeat(nil)
+	sameInstants := seat
+	sameInstants.EnteredAt = seat.EnteredAt.UTC()
+	sameInstants.Until = seat.Until.UTC()
+	sameInstants.CurrentStateStartedAt = seat.CurrentStateStartedAt.UTC()
+	sameInstants.CurrentStateUntil = seat.CurrentStateUntil.UTC()
+	sameInstants.CurrentSegmentStartedAt = seat.CurrentSegmentStartedAt.UTC()
+
+	assert.True(t, seat.Equal(sameInstants), "同じ時刻をタイムゾーン違いで表しただけなら同じ座席とみなす")
+}
+
+// SeatDoc のどのフィールドが変わっても Equal は false を返す。フィールド追加時に比較漏れがあれば失敗する。
+func TestSeatDoc_EqualDetectsChangeInEveryField(t *testing.T) {
+	base := SeatDoc{}
+	baseValue := reflect.ValueOf(base)
+	for i := range baseValue.NumField() {
+		field := baseValue.Type().Field(i)
+		t.Run(field.Name, func(t *testing.T) {
+			changed := base
+			reflect.ValueOf(&changed).Elem().Field(i).Set(nonZeroValue(t, field.Type))
+			assert.False(t, base.Equal(changed), "%s の変更を検出できない", field.Name)
+		})
+	}
+}
+
+func nonZeroValue(t *testing.T, typ reflect.Type) reflect.Value {
+	t.Helper()
+	if typ == reflect.TypeFor[time.Time]() {
+		return reflect.ValueOf(time.Date(2026, 1, 1, 0, 0, 0, 0, timeutil.JapanLocation()))
+	}
+	value := reflect.New(typ).Elem()
+	switch typ.Kind() {
+	case reflect.String:
+		value.SetString("changed")
+	case reflect.Int, reflect.Int64:
+		value.SetInt(1)
+	case reflect.Bool:
+		value.SetBool(true)
+	case reflect.Float32, reflect.Float64:
+		value.SetFloat(1)
+	case reflect.Struct:
+		for i := range typ.NumField() {
+			value.Field(i).Set(nonZeroValue(t, typ.Field(i).Type))
+		}
+	default:
+		t.Fatalf("unsupported field kind %s: extend nonZeroValue and SeatDoc.Equal", typ.Kind())
+	}
+	return value
 }

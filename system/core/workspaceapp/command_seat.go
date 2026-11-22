@@ -18,6 +18,18 @@ import (
 	"app.modules/core/workspaceapp/usecase"
 )
 
+// copyInOption は、トランザクションの試行内で InOption を補完しても呼び出し元の値を書き換えないよう、
+// MinWorkOrderOption を含めて複製する。
+func copyInOption(src *utils.InOption) utils.InOption {
+	dst := *src
+	workOrder := utils.MinWorkOrderOption{}
+	if src.MinWorkOrderOption != nil {
+		workOrder = *src.MinWorkOrderOption
+	}
+	dst.MinWorkOrderOption = &workOrder
+	return dst
+}
+
 func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error {
 	jstNow := app.currentTime()
 	var replyMessage string
@@ -34,19 +46,24 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 	}
 
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さず、呼び出し元のオプションも書き換えない
+		replyMessage = ""
+		result = usecase.Result{}
+		option := copyInOption(inOption)
+
 		// 席が指定されているか？
-		if inOption.IsSeatIDSet {
+		if option.IsSeatIDSet {
 			// 0番席だったら最小番号の空席に決定
-			if inOption.SeatID == 0 {
+			if option.SeatID == 0 {
 				seatID, err := app.MinAvailableSeatIDForUser(ctx, tx, app.ProcessedUserID, isTargetMemberSeat)
 				if err != nil {
 					return fmt.Errorf("in app.MinAvailableSeatIDForUser(): %w", err)
 				}
-				inOption.SeatID = seatID
+				option.SeatID = seatID
 			} else {
 				// その席が空いているか？
 				{
-					isVacant, err := app.IfSeatVacant(ctx, tx, inOption.SeatID, isTargetMemberSeat)
+					isVacant, err := app.IfSeatVacant(ctx, tx, option.SeatID, isTargetMemberSeat)
 					if err != nil {
 						return fmt.Errorf("in app.IfSeatVacant(): %w", err)
 					}
@@ -57,7 +74,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				}
 				// ユーザーはその席に対して入室制限を受けてないか？
 				{
-					isTooMuch, err := app.CheckIfUserSittingTooMuchForSeat(ctx, app.ProcessedUserID, inOption.SeatID, isTargetMemberSeat)
+					isTooMuch, err := app.CheckIfUserSittingTooMuchForSeat(ctx, app.ProcessedUserID, option.SeatID, isTargetMemberSeat)
 					if err != nil {
 						return fmt.Errorf("in app.CheckIfUserSittingTooMuchForSeat(): %w", err)
 					}
@@ -75,7 +92,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				}
 				return err
 			}
-			inOption.SeatID = seatID
+			option.SeatID = seatID
 		}
 
 		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserID)
@@ -84,11 +101,11 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		}
 
 		// 作業時間が指定されているか？
-		if !inOption.MinWorkOrderOption.IsDurationMinSet {
+		if !option.MinWorkOrderOption.IsDurationMinSet {
 			if userDoc.DefaultStudyMin == 0 {
-				inOption.MinWorkOrderOption.DurationMin = app.Configs.Constants.DefaultWorkTimeMin
+				option.MinWorkOrderOption.DurationMin = app.Configs.Constants.DefaultWorkTimeMin
 			} else {
-				inOption.MinWorkOrderOption.DurationMin = userDoc.DefaultStudyMin
+				option.MinWorkOrderOption.DurationMin = userDoc.DefaultStudyMin
 			}
 		}
 
@@ -116,7 +133,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		var totalOrderCount int64
 		var targetMenuItem repository.MenuDoc
 		var orderLimitExceeded bool
-		if inOption.MinWorkOrderOption.IsOrderSet {
+		if option.MinWorkOrderOption.IsOrderSet {
 			// メンバーでない場合は、本日の注文回数をチェック
 			totalOrderCount, err = app.Repository.CountUserOrdersOfTheDay(ctx, app.ProcessedUserID, jstNow)
 			if err != nil {
@@ -125,7 +142,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			orderLimitExceeded = !app.ProcessedUserIsMember && totalOrderCount >= int64(app.Configs.Constants.MaxDailyOrderCount)
 
 			if !orderLimitExceeded {
-				targetMenuItem, err = app.GetMenuItemByNumber(inOption.MinWorkOrderOption.OrderNum)
+				targetMenuItem, err = app.GetMenuItemByNumber(option.MinWorkOrderOption.OrderNum)
 				if err != nil {
 					return fmt.Errorf("in GetMenuItemByNumber(): %w", err)
 				}
@@ -136,7 +153,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		}
 
 		var workSegments []repository.WorkSegmentDoc
-		if isInRoom && inOption.IsSeatIDSet {
+		if isInRoom && option.IsSeatIDSet {
 			workSegments, err = app.Repository.ReadWorkStateSegmentsBySessionID(ctx, currentSeat.SessionID)
 			if err != nil {
 				return fmt.Errorf("in ReadWorkStateSegmentsBySessionID(): %w", err)
@@ -146,7 +163,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 		// =========== 以降は書き込み処理のみ ===========
 
 		// メニュー注文されている場合は、メニューコードをセット
-		if inOption.MinWorkOrderOption.IsOrderSet {
+		if option.MinWorkOrderOption.IsOrderSet {
 			if orderLimitExceeded {
 				result.Add(usecase.OrderLimitExceeded{MaxDailyOrderCount: app.Configs.Constants.MaxDailyOrderCount})
 			} else {
@@ -158,7 +175,7 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				orderHistoryDoc := repository.OrderHistoryDoc{
 					UserID:       app.ProcessedUserID,
 					MenuCode:     targetMenuItem.Code,
-					SeatID:       inOption.SeatID,
+					SeatID:       option.SeatID,
 					IsMemberSeat: isTargetMemberSeat,
 					OrderedAt:    jstNow,
 				}
@@ -170,15 +187,15 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			}
 		}
 
-		if isInRoom && inOption.IsSeatIDSet { // 入室中で、席指定があれば、席移動処理
+		if isInRoom && option.IsSeatIDSet { // 入室中で、席指定があれば、席移動処理
 			workedTimeSec, addedRP, untilExitMin, err := app.moveSeat(
 				ctx,
 				tx,
-				inOption.SeatID,
+				option.SeatID,
 				app.ProcessedUserProfileImageURL,
 				isInMemberRoom,
 				isTargetMemberSeat,
-				*inOption.MinWorkOrderOption,
+				*option.MinWorkOrderOption,
 				currentSeat,
 				&userDoc,
 				workSegments, jstNow)
@@ -187,15 +204,15 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 			}
 
 			var workName string
-			if inOption.MinWorkOrderOption.IsWorkNameSet {
-				workName = inOption.MinWorkOrderOption.WorkName
+			if option.MinWorkOrderOption.IsWorkNameSet {
+				workName = option.MinWorkOrderOption.WorkName
 			} else {
 				workName = currentSeat.WorkName
 			}
 			result.Add(usecase.SeatMoved{
 				FromSeatID:       currentSeat.SeatID,
 				FromIsMemberSeat: isInMemberRoom,
-				ToSeatID:         inOption.SeatID,
+				ToSeatID:         option.SeatID,
 				ToIsMemberSeat:   isTargetMemberSeat,
 				WorkName:         workName,
 				WorkedTimeSec:    workedTimeSec,
@@ -203,11 +220,11 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				RankVisible:      userDoc.RankVisible,
 				UntilExitMin:     untilExitMin,
 			})
-		} else if isInRoom && !inOption.IsSeatIDSet { // 入室中で、席指定がない場合は、指定があったオプションのみ更新処理（席移動なし）
+		} else if isInRoom && !option.IsSeatIDSet { // 入室中で、席指定がない場合は、指定があったオプションのみ更新処理（席移動なし）
 			seatIDStr := presenter.SeatIDStr(currentSeat.SeatID, isInMemberRoom)
 			replyMessage += i18nmsg.CommandInAlreadySeat(app.ProcessedUserDisplayName, seatIDStr)
 
-			if inOption.MinWorkOrderOption.IsWorkNameSet {
+			if option.MinWorkOrderOption.IsWorkNameSet {
 				// work segmentログ記録
 				workSegment, err := currentSeat.GenerateWorkSegment(jstNow, isInMemberRoom)
 				if err != nil {
@@ -217,22 +234,22 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 					return fmt.Errorf("in CreateWorkSegmentDoc: %w", err)
 				}
 
-				currentSeat.SetWorkName(inOption.MinWorkOrderOption.WorkName)
-				replyMessage += i18nmsg.CommandChangeUpdateWork(inOption.MinWorkOrderOption.WorkName, seatIDStr)
+				currentSeat.SetWorkName(option.MinWorkOrderOption.WorkName)
+				replyMessage += i18nmsg.CommandChangeUpdateWork(option.MinWorkOrderOption.WorkName, seatIDStr)
 				currentSeat.SetCurrentSegmentStartedAt(jstNow)
 			}
 
-			if inOption.MinWorkOrderOption.IsDurationMinSet {
+			if option.MinWorkOrderOption.IsDurationMinSet {
 				switch currentSeat.State {
 				case repository.WorkState:
 					// 作業時間（入室から自動退室までの時間）を変更する
 					realtimeEntryDurationMin := int(timeutil.NoNegativeDuration(currentSeat.RealtimeEntryDurationMin(jstNow)).Minutes())
-					requestedUntil := currentSeat.EnteredAt.Add(time.Duration(inOption.MinWorkOrderOption.DurationMin) * time.Minute)
+					requestedUntil := currentSeat.EnteredAt.Add(time.Duration(option.MinWorkOrderOption.DurationMin) * time.Minute)
 
 					if requestedUntil.Before(jstNow) {
 						// もし現在時刻が指定時間を経過していたら却下
 						remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
-						replyMessage += i18nmsg.CommandChangeWorkDurationBefore(inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+						replyMessage += i18nmsg.CommandChangeWorkDurationBefore(option.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
 					} else if requestedUntil.After(jstNow.Add(time.Duration(app.Configs.Constants.MaxWorkTimeMin) * time.Minute)) {
 						// もし現在時刻より最大延長可能時間以上後なら却下
 						remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
@@ -242,21 +259,21 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 							return fmt.Errorf("in SetWorkDuration: %w", err)
 						}
 						remainingWorkMin := currentSeat.RemainingWorkMin(jstNow)
-						replyMessage += i18nmsg.CommandChangeWorkDuration(inOption.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
+						replyMessage += i18nmsg.CommandChangeWorkDuration(option.MinWorkOrderOption.DurationMin, realtimeEntryDurationMin, remainingWorkMin)
 					}
 				case repository.BreakState:
 					// 休憩時間を変更
 					realtimeBreakDuration := timeutil.NoNegativeDuration(jstNow.Sub(currentSeat.CurrentStateStartedAt))
-					requestedUntil := currentSeat.CurrentStateStartedAt.Add(time.Duration(inOption.MinWorkOrderOption.DurationMin) * time.Minute)
+					requestedUntil := currentSeat.CurrentStateStartedAt.Add(time.Duration(option.MinWorkOrderOption.DurationMin) * time.Minute)
 
 					if requestedUntil.Before(jstNow) {
 						// もし現在時刻が指定時間を経過していたら却下
 						remainingBreakDuration := currentSeat.CurrentStateUntil.Sub(jstNow)
-						replyMessage += i18nmsg.CommandChangeBreakDurationBefore(inOption.MinWorkOrderOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
+						replyMessage += i18nmsg.CommandChangeBreakDurationBefore(option.MinWorkOrderOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
 					} else { // それ以外ならuntilを変更
 						currentSeat.SetCurrentStateUntil(requestedUntil)
 						remainingBreakDuration := requestedUntil.Sub(jstNow)
-						replyMessage += i18nmsg.CommandChangeBreakDuration(inOption.MinWorkOrderOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
+						replyMessage += i18nmsg.CommandChangeBreakDuration(option.MinWorkOrderOption.DurationMin, int(realtimeBreakDuration.Minutes()), int(remainingBreakDuration.Minutes()))
 					}
 				}
 			}
@@ -271,10 +288,10 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				app.ProcessedUserID,
 				app.ProcessedUserDisplayName,
 				app.ProcessedUserProfileImageURL,
-				inOption.SeatID,
+				option.SeatID,
 				isTargetMemberSeat,
-				inOption.MinWorkOrderOption.WorkName,
-				inOption.MinWorkOrderOption.DurationMin,
+				option.MinWorkOrderOption.WorkName,
+				option.MinWorkOrderOption.DurationMin,
 				seatAppearance,
 				targetMenuItem.Code,
 				repository.WorkState,
@@ -286,9 +303,9 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 				return fmt.Errorf("in enterRoom(): %w", err)
 			}
 			result.Add(usecase.SeatEntered{
-				SeatID:       inOption.SeatID,
+				SeatID:       option.SeatID,
 				IsMemberSeat: isTargetMemberSeat,
-				WorkName:     inOption.MinWorkOrderOption.WorkName,
+				WorkName:     option.MinWorkOrderOption.WorkName,
 				UntilExitMin: untilExitMin,
 			})
 		}
@@ -307,6 +324,9 @@ func (app *WorkspaceApp) In(ctx context.Context, inOption *utils.InOption) error
 func (app *WorkspaceApp) Out(ctx context.Context) error {
 	var replyMessage string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さない
+		replyMessage = ""
+
 		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("in ReadUser(): %w", err)
@@ -364,6 +384,9 @@ func (app *WorkspaceApp) ShowSeatInfo(ctx context.Context, seatOption *utils.Sea
 	showDetails := seatOption.ShowDetails
 	var replyMessage string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さない
+		replyMessage = ""
+
 		// そのユーザーは入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 		if err != nil {
@@ -421,6 +444,9 @@ func (app *WorkspaceApp) Change(ctx context.Context, changeOption *utils.MinWork
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さない
+		result = usecase.Result{}
+
 		// そのユーザーは入室中か？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 		if err != nil {
@@ -544,6 +570,10 @@ func (app *WorkspaceApp) More(ctx context.Context, moreOption *utils.MoreOption)
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さず、呼び出し元のオプションも書き換えない
+		result = usecase.Result{}
+		moreOption := *moreOption
+
 		jstNow := app.currentTime()
 
 		// 入室しているか？
@@ -658,6 +688,10 @@ func (app *WorkspaceApp) Break(ctx context.Context, breakOption *utils.BreakOpti
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さず、呼び出し元のオプションも書き換えない
+		result = usecase.Result{}
+		breakOption := *breakOption
+
 		jstNow := app.currentTime()
 		// 入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
@@ -749,6 +783,9 @@ func (app *WorkspaceApp) Resume(ctx context.Context, resumeOption *utils.WorkNam
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さない
+		result = usecase.Result{}
+
 		// 入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 		if err != nil {
@@ -838,6 +875,9 @@ func (app *WorkspaceApp) Order(ctx context.Context, orderOption *utils.OrderOpti
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さない
+		result = usecase.Result{}
+
 		jstNow := app.currentTime()
 
 		// 入室しているか？
@@ -929,6 +969,9 @@ func (app *WorkspaceApp) Clear(ctx context.Context) error {
 	replyMessage := ""
 	var result usecase.Result
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さない
+		result = usecase.Result{}
+
 		// 入室しているか？
 		isInMemberRoom, isInGeneralRoom, err := app.IsUserInRoom(ctx, app.ProcessedUserID)
 		if err != nil {

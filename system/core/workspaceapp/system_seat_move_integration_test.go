@@ -20,6 +20,7 @@ import (
 	"app.modules/core/moderatorbot"
 	"app.modules/core/repository"
 	"app.modules/core/timeutil"
+	"app.modules/core/utils"
 	"app.modules/internal/integrationtest"
 )
 
@@ -183,4 +184,65 @@ func TestAdjustGeneralSeatsShrinkCarriesMenuWithoutCountingOrder(t *testing.T) {
 	updated, err := f.repo.ReadSystemConstantsConfig(ctx, nil)
 	require.NoError(t, err)
 	assert.Equal(t, constants.DesiredMaxSeats, updated.MaxSeats)
+}
+
+// abortOnceRepository は最初の CreateSeat だけ Aborted を返し、Firestore クライアント自身にトランザクションをリトライさせる。
+type abortOnceRepository struct {
+	*repository.FirestoreControllerImplements
+	aborted bool
+}
+
+func (r *abortOnceRepository) CreateSeat(tx *firestore.Transaction, seat repository.SeatDoc, isMemberSeat bool) error {
+	if !r.aborted {
+		r.aborted = true
+		return fmt.Errorf("create seat: %w", status.Error(codes.Aborted, "synthetic contention"))
+	}
+	if err := r.FirestoreControllerImplements.CreateSeat(tx, seat, isMemberSeat); err != nil {
+		return fmt.Errorf("create seat: %w", err)
+	}
+	return nil
+}
+
+// Firestore がトランザクションをリトライしても、返信は1回だけで、座席制限リストへの登録も重複しない。
+func TestInRetriedByFirestoreRepliesOnceAndRegistersSeatLimitOnce(t *testing.T) {
+	integrationtest.RequireFirestoreEmulator(t)
+	integrationtest.ResetFirestore(t)
+	require.NoError(t, i18n.LoadLocaleFolderFS())
+	repo := integrationtest.NewFirestoreController(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 24, 12, 0, 0, 0, timeutil.JapanLocation())
+	const userID = "UCsyntheticRetry000000001"
+	constants := repository.ConstantsConfigDoc{
+		MaxSeats:           3,
+		MaxWorkTimeMin:     300,
+		RecentRangeMin:     180,
+		RecentThresholdMin: 60,
+		MinimumCheckLongTimeSittingIntervalMinutes: 10,
+	}
+	_, err := repo.FirestoreClient().Collection(repository.CONFIG).Doc(repository.SystemConstantsConfigDocName).Set(ctx, constants)
+	require.NoError(t, err)
+	require.NoError(t, repo.CreateUser(ctx, nil, userID, repository.UserDoc{IsContinuousActive: true, CurrentActivityStateStarted: now}))
+
+	wrapped := &abortOnceRepository{FirestoreControllerImplements: repo}
+	bot := &recordingLiveChatBot{}
+	app := &WorkspaceApp{
+		Configs:       &Configs{Constants: constants},
+		Repository:    wrapped,
+		LiveChatBot:   bot,
+		alertOwnerBot: moderatorbot.DummyMessageBot{},
+		nowFunc:       func() time.Time { return now },
+	}
+	app.SetProcessedUser(userID, "リトライ", "", false, false, false)
+	option := utils.InOption{IsSeatIDSet: true, SeatID: 0, MinWorkOrderOption: &utils.MinWorkOrderOption{IsWorkNameSet: true, WorkName: "作業", IsDurationMinSet: true, DurationMin: 30}}
+
+	require.NoError(t, app.In(ctx, &option))
+
+	require.True(t, wrapped.aborted, "トランザクションがリトライされていない")
+	assert.Len(t, bot.Messages(), 1)
+	seat, err := repo.ReadSeatWithUserID(ctx, userID, false)
+	require.NoError(t, err)
+	assert.Equal(t, 1, seat.SeatID)
+	whiteList, err := repo.ReadSeatLimitsWHITEListWithSeatIDAndUserID(ctx, seat.SeatID, userID, false)
+	require.NoError(t, err)
+	assert.Len(t, whiteList, 1)
 }

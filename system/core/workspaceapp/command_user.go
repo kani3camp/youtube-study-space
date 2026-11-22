@@ -16,6 +16,9 @@ import (
 func (app *WorkspaceApp) ShowUserInfo(ctx context.Context, infoOption *utils.InfoOption) error {
 	var replyMessage string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さない
+		replyMessage = ""
+
 		totalStudyDuration, dailyTotalStudyDuration, err := app.GetUserRealtimeTotalStudyDurations(ctx, tx, app.ProcessedUserID)
 		if err != nil {
 			return fmt.Errorf("in app.GetUserRealtimeTotalStudyDurations(): %w", err)
@@ -83,6 +86,9 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 
 	replyMessage := ""
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さない
+		replyMessage = ""
+
 		// 変更前のuserDocを読み込んでおく
 		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserID)
 		if err != nil {
@@ -217,6 +223,9 @@ func (app *WorkspaceApp) My(ctx context.Context, myOptions []utils.MyOption) err
 func (app *WorkspaceApp) Rank(ctx context.Context, _ *utils.CommandDetails) error {
 	replyMessage := ""
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さない
+		replyMessage = ""
+
 		// 変更前のuserDocを読み込んでおく
 		userDoc, err := app.Repository.ReadUser(ctx, tx, app.ProcessedUserID)
 		if err != nil {
