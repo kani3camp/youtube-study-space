@@ -271,9 +271,9 @@ go run ./cmd/mypage-operator-dryrun < /path/to/private-synthetic-reference
 - Firestore アダプターは明示したプロジェクトを確認し、時刻と文書 ID による安定したページ分割、最大 1001 件の検出、必要フィールドだけの取得、リビジョンの完全一致条件付きトランザクションを使います。並行更新された項目は上書きせず `changed`/`missing` として扱い、最終再走査でデータが残存した場合や、ページ上限・10 分の制限時間・各種失敗が発生した場合は成功扱いとせず、30 日以上のデータが残っていれば保持期限違反を匿名件数で記録します。
 - `JSONMetadataCleanupRecorder` は匿名の開始・完了時刻、結果、固定段階名、件数だけを出力し（ID・メタデータ・元のエラーは含めず、監視出力の失敗自体もジョブの失敗とし、キャンセル後も 2 秒の制限時間内で記録を試みます）、書き込み期限を実際に適用できる専用パイプやソケット等だけを受け入れて通常ファイルや標準出力は拒否します。
 - `EvaluateMetadataCleanupHealth` は成功実績なし、実行失敗、保持期限違反、成功した走査の `StartedAt` から 23 時間以上のハートビート欠如を警告します。29 日経過時点での対象抽出と処理時間の余裕を考慮し、接続時は成功した走査の開始間隔を 23 時間以内（例として 1 日 2 回）、ジョブを 10 分以内にする想定ですが、実スケジューラーや警告設定はまだ作成していません。
-- 定期呼び出し側の [MetadataCleanupRunner](../../system/core/mypage/metadata_cleanup_runner.go) は `Run`（ジョブ + 監視永続化 + 健全性シグナル）とアカウントに触れない独立監視 `CheckHealth` を持ち、起動漏れ検知のため別々に起動する想定です。[FirestoreMetadataCleanupMonitor](../../system/core/mypage/metadata_cleanup_monitor_store.go) はサーバー専用の `mypage-maintenance/metadata-cleanup` 単一文書へ最新観測・成功走査の開始時刻・未受理の期限違反開始時刻をマイクロ秒精度に正規化して保存し、破損状態は初期化せず拒否、期限違反は出力先の受理後に想定時刻を比較するトランザクションで ACK します。
+- 定期呼び出し側の [MetadataCleanupRunner](../../system/core/mypage/metadata_cleanup_runner.go) は `Run`（ジョブ + 監視永続化 + 健全性シグナル）とアカウントに触れない独立監視 `CheckHealth` を持ち、起動漏れ検知のため別々に起動する想定です。[`cmd/mypage-metadata-cleanup`](../../system/cmd/mypage-metadata-cleanup/main.go) が `-mode=run` / `-mode=health` でそれぞれを実行し、健全性シグナルは `CloudLoggingMetadataCleanupHealthRecorder` が Cloud Logging のログ `mypage-metadata-cleanup-health` へ書き込みます。[FirestoreMetadataCleanupMonitor](../../system/core/mypage/metadata_cleanup_monitor_store.go) はサーバー専用の `mypage-maintenance/metadata-cleanup` 単一文書へ最新観測・成功走査の開始時刻・未受理の期限違反開始時刻をマイクロ秒精度に正規化して保存し、破損状態は初期化せず拒否、期限違反は出力先の受理後に想定時刻を比較するトランザクションで ACK します。
 
-コールバックの接続例と残る運用上の依存事項は [メタデータ監視の実装・接続手順](release/metadata-monitoring.md) を参照してください。
+実行コマンドの仕様と残る運用上の依存事項は [メタデータ監視の実装・接続手順](release/metadata-monitoring.md) を参照してください。
 
 ---
 

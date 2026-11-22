@@ -175,20 +175,23 @@ func updateMetadataCleanupMonitoring(state MetadataCleanupMonitoringState, next 
 
 type JSONMetadataCleanupHealthRecorder struct{ Writer io.Writer }
 
-func (r *JSONMetadataCleanupHealthRecorder) RecordHealth(ctx context.Context, value MetadataCleanupHealthObservation) error {
+// 出力先に依らず、許可リスト内の reason と alert の組み合わせだけを公開シグナルとして受け付ける。
+func validMetadataCleanupHealthObservation(value MetadataCleanupHealthObservation) bool {
 	if value.CheckedAt.IsZero() {
-		return ErrMetadataCleanupIncomplete
+		return false
 	}
 	switch value.Reason {
 	case "healthy":
-		if value.Alert {
-			return ErrMetadataCleanupIncomplete
-		}
+		return !value.Alert
 	case "invalid_clock", "never_succeeded", "run_failed", "retention_deadline", "stale_heartbeat", "incomplete_observation", "monitoring_failed":
-		if !value.Alert {
-			return ErrMetadataCleanupIncomplete
-		}
+		return value.Alert
 	default:
+		return false
+	}
+}
+
+func (r *JSONMetadataCleanupHealthRecorder) RecordHealth(ctx context.Context, value MetadataCleanupHealthObservation) error {
+	if !validMetadataCleanupHealthObservation(value) {
 		return ErrMetadataCleanupIncomplete
 	}
 	return writeMetadataCleanupJSON(ctx, r.Writer, value)
