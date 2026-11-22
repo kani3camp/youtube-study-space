@@ -44,7 +44,7 @@ export default function Home() {
 			title={title}
 			description={translate({
 				id: 'homepage.description',
-				message: 'YouTubeオンライン作業部屋のコマンドについて説明するサイトです。',
+				message: 'YouTubeオンライン作業部屋のコマンドを説明するサイトです。',
 				description: 'The description of the homepage',
 			})}
 		>
