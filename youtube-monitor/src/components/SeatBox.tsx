@@ -71,7 +71,7 @@ function generalSeatInnerContentWidthPx(
 	return Math.max(1, seatWidthPx - horizontalBorderPx - horizontalPaddingPx)
 }
 
-/** 一般席の1行テキストを座席幅に収める（作業名・作業なし時のディスプレイ名で共通） */
+/** 一般席の1行テキストを座席幅に収める（作業名がある場合は作業名、ない場合は表示名を収める） */
 function fitGeneralSeatLineFontSizePx(
 	text: string,
 	seatFontSizePx: number,
@@ -90,7 +90,7 @@ function fitGeneralSeatLineFontSizePx(
 		const metrics = context.measureText(text)
 		if (metrics.width > lineWidthPx) {
 			fontSizePx *= lineWidthPx / metrics.width
-			fontSizePx *= 0.95 // ほんの少し縮めないと，入りきらない
+			fontSizePx *= 0.95 // 計測値どおりだと収まりきらないため、少し余裕を持って縮小する
 			if (fontSizePx < seatFontSizePx * minEm) {
 				fontSizePx = seatFontSizePx * minEm
 			}

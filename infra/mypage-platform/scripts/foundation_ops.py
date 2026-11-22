@@ -118,7 +118,7 @@ def defined_addresses():
 
 def describe_plan_errors(diagnostics):
     # ネイティブ診断の本文は出さない。エラーごとに、リポジトリで定義した資源のaddressと
-    # 既知のHTTP statusだけを出す（どの資源の読取りで止まったかの切り分け用）。
+    # 既知のHTTP statusだけを出す（どの資源の読み取りで止まったかの切り分け用）。
     # -no-colorでは枠なし、TTYでは枠付きになるため、どちらも診断の見出しで区切る。
     known = defined_addresses()
     headers = list(DIAGNOSTIC_HEADER.finditer(diagnostics))

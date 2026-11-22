@@ -20,11 +20,11 @@ const Gauge: FC<Props> = (props) => {
 	// ゲージ生成
 	const oneRankHeight = BarHeight / ranks.length
 
-	// 現在到達点の矢印
+	// 現在の到達点を示す矢印
 	let arrow: ReactElement = <></>
 	ranks.forEach((r, i) => {
 		if (r.FromHours <= props.elapsedMinutes && props.elapsedMinutes < r.ToHours) {
-			// 矢印の位置が決定
+			// 矢印の位置を計算
 			const thatRankRange = r.ToHours - r.FromHours
 			const heightRatio = (props.elapsedMinutes - r.FromHours) / thatRankRange
 			const arrowPositionBottom: number = i * oneRankHeight + oneRankHeight * heightRatio

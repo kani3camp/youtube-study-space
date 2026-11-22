@@ -116,7 +116,7 @@ Changes to storage, forwarding, archival, or deletion must also be checked again
 
 ### Terraform・アプリケーション配備との分担
 
-- [Terraform](../../.github/workflows/terraform.yml) ワークフロー（オーナーによる `workflow_dispatch` および DEV PR Plan）が Plan / Apply を担当します。[ソース解決器](../../.github/scripts/terraform_source_pin.py) で対象 SHA を固定したうえで認証なし検証（`ci-gcp-terraform.yml`）を通し、認証付き実行器へ `expected_sha` を渡します（Plan ジョブと Apply ジョブがそれぞれ独立に Plan を生成し、HMAC 一致時のみ Apply 内の保存 Plan を適用するため Core の適用前 Plan は計 2 回、適用後 no-op 検証 Plan も維持）。
+- [Terraform](../../.github/workflows/terraform.yml) ワークフロー（オーナーによる `workflow_dispatch` および DEV PR Plan）が Plan / Apply を担当します。[ソース解決器](../../.github/scripts/terraform_source_pin.py) で対象 SHA を固定したうえで認証なし検証（`ci-gcp-terraform.yml`）を通し、認証付き実行器へ `expected_sha` を渡します（Plan ジョブと Apply ジョブがそれぞれ独立に Plan を生成し、HMAC 一致時のみ Apply 内の保存 Plan を適用するため、Core の適用前 Plan は計 2 回となり、適用後の no-op 検証 Plan も維持します）。
 - MyPage のアプリケーション配備はユースケース別の最上位ワークフロー（`Deploy MyPage API` / `Deploy MyPage Frontend` / `Deploy Maintenance Operator`）が担当し、`ci.yml` からは呼び出しません（各 Deploy ワークフローは資格情報取得前に対象ドメインの認証なし検査を実行）。詳細は [CI / Terraform / Deploy / Operation workflow 設計](ci-cd-workflows.md) を参照してください。
 - CodeQL・GCP Production Readiness・GCP Runtime Ownership Contracts は独立して維持します。CI 契約のローカル検証は以下のコマンドで行えます（`.github/codeql/requirements.txt` 導入済み環境）。
 

@@ -1,4 +1,4 @@
-// オフラインの準備だけを行い、環境探索・認証・配備は実行しない。
+// オフラインでの設定生成だけを行い、環境探索・認証・配備は実行しない。
 import { lstat, readdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { hostingCandidate, validateHostingAssets } from '../src/hosting.ts'

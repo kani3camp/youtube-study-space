@@ -1,6 +1,6 @@
 /**
- * ランダムにBGMを選ぶ．
- * @returns {Bgm} 現在のBGM
+ * ランダムにBGMを選ぶ。
+ * @returns {Bgm} 選択したBGM
  */
 export async function getCurrentRandomBgm(): Promise<string> {
 	const res = await fetch('/api/bgm')

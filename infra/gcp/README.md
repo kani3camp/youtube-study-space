@@ -84,7 +84,7 @@ Core GCP と MyPage は別々の Terraform State のまま同じ `Terraform` ワ
   Secret本文、Storage object内容、BigQueryデータ操作は専用の権限審査対象。
   IAM管理のためだけに通常SAへOwner/Editorを付与しない。
 - Cloud Run等の実行SAにはproject権限なしの共通 `terraform-dev-workload` を準備し、
-  通常Apply SAの`actAs`だけを当該SA上で許可する。業務別のruntime権限は別の明示的なIAM変更。
+  通常Apply SAの`actAs`だけを当該SA上で許可する。業務別のruntime権限は別の明示的なIAM変更で扱う。
 
 設定後はSAのproject roleとtrust、WIFのissuer・mapping・条件、user-managed keyがないこと、
 runtime SAの権限とactAs付与先、既存identityへの影響を実値で確認します。
@@ -138,7 +138,7 @@ Productionの通常Plan/Applyは既存DEVと同じ `normal-plan` / `normal-apply
 - PROD用の通常Apply権限はDEVのカタログを基礎としつつ、資源別IAMの付与による自己昇格を防ぐため `*.setIamPolicy` はデフォルトで除外します。Bucket/Secret/Cloud Run等の公開・他主体へのgrantは別途IAMレビューの対象です。
 - PROD AWSの既存Plan/Apply Roleは、repository-wide GitHub OIDCの7 claims（`terraform-prod-plan/apply`、`ref=refs/heads/main`、固定caller/reusable）に加え、native `actor_id=54093651` が必要です。予期しないAllow、旧integration branch trust、wildcardが残ればSTOPします。AWSのtrust調整は管理者が差分を独立レビューしてから実施し、このbootstrapではAWSを変更しません。
 - GitHub `terraform-prod-plan` / `terraform-prod-apply` のSelected branchesは**完全一致の `main` のみ**とします。既存managed入力・S3 role/bucket/account秘密参照を維持します。旧integration branchの認可は本番運用切替時に整理します。
-- 管理端末にはCloud Asset Inventory APIとPolicy Analyzerの読み取り権限が必要です。bootstrapはProjectの最上位祖先を取得し、そのscopeで通常SA/runtime SAの資源別・継承・グループ経由grantを監査します。想定外のrole/resource、条件付きgrant、不完全な解析、既知grantの欠落は書込み前にSTOPします。通常SAへ監査用権限は追加しません。
+- 管理端末にはCloud Asset Inventory APIとPolicy Analyzerの読み取り権限が必要です。bootstrapはProjectの最上位祖先を取得し、そのscopeで通常SA/runtime SAの資源別・継承・グループ経由grantを監査します。想定外のrole/resource、条件付きgrant、不完全な解析、既知grantの欠落は書き込み前にSTOPします。通常SAへ監査用権限は追加しません。
 - `--impersonation-inventory` でProject/folder/organizationからの資格発行・署名・鍵作成・actAs権限を列挙し、既存管理主体を確認した `review_sha256` を `--impersonation-review-sha256` に渡します。custom roleや条件付きgrantも対象とし、主体・条件・資格発行権限が変われば再レビューまでSTOPします。生の委任先一覧は管理端末で扱い、公開ログへ出しません。
 - main固定はGitHub/AWS/WIFのCI実行入口の制約です。既存Owner・Google制御プレーン・既存の特権workloadによるGCP直接操作まで禁止するものではありません。bootstrapは既存階層IAMを剥奪せず、その委任を上記fingerprintへ明示的に束縛します。既存アプリ権限の最小化は別途の運用変更です。
 - AWS・GCP・GitHubで必要な管理者権限を持つ短期認証済み端末で以下を実行します。

@@ -211,7 +211,7 @@ export function createApp(
 					'onRendered',
 					({ fromLocation, pathChanged, toLocation }) => {
 						if (!fromLocation || !pathChanged || toLocation.hash) return
-						// フッターを共有する遷移でも、描画済みの本文から読み進められるようにする。
+						// フッターを共有するページ遷移でも、描画済みの本文先頭から読み進められるようにする。
 						const target =
 							document.querySelector<HTMLElement>('main h1') ??
 							document.querySelector<HTMLElement>('main')
@@ -983,7 +983,7 @@ export function createApp(
 				<section className="card">
 					<h1>アカウント管理</h1>
 					<p>
-						ログアウト、Google側のアクセス許可の取消、保存データの削除は、それぞれ別の操作です。
+						ログアウト、Google側のアクセス許可の取り消し、保存データの削除は、それぞれ別の操作です。
 					</p>
 					<button
 						className="button"
@@ -1008,7 +1008,7 @@ export function createApp(
 					<details>
 						<summary>保存データについて</summary>
 						<p>
-							ログアウトやGoogle側の許可取消だけでは、保存済みの作業記録は削除されません。削除をご希望の場合は、まず窓口へご連絡ください。
+							ログアウトやGoogle側の許可の取り消しだけでは、保存済みの作業記録は削除されません。削除をご希望の場合は、まず窓口へご連絡ください。
 						</p>
 						<p>
 							ご依頼を受け付けた後、原則として、通常のログインとは別にGoogleの認証手続きで対象のYouTubeチャンネルを確認します。認証手続きを利用できない場合は、窓口で個別の確認方法をご案内します。

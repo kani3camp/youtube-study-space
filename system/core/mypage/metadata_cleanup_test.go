@@ -256,7 +256,7 @@ func TestCleanupRecorderDeadlineAndCancellationInterruptBlockedPipe(t *testing.T
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, reader.Close()); require.NoError(t, writer.Close()) })
 			require.NoError(t, writer.SetWriteDeadline(time.Now().Add(20*time.Millisecond)))
-			// 読み取り元なしでパイプを満たし、カーネルの書き込みが待機するまで続ける。
+			// 読み取り側がない状態でパイプを満たし、カーネルへの書き込みがブロックされるまで続ける。
 			_, err = writer.Write(make([]byte, 1<<20))
 			require.ErrorIs(t, err, os.ErrDeadlineExceeded)
 			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)

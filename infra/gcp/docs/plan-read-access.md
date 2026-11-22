@@ -43,7 +43,7 @@ python3 infra/gcp/scripts/plan_read_access.py --live --export /private/plan-befo
 python3 infra/gcp/scripts/plan_read_access.py --snapshot /private/plan-before.json
 ```
 
-- プロジェクト/SA の同一性・有効状態、user-managed key がないこと、プロジェクトポリシーの `etag`、新旧ロールの範囲、GA / カスタムロール対応を確認します。Cloud Asset Analyzer は identity を指定し resource/access フィルタなしで解析し、条件付き・間接・子リソースの追加付与や禁止 permission、解析不足（`fullyExplored != true`）が見つかった場合は既存付与を勝手に消さず停止します。
+- プロジェクト/SA の同一性・有効状態、user-managed key がないこと、プロジェクトポリシーの `etag`、新旧ロールの範囲、GA / カスタムロール対応を確認します。Cloud Asset Analyzer は identity を指定して resource/access フィルタなしで解析し、条件付き・間接・子リソースの追加付与や禁止 permission、解析不足（`fullyExplored != true`）が見つかった場合は既存付与を勝手に消さず停止します。
 - 出力は追加/削除 permission・Plan 対象名・確認 digest・review 待ち状態のみとし、生 IAM ポリシーは公開ログに出しません。`export` は `0600` で新規作成し、スナップショットや復旧記録・レビュー記録は Git や公開 Issue/artifact に保存しないでください。
 
 ---

@@ -11,7 +11,7 @@ Issue #1107 の SeatAppearance V2 は、互換期間を設けて段階的にリ�
 3. V2 canonical field と V1 legacy field を dual-write する backend をデプロイする。
 4. `youtube-bot` と `youtube_organize_database` の両方の起動ログで `seat-appearance-schema-write=2` と `seat-appearance-legacy-write=true` を確認する。
 
-この期間は V1 document の generic update では V1 のまま保持する。新規入室、移動、`!my rank`、`!my color`、`!rank` など、appearance 全体を再計算する操作だけが V2 へ昇格させる。
+この期間は、V1 document の generic update では V1 のまま保持する。新規入室、移動、`!my rank`、`!my color`、`!rank` など、appearance 全体を再計算する操作でのみ V2 へ昇格させる。
 
 ## Drain 診断
 

@@ -79,7 +79,7 @@ export function jstDate(value: string | number | Date) {
 	return jstDay.format(new Date(value))
 }
 
-// 応答の時点で、日付依存の集計が全て取得できているか（保持値での代替を含まない）。
+// 応答の時点で、日付依存の集計がすべて取得できているか（保持値での代替を含まない）。
 function dayDataObtained(response: MyPage) {
 	const summary = response.summary.data
 	const recent = response.recent7Days.data

@@ -201,7 +201,7 @@ func TestSystem_In(t *testing.T) {
 				UserID: "test_user_id",
 				State:  repository.WorkState,
 			},
-			expectedReplyMessage: "@テストユーザー さんは1番の席に座っています🪑",
+			expectedReplyMessage: "@テストユーザー さんは1番席に座っています🪑",
 		},
 		{
 			name: "メンバー席入室：すでに入室中",
@@ -223,7 +223,7 @@ func TestSystem_In(t *testing.T) {
 				UserID: "test_user_id",
 				State:  repository.WorkState,
 			},
-			expectedReplyMessage: "@テストユーザー さんはVIP1番の席に座っています🪑",
+			expectedReplyMessage: "@テストユーザー さんはVIP1番席に座っています🪑",
 		},
 		{
 			name: "一般席入室：すでにメンバー席に入室中なので席移動",
@@ -525,7 +525,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 				},
 			},
 			memberSeats:          []repository.SeatDoc{},
-			expectedReplyMessage: "@テストユーザー さんは3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り90分です📊",
+			expectedReplyMessage: "@テストユーザー さんは3番席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り90分です📊",
 		},
 		{
 			name: "座席表示（メンバー席）",
@@ -553,7 +553,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 					State:  repository.WorkState,
 				},
 			},
-			expectedReplyMessage: "@テストユーザー さんはVIP3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り90分です📊",
+			expectedReplyMessage: "@テストユーザー さんはVIP3番席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り90分です📊",
 		},
 		{
 			name: "座席表示（一般席：詳細あり）",
@@ -584,7 +584,7 @@ func TestSystem_ShowSeatInfo(t *testing.T) {
 				},
 			},
 			memberSeats:          []repository.SeatDoc{},
-			expectedReplyMessage: "@テストユーザー さんは3番の席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り90分です📊過去1440分以内に3番席に合計0分着席しています🪑",
+			expectedReplyMessage: "@テストユーザー さんは3番席で作業中です💪現在10分入室中、作業時間は10分、自動退室まで残り90分です📊過去1440分間で3番席に合計0分着席しています🪑",
 		},
 	}
 
@@ -682,7 +682,7 @@ func TestSystem_Change(t *testing.T) {
 				EnteredAt:               fixedNow.Add(-10 * time.Minute),
 				Until:                   fixedNow.Add(90 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さん、作業内容を\"テスト作業\"に更新しました✍️（5番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り350分です⏱️",
+			expectedReplyMessage: "@テストユーザー さん、作業内容を\"テスト作業\"に更新しました✍️（5番席）入室時間を360分に変更しました。現在10分入室中、自動退室まで残り350分です⏱️",
 		},
 		{
 			name: "作業内容・入室時間変更（メンバー席）",
@@ -711,7 +711,7 @@ func TestSystem_Change(t *testing.T) {
 				EnteredAt:               fixedNow.Add(-10 * time.Minute),
 				Until:                   fixedNow.Add(90 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さん、作業内容を\"テスト作業\"に更新しました✍️（VIP7番席）入室時間を360分に変更しました。現在10分入室中。自動退室まで残り350分です⏱️",
+			expectedReplyMessage: "@テストユーザー さん、作業内容を\"テスト作業\"に更新しました✍️（VIP7番席）入室時間を360分に変更しました。現在10分入室中、自動退室まで残り350分です⏱️",
 		},
 		{
 			name: "作業名を空にクリア（WorkState）",
@@ -875,7 +875,7 @@ func TestSystem_More(t *testing.T) {
 				Until:                   fixedNow.Add(90 * time.Minute),
 			},
 			expectedExtraTimeMin: 30,
-			expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り120分です⏳",
+			expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を30分延長しました⏱️現在10分入室中、自動退室まで残り120分です⏳",
 		},
 		{
 			name: "作業時間延長（メンバー席）",
@@ -902,7 +902,7 @@ func TestSystem_More(t *testing.T) {
 				Until:                 fixedNow.Add(90 * time.Minute),
 			},
 			expectedExtraTimeMin: 30,
-			expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を30分延長しました⏱️現在10分入室中。自動退室まで残り120分です⏳",
+			expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を30分延長しました⏱️現在10分入室中、自動退室まで残り120分です⏳",
 		},
 		{
 			name: "作業時間延長（延長時間指定なし）",
@@ -927,7 +927,7 @@ func TestSystem_More(t *testing.T) {
 				Until:                 fixedNow.Add(90 * time.Minute),
 			},
 			expectedExtraTimeMin: 270,
-			expectedReplyMessage: "@テストユーザー さん、延長できる最大の時間で設定します⏱️自動退室までの時間を270分延長しました⏱️現在10分入室中。自動退室まで残り360分です⏳",
+			expectedReplyMessage: "@テストユーザー さん、延長できる最大の時間に設定します⏱️自動退室までの時間を270分延長しました⏱️現在10分入室中、自動退室まで残り360分です⏳",
 		},
 		{
 			name: "作業時間延長（最大値ちょうどでキャップなし）",
@@ -953,7 +953,7 @@ func TestSystem_More(t *testing.T) {
 				Until:                 fixedNow.Add(90 * time.Minute), // 90分残り
 			},
 			expectedExtraTimeMin: 270,
-			expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を270分延長しました⏱️現在10分入室中。自動退室まで残り360分です⏳",
+			expectedReplyMessage: "@テストユーザー さん、自動退室までの時間を270分延長しました⏱️現在10分入室中、自動退室まで残り360分です⏳",
 		},
 	}
 
@@ -1253,7 +1253,7 @@ func TestSystem_Resume(t *testing.T) {
 				EnteredAt:               fixedNow.Add(-10 * time.Minute),
 				Until:                   fixedNow.Add(90 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さん、座席で休憩中のみ使えるコマンドです🙏",
+			expectedReplyMessage: "@テストユーザー さん、休憩中のみ使えるコマンドです🙏",
 		},
 		{
 			name: "作業再開（作業名引継ぎ）",
@@ -1505,7 +1505,7 @@ func TestSystem_Order(t *testing.T) {
 				MenuCode: "",
 			},
 			alreadyOrderedCountToday: 5,
-			expectedReplyMessage:     "@テストユーザー さん、本日の注文回数が上限(5回)に達しています😔",
+			expectedReplyMessage:     "@テストユーザー さん、本日の注文回数が上限（5回）に達しています😔",
 		},
 		{
 			name: "メンバーは注文回数に上限なし",

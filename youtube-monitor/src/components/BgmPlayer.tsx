@@ -19,7 +19,7 @@ const BgmPlayer: React.FC = () => {
 	const chimeSingleRef = useRef<HTMLAudioElement>(null)
 	const chimeDoubleRef = useRef<HTMLAudioElement>(null)
 
-	// マウント時にチャイム用 audio 要素の準備（load / error ハンドラ登録）を一度だけ実行
+	// マウント時に一度だけチャイム用 audio 要素の error ハンドラ登録と読み込みを実行する
 	useEffect(() => {
 		const chimeList = [chimeSingleRef.current, chimeDoubleRef.current]
 		const cleanupFns: Array<() => void> = []
@@ -171,7 +171,7 @@ const BgmPlayer: React.FC = () => {
 				new wave.animations.Wave({
 					fillColor: '#27272787',
 
-					lineColor: '#0000', // NOTE: alpha=0 が目的。lineWidth: 0が意味なさそうだったので
+					lineColor: '#0000', // NOTE: alpha=0 で線を非表示にする目的（lineWidth: 0 では効果が見られなかったため）
 					rounded: true,
 					bottom: true,
 					count: 30,

@@ -13,8 +13,8 @@ export type PreparedTag = {
 }
 export type TagLoader = (prepare: (runtime: GtagRuntime) => void) => PreparedTag
 
-// 読み込みでは製品イベントをキューに入れない。ベンダーコードの実行前に起動コマンドを用意する。
-// 置き換え済みの読み込みで、新しい同意世代を停止しない。
+// 読み込み開始時に製品イベントをキューに入れず、ベンダーコードの実行前に起動コマンドを用意する。
+// すでに世代が置き換わった古い読み込みの完了や失敗で、新しい同意世代を停止しない。
 export class ConsentTag implements AnalyticsPort {
 	private generation = 0
 	private current: {

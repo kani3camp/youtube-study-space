@@ -148,7 +148,7 @@ default workspaceだけを使い、workspace discoveryはprod配下へ固定し�
 state ARN wildcardを足しません。既存encryptionがSSE-S3なら維持し、KMS移行やgrantは別scopeです。
 
 prod smokeを準備するとき、stateがabsentの状態で条件付きPutObjectを「必ずdenyされるread」と
-扱いません。許可が誤ってあればobjectを作成します。negative test自体の最大mutation/costを先に
+扱いません。許可が誤って付与されていればobjectを作成してしまいます。negative test自体の最大mutation/costを先に
 reviewし、包括承認Aの安全条件を満たす独立unitへ分離するか、書込みを試みない検証へ限定します。404やnetwork errorをdeny PASSにしません。
 
 [AWS OIDC trust公式](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html)、

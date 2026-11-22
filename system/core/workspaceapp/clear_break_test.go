@@ -64,7 +64,7 @@ func TestClearDuringBreakClearsRegularWorkName(t *testing.T) {
 	).Times(1)
 
 	mockLiveChatBot := mock_youtubebot.NewMockLiveChatBot(ctrl)
-	mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), "@テストユーザー さん、作業内容をリセットしました🧹(5番席)").Return(nil).Times(1)
+	mockLiveChatBot.EXPECT().PostMessage(gomock.Any(), "@テストユーザー さん、作業内容をリセットしました🧹（5番席）").Return(nil).Times(1)
 
 	app := WorkspaceApp{
 		Repository:               mockDB,

@@ -123,7 +123,7 @@ func TestHumanIntakeCLIRejectsUnsafeInputBeforeFactory(t *testing.T) {
 	}
 	data, err := os.ReadFile(valid)
 	require.NoError(t, err)
-	// 構文が正しく設定も整合する対象であっても、注入されたfactoryを検討する前に
+	// 構文が正しく設定も整合する対象であっても、注入されたfactoryを呼び出す前に
 	// 固定モックのテストデータ内に限定する。
 	for _, field := range []string{"request", "channel", "accepted", "environment", "project"} {
 		t.Run("fixed fixture "+field, func(t *testing.T) {

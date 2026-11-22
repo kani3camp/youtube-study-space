@@ -8,7 +8,7 @@ Direction A / B / C / D の描画差だけを比較するための再現可能�
 
 **Style fidelity の判定は text-only を主とする。**
 
-実生成では、画像referenceを強くロックするとgeometryは揃いやすい一方、reference側の3D形状・陰影・材質表現まで残り、特にDirection B / C / Dの描画言語を弱める場合があった。そのため「同じgeometryに見えること」を優先して本来の画風を潰さない。
+実生成では、画像 reference を強く固定すると geometry は揃いやすい一方、reference 側の3D形状・陰影・材質表現まで引き継がれ、特に Direction B / C / D の描画言語を弱めることがある。そのため「同じ geometry に見えること」を優先して本来の画風を潰さない。
 
 A/B/C/Dで以下を**完全に同じテキスト**として指定する。
 
@@ -25,13 +25,13 @@ A/B/C/Dで以下を**完全に同じテキスト**として指定する。
 
 変更してよいのは各Directionの `## Prompt guidance` だけ。
 
-生成後にgeometryが多少変わった場合は、それをStyle fidelityと混ぜず `geometry drift` として別記録する。
+生成後に geometry が多少変わった場合は、それを Style fidelity と混ぜず `geometry drift` として切り分けて記録する。
 
 ## Secondary protocol: neutral geometry anchor
 
-geometry driftを切り分けたい場合だけ、A/B/C/Dのどれにも属さない**スタイル中立のclay / blockout / massing model**を共通referenceとして使う。
+geometry drift を切り分けたい場合だけ、A/B/C/D のどれにも属さない**スタイル中立の clay / blockout / massing model** を共通 reference として使う。
 
-完成したDirection A/B/C/D画像を基準にしない。完成絵を基準にすると、その画像固有の材質・光・線・色面まで他Directionへ伝播する。
+完成した Direction A/B/C/D 画像を基準にしない。完成絵を基準にすると、その画像固有の材質・光・線・色面まで他の Direction へ伝播してしまう。
 
 neutral anchor は白〜薄いグレー中心にし、次を避ける。
 
@@ -55,7 +55,7 @@ neutral anchor は**geometryだけ**を固定する。
 
 ### Text fixture で固定するもの
 
-condition とproduction constraintsはreferenceから継承せず、各variantで**同じテキストを再宣言**する。
+condition と production constraints は reference から引き継がず、各 variant で**同じテキストを改めて指定**する。
 
 - time of day
 - weather
@@ -64,13 +64,13 @@ condition とproduction constraintsはreferenceから継承せず、各variant�
 - people / text / UI constraints
 - fixed text fixture の構造条件
 
-中立アンカー自体は評価対象にしない。材質・陰影・色も継承対象にしない。
+中立アンカー自体は評価対象にせず、その材質・陰影・色も引き継がない。
 
-各variantには上記text fixtureを再宣言した上で、次を追加する。
+各 variant には上記の text fixture を改めて指定したうえで、次を追加する。
 
 > Preserve only the camera, composition, architecture, floor plan, platform heights, stairs, seating positions, hero structure, major blocks and skyline from the neutral reference image. Do not inherit its materials, shading, colors, time of day, weather or lighting. Use the text fixture for all environmental conditions and production constraints. Do not redesign or relocate objects. Change only the visual rendering language required by the selected Direction.
 
-neutral anchor結果はStyle fidelityの主判定には使わず、`geometry drift` の診断用とする。referenceによってStyle fidelityが明らかに低下する場合、そのモデルではこのsecondary protocolを採用しない。geometry fidelityとstyle fidelityのトレードオフとして記録する。
+neutral anchor を用いた結果は Style fidelity の主判定には使わず、`geometry drift` の診断用とする。reference によって Style fidelity が明らかに低下する場合、そのモデルではこの secondary protocol を採用せず、geometry fidelity と style fidelity のトレードオフとして記録する。
 
 ## Fixed text fixture
 
@@ -130,5 +130,5 @@ Direction定義は特定モデルへ最適化しすぎない。モデル比較�
 - snowfield base
 - indoor industrial atrium
 
-Subject Swapではgeometry一致ではなく、各Directionの描画原理が残ることを優先する。
+Subject Swap では geometry の一致ではなく、各 Direction の描画原理が残ることを優先する。
 

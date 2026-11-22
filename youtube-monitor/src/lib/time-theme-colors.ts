@@ -200,7 +200,7 @@ export const TWILIGHT_TONE_TEXT_COLORS: Readonly<
 	},
 }
 
-// 極性反転中だけ使用します。中間面の両側で4.5:1以上を守るため、
+// 極性反転中だけ使用します。中間面に対する明暗双方で4.5:1以上を守るため、
 // ここだけは色味を極めて薄くし、安全性を優先します。
 export const CONTRAST_BRIDGE_TEXT_COLORS: Readonly<
 	Record<TextTone, AmbientTextColors>

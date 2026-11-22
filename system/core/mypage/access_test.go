@@ -228,7 +228,7 @@ func TestAccessGenerationChangeDoesNotReuseWarmCache(t *testing.T) {
 	h.Auth.Access = access
 	require.Equal(t, 200, boundaryRequest(h, "GET", "/api/mypage", "").Code)
 
-	// 制限開始時にアクセスがなければ、キャッシュを無効化する403も発生しない。
+	// 制限中にアクセスがなければ、キャッシュを無効化する403も発生しない。
 	blocked := controlFixture(nowForAccessTest(), false)
 	unblocked, _, err := serviceaccess.Transition(blocked, serviceaccess.Change{Reason: serviceaccess.Moderation}, blocked.Revision.Add(time.Second))
 	require.NoError(t, err)

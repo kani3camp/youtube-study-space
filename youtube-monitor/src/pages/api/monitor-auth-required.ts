@@ -25,7 +25,7 @@ export default function handler(
 	}
 
 	const now = Date.now()
-	// 再読み込みや複数ブラウザからの通知でも、ログを埋めないようにする。
+	// 再読み込みや複数ブラウザからの通知でログがあふれないようにする。
 	if (now - (lastLoggedAt.get(reason) ?? Number.NEGATIVE_INFINITY) >= 60_000) {
 		lastLoggedAt.set(reason, now)
 		const loginUrl =
