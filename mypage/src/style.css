@@ -15,6 +15,8 @@
 :root {
 	--color-ink-soft: oklch(38% 0.02 305);
 	--color-stale-ink: oklch(38% 0.04 305);
+	--color-chip: oklch(94% 0.01 305);
+	--color-badge-bg: oklch(99.2% 0.004 305 / 0.8);
 	--color-accent-ink: oklch(39% 0.11 305);
 	--color-accent-ink-deep: oklch(30% 0.07 305);
 	--color-accent-soft: oklch(90% 0.035 305);
@@ -29,6 +31,7 @@
 	--color-working-bg: var(--color-accent-tint);
 	--color-working-line: var(--color-accent-line);
 	--color-break-ink: oklch(38% 0.06 190);
+	--color-break-ink-hover: oklch(30% 0.06 190);
 	--color-break-dot: oklch(55% 0.08 190);
 	--color-break-track: oklch(82% 0.04 190);
 	--color-break-bg: oklch(94.5% 0.024 190);
@@ -285,7 +288,7 @@ h2 {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
-	background: oklch(99.2% 0.004 305 / 0.8);
+	background: var(--color-badge-bg);
 	color: var(--state);
 	border-radius: 999px;
 	padding: 6px 12px;
@@ -304,7 +307,7 @@ h2 {
 .empty-badge {
 	--state: var(--color-muted);
 	--state-dot: transparent;
-	background: oklch(94% 0.01 305);
+	background: var(--color-chip);
 	margin-bottom: 14px;
 }
 .empty-badge .state-dot {
@@ -435,7 +438,10 @@ h2 {
 	text-decoration: underline;
 }
 .current-card.resting .current-links .external-link {
-	color: var(--state);
+	color: var(--color-break-ink);
+}
+.current-card.resting .current-links .external-link:hover {
+	color: var(--color-break-ink-hover);
 }
 .button {
 	min-height: 44px;
