@@ -85,7 +85,7 @@ class SecurityPolicyTest(unittest.TestCase):
         """Execute the real guard: only the owner's first run of the reviewed workflow on the target ref."""
         def run(**changes):
             target = changes.pop('TARGET', 'development')
-            ref = {'development': 'refs/heads/integration/mypage-canon-20261006',
+            ref = {'development': 'refs/heads/dev',
                    'production': 'refs/heads/main'}.get(target, 'refs/heads/main')
             env = {'PATH': os.environ.get('PATH', os.defpath), 'GITHUB_OUTPUT': os.devnull,
                    'TARGET': target, 'ENABLED': 'false', 'GITHUB_EVENT_NAME': 'workflow_dispatch',
@@ -98,16 +98,16 @@ class SecurityPolicyTest(unittest.TestCase):
         for target in ('development', 'production'):
             for enabled in ('true', 'false'):
                 self.assertEqual(run(TARGET=target, ENABLED=enabled), 0, (target, enabled))
-        integration = 'refs/heads/integration/mypage-canon-20261006'
+        dev = 'refs/heads/dev'
         caller = 'kani3camp/youtube-study-space/.github/workflows/'
         for changes in ({'ENABLED': 'maybe'}, {'TARGET': 'staging'}, {'GITHUB_ACTOR_ID': '1'},
                         {'GITHUB_TRIGGERING_ACTOR': 'other'}, {'GITHUB_RUN_ATTEMPT': '2'},
                         {'GITHUB_EVENT_NAME': 'push'}, {'GITHUB_REPOSITORY_ID': '1'},
                         # Each environment only from its own ref.
                         {'GITHUB_REF': 'refs/heads/main', 'GITHUB_WORKFLOW_REF': caller + 'mypage-maintenance.yml@refs/heads/main'},
-                        {'TARGET': 'production', 'GITHUB_REF': integration,
-                         'GITHUB_WORKFLOW_REF': caller + 'mypage-maintenance.yml@' + integration},
-                        {'GITHUB_WORKFLOW_REF': caller + 'ci.yml@' + integration}):
+                        {'TARGET': 'production', 'GITHUB_REF': dev,
+                         'GITHUB_WORKFLOW_REF': caller + 'mypage-maintenance.yml@' + dev},
+                        {'GITHUB_WORKFLOW_REF': caller + 'ci.yml@' + dev}):
             with self.subTest(changes=changes):
                 self.assertNotEqual(run(**changes), 0)
 

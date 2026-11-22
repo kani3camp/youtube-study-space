@@ -135,7 +135,7 @@ Go 変更の必須検査は [AGENTS.md](../../../AGENTS.md) に従い生成後�
 
 ビルド時に既存の React コンポーネントから規約本文を含む静的 HTML を生成します。Firebase Hosting は `/privacy` と `/terms` にその HTML を返すため、ログインや JavaScript の実行なしで本文を読めます（JavaScript が動くブラウザでは Cookie 設定や画面内遷移も引き続き利用可能）。Google OAuth 同意画面に登録済みの `/privacy_policy` は HTTP 302 で `/privacy` へ転送します（反映にはフロントエンド再デプロイが必要）。
 
-ページの更新は基盤 Terraform Apply とは別に `Deploy MyPage Frontend`（[`deploy-mypage-frontend.yml`](../../../.github/workflows/deploy-mypage-frontend.yml)）を手動実行します。DEV は統合ブランチ `integration/mypage-canon-20261006` から `environment=development`、本番は `main` から `environment=production` で実行し、同じジョブとスクリプトを使います（実行 SHA には選択した ref の `github.sha` を使い、手入力しません。PR 実行・環境と ref の組み合わせ違い・別所有者・再実行・SHA 不一致は拒否し、失敗時は同じ Run を再実行せず、現在の状態を確認して新しく実行します）。以下は DEV の値で説明し、本番の差分は手順の後に示します。
+ページの更新は基盤 Terraform Apply とは別に `Deploy MyPage Frontend`（[`deploy-mypage-frontend.yml`](../../../.github/workflows/deploy-mypage-frontend.yml)）を手動実行します。DEV は `dev` から `environment=development`、本番は `main` から `environment=production` で実行し、同じジョブとスクリプトを使います（実行 SHA には選択した ref の `github.sha` を使い、手入力しません。PR 実行・環境と ref の組み合わせ違い・別所有者・再実行・SHA 不一致は拒否し、失敗時は同じ Run を再実行せず、現在の状態を確認して新しく実行します）。以下は DEV の値で説明し、本番の差分は手順の後に示します。
 
 1. 同じ Run 内でまず MyPage の認証なし CI（`ci-frontend.yml` の `mypage`: audit・cost model・フォント整合性・check・test・build）を通し、続くクラウド認証情報なしの Build ジョブで固定依存検査・check・typecheck・テスト・DEV 公開設定検査・ビルドを実行します。
 2. 成果物を別 Apply ジョブへ渡し、ソース SHA・Run ID・30 分の期限・設定・全ファイルの SHA256 を再検証してから専用 WIF と短命トークンで認証します（SA 鍵や Firebase ログイントークンは不使用）。

@@ -5,7 +5,7 @@ GitHub Actions のワークフローを「人間が実行したいユースケ�
 
 > [!NOTE]
 > - 本書は **設計と移行の現在地** を記録します。実クラウドでの成否は対象 Run の実行結果で確認してください。
-> - 本書の記述と実際のコードが異なる場合は、`integration/mypage-canon-20261006` 上の現行コード・ワークフロー・GitHub / GCP / AWS の実設定を優先します。
+> - 本書の記述と実際のコードが異なる場合は、`dev`（本番は `main`）上の現行コード・ワークフロー・GitHub / GCP / AWS の実設定を優先します。
 > - AWS CDK の手動デプロイは対象外とし、挙動を変更しません。
 
 ---
@@ -115,7 +115,7 @@ GitHub Actions のワークフローを「人間が実行したいユースケ�
 | **UC7** | `mypage-maintenance.yml`（`Set Maintenance Mode`） | `workflow_dispatch` | `environment`、`enabled` | dev / prod |
 
 - 内部用 reusable workflow（`gcp-terraform-authenticated.yml` 等）には `workflow_dispatch` を持たせません。
-- Frontend / API / Operator の各 Deploy ワークフローは DEV と本番で同じ定義を使い、`environment` 入力で対象を選びます。DEV は統合ブランチ、本番は `main` からだけ実行でき、最初の `select` ジョブ・配備スクリプトの `context`・環境別 WIF 条件の 3 か所で同じ組み合わせを要求します（DEV の Run を本番 ref から、本番の Run を統合ブランチから起動すると資格情報の取得前に停止します）。認証に使う SA と project は入力から組み立てず、配備スクリプトがソースの固定値から出力します。
+- Frontend / API / Operator の各 Deploy ワークフローは DEV と本番で同じ定義を使い、`environment` 入力で対象を選びます。DEV は `dev`、本番は `main` からだけ実行でき、最初の `select` ジョブ・配備スクリプトの `context`・環境別 WIF 条件の 3 か所で同じ組み合わせを要求します（DEV の Run を本番 ref から、本番の Run を統合ブランチから起動すると資格情報の取得前に停止します）。認証に使う SA と project は入力から組み立てず、配備スクリプトがソースの固定値から出力します。
 - 本番の配備用 GitHub Environment は `mypage-prod-backend` / `mypage-prod-operator` / `mypage-prod-hosting`（いずれも `main` 限定・承認者なし・管理者バイパス無効）で、本番 image build は既存の `mypage-prod-apply` を使います。本番の配備手順と初回の順序は [Backend CI](../mypage/release/backend-ci.md#本番の配備) と [MyPage 基盤の本番初回構築](../../infra/mypage-platform/README.md#本番の初回構築main-から) を参照してください。
 - PR や `push` を契機とした自動デプロイは行いません。公開の判断は配備経路とは独立に公開 Gate（[#1133](https://github.com/kani3camp/youtube-study-space/issues/1133)）で行います。
 - 各 Deploy ワークフローは資格情報を取得する前に配備対象ドメインの認証なし検査を同じ Run 内で実行します（API / Operator は `ci-system.yml`、Frontend は `ci-frontend.yml` の `mypage`）。Ruleset が要求する PR ごとの `CI Gate` は統合後のツリーそのものを検査しないため、対象ドメインの検査で担保します。
@@ -147,7 +147,7 @@ GitHub Actions のワークフローを「人間が実行したいユースケ�
 2. 適用時は `operation=apply` に加えて `allow_mypage_deletions` をオンにします（既定はオフのため削除を含む Plan で停止します）。`component=all` で Core にも変更がある場合は Core Apply が MyPage の承認待ちより先に進むため、MyPage の削除だけを承認・適用するときは `component=mypage` を使います。
 3. 同じ Run の **Review MyPage Terraform deletion Plan** が承認待ちになったら、依存する MyPage Plan の要約を確認して Actions の **Review deployments** で承認します。Apply は Plan 作成から 30 分以内に再生成し、State・コミット・Plan の HMAC 照合が一致した保存済み Plan のみ適用します（却下・未承認・期限切れ・照合不一致時は停止し、再試行は新しい Run を手動起動します）。
 
-初回実行前にリポジトリオーナーが GitHub Settings → Environments で `mypage-dev-delete-approval`（本番有効化時は `mypage-prod-delete-approval`）を作成し、Required reviewers 登録・管理者バイパス無効化・Deployment branches 固定（DEV: `integration/mypage-canon-20261006`、PROD: `main`）を設定してください。1 人運用の場合は自分を reviewer にして Prevent self-review をオフにします。Secrets やクラウド権限は置かず承認記録専用として使い、ワークフローが GitHub API でレビュールールと承認記録を確認します（設定不備や API 障害時は停止します）。
+初回実行前にリポジトリオーナーが GitHub Settings → Environments で `mypage-dev-delete-approval`（本番有効化時は `mypage-prod-delete-approval`）を作成し、Required reviewers 登録・管理者バイパス無効化・Deployment branches 固定（DEV: `dev`、PROD: `main`）を設定してください。1 人運用の場合は自分を reviewer にして Prevent self-review をオフにします。Secrets やクラウド権限は置かず承認記録専用として使い、ワークフローが GitHub API でレビュールールと承認記録を確認します（設定不備や API 障害時は停止します）。
 
 ### 3.3 API と Maintenance Operator のイメージ分離
 
@@ -231,7 +231,7 @@ GitHub Settings → Actions → Policies（2026-10-31 オーナー設定）で�
 4. 初回 Operator deploy で Job が `mypage-maintenance-operator` パッケージへ移ったことを確認したあと、旧 `mypage-backend-deploy` の Job binding と maintenance runtime SA の `actAs` を削除専用の契約遷移で外します。DEV は 2026-11-01 に実施済み（#1533）で、[run 41260474728](https://github.com/kani3camp/youtube-study-space/actions/runs/41260474728) にて 2 つの binding を削除し、Job の `mypageMaintenanceImageRelease` と maintenance runtime SA の `roles/iam.serviceAccountUser` がどちらも `mypage-operator-deploy` のみになったことを読み戻し確認しました（Job 実行用の `mypage-maintenance-invoker` の binding は別に残ります）。なお MyPage の Apply SA は通常読み取り権限のみのため、Apply 中だけオーナーが 1 時間で切れる一時 custom role（Job と SA の `getIamPolicy` / `setIamPolicy`）を付与し、Apply 後に binding とロールを削除して 0 件を読み戻しています。旧 `mypage-api` パッケージの現在値としての許容は初回作成要件（3.3）のため維持します。
 5. 移行・検証済みの DEV identity の trust から旧 `ci.yml` claim を削除します（2026-11-01 実施済み）。Core（GCP `terraform-normal`、AWS `terraform-dev-plan` / `-apply`）、MyPage backend / hosting（GCP）、AWS `mypage-dev-apply` から `ci.yml` を外して読み戻し確認を完了し、本番 Core も v4.34.0 の後に `terraform.yml` だけへ限定しました（4.3）。旧移行用の `terraform-ci` pool の provider は DEV・本番とも無効化し、旧 Secret `GCP_TERRAFORM_WIF_PROVIDER` / `GCP_TERRAFORM_SERVICE_ACCOUNT` を 4 つの Environment から削除しました（pool と旧移行用 SA `terraform-*-plan` / `-apply` の削除は無効化後に別途実施。schema audit のクラウド側 trust は監査後に撤回済み）。
 6. Maintenance WIF provider（Terraform 管理）を、provider 更新だけを許す専用遷移で修正し、`google.subject` を 127 バイト以内の値へ変更すること（必須、2.4 参照）と condition への `job_workflow_ref == mypage-maintenance-authenticated.yml@<ref>` 追加（hardening）を同時に適用します（コードは修正済み。一時的な provider 更新権限での DEV Apply 完了まで Set Maintenance Mode は認証できません）。
-7. #1236 を `dev` に取り込んだ後、MyPage の DEV 固定 ref（`infra/mypage-platform/scripts/foundation_contract.py` の `development` `ref`、`.github/workflows/mypage-maintenance-authenticated.yml` の事前検査 `ref`、`infra/mypage-platform/modules/runtime/main.tf` の `maintenance_ref`、`deploy-mypage-api.yml` / `deploy-mypage-frontend.yml` / `deploy-mypage-maintenance.yml` の `select` ジョブと `.github/scripts/test_ci_deploy_workflows.py` の `development:refs/heads/integration/mypage-canon-20261006`）と関連 trust（foundation / backend / hosting / operator の GCP WIF condition と AWS role）を 1 つの PR と作業でまとめて `refs/heads/dev` へ移します。移行完了までは `dev` から `Terraform` を実行しても `select` が実行 ref と固定 ref を比較して停止するため、`component=all` は MyPage をスキップして Core のみ実行し、`component=mypage` は理由を表示して停止します。
+7. #1236 を `dev` に取り込んだ後、MyPage の DEV 固定 ref（`infra/mypage-platform/scripts/foundation_contract.py` の `development` `ref`、`.github/workflows/mypage-maintenance-authenticated.yml` の事前検査 `ref`、`infra/mypage-platform/modules/runtime/main.tf` の `maintenance_ref`、`deploy-mypage-api.yml` / `deploy-mypage-frontend.yml` / `deploy-mypage-maintenance.yml` の `select` ジョブ）と関連 trust（foundation / backend / hosting / operator / maintenance の GCP WIF condition、AWS role `youtube-study-space-mypage-dev-plan` / `-apply`、Environment `mypage-dev-delete-approval` の Deployment branches）を `refs/heads/dev` へ移しました（#1637）。`terraform.yml` の `select` は実行 ref と固定 ref を比較し、固定 ref 以外から実行した場合は `component=all` で MyPage をスキップして Core のみ実行し、`component=mypage` は理由を表示して停止します。
 
 ### 4.3 Terraform の trust 更新（#4）
 

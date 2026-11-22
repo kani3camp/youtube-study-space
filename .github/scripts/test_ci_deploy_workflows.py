@@ -20,7 +20,7 @@ RELEASES = (
     ('deploy-mypage-maintenance.yml', 'mypage-operator-authenticated.yml', 'operator_release.py', 'operator'),
     ('deploy-mypage-frontend.yml', 'mypage-hosting-authenticated.yml', 'hosting_release.py', 'hosting'),
 )
-TARGET_REFS = 'development:refs/heads/integration/mypage-canon-20261006|production:refs/heads/main'
+TARGET_REFS = 'development:refs/heads/dev|production:refs/heads/main'
 
 
 def environment_expression(dev, prod):
@@ -145,7 +145,7 @@ class DeployWorkflowTest(unittest.TestCase):
                 target_env = (workflow.get('env') or {}) | (job.get('env') or {})
                 self.assertEqual(target_env['MYPAGE_TARGET'], '${{ inputs.environment }}')
         accounts = {}
-        for target, project, ref in (('development', 'test-youtube-study-space', 'refs/heads/integration/mypage-canon-20261006'),
+        for target, project, ref in (('development', 'test-youtube-study-space', 'refs/heads/dev'),
                                      ('production', 'youtube-study-space', 'refs/heads/main')):
             for _, _, _, component in RELEASES:
                 account, actual_project, actual_ref = release_target(component, target)

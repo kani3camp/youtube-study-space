@@ -37,7 +37,7 @@ jobs:
           case "${TARGET}:${ENABLED}" in
             development:true|development:false)
               project=test-youtube-study-space; region=asia-southeast2
-              ref=refs/heads/integration/mypage-canon-20261006 ;;
+              ref=refs/heads/dev ;;
             production:true|production:false)
               project=youtube-study-space; region=asia-northeast2; ref=refs/heads/main ;;
             *) fail "Unsupported environment or enabled value" ;;

@@ -55,7 +55,7 @@ CONTEXT = """
             return str(error)
         return 'admitted'
 
-    dev_ref = 'refs/heads/integration/mypage-canon-20261006'
+    dev_ref = 'refs/heads/dev'
     result = {}
     for name, check, caller in (('backend', b.context, b.CALLER), ('operator', o.context, o.CALLER),
                                 ('hosting', h.context, h.CALLER)):

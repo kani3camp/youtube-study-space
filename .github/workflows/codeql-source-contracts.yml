@@ -12,7 +12,7 @@ on:
       - '**/go.mod'
       - '**/go.sum'
   push:
-    branches: [dev, main, feature/gcp-terraform-iac, integration/mypage-canon-20261006, feature/codeql-advanced-setup]
+    branches: [dev, main, feature/gcp-terraform-iac, feature/codeql-advanced-setup]
     paths:
       - .github/codeql/**
       - .github/workflows/**
