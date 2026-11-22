@@ -37,9 +37,10 @@ type CloudLoggingMetadataCleanupHealthRecorder struct {
 	Location  string
 	JobName   string
 	Tokens    oauth2.TokenSource
-	// Client と Endpoint はテスト用の差し替え口。未設定ならリダイレクトを追わない既定クライアントと公式エンドポイントを使う。
-	Client   *http.Client
-	Endpoint string
+	// client と endpoint はパッケージ内テスト専用の差し替え口で、外部からトークンの送信先を変えられないよう非公開にする。
+	// 未設定なら公式エンドポイントを使う。client を差し替えてもリダイレクト拒否とタイムアウト上限は常に適用する。
+	client   *http.Client
+	endpoint string
 }
 
 type cloudLoggingWriteRequest struct {
@@ -96,7 +97,7 @@ func (r *CloudLoggingMetadataCleanupHealthRecorder) RecordHealth(ctx context.Con
 	if err != nil {
 		return err
 	}
-	endpoint := r.Endpoint
+	endpoint := r.endpoint
 	if endpoint == "" {
 		endpoint = CloudLoggingEntriesWriteEndpoint
 	}
@@ -106,11 +107,16 @@ func (r *CloudLoggingMetadataCleanupHealthRecorder) RecordHealth(ctx context.Con
 	}
 	req.Header.Set("Content-Type", "application/json")
 	token.SetAuthHeader(req)
-	client := r.Client
-	if client == nil {
-		client = &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	bounded := http.Client{Timeout: 5 * time.Second}
+	if r.client != nil {
+		bounded = *r.client
 	}
-	resp, err := client.Do(req)
+	if bounded.Timeout <= 0 || bounded.Timeout > 5*time.Second {
+		bounded.Timeout = 5 * time.Second
+	}
+	// Bearer トークンをリダイレクト先へ転送しない。
+	bounded.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	resp, err := bounded.Do(req)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return fmt.Errorf("cleanup health log canceled: %w", ctxErr)

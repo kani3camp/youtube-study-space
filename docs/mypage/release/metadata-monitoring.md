@@ -10,8 +10,8 @@
 [`system/cmd/mypage-metadata-cleanup`](../../../system/cmd/mypage-metadata-cleanup/main.go) が `MetadataCleanupRunner` を Firestore クライアントと Cloud Logging の健全性シグナル出力先に接続します。バイナリは Maintenance Operator と同じイメージ（[`system/Dockerfile.mypage-maintenance-operator`](../../../system/Dockerfile.mypage-maintenance-operator)）の `/app/mypage-metadata-cleanup` に含め、Cloud Run Job から command 指定で起動する想定です（イメージの ENTRYPOINT は Maintenance Operator のままです）。Cloud Run Job・Cloud Scheduler・IAM・アラートの設定はこのコマンドの外で別途行います。
 
 - 実行モード: 引数は `-mode=run`（削除処理 `Run`）か `-mode=health`（独立監視 `CheckHealth`）のどちらか 1 つだけです。引数なし・未知の値・重複指定・余分な引数は、認証情報の探索や Firestore 接続より前に終了コード 1 で拒否します。
-- 実行先の固定: `MYPAGE_ENVIRONMENT` は `development`（`test-youtube-study-space`、`asia-southeast2`）か `production`（`youtube-study-space`、`asia-northeast2`）のどちらかで、`GOOGLE_CLOUD_PROJECT` と一致する必要があります。ログのリソースラベルには Cloud Run Job が設定する `CLOUD_RUN_JOB` を使い、未設定や不正な名前の場合もクライアント作成前に終了します。
-- 処理量と制限時間: 1 回の `Run` は 100 件 × 最大 100 ページを処理し、残件があれば成功扱いにしません。プロセス全体の制限時間は `run` が 11 分（削除処理本体の 10 分 + 後処理の余裕）、`health` が 30 秒です。
+- 実行先の固定: `MYPAGE_ENVIRONMENT` は `development`（`test-youtube-study-space`、`asia-southeast2`）か `production`（`youtube-study-space`、`asia-northeast2`）のどちらかで、`GOOGLE_CLOUD_PROJECT` と一致する必要があります。ログのリソースラベルには Cloud Run Job が設定する `CLOUD_RUN_JOB` を使い、未設定や不正な名前の場合もクライアント作成前に終了します。Firestore と Cloud Logging の接続先が食い違わないよう、`FIRESTORE_EMULATOR_HOST` や `GOOGLE_APPLICATION_CREDENTIALS` が設定されている場合も拒否し、実行環境のデフォルト認証情報だけを使います。
+- 処理量と制限時間: 1 回の `Run` は 100 件 × 最大 100 ページを処理し、残件があれば成功扱いにしません。プロセス全体の制限時間は `run` が 11 分（削除処理本体の 10 分 + 後処理の余裕）、`health` が 30 秒です。SIGTERM / SIGINT はキャンセルとして扱い、ランナーが失敗観測の保存と失敗シグナルの送信を試みてから終了します。
 - 必要な権限: 実行サービスアカウントには、Firestore の `web-accounts` と `mypage-maintenance/metadata-cleanup` の読み書き（例: `roles/datastore.user`）と、健全性シグナル用の `logging.logEntries.create` が必要です。
 - 出力: 標準出力には固定形の JSON を 1 行だけ書きます。`run` は `mode` と匿名の観測結果（開始・完了時刻、結果、固定段階名、件数）、`health` は `mode`・`checkedAt`・`alert`・`reason` です。失敗時は標準エラーへ固定の状態文字列だけを書いて終了コード 1 で終了し、依存先の生エラーは公開ログに出しません。
 

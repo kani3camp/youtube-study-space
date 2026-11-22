@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -59,6 +61,10 @@ func parseMode(args []string) (string, error) {
 }
 
 func resolveTarget(getenv func(string) string) (target, error) {
+	// エミュレーターやローカル鍵へ向けると、Firestore と Cloud Logging の接続先が食い違う。実行環境の ADC だけを使う。
+	if getenv("FIRESTORE_EMULATOR_HOST") != "" || getenv("GOOGLE_APPLICATION_CREDENTIALS") != "" {
+		return target{}, errors.New("emulator or local credentials are not allowed")
+	}
 	fixed, ok := targets[getenv("MYPAGE_ENVIRONMENT")]
 	if !ok || fixed.project != getenv("GOOGLE_CLOUD_PROJECT") {
 		return target{}, errors.New("invalid environment or project")
@@ -137,7 +143,10 @@ func runMain(args []string, getenv func(string) string, output io.Writer) string
 	if signals.ValidateResource() != nil {
 		return "invalid Cloud Run Job name"
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeoutFor(mode))
+	// 停止要求（SIGTERM / SIGINT）は ctx のキャンセルとして扱い、ランナーが失敗観測と失敗シグナルを記録してから終了できるようにする。
+	signaled, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	ctx, cancel := context.WithTimeout(signaled, timeoutFor(mode))
 	defer cancel()
 	// トークンソースはプロセス全体で使うため、実行期限付きの ctx には結び付けない。取得の待機は記録時の ctx で打ち切る。
 	signals.Tokens, err = google.DefaultTokenSource(context.Background(), mypage.CloudLoggingWriteScope)

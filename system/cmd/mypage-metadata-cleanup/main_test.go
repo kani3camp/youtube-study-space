@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,6 +57,8 @@ func TestResolveTargetPinsEnvironmentProjectAndRegion(t *testing.T) {
 		{"MYPAGE_ENVIRONMENT": "development", "GOOGLE_CLOUD_PROJECT": "youtube-study-space", "CLOUD_RUN_JOB": "job"},
 		{"MYPAGE_ENVIRONMENT": "production", "GOOGLE_CLOUD_PROJECT": "test-youtube-study-space", "CLOUD_RUN_JOB": "job"},
 		{"MYPAGE_ENVIRONMENT": "production", "GOOGLE_CLOUD_PROJECT": "youtube-study-space"},
+		{"MYPAGE_ENVIRONMENT": "production", "GOOGLE_CLOUD_PROJECT": "youtube-study-space", "CLOUD_RUN_JOB": "job", "FIRESTORE_EMULATOR_HOST": "localhost:8080"},
+		{"MYPAGE_ENVIRONMENT": "production", "GOOGLE_CLOUD_PROJECT": "youtube-study-space", "CLOUD_RUN_JOB": "job", "GOOGLE_APPLICATION_CREDENTIALS": "/tmp/key.json"},
 	} {
 		_, err := resolveTarget(envFrom(values))
 		require.Error(t, err, "%v", values)
@@ -78,6 +81,12 @@ func TestRunMainRejectsBeforeCreatingClients(t *testing.T) {
 		status := runMain(tt.args, envFrom(tt.env), &output)
 		require.NotEmpty(t, status)
 		require.Empty(t, output.String())
+		// 状態文字列は固定文言で、入力値（引数・プロジェクト・ジョブ名）を含めない。
+		for _, value := range append(append([]string{}, tt.args...), tt.env["GOOGLE_CLOUD_PROJECT"], tt.env["CLOUD_RUN_JOB"]) {
+			if value != "" && !strings.HasPrefix(value, "-mode=") {
+				require.NotContains(t, status, value)
+			}
+		}
 	}
 }
 

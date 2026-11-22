@@ -22,7 +22,7 @@ func cloudLoggingRecorderFor(server *httptest.Server) *CloudLoggingMetadataClean
 	return &CloudLoggingMetadataCleanupHealthRecorder{
 		ProjectID: "test-youtube-study-space", Location: "asia-southeast2", JobName: "mypage-metadata-cleanup",
 		Tokens:   oauth2.StaticTokenSource(&oauth2.Token{AccessToken: syntheticCleanupLogToken, TokenType: "Bearer"}),
-		Endpoint: server.URL + "/v2/entries:write",
+		endpoint: server.URL + "/v2/entries:write",
 	}
 }
 
@@ -40,6 +40,7 @@ func TestCloudLoggingHealthRecorderWritesOnlyFixedEntryShape(t *testing.T) {
 		{MetadataCleanupHealthObservation{CheckedAt: checkedAt, Alert: true, Reason: "retention_deadline"}, "WARNING"},
 	} {
 		t.Run(tt.signal.Reason, func(t *testing.T) {
+			var mu sync.Mutex
 			var got map[string]any
 			var calls atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,6 +50,8 @@ func TestCloudLoggingHealthRecorderWritesOnlyFixedEntryShape(t *testing.T) {
 					w.WriteHeader(http.StatusBadRequest)
 					return
 				}
+				mu.Lock()
+				defer mu.Unlock()
 				if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
 					w.WriteHeader(http.StatusBadRequest)
 					return
@@ -60,6 +63,8 @@ func TestCloudLoggingHealthRecorderWritesOnlyFixedEntryShape(t *testing.T) {
 			defer server.Close()
 			require.NoError(t, cloudLoggingRecorderFor(server).RecordHealth(context.Background(), tt.signal))
 			require.EqualValues(t, 1, calls.Load())
+			mu.Lock()
+			defer mu.Unlock()
 			require.Equal(t, map[string]any{"entries": []any{map[string]any{
 				"logName": "projects/test-youtube-study-space/logs/mypage-metadata-cleanup-health",
 				"resource": map[string]any{"type": "cloud_run_job", "labels": map[string]any{
@@ -135,6 +140,33 @@ func TestCloudLoggingHealthRecorderFailsWithoutLeakingResponse(t *testing.T) {
 			require.NotContains(t, err.Error(), syntheticCleanupLogToken)
 			require.Zero(t, redirected.Load(), "the bearer token must not follow redirects")
 		}
+	})
+	t.Run("injected-client-cannot-follow-redirects", func(t *testing.T) {
+		var redirected atomic.Int32
+		target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { redirected.Add(1) }))
+		defer target.Close()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
+		}))
+		defer server.Close()
+		recorder := cloudLoggingRecorderFor(server)
+		recorder.client = &http.Client{}
+		require.Error(t, recorder.RecordHealth(context.Background(), healthy))
+		require.Zero(t, redirected.Load())
+	})
+	t.Run("truncated-2xx-is-not-accepted", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			// 宣言より短い本文で切断し、2xx でも受理を確認できない応答を作る。
+			w.Header().Set("Content-Length", "100")
+			w.WriteHeader(http.StatusOK)
+			if _, err := w.Write([]byte("{")); err != nil {
+				t.Error(err)
+			}
+		}))
+		defer server.Close()
+		err := cloudLoggingRecorderFor(server).RecordHealth(context.Background(), healthy)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "read cleanup health log response")
 	})
 	t.Run("deadline", func(t *testing.T) {
 		release := make(chan struct{})
