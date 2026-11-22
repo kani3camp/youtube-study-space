@@ -1,13 +1,46 @@
 @import "tailwindcss";
 @import "./assets/fonts/fonts.css";
 
+/* 配色はロゴの紫（#9153CB、OKLCH 色相 305°）を基準に彩度を抑えたトーンで統一する。
+   休憩中だけは作業中と色相で区別するためティール（色相 190°）を使う。
+   文字と背景の組み合わせは style-contrast.test.ts で WCAG AA を検証している。 */
 @theme static {
-	--color-page: oklch(97% 0.008 75);
-	--color-surface: oklch(99.2% 0.004 80);
-	--color-ink: oklch(25% 0.02 55);
-	--color-muted: oklch(42% 0.02 55);
-	--color-line: oklch(89% 0.012 70);
-	--color-accent: oklch(46% 0.08 55);
+	--color-page: oklch(97% 0.008 305);
+	--color-surface: oklch(99.2% 0.004 305);
+	--color-ink: oklch(25% 0.025 305);
+	--color-muted: oklch(41% 0.02 305);
+	--color-line: oklch(89% 0.012 305);
+	--color-accent: oklch(46% 0.12 305);
+}
+:root {
+	--color-ink-soft: oklch(38% 0.02 305);
+	--color-stale-ink: oklch(38% 0.04 305);
+	--color-accent-ink: oklch(39% 0.11 305);
+	--color-accent-ink-deep: oklch(30% 0.07 305);
+	--color-accent-soft: oklch(90% 0.035 305);
+	--color-accent-tint: oklch(95% 0.024 305);
+	--color-accent-line: oklch(88% 0.04 305);
+	--color-link: oklch(39% 0.11 305);
+	--color-link-hover: oklch(31% 0.1 305);
+	--color-focus: oklch(50% 0.14 305);
+	--color-working-ink: var(--color-accent-ink);
+	--color-working-dot: oklch(55% 0.13 305);
+	--color-working-track: oklch(83% 0.05 305);
+	--color-working-bg: var(--color-accent-tint);
+	--color-working-line: var(--color-accent-line);
+	--color-break-ink: oklch(38% 0.06 190);
+	--color-break-dot: oklch(55% 0.08 190);
+	--color-break-track: oklch(82% 0.04 190);
+	--color-break-bg: oklch(94.5% 0.024 190);
+	--color-break-line: oklch(87.5% 0.035 190);
+	--color-bar: oklch(80% 0.05 305);
+	--color-bar-today: oklch(50% 0.12 305);
+	--color-bar-selected-col: oklch(95.5% 0.018 305);
+	--color-notice-bg: oklch(95.5% 0.022 305);
+	--color-notice-line: oklch(86% 0.045 305);
+	--shadow-card:
+		0 1px 2px oklch(40% 0.04 305 / 0.05),
+		0 12px 28px -18px oklch(40% 0.07 305 / 0.22);
 }
 
 * {
@@ -18,12 +51,12 @@ body {
 	background:
 		radial-gradient(
 			1100px 560px at 12% -8%,
-			oklch(98.8% 0.018 85 / 0.9),
+			oklch(98.6% 0.014 310 / 0.9),
 			transparent 62%
 		),
 		radial-gradient(
 			900px 520px at 100% 0%,
-			oklch(96.5% 0.026 65 / 0.55),
+			oklch(95.8% 0.022 300 / 0.55),
 			transparent 60%
 		),
 		var(--color-page);
@@ -48,14 +81,14 @@ button:disabled {
 	opacity: 0.65;
 }
 a {
-	color: oklch(38% 0.06 190);
+	color: var(--color-link);
 	text-underline-offset: 4px;
 }
 a:hover {
-	color: oklch(30% 0.06 190);
+	color: var(--color-link-hover);
 }
 :focus-visible {
-	outline: 3px solid oklch(48% 0.09 190);
+	outline: 3px solid var(--color-focus);
 	outline-offset: 3px;
 	border-radius: 6px;
 }
@@ -165,8 +198,8 @@ h2 {
 	object-fit: cover;
 }
 .avatar-button {
-	background: oklch(90% 0.03 60);
-	color: oklch(40% 0.07 55);
+	background: var(--color-accent-soft);
+	color: var(--color-accent-ink);
 }
 .avatar-button svg {
 	width: 24px;
@@ -207,9 +240,7 @@ h2 {
 	background: var(--color-surface);
 	border: 1px solid var(--color-line);
 	padding: 22px;
-	box-shadow:
-		0 1px 2px oklch(40% 0.03 60 / 0.05),
-		0 12px 28px -18px oklch(40% 0.05 60 / 0.22);
+	box-shadow: var(--shadow-card);
 }
 .current-card {
 	grid-area: current;
@@ -217,24 +248,24 @@ h2 {
 	border-radius: 26px;
 }
 .current-card.working {
-	--state: oklch(38% 0.08 55);
-	--state-dot: oklch(55% 0.11 55);
-	--state-track: oklch(83% 0.045 65);
-	background: oklch(94.5% 0.028 65);
-	border-color: oklch(88% 0.035 65);
+	--state: var(--color-working-ink);
+	--state-dot: var(--color-working-dot);
+	--state-track: var(--color-working-track);
+	background: var(--color-working-bg);
+	border-color: var(--color-working-line);
 	box-shadow:
-		0 1px 2px oklch(45% 0.05 60 / 0.06),
-		0 14px 30px -18px oklch(50% 0.08 60 / 0.32);
+		0 1px 2px oklch(45% 0.06 305 / 0.06),
+		0 14px 30px -18px oklch(50% 0.1 305 / 0.32);
 }
 .current-card.resting {
-	--state: oklch(38% 0.06 135);
-	--state-dot: oklch(54% 0.075 135);
-	--state-track: oklch(82% 0.04 130);
-	background: oklch(94.5% 0.026 130);
-	border-color: oklch(87.5% 0.035 130);
+	--state: var(--color-break-ink);
+	--state-dot: var(--color-break-dot);
+	--state-track: var(--color-break-track);
+	background: var(--color-break-bg);
+	border-color: var(--color-break-line);
 	box-shadow:
-		0 1px 2px oklch(45% 0.04 135 / 0.06),
-		0 14px 30px -18px oklch(48% 0.06 135 / 0.32);
+		0 1px 2px oklch(45% 0.04 190 / 0.06),
+		0 14px 30px -18px oklch(48% 0.06 190 / 0.32);
 }
 .current-card.empty {
 	background: var(--color-surface);
@@ -254,7 +285,7 @@ h2 {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
-	background: oklch(99.2% 0.004 80 / 0.8);
+	background: oklch(99.2% 0.004 305 / 0.8);
 	color: var(--state);
 	border-radius: 999px;
 	padding: 6px 12px;
@@ -273,7 +304,7 @@ h2 {
 .empty-badge {
 	--state: var(--color-muted);
 	--state-dot: transparent;
-	background: oklch(94% 0.008 65);
+	background: oklch(94% 0.01 305);
 	margin-bottom: 14px;
 }
 .empty-badge .state-dot {
@@ -313,7 +344,7 @@ h2 {
 .time-panel {
 	border-radius: 18px;
 	padding: 12px 16px;
-	background: oklch(99.2% 0.004 80 / 0.72);
+	background: oklch(99.2% 0.004 305 / 0.72);
 }
 .time-row {
 	display: flex;
@@ -403,12 +434,15 @@ h2 {
 	font-weight: 700;
 	text-decoration: underline;
 }
+.current-card.resting .current-links .external-link {
+	color: var(--state);
+}
 .button {
 	min-height: 44px;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	border: 1px solid oklch(80% 0.025 60);
+	border: 1px solid oklch(80.5% 0.02 305);
 	border-radius: 999px;
 	padding: 8px 20px;
 	background: var(--color-surface);
@@ -478,7 +512,7 @@ h2 {
 }
 .metric-today dd {
 	font-size: 48px;
-	color: oklch(30% 0.05 55);
+	color: var(--color-accent-ink-deep);
 }
 .metric-today dd:has(.duration-unavailable) {
 	font-size: 22px;
@@ -506,7 +540,7 @@ h2 {
 }
 .duration-unit {
 	font-size: 13px;
-	color: oklch(38% 0.02 55);
+	color: var(--color-ink-soft);
 }
 .metric-today .duration-unit {
 	font-size: 16px;
@@ -526,7 +560,7 @@ h2 {
 .stale-note {
 	font-size: 14px;
 	font-weight: 500;
-	color: oklch(38% 0.04 55);
+	color: var(--color-stale-ink);
 	margin-top: 12px;
 }
 .summary-timezone {
@@ -572,7 +606,7 @@ h2 {
 	align-items: center;
 }
 .day-button[aria-pressed="true"] {
-	background: oklch(95.5% 0.015 65);
+	background: var(--color-bar-selected-col);
 }
 .bar-track {
 	height: 126px;
@@ -583,15 +617,15 @@ h2 {
 }
 .bar {
 	width: min(30px, 70%);
-	background: oklch(80% 0.045 60);
+	background: var(--color-bar);
 	border-radius: 8px 8px 4px 4px;
 }
 .is-today .bar {
-	background: var(--color-accent);
+	background: var(--color-bar-today);
 }
 .unknown-bar {
 	height: 2px;
-	background: oklch(68% 0.01 70);
+	background: oklch(68% 0.01 305);
 }
 .day-label {
 	display: flex;
@@ -626,14 +660,14 @@ h2 {
 	grid-template-areas: "current";
 }
 .initial-failure .current-card {
-	border-color: oklch(88% 0.035 65);
+	border-color: var(--color-accent-line);
 }
 .initial-failure .current-card .button {
 	margin-top: 18px;
 }
 .skeleton span {
 	display: block;
-	background: oklch(93% 0.01 70);
+	background: oklch(93% 0.01 305);
 	border-radius: 12px;
 }
 .skeleton-current {
@@ -679,8 +713,8 @@ h2 {
 	display: none;
 }
 .notice {
-	background: oklch(95.5% 0.026 65);
-	border: 1px solid oklch(86% 0.04 65);
+	background: var(--color-notice-bg);
+	border: 1px solid var(--color-notice-line);
 	border-radius: 16px;
 	padding: 14px 16px;
 	display: flex;
@@ -737,7 +771,7 @@ h2 {
 	border-radius: 22px;
 }
 .account-dialog::backdrop {
-	background: oklch(25% 0.02 55 / 0.2);
+	background: oklch(25% 0.025 305 / 0.2);
 }
 .account-name {
 	font-size: 17px;
@@ -751,9 +785,7 @@ h2 {
 	margin-bottom: 8px;
 }
 .account-panel {
-	box-shadow:
-		0 1px 2px oklch(40% 0.03 60 / 0.05),
-		0 12px 28px -18px oklch(40% 0.05 60 / 0.22);
+	box-shadow: var(--shadow-card);
 }
 .account-identity-text {
 	min-width: 0;
@@ -765,7 +797,7 @@ h2 {
 	height: 48px;
 	flex-shrink: 0;
 	border-radius: 50%;
-	background: oklch(90% 0.03 60);
+	background: var(--color-accent-soft);
 	display: grid;
 	place-items: center;
 	overflow: hidden;
@@ -966,8 +998,8 @@ h2 {
 	height: 88px;
 	margin: 0 auto 10px;
 	border-radius: 50%;
-	background: oklch(90% 0.03 60);
-	color: oklch(40% 0.07 55);
+	background: var(--color-accent-soft);
+	color: var(--color-accent-ink);
 	display: grid;
 	place-items: center;
 }
@@ -1038,7 +1070,7 @@ summary {
 	padding: 24px;
 	border: 1px solid var(--color-line);
 	border-radius: 16px;
-	background: #fffdfa;
+	background: oklch(99.5% 0.003 305);
 }
 .consent-banner h2 {
 	font-size: 18px;
@@ -1057,8 +1089,8 @@ summary {
 	width: min(100%, 680px);
 	padding: clamp(28px, 6vw, 52px);
 	text-align: center;
-	border-color: oklch(86% 0.035 58);
-	background: oklch(96.5% 0.026 62);
+	border-color: var(--color-notice-line);
+	background: var(--color-accent-tint);
 }
 .maintenance-card h1 {
 	font-size: clamp(24px, 5vw, 34px);
