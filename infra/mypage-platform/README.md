@@ -26,7 +26,7 @@ MyPage の Cloud Run API 基盤・実行権限を管理するための Terraform
 
 ## 通常運用と宣言範囲（段階の選択はありません）
 
-通常運用では `Terraform`（`terraform.yml`）の `environment` / `operation=plan|apply` / `component=all|mypage` を使用します。DEV と本番は同じ module を同じ構成で宣言し、段階を選ぶ変数やファイルはありません（旧 `stage` 変数と `desired-stage.txt` は撤去済みで、既存 State のアドレスは `moved` ブロックで no-op のまま移しています）。MyPage は信頼設定が固定する ref（DEV は統合ブランチ、本番は `main`）からだけ実行でき、それ以外の ref から `component=all` を選ぶと Core だけを実行します。
+通常運用では `Terraform`（`terraform.yml`）の `environment` / `operation=plan|apply` / `component=all|mypage` を使用します。DEV と本番は同じ module を同じ構成で宣言し、段階を選ぶ変数やファイルはありません（旧 `stage` 変数と `desired-stage.txt` は撤去済みで、既存 State のアドレスは `moved` ブロックで no-op のまま移しています）。MyPage は信頼設定が固定する ref（DEV は `dev`、本番は `main`）からだけ実行でき、それ以外の ref から `component=all` を選ぶと Core だけを実行します。
 
 - オーナーの同一リポジトリ PR で MyPage ルートが変更されると DEV を対象に `-lock=false` で PR Plan を実行します。手動 Plan と同じ `mypage-foundation-authenticated.yml` の `foundation_plan` と `mypage-dev-plan` 環境（`mypage-foundation-plan` SA・`mypage-foundation` pool・Plan 用 AWS role）を共用し、Apply は手動 dispatch のみに限定します（DEV trust は 2026-10-31 更新済み、plan contract の判定のみ表示して commitment は残しません）。
 - 手動実行の MyPage Plan（Apply 内の Plan 権限ジョブを含む）は Plan 契約・所有権・State バージョンの検証に成功すると、Job Summary に宣言範囲（Runtime / Public invoker）、操作別件数と `Resource type / Actions / Count` 表を表示します。削除を含む場合は受入済み Terraform アドレスと削除件数も出しますが、クラウド側の名前・ID・設定値・outputs・commitment は非公開です（なお `drift` は観測件数であり適用予定の変更件数ではありません。PR Plan は従来の件数表示を維持します）。

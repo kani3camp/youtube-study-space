@@ -58,7 +58,7 @@ class SourceBoundary(unittest.TestCase):
         for ref in ('refs/heads/main', 'refs/tags/dev', 'refs/pull/1/merge'):
             with self.subTest(ref=ref), self.assertRaises(ValueError):
                 ops.context(e | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': ops.CALLER + ref}, 'plan')
-        for control in ('dev', 'integration/mypage-canon-20261006', 'feature/trusted-controller'):
+        for control in ('dev', 'integration/example', 'feature/trusted-controller'):
             ref = 'refs/heads/' + control
             context = e | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': ops.CALLER + ref}
             self.assertEqual(ops.context(context, 'plan'), 'dev')
@@ -222,7 +222,7 @@ class SourceBoundary(unittest.TestCase):
             self.assertNotIn('FAKE_TOKEN', summary.read_text())
 
     def test_oidc_binds_allowed_control_ref_and_caller_not_source_ref(self):
-        ref = 'refs/heads/integration/mypage-canon-20261006'
+        ref = 'refs/heads/integration/example'
         e = env() | {'GITHUB_REF': ref, 'GITHUB_WORKFLOW_REF': ops.CALLER + ref,
                      'NORMAL_SOURCE_BRANCH': 'feature/data', 'NORMAL_EXPECTED_SHA': 'b' * 40, 'NORMAL_SOURCE_SHA': 'b' * 40,
                      'ACTIONS_ID_TOKEN_REQUEST_URL': 'https://fixture.invalid/token?x=1',

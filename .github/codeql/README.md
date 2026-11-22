@@ -8,16 +8,16 @@
 
 | workflow | 用途 |
 | --- | --- |
-| [`codeql-advanced.yml`](../workflows/codeql-advanced.yml) | 実行契機と同じtreeのreusable analyzer呼び出しを管理するcaller。全PR、対象4ブランチへのpush、週次schedule、手動実行を受け持つ |
+| [`codeql-advanced.yml`](../workflows/codeql-advanced.yml) | 実行契機と同じtreeのreusable analyzer呼び出しを管理するcaller。全PR、対象3ブランチへのpush、週次schedule、手動実行を受け持つ |
 | [`codeql-analyzer.yml`](../workflows/codeql-analyzer.yml) | Actions・Go・JavaScript/TypeScriptをmatrixで解析し、言語別categoryで結果をアップロードするcallee |
 | [`codeql-source-contracts.yml`](../workflows/codeql-source-contracts.yml) | workflow・解析範囲・権限・Go helperなどの契約を静的に検証する。CodeQL解析そのものは実行しない |
 
-push対象は `dev`、`main`、`feature/gcp-terraform-iac`、`integration/mypage-canon-20261006` です。
+push対象は `dev`、`main`、`feature/gcp-terraform-iac` です。
 scheduleはdefault branchで実行されます。PRにはbase・pathによる絞り込みを設けません。
 
 Environmentの廃止に伴い、Environmentのbranch policyによる解析・SARIF upload対象refの制限も廃止します。
 `workflow_dispatch` はリポジトリへのwrite権限を持つ利用者が任意のブランチを選択して実行できる構成とし、
-push対象4ブランチの制限は維持します。
+push対象3ブランチの制限は維持します。
 
 ## 維持する契約
 

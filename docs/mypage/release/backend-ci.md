@@ -14,8 +14,8 @@
 
 PR や `push` を契機とした自動配備は行いません。以下は DEV（`environment=development`）の手順です。本番も同じ手順を `main` から `environment=production` で実行します。
 
-1. コード PR の統合: レビューと必須チェック（`CI Gate`）を通し、`integration/mypage-canon-20261006` へ統合します（PR の `CI` にはクラウド資格情報を渡しません）。
-2. デプロイワークフローの起動: オーナーが統合ブランチ上で `Deploy MyPage API`（[`deploy-mypage-api.yml`](../../../.github/workflows/deploy-mypage-api.yml)）を `mode=build-and-deploy` で実行します。
+1. コード PR の統合: レビューと必須チェック（`CI Gate`）を通し、`dev` へ統合します（PR の `CI` にはクラウド資格情報を渡しません）。
+2. デプロイワークフローの起動: オーナーが `dev` 上で `Deploy MyPage API`（[`deploy-mypage-api.yml`](../../../.github/workflows/deploy-mypage-api.yml)）を `mode=build-and-deploy` で実行します。
    - まず同じ Run 内で、資格情報を使わない System 側の事前検査（Go test・lint・vuln・Firestore Emulator・両イメージのビルド）を実行します（Ruleset は統合後のツリー全体を再検査しないため、配備対象コミットで実行します）。
    - 検査失敗や、想定外の actor・ref・event・caller・再実行はクラウド認証の前に停止します。
 3. イメージのビルドと検証: `mypage-foundation-authenticated.yml` の `image-build`（`image_component=api`）が `system/Dockerfile.mypage-api`（API サーバー専用）から `linux/amd64` イメージをビルドします。
@@ -47,7 +47,7 @@ flowchart TD
 
 | 項目 | DEV | 本番 |
 | --- | --- | --- |
-| 実行できる ref | `integration/mypage-canon-20261006` | `main` |
+| 実行できる ref | `dev` | `main` |
 | GCP project / region | `test-youtube-study-space` / `asia-southeast2` | `youtube-study-space` / `asia-northeast2` |
 | image build の Environment | `mypage-dev-apply` | `mypage-prod-apply` |
 | Backend / Operator の Environment | `mypage-dev-backend` / `mypage-dev-operator` | `mypage-prod-backend` / `mypage-prod-operator`（`main` 限定・承認者なし・管理者バイパス無効） |
@@ -94,7 +94,7 @@ flowchart TD
 
 - foundation GCP WIF の更新: DEV の `mypage-foundation` pool / `github-actions` provider の condition を `python3 infra/mypage-platform/scripts/foundation_contract.py provider-condition` の出力で置き換えます（`workflow_ref` と完全一致の `sub` を組で更新し、`workflow_dispatch` のみ許可・旧 `ci.yml` の `push` を除外。image-build では AWS State Role を使いません）。
 - Backend 専用 WIF の更新: DEV の `mypage-dev-backend` 用 WIF の condition を [backend_identity.py](../../../infra/mypage-platform/scripts/backend_identity.py) の `--update-condition` で置き換えます（`workflow_dispatch` のみ、caller `deploy-mypage-api.yml`、reusable `mypage-backend-authenticated.yml`、同一 workflow SHA、Environment `mypage-dev-backend` を要求し、`push` は不可）。Cloud Run `mypage-api` への限定 IAM は維持し、Production の IAM・WIF・Environment は変更しません。
-- 資格情報の露出防止: GitHub Environment は統合ブランチに限定し、配備用資格情報を PR ワークフローに露出しません。
+- 資格情報の露出防止: GitHub Environment は実行 ref（DEV は `dev`、本番は `main`）に限定し、配備用資格情報を PR ワークフローに露出しません。
 - 実測での有効化判断: 最初の `Deploy MyPage API` で「ビルド → digest 検証 → Cloud Run 更新 → 匿名 smoke → 配備記録」を実測してから運用を有効と判断します（condition 未更新なら認証で失敗するのが正しい挙動であり、再実行で迂回しません）。
 
 ---
@@ -103,7 +103,7 @@ flowchart TD
 
 `Deploy MyPage API` を `mode=deploy-existing` で実行し、`image_digest` と `image_source_sha` を指定して既知のイメージを再配備できます（このモードではビルドを行いません。DEV・本番とも同じです）。
 
-- 指定した不変タグと digest の完全一致、および `image_source_sha` が実行 ref（DEV は統合ブランチ、本番は `main`）の HEAD の祖先であることを確認します。
+- 指定した不変タグと digest の完全一致、および `image_source_sha` が実行 ref（DEV は `dev`、本番は `main`）の HEAD の祖先であることを確認します。
 - ロールバックは既知の良好な digest / source SHA を指定する新しい配備として行います。事前にリビジョン・旧 digest・Hosting 互換性・Auth と同意バージョン・秘密参照・設定を確認してください。
 - Service の更新は `resourceVersion` 付きの PUT を 1 回だけ実行し、自動再試行や自動ロールバックは行いません。応答が消失した場合は `publishStatus=unknown` として記録し、実 Cloud Run の状態を読み戻して復旧します。旧 digest / リビジョンの配備記録は 14 日間保持し、ユーザーデータや Secret は巻き戻しません。
 
@@ -131,7 +131,7 @@ Maintenance Job `mypage-maintenance-operator` のイメージは、API Service �
 
 ### 配備手順
 
-1. 統合ブランチ（`integration/mypage-canon-20261006`）上で `environment=development`・`mode=build-and-deploy` を実行します（本番は `main` 上で `environment=production`）。資格情報取得の前に System の事前検査（`ci-system.yml`）を通し、`system/Dockerfile.mypage-maintenance-operator`（operator バイナリ専用）をビルドします。オフライン・nonroot 検査後、`mypage/mypage-maintenance-operator:<source SHA>` として push し、Registry と `RepoDigests` を照合した digest を次ジョブへ渡します。
+1. `dev` 上で `environment=development`・`mode=build-and-deploy` を実行します（本番は `main` 上で `environment=production`）。資格情報取得の前に System の事前検査（`ci-system.yml`）を通し、`system/Dockerfile.mypage-maintenance-operator`（operator バイナリ専用）をビルドします。オフライン・nonroot 検査後、`mypage/mypage-maintenance-operator:<source SHA>` として push し、Registry と `RepoDigests` を照合した digest を次ジョブへ渡します。
 2. [operator_release.py](../../../infra/mypage-platform/scripts/operator_release.py) が、固定 actor・対象環境の ref・caller・初回実行・SHA 一致を認証前に検査したうえで、Environment `mypage-<dev|prod>-operator` と `mypage-operator-deploy` SA/WIF で短命トークンを取得します。
    - `tag → digest` を再確認し、Job の identity・設定・現イメージを読み取ってコンテナイメージだけを 1 回の etag 付き PATCH で更新します。
    - Long-running Operation の完了、generation の更新（前進）、およびイメージ以外の設定が不変であることを読み戻して確認し、初めて成功とします（`labels` / `annotations` は GET から保持し、`executionCount` などの出力専用状態は競合判定に使いません）。

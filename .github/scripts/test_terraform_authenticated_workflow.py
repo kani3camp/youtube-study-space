@@ -112,7 +112,7 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
     def test_control_branch_uses_only_the_terraform_caller_and_paths_stay_fixed(self):
         # The use-case redesign (#1500) made terraform.yml the only caller for DEV and PROD;
         # the CI workflow no longer dispatches Terraform.
-        for branch in ('dev', 'integration/mypage-canon-20261006', 'feature/trusted-controller'):
+        for branch in ('dev', 'integration/example', 'feature/trusted-controller'):
             ref = 'refs/heads/' + branch
             values = {'MODE': 'normal-plan', 'NORMAL_EXPECTED_SHA': 'a' * 40, 'GITHUB_REF': ref,
                       'GITHUB_WORKFLOW_REF': 'kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + ref}
@@ -170,12 +170,12 @@ class TerraformAuthenticatedWorkflowTest(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(result.outputs, '')
         for target, refs in (('dev', ('refs/heads/main', 'refs/tags/v1', 'refs/pull/1/merge')),
-                             ('prod', ('refs/heads/dev', 'refs/heads/integration/mypage-canon-20261006'))):
+                             ('prod', ('refs/heads/dev', 'refs/heads/integration/example'))):
             for ref in refs:
                 result = self.run_preflight(TARGET=target, GITHUB_REF=ref,
                     GITHUB_WORKFLOW_REF='kani3camp/youtube-study-space/.github/workflows/terraform.yml@' + ref)
                 self.assertNotEqual(result.returncode, 0)
-        result = self.run_preflight(GITHUB_REF='refs/heads/integration/mypage-canon-20261006')
+        result = self.run_preflight(GITHUB_REF='refs/heads/integration/example')
         self.assertNotEqual(result.returncode, 0)
 
     def test_credentials_and_apply_require_independent_environments_and_preflight(self):

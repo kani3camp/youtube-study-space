@@ -7,7 +7,6 @@ on:
       - dev
       - main
       - feature/gcp-terraform-iac
-      - integration/mypage-canon-20261006
   pull_request:
     branches: ["**"]
   schedule:

@@ -19,7 +19,7 @@ TARGET = os.environ.get("MYPAGE_TARGET", "development")
 TARGETS = {
     "development": {
         "project": "test-youtube-study-space", "project_number": "48101442817",
-        "region": "asia-southeast2", "ref": "refs/heads/integration/mypage-canon-20261006",
+        "region": "asia-southeast2", "ref": "refs/heads/dev",
         "state": "dev", "environment": "development", "github_environment": "mypage-dev",
         "origin": "https://test--study-space.web.app", "max_instances": 1, "ga4_id": "G-E31NHW939V",
         "hosting_site": "test--study-space", "backend_host": "mypage-api-eu5mhkcewq-et.a.run.app",

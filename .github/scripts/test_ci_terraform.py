@@ -177,13 +177,13 @@ class TerraformWorkflowTest(unittest.TestCase):
             return result.returncode, outputs, result.stdout
 
     def test_mypage_runs_only_from_the_ref_its_cloud_trust_pins(self):
-        pinned = 'refs/heads/integration/mypage-canon-20261006'
+        pinned = 'refs/heads/dev'
         self.assertFalse((ROOT / 'infra/mypage-platform/environments/dev/desired-stage.txt').exists())
         base = {'ENVIRONMENT': 'development', 'OPERATION': 'plan'}
         code, outputs, _ = self.select_outputs(**base, COMPONENT='all', GITHUB_REF=pinned)
         self.assertEqual((code, outputs.get('mypage')), (0, 'true'))
-        # From another ref (for example dev before the trust moves) Core still runs and MyPage is skipped.
-        for ref in ('refs/heads/dev', 'refs/heads/feature/x', ''):
+        # From another ref Core still runs and MyPage is skipped.
+        for ref in ('refs/heads/main', 'refs/heads/feature/x', ''):
             code, outputs, log = self.select_outputs(**base, COMPONENT='all', GITHUB_REF=ref)
             self.assertEqual((code, outputs.get('mypage')), (0, 'false'), ref)
             self.assertIn('MyPage is skipped', log)
