@@ -17,7 +17,7 @@ func main() {
 }
 
 func run() error {
-	check := flag.Bool("check", false, "生成済みstyleがcanonical Markdownと一致することだけを確認")
+	check := flag.Bool("check", false, "生成済みスタイルが canonical Markdown と一致するかだけを確認する")
 	flag.Parse()
 
 	wd, err := os.Getwd()

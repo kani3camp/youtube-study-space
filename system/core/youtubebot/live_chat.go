@@ -277,7 +277,7 @@ func (b *YoutubeLiveChatBot) refreshLiveChatID(ctx context.Context) error {
 	} else if len(response.Items) == 0 {
 		slog.Warn("ライブ1個もやってない（1回目）")
 
-		// たまに、配信してるのにこの結果になることがあるかも（未確認）しれないので、もう一度。
+		// 配信中にもかかわらずこの結果になる場合がある（未確認）ため、一度だけ再試行する。
 		response, err := b.fetchActiveBroadcasts()
 		if err != nil {
 			slog.Error("second attempt to fetch broadcasts failed", "err", err)

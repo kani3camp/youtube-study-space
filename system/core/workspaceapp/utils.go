@@ -67,7 +67,7 @@ func (app *WorkspaceApp) IfUserRegistered(ctx context.Context, tx *firestore.Tra
 	return true, nil
 }
 
-// IsUserInRoom そのユーザーがルーム内にいるか？登録済みかに関わらず。
+// IsUserInRoom 登録済みかに関わらず、そのユーザーがルーム内にいるかを返す。
 func (app *WorkspaceApp) IsUserInRoom(ctx context.Context, userID string) (isInMemberRoom bool, isInGeneralRoom bool, returnErr error) {
 	isInMemberRoom = true
 	isInGeneralRoom = true
@@ -138,7 +138,7 @@ func (app *WorkspaceApp) UpdateTotalWorkTime(tx *firestore.Transaction, userID s
 	newTotalSec := previousTotalSec + newWorkedTimeSec
 	newDailyTotalSec := previousDailyTotalSec + newDailyWorkedTimeSec
 
-	// 累計作業時間が減るなんてことがないか確認
+	// 累計作業時間が減少していないか確認
 	if newTotalSec < previousTotalSec {
 		return fmt.Errorf("newTotalSec < previousTotalSec ??!! 処理を中断します。userID: %s,newTotalSec: %d, previousTotalSec: %d", userID, newTotalSec, previousTotalSec)
 	}
@@ -365,7 +365,7 @@ func (app *WorkspaceApp) GetAllUsersTotalStudySecList(ctx context.Context) ([]ut
 	return set, nil
 }
 
-// MinAvailableSeatIDForUser 空いている最小の番号の席番号を求める。該当ユーザーの入室上限にかからない範囲に限定。
+// MinAvailableSeatIDForUser 空いている最小の席番号を求める。該当ユーザーの入室上限にかからない範囲に限定する。
 func (app *WorkspaceApp) MinAvailableSeatIDForUser(ctx context.Context, tx *firestore.Transaction, userID string, isMemberSeat bool) (int, error) {
 	var seats []repository.SeatDoc
 	var err error
@@ -402,8 +402,8 @@ func (app *WorkspaceApp) MinAvailableSeatIDForUser(ctx context.Context, tx *fire
 				isUsed = true
 			}
 		}
-		if !isUsed { // 使われていない
-			// 且つ、該当ユーザーが入室制限にかからなければその席番号を返す
+		if !isUsed {
+			// 未使用かつ該当ユーザーが入室制限にかからなければ、その席番号を返す
 			ifSittingTooMuch, err := app.CheckIfUserSittingTooMuchForSeat(ctx, userID, searchingSeatID, isMemberSeat)
 			if err != nil {
 				return -1, fmt.Errorf("in CheckIfUserSittingTooMuchForSeat(): %w", err)

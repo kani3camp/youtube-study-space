@@ -315,7 +315,7 @@ func (app *WorkspaceApp) ProcessMessage(
 
 	// コマンドの解析
 	commandDetails, message := utils.ParseCommand(commandString, isChatMember)
-	if message != "" { // これはシステム内部のエラーではなく、入力コマンドが不正ということなので、return nil
+	if message != "" { // システム内部のエラーではなく入力コマンド不正のため、nilを返す
 		app.MessageToLiveChat(ctx, i18nmsg.CommonSir(app.ProcessedUserDisplayName)+message)
 		return nil
 	}

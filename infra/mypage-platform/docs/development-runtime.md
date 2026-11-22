@@ -20,7 +20,7 @@ docker build --platform linux/amd64 --file system/Dockerfile.mypage-maintenance-
 bash system/scripts/check-mypage-operator-image.sh mypage-maintenance-operator:ci
 ```
 
-通常 CI ではネットワーク無効・read-only filesystem で実行し、API イメージには `--check-config` で設定なし拒否・合成設定受理・nonroot・operator バイナリ非同梱を、operator イメージには nonroot・引数なし拒否・API サーバー非同梱を確認します（実環境 ADC・Secret 値・Google OAuth・Cloud Run 起動の証明は含まず、CI で image push や cloud 認証は行いません）。
+通常 CI ではネットワーク無効・read-only filesystem で実行し、API イメージでは `--check-config` で設定なし拒否・合成設定受理・nonroot・operator バイナリ非同梱を、operator イメージでは nonroot・引数なし拒否・API サーバー非同梱を確認します（実環境 ADC・Secret 値・Google OAuth・Cloud Run 起動の証明は含まず、CI で image push や cloud 認証は行いません）。
 
 ---
 

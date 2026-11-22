@@ -231,7 +231,7 @@ func FormatStringToParse(fullString string) string {
 	fullString = strings.ReplaceAll(fullString, " rank=", " rank ")
 	fullString = strings.ReplaceAll(fullString, " color=", " color ")
 
-	// オプションの短縮系は非短縮に変換
+	// オプションの短縮形を正式な名前に変換する
 	fullString = strings.ReplaceAll(fullString, " w ", " work ")
 	fullString = strings.ReplaceAll(fullString, " m ", " min ")
 	fullString = strings.ReplaceAll(fullString, " o ", " order ")

@@ -60,7 +60,7 @@ def conditional_update(token, before, target):
     import read_metrics_live as live
     original = request(token)
     # 名前空間はプロジェクト番号の場合がある。
-    # サーバーで受入済みのMYPAGE_PROJECT_NUMBER環境変数に明示されており、クライアント入力は使わない。
+    # サーバーで受け入れ済みのMYPAGE_PROJECT_NUMBER環境変数に明示されており、クライアント入力は使わない。
     config = before | {"projectNumber":next(x["value"] for x in before["template"]["containers"][0]["env"] if x["name"] == "MYPAGE_PROJECT_NUMBER")}
     identity(original, config)
     current = live.request(token, live.SERVICE_URL)

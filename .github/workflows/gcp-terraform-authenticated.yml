@@ -16,7 +16,7 @@ on:
         required: false
         type: string
       source_branch:
-        description: DEVの対象ブランチ。SHAのみも可、両方空欄は実行元自身
+        description: DEVの対象ブランチ（省略可。SHAのみの指定も可、両方空欄の場合は実行元自身）
         required: false
         type: string
       pr_number:

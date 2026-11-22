@@ -45,8 +45,8 @@ type ConstantsConfigDoc struct {
 	CollectionHistoryRetentionDays int    `firestore:"collection-history-retention-days"` // 何日間live chat historyおよびuser activityを保持するか
 
 	// 同座席入室制限関連
-	RecentRangeMin     int `firestore:"recent-range-min"`     // 過去何分以内に。
-	RecentThresholdMin int `firestore:"recent-threshold-min"` // 何分間以上該当座席に座っていたらアウト
+	RecentRangeMin     int `firestore:"recent-range-min"`     // 過去何分間を対象とするか
+	RecentThresholdMin int `firestore:"recent-threshold-min"` // 該当座席に何分間以上着席していたら入室を制限するか
 
 	// 長時間入室制限関連
 	MinimumCheckLongTimeSittingIntervalMinutes int `firestore:"minimum-check-long-time-sitting-interval-minutes" json:"minimum_check_long_time_sitting_interval_minutes"` // 最低何分おきにチェックを行うか
@@ -165,7 +165,7 @@ type UserDoc struct {
 	// 前回の連続非アクティブ日数によるRPペナルティ処理が行われたときの、該当非アクティブ連続日数
 	LastPenaltyImposedDays int `json:"last_penalty_imposed_days" firestore:"last-penalty-imposed-days"`
 
-	// 昨日までで、連続日数でアクティブか
+	// 昨日時点で連続してアクティブか
 	IsContinuousActive bool `json:"is_continuous_active" firestore:"is-continuous-active"`
 
 	// 昨日までの状態（アクティブor非アクティブ）が始まった日付
