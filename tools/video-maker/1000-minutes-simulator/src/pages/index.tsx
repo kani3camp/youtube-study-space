@@ -46,7 +46,7 @@ const Home: NextPage = () => {
 		const seconds = (nowMilliSecs - startTime) / 1000 - OffsetSec
 		setElapsedSeconds(seconds)
 		setElapsedMinutes(Math.floor(seconds / 60))
-		setImagePath(hoursToRank(elapsedMinutes).Image) // 分を時間として扱うのに注意
+		setImagePath(hoursToRank(elapsedMinutes).Image) // 1分を1時間に見立ててシミュレートするため、分を時間として渡すことに注意
 	})
 
 	return (

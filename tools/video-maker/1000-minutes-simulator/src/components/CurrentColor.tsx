@@ -38,7 +38,7 @@ const CurrentColor: FC<Props> = (props) => {
 					`}
 				/>
 				<div css={styles.annotation}>
-					{/* 値は時間ではなく分を使うことに注意 */}
+					{/* 1分を1時間に見立ててシミュレートするため、値には時間ではなく分を渡すことに注意 */}
 					{t('color.annotation_1', { value: props.elapsedMinutes })}
 					<br />
 					{t('color.annotation_2')}

@@ -36,7 +36,7 @@ export const colorBox = css`
     border: solid black 0.1rem;
     margin: 2rem auto;
 
-    /* 光らせるためのstyle */
+    /* 光沢アニメーション用のスタイル */
     border: 2px solid transparent;
     position: relative;
     overflow: hidden;
