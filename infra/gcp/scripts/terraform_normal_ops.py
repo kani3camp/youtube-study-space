@@ -163,6 +163,8 @@ def inputs(env):
     raw = selected_source.read_file(env, REPO, 'infra/gcp/environments/' + env['NORMAL_TARGET'] + '/normal.tfvars.json')
     additions = common.decode(raw) if raw is not None else {}
     need(type(additions) is dict)
+    import primary_email_adoption
+    need(not set(additions) & primary_email_adoption.PRIVATE_KEYS)
     tfvars = value['tfvars'] | additions
     need(tfvars.get('project_id') == project)
     return tfvars, bytes.fromhex(value['plan_integrity_key'])
@@ -342,6 +344,7 @@ def validate(plan, approved, *, post=False, project=PROJECT, project_number=None
     changes = plan.get('resource_changes', [])
     need(type(changes) is list)
     destructive, seen, counts = {}, set(), {k: 0 for k in ('create', 'update', 'delete', 'replace', 'no-op', 'read')}
+    adopted = others_changed = False
     for item in changes:
         address, change = item['address'], item['change']
         need(type(address) is str and address not in seen)
@@ -349,10 +352,14 @@ def validate(plan, approved, *, post=False, project=PROJECT, project_number=None
         action = tuple(change['actions'])
         need(action in ACTIONS)
         # Imports are rejected except for the typed, value-preserving adoptions.
+        need(not post or not change.get('importing'))
         import primary_email_adoption
-        if not primary_email_adoption.allows(item, project, primary_email_channel):
+        if primary_email_adoption.allows(item, project, primary_email_channel):
+            adopted = True
+        else:
             from monitor_auth import validate_import
             validate_import(item, project, monitor_auth_enabled)
+            others_changed = others_changed or action != ('no-op',)
         need(item.get('provider_name') in {'registry.terraform.io/hashicorp/google',
                                          'registry.terraform.io/hashicorp/google-beta'})
         need(item.get('mode') in {'managed', 'data'})
@@ -368,6 +375,8 @@ def validate(plan, approved, *, post=False, project=PROJECT, project_number=None
         counts['replace' if len(action) == 2 else action[0]] += 1
     if not post:
         need(destructive == approved)
+    # The channel adoption is applied alone; notification repair is a later change.
+    need(not (adopted and others_changed))
     if post:
         need(all(tuple(c['actions']) == ('no-op',) for c in plan.get('output_changes', {}).values()))
     try:

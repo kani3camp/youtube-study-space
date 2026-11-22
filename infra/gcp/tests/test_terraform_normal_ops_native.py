@@ -244,6 +244,8 @@ resource "google_pubsub_topic" "probe" {
         # Adoption only reads the channel; nothing is written to the API.
         self.assertTrue(requests)
         self.assertEqual({method for method, _ in requests} - {'CONNECT'}, {'GET'})
+        # The provider's token-info probe is the only proxied egress, and it is denied.
+        self.assertLessEqual({path for method, path in requests if method == 'CONNECT'}, {'openidconnect.googleapis.com:443'})
         self.assertEqual({path for method, path in requests if method == 'GET'}, {'/v3/' + name})
 
 

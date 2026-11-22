@@ -1,8 +1,9 @@
 # Production never creates a channel. Selecting the primary Email adopts the
 # existing operator-created channel by import, without changing its values.
 variable "manage_primary_email" {
-  type    = bool
-  default = false
+  type     = bool
+  default  = false
+  nullable = false
   validation {
     condition     = !var.manage_primary_email || can(regex("^projects/youtube-study-space/notificationChannels/[0-9]+$", var.primary_email_channel_name))
     error_message = "Production adopts only the existing channel; provide its private channel name for import."

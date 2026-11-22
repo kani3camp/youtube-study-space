@@ -209,7 +209,7 @@ legacy quotaの作成用opt-inはcreateを提案するため、import準備や�
 通常経路は取り込みを拒否します。例外は、型と条件を限定した次の取り込みだけです。
 
 - メール認証設定（[monitor-auth](../modules/monitor-auth/README.md)）
-- 主要メール通知先（[`primary_email_adoption.py`](../scripts/primary_email_adoption.py)）：managed入力で選んだ通知先名と取り込みIDが完全に一致し、同じprojectの数値IDで、アドレス・型・providerが一致し、before/afterの値が同一（sensitiveの印だけが変わる`update`または`no-op`）で、未知値と置換がない場合
+- 本番の主要メール通知先（[`primary_email_adoption.py`](../scripts/primary_email_adoption.py)）：managed入力で選んだ通知先名と取り込みIDが完全に一致し、本番projectの数値IDで、アドレス・型・providerが一致し、before/afterの値が同一で、未知値と置換がない場合。sensitiveの印は宛先ラベルだけに付き、`update`はその印の追加だけ、`no-op`は印が変わらない場合に限ります。同じPlanのほかの資源はすべて`no-op`でなければならず、事後Planに取り込みが残れば停止します。選択と宛先・通知先名はmanaged入力だけで渡し、`normal.tfvars.json`に置くと実行前に停止します。
 
 必要な権限は既存の通常identityで足ります。Plan SAは `monitoring.notificationChannels.get`、Apply SAは `monitoring.alertPolicies.update` を通常の権限カタログから持っています。
 

@@ -39,9 +39,11 @@ def plan(**change):
 
 class PrimaryEmailAdoption(unittest.TestCase):
     def test_selected_value_preserving_import_is_the_only_accepted_import(self):
-        for actions in (['update'], ['no-op']):
-            with self.subTest(actions=actions):
-                counts = ops.validate(plan(actions=actions), {}, project=PROJECT, primary_email_channel=CHANNEL)
+        # A no-op import already carries the recipient mark; an update adds only that mark.
+        for change in ({'actions': ['update']},
+                       {'actions': ['no-op'], 'before_sensitive': {'labels': {'email_address': True}}}):
+            with self.subTest(actions=change['actions']):
+                counts = ops.validate(plan(**change), {}, project=PROJECT, primary_email_channel=CHANNEL)
                 self.assertEqual(counts['create'] + counts['delete'] + counts['replace'], 0)
 
     def test_unselected_or_altered_imports_are_rejected(self):
@@ -61,6 +63,16 @@ class PrimaryEmailAdoption(unittest.TestCase):
             'other address': lambda p: p['resource_changes'][0].update(address='google_monitoring_notification_channel.other'),
             'other type': lambda p: p['resource_changes'][0].update(type='google_monitoring_alert_policy'),
             'beta provider': lambda p: p['resource_changes'][0].update(provider_name='registry.terraform.io/hashicorp/google-beta'),
+            'recipient left unmarked': lambda p: p['resource_changes'][0]['change'].update(after_sensitive={'labels': {}}),
+            'other attribute marked': lambda p: p['resource_changes'][0]['change'].update(
+                after_sensitive={'labels': {'email_address': True}, 'name': True}),
+            'update without a mark change': lambda p: p['resource_changes'][0]['change'].update(
+                before_sensitive={'labels': {'email_address': True}}),
+            'missing masks': lambda p: p['resource_changes'][0]['change'].pop('after_sensitive'),
+            'mixed with another change': lambda p: p['resource_changes'].append({
+                'address': 'google_pubsub_topic.other', 'mode': 'managed', 'type': 'google_pubsub_topic',
+                'provider_name': 'registry.terraform.io/hashicorp/google',
+                'change': {'actions': ['update'], 'before': {'project': PROJECT}, 'after': {'project': PROJECT}}}),
         }
         for name, mutate in cases.items():
             with self.subTest(case=name):
@@ -74,6 +86,29 @@ class PrimaryEmailAdoption(unittest.TestCase):
             with self.subTest(case=name):
                 with self.assertRaises(ValueError):
                     ops.validate(plan(), {}, project=PROJECT, primary_email_channel=channel)
+        development = 'projects/test-youtube-study-space/notificationChannels/1234567890'
+        candidate = plan()
+        for values in (candidate['resource_changes'][0]['change']['before'], candidate['resource_changes'][0]['change']['after']):
+            values.update(project='test-youtube-study-space', name=development, id=development)
+        candidate['resource_changes'][0]['change']['importing'] = {'id': development}
+        with self.subTest(case='development target'), self.assertRaises(ValueError):
+            ops.validate(candidate, {}, project='test-youtube-study-space', primary_email_channel=development)
+        with self.subTest(case='import left in the post-apply plan'), self.assertRaises(ValueError):
+            ops.validate(plan(actions=['no-op'], before_sensitive={'labels': {'email_address': True}}), {},
+                         post=True, project=PROJECT, primary_email_channel=CHANNEL)
+
+    def test_public_inputs_cannot_select_the_adoption_or_carry_its_private_values(self):
+        transport = {'schema_version': 'gcp-migration-inputs-v1', 'manifest': {}, 'plan_integrity_key': 'a' * 64,
+                     'tfvars': {'project_id': PROJECT}}
+        environment = {'NORMAL_TARGET': 'prod', 'NORMAL_INPUTS_JSON': json.dumps(transport)}
+        with patch.object(ops.common, 'decode_input_transport', return_value=transport), \
+                patch.object(ops.selected_source, 'read_file', return_value=b'{}'):
+            self.assertEqual(ops.inputs(environment)[0], {'project_id': PROJECT})
+        for key in sorted(adoption.PRIVATE_KEYS):
+            with self.subTest(key=key), patch.object(ops.common, 'decode_input_transport', return_value=transport), \
+                    patch.object(ops.selected_source, 'read_file', return_value=json.dumps({key: True}).encode()), \
+                    self.assertRaises(ValueError):
+                ops.inputs(environment)
 
     def test_only_an_explicit_private_selection_enables_the_exception(self):
         self.assertEqual(adoption.channel_name({'manage_primary_email': True, 'primary_email_channel_name': CHANNEL}), CHANNEL)

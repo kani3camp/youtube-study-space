@@ -216,6 +216,7 @@ variable "youtube_quota_notify_primary_email" {
   description = "Notify the adopted primary Email channel from all three existing quota policies."
   type        = bool
   default     = false
+  nullable    = false
   validation {
     condition = !var.youtube_quota_notify_primary_email || (var.manage_primary_email && alltrue([
       for key in ["minute_80", "day_80", "day_60"] : contains(var.existing_resources, "quota_${key}")
