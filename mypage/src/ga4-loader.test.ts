@@ -8,7 +8,12 @@ import {
 	type TagLoader,
 	type TagWindow,
 } from './ga4-loader'
-import { AnalyticsGate, ConsentStore } from './privacy'
+import {
+	AnalyticsGate,
+	ConsentStore,
+	consentKey,
+	type PreferenceStorage,
+} from './privacy'
 
 function at<T>(array: T[], index: number): T {
 	const value = array[index]
@@ -25,7 +30,7 @@ function deferred() {
 	})
 	return { promise, resolve, reject }
 }
-function fixture() {
+function fixture(storage: PreferenceStorage | null = null) {
 	const loads: {
 		ready: ReturnType<typeof deferred>
 		command: ReturnType<typeof vi.fn>
@@ -42,7 +47,7 @@ function fixture() {
 		prepare(runtime)
 		return { runtime, ready: ready.promise, cancel }
 	}
-	const consent = new ConsentStore(null)
+	const consent = new ConsentStore(storage)
 	const tag = new ConsentTag(
 		consent,
 		'G-SYNTHETIC1',
@@ -54,7 +59,7 @@ function fixture() {
 }
 
 describe('consent-bound asynchronous loading', () => {
-	it('drops events before consent and during loading, emits only future sanitized events', async () => {
+	it('drops events before consent, forwards sanitized post-consent events while loading', async () => {
 		const { loads, consent, gate } = fixture()
 		const dispose = gate.mount()
 		gate.page('/login?code=synthetic-private')
@@ -63,31 +68,73 @@ describe('consent-bound asynchronous loading', () => {
 		consent.set('granted')
 		expect(loads).toHaveLength(1)
 		const first = at(loads, 0)
+		// 全体の読み込み直後のルートの page_view は、タグの読み込み完了前に起きる。
 		gate.page('/mypage?uid=synthetic-private')
 		gate.event('login')
 		expect(first.command.mock.calls.map(([kind]) => kind)).toEqual([
 			'consent',
 			'config',
+			'event',
+			'event',
 		])
+		expect(first.command.mock.calls.at(2)?.[2]).toMatchObject({
+			page_location: 'https://example.invalid/mypage',
+		})
 		first.ready.resolve()
 		await Promise.resolve()
-		expect(first.command).toHaveBeenCalledTimes(2)
+		expect(first.command).toHaveBeenCalledTimes(4)
 		gate.page('/mypage?uid=synthetic-private')
 		gate.event('login')
-		expect(first.command.mock.calls.map(([kind]) => kind)).toEqual([
-			'consent',
-			'config',
-			'event',
-			'event',
-		])
+		expect(first.command).toHaveBeenCalledTimes(6)
 		expect(JSON.stringify(first.command.mock.calls)).not.toContain(
 			'synthetic-private',
 		)
+		expect(JSON.stringify(first.command.mock.calls)).not.toContain('/login')
 		consent.set('denied')
 		gate.event('login')
 		expect(first.disable).toHaveBeenLastCalledWith('G-SYNTHETIC1', true)
 		expect(first.cancel).toHaveBeenCalledOnce()
-		expect(first.command).toHaveBeenCalledTimes(4)
+		expect(first.command).toHaveBeenCalledTimes(6)
+		dispose()
+	})
+	it('withdrawal during loading cancels the pending tag and stops forwarding', () => {
+		const { loads, consent, gate } = fixture()
+		const dispose = gate.mount()
+		consent.set('granted')
+		const first = at(loads, 0)
+		gate.page('/mypage')
+		consent.set('denied')
+		expect(first.disable).toHaveBeenLastCalledWith('G-SYNTHETIC1', true)
+		expect(first.cancel).toHaveBeenCalledOnce()
+		gate.page('/mypage')
+		gate.event('login')
+		expect(first.command).toHaveBeenCalledTimes(3)
+		dispose()
+	})
+	it('stored consent: the mount-time landing page_view keeps allowed UTM and later events inherit its page', () => {
+		const stored: PreferenceStorage = {
+			getItem: (key) => (key === consentKey ? 'granted' : null),
+			setItem: () => {},
+			removeItem: () => {},
+		}
+		const { loads, gate } = fixture(stored)
+		const dispose = gate.mount()
+		expect(loads).toHaveLength(1)
+		const first = at(loads, 0)
+		gate.page(
+			'/?utm_source=youtube&utm_medium=live_chat&utm_campaign=mypage&utm_content=bot_command&x=synthetic-private',
+		)
+		gate.event('login')
+		const events = first.command.mock.calls.filter(([kind]) => kind === 'event')
+		expect(events.map(([, name]) => name)).toEqual(['page_view', 'login'])
+		for (const [, , params] of events)
+			expect(params).toMatchObject({
+				page_location:
+					'https://example.invalid/?utm_source=youtube&utm_medium=live_chat&utm_campaign=mypage&utm_content=bot_command',
+			})
+		expect(JSON.stringify(first.command.mock.calls)).not.toContain(
+			'synthetic-private',
+		)
 		dispose()
 	})
 	it('ignores an old successful or failed load after withdrawal and regrant', async () => {
@@ -114,14 +161,16 @@ describe('consent-bound asynchronous loading', () => {
 			dispose()
 		}
 	})
-	it('failed load/unmount never starts sending and has no replay', async () => {
+	it('failed load or unmount cancels pending events and stops forwarding, with no replay', async () => {
 		const { loads, consent, gate } = fixture()
 		const dispose = gate.mount()
 		consent.set('granted')
+		gate.page('/mypage')
 		at(loads, 0).ready.reject(new Error('synthetic'))
 		await Promise.resolve()
+		expect(at(loads, 0).cancel).toHaveBeenCalledOnce()
 		gate.event('login')
-		expect(at(loads, 0).command).toHaveBeenCalledTimes(2)
+		expect(at(loads, 0).command).toHaveBeenCalledTimes(3)
 		consent.set('denied')
 		consent.set('granted')
 		dispose()
@@ -211,6 +260,12 @@ describe('browser DOM boundary without vendor networking', () => {
 				(x) => x[0],
 			),
 		).toEqual(['consent', 'js', 'config'])
+		// 読み込み中の同意後イベントはレイヤーに入り、取り消しで送られずに消える。
+		first.runtime.command('event', 'page_view', {
+			send_to: 'G-SYNTHETIC1',
+			page_location: 'https://example.invalid/mypage',
+		})
+		expect(target.ossAnalyticsLayer).toHaveLength(4)
 		first.cancel()
 		expect(target['ga-disable-G-SYNTHETIC1']).toBe(true)
 		expect(target.ossAnalyticsLayer).toHaveLength(0)
@@ -228,6 +283,11 @@ describe('browser DOM boundary without vendor networking', () => {
 		try {
 			const { target, load } = domFixture()
 			const tag = load()
+			tag.runtime.command('event', 'page_view', {
+				send_to: 'G-SYNTHETIC1',
+				page_location: 'https://example.invalid/mypage',
+			})
+			expect(target.ossAnalyticsLayer).toHaveLength(4)
 			const rejected = expect(tag.ready).rejects.toThrow(
 				'Analytics unavailable',
 			)
