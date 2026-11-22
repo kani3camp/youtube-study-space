@@ -192,7 +192,7 @@ func TestSystem_My(t *testing.T) {
 			commandDetails:       utils.CommandDetails{CommandType: utils.My, MyOptions: []utils.MyOption{{Type: utils.RankVisible, BoolValue: true}}},
 			userIsMember:         false,
 			currentUserDoc:       repository.UserDoc{RankVisible: true},
-			expectedReplyMessage: "@テストユーザー さん、ランク表示モードはすでにオンです🎯",
+			expectedReplyMessage: "@テストユーザー さん、ランク表示はすでにオンです🎯",
 		},
 		{
 			name:                 "ランク表示モードオフ（すでにオフ）",
@@ -200,7 +200,7 @@ func TestSystem_My(t *testing.T) {
 			commandDetails:       utils.CommandDetails{CommandType: utils.My, MyOptions: []utils.MyOption{{Type: utils.RankVisible, BoolValue: false}}},
 			userIsMember:         false,
 			currentUserDoc:       repository.UserDoc{RankVisible: false},
-			expectedReplyMessage: "@テストユーザー さん、ランク表示モードはすでにオフです🎯",
+			expectedReplyMessage: "@テストユーザー さん、ランク表示はすでにオフです🎯",
 		},
 		{
 			name:                 "お気に入り作業時間設定",
@@ -208,7 +208,7 @@ func TestSystem_My(t *testing.T) {
 			commandDetails:       utils.CommandDetails{CommandType: utils.My, MyOptions: []utils.MyOption{{Type: utils.DefaultStudyMin, IntValue: 60}}},
 			userIsMember:         false,
 			currentUserDoc:       repository.UserDoc{DefaultStudyMin: 30},
-			expectedReplyMessage: "@テストユーザー さん、デフォルトの作業時間を60分に設定しました⏱️",
+			expectedReplyMessage: "@テストユーザー さん、デフォルト作業時間を60分に設定しました⏱️",
 		},
 		{
 			name:                 "お気に入りカラーを設定（まだ使用不可）",
