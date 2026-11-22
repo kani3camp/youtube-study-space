@@ -48,12 +48,9 @@ case "$1" in
   terraform-tests)
     # Two shards of similar duration. The workflow runs them concurrently, each
     # in its own container with a fresh copy of the read-only source.
-    # The native suites use the provider mirror of an initialized DEV/PROD root.
-    for env in dev prod; do
-      terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly
-    done
     case "${2:-}" in
       contracts)
+        # These suites initialize their own temporary roots.
         # Test authenticated Terraform CI guardrails
         python3 .github/scripts/test_terraform_native_runner.py
         python3 -B infra/gcp/tests/test_terraform_runtime.py
@@ -88,6 +85,10 @@ case "$1" in
         bash infra/mypage-oauth-ttl/scripts/check-local.sh
         ;;
       native)
+        # The native suites use the provider mirror of an initialized DEV/PROD root.
+        for env in dev prod; do
+          terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly
+        done
         # Test Pool import fidelity with credentialless mocks
         python3 -B infra/gcp/tests/test_runtime_pool_import_fidelity.py
         # Test quota alert mock plans and import-only boundary
