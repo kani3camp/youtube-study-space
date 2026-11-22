@@ -42,24 +42,43 @@ jobs:
           marker="$(openssl rand -hex 32)"
           echo "::stop-commands::${marker}"
           result=0
-          # The fixed checks run first, each kind in its own container with a fresh
-          # writable copy of the read-only source: target tests can never change
-          # what terraform-static sees.
-          for kind in terraform-static terraform-tests; do
-            if docker run --rm --init --read-only \
+          # Each validation runs in its own container with a fresh writable copy of
+          # the read-only source, so target tests can never change what
+          # terraform-static sees. The fixed checks run alone first; the two test
+          # shards then run concurrently within the runner's CPU and memory.
+          run_validation() {
+            docker run --rm --init --read-only \
               --cap-drop=ALL --security-opt=no-new-privileges \
               --pids-limit=256 --memory=6g --cpus=2 \
               --tmpfs /tmp:rw,exec,mode=1777 \
               --tmpfs /work:rw,exec,uid=10001,gid=10001,mode=0700 \
               --mount "type=bind,src=${GITHUB_WORKSPACE}/.ci-source,dst=/source,readonly" \
               --env "CI_SOURCE_SHA=${VALIDATION_SHA}" \
-              yss-ci-validation:local "$kind"; then
-              printf '%s: PASS\n' "$kind"
+              yss-ci-validation:local "$@"
+          }
+          report() {
+            if [[ "$2" -eq 0 ]]; then
+              printf '%s: PASS\n' "$1"
             else
-              status=$?
-              printf '%s: FAIL (exit %s)\n' "$kind" "$status"
+              printf '%s: FAIL (exit %s)\n' "$1" "$2"
               result=1
             fi
+          }
+          if run_validation terraform-static; then status=0; else status=$?; fi
+          report terraform-static "$status"
+          logs="$(mktemp -d)"
+          shards=(contracts native)
+          pids=()
+          for shard in "${shards[@]}"; do
+            run_validation terraform-tests "$shard" > "${logs}/${shard}.log" 2>&1 &
+            pids+=("$!")
+          done
+          # Shard output is buffered so that each shard's log stays contiguous.
+          for i in "${!shards[@]}"; do
+            if wait "${pids[$i]}"; then status=0; else status=$?; fi
+            printf '=== terraform-tests %s output ===\n' "${shards[$i]}"
+            cat "${logs}/${shards[$i]}.log"
+            report "terraform-tests ${shards[$i]}" "$status"
           done
           echo "::${marker}::"
           exit "$result"

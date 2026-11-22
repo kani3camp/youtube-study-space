@@ -46,50 +46,59 @@ case "$1" in
     done
     ;;
   terraform-tests)
+    # Two shards of similar duration. The workflow runs them concurrently, each
+    # in its own container with a fresh copy of the read-only source.
     # The native suites use the provider mirror of an initialized DEV/PROD root.
     for env in dev prod; do
       terraform -chdir="infra/gcp/environments/$env" init -backend=false -input=false -lockfile=readonly
     done
-    # Test authenticated Terraform CI guardrails
-    python3 .github/scripts/test_terraform_native_runner.py
-    python3 -B infra/gcp/tests/test_terraform_runtime.py
-    python3 .github/scripts/test_terraform_plan_summary.py
-    python3 .github/scripts/test_terraform_authenticated_workflow.py
-    python3 .github/scripts/test_terraform_identity_smoke.py
-    python3 .github/scripts/test_terraform_email_adoption_gate.py
-    python3 .github/scripts/test_terraform_protected_plan.py
-    python3 .github/scripts/test_terraform_plan_diagnostic.py
-    python3 .github/scripts/test_terraform_baseline_drift_diagnostic.py
-    python3 infra/gcp/tests/test_runtime_plan_contract.py
-    python3 infra/gcp/tests/test_runtime_ownership.py
-    python3 infra/gcp/tests/test_production_readiness.py
-    python3 infra/gcp/tests/test_production_backend_packet.py
-    python3 infra/gcp/tests/test_production_execution_contract.py
-    python3 -B infra/gcp/tests/test_terraform_normal_ops.py
-    python3 -B infra/gcp/tests/test_plan_read_access.py
-    python3 -B infra/gcp/tests/test_terraform_source.py
-    python3 -B infra/gcp/tests/test_enable_normal_integration.py
-    python3 -B infra/gcp/tests/test_production_normal_ops.py
-    python3 -B infra/gcp/tests/test_bootstrap_production_normal_ops.py
-    python3 .github/scripts/test_terraform_quota_create_gate.py
-    python3 .github/scripts/test_terraform_quota_refresh_gate.py
-    python3 .github/scripts/test_terraform_export_topic_gate.py
-    python3 .github/scripts/test_terraform_export_scheduler_gate.py
-    python3 .github/scripts/test_terraform_export_function_gate.py
-    python3 .github/scripts/test_user_activity_history_preparation.py
-    # Test email/password Auth ownership and Terraform contract
-    python3 -B infra/gcp/tests/test_monitor_auth.py
-    python3 -B infra/gcp/scripts/test_monitor_auth_terraform.py
-    # Test Pool import fidelity with credentialless mocks
-    python3 -B infra/gcp/tests/test_runtime_pool_import_fidelity.py
-    # Test quota alert mock plans and import-only boundary
-    python3 -B .github/scripts/run_terraform_native_tests.py --workers 2
-    # Test Terraform create/update/delete/replace
-    python3 -B infra/gcp/tests/test_terraform_normal_ops_native.py
-    # Validate MyPage platform desired state
-    bash infra/mypage-platform/scripts/check-local.sh
-    # Validate MyPage OAuth TTL Terraform
-    bash infra/mypage-oauth-ttl/scripts/check-local.sh
+    case "${2:-}" in
+      contracts)
+        # Test authenticated Terraform CI guardrails
+        python3 .github/scripts/test_terraform_native_runner.py
+        python3 -B infra/gcp/tests/test_terraform_runtime.py
+        python3 .github/scripts/test_terraform_plan_summary.py
+        python3 .github/scripts/test_terraform_authenticated_workflow.py
+        python3 .github/scripts/test_terraform_identity_smoke.py
+        python3 .github/scripts/test_terraform_email_adoption_gate.py
+        python3 .github/scripts/test_terraform_protected_plan.py
+        python3 .github/scripts/test_terraform_plan_diagnostic.py
+        python3 .github/scripts/test_terraform_baseline_drift_diagnostic.py
+        python3 infra/gcp/tests/test_runtime_plan_contract.py
+        python3 infra/gcp/tests/test_runtime_ownership.py
+        python3 infra/gcp/tests/test_production_readiness.py
+        python3 infra/gcp/tests/test_production_backend_packet.py
+        python3 infra/gcp/tests/test_production_execution_contract.py
+        python3 -B infra/gcp/tests/test_terraform_normal_ops.py
+        python3 -B infra/gcp/tests/test_plan_read_access.py
+        python3 -B infra/gcp/tests/test_terraform_source.py
+        python3 -B infra/gcp/tests/test_enable_normal_integration.py
+        python3 -B infra/gcp/tests/test_production_normal_ops.py
+        python3 -B infra/gcp/tests/test_bootstrap_production_normal_ops.py
+        python3 .github/scripts/test_terraform_quota_create_gate.py
+        python3 .github/scripts/test_terraform_quota_refresh_gate.py
+        python3 .github/scripts/test_terraform_export_topic_gate.py
+        python3 .github/scripts/test_terraform_export_scheduler_gate.py
+        python3 .github/scripts/test_terraform_export_function_gate.py
+        python3 .github/scripts/test_user_activity_history_preparation.py
+        # Test email/password Auth ownership and Terraform contract
+        python3 -B infra/gcp/tests/test_monitor_auth.py
+        python3 -B infra/gcp/scripts/test_monitor_auth_terraform.py
+        ;;
+      native)
+        # Test Pool import fidelity with credentialless mocks
+        python3 -B infra/gcp/tests/test_runtime_pool_import_fidelity.py
+        # Test quota alert mock plans and import-only boundary
+        python3 -B .github/scripts/run_terraform_native_tests.py --workers 2
+        # Test Terraform create/update/delete/replace
+        python3 -B infra/gcp/tests/test_terraform_normal_ops_native.py
+        # Validate MyPage platform desired state
+        bash infra/mypage-platform/scripts/check-local.sh
+        # Validate MyPage OAuth TTL Terraform
+        bash infra/mypage-oauth-ttl/scripts/check-local.sh
+        ;;
+      *) echo "Unknown terraform-tests shard" >&2; exit 2 ;;
+    esac
     ;;
   base-image)
     # Run tests
