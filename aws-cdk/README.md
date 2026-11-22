@@ -14,7 +14,7 @@ aws sts get-caller-identity --profile プロファイル名
 
 ## Useful commands
 
-それぞれ`--profile プロファイル名`を付加する。（場合によっては region 指定も）
+それぞれ `--profile プロファイル名` を付加する（場合によっては region も指定する）。
 
 - `pnpm build` compile typescript to js
 - `pnpm watch` watch and compile
@@ -52,7 +52,7 @@ pnpm cdk:deploy AwsCdkStack --profile soraride-dev --require-approval never --pa
 
 ### dev batch imageだけのoffline候補
 
-共有`system/`の変更は通常synthでLambda assetにも波及する。履歴writer guardの限定更新では、
+共有 `system/` の変更は通常synthでLambda assetにも波及する。履歴writer guardの限定更新では、
 既存deployed template、CDK artifact、stack receiptと同一ECR repositoryのcandidate/previous
 digestをprivateに揃え、`pnpm batch:prepare-candidate --input /private/input.json --out /private/fresh-output`
 でcandidate/rollback assemblyを生成する。操作はlocalのみで、image pushやdeployは実行しない。
@@ -90,4 +90,4 @@ pnpm cdk:deploy AwsCdkStack --profile soraride-prod --require-approval never --p
 
 ### ローカルQAファイルとイメージ作成範囲
 
-Lambda/FargateのCDKアセットは、ローカル導入ツールや非公開QA記録を含む`**/node_modules`をステージング時に除外する。Gitの除外設定だけを、Dockerコンテキストに含める範囲の制限としない。テストでは、実ステージングにQA記録がないこと、記録の追加前後でアセットタグが変わらないこと、書き込み処理のソース変更が両イメージに反映されることを検証する。ソースアセットのタグ一致だけで実イメージとの一致や配備済みを宣言せず、不変ダイジェストとビルド・配備記録を別途照合する。
+Lambda/FargateのCDKアセットは、ローカルに導入したツールや非公開QA記録を含む `**/node_modules` をステージング時に除外する。Dockerコンテキストの除外範囲をGitの除外設定だけに依存させない。テストでは、実ステージングにQA記録がないこと、記録の追加前後でアセットタグが変わらないこと、書き込み処理のソース変更が両イメージに反映されることを検証する。ソースアセットのタグ一致だけで実イメージとの一致や配備済みとみなさず、不変ダイジェストとビルド・配備記録を別途照合する。

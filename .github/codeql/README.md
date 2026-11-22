@@ -8,7 +8,7 @@
 
 | workflow | 用途 |
 | --- | --- |
-| [`codeql-advanced.yml`](../workflows/codeql-advanced.yml) | 実行契機と同じtreeのreusable analyzer呼出しを管理するcaller。全PR、対象4ブランチへのpush、週次schedule、手動実行を受け持つ |
+| [`codeql-advanced.yml`](../workflows/codeql-advanced.yml) | 実行契機と同じtreeのreusable analyzer呼び出しを管理するcaller。全PR、対象4ブランチへのpush、週次schedule、手動実行を受け持つ |
 | [`codeql-analyzer.yml`](../workflows/codeql-analyzer.yml) | Actions・Go・JavaScript/TypeScriptをmatrixで解析し、言語別categoryで結果をアップロードするcallee |
 | [`codeql-source-contracts.yml`](../workflows/codeql-source-contracts.yml) | workflow・解析範囲・権限・Go helperなどの契約を静的に検証する。CodeQL解析そのものは実行しない |
 
@@ -40,11 +40,11 @@ sourceの変更とGitHub設定の削除は別操作です。このtreeにEnviron
 
 1. この変更をdevへ反映し、Environmentなしのpush解析と3言語の結果処理完了を確認する。dev向けPRのマージはrepositoryのAGENTS.mdに従いユーザーが行う。
 2. main・Terraform・MyPageなど継続運用するブランチへ同じCodeQL変更を同期する。古いPRはbase/headを更新する。残る作業ブランチを再利用・手動実行する場合も先に同期する。
-3. 実行可能なCodeQL workflowからEnvironment参照がなく、古いEnvironment付きrunが実行中・待機中でないことを確認する。停止済みの旧準備ブランチを有効化する場合は現行sourceに更新する。
+3. 実行可能なCodeQL workflowにEnvironment参照がなく、古いEnvironment付きrunが実行中・待機中でないことを確認する。停止済みの旧準備ブランチを有効化する場合は現行sourceに更新する。
 4. Settings → EnvironmentsでCodeQL専用Environmentを列挙し、参照・secrets・variablesを再確認して削除する。Terraform等のEnvironmentは変更しない。
-5. Environment一覧にCodeQL専用Environmentがなく、後続解析でも再作成されないことを読み戻す。
+5. Environment一覧にCodeQL専用Environmentがなく、後続解析でも再作成されないことを読み戻して確認する。
 
-[存在しないEnvironmentのworkflow参照は暗黙作成を起こし得ます](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)。
+[存在しないEnvironmentをworkflowから参照すると、暗黙に作成される場合があります](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)。
 参照が残ったまま先に `codeql-analysis` を削除すると、再作成後には元のprotection ruleが存在しない可能性があります。
 そのため、GitHub設定の削除完了とsource変更の準備完了を区別します。
 共有OIDC subject、AWS/GCP trust、Terraform workflow、既存alerts/analyses、required checksはこの変更の対象外です。
@@ -59,7 +59,7 @@ Actions・Go・JavaScript/TypeScriptの解析・SARIF upload・GitHub側processi
 導入時にはDefault setupの起動前に `environment` claim欠損エラーがあり、専用Environment付きAdvanced setupを採用しました。
 当時の切替・実解析の記録は [PR #1362](https://github.com/kani3camp/youtube-study-space/pull/1362) と
 [Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191) に残っています。
-その履歴を、このEnvironmentなしAdvanced setupの必須条件として扱いません。
+その履歴は、このEnvironmentなしAdvanced setupの必須条件としては扱いません。
 
 ## 静的検証
 
