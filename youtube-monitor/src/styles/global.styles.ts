@@ -1,5 +1,5 @@
 import { css as globalStyles } from '@emotion/react'
-import { fontFamily } from '../lib/common'
+import { fontFamily } from '../lib/fonts'
 
 export const globalStyle = globalStyles`
   html {

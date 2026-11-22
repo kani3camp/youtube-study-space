@@ -1,11 +1,11 @@
 import { css } from '@emotion/react'
-import { fontFamily } from '../lib/common'
 import {
 	Constants,
 	sidebarBgmHeight,
 	sidebarCardHorizontalInsetPx,
 	sidebarCardVerticalInsetPx,
 } from '../lib/constants'
+import { fontFamily } from '../lib/fonts'
 
 /** 目盛りの高さ。下端がバー上端で止まるよう labelBarGapPx と合わせて調整する */
 const scaleTickHeightPx = 7

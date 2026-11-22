@@ -26,7 +26,6 @@ test('renders a vacant seat without processingSeat', async () => {
 		processingSeat: undefined,
 		seatPosition: { x: 0, y: 0, rotate: 0 },
 		seatShape: { widthPx: 140, heightPx: 100 },
-		roomShape: { widthPx: 1520, heightPx: 1000 },
 		menuImageMap: new Map<string, string>(),
 	}
 

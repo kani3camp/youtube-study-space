@@ -2,7 +2,7 @@ import Image from 'next/image'
 import { type FC, useMemo } from 'react'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/SeatsPage.styles'
-import type { Seat } from '../types/api'
+import type { Seat, SeatState as SeatStateValue } from '../types/api'
 import type { RoomLayout } from '../types/room-layout'
 import SeatBox from './SeatBox'
 
@@ -18,7 +18,7 @@ export type LayoutPageProps = {
 export const SeatState = {
 	Work: 'work',
 	Break: 'break',
-}
+} as const satisfies Record<string, SeatStateValue>
 
 const SeatsPage: FC<LayoutPageProps> = (props) => {
 	const propsMemo = useMemo(() => props, [props])
@@ -150,7 +150,6 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 						hoursElapsed={hoursElapsed}
 						minutesRemaining={minutesRemaining}
 						hoursRemaining={hoursRemaining}
-						roomShape={roomShape}
 						menuImageMap={propsMemo.menuImageMap}
 					/>
 				)
@@ -160,7 +159,6 @@ const SeatsPage: FC<LayoutPageProps> = (props) => {
 			propsMemo.usedSeats,
 			propsMemo.firstSeatId,
 			seatPositions,
-			roomShape,
 			propsMemo.memberOnly,
 			seatShape,
 			usedSeatIds,

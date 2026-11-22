@@ -43,10 +43,6 @@ const seatPosition = {
 	y: 3,
 	rotate: 0,
 }
-const roomShape = {
-	widthPx: 1520,
-	heightPx: 1000,
-}
 const generalSeatShape = {
 	widthPx: 140,
 	heightPx: 100,
@@ -107,7 +103,6 @@ const createBaseArgs = (
 	processingSeat: createSeat(),
 	seatPosition,
 	seatShape: generalSeatShape,
-	roomShape,
 	...overrides,
 })
 

@@ -6,17 +6,6 @@ import type {
 import type { Seat } from '../types/api'
 import { firestoreSeatConverter } from './firestore'
 
-vi.mock('next/font/google', () => ({
-	M_PLUS_Rounded_1c: vi.fn(() => ({
-		style: { fontFamily: 'M PLUS Rounded 1c' },
-		className: 'mock-font-class',
-	})),
-	Source_Code_Pro: vi.fn(() => ({
-		style: { fontFamily: 'mock-source-code-pro' },
-		className: 'mock-source-code-pro-class',
-	})),
-}))
-
 const timestamp = {} as Timestamp
 
 function snapshotWith(data: Record<string, unknown>): QueryDocumentSnapshot {
@@ -173,3 +162,7 @@ function baseSeat(appearance: Seat['appearance']): Seat {
 		user_profile_image_url: '',
 	}
 }
+
+test('Seat.state is the work/break literal union shared with the backend', () => {
+	expectTypeOf<Seat['state']>().toEqualTypeOf<'work' | 'break'>()
+})

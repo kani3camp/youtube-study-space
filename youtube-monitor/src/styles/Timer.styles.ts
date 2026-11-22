@@ -1,10 +1,10 @@
 import { css } from '@emotion/react'
-import { fontFamily } from '../lib/common'
 import {
 	Constants,
 	sidebarCardHorizontalInsetPx,
 	sidebarCardVerticalInsetPx,
 } from '../lib/constants'
+import { fontFamily } from '../lib/fonts'
 
 export const shape = css`
     height: ${Constants.timerHeight}px;

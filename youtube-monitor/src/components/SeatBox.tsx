@@ -1,9 +1,16 @@
 /** @jsxImportSource @emotion/react */
 import { css } from '@emotion/react'
 import Image from 'next/image'
-import { type FC, type SyntheticEvent, useEffect, useState } from 'react'
-import { fontFamily, validateString } from '../lib/common'
+import {
+	type FC,
+	type SyntheticEvent,
+	useEffect,
+	useMemo,
+	useState,
+} from 'react'
+import { validateString } from '../lib/common'
 import { Constants } from '../lib/constants'
+import { fontFamily } from '../lib/fonts'
 import * as styles from '../styles/SeatBox.styles'
 import {
 	seatDisplayNameFontWeight,
@@ -36,11 +43,33 @@ export type SeatProps = {
 		widthPx: number
 		heightPx: number
 	}
-	roomShape: {
-		widthPx: number
-		heightPx: number
-	}
 	menuImageMap: Map<string, string>
+}
+
+/** 同一画像の読み込み失敗時に再試行する最大回数 */
+export const MAX_IMAGE_RELOAD_ATTEMPTS = 3
+
+/**
+ * 画像の読み込み失敗時に、キャッシュバスター付きで再試行するハンドラを作る。
+ * 画像ごとの再試行回数が上限に達したら、それ以上は再試行しない。
+ */
+export function createImageReloader(
+	maxAttempts: number = MAX_IMAGE_RELOAD_ATTEMPTS,
+) {
+	const attempts = new Map<string, number>()
+	return (
+		event: SyntheticEvent<HTMLImageElement, Event>,
+		imageSrc: string,
+	): void => {
+		const attempted = attempts.get(imageSrc) ?? 0
+		if (attempted >= maxAttempts) {
+			console.error(`giving up loading image: ${imageSrc}`)
+			return
+		}
+		attempts.set(imageSrc, attempted + 1)
+		console.error(`retrying to load image... ${imageSrc}`)
+		event.currentTarget.src = `${imageSrc}?${Date.now().toString()}`
+	}
 }
 
 let measureTextContext: CanvasRenderingContext2D | null | undefined
@@ -222,13 +251,7 @@ const SeatBox: FC<SeatProps> = (props) => {
 		? Constants.memberSmallIconSize
 		: Constants.memberBigIconSize
 
-	const reloadImage = (
-		event: SyntheticEvent<HTMLImageElement, Event>,
-		imageSrc: string,
-	) => {
-		console.error(`retrying to load image... ${imageSrc}`)
-		event.currentTarget.src = `${imageSrc}?${Date.now().toString()}`
-	}
+	const reloadImage = useMemo(() => createImageReloader(), [])
 
 	const remainingLabel =
 		props.hoursRemaining > 0

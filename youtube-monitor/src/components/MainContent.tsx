@@ -17,15 +17,18 @@ import {
 	firestoreSeatConverter,
 	firestoreWorkNameTrendConverter,
 	getFirebaseApp,
-	type SystemConstants,
 } from '../lib/firestore'
+import {
+	handleConstantsSnapshot,
+	handleWorkNameTrendSnapshot,
+} from '../lib/snapshot-handlers'
 import {
 	buildRoomLayouts,
 	desiredMaxSeatsByVacancyRate,
 	desiredMemberMaxSeats,
 } from '../rooms/max-seats'
 import {
-	allRooms,
+	getAllRooms,
 	numSeatsInGeneralAllBasicRooms,
 	numSeatsInMemberAllBasicRooms,
 } from '../rooms/rooms-config'
@@ -84,8 +87,8 @@ const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 	// biome-ignore lint/correctness/useExhaustiveDependencies: initFirestore は初期化時のみ呼ぶ意図的な設計
 	useEffect(() => {
 		if (process.env.NEXT_PUBLIC_API_KEY === undefined) {
-			alert(
-				'配信画面を表示できません。ライブチャット、または緊急連絡フォームからご連絡ください。',
+			console.error(
+				'配信画面を表示できません。NEXT_PUBLIC_API_KEY が設定されていません。',
 			)
 		}
 
@@ -220,19 +223,12 @@ const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 		unsubscribers.push(
 			onSnapshot(
 				workNameTrendQuery,
-				(querySnapshot) => {
-					const workNameTrend: WorkNameTrend[] = []
-					for (const doc of querySnapshot.docs) {
-						workNameTrend.push(doc.data())
-					}
-					if (workNameTrend.length === 1) {
-						setLatestWorkNameTrend(workNameTrend[0])
-					} else if (workNameTrend.length > 1) {
-						throw new Error(
-							`Found ${workNameTrend.length} work name trend documents in Firestore, but only one is expected. This may cause incorrect application behavior. Please ensure that only one document exists in the 'work-name-trend' collection.`,
-						)
-					}
-				},
+				(querySnapshot) =>
+					handleWorkNameTrendSnapshot(
+						querySnapshot,
+						setLatestWorkNameTrend,
+						onReadError,
+					),
 				onReadError,
 			),
 		)
@@ -240,22 +236,20 @@ const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 		unsubscribers.push(
 			onSnapshot(
 				doc(db, 'config', 'constants').withConverter(constantsConverter),
-				(doc) => {
-					const generalMaxSeats = (doc.data() as SystemConstants).max_seats
-					const memberMaxSeats = (doc.data() as SystemConstants)
-						.member_max_seats
-					const minVacancyRate = (doc.data() as SystemConstants)
-						.min_vacancy_rate
-					const youtubeMembershipEnabled = (doc.data() as SystemConstants)
-						.youtube_membership_enabled
-					const fixedMaxSeatsEnabled = (doc.data() as SystemConstants)
-						.fixed_max_seats_enabled
-					setLatestGeneralMaxSeats(generalMaxSeats)
-					setLatestMemberMaxSeats(memberMaxSeats)
-					setLatestMinVacancyRate(minVacancyRate)
-					setLatestYoutubeMembershipEnabled(youtubeMembershipEnabled)
-					setLatestFixedMaxSeatsEnabled(fixedMaxSeatsEnabled)
-				},
+				(snapshot) =>
+					handleConstantsSnapshot(
+						snapshot,
+						(constants) => {
+							setLatestGeneralMaxSeats(constants.max_seats)
+							setLatestMemberMaxSeats(constants.member_max_seats)
+							setLatestMinVacancyRate(constants.min_vacancy_rate)
+							setLatestYoutubeMembershipEnabled(
+								constants.youtube_membership_enabled,
+							)
+							setLatestFixedMaxSeatsEnabled(constants.fixed_max_seats_enabled)
+						},
+						onReadError,
+					),
 				onReadError,
 			),
 		)
@@ -328,6 +322,7 @@ const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 			return
 		}
 
+		const allRooms = getAllRooms()
 		const generalBasicRoomSeats = numSeatsInGeneralAllBasicRooms()
 		const memberBasicRoomSeats = numSeatsInMemberAllBasicRooms()
 		const finalDesiredGeneralMaxSeats = snapshotFixedMaxSeatsEnabled

@@ -1,6 +1,6 @@
 import { useRouter } from 'next/router'
 import { useEffect, useRef, useState } from 'react'
-import { DEBUG } from '../lib/constants'
+import { isDebugEnabled } from '../lib/constants'
 import {
 	resolveThemePresentation,
 	shouldUseContrastBridge,
@@ -44,7 +44,7 @@ export function useTimeTheme(): ActiveThemePresentation {
 				new Date(),
 				queryTheme,
 				queryTextTone,
-				DEBUG,
+				isDebugEnabled(),
 			)
 			const current = presentationRef.current
 			if (

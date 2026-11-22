@@ -1,4 +1,4 @@
-import { ROOM_CONFIG, type RoomConfigName } from '../lib/constants'
+import { getRoomConfigName, type RoomConfigName } from '../lib/constants'
 import type { RoomLayout } from '../types/room-layout'
 import {
 	type RuntimeRoomId,
@@ -106,16 +106,22 @@ export const resolveRoomConfig = (config: RoomConfig): ResolvedRoomConfig => {
 	}
 }
 
-export const allRooms = resolveRoomConfig(roomConfigs[ROOM_CONFIG])
+let allRoomsCache: ResolvedRoomConfig | undefined
+
+/** NEXT_PUBLIC_ROOM_CONFIG で選ばれたルーム構成を、初回利用時に解決して返す。 */
+export const getAllRooms = (): ResolvedRoomConfig => {
+	allRoomsCache ??= resolveRoomConfig(roomConfigs[getRoomConfigName()])
+	return allRoomsCache
+}
 
 export const numSeatsInGeneralAllBasicRooms = (): number =>
-	allRooms.generalBasicRooms.reduce(
+	getAllRooms().generalBasicRooms.reduce(
 		(count, room) => count + room.seats.length,
 		0,
 	)
 
 export const numSeatsInMemberAllBasicRooms = (): number =>
-	allRooms.memberBasicRooms.reduce(
+	getAllRooms().memberBasicRooms.reduce(
 		(count, room) => count + room.seats.length,
 		0,
 	)

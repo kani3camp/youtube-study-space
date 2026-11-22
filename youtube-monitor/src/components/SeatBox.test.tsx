@@ -31,34 +31,6 @@ vi.mock('next/image', () => ({
 	},
 }))
 
-const originalNextPublicDebug = process.env.NEXT_PUBLIC_DEBUG
-const originalNextPublicChannelGl = process.env.NEXT_PUBLIC_CHANNEL_GL
-const originalNextPublicRoomConfig = process.env.NEXT_PUBLIC_ROOM_CONFIG
-
-beforeAll(() => {
-	process.env.NEXT_PUBLIC_DEBUG = 'true'
-	process.env.NEXT_PUBLIC_CHANNEL_GL = 'false'
-	process.env.NEXT_PUBLIC_ROOM_CONFIG = 'DEV'
-})
-
-afterAll(() => {
-	if (originalNextPublicDebug === undefined) {
-		delete process.env.NEXT_PUBLIC_DEBUG
-	} else {
-		process.env.NEXT_PUBLIC_DEBUG = originalNextPublicDebug
-	}
-	if (originalNextPublicChannelGl === undefined) {
-		delete process.env.NEXT_PUBLIC_CHANNEL_GL
-	} else {
-		process.env.NEXT_PUBLIC_CHANNEL_GL = originalNextPublicChannelGl
-	}
-	if (originalNextPublicRoomConfig === undefined) {
-		delete process.env.NEXT_PUBLIC_ROOM_CONFIG
-	} else {
-		process.env.NEXT_PUBLIC_ROOM_CONFIG = originalNextPublicRoomConfig
-	}
-})
-
 async function loadSeatBox() {
 	const seatBoxModule = await import('./SeatBox')
 	seatBoxModule.resetMeasureTextContextForTest()
@@ -147,7 +119,6 @@ function createBaseProps(overrides: Partial<SeatProps> = {}): SeatProps {
 		processingSeat: createBaseSeat(),
 		seatPosition: { x: 0, y: 0, rotate: 0 },
 		seatShape: { widthPx: GENERAL_SEAT_WIDTH_PX, heightPx: 100 },
-		roomShape: { widthPx: 1520, heightPx: 1000 },
 		menuImageMap: new Map<string, string>(),
 		...overrides,
 	}

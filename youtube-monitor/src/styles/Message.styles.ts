@@ -1,6 +1,6 @@
 import { css } from '@emotion/react'
-import { fontFamily } from '../lib/common'
 import { Constants } from '../lib/constants'
+import { fontFamily } from '../lib/fonts'
 
 export const shape = css`
     height: ${Constants.messageBarHeight}px;

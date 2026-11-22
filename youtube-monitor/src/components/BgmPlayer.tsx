@@ -3,10 +3,16 @@ import { type IAudioMetadata, parseBlob, parseWebStream } from 'music-metadata'
 import type React from 'react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentRandomBgm } from '../lib/bgm'
-import { Constants } from '../lib/constants'
+import { Constants, getBgmVolume } from '../lib/constants'
 import { getCurrentSection, SectionType } from '../lib/time-table'
 import * as styles from '../styles/BgmPlayer.styles'
 import { componentBackground, componentStyle } from '../styles/common.style'
+
+/**
+ * BGM の読み込み・再生に連続して失敗した場合に、次の曲への切り替えを諦めるまでの回数。
+ * 再生に成功すると 0 に戻る。
+ */
+export const MAX_CONSECUTIVE_BGM_ERRORS = 5
 
 const BgmPlayer: React.FC = () => {
 	const [lastSectionType, setLastSectionType] = useState('')
@@ -18,6 +24,7 @@ const BgmPlayer: React.FC = () => {
 	const audioCanvasRef = useRef<HTMLCanvasElement>(null)
 	const chimeSingleRef = useRef<HTMLAudioElement>(null)
 	const chimeDoubleRef = useRef<HTMLAudioElement>(null)
+	const consecutiveBgmErrorsRef = useRef(0)
 
 	// マウント時に一度だけチャイム用 audio 要素の error ハンドラ登録と読み込みを実行する
 	useEffect(() => {
@@ -26,14 +33,14 @@ const BgmPlayer: React.FC = () => {
 		for (const chime of chimeList) {
 			if (!chime) continue
 			const handleError = () => {
-				alert(`error loading: ${chime.src}`)
+				console.error(`error loading: ${chime.src}`)
 			}
 			chime.addEventListener('error', handleError)
 			cleanupFns.push(() => {
 				chime.removeEventListener('error', handleError)
 			})
 			if (!chime.src) {
-				alert(`invalid chime src: ${chime.src}`)
+				console.error(`invalid chime src: ${chime.src}`)
 				continue
 			}
 			chime.load()
@@ -124,28 +131,47 @@ const BgmPlayer: React.FC = () => {
 			setAudioTitle(metadata.common.title ?? 'BGM TITLE')
 			setAudioArtist(metadata.common.artist ?? 'BGM ARTIST')
 
-			audio.volume = Constants.bgmVolume
+			audio.volume = getBgmVolume()
 			await audio.play()
 		} catch (error) {
 			console.error('Failed to play audio or parse metadata:', error)
 		}
 	}, [])
 
-	const audioStart = useCallback(() => {
+	// BGM の audio 要素のイベントリスナーはマウント中だけ有効にし、アンマウント時に解除する。
+	// error による次曲への切り替えは、連続失敗が上限に達したら打ち切る。
+	useEffect(() => {
 		const audio = bgmAudioRef.current
 		if (!audio) {
 			return
 		}
-		audio.addEventListener('ended', () => {
+		const handleEnded = () => {
 			setAudioTitle('BGM TITLE')
 			setAudioArtist('BGM ARTIST')
-			audioNext()
-		})
-		audio.addEventListener('error', () => {
+			void audioNext()
+		}
+		const handleError = () => {
+			consecutiveBgmErrorsRef.current += 1
 			console.error(`Error loading audio file: ${audio.src}`)
-			audioNext()
-		})
-		audioNext()
+			if (consecutiveBgmErrorsRef.current >= MAX_CONSECUTIVE_BGM_ERRORS) {
+				console.error(
+					`BGM failed ${consecutiveBgmErrorsRef.current.toString()} times in a row; giving up.`,
+				)
+				return
+			}
+			void audioNext()
+		}
+		const handlePlaying = () => {
+			consecutiveBgmErrorsRef.current = 0
+		}
+		audio.addEventListener('ended', handleEnded)
+		audio.addEventListener('error', handleError)
+		audio.addEventListener('playing', handlePlaying)
+		return () => {
+			audio.removeEventListener('ended', handleEnded)
+			audio.removeEventListener('error', handleError)
+			audio.removeEventListener('playing', handlePlaying)
+		}
 	}, [audioNext])
 
 	const _stop = () => {
@@ -177,11 +203,11 @@ const BgmPlayer: React.FC = () => {
 					count: 30,
 				}),
 			)
-			audioStart()
+			void audioNext()
 
 			waveRef.current = wave
 		}
-	}, [audioStart])
+	}, [audioNext])
 
 	useEffect(() => {
 		const intervalId = setInterval(() => updateState(), 1000)
