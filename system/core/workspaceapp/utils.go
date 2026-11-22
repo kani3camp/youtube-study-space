@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
-	"github.com/kr/pretty"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/youtube/v3"
 	"google.golang.org/grpc/codes"
@@ -345,26 +344,6 @@ func (app *WorkspaceApp) GetUserIDsToProcessRP(ctx context.Context) ([]string, e
 	return userIDs, nil
 }
 
-func (app *WorkspaceApp) GetAllUsersTotalStudySecList(ctx context.Context) ([]utils.UserIDTotalStudySecSet, error) {
-	var set []utils.UserIDTotalStudySecSet
-
-	userDocRefs, err := app.Repository.GetAllUserDocRefs(ctx)
-	if err != nil {
-		return set, fmt.Errorf("in GetAllUserDocRefs: %w", err)
-	}
-	for _, userDocRef := range userDocRefs {
-		userDoc, err := app.Repository.ReadUser(ctx, nil, userDocRef.ID)
-		if err != nil {
-			return set, fmt.Errorf("in ReadUser: %w", err)
-		}
-		set = append(set, utils.UserIDTotalStudySecSet{
-			UserID:        userDocRef.ID,
-			TotalStudySec: userDoc.TotalStudySec,
-		})
-	}
-	return set, nil
-}
-
 // MinAvailableSeatIDForUser 空いている最小の席番号を求める。該当ユーザーの入室上限にかからない範囲に限定する。
 func (app *WorkspaceApp) MinAvailableSeatIDForUser(ctx context.Context, tx *firestore.Transaction, userID string, isMemberSeat bool) (int, error) {
 	var seats []repository.SeatDoc
@@ -604,25 +583,23 @@ func (app *WorkspaceApp) GetRecentUserSittingTimeForSeat(ctx context.Context, us
 	utils.SortUserActivityByTakenAtAscending(activityOnlyEnterExitList)
 	orderOK := utils.CheckEnterExitActivityOrder(activityOnlyEnterExitList)
 	if !orderOK {
-		return 0, errors.New("入室activityと退室activityが交互に並んでいない\n" + fmt.Sprintf("%v", pretty.Formatter(activityOnlyEnterExitList)))
+		slog.ErrorContext(ctx, "seat activities are not alternating enter/exit", "activity_count", len(activityOnlyEnterExitList), "seat_id", seatID)
+		return 0, errors.New("入室activityと退室activityが交互に並んでいない")
 	}
 
 	slog.InfoContext(ctx, "seat activity documents read", "activity_count", len(activityOnlyEnterExitList))
 
 	// 入退室をセットで考え、合計入室時間を求める
 	totalEntryDuration := time.Duration(0)
-	entryCount := 0 // 退室時（もしくは現在日時）にentryCountをインクリメント。
 	lastEnteredTimestamp := checkDurationFrom
 	for i, activity := range activityOnlyEnterExitList {
 		if activity.ActivityType == repository.EnterRoomActivity {
 			lastEnteredTimestamp = activity.TakenAt
 			if i+1 == len(activityOnlyEnterExitList) { // 最後のactivityであった場合、現在時刻までの時間を加算
-				entryCount += 1
 				totalEntryDuration += timeutil.NoNegativeDuration(jstNow.Sub(activity.TakenAt))
 			}
 			continue
 		} else if activity.ActivityType == repository.ExitRoomActivity {
-			entryCount += 1
 			totalEntryDuration += timeutil.NoNegativeDuration(activity.TakenAt.Sub(lastEnteredTimestamp))
 		}
 	}

@@ -218,41 +218,6 @@ func TestRealTimeDailyTotalStudyDurationOfSeat(t *testing.T) {
 	}
 }
 
-func TestContains(t *testing.T) {
-	tests := []struct {
-		name     string
-		slice    []string
-		element  string
-		expected bool
-	}{
-		{
-			name:     "Element exists in slice",
-			slice:    []string{"apple", "banana", "cherry"},
-			element:  "banana",
-			expected: true,
-		},
-		{
-			name:     "Element does not exist in slice",
-			slice:    []string{"apple", "banana", "cherry"},
-			element:  "orange",
-			expected: false,
-		},
-		{
-			name:     "Empty slice",
-			slice:    []string{},
-			element:  "apple",
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := Contains(tt.slice, tt.element)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestGenerateSessionID(t *testing.T) {
 	hexRegex := regexp.MustCompile("^[0-9a-f]{32}$")
 

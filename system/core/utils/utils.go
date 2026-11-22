@@ -70,15 +70,6 @@ func GetGcpProjectID(ctx context.Context, clientOption option.ClientOption) (str
 	return creds.ProjectID, nil
 }
 
-func Contains[T comparable](s []T, e T) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
-}
-
 func cachedRegex(pattern string) (*regexp.Regexp, error) {
 	if cached, ok := compiledRegexCache.Load(pattern); ok {
 		compiled, ok := cached.(*regexp.Regexp)
