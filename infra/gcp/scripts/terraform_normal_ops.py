@@ -359,7 +359,7 @@ def validate(plan, approved, *, post=False, project=PROJECT, project_number=None
         else:
             from monitor_auth import validate_import
             validate_import(item, project, monitor_auth_enabled)
-            others_changed = others_changed or action != ('no-op',)
+            others_changed = others_changed or action != ('no-op',) or bool(change.get('importing'))
         need(item.get('provider_name') in {'registry.terraform.io/hashicorp/google',
                                          'registry.terraform.io/hashicorp/google-beta'})
         need(item.get('mode') in {'managed', 'data'})

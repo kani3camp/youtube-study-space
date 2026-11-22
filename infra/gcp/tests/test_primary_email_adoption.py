@@ -45,6 +45,15 @@ class PrimaryEmailAdoption(unittest.TestCase):
             with self.subTest(actions=change['actions']):
                 counts = ops.validate(plan(**change), {}, project=PROJECT, primary_email_channel=CHANNEL)
                 self.assertEqual(counts['create'] + counts['delete'] + counts['replace'], 0)
+        # The production adoption plan also lists every already-owned resource as no-op.
+        candidate = plan()
+        candidate['resource_changes'].append({
+            'address': 'google_pubsub_topic.owned', 'mode': 'managed', 'type': 'google_pubsub_topic',
+            'provider_name': 'registry.terraform.io/hashicorp/google',
+            'change': {'actions': ['no-op'], 'before': {'project': PROJECT}, 'after': {'project': PROJECT}}})
+        with self.subTest(case='alongside owned no-op resources'):
+            counts = ops.validate(candidate, {}, project=PROJECT, primary_email_channel=CHANNEL)
+            self.assertEqual((counts['update'], counts['no-op']), (1, 1))
 
     def test_unselected_or_altered_imports_are_rejected(self):
         def changed(key, value):
@@ -69,6 +78,15 @@ class PrimaryEmailAdoption(unittest.TestCase):
             'update without a mark change': lambda p: p['resource_changes'][0]['change'].update(
                 before_sensitive={'labels': {'email_address': True}}),
             'missing masks': lambda p: p['resource_changes'][0]['change'].pop('after_sensitive'),
+            'other attribute marked on both sides': lambda p: p['resource_changes'][0]['change'].update(
+                before_sensitive={'labels': {}, 'name': True}, after_sensitive={'labels': {'email_address': True}, 'name': True}),
+            'other label mark removed': lambda p: p['resource_changes'][0]['change'].update(
+                before_sensitive={'labels': {'email_address': True, 'other': True}}),
+            'mixed with another import': lambda p: p['resource_changes'].append({
+                'address': 'module.monitor_auth[0].google_identity_platform_config.auth', 'mode': 'managed',
+                'type': 'google_identity_platform_config', 'provider_name': 'registry.terraform.io/hashicorp/google',
+                'change': {'actions': ['no-op'], 'importing': {'id': f'projects/{PROJECT}/config'},
+                           'before': {'project': PROJECT}, 'after': {'project': PROJECT}}}),
             'mixed with another change': lambda p: p['resource_changes'].append({
                 'address': 'google_pubsub_topic.other', 'mode': 'managed', 'type': 'google_pubsub_topic',
                 'provider_name': 'registry.terraform.io/hashicorp/google',

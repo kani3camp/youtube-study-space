@@ -33,6 +33,15 @@ def _has_unknown(value):
     return value is not False and value is not None
 
 
+def _marked(mask, path=()):
+    """sensitive の印が付いた葉のパス。"""
+    if isinstance(mask, dict):
+        return set().union(*(_marked(value, path + (key,)) for key, value in mask.items()))
+    if isinstance(mask, list):
+        return set().union(*(_marked(value, path + (index,)) for index, value in enumerate(mask)))
+    return {path} if mask is True else set()
+
+
 def allows(item, project, name):
     """この取り込みが、選択した既存通知先の値を保つ取り込みである場合だけ True。"""
     change = item.get('change', {})
@@ -45,9 +54,12 @@ def allows(item, project, name):
     masks = change.get('before_sensitive'), change.get('after_sensitive')
     if type(masks[0]) is not dict or type(masks[1]) is not dict:
         return False
-    marked = {key for key in masks[0].keys() | masks[1].keys() if masks[0].get(key) != masks[1].get(key)}
-    return (masks[1].get('labels') == {'email_address': True}
-            and marked == ({'labels'} if change.get('actions') == ['update'] else set())
+    # Only the recipient label is sensitive afterwards. An update adds exactly
+    # that mark to an unmarked import; a no-op keeps identical masks.
+    expected_before = set() if change.get('actions') == ['update'] else {('labels', 'email_address')}
+    return (_marked(masks[1]) == {('labels', 'email_address')}
+            and _marked(masks[0]) == expected_before
+            and (change.get('actions') == ['update'] or _canonical(masks[0]) == _canonical(masks[1]))
             and item.get('address') == ADDRESS
             and item.get('type') == 'google_monitoring_notification_channel'
             and item.get('mode') == 'managed'
