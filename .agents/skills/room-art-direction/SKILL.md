@@ -11,16 +11,16 @@ YouTube Study Space のルーム背景画像に、再利用可能なアートデ
 
 - 一度合意した「描き方」を、題材が変わっても再現する。
 - 世界観、モチーフ、建築、レイアウトを画風と混同しない。
-- 配色・ライティング・材質感の好みを、Directionそのものへ不用意に焼き込まない。
+- 配色・ライティング・材質感の好みを、Direction そのものへ不用意に焼き込まない。
 - 画像生成モデル固有の偶然の癖を、プロジェクトのデザインルールとして固定しない。
-- 後続の新しいDirectionやLookを再利用可能な形で資産化する。
+- 今後追加する Direction や Look も、再利用可能な形で資産化する。
 
 ## 入力として確認するもの
 
 タスクから次を読み取る。
 
 1. 使用するアートディレクション。
-2. 使用するLook。未指定なら、CLIでは `auto`、手動の画像生成では目的に応じて選ぶ。
+2. 使用する Look。未指定の場合、CLI では `auto` を用い、手動の画像生成では目的に応じて選ぶ。
 3. 今回の題材、場所、世界観。未指定なら自由に設計してよい。
 4. 画像用途上の制約。例: 16:9、座席カードを後置きする、人物なし、文字なし。
 5. 今回だけの必須要素・禁止要素。
@@ -31,17 +31,17 @@ Direction、Look、題材は別の入力として扱う。
 
 | ID | Reference | 要約 |
 | --- | --- | --- |
-| Direction A | `references/direction-a-clean-vivid-digital.md` | CG / ゲーム環境系。立体・素材・ライティングを強く使い、わくわくする高品質スタイライズド環境アート |
+| Direction A | `references/direction-a-clean-vivid-digital.md` | CG / ゲーム環境系。立体感・素材感・ライティングを強く活かし、わくわくする高品質なスタイライズド環境アート |
 | Direction B | `references/direction-b-full-scene-anime.md` | 全景アニメ系。現代アニメの自然さ、劇場アニメの光と空気、クリーンなセル表現を統合 |
 | Direction C | `references/direction-c-clean-abstract-graphic.md` | 抽象・グラフィック系。形・色面・構成を主役にし、明るいパステル配色と非写実的な物体表現を重視 |
 | Direction D | `references/direction-d-clean-cozy-digital.md` | クリーン・コージーなデジタルイラスト系。整理された具体形、柔らかな陰影、簡略化した素材、調和した色設計を重視 |
 
-管理人が Direction A / CG・レンダー系、Direction B / アニメ系、Direction C / 抽象・グラフィック系、Direction D / クリーン・コージーなデジタルイラスト系などを指定した場合は、対応する reference を読む。
+管理人が Direction A（CG・レンダー系）、Direction B（アニメ系）、Direction C（抽象・グラフィック系）、Direction D（クリーン・コージーなデジタルイラスト系）などを指定した場合は、対応する reference を読む。
 
-方向性が明示されていない場合、既存 Direction を勝手にデフォルト扱いしない。必要なら複数方向を比較できる形で提示する。
+方向性が明示されていない場合、既存の Direction を勝手にデフォルト扱いしない。必要なら複数の方向性を比較できる形で提示する。
 
 > [!NOTE]
-> Direction D の品質基準は ChatGPT Chat / GPT-5.6 Sol / High での生成を主とする。Codex / Work / 軽量モデル固有の失敗を補正するための長いnegativeを canonical Direction へ積み増さない。別経路の生成結果はモデル比較として切り分ける。
+> Direction D の品質基準は、ChatGPT Chat / GPT-5.6 Sol / High での生成結果を主とする。Codex / Work / 軽量モデル固有の失敗を補正するための長いネガティブ指示を canonical Direction へ積み増さない。別経路の生成結果はモデル比較として切り分ける。
 
 
 ## 現在のLook profiles
@@ -55,12 +55,12 @@ Look は、Direction の描画文法を保ったまま、**配色・ライティ
 | `coral-aqua-glow` | `tools/room-image-prompt/data/look_coral_aqua_glow.txt` | コーラル/ピーチ/アンバーとアクア/ターコイズの暖冷対比。水がある場合は透明感を強調 |
 | `crystal-lucent` | `tools/room-image-prompt/data/look_crystal_lucent.txt` | 淡いシアン・ラベンダー・乳白色と、ガラス/クリスタル/半透明の軽やかな材質感 |
 
-Look のruntime sourceは上記 `data/look_*.txt` とし、Directionのcanonical Markdownとは分けて管理する。
+Look の runtime source は上記の `data/look_*.txt` とし、Direction の canonical Markdown とは分けて管理する。
 
 > [!IMPORTANT]
-> Look は指定された時間帯・天候を上書きしない。例えば `indigo-violet-fantasy` を選んでも昼を夜へ変えず、昼ならcool shadowやcolored accentとして表現する。
+> Look は指定された時間帯・天候を上書きしない。例えば `indigo-violet-fantasy` を選んでも昼を夜へ変えず、昼なら寒色寄りの影（cool shadow）や色付きのアクセント（colored accent）として表現する。
 >
-> Look はDirectionも上書きしない。Direction Bならアニメとして、Direction Cなら抽象グラフィックとして、Direction Dなら簡略化した2Dデジタルイラストとして、同じLookをそれぞれの描画言語へ翻訳する。
+> Look は Direction も上書きしない。Direction B ならアニメとして、Direction C なら抽象グラフィックとして、Direction D なら簡略化した 2D デジタルイラストとして、同じ Look をそれぞれの描画言語へ落とし込む。
 
 ## ワークフロー
 
@@ -95,10 +95,10 @@ Look のruntime sourceは上記 `data/look_*.txt` とし、Directionのcanonical
 用途制約、Theme、Direction、Lookのどれかを、別レイヤーへ安易に押し込まない。
 
 > [!IMPORTANT]
-> Direction の canonical source は `references/direction-*.md` である。CLI用の `tools/room-image-prompt/data/style_direction_*.generated.txt` は各referenceの **`## Prompt guidance` セクションから自動生成**されるため、生成物を直接編集しない。
-> Direction を変更したら `cd tools/room-image-prompt && go generate ./data` を実行し、生成物も同じ変更に含める。CIはcanonical Markdownと生成物の不一致を拒否する。
-> CLIでは `-style direction-a` / `direction-b` / `direction-c` / `direction-d` で生成済みDirectionを利用できる。未指定時だけ後方互換のため `legacy` を使う。
-> Look は `-look <name>`、任意Lookは `-look-file <path>` で指定する。Look未指定時は `auto` としてbundled Lookから1つ選ぶ。`-look none` で無効化できる。
+> Direction の canonical source は `references/direction-*.md` である。CLI 用の `tools/room-image-prompt/data/style_direction_*.generated.txt` は各 reference の **`## Prompt guidance` セクションから自動生成**されるため、生成物を直接編集しない。
+> Direction を変更したら `cd tools/room-image-prompt && go generate ./data` を実行し、生成物も同じ変更に含める。CI は canonical Markdown と生成物の不一致をエラーにする。
+> CLI では `-style direction-a` / `direction-b` / `direction-c` / `direction-d` で生成済み Direction を利用できる。未指定時のみ後方互換のため `legacy` を使う。
+> Look は `-look <name>`、任意の Look は `-look-file <path>` で指定する。未指定時は `auto` として同梱の Look（bundled Look）から1つ選ぶ。`-look none` で無効化できる。
 
 ### 2. Direction の不変条件を読む
 
@@ -151,8 +151,8 @@ Direction を保ったまま、題材・建築・地形・時代・世界観・�
 
 ### 5. 比較画像では比較条件を固定する
 
-複数 Direction を比較するときは、Lookを含めて描画スタイル以外をできるだけ同一にする。
-複数 Look を比較するときは、Direction・題材・構図・時間帯・天気を同一にする。
+複数の Direction を比較するときは、Look を含め、描画スタイル以外の条件をできるだけ同一にする。
+複数の Look を比較するときは、Direction・題材・構図・時間帯・天気を同一にする。
 
 固定する対象:
 - 題材と空間レイアウト
@@ -168,11 +168,11 @@ Direction を保ったまま、題材・建築・地形・時代・世界観・�
 
 比較画像で「CG は夕方、アニメは昼、グラフィックは晴天」のように条件が混ざると、スタイル差を正しく評価できない。
 
-厳密なスタイル比較では、まず `references/style-comparison-benchmark.md` の**text-locked fixture**を使い、題材・構造アンカー・時間帯・天気・光源条件を同一テキストで固定する。画像referenceはgeometryを揃えやすい反面、そのreference固有の材質・陰影・3D感がDirectionへ混入することがあるため、Style fidelityの一次判定にはしない。
+厳密なスタイル比較では、まず `references/style-comparison-benchmark.md` の**text-locked fixture**を使い、題材・構造アンカー・時間帯・天気・光源条件を同一テキストで固定する。画像 reference は形状（geometry）を揃えやすい反面、その画像固有の材質・陰影・3D感が Direction へ混入することがあるため、Style fidelity の一次判定には使わない。
 
-同一geometryでの変換能力も確認したい場合は、A/B/C/Dのどれにも属さないneutral clay / blockout画像をsecondary benchmarkとして使う。完成したA/B/C/D画像をreferenceにしない。reference使用時に画風が弱まった場合は、失敗をDirection定義へそのまま取り込まず、**reference bias / geometry-style trade-off**として分離評価する。
+同一 geometry での変換能力も確認したい場合は、A/B/C/D のどれにも属さない neutral clay / blockout 画像を secondary benchmark として使う。完成した A/B/C/D 画像を reference にしない。reference の使用で画風が弱まった場合、その失敗を Direction 定義へそのまま取り込まず、**reference bias / geometry-style trade-off** として切り分けて評価する。
 
-生成ごとの空間設計差は Style fidelity とは別に **geometry drift**、時間帯・天気・光源のズレは **condition drift** として記録する。
+生成ごとの空間設計の差は Style fidelity とは別に **geometry drift**、時間帯・天気・光源のずれは **condition drift** として記録する。
 
 ### 6. 結果をレビューする
 
@@ -182,8 +182,8 @@ Direction を保ったまま、題材・建築・地形・時代・世界観・�
 - Direction の線、陰影、立体感、素材の抽象度、仕上げを守っているか。
 
 **Look fidelity**
-- 選択Lookの色関係、ライティングのムード、透明感や材質感が出ているか。
-- Lookが時間帯・天候・Directionを上書きしていないか。
+- 選択した Look の色関係、ライティングのムード、透明感や材質感が出ているか。
+- Look が時間帯・天候・Direction を上書きしていないか。
 
 **Content/layout**
 - 今回の空間設計や座席配置としてよいか。
@@ -207,7 +207,7 @@ Direction を新規追加・大幅更新したときは、可能なら次の Sub
 1. `tools/room-image-prompt/data/look_<name>.txt` を追加する。
 2. 色・光・材質感のルールだけを書き、特定の世界・家具・レイアウトを必須にしない。
 3. 指定された時間帯・天候を上書きしないことを明記する。
-4. Direction A/B/C/D の少なくとも複数で適用可能な表現にする。
+4. Direction A/B/C/D のうち複数の Direction に適用できる表現にする。
 5. `internal/look` の bundled list とテストへ追加する。
 6. `go test ./...` でCLI合成とLook解決を確認する。
 

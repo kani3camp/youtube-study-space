@@ -57,7 +57,7 @@ for rendered, (value, public) in zip(plans, ((None, False), (settings, False), (
         else:
             need(False)
     else:
-        # 空のStateから、基盤だけ・実行系まで、のどちらも同じexact契約で一括作成できる。
+        # 空のStateから基盤のみの構成と実行系を含む構成のいずれも、同じ厳密な検証条件で一括作成できる。
         summary = runtime_contract.validate_plan(envelope)
         resources = len(envelope["resource_changes"])
         need(summary == {"resources": resources, "creates": resources})

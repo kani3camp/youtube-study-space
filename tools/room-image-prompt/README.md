@@ -1,6 +1,6 @@
 # room-image-prompt
 
-ルーム画像生成（画像生成モデル等）向けのプロンプトを組み立て、`output/` に保存する Go CLI です。候補テキストと共通テンプレートは `data/` に置き、`go:embed` でバイナリに同梱します。Direction A/B/C/D の正は `.agents/skills/room-art-direction/references/` にあり、CLI用style assetはそこから生成します。
+ルーム画像生成（画像生成モデル等）向けのプロンプトを組み立て、`output/` に保存する Go CLI です。候補テキストと共通テンプレートは `data/` に置き、`go:embed` でバイナリに同梱します。Direction A/B/C/D の正本は `.agents/skills/room-art-direction/references/` にあり、CLI 用の style asset はそこから生成します。
 
 ## 必要環境
 
@@ -14,14 +14,14 @@ go build -o room-image-prompt ./cmd/room-image-prompt
 ./room-image-prompt -version
 ```
 
-引数なしで、上から4テーマ行（各 `data/0N_*.txt` から1行を独立に乱数抽選）に加え、**座席数 7〜11** を1回一様乱数で決定します。さらに、色・光・材質感を担当する bundled **Look profile を1つ自動選択**します。`data/prompt_template.txt` の `{{STYLE}}` には Direction / style と Look を合成した visual guidance を挿入し、最後にテーマ条件を連結した UTF-8 テキストを **`output/prompt-<タイムスタンプ>.txt`** に書き込みます。あわせて**同じ本文をクリップボードへコピー**します（失敗しても終了コードは成功のままです）。
+引数なしで実行すると、4つのテーマ項目（各 `data/0N_*.txt` から1行ずつ独立に乱数抽選）と **座席数（7〜11）** をそれぞれ一様乱数で決定します。さらに、色・光・材質感を担当する同梱の **Look profile（bundled Look）を1つ自動選択**します。`data/prompt_template.txt` の `{{STYLE}}` には Direction / style と Look を合成した visual guidance を挿入し、末尾にテーマ条件を連結した UTF-8 テキストを **`output/prompt-<タイムスタンプ>.txt`** に保存します。あわせて**同じ本文をクリップボードへコピー**します（失敗しても終了コードは成功のままです）。
 
-`-style direction-a` / `direction-b` / `direction-c` / `direction-d` で管理人のアートディレクションを選択できます。`-style-file <path>` を指定すると任意の UTF-8 テキストをスタイルとして注入できます。style 未指定時は後方互換のため `legacy` です。
+`-style direction-a` / `direction-b` / `direction-c` / `direction-d` で管理人のアートディレクションを選択できます。`-style-file <path>` を指定すると任意の UTF-8 テキストをスタイルとして読み込めます。style 未指定時は後方互換のため `legacy` が使われます。
 
-Look は `-look <name>` で固定でき、`-look none` で無効化できます。未指定時は `auto` として bundled Look から1つ選びます。`-look-file <path>` では任意の Look guidance を注入できます。
+Look は `-look <name>` で固定でき、`-look none` で無効化できます。未指定時は `auto` として bundled Look から1つ選びます。`-look-file <path>` では任意の Look guidance を読み込めます。
 
-- **標準エラー**: `出力: <ファイル名>` に続き、`クリップボードにコピーしました` または `コピーに失敗しました` を1行ずつ出します。Linux などで `xclip` / `xsel` が無い環境ではコピーが失敗し得ます。
-- **標準出力**: **保存したファイルの絶対パスを1行**だけ出します（スクリプト向け）。
+- **標準エラー**: `出力: <ファイル名>` に続き、`クリップボードにコピーしました` または `コピーに失敗しました` を1行ずつ出力します。Linux などで `xclip` / `xsel` がない環境ではコピーに失敗することがあります。
+- **標準出力**: **保存したファイルの絶対パスを1行**だけ出力します（スクリプト向け）。
 
 実行時は **`tools/room-image-prompt` をカレントディレクトリにした状態**で動かす想定です（省略時の出力先が `./output/` になるため）。
 
@@ -41,7 +41,7 @@ Look は `-look <name>` で固定でき、`-look none` で無効化できます�
 v1 は4ファイルを**独立抽選**するため、単に概念を細かく分割すればよいわけではありません。独立性が高い条件だけを別軸にし、組み合わせ依存が強い条件は1つのSceneとして扱います。
 
 - `01_world.txt`: 「どんな舞台か」を単体でイメージできる候補にする。例: `湖畔`、`未来都市`、`雨の港町`、`紅葉の湖畔`
-  - 天気や季節は `雨` / `秋` のように単独の独立軸へせず、Sceneを特徴づける場合だけ含める
+  - 天気や季節は `雨` / `秋` のように独立した軸にせず、Scene を特徴づける場合だけ含める
   - 純粋な時間帯、配色、素材、光の演出、抽象的な気分や作業状態は入れない
 - `02_time_of_day.txt`: `早朝`、`昼下がり`、`夕暮れ`、`深夜` のような時間帯だけにする
   - 季節、天候、月・星、休日/週末、静けさ、作業前後などを混ぜない
@@ -63,11 +63,11 @@ v1 は4ファイルを**独立抽選**するため、単に概念を細かく分
 | `data/style_direction_*.generated.txt` | Direction Markdown の `## Prompt guidance` から生成されるCLI用style。**直接編集禁止** |
 | `data/look_*.txt` | bundled Look profile。配色・ライティング・材質感・空気感を担当する。手動管理 |
 
-共通テンプレート、Direction/style、Look、Theme は別々の責務です。最終的には Direction/style と Look を合成し、1つの visual guidance として `{{STYLE}}` に注入します。
+共通テンプレート、Direction/style、Look、Theme は別々の責務です。最終的には Direction/style と Look を合成し、1つの visual guidance として `{{STYLE}}` に挿入します。
 
 ### Direction の単一の正と生成
 
-Direction A/B/C/D の canonical source は `.agents/skills/room-art-direction/references/direction-*.md` です。各Markdownの **`## Prompt guidance` セクションだけ**をCLI向けの実行用fragmentとして抽出します。Summary / Core / Avoid / Non-goals / Review checklist まで丸ごとCLIへ入れないため、Agent向け文書の表現力と実行プロンプトの簡潔さを両立します。
+Direction A/B/C/D の canonical source は `.agents/skills/room-art-direction/references/direction-*.md` です。各 Markdown の **`## Prompt guidance` セクションだけ**を CLI 向けの実行用 fragment として抽出します。Summary / Core / Avoid / Non-goals / Review checklist まで丸ごと CLI へ入れないことで、Agent 向け文書の表現力と実行プロンプトの簡潔さを両立します。
 
 Direction D の最終品質確認は ChatGPT Chat / GPT-5.6 Sol / High を主基準とします。このCLIは最終画像を生成するものではなく、再利用可能なpromptを組み立てる役割です。Codex / Work / 軽量モデル固有の生成癖を補正するための文言は、canonical styleへ安易に追加しません。
 
@@ -87,37 +87,37 @@ bundled Look:
 
 Look は必ず、Theme で選ばれた時間帯・天候を尊重します。例えば `indigo-violet-fantasy` が昼を夜へ変えたり、`coral-aqua-glow` が朝を夕焼けへ変えたりしないよう、時間条件に応じて色・光の出し方だけを適応させます。
 
-`auto` は上記4 Lookから一様に1つ選びます。Look選択は Theme と座席数の抽選**後**に同じ RNG から行うため、Look導入前と同じ `-seed` を指定しても既存4テーマと座席数の抽選順は変わりません。`-look none` を使えばLookを完全に外せます。
+`auto` は上記4 Look から一様に1つ選びます。Look 選択は Theme と座席数の抽選**後**に同じ RNG を使って行うため、Look 導入前と同じ `-seed` を指定しても既存4テーマと座席数の抽選結果は変わりません。`-look none` を使えば Look を完全に外せます。
 
-生成は次で行います。
+スタイル定義の生成は次のコマンドで行います。
 
 ```bash
 cd tools/room-image-prompt
 go generate ./data
 ```
 
-生成済みファイルがcanonical Markdownと一致しない場合はGo testが失敗します。また、Direction referenceの変更でもRoom Image Prompt CIが起動するようpath routingで保護します。
+生成済みファイルが canonical Markdown と一致しない場合は `go test` が失敗します。また、Direction reference の変更でも Room Image Prompt CI が起動するよう、path routing で保護しています。
 
 出力に付与するテーマブロックの行ラベルは、順に `世界観` / `時間帯` / `作業空間` / `座席レイアウト` / `座席数` です（`internal/theme` の `FormatThemeBlock`）。`座席数` は7〜11の乱数で、専用の候補ファイルはありません。
 
 ### v1 の挙動と将来拡張
 
-- **v1（現状）**: 4ファイル分は、当該ファイル内の候補から **一様な独立乱数** で1行ずつ選びます。`座席数` は 7〜11 から1回一様乱数で決めます。その後、Look 未指定時は bundled Look 4種から1つを一様に選びます。Theme と Look の相性スコアや条件付き再抽選は行いません。
+- **v1（現状）**: 4ファイル分は、それぞれファイル内の候補から **一様な独立乱数** で1行ずつ選びます。`座席数` は 7〜11 から1回一様乱数で決めます。その後、Look 未指定時は bundled Look 4種から1つを一様に選びます。Theme と Look の相性スコアや条件付き再抽選は行いません。
 - **将来拡張（未実装）の例**: 前段に応じた候補の重み付け、相性スコア、条件付き再抽選など。必要になったらアルゴリズムを差し替え可能な位置に集約する想定です。
 
 ### オプション
 
 | フラグ | 説明 |
 |--------|------|
-| `-version` | バージョン表示して終了 |
-| `-out <path>` | 出力ファイル（省略時は上記タイムスタンプ名） |
+| `-version` | バージョンを表示して終了 |
+| `-out <path>` | 出力ファイルパス（省略時は上記のタイムスタンプ名） |
 | `-seed <uint64>` | 乱数シード（10進）。省略時は非固定 |
 | `-style <name>` | `legacy` または生成済み `direction-a` / `direction-b` / `direction-c` / `direction-d`。省略時は `legacy` |
 | `-style-file <path>` | 任意の UTF-8 スタイル本文をファイルから読み込む。 `-style` と同時指定不可 |
 | `-look <name>` | `auto` / `none` / bundled Look名。省略時は `auto` |
 | `-look-file <path>` | 任意の UTF-8 Look guidance を読み込む。`-look` と同時指定不可 |
 
-開発中は `go run` でも可です。
+開発中は `go run` で直接実行することもできます。
 
 ```bash
 cd tools/room-image-prompt

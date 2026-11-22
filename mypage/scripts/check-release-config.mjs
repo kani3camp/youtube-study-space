@@ -60,7 +60,7 @@ let result
 try {
 	result = await boundedInput(process.argv.slice(2))
 } catch {
-	// ファイルシステムやJSONのエラーには、パス・キー・入力値が含まれ得る。
+	// ファイルシステムやJSONのエラーにはパス・キー・入力値が含まれ得るため、詳細を出さず固定エラーに変換する。
 	result = releaseInputFailure('INPUT_UNAVAILABLE')
 }
 process.stdout.write(`${JSON.stringify(result)}\n`)

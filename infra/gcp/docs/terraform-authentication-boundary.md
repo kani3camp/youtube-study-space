@@ -37,7 +37,7 @@ controllerは `infra/gcp/scripts/terraform_normal_ops.py`、運用入口と設�
 
 HMACは同runのPlan/Apply比較に限った小さな整合検査です。独自の発行サービス、durable receipt、
 承認台帳、履歴chain、per-resource attestationは作りません。
-Plan用SAにはリソースの読取りとmetadataだけ、Applyには限定したDEVリソース管理権限を付与します。
+Plan用SAにはリソースの読み取りとmetadataだけ、Applyには限定したDEVリソース管理権限を付与します。
 新規リソース型を追加しても通常実行器の改修は不要です。未知の権限領域は同bootstrapの権限審査で扱います。
 公式の[S3 locking](https://developer.hashicorp.com/terraform/language/backend/s3)と
 [saved-plan apply](https://developer.hashicorp.com/terraform/cli/commands/apply)を基本にします。

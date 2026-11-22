@@ -1,4 +1,4 @@
-"""MyPageが同梱しているフォントファイルが、記録どおり壊れていないかをオフラインで検査する。
+"""MyPageに同梱しているフォントファイルが記録どおりの状態であり、破損や改変がないかをオフラインで検査する。
 
 目的: フォントの差し替えや加工ミスで、ファイルの中身・文字数・太さの指定が登録した内容と食い違う事故を防ぐ。
 使われる場面: CI Frontend ワークフロー(.github/workflows/ci-frontend.yml)の mypage-check ジョブの「Validate local font rendering and integrity」ステップ。

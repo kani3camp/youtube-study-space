@@ -61,7 +61,7 @@ table scopeが成立しない場合、Data Viewerやdataset/project-wide grant�
 
 [WIF公式attribute mapping](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines)
 に従い、existing pool/providerのmappingとconditionをprivate GETで確認します。
-repositoryだけのprincipalSetやEnvironmentだけのsubjectを「workflow限定」と扱いません。
+repositoryだけのprincipalSetやEnvironmentだけのsubjectを「workflow限定」とはみなしません。
 次をcloud trust / exact mapped principalとGitHub Environmentの組み合わせで実際に拘束できることが条件です。
 
 - repository ID `340900071` / owner ID `54093651`
@@ -97,8 +97,8 @@ operatorのIAM-write能力をaudit SAへ渡しません。
    他workflowが使うprovider、Environment、memberは変更しない。
 7. Private read-backでexact grant不在、SA disabled、source gate false、既存binding不変を確認。
    既発行tokenが消えたとrevokeだけから推測しない。発行済みcredentialの実lifetime/expiryと
-   running job停止を確認し、expiry後の権限不在まで追跡する。Action access-token設定600sだけで
-   ADCが発行する全credentialの寿命を保証したとは扱わない。
+   running job停止を確認し、expiry後の権限不在まで追跡する。Actionのaccess-token設定（600s）だけで
+   ADCが発行する全credentialの寿命を保証したとはみなさない。
 8. Public logs/Summary/artifactsをleak監査。artifact0、private files cleanup、schema/data/state差分0。
    新SA/custom rolesの恒久保持は許可しない。disable後の削除または期限付きcleanupをprivate結果に記録。
 

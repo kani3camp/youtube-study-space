@@ -88,7 +88,7 @@ func DailyUpdateRankPoint(
 	return lastPenaltyImposedDays, isContinuousActive, currentActivityStateStarted, rankPoint, nil
 }
 
-// CalcNewRPContinuousInactivity 連続で利用しない日が続くとRP減らす。
+// CalcNewRPContinuousInactivity 利用しない日が続くとRPを減らす。
 func CalcNewRPContinuousInactivity(previousRP int, lastActiveAt time.Time, lastPenaltyImposedDays int) (int, int, error) {
 	inactiveDays, err := CalcContinuousInactiveDays(lastActiveAt)
 	if err != nil {

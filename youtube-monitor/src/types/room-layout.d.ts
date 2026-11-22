@@ -18,7 +18,7 @@ export type RoomLayout = {
 		id: number
 		x: number
 		y: number
-		rotate: number // CSSのtransformの仕様に合わせた回転方向、単位。
+		rotate: number // CSSのtransform仕様に合わせた回転方向と単位。
 	}[]
 	partitions: {
 		id: number

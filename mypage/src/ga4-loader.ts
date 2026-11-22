@@ -13,14 +13,15 @@ export type PreparedTag = {
 }
 export type TagLoader = (prepare: (runtime: GtagRuntime) => void) => PreparedTag
 
-// 読み込みでは製品イベントをキューに入れない。ベンダーコードの実行前に起動コマンドを用意する。
-// 置き換え済みの読み込みで、新しい同意世代を停止しない。
+// 同意後に起動コマンドをベンダーコードの実行前に用意し、読み込み中に起きた同意後のイベントは
+// gtag のキュー（レイヤー）へそのまま渡す。読み込みの失敗・タイムアウト・同意撤回・アンマウントでは
+// cancel がレイヤーを空にするため、保留中のイベントは送られない。同意前のイベントは扱わない。
+// すでに世代が置き換わった古い読み込みの完了や失敗で、新しい同意世代を停止しない。
 export class ConsentTag implements AnalyticsPort {
 	private generation = 0
 	private current: {
 		tag: PreparedTag
 		sender: GA4Sender
-		ready: boolean
 	} | null = null
 	private readonly consent: ConsentStore
 	private readonly id: string
@@ -60,21 +61,11 @@ export class ConsentTag implements AnalyticsPort {
 				tag.cancel()
 				return
 			}
-			const current = { tag, sender, ready: false }
+			const current = { tag, sender }
 			this.current = current
-			void tag.ready.then(
-				() => {
-					if (
-						this.current === current &&
-						generation === this.generation &&
-						this.consent.getSnapshot().value === 'granted'
-					)
-						current.ready = true
-				},
-				() => {
-					if (this.current === current) this.stop()
-				},
-			)
+			void tag.ready.catch(() => {
+				if (this.current === current) this.stop()
+			})
 		} catch {
 			this.stop()
 		}
@@ -91,8 +82,7 @@ export class ConsentTag implements AnalyticsPort {
 		}
 	}
 	send(event: SafeEvent) {
-		if (!this.current?.ready || this.consent.getSnapshot().value !== 'granted')
-			return
+		if (!this.current || this.consent.getSnapshot().value !== 'granted') return
 		this.current.sender.send(event)
 	}
 }

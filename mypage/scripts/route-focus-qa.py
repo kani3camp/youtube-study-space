@@ -65,7 +65,7 @@ with sync_playwright() as p:
         page.go_forward()
         check_heading(page, '/contact', 'お問い合わせ')
 
-        # 同一ルートのsearch変更やダイアログの開閉で本文へ奪い返さない。
+        # 同一ルートのクエリ（search）変更やダイアログの開閉で、本文へフォーカスを奪い返さない。
         cookie = page.get_by_role('button', name='Cookie設定', exact=True)
         cookie.focus()
         page.evaluate("history.pushState({}, '', '/contact?supportError=oauth_failed')")

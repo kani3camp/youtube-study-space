@@ -1,4 +1,4 @@
-// Tはレスポンスのjsonの型を指定する
+// TはレスポンスJSONの型を指定する
 const wrap = <T>(task: Promise<Response>): Promise<T> =>
 	new Promise((resolve, reject) => {
 		task

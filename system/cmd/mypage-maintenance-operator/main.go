@@ -1,4 +1,4 @@
-// このCloud Run JobはMyPageの計画メンテナンス切替を変更する。
+// このCloud Run JobはMyPageの計画メンテナンス状態を切り替える。
 package main
 
 import (

@@ -44,7 +44,7 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 			},
 			userIsMember:         false,
 			currentSeatDoc:       nil,
-			expectedReplyMessage: "@テストユーザー さん ［⏱️本日の作業時間：0分] ［📊累計作業時間：0分]",
+			expectedReplyMessage: "@テストユーザー さん ［⏱️本日の作業時間：0分］ ［📊累計作業時間：0分］",
 		},
 		{
 			name: "ユーザー情報表示（入室時）",
@@ -60,7 +60,7 @@ func TestSystem_ShowUserInfo(t *testing.T) {
 				CurrentStateStartedAt:   fixedNow.Add(-10 * time.Minute),
 				CurrentSegmentStartedAt: fixedNow.Add(-10 * time.Minute),
 			},
-			expectedReplyMessage: "@テストユーザー さん ［⏱️本日の作業時間：10分] ［📊累計作業時間：10分]",
+			expectedReplyMessage: "@テストユーザー さん ［⏱️本日の作業時間：10分］ ［📊累計作業時間：10分］",
 		},
 	}
 

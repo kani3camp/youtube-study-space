@@ -1,6 +1,6 @@
 ## 前提
-- Figmaデスクトップアプリがインストールされている
-- ルームレイアウトのワイヤーフレームが作成済みである
+- Figmaデスクトップアプリがインストールされていること
+- ルームレイアウトのワイヤーフレームが作成済みであること
   - 座席が配置され、番号が振られていること
 
 ## 使い方
@@ -14,7 +14,7 @@ pnpm dev
 
 Figmaデスクトップアプリを開く。
 
-Figmaのメニューで、Plugins > Development > Import plugin from manifest を選択して、このディレクトリのmanifest.jsonを読み込む。
+Figmaのメニューから Plugins > Development > Import plugin from manifest を選択し、このディレクトリの `manifest.json` を読み込む。
 
-Plugin一覧からこのPluginを選べば、pluginのウィンドウが開く。
+プラグイン一覧からこのプラグインを選ぶと、プラグインのウィンドウが開く。
 

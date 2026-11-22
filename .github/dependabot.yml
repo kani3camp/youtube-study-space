@@ -3,7 +3,7 @@
 #
 # NOTE: このファイルは authoritative な設定です。ここに記載されていない
 #       ecosystem / directory の version update は走りません。新しい
-#       package.json や Dockerfile を追加したときは必ずここにも追記。
+#       package.json や Dockerfile を追加したときは必ずここにも追記してください。
 version: 2
 updates:
   # =========================

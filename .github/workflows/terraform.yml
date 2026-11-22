@@ -53,7 +53,7 @@ on:
         default: false
         type: boolean
       source_branch:
-        description: DEV Coreの対象ブランチ（省略可。対象SHAのみの指定も可。両方空欄は実行元自身）
+        description: DEV Coreの対象ブランチ（省略可。対象SHAのみの指定も可。両方空欄の場合は実行元自身）
         required: false
         default: ""
         type: string

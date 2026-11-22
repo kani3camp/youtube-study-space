@@ -1,7 +1,7 @@
 # Explicit API ownership preparation
 
 全 enabled services を import しない。private inventory / caller evidence で `Own` と分類し、
-Terraform resource の明示 dependency とレビューされた既存 `ENABLED` service だけを選ぶ。
+Terraform resource の明示 dependency とレビュー済みの既存 `ENABLED` service だけを選ぶ。
 `service_keys=[]` が既定値。`classification` は理由・dependency address を含む private input。
 `Platform/External` / `Investigate` / `Do not own` / 未確認 service は選択時に拒否する。
 

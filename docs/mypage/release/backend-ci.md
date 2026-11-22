@@ -69,7 +69,7 @@ flowchart TD
 
 本番の `mypage-backend-deploy` / `mypage-operator-deploy` / `mypage-hosting-deploy` SA、各 WIF pool（`mypage-backend` / `mypage-operator` / `mypage-hosting`、provider は `github-actions`）、Environment ごとの `roles/iam.workloadIdentityUser`、プロジェクト・Registry・SA 単位の権限は MyPage Terraform が runtime settings の宣言と同時に作成します（Plan 契約が名前・条件式・メンバーを完全一致で検査します）。
 
-- Cloud Run Service `mypage-api` 上の配備者バインディング（Backend SA へのカスタムロール `mypageBackendRelease`、Hosting SA への `roles/run.viewer`）は Terraform で宣言せず、オーナーが付与します。CI に Service の IAM 変更権限を渡さないためで、公開 Invoker と同じ境界です。付与が無いときは各配備スクリプトが Service の読み取り（書き込みの前）で停止します。
+- Cloud Run Service `mypage-api` 上の配備者バインディング（Backend SA へのカスタムロール `mypageBackendRelease`、Hosting SA への `roles/run.viewer`）は Terraform で宣言せず、オーナーが付与します。CI に Service の IAM 変更権限を渡さないためで、公開 Invoker と同じ境界です。権限付与が無いときは、各配備スクリプトが書き込み前の Service 読み取り段階で停止します。
 - Operator 用の Job IAM（`mypageMaintenanceImageRelease` と maintenance Job 実行 SA への `actAs`）は DEV と同じ Terraform 資源を本番でも宣言します。
 
 ---
@@ -81,7 +81,7 @@ flowchart TD
   - Maintenance Job を DEV で初めて作成するときだけは、Job が未存在であることを読み取り専用で確認したうえで、実ビルド済み・operator バイナリ含有を確認済みの固定 SHA タグを Artifact Registry から digest へ解決し、その Plan/Apply 専用の非公開入力として使います（GitHub Environment の設定 JSON へ maintenance 専用 digest/source SHA は保存しません）。
   - 作成後は Service・Job ともにコンテナのイメージだけを `lifecycle.ignore_changes` で CI/CD へ委譲します（`ignore_changes` をテンプレート全体には広げません）。CPU・メモリ・concurrency・環境変数・Secret バージョン・SA・ingress・traffic・IAM などは引き続き Terraform 管理です。
 - 旧設定キーの扱い: 旧 Environment secret に残る `maintenance_operator_enabled` / `maintenance_operator_image_digest` / `maintenance_operator_image_source_sha` / `history_coverage_json` は読み込み時に除外し、その他の未知キーは拒否します。
-- 次回インフラ Plan 時の互換性: 前回 State と現在 Cloud Run の間に複数リビジョンの正当なイメージのみの更新があっても、他の設定が不変なら通常の State refresh として受け入れます。一方で Registry 以外のイメージ、env・Secret・権限・scale・traffic 変更や予期しない update/replace/delete は引き続き停止します。
+- 次回インフラ Plan 時の互換性: 前回の State と現在の Cloud Run の間に、イメージだけを更新した正当なリビジョンが複数あっても、他の設定が不変なら通常の State refresh として受け入れます。一方で Registry 以外のイメージ、env・Secret・権限・scale・traffic 変更や予期しない update/replace/delete は引き続き停止します。
 - 権限の相互分離: リリース用 actor に Terraform State / AWS backend の権限を付けず、Terraform の Plan/Apply actor にもアプリのイメージ更新権限を追加しません。
 - 競合の抑止: 各環境の通常インフラ操作と Backend / Operator リリースは同じ concurrency group（`mypage-<dev|prod>-cloud-run`）で競合を防ぎます。Hosting リリースとの競合は各実行での Hosting 版・HEAD 照合と運用上の停止調整で対処します（クラウド間の完全な原子性は保証しません）。
 - 旧設定ファイルの廃止: 2026-10 の旧方式のリリース設定ファイルは履歴として Git 履歴に残すのみで、現在の CI/CD や Terraform の入力としては使いません。
@@ -95,7 +95,7 @@ flowchart TD
 - foundation GCP WIF の更新: DEV の `mypage-foundation` pool / `github-actions` provider の condition を `python3 infra/mypage-platform/scripts/foundation_contract.py provider-condition` の出力で置き換えます（`workflow_ref` と完全一致の `sub` を組で更新し、`workflow_dispatch` のみ許可・旧 `ci.yml` の `push` を除外。image-build では AWS State Role を使いません）。
 - Backend 専用 WIF の更新: DEV の `mypage-dev-backend` 用 WIF の condition を [backend_identity.py](../../../infra/mypage-platform/scripts/backend_identity.py) の `--update-condition` で置き換えます（`workflow_dispatch` のみ、caller `deploy-mypage-api.yml`、reusable `mypage-backend-authenticated.yml`、同一 workflow SHA、Environment `mypage-dev-backend` を要求し、`push` は不可）。Cloud Run `mypage-api` への限定 IAM は維持し、Production の IAM・WIF・Environment は変更しません。
 - 資格情報の露出防止: GitHub Environment は統合ブランチに限定し、配備用資格情報を PR ワークフローに露出しません。
-- 実測での有効化判断: 最初の `Deploy MyPage API` で「ビルド → digest 検証 → Cloud Run 更新 → 匿名 smoke → 配備記録」を実測してから運用を有効とします（condition 未更新なら認証で失敗するのが正しい挙動であり、再実行で迂回しません）。
+- 実測での有効化判断: 最初の `Deploy MyPage API` で「ビルド → digest 検証 → Cloud Run 更新 → 匿名 smoke → 配備記録」を実測してから運用を有効と判断します（condition 未更新なら認証で失敗するのが正しい挙動であり、再実行で迂回しません）。
 
 ---
 
@@ -134,7 +134,7 @@ Maintenance Job `mypage-maintenance-operator` のイメージは、API Service �
 1. 統合ブランチ（`integration/mypage-canon-20261006`）上で `environment=development`・`mode=build-and-deploy` を実行します（本番は `main` 上で `environment=production`）。資格情報取得の前に System の事前検査（`ci-system.yml`）を通し、`system/Dockerfile.mypage-maintenance-operator`（operator バイナリ専用）をビルドします。オフライン・nonroot 検査後、`mypage/mypage-maintenance-operator:<source SHA>` として push し、Registry と `RepoDigests` を照合した digest を次ジョブへ渡します。
 2. [operator_release.py](../../../infra/mypage-platform/scripts/operator_release.py) が、固定 actor・対象環境の ref・caller・初回実行・SHA 一致を認証前に検査したうえで、Environment `mypage-<dev|prod>-operator` と `mypage-operator-deploy` SA/WIF で短命トークンを取得します。
    - `tag → digest` を再確認し、Job の identity・設定・現イメージを読み取ってコンテナイメージだけを 1 回の etag 付き PATCH で更新します。
-   - Long-running Operation 完了・generation 前進・イメージ以外の設定不変を読み戻して初めて成功とします（`labels` / `annotations` は GET から保持し、`executionCount` などの出力専用状態は競合判定に使いません）。
+   - Long-running Operation の完了、generation の更新（前進）、およびイメージ以外の設定が不変であることを読み戻して確認し、初めて成功とします（`labels` / `annotations` は GET から保持し、`executionCount` などの出力専用状態は競合判定に使いません）。
 3. **Job の実行は行いません**（実行するとメンテナンス状態が変わるため）。API Service・Hosting・Terraform・State・IAM にも触れません。
 4. 成否にかかわらず `mypage-operator-release-record`（schema 1、旧イメージ・旧 generation を含む）を 14 日間保存し、資格情報を持たない受領ジョブが `operator_release.py receipt` で再検査して `mypage-operator-verified-record` を残します（自動再試行・自動ロールバックなし）。
 

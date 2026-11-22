@@ -290,8 +290,8 @@ def apply_saved(env, root, plan):
     match_state(before, planned_service(plan)["after" if recovered is not None else "before"])
     c.need(ops.state_version(env) == baseline, "metrics-live-state-version")
     c.need(0 <= time.time() - float(env["MYPAGE_PLAN_TIME"]) <= 1800, "metrics-live-plan-expired")
-    # 実環境の切替は確認済みでState再取得に失敗した場合、新しい独立Planの組を作る。
-    # 復旧ではStateだけを再取得し、PATCHを2回実行しない。
+    # 実環境の切り替えは完了したがState再取得に失敗した場合は、新しい独立Planの組を作る。
+    # 復旧時はStateだけを再取得し、PATCHを2回実行しない。
     live = before if recovered is not None else conditional_update(env.get("MYPAGE_GCP_ACCESS_TOKEN"), before, planned_service(plan)["after"])
     transition = recovered or plan
     # クラウドへの書き込みは上のETag PATCHだけとする。その後TerraformはStateを再取得する。
