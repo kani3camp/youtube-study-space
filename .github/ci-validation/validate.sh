@@ -84,6 +84,8 @@ case "$1" in
         # Test email/password Auth ownership and Terraform contract
         python3 -B infra/gcp/tests/test_monitor_auth.py
         python3 -B infra/gcp/scripts/test_monitor_auth_terraform.py
+        # Validate MyPage OAuth TTL Terraform
+        bash infra/mypage-oauth-ttl/scripts/check-local.sh
         ;;
       native)
         # Test Pool import fidelity with credentialless mocks
@@ -94,8 +96,6 @@ case "$1" in
         python3 -B infra/gcp/tests/test_terraform_normal_ops_native.py
         # Validate MyPage platform desired state
         bash infra/mypage-platform/scripts/check-local.sh
-        # Validate MyPage OAuth TTL Terraform
-        bash infra/mypage-oauth-ttl/scripts/check-local.sh
         ;;
       *) echo "Unknown terraform-tests shard" >&2; exit 2 ;;
     esac
