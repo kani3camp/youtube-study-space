@@ -1,6 +1,7 @@
 """Target tests must run without runner credentials, command files, or host access."""
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -9,7 +10,8 @@ import unittest
 from test_ci_workflows import ROOT, load
 
 REPOSITORY_KINDS = ('base-image', 'node-policy', 'docs', 'contracts')
-TERRAFORM_KINDS = ('terraform-static', 'terraform-tests')
+TERRAFORM_KINDS = ('terraform-static', 'terraform-tests contracts', 'terraform-tests native')
+IMAGE = 'yss-ci-validation:local'
 
 
 class ValidationSandboxTest(unittest.TestCase):
@@ -45,20 +47,26 @@ class ValidationSandboxTest(unittest.TestCase):
         self.assertEqual(sum(step.get('uses') == './.github/actions/prepare-ci-validation'
                              for step in job['steps']), 1)
 
-    def run_docker_step(self, job, fail_kinds):
+    def run_docker_step(self, job, fail_kinds, delays=None):
         """Execute the actual workflow shell; Docker is a recording failure/log adversary."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             fake = root / 'docker'
-            fake.write_text('#!/usr/bin/env python3\nimport json,os,sys\n'
-                'with open(os.environ["ARGS_OUT"], "a") as output:\n'
-                '    output.write(json.dumps(sys.argv[1:]) + "\\n")\n'
-                'kind = sys.argv[-1]\n'
+            # Each call appends one record with a single O_APPEND write, so
+            # concurrently running shards never interleave their records.
+            fake.write_text('#!/usr/bin/env python3\nimport json,os,sys,time\n'
+                'start = time.time()\n'
+                'kind = " ".join(sys.argv[sys.argv.index("yss-ci-validation:local") + 1:])\n'
+                'time.sleep(json.loads(os.environ["DELAYS"]).get(kind, 0))\n'
                 'print("::error::untrusted-" + kind, flush=True)\n'
                 'print("::stop-commands::attacker", flush=True)\n'
                 'print("::attacker::", flush=True)\n'
                 'print("::warning::stderr-" + kind, file=sys.stderr, flush=True)\n'
                 'print("| injected row | PASS |", flush=True)\n'
+                'record = json.dumps({"args": sys.argv[1:], "start": start, "end": time.time()}) + "\\n"\n'
+                'fd = os.open(os.environ["ARGS_OUT"], os.O_WRONLY | os.O_APPEND | os.O_CREAT)\n'
+                'os.write(fd, record.encode())\n'
+                'os.close(fd)\n'
                 'sys.exit(17 if kind in json.loads(os.environ["FAIL_KINDS"]) else 0)\n')
             fake.chmod(0o755)
             output = root / 'args'
@@ -70,10 +78,12 @@ class ValidationSandboxTest(unittest.TestCase):
                     'ACTIONS_RUNTIME_TOKEN': 'RUNNER_TOKEN_CANARY', 'GITHUB_TOKEN': 'TOKEN_CANARY',
                     'GITHUB_ENV': 'HOST_COMMAND_FILE_CANARY', 'ARGS_OUT': str(output),
                     'GITHUB_STEP_SUMMARY': str(summary),
-                    'FAIL_KINDS': json.dumps(fail_kinds)},
+                    'FAIL_KINDS': json.dumps(fail_kinds), 'DELAYS': json.dumps(delays or {})},
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
-            calls = [json.loads(line) for line in output.read_text().splitlines()]
-            for args in calls:
+            records = [json.loads(line) for line in output.read_text().splitlines()]
+            calls = [(record['args'], ' '.join(record['args'][record['args'].index(IMAGE) + 1:])) for record in records]
+            self.timings = {kind: (record['start'], record['end']) for record, (_, kind) in zip(records, calls)}
+            for args, kind in calls:
                 self.assertEqual([args[i + 1] for i, arg in enumerate(args) if arg == '--env'],
                                  ['CI_SOURCE_SHA=' + 'a' * 40])
                 self.assertEqual([args[i + 1] for i, arg in enumerate(args) if arg == '--mount'],
@@ -86,8 +96,7 @@ class ValidationSandboxTest(unittest.TestCase):
                     self.assertNotIn(forbidden, args)
                 self.assertNotIn('docker.sock', ' '.join(args))
                 self.assertNotIn('CANARY', ' '.join(args))
-                self.assertEqual(args[-2], 'yss-ci-validation:local')
-                if not args[-1].startswith('terraform-'):
+                if not kind.startswith('terraform-'):
                     self.assertIn('--network=none', args)
             # Model Actions' stop/resume protocol. Every stdout AND stderr line
             # from every container must stay inside the unpredictable envelope.
@@ -97,8 +106,7 @@ class ValidationSandboxTest(unittest.TestCase):
             self.assertRegex(marker, r'^[0-9a-f]{64}$')
             self.assertEqual(lines[-1], '::' + marker + '::')
             self.assertEqual(lines.count(lines[-1]), 1)
-            for args in calls:
-                kind = args[-1]
+            for args, kind in calls:
                 self.assertIn('::error::untrusted-' + kind, lines[1:-1])
                 self.assertIn('::warning::stderr-' + kind, lines[1:-1])
                 self.assertNotIn(marker, ' '.join(args))
@@ -118,7 +126,8 @@ class ValidationSandboxTest(unittest.TestCase):
             for failures in ((), kinds):
                 with self.subTest(job=job['name'], failures=failures):
                     result, calls = self.run_docker_step(job, failures)
-                    self.assertEqual([args[-1] for args in calls], list(kinds))
+                    self.assertEqual([kind for _, kind in calls][0], kinds[0])
+                    self.assertCountEqual([kind for _, kind in calls], kinds)
                     self.assertEqual(result.returncode, 1 if failures else 0)
 
     def test_each_repository_failure_runs_all_four_cases_and_fails_ci_gate(self):
@@ -126,7 +135,7 @@ class ValidationSandboxTest(unittest.TestCase):
         for kind in REPOSITORY_KINDS:
             with self.subTest(failed=kind):
                 result, calls = self.run_docker_step(self.repository_job(), (kind,))
-                self.assertEqual([args[-1] for args in calls], list(REPOSITORY_KINDS))
+                self.assertEqual([case for _, case in calls], list(REPOSITORY_KINDS))
                 self.assertEqual(result.returncode, 1)
                 for case in REPOSITORY_KINDS:
                     self.assertIn(case + (': FAIL (exit 17)' if case == kind else ': PASS'), result.stdout)
@@ -135,6 +144,82 @@ class ValidationSandboxTest(unittest.TestCase):
                 gate = subprocess.run(['python3', str(test_ci_results.SCRIPT)],
                     env=os.environ | {'CI_NEEDS': json.dumps(needs)}, capture_output=True, text=True, timeout=30)
                 self.assertNotEqual(gate.returncode, 0, gate.stdout)
+
+    def test_each_terraform_failure_still_runs_every_validation_and_fails_ci_gate(self):
+        import test_ci_results
+        job = next(self.jobs())
+        for kind in TERRAFORM_KINDS:
+            with self.subTest(failed=kind):
+                result, calls = self.run_docker_step(job, (kind,))
+                self.assertCountEqual([case for _, case in calls], TERRAFORM_KINDS)
+                self.assertEqual(result.returncode, 1)
+                for case in TERRAFORM_KINDS:
+                    self.assertEqual(result.stdout.count(case + (': FAIL (exit 17)' if case == kind else ': PASS')), 1)
+                needs = test_ci_results.GateResultsTest().fixture(gcp_terraform='true')
+                needs['gcp-terraform-validate']['result'] = 'failure' if result.returncode else 'success'
+                gate = subprocess.run(['python3', str(test_ci_results.SCRIPT)],
+                    env=os.environ | {'CI_NEEDS': json.dumps(needs)}, capture_output=True, text=True, timeout=30)
+                self.assertNotEqual(gate.returncode, 0, gate.stdout)
+
+    def test_shards_start_after_static_checks_finish_and_overlap(self):
+        # contracts outlives native, so native's failure is collected out of completion order.
+        result, calls = self.run_docker_step(next(self.jobs()), ('terraform-tests native',),
+                                             delays={'terraform-static': 0.5, 'terraform-tests contracts': 1.5})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('terraform-tests native: FAIL (exit 17)', result.stdout)
+        self.assertIn('terraform-tests contracts: PASS', result.stdout)
+        static_end = self.timings['terraform-static'][1]
+        (contracts_start, contracts_end), (native_start, native_end) = (
+            self.timings['terraform-tests contracts'], self.timings['terraform-tests native'])
+        self.assertLessEqual(static_end, min(contracts_start, native_start))
+        self.assertLess(native_end, contracts_end)
+        self.assertLess(contracts_start, native_end)
+        # Each shard's output is printed as one contiguous block inside the envelope.
+        lines = result.stdout.splitlines()
+        for shard in ('contracts', 'native'):
+            header = lines.index('=== terraform-tests ' + shard + ' output ===')
+            self.assertEqual(lines[header + 1], '::error::untrusted-terraform-tests ' + shard)
+
+    def test_entrypoint_rejects_missing_or_unknown_test_shards_before_running_anything(self):
+        entrypoint = (ROOT / '.github/ci-validation/validate.sh').read_text()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source'
+            source.mkdir()
+            subprocess.run(['git', 'init', '-q', str(source)], check=True)
+            subprocess.run(['git', '-C', str(source), '-c', 'user.name=CI test',
+                            '-c', 'user.email=ci-test@example.invalid', 'commit', '--allow-empty', '-qm', 'fixture'], check=True)
+            sha = subprocess.run(['git', '-C', str(source), 'rev-parse', 'HEAD'], check=True,
+                                 capture_output=True, text=True).stdout.strip()
+            fake = root / 'bin/terraform'
+            fake.parent.mkdir()
+            fake.write_text('#!/bin/sh\necho TERRAFORM_STARTED\nexit 99\n')
+            fake.chmod(0o755)
+            for shard in ((), ('unknown',)):
+                with self.subTest(shard=shard):
+                    work = root / ('work-' + '-'.join(shard))
+                    script = entrypoint.replace('/source/', str(source) + '/').replace('/work/', str(work) + '/')
+                    result = subprocess.run(['bash', '-s', '--', 'terraform-tests', *shard], input=script,
+                        env=os.environ | {'HOME': str(root / 'home'), 'RUNNER_TEMP': str(root / 'tmp'), 'CI_SOURCE_SHA': sha,
+                                          'PATH': str(fake.parent) + os.pathsep + os.environ.get('PATH', os.defpath)},
+                        capture_output=True, text=True, timeout=30)
+                    self.assertEqual(result.returncode, 2)
+                    self.assertIn('Unknown terraform-tests shard', result.stderr)
+                    self.assertNotIn('TERRAFORM_STARTED', result.stdout + result.stderr)
+
+    def test_static_checks_finish_before_concurrent_test_shards_and_every_shard_runs(self):
+        run = load(ROOT / '.github/workflows/ci-gcp-terraform.yml')['jobs']['validate']['steps'][-1]['run']
+        self.assertEqual(run.count('docker run '), 1)
+        # terraform-static runs in the foreground; only the test shards are started in the background.
+        self.assertLess(run.index('if run_validation terraform-static; then'), run.index('shards=('))
+        self.assertEqual(run.count(' &\n'), 1)
+        self.assertIn('run_validation terraform-tests "$shard" > "${logs}/${shard}.log" 2>&1 &', run)
+        workflow_shards = re.search(r'shards=\(([^)]*)\)', run).group(1).split()
+        tests = self.entrypoint_kind('terraform-tests')
+        entrypoint_shards = re.findall(r'(?m)^      ([a-z-]+)\)$', tests)
+        self.assertEqual(workflow_shards, entrypoint_shards)
+        self.assertEqual(sorted(workflow_shards), ['contracts', 'native'])
+        self.assertIn('*) echo "Unknown terraform-tests shard" >&2; exit 2 ;;', tests)
 
     def test_container_uses_nonroot_user_and_rejects_a_different_commit_before_tests(self):
         dockerfile = (ROOT / '.github/ci-validation/Dockerfile').read_text()
@@ -154,8 +239,8 @@ class ValidationSandboxTest(unittest.TestCase):
             subprocess.run(['git', '-C', str(source), '-c', 'user.name=CI test',
                             '-c', 'user.email=ci-test@example.invalid', 'commit', '--allow-empty', '-qm', 'fixture'], check=True)
             for kind in (*TERRAFORM_KINDS, *REPOSITORY_KINDS):
-                script = entrypoint.replace('/source/', str(source) + '/').replace('/work/', str(work / kind) + '/')
-                result = subprocess.run(['bash', '-s', '--', kind], input=script,
+                script = entrypoint.replace('/source/', str(source) + '/').replace('/work/', str(work / kind.replace(' ', '-')) + '/')
+                result = subprocess.run(['bash', '-s', '--', *kind.split()], input=script,
                     env=os.environ | {'HOME': str(root / 'home'), 'RUNNER_TEMP': str(root / 'tmp'),
                                       'CI_SOURCE_SHA': '0' * 40}, capture_output=True, text=True, timeout=30)
                 self.assertEqual(result.returncode, 1)
@@ -198,9 +283,6 @@ class ValidationSandboxTest(unittest.TestCase):
                       (ROOT / '.github/ci-validation/Dockerfile').read_text())
         for target_code in ('node', 'bash ', '.github/scripts', 'infra/gcp/tests', 'infra/gcp/scripts'):
             self.assertNotIn(target_code, static)
-        run = load(ROOT / '.github/workflows/ci-gcp-terraform.yml')['jobs']['validate']['steps'][-1]['run']
-        self.assertIn('for kind in terraform-static terraform-tests; do', run)
-        self.assertEqual(run.count('docker run '), 1)
 
     def test_fixed_policy_checker_ignores_target_python_and_rejects_payload_access(self):
         import shutil

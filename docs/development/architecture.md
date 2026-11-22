@@ -112,7 +112,7 @@ Changes to storage, forwarding, archival, or deletion must also be checked again
 - [変更検知](../../.github/scripts/detect-ci-paths.sh) で変更したドメインを選択します（ワークフロー・共有 CI action・選択結果の契約・未分類の CI スクリプト変更時は全グループを選択。既知の文書チェッカー 2 本は常時実行の Repository 検証で網羅するため追加グループを選択しません）。変更のないドメインはスキップし、Repository 検証は毎回実行します（手動 `ci.yml` 実行も認証なしで全ドメインを再検査します）。
 - Ruleset の必須チェックは `CI Gate` であり、[Gate の判定](../../.github/scripts/check-ci-results.py) が呼び出し先の失敗・キャンセル・変更検知欠損・Repository 検証未成功・選択モジュールのスキップを拒否します。
 - 検査ツールと [コンテナ実行スクリプト](../../.github/ci-validation/validate.sh) は対象コード取得前に実行元の checkout からビルドします。Repository 検証は 1 ジョブで隔離イメージを 1 回ビルドし、`base-image`・`node-policy`・`docs`・`contracts` の 4 件を独立した非 root コンテナで読み取り専用マウントして実行します（runner 環境変数・キャッシュトークン・Docker ソケットは渡さず、Repository 共通検査は通信も禁止）。4 件すべての結果をログと Step Summary に記録し、1 件でも失敗すれば失敗とします（コンテナ出力は結果表へ取り込みません）。
-- Terraform 検査では固定の検査（`fmt`・`validate`・provider lock・`terraform-static`）を対象コミットのテスト（`terraform-tests`）より前に別コンテナで実行し、テストコードによる HCL 書き換えが固定検査へ影響しないようにしています（`terraform-static` は `registry.terraform.io/hashicorp/*` のみ許可し、読み取り専用の `/source` に対して最後に `init`/`validate` を実行）。
+- Terraform 検査では固定の検査（`fmt`・`validate`・provider lock・`terraform-static`）を対象コミットのテスト（`terraform-tests`）より前に別コンテナで実行し、テストコードによる HCL 書き換えが固定検査へ影響しないようにしています（`terraform-static` は `registry.terraform.io/hashicorp/*` のみ許可し、読み取り専用の `/source` に対して最後に `init`/`validate` を実行）。固定検査の完了後、対象コミットのテストは `contracts` と `native` の 2 つのシャードに分け、それぞれ別のコンテナで並列に実行します。どの検査が失敗しても他の検査は最後まで実行し、ジョブは失敗になります。シャードの割り当ては `validate.sh` とワークフローの両方に定義しており、[サンドボックスの契約テスト](../../.github/scripts/test_ci_validation_sandbox.py) で一致を確認しています。
 
 ### Terraform・アプリケーション配備との分担
 
