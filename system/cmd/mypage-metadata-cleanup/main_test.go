@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -74,6 +73,8 @@ func TestRunMainRejectsBeforeCreatingClients(t *testing.T) {
 	}{
 		{nil, valid},
 		{[]string{"-mode=run", "extra"}, valid},
+		{[]string{"-mode=synthetic-private-mode"}, valid},
+		{[]string{"-mode=run"}, map[string]string{"MYPAGE_ENVIRONMENT": "development", "GOOGLE_CLOUD_PROJECT": "test-youtube-study-space", "CLOUD_RUN_JOB": "job", "GOOGLE_APPLICATION_CREDENTIALS": "/synthetic-private-key.json"}},
 		{[]string{"-mode=run"}, map[string]string{"MYPAGE_ENVIRONMENT": "development", "GOOGLE_CLOUD_PROJECT": "youtube-study-space", "CLOUD_RUN_JOB": "job"}},
 		{[]string{"-mode=health"}, map[string]string{"MYPAGE_ENVIRONMENT": "development", "GOOGLE_CLOUD_PROJECT": "test-youtube-study-space", "CLOUD_RUN_JOB": "Invalid_Job"}},
 	} {
@@ -82,8 +83,10 @@ func TestRunMainRejectsBeforeCreatingClients(t *testing.T) {
 		require.NotEmpty(t, status)
 		require.Empty(t, output.String())
 		// 状態文字列は固定文言で、入力値（引数・プロジェクト・ジョブ名）を含めない。
+		require.NotContains(t, status, "synthetic-private")
 		for _, value := range append(append([]string{}, tt.args...), tt.env["GOOGLE_CLOUD_PROJECT"], tt.env["CLOUD_RUN_JOB"]) {
-			if value != "" && !strings.HasPrefix(value, "-mode=") {
+			// 有効なモード名は固定の利用方法メッセージに含まれるため、それ以外の入力値だけを確認する。
+			if value != "" && value != "-mode=run" && value != "-mode=health" {
 				require.NotContains(t, status, value)
 			}
 		}
