@@ -1,7 +1,7 @@
 # Source-only adoption definitions. Selection is cumulative and default-off;
 # each newly selected alias must have a fresh private manifest/import review.
 variable "existing_resources" {
-  description = "Cumulative aliases of already-existing resources to import. This never enables a notification repair or a production execution gate."
+  description = "Cumulative aliases of already-existing resources to import. Selection alone never repairs notifications or opens a production execution gate."
   type        = set(string)
   default     = []
   validation {
@@ -16,8 +16,8 @@ variable "existing_resources" {
     error_message = "Every selected existing resource requires its private observed metadata."
   }
   validation {
-    condition     = length(var.existing_resources) == 0 || (!var.manage_primary_email && !var.manage_youtube_quota_alerts)
-    error_message = "Existing-resource import definitions cannot be mixed with legacy notification creation."
+    condition     = length(var.existing_resources) == 0 || !var.manage_youtube_quota_alerts
+    error_message = "Existing-resource import definitions cannot be mixed with legacy quota policy creation."
   }
   validation {
     condition = length(distinct([
@@ -210,15 +210,33 @@ import {
   id       = "projects/${var.project_id}/locations/${local.existing_metadata.export_function.region}/functions/${local.existing_metadata.export_function.name}"
 }
 
+# Existing quota policies keep their observed references until this non-secret
+# selection points all three at the adopted primary Email channel.
+variable "youtube_quota_notify_primary_email" {
+  description = "Notify the adopted primary Email channel from all three existing quota policies."
+  type        = bool
+  default     = false
+  validation {
+    condition = !var.youtube_quota_notify_primary_email || (var.manage_primary_email && alltrue([
+      for key in ["minute_80", "day_80", "day_60"] : contains(var.existing_resources, "quota_${key}")
+    ]))
+    error_message = "Notification repair requires the adopted primary Email channel and all three existing quota policies."
+  }
+}
+
 module "existing_youtube_quota_alerts" {
-  source                       = "../../modules/youtube-quota-alerts"
-  project_id                   = var.project_id
-  environment                  = "production"
-  import_existing_policies     = length(local.existing_quota_keys) > 0
-  policy_keys                  = local.existing_quota_keys
-  legacy_display_names         = { for key, value in local.existing_metadata.quota_policies : key => value.display_name }
-  legacy_notification_channels = { for key, value in local.existing_metadata.quota_policies : key => value.notification_channels }
-  legacy_documentation         = { for key, value in local.existing_metadata.quota_policies : key => value.documentation }
+  source                   = "../../modules/youtube-quota-alerts"
+  project_id               = var.project_id
+  environment              = "production"
+  import_existing_policies = length(local.existing_quota_keys) > 0
+  policy_keys              = local.existing_quota_keys
+  legacy_display_names     = { for key, value in local.existing_metadata.quota_policies : key => value.display_name }
+  legacy_notification_channels = {
+    for key, value in local.existing_metadata.quota_policies : key => (
+      var.youtube_quota_notify_primary_email ? [nonsensitive(module.notification_channels.primary_email_name)] : value.notification_channels
+    )
+  }
+  legacy_documentation = { for key, value in local.existing_metadata.quota_policies : key => value.documentation }
   policy_settings = {
     for key in ["minute_80", "day_80", "day_60"] : key => try({
       threshold = local.existing_metadata.quota_policies[key].threshold,

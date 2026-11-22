@@ -28,7 +28,7 @@ controllerは `infra/gcp/scripts/terraform_normal_ops.py`、運用入口と設�
 | 事前検査 | `terraform.yml`のselect jobが資格情報なしで対象SHAを確定（DEV Coreだけ別ブランチ／SHAを選べる。MyPageと本番は実行元のcommit）。`ci-gcp-terraform.yml`はそのSHAのソースとテストをcheckoutし、実行元からビルドした非rootコンテナ内で実行。runner環境・Actionsトークン・コマンドファイル・Dockerソケットは渡さず、ホスト側ソースはread-only。Environment Secret/OIDCなし・checkout認証情報の永続化なし。成功後だけ同じSHAを認証付きreusableへ渡す。実行元のworkflow・resolver・認証付き実行器は置き換えない |
 | 入力 | private baselineへ選択source SHAの`normal.tfvars.json`を重ね、レビュー指定も同じsource SHAから取得。projectはDEV固定 |
 | Plan | refresh付きfull-root native saved plan。Coreのcomplete/errored/checksとdriftを検査。create/updateのcomputed unknownはTerraformに委ねる |
-| delete/replace | commit内`normal-operations.json`のaddress/actions完全一致が必須。未使用指定も拒否。忘却操作・importは通常経路では拒否 |
+| delete/replace | commit内`normal-operations.json`のaddress/actions完全一致が必須。未使用指定も拒否。忘却操作は通常経路では拒否。importも、型と条件を限定した例外（メール認証設定、[本番の主要メール通知先](production-readiness.md#本番の主要メール通知先の採用と通知の修復)）以外は拒否 |
 | Apply binding | 同runの独立Apply identityで再Plan。全Plan JSON、control SHA、source repository/branch/SHA、run ID、mode、入力、レビュー指定、State本文/HEADをprivate keyのHMACで照合。timestampと順序のない配列だけを正規化。GitHub式で一致を評価し値をstep環境・ログに展開しない。30分の期限、未来時刻・欠落も拒否 |
 | saved plan | 新しく生成した一致Planだけを適用。公開artifactへの生Plan転送はしない。Apply直前にState/保存Planを再確認し、native S3 lockとCoreのstale-plan検査を使う |
 | State | DEV固定key、account制限、AES256、VersionId、lineage/serial、lock/workspace不在。State欠損時は停止し、自動初期化しない |

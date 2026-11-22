@@ -332,7 +332,7 @@ def validate_observation_drift(plan, state, provider_schema):
 
 
 def validate(plan, approved, *, post=False, project=PROJECT, project_number=None,
-             state=None, provider_schema=None, monitor_auth_enabled=False):
+             state=None, provider_schema=None, monitor_auth_enabled=False, primary_email_channel=None):
     plan_need(type(plan) is dict and plan.get('format_version') == '1.2'
               and plan.get('terraform_version') == common.VERSION, 'format')
     plan_need(plan.get('errored') is False and plan.get('complete') is True, 'incomplete')
@@ -348,8 +348,11 @@ def validate(plan, approved, *, post=False, project=PROJECT, project_number=None
         seen.add(address)
         action = tuple(change['actions'])
         need(action in ACTIONS)
-        from monitor_auth import validate_import
-        validate_import(item, project, monitor_auth_enabled)
+        # Imports are rejected except for the typed, value-preserving adoptions.
+        import primary_email_adoption
+        if not primary_email_adoption.allows(item, project, primary_email_channel):
+            from monitor_auth import validate_import
+            validate_import(item, project, monitor_auth_enabled)
         need(item.get('provider_name') in {'registry.terraform.io/hashicorp/google',
                                          'registry.terraform.io/hashicorp/google-beta'})
         need(item.get('mode') in {'managed', 'data'})
@@ -671,10 +674,14 @@ def plan(env, root, tfroot, name, approved, *, post=False, state=None):
             print('GCP_NORMAL_DRIFT: ' + json.dumps({'changes': changes}, sort_keys=True))
     phase('plan-validation')
     try:
+        import primary_email_adoption
+        # Import exceptions are selected only by the private inputs of this run.
+        importing = any(item.get('change', {}).get('importing') for item in value.get('resource_changes', []))
+        tfvars = common.decode((root / 'inputs.tfvars.json').read_bytes()) if importing else {}
         counts = validate(value, approved, post=post, project=target_project(env),
                           project_number=env.get('NORMAL_PROJECT_NUMBER'), state=state, provider_schema=schema,
-                          monitor_auth_enabled=any(item.get('change', {}).get('importing') for item in value.get('resource_changes', []))
-                          and common.decode((root / 'inputs.tfvars.json').read_bytes()).get('monitor_email_password_enabled') is True)
+                          monitor_auth_enabled=tfvars.get('monitor_email_password_enabled') is True,
+                          primary_email_channel=primary_email_adoption.channel_name(tfvars))
     except PlanRejected:
         raise
     except Exception:

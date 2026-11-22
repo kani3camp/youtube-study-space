@@ -219,14 +219,64 @@ run "foreign_function_identity_is_rejected" {
   }
   expect_failures = [var.existing_resource_inputs]
 }
-run "import_cannot_mix_notification_creation" {
+run "import_cannot_mix_quota_policy_creation" {
   command = plan
   variables {
-    existing_resources    = ["export_topic"]
-    manage_primary_email  = true
-    primary_email_address = "fixture@example.invalid"
+    existing_resources                  = ["export_topic"]
+    manage_youtube_quota_alerts         = true
+    youtube_quota_notification_channels = ["projects/youtube-study-space/notificationChannels/10000000000000000009"]
   }
   expect_failures = [var.existing_resources]
+}
+run "existing_quota_keeps_observed_references_while_channel_is_adopted" {
+  command = plan
+  variables {
+    existing_resources         = ["quota_minute_80", "quota_day_80", "quota_day_60"]
+    manage_primary_email       = true
+    primary_email_address      = "fixture@example.invalid"
+    primary_email_channel_name = "projects/youtube-study-space/notificationChannels/10000000000000000009"
+  }
+  override_resource {
+    target = module.notification_channels.google_monitoring_notification_channel.primary_email[0]
+    values = { name = "projects/youtube-study-space/notificationChannels/10000000000000000009" }
+  }
+}
+run "quota_repair_points_all_three_policies_at_the_adopted_channel" {
+  command = plan
+  variables {
+    existing_resources                 = ["quota_minute_80", "quota_day_80", "quota_day_60"]
+    manage_primary_email               = true
+    primary_email_address              = "fixture@example.invalid"
+    primary_email_channel_name         = "projects/youtube-study-space/notificationChannels/10000000000000000009"
+    youtube_quota_notify_primary_email = true
+  }
+  override_resource {
+    target = module.notification_channels.google_monitoring_notification_channel.primary_email[0]
+    values = { name = "projects/youtube-study-space/notificationChannels/10000000000000000009" }
+  }
+}
+run "quota_repair_requires_the_adopted_channel" {
+  command = plan
+  variables {
+    existing_resources                 = ["quota_minute_80", "quota_day_80", "quota_day_60"]
+    youtube_quota_notify_primary_email = true
+  }
+  expect_failures = [var.youtube_quota_notify_primary_email]
+}
+run "quota_repair_requires_all_three_existing_policies" {
+  command = plan
+  variables {
+    existing_resources                 = ["quota_minute_80", "quota_day_80"]
+    manage_primary_email               = true
+    primary_email_address              = "fixture@example.invalid"
+    primary_email_channel_name         = "projects/youtube-study-space/notificationChannels/10000000000000000009"
+    youtube_quota_notify_primary_email = true
+  }
+  override_resource {
+    target = module.notification_channels.google_monitoring_notification_channel.primary_email[0]
+    values = { name = "projects/youtube-study-space/notificationChannels/10000000000000000009" }
+  }
+  expect_failures = [var.youtube_quota_notify_primary_email]
 }
 run "duplicate_existing_quota_ownership_is_rejected" {
   command = plan

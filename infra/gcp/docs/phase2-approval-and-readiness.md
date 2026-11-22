@@ -141,7 +141,7 @@ H7の最終no-op後回帰は、各runの実updated_at（Dev `2026-10-17T11:43:21
 - [#1166 durable audit](https://github.com/kani3camp/youtube-study-space/issues/1166#issuecomment-6223368703): 永続S3 data-event監査・retention・継続費用は別判断。今回のCI証跡と混同しない。
 - [#983 Privacy cleanup](https://github.com/kani3camp/youtube-study-space/issues/983#issuecomment-6223369320): 旧raw-chat/混在GCS backupの削除は今回の対象外。新規MyPageデータの保持/削除はrelease gateで検証する。
 
-Production Email channel/dangling quota通知先の修復は別waveで、通知経路Readyは未検証です。
+Production Email channelの採用とquota通知先の修復は、既存ownershipの移行とは別の通常変更です（[手順](production-readiness.md#本番の主要メール通知先の採用と通知の修復)）。通知経路Readyは未検証です。
 CodeQL [PR #1362](https://github.com/kani3camp/youtube-study-space/pull/1362)は本人の明示承認でDefault setupを `not-configured` へ切り替えました。H2追随候補Q2（`92b5ea29`）の全31 CIと[run39001207914](https://github.com/kani3camp/youtube-study-space/actions/runs/39001207914)の3言語解析・SARIF受付が成功し、analysis ID3件・error0、既存open alert1件の保持を確認済みです。
 候補と全tree一致のintegration H3（`8b2289c8`）へ統合済みで、H3 pushの[run39001594887](https://github.com/kani3camp/youtube-study-space/actions/runs/39001594887)でも3言語の解析・SARIF受付成功、error0を確認済みです。GCP closureはH2と完全一致し、TerraformのH2当時の実Plan/Apply証拠と区別します。先行拒否・upload失敗の履歴は[history packet](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/development-history-ready-packet.md#codeql-and-mandatory-oidc-claims)へ残します。
 integration refのCodeQL未解決finding6件（critical1/high3/medium2、既存1＋新検出5）は別対応で、dismiss/suppressしません。受付成功を脆弱性0と扱わず、第12波Source H6・最終移行実証Source H7とH3の解析実証を区別します。最新の運用Sourceと最終runは[Issue #1191](https://github.com/kani3camp/youtube-study-space/issues/1191)を参照してください。

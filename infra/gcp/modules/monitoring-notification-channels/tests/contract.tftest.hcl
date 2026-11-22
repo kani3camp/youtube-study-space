@@ -17,8 +17,8 @@ run "development_owns_only_private_enabled_email" {
     email_address        = "fixture@example.invalid"
   }
   assert {
-    condition     = length(google_monitoring_notification_channel.primary_email) == 1 && google_monitoring_notification_channel.primary_email[0].type == "email" && google_monitoring_notification_channel.primary_email[0].enabled && !google_monitoring_notification_channel.primary_email[0].force_delete && google_monitoring_notification_channel.primary_email[0].project == "channel-test-dev" && google_monitoring_notification_channel.primary_email[0].display_name == "[development] Study Space primary email" && google_monitoring_notification_channel.primary_email[0].labels == tomap({ email_address = "fixture@example.invalid" })
-    error_message = "Own one enabled target-project Email channel with force deletion disabled."
+    condition     = length(google_monitoring_notification_channel.primary_email) == 1 && google_monitoring_notification_channel.primary_email[0].type == "email" && google_monitoring_notification_channel.primary_email[0].enabled && !google_monitoring_notification_channel.primary_email[0].force_delete && google_monitoring_notification_channel.primary_email[0].project == "channel-test-dev" && google_monitoring_notification_channel.primary_email[0].display_name == "[development] Study Space primary email" && google_monitoring_notification_channel.primary_email[0].labels == tomap({ email_address = "fixture@example.invalid" }) && google_monitoring_notification_channel.primary_email[0].user_labels == null
+    error_message = "Own one enabled target-project Email channel with force deletion disabled and no declared user labels."
   }
 }
 run "production_uses_same_logical_structure" {
@@ -46,4 +46,16 @@ run "invalid_private_address_stops_ownership" {
     email_address        = "invalid"
   }
   expect_failures = [google_monitoring_notification_channel.primary_email]
+}
+run "user_labels_are_declared_exactly" {
+  command = plan
+  variables {
+    manage_primary_email = true
+    email_address        = "fixture@example.invalid"
+    user_labels          = { environment = "production", managed_by = "manual" }
+  }
+  assert {
+    condition     = google_monitoring_notification_channel.primary_email[0].user_labels == tomap({ environment = "production", managed_by = "manual" })
+    error_message = "Declared user labels must match the existing channel exactly."
+  }
 }

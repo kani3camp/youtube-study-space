@@ -20,12 +20,18 @@ variable "email_address" {
   sensitive = true
   default   = null
 }
+variable "user_labels" {
+  description = "Exact user labels of the channel. Null keeps the attribute unset."
+  type        = map(string)
+  default     = null
+}
 resource "google_monitoring_notification_channel" "primary_email" {
   count        = var.manage_primary_email ? 1 : 0
   project      = var.project_id
   display_name = "[${var.environment}] Study Space primary email"
   type         = "email"
   labels       = { email_address = var.email_address }
+  user_labels  = var.user_labels
   enabled      = true
   force_delete = false
   lifecycle {
