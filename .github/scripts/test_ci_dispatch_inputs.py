@@ -40,6 +40,22 @@ def record_steps(workflow):
             for index, step in enumerate(job.get('steps', [])) if step.get('name') == STEP_NAME]
 
 
+def top_level_or(expression):
+    """`${{ ... }}` 内の式を、括弧と文字列の外にある最後の `||` で左右に分ける。"""
+    body = expression.removeprefix('${{').removesuffix('}}')
+    depth, quoted, split = 0, False, None
+    for index, char in enumerate(body):
+        if char == "'":
+            quoted = not quoted
+        elif not quoted and char in '([':
+            depth += 1
+        elif not quoted and char in ')]':
+            depth -= 1
+        elif not quoted and depth == 0 and body.startswith('||', index):
+            split = index
+    return None if split is None else (body[:split].strip(), body[split + 2:].strip())
+
+
 def expected_default(spec):
     if 'default' not in spec:
         return None
@@ -66,16 +82,22 @@ class DispatchInputRecordTest(unittest.TestCase):
                 self.assertTrue(referenced, 'run-name must show the main selection')
                 for key in referenced:
                     self.assertIn(inputs[key]['type'], TITLE_INPUT_TYPES, key)
-                self.assertNotIn('inputs[', run_name)
+                # inputs はドット記法の個別参照だけを許す（inputs['x'] や toJSON(inputs) を通さない）。
+                self.assertEqual(len(re.findall(r'\binputs\b', run_name)), len(re.findall(r'\binputs\.\w', run_name)))
                 self.assertNotIn('secrets', run_name)
                 if set(workflow['on']) != {'workflow_dispatch'}:
                     # PR などでは inputs が空になるため、手動実行時だけ入力値を表示し、他のイベントは別の名前にする。
                     self.assertEqual(run_name.count('${{'), 1, run_name)
                     self.assertTrue(run_name.startswith("${{ github.event_name == 'workflow_dispatch' && "), run_name)
                     self.assertTrue(run_name.endswith(' }}'), run_name)
-                    fallback = run_name.rsplit(') || ', 1)
-                    self.assertEqual(len(fallback), 2, 'run-name needs a fallback for other events')
-                    self.assertNotIn('inputs', fallback[1])
+                    branches = top_level_or(run_name)
+                    self.assertIsNotNone(branches, 'run-name needs a fallback for other events')
+                    self.assertNotIn(branches[1], ('', "''"), 'the fallback must name the run')
+                    self.assertNotIn('inputs', branches[1])
+
+    def test_top_level_or_ignores_nested_and_quoted_operators(self):
+        self.assertEqual(top_level_or("${{ a && format('x || y', (b || c)) || d }}"), ("a && format('x || y', (b || c))", 'd'))
+        self.assertIsNone(top_level_or("${{ a && format('{0}', (b || c)) }}"))
 
     def test_record_step_lists_every_input_explicitly_through_env(self):
         for name, workflow in self.workflows.items():
@@ -104,19 +126,21 @@ class DispatchInputRecordTest(unittest.TestCase):
     def test_record_runs_first_in_a_credentialless_job_that_does_not_wait_for_others(self):
         for name, workflow in self.workflows.items():
             with self.subTest(workflow=name):
-                job_name, job, index, _ = record_steps(workflow)[0]
+                job_name, job, index, step = record_steps(workflow)[0]
                 self.assertEqual(index, 0)
                 self.assertNotIn('needs', job)
                 self.assertNotIn('uses', job)
                 self.assertNotIn('environment', job)
-                self.assertNotIn('if', record_steps(workflow)[0][3])
+                self.assertNotIn('if', step)
                 # 明示した読み取り権限だけを持ち、リポジトリ既定のトークン権限を継承しない。
                 permissions = job.get('permissions', workflow.get('permissions'))
                 self.assertIsInstance(permissions, dict)
                 self.assertTrue(set(permissions.items()) <= {('contents', 'read')}, permissions)
-                self.assertNotIn('secrets.', str(job))
+                self.assertNotIn('secrets', str(job))
                 if set(workflow['on']) != {'workflow_dispatch'}:
                     self.assertEqual(job['if'], "${{ github.event_name == 'workflow_dispatch' }}", job_name)
+                else:
+                    self.assertNotIn('if', job, job_name)
 
     def test_maintenance_record_job_does_not_gate_the_transition(self):
         jobs = load(WORKFLOWS / 'mypage-maintenance.yml')['jobs']
