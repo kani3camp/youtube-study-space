@@ -96,9 +96,11 @@ class PrimaryEmailAdoption(unittest.TestCase):
             with self.subTest(case=name):
                 candidate = plan(); mutate(candidate)
                 with self.assertRaises(ValueError):
-                    # Approve the replace so only the import exception can reject it.
+                    # Approve the replace, and enable the Auth import, so only the
+                    # primary email import exception can reject the plan.
                     ops.validate(candidate, {adoption.ADDRESS: ['delete', 'create']} if name == 'replace' else {},
-                                 project=PROJECT, primary_email_channel=CHANNEL)
+                                 project=PROJECT, primary_email_channel=CHANNEL,
+                                 monitor_auth_enabled=name == 'mixed with another import')
         for name, channel in (('not selected', None), ('non-numeric', f'projects/{PROJECT}/notificationChannels/x'),
                               ('foreign project', 'projects/test-youtube-study-space/notificationChannels/1234567890')):
             with self.subTest(case=name):
