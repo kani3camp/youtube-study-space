@@ -20,6 +20,8 @@ WORKFLOWS = ROOT / '.github/workflows'
 STEP_NAME = 'Record dispatch inputs'
 # Run 名に載せてよいのは選択肢が固定された入力だけ（任意文字列は長さ・内容が無制限）。
 TITLE_INPUT_TYPES = {'choice', 'boolean', 'environment'}
+INPUT_NAME = r'^[a-z][a-z0-9_]*$'
+CONTEXT = ('event_name', 'ref', 'sha', 'actor', 'triggering_actor', 'run_attempt')
 
 
 def dispatch_workflows():
@@ -64,10 +66,16 @@ class DispatchInputRecordTest(unittest.TestCase):
                 self.assertTrue(referenced, 'run-name must show the main selection')
                 for key in referenced:
                     self.assertIn(inputs[key]['type'], TITLE_INPUT_TYPES, key)
-                self.assertNotIn('secrets.', run_name)
+                self.assertNotIn('inputs[', run_name)
+                self.assertNotIn('secrets', run_name)
                 if set(workflow['on']) != {'workflow_dispatch'}:
-                    # PR などでは inputs が空になるため、手動実行時だけ入力値を表示する。
+                    # PR などでは inputs が空になるため、手動実行時だけ入力値を表示し、他のイベントは別の名前にする。
+                    self.assertEqual(run_name.count('${{'), 1, run_name)
                     self.assertTrue(run_name.startswith("${{ github.event_name == 'workflow_dispatch' && "), run_name)
+                    self.assertTrue(run_name.endswith(' }}'), run_name)
+                    fallback = run_name.rsplit(') || ', 1)
+                    self.assertEqual(len(fallback), 2, 'run-name needs a fallback for other events')
+                    self.assertNotIn('inputs', fallback[1])
 
     def test_record_step_lists_every_input_explicitly_through_env(self):
         for name, workflow in self.workflows.items():
@@ -84,6 +92,8 @@ class DispatchInputRecordTest(unittest.TestCase):
                 actual = {key: value if isinstance(value, str) else str(value).lower()
                           for key, value in step['env'].items()}
                 self.assertEqual(actual, expected)
+                for key in inputs:
+                    self.assertRegex(key, INPUT_NAME, 'the recorder accepts only these input names')
                 self.assertNotIn('${{', step['run'])
                 self.assertIs(step['continue-on-error'], True)
 
@@ -99,8 +109,11 @@ class DispatchInputRecordTest(unittest.TestCase):
                 self.assertNotIn('needs', job)
                 self.assertNotIn('uses', job)
                 self.assertNotIn('environment', job)
-                permissions = job.get('permissions', workflow.get('permissions', {}))
-                self.assertNotIn('id-token', permissions)
+                self.assertNotIn('if', record_steps(workflow)[0][3])
+                # 明示した読み取り権限だけを持ち、リポジトリ既定のトークン権限を継承しない。
+                permissions = job.get('permissions', workflow.get('permissions'))
+                self.assertIsInstance(permissions, dict)
+                self.assertTrue(set(permissions.items()) <= {('contents', 'read')}, permissions)
                 self.assertNotIn('secrets.', str(job))
                 if set(workflow['on']) != {'workflow_dispatch'}:
                     self.assertEqual(job['if'], "${{ github.event_name == 'workflow_dispatch' }}", job_name)
@@ -109,10 +122,12 @@ class DispatchInputRecordTest(unittest.TestCase):
         jobs = load(WORKFLOWS / 'mypage-maintenance.yml')['jobs']
         self.assertEqual(set(jobs), {'record', 'transition'})
         self.assertEqual(jobs['record']['permissions'], {})
+        # 記録ジョブ自体が失敗・タイムアウトしても Run の結論を変えない。
+        self.assertIs(jobs['record']['continue-on-error'], True)
         self.assertNotIn('needs', jobs['transition'])
 
-    def render(self, env, previous='existing summary\n'):
-        script = record_steps(self.workflows['terraform.yml'])[0][3]['run']
+    def render(self, env, previous='existing summary\n', workflow='terraform.yml'):
+        script = record_steps(self.workflows[workflow])[0][3]['run']
         with tempfile.TemporaryDirectory() as temporary:
             summary = Path(temporary) / 'summary'
             summary.write_text(previous)
@@ -128,7 +143,7 @@ class DispatchInputRecordTest(unittest.TestCase):
 
     @staticmethod
     def rows(summary):
-        return {match[1]: match[2] for match in re.finditer(r'^\| `([a-z_]+)` \| (.*) \|$', summary, re.M)}
+        return {match[1]: match[2] for match in re.finditer(r'^\| `([a-z][a-z0-9_]*)` \| (.*) \|$', summary, re.M)}
 
     @staticmethod
     def decoded(cell):
@@ -152,9 +167,34 @@ class DispatchInputRecordTest(unittest.TestCase):
         self.assertEqual(values['allow_mypage_deletions'], ['<code>false</code>', '<code>false</code>'])
         self.assertEqual(values['source_branch'], ['（空文字）', '（空文字）'])
         self.assertEqual(values['enabled'], ['<code>true</code>', '（定義なし）'])
-        self.assertEqual(values['ref'], ['<code>refs&#47;heads&#47;main</code>'])
+        self.assertEqual({key: values[key] for key in CONTEXT}, {
+            'event_name': ['<code>workflow&#95;dispatch</code>'], 'ref': ['<code>refs&#47;heads&#47;main</code>'],
+            'sha': ['<code>' + 'a' * 40 + '</code>'], 'actor': ['<code>owner</code>'],
+            'triggering_actor': ['<code>owner</code>'], 'run_attempt': ['<code>1</code>']})
         self.assertIn('実行コンテキスト（選択入力ではありません）', summary)
         self.assertLess(summary.index('`enabled`'), summary.index('`event_name`'))
+
+    def test_each_workflow_records_every_input_with_its_own_env(self):
+        for name, workflow in self.workflows.items():
+            with self.subTest(workflow=name):
+                inputs = workflow['on']['workflow_dispatch']['inputs']
+                samples = {key: spec['options'][-1] if spec['type'] == 'choice' else
+                           'true' if spec['type'] == 'boolean' else 'sample-' + key for key, spec in inputs.items()}
+                env = {}
+                for key, value in record_steps(workflow)[0][3]['env'].items():
+                    value = value if isinstance(value, str) else str(value).lower()
+                    match = re.fullmatch(r'\$\{\{ inputs\.([a-z0-9_]+) \}\}', value)
+                    env[key] = samples[match[1]] if match else value
+                result, summary = self.render(env, workflow=name)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                rows = self.rows(summary)
+                self.assertEqual(list(rows), [*inputs, *CONTEXT])
+                for key, spec in inputs.items():
+                    value, default = rows[key].split(' | ')
+                    self.assertEqual(self.decoded(value), samples[key])
+                    expected = expected_default(spec)
+                    self.assertEqual(default if expected in (None, '') else self.decoded(default),
+                                     {None: '（定義なし）', '': '（空文字）'}.get(expected, expected))
 
     def test_hostile_strings_cannot_break_the_table_inject_markup_or_run_commands(self):
         hostile = ('x | y\n| `forged` | row |\r\t<script>alert(1)</script> **b** [l](u) '

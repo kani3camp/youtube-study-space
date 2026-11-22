@@ -23,11 +23,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Credentialless record of the selection; it does not gate the transition.
+  # Credentialless record of the selection. It neither gates the transition nor
+  # changes the run conclusion when the record itself fails.
   record:
     name: Record Dispatch Inputs
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    continue-on-error: true
     permissions: {}
     steps:
       - name: Record dispatch inputs
