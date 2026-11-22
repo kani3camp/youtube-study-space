@@ -529,10 +529,11 @@ func (app *WorkspaceApp) DeleteIteratorDocs(ctx context.Context, iter *firestore
 // CheckIfUserSittingTooMuchForSeat は、ユーザーがその座席に対して入室制限（長時間入室）を受けているかを返す。
 //
 // ホワイトリスト・ブラックリストは入退室履歴から導出した判定結果のキャッシュであり、
-// 判定のたびに読み取りの途中で呼ばれるため、Firestoreの「読み取りは書き込みより前」という制約上
-// トランザクション内の書き込みにはできない。そこでリストへの登録は runAfterCommit でコミット後に行う。
-// これにより、リトライされた試行やロールバックされたトランザクションがリストへ重複・残留登録することはない。
-// コミット後の登録に失敗してもキャッシュが作られないだけで、次回の判定は入退室履歴から再計算される。
+// 呼び出し元のトランザクションの成否には依存しない。また判定は読み取りの途中で呼ばれるため、
+// Firestoreの「読み取りは書き込みより前」という制約上トランザクション内の書き込みにはできない。
+// そのためリストへの登録はトランザクション外で即座に行う。
+//   - 呼び出し元がロールバック・エラー（例: 全候補が制限対象で ErrNoSeatAvailable）になっても、確定した制限は残す。
+//   - トランザクションのリトライ時は、再試行の判定が直前に登録したレコードを読んで早期に返るため、重複登録しない。
 func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userID string, seatID int, isMemberSeat bool) (bool, error) {
 	jstNow := app.currentTime()
 
@@ -585,24 +586,18 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 		until := jstNow.Add(time.Duration(app.Configs.Constants.RecentThresholdMin)*time.Minute - totalEntryDuration)
 		if until.Sub(jstNow) > time.Duration(app.Configs.Constants.MinimumCheckLongTimeSittingIntervalMinutes)*time.Minute {
 			// ホワイトリストに登録
-			runAfterCommit(ctx, func(ctx context.Context) {
-				if err := app.Repository.CreateSeatLimitInWHITEList(ctx, seatID, userID, jstNow, until, isMemberSeat); err != nil {
-					app.MessageToOwnerWithError(ctx, "in CreateSeatLimitInWHITEList()", err)
-					return
-				}
-				slog.InfoContext(ctx, "seat limit saved", "list", "white")
-			})
+			if err := app.Repository.CreateSeatLimitInWHITEList(ctx, seatID, userID, jstNow, until, isMemberSeat); err != nil {
+				return false, fmt.Errorf("in CreateSeatLimitInWHITEList(): %w", err)
+			}
+			slog.InfoContext(ctx, "seat limit saved", "list", "white")
 		}
 	} else {
 		// ブラックリストに登録
 		until := jstNow.Add(time.Duration(app.Configs.Constants.LongTimeSittingPenaltyMinutes) * time.Minute)
-		runAfterCommit(ctx, func(ctx context.Context) {
-			if err := app.Repository.CreateSeatLimitInBLACKList(ctx, seatID, userID, jstNow, until, isMemberSeat); err != nil {
-				app.MessageToOwnerWithError(ctx, "in CreateSeatLimitInBLACKList()", err)
-				return
-			}
-			slog.InfoContext(ctx, "seat limit saved", "list", "black")
-		})
+		if err := app.Repository.CreateSeatLimitInBLACKList(ctx, seatID, userID, jstNow, until, isMemberSeat); err != nil {
+			return false, fmt.Errorf("in CreateSeatLimitInBLACKList(): %w", err)
+		}
+		slog.InfoContext(ctx, "seat limit saved", "list", "black")
 	}
 
 	return ifSittingTooMuch, nil

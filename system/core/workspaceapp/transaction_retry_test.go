@@ -18,6 +18,7 @@ import (
 	mock_moderatorbot "app.modules/core/moderatorbot/mocks"
 	"app.modules/core/repository"
 	mock_repository "app.modules/core/repository/mocks"
+	"app.modules/core/studyspaceerror"
 	"app.modules/core/timeutil"
 	"app.modules/core/utils"
 	mock_youtubebot "app.modules/core/youtubebot/mocks"
@@ -136,7 +137,7 @@ func TestChange_RetriedTransactionRepliesOnceWithoutDuplicatedMessage(t *testing
 }
 
 // 席番号0（最小番号の空席）での入室がリトライされた場合、席は試行ごとに選び直し、呼び出し元のオプションは書き換えない。
-// リストへの登録はコミットされた試行の分だけ1回行う。
+// 着席制限リストは即座に登録され、再試行の判定は登録済みのレコードを読むため、同じ座席へ重複登録しない。
 func TestIn_RetriedTransactionReresolvesAutoSeatAndRegistersSeatLimitOnce(t *testing.T) {
 	require.NoError(t, i18n.LoadLocaleFolderFS())
 	ctrl := gomock.NewController(t)
@@ -161,7 +162,10 @@ func TestIn_RetriedTransactionReresolvesAutoSeatAndRegistersSeatLimitOnce(t *tes
 		return []repository.SeatDoc{{SeatID: 1, UserID: "other-user"}}, nil
 	}).AnyTimes()
 	mockDB.EXPECT().ReadSeat(gomock.Any(), gomock.Any(), 1, false).Return(repository.SeatDoc{SeatID: 1, UserID: "other-user"}, nil).AnyTimes()
-	mockDB.EXPECT().ReadSeatLimitsWHITEListWithSeatIDAndUserID(gomock.Any(), gomock.Any(), userID, false).Return(nil, nil).AnyTimes()
+	whiteList := map[int][]repository.SeatLimitDoc{}
+	mockDB.EXPECT().ReadSeatLimitsWHITEListWithSeatIDAndUserID(gomock.Any(), gomock.Any(), userID, false).DoAndReturn(func(_ context.Context, seatID int, _ string, _ bool) ([]repository.SeatLimitDoc, error) {
+		return whiteList[seatID], nil
+	}).AnyTimes()
 	mockDB.EXPECT().ReadSeatLimitsBLACKListWithSeatIDAndUserID(gomock.Any(), gomock.Any(), userID, false).Return(nil, nil).AnyTimes()
 	mockDB.EXPECT().GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), userID, gomock.Any(), false).Return(nil, nil).AnyTimes()
 	mockDB.EXPECT().GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), userID, gomock.Any(), false).Return(nil, nil).AnyTimes()
@@ -174,7 +178,10 @@ func TestIn_RetriedTransactionReresolvesAutoSeatAndRegistersSeatLimitOnce(t *tes
 	}).AnyTimes()
 	mockDB.EXPECT().UpdateUserLastEnteredDate(gomock.Any(), userID, gomock.Any()).Return(nil).AnyTimes()
 	mockDB.EXPECT().CreateUserActivityDoc(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	mockDB.EXPECT().CreateSeatLimitInWHITEList(gomock.Any(), 2, userID, gomock.Any(), gomock.Any(), false).Return(nil).Times(1)
+	mockDB.EXPECT().CreateSeatLimitInWHITEList(gomock.Any(), gomock.Any(), userID, gomock.Any(), gomock.Any(), false).DoAndReturn(func(_ context.Context, seatID int, uid string, createdAt, until time.Time, _ bool) error {
+		whiteList[seatID] = append(whiteList[seatID], repository.SeatLimitDoc{SeatID: seatID, UserID: uid, CreatedAt: createdAt, Until: until})
+		return nil
+	}).AnyTimes()
 
 	bot := mock_youtubebot.NewMockLiveChatBot(ctrl)
 	bot.EXPECT().PostMessage(gomock.Any(), "@テストユーザー さんが作業を始めました🔥（作業内容：\"テスト作業\"、最大30分、2番席）").Return(nil).Times(1)
@@ -198,6 +205,63 @@ func TestIn_RetriedTransactionReresolvesAutoSeatAndRegistersSeatLimitOnce(t *tes
 
 	assert.Equal(t, []int{1, 2}, createdSeatIDs, "試行ごとに空席を選び直す")
 	assert.Zero(t, option.SeatID, "呼び出し元のオプションを書き換えない")
+	for seatID, docs := range whiteList {
+		assert.Len(t, docs, 1, "座席%dのホワイトリストは1件だけ", seatID)
+	}
+	assert.Len(t, whiteList[2], 1, "入室した座席のホワイトリストが登録されている")
+}
+
+// 自動空席探索で全候補が長時間入室制限に該当し入室を拒否した（トランザクションがエラーで終わった）場合も、
+// 判定で確定したブラックリスト登録は残る。
+func TestIn_NoSeatAvailableBecauseOfSeatLimitStillSavesBlackList(t *testing.T) {
+	require.NoError(t, i18n.LoadLocaleFolderFS())
+	ctrl := gomock.NewController(t)
+	fixedNow := time.Date(2026, time.January, 1, 10, 0, 0, 0, timeutil.JapanLocation())
+	const userID = "long-sitting-user"
+	constants := repository.ConstantsConfigDoc{
+		MaxSeats:                      1,
+		RecentRangeMin:                180,
+		RecentThresholdMin:            60,
+		LongTimeSittingPenaltyMinutes: 30,
+		MinimumCheckLongTimeSittingIntervalMinutes: 10,
+	}
+
+	mockDB := mock_repository.NewMockRepository(ctrl)
+	mockDB.EXPECT().FirestoreClient().Return(retryingDBClient(ctrl, 1, nil)).AnyTimes()
+	mockDB.EXPECT().ReadSystemConstantsConfig(gomock.Any(), gomock.Any()).Return(constants, nil).AnyTimes()
+	mockDB.EXPECT().ReadGeneralSeats(gomock.Any()).Return(nil, nil).AnyTimes()
+	mockDB.EXPECT().ReadSeatLimitsWHITEListWithSeatIDAndUserID(gomock.Any(), 1, userID, false).Return(nil, nil).AnyTimes()
+	mockDB.EXPECT().ReadSeatLimitsBLACKListWithSeatIDAndUserID(gomock.Any(), 1, userID, false).Return(nil, nil).AnyTimes()
+	mockDB.EXPECT().GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), userID, 1, false).Return([]repository.UserActivityDoc{
+		{ActivityType: repository.EnterRoomActivity, UserID: userID, SeatID: 1, TakenAt: fixedNow.Add(-120 * time.Minute)},
+	}, nil).AnyTimes()
+	mockDB.EXPECT().GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), userID, 1, false).Return([]repository.UserActivityDoc{
+		{ActivityType: repository.ExitRoomActivity, UserID: userID, SeatID: 1, TakenAt: fixedNow.Add(-10 * time.Minute)},
+	}, nil).AnyTimes()
+	mockDB.EXPECT().ReadUser(gomock.Any(), gomock.Any(), userID).Return(repository.UserDoc{IsContinuousActive: true}, nil).AnyTimes()
+	mockDB.EXPECT().ReadSeatWithUserID(gomock.Any(), userID, gomock.Any()).Return(repository.SeatDoc{}, status.Error(codes.NotFound, "")).AnyTimes()
+	mockDB.EXPECT().CreateSeatLimitInBLACKList(gomock.Any(), 1, userID, gomock.Any(), gomock.Any(), false).Return(nil).Times(1)
+
+	bot := mock_youtubebot.NewMockLiveChatBot(ctrl)
+	bot.EXPECT().PostMessage(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	app := &WorkspaceApp{
+		Configs:                  &Configs{Constants: constants},
+		Repository:               mockDB,
+		LiveChatBot:              bot,
+		alertOwnerBot:            moderatorbot.DummyMessageBot{},
+		ProcessedUserID:          userID,
+		ProcessedUserDisplayName: "テストユーザー",
+		nowFunc:                  func() time.Time { return fixedNow },
+	}
+	option := utils.InOption{
+		IsSeatIDSet:        true,
+		SeatID:             0,
+		MinWorkOrderOption: &utils.MinWorkOrderOption{IsWorkNameSet: true, WorkName: "テスト作業", IsDurationMinSet: true, DurationMin: 30},
+	}
+
+	err := app.In(context.Background(), &option)
+	require.ErrorIs(t, err, studyspaceerror.ErrNoSeatAvailable)
 }
 
 func blockTestSeat(now time.Time) repository.SeatDoc {
