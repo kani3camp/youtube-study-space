@@ -62,7 +62,7 @@ CONTEXT = """
         env = base(caller)
         result[name] = {
             'main': admitted(check, env),
-            'integration': admitted(check, env | {'GITHUB_REF': dev_ref}),
+            'dev_ref': admitted(check, env | {'GITHUB_REF': dev_ref}),
             'dev_caller': admitted(check, env | {'GITHUB_WORKFLOW_REF': caller.replace('@refs/heads/main', '@' + dev_ref)}),
         }
     result['targets'] = {'site': h.SITE, 'host': h.BACKEND_HOST, 'origin': h.ORIGIN, 'run': h.RUN,
@@ -79,7 +79,7 @@ class ProductionReleaseTest(unittest.TestCase):
         for name in ("backend", "operator", "hosting"):
             with self.subTest(release=name):
                 self.assertEqual(result[name]["main"], "admitted")
-                self.assertNotEqual(result[name]["integration"], "admitted")
+                self.assertNotEqual(result[name]["dev_ref"], "admitted")
                 self.assertNotEqual(result[name]["dev_caller"], "admitted")
         self.assertEqual(result["targets"], {
             "site": SITE, "host": HOST, "origin": "https://moku.work",
@@ -145,6 +145,8 @@ class ProductionReleaseTest(unittest.TestCase):
                 self.assertIn('assertion.event_name == "workflow_dispatch"', condition)
                 self.assertIn('assertion.run_attempt == "1"', condition)
                 self.assertNotIn("integration", condition)
+                self.assertNotIn("refs/heads/dev", condition)
+                self.assertNotIn("mypage-dev-", condition)
                 self.assertNotIn("pull_request", condition)
                 self.assertTrue(member.endswith("/subject/340900071:mypage-prod-" + name + ":54093651"))
                 self.assertIn("/projects/906336399194/", member)
