@@ -111,7 +111,7 @@ func run() error {
 	}
 	look, err := resolveLook(fsys, *lookName, *lookFile, rng)
 	if err != nil {
-		return fmt.Errorf("Look 読み込み: %w", err)
+		return fmt.Errorf("外観設定（Look）の読み込み: %w", err)
 	}
 	visualGuidance := composeVisualGuidance(style, look.Text)
 	styledTemplate, err := theme.ApplyStyle(tmpl, visualGuidance)
