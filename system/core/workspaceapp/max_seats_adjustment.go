@@ -84,22 +84,8 @@ func (app *WorkspaceApp) adjustGeneralSeats(ctx context.Context, constants repos
 					if seat.SeatID > constants.DesiredMaxSeats {
 						app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seat.UserProfileImageURL, false, false, false)
 						// 移動させる
-						inCommandDetails := &utils.CommandDetails{
-							CommandType: utils.In,
-							InOption: utils.InOption{
-								IsSeatIDSet: true,
-								SeatID:      0,
-								// TODO: メニューも引き継げるようにする。ただし、システム側の都合なので注文回数はカウントしないようにしたい
-								MinWorkOrderOption: &utils.MinWorkOrderOption{
-									IsWorkNameSet:    true,
-									IsDurationMinSet: true,
-									WorkName:         seat.WorkName,
-									DurationMin:      seat.RemainingWorkMin(app.currentTime()),
-								},
-								IsMemberSeat: false,
-							},
-						}
-						if err := app.In(ctx, &inCommandDetails.InOption); err != nil {
+						inOption := systemSeatMoveInOption(seat, false, app.currentTime())
+						if err := app.In(ctx, &inOption); err != nil {
 							return fmt.Errorf("in In(): %w", err)
 						}
 					}
@@ -133,7 +119,8 @@ func (app *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposi
 			app.MessageToLiveChat(ctx, "メンバー限定の座席数を"+strconv.Itoa(constants.DesiredMemberMaxSeats)+"に固定します↘ 必要な場合は退出してもらうことがあります。")
 			for _, seat := range seats {
 				if seat.SeatID > constants.DesiredMemberMaxSeats {
-					app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seat.UserProfileImageURL, false, false, false)
+					// メンバー席に座っているユーザーはメンバーとして扱う
+					app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seat.UserProfileImageURL, false, false, true)
 					// 退出させる
 					if err := app.Out(ctx); err != nil {
 						return fmt.Errorf("in Out(): %w", err)
@@ -152,7 +139,7 @@ func (app *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposi
 			}
 			if int(float32(constants.DesiredMemberMaxSeats)*(1.0-constants.MinVacancyRate)) < len(seats) {
 				slog.Warn("減らそうとしすぎ。desiredは却下します。",
-					"desired", constants.DesiredMaxSeats,
+					"desired", constants.DesiredMemberMaxSeats,
 					"current member max seats", constants.MemberMaxSeats,
 					"current seats length", len(seats))
 				if err := app.Repository.UpdateDesiredMemberMaxSeats(ctx, nil, constants.MemberMaxSeats); err != nil {
@@ -165,23 +152,8 @@ func (app *WorkspaceApp) adjustMemberSeats(ctx context.Context, constants reposi
 					if seat.SeatID > constants.DesiredMemberMaxSeats {
 						app.SetProcessedUser(seat.UserID, seat.UserDisplayName, seat.UserProfileImageURL, false, false, true)
 						// 移動させる
-						inCommandDetails := &utils.CommandDetails{
-							CommandType: utils.In,
-							InOption: utils.InOption{
-								IsSeatIDSet: true,
-								SeatID:      0,
-								// TODO: メニューも引き継げるようにする。ただし、システム側の都合なので注文回数はカウントしないようにしたい
-								MinWorkOrderOption: &utils.MinWorkOrderOption{
-									IsWorkNameSet:    true,
-									IsDurationMinSet: true,
-									WorkName:         seat.WorkName,
-									DurationMin:      seat.RemainingWorkMin(app.currentTime()),
-								},
-								IsMemberSeat: true,
-							},
-						}
-
-						if err := app.In(ctx, &inCommandDetails.InOption); err != nil {
+						inOption := systemSeatMoveInOption(seat, true, app.currentTime())
+						if err := app.In(ctx, &inOption); err != nil {
 							return fmt.Errorf("in In(): %w", err)
 						}
 					}

@@ -392,9 +392,14 @@ func (app *WorkspaceApp) MinAvailableSeatIDForUser(ctx context.Context, tx *fire
 		usedSeatIDs = append(usedSeatIDs, seat.SeatID)
 	}
 
+	maxSeats := constants.MaxSeats
+	if isMemberSeat {
+		maxSeats = constants.MemberMaxSeats
+	}
+
 	// 使用されていない最小の席番号を求める。1から順に探索
 	searchingSeatID := 1
-	for searchingSeatID <= constants.MaxSeats {
+	for searchingSeatID <= maxSeats {
 		// searchingSeatIDがusedSeatIDsに含まれているか
 		isUsed := false
 		for _, usedSeatID := range usedSeatIDs {
@@ -642,15 +647,6 @@ func (app *WorkspaceApp) GetMenuItemByNumber(number int) (repository.MenuDoc, er
 		return repository.MenuDoc{}, fmt.Errorf("invalid menu number: %d, menuItems length = %d", number, len(app.SortedMenuItems))
 	}
 	return app.SortedMenuItems[number-1], nil
-}
-
-func (app *WorkspaceApp) GetMenuNumByCode(code string) (int, error) {
-	for i, item := range app.SortedMenuItems {
-		if item.Code == code {
-			return i + 1, nil
-		}
-	}
-	return -1, fmt.Errorf("menu code not found: %s", code)
 }
 
 // GetUserRealtimeSeatAppearance リアルタイムの現在のランクを求める
@@ -969,6 +965,26 @@ func (app *WorkspaceApp) exitRoomAt(
 
 	slog.InfoContext(ctx, "room exit completed")
 	return addedWorkedTimeSec, addedRP, nil
+}
+
+// systemSeatMoveInOption は、長時間入室制限や座席数の削減などシステム都合で
+// 入室中のユーザーを最小番号の空席へ移動させるためのInオプションを返す。
+// 作業名と残り作業時間は移動元の座席を引き継ぐ。
+// メニューは moveSeat が移動元の座席のメニューコードをそのまま新しい座席へ引き継ぐ。
+// ユーザーによる注文ではないため IsOrderSet は false とし、注文履歴を作らない（当日の注文回数を増やさない）。
+func systemSeatMoveInOption(seat repository.SeatDoc, isMemberSeat bool, now time.Time) utils.InOption {
+	return utils.InOption{
+		IsSeatIDSet: true,
+		SeatID:      0,
+		MinWorkOrderOption: &utils.MinWorkOrderOption{
+			IsWorkNameSet:    true,
+			IsDurationMinSet: true,
+			IsOrderSet:       false,
+			WorkName:         seat.WorkName,
+			DurationMin:      seat.RemainingWorkMin(now),
+		},
+		IsMemberSeat: isMemberSeat,
+	}
 }
 
 func (app *WorkspaceApp) moveSeat(

@@ -14,6 +14,8 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"app.modules/core/timeutil"
 )
 
 type FirestoreControllerImplements struct {
@@ -725,8 +727,12 @@ func (c *FirestoreControllerImplements) ReadAllMenuDocsOrderByCode(ctx context.C
 	return getDocDataFromIterator[MenuDoc](iter)
 }
 
+// CountUserOrdersOfTheDay は date を含む JST の暦日（0時から翌0時までの半開区間）における注文回数を返す。
+// date のタイムゾーンや実行環境の time.Local には依存しない。
 func (c *FirestoreControllerImplements) CountUserOrdersOfTheDay(ctx context.Context, userID string, date time.Time) (int64, error) {
-	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.Local)
+	jst := timeutil.JapanLocation()
+	jstDate := date.In(jst)
+	start := time.Date(jstDate.Year(), jstDate.Month(), jstDate.Day(), 0, 0, 0, 0, jst)
 	end := start.AddDate(0, 0, 1)
 	query := c.orderHistoryCollection().
 		Where(UserIDDocProperty, "==", userID).
