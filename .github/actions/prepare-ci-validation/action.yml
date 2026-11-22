@@ -3,10 +3,27 @@ description: Build reviewed validation tools before checking out target code
 runs:
   using: composite
   steps:
-    - name: Build trusted validation image
+    - name: Read pinned Terraform version
+      id: versions
       shell: bash
-      run: |
-        docker build --platform linux/amd64 \
-          --build-arg "TERRAFORM_VERSION=$(cat infra/gcp/.terraform-version)" \
-          --file .github/ci-validation/Dockerfile \
-          --tag yss-ci-validation:local .github
+      run: printf 'terraform=%s\n' "$(cat infra/gcp/.terraform-version)" >> "$GITHUB_OUTPUT"
+    # The layer cache is content-addressed by BuildKit: a changed Dockerfile,
+    # build argument or copied tool manifest misses and rebuilds that layer.
+    # GitHub scopes cache entries to the writing ref, so a PR's entries never
+    # reach runs on dev or main. The build runs before any target checkout and
+    # target containers get neither the runtime token nor the Docker socket.
+    - name: Build trusted validation image
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      env:
+        DOCKER_BUILD_SUMMARY: "false"
+        DOCKER_BUILD_RECORD_UPLOAD: "false"
+      with:
+        context: .github
+        file: .github/ci-validation/Dockerfile
+        platforms: linux/amd64
+        build-args: TERRAFORM_VERSION=${{ steps.versions.outputs.terraform }}
+        tags: yss-ci-validation:local
+        load: true
+        provenance: false
+        cache-from: type=gha,scope=ci-validation
+        cache-to: type=gha,scope=ci-validation,mode=max

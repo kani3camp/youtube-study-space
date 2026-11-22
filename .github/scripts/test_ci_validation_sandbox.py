@@ -39,11 +39,26 @@ class ValidationSandboxTest(unittest.TestCase):
     def test_repository_builds_image_once_before_target_checkout(self):
         job = self.repository_job()
         self.assertEqual(job['timeout-minutes'], 10)
-        action = load(ROOT / '.github/actions/prepare-ci-validation/action.yml')
-        self.assertEqual(len(action['runs']['steps']), 1)
-        self.assertEqual(action['runs']['steps'][0]['run'].count('docker build '), 1)
         self.assertEqual(sum(step.get('uses') == './.github/actions/prepare-ci-validation'
                              for step in job['steps']), 1)
+
+    def test_validation_image_build_is_pinned_local_and_cached_per_ref(self):
+        steps = load(ROOT / '.github/actions/prepare-ci-validation/action.yml')['runs']['steps']
+        builds = [step for step in steps if 'docker/build-push-action@' in step.get('uses', '')]
+        self.assertEqual(len(builds), 1)
+        self.assertFalse(any('docker build' in step.get('run', '') for step in steps))
+        build = builds[0]
+        self.assertRegex(build['uses'], r'^docker/build-push-action@[0-9a-f]{40}$')
+        options = build['with']
+        # The image is built from the trusted controller checkout and only loaded locally.
+        self.assertEqual((options['context'], options['file']), ('.github', '.github/ci-validation/Dockerfile'))
+        self.assertIs(options['load'], True)
+        self.assertNotIn('push', options)
+        self.assertEqual(options['tags'], 'yss-ci-validation:local')
+        # Only the GitHub Actions cache backend: its entries are isolated per writing ref.
+        self.assertEqual(options['cache-from'], 'type=gha,scope=ci-validation')
+        self.assertEqual(options['cache-to'], 'type=gha,scope=ci-validation,mode=max')
+        self.assertEqual(build['env'], {'DOCKER_BUILD_SUMMARY': 'false', 'DOCKER_BUILD_RECORD_UPLOAD': 'false'})
 
     def run_docker_step(self, job, fail_kinds):
         """Execute the actual workflow shell; Docker is a recording failure/log adversary."""
