@@ -329,6 +329,7 @@ func (app *WorkspaceApp) GetUserIDsToProcessRP(ctx context.Context) ([]string, e
 	// 過去31日以内に入室したことのあるユーザーをクエリ（本当は退室したことのある人も取得したいが、クエリはORに対応してないため無視）
 	_31daysAgo := jstNow.AddDate(0, 0, -31)
 	iter := app.Repository.GetUsersActiveAfterDate(ctx, _31daysAgo)
+	defer iter.Stop()
 
 	var userIDs []string
 	for {

@@ -27,7 +27,7 @@ func NewDiscordBot(token string, textChannelID string) (*DiscordBot, error) {
 	}
 
 	// HTTPクライアントにタイムアウトを設定
-	// NOTE: discordgoはcontextを受け取らないため、HTTPクライアントレベルでタイムアウトを設定する
+	// NOTE: リクエストには呼び出し元のcontextも渡すが、期限のないcontextで呼ばれても待ち続けないよう、HTTPクライアントレベルでも上限を設ける
 	session.Client = &http.Client{
 		Timeout: discordHTTPTimeout,
 	}
@@ -42,7 +42,7 @@ func (bot *DiscordBot) SendMessage(ctx context.Context, message string) error {
 	// Message bodies may contain raw YouTube chat/user data. Log only the
 	// delivery event so process logs do not become a second long-lived copy.
 	slog.InfoContext(ctx, "sending a message to Discord")
-	_, err := bot.session.ChannelMessageSend(bot.textChannelID, message)
+	_, err := bot.session.ChannelMessageSend(bot.textChannelID, message, discordgo.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("in bot.session.ChannelMessageSend: %w", err)
 	}

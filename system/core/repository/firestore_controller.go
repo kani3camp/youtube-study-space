@@ -763,6 +763,7 @@ func (c *FirestoreControllerImplements) CreateOrderHistoryDoc(ctx context.Contex
 }
 
 func getDocDataFromIterator[T any](iter *firestore.DocumentIterator) ([]T, error) {
+	defer iter.Stop()
 	docs := make([]T, 0) // jsonになったときにnullとならないように。
 	for {
 		doc, err := iter.Next()

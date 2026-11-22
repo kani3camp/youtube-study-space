@@ -308,6 +308,7 @@ func (app *WorkspaceApp) ResetDailyTotalStudyTime(ctx context.Context) (int, err
 	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day() // TODO: isDifferentDay := !timeutil.DateEqualJST(now, previousDate)
 	if isDifferentDay && now.After(previousDate) {
 		userIter := app.Repository.GetAllNonDailyZeroUserDocs(ctx)
+		defer userIter.Stop()
 		count := 0
 		for {
 			doc, err := userIter.Next()

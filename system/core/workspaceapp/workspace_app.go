@@ -209,7 +209,7 @@ func (app *WorkspaceApp) CloseFirestoreClient() {
 	}
 }
 
-// GoroutineCheckLongTimeSitting 長時間座席占有検出ループ
+// GoroutineCheckLongTimeSitting 長時間座席占有検出ループ。ctx がキャンセルされると、実行中のチェックを終えた時点で戻る。
 func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 	minimumInterval := time.Duration(app.Configs.Constants.MinimumCheckLongTimeSittingIntervalMinutes) * time.Minute
 	slog.Info("", "居座りチェックの最小間隔", minimumInterval)
@@ -231,8 +231,13 @@ func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 
 		end := app.currentTime()
 		duration := end.Sub(start)
-		if duration < minimumInterval {
-			time.Sleep(timeutil.NoNegativeDuration(minimumInterval - duration))
+		timer := time.NewTimer(timeutil.NoNegativeDuration(minimumInterval - duration))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			slog.InfoContext(ctx, "stopped checking long time sitting", "reason", ctx.Err())
+			return
+		case <-timer.C:
 		}
 	}
 }
