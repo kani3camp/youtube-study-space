@@ -115,6 +115,9 @@ GitHub Actions のワークフローを「人間が実行したいユースケ�
 | **UC7** | `mypage-maintenance.yml`（`Set Maintenance Mode`） | `workflow_dispatch` | `environment`、`enabled` | dev / prod |
 
 - 内部用 reusable workflow（`gcp-terraform-authenticated.yml` 等）には `workflow_dispatch` を持たせません。
+- 選択入力のある手動 workflow では、`run-name` に選択肢が固定された主要入力（`environment`・`operation`・`mode` など）を表示し、各 Run の Job Summary（**手動実行の入力値**）に全入力の値と既定値を表で残します。空文字・`false`・既定値と同じ値も区別して表示し、`ref`・`sha`・`actor` は選択入力とは別の表に出します。
+  - 記録ステップ（`Record dispatch inputs`）は資格情報を持たない最初のジョブの先頭で動くため、入力検査や後続ジョブが失敗しても記録が残ります。記録自体の失敗は `continue-on-error` で実行可否に影響させません（`mypage-maintenance.yml` は reusable だけで構成されるため、待ち合わせのない記録専用ジョブを置きます）。
+  - 出力する入力は各ステップの `env` に明示した項目だけです。任意文字列（branch・SHA・digest）は Run 名に入れず、値はシェルへ埋め込まずに `env` で渡して Markdown/HTML の記号と制御文字をエスケープします。入力を追加・変更したら同じ PR で記録ステップの `env` も更新します（[`test_ci_dispatch_inputs.py`](../../.github/scripts/test_ci_dispatch_inputs.py) が入力定義との一致を検査します）。
 - Frontend / API / Operator の各 Deploy ワークフローは DEV と本番で同じ定義を使い、`environment` 入力で対象を選びます。DEV は `dev`、本番は `main` からだけ実行でき、最初の `select` ジョブ・配備スクリプトの `context`・環境別 WIF 条件の 3 か所で同じ組み合わせを要求します（DEV の Run を本番 ref から、本番の Run を `dev` から起動すると資格情報の取得前に停止します）。認証に使う SA と project は入力から組み立てず、配備スクリプトがソースの固定値から出力します。
 - 本番の配備用 GitHub Environment は `mypage-prod-backend` / `mypage-prod-operator` / `mypage-prod-hosting`（いずれも `main` 限定・承認者なし・管理者バイパス無効）で、本番 image build は既存の `mypage-prod-apply` を使います。本番の配備手順と初回の順序は [Backend CI](../mypage/release/backend-ci.md#本番の配備) と [MyPage 基盤の本番初回構築](../../infra/mypage-platform/README.md#本番の初回構築main-から) を参照してください。
 - PR や `push` を契機とした自動デプロイは行いません。公開の判断は配備経路とは独立に公開 Gate（[#1133](https://github.com/kani3camp/youtube-study-space/issues/1133)）で行います。

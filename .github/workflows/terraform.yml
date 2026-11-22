@@ -1,4 +1,6 @@
 name: Terraform
+# Free-form inputs (branch, SHA) stay in the Job Summary, not in the title.
+run-name: "${{ github.event_name == 'workflow_dispatch' && format('Terraform {0} / {1} / {2}{3}', inputs.environment, inputs.operation, inputs.component, inputs.allow_mypage_deletions && ' / allow MyPage deletions' || '') || format('Terraform PR Plan #{0}: {1}', github.event.pull_request.number, github.event.pull_request.title) }}"
 
 # Manual Plan / Apply of the Core GCP root and the MyPage root. Each root keeps
 # its own State, identity and saved-plan verification. The run pins one source
@@ -85,6 +87,64 @@ jobs:
       mypage: ${{ steps.select.outputs.mypage }}
       validation_sha: ${{ steps.source.outputs.validation_sha }}
     steps:
+      - name: Record dispatch inputs
+        env:
+          DISPATCH_INPUTS: environment operation component allow_mypage_deletions source_branch source_sha
+          DISPATCH_VALUE_ENVIRONMENT: ${{ inputs.environment }}
+          DISPATCH_DEFAULT_ENVIRONMENT: development
+          DISPATCH_VALUE_OPERATION: ${{ inputs.operation }}
+          DISPATCH_DEFAULT_OPERATION: plan
+          DISPATCH_VALUE_COMPONENT: ${{ inputs.component }}
+          DISPATCH_DEFAULT_COMPONENT: all
+          DISPATCH_VALUE_ALLOW_MYPAGE_DELETIONS: ${{ inputs.allow_mypage_deletions }}
+          DISPATCH_DEFAULT_ALLOW_MYPAGE_DELETIONS: 'false'
+          DISPATCH_VALUE_SOURCE_BRANCH: ${{ inputs.source_branch }}
+          DISPATCH_DEFAULT_SOURCE_BRANCH: ''
+          DISPATCH_VALUE_SOURCE_SHA: ${{ inputs.source_sha }}
+          DISPATCH_DEFAULT_SOURCE_SHA: ''
+        # Records only the inputs listed in DISPATCH_INPUTS, before any credential.
+        # Values arrive through env only and are escaped for a Markdown table.
+        # continue-on-error: recording never changes whether the run proceeds.
+        continue-on-error: true
+        run: |
+          python3 -I - <<'PY'
+          import os
+          import re
+          import unicodedata
+
+          VISIBLE = {'\n': 'n', '\r': 'r', '\t': 't'}
+
+          def cell(value):
+              if value is None:
+                  return '（定義なし）'
+              if value == '':
+                  return '（空文字）'
+              out = []
+              for char in value:
+                  if char in VISIBLE:
+                      out.append('&#92;' + VISIBLE[char])
+                  elif unicodedata.category(char) in ('Cc', 'Cf', 'Cs', 'Co', 'Cn', 'Zl', 'Zp'):
+                      out.append('&#92;u{%04x}' % ord(char))
+                  elif char.isascii() and not char.isalnum() and char != ' ':
+                      out.append('&#%d;' % ord(char))
+                  else:
+                      out.append(char)
+              return '<code>' + ''.join(out) + '</code>'
+
+          names = os.environ['DISPATCH_INPUTS'].split()
+          lines = ['## 手動実行の入力値', '', '| 入力 | 値 | 既定値 |', '| --- | --- | --- |']
+          for name in names:
+              if not re.fullmatch(r'[a-z][a-z0-9_]*', name):
+                  raise SystemExit('Unsupported input name: ' + name)
+              key = name.upper()
+              value = os.environ['DISPATCH_VALUE_' + key]
+              lines.append('| `%s` | %s | %s |' % (name, cell(value), cell(os.environ.get('DISPATCH_DEFAULT_' + key))))
+          lines += ['', '実行コンテキスト（選択入力ではありません）', '', '| 項目 | 値 |', '| --- | --- |']
+          for name in ('event_name', 'ref', 'sha', 'actor', 'triggering_actor', 'run_attempt'):
+              lines.append('| `%s` | %s |' % (name, cell(os.environ.get('GITHUB_' + name.upper(), ''))))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write('\n'.join(lines) + '\n\n')
+          PY
       - name: Checkout trusted controller
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
