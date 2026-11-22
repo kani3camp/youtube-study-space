@@ -20,13 +20,6 @@ import (
 
 const MaxLiveChatMessageLength = 200
 
-type AccessTokenResponseStruct struct {
-	AccessToken string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`
-	Scope       string `json:"scope"`
-	TokenType   string `json:"token_type"`
-}
-
 func NewYoutubeLiveChatBot(liveChatID string, controller repository.Repository, ctx context.Context) (LiveChatBot, error) {
 	var channelYoutubeService *youtube.Service
 	var botYoutubeService *youtube.Service
