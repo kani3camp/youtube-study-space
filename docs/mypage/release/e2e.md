@@ -12,7 +12,7 @@ Phase 0A の運営者限定試験と並行して準備できますが、以下�
 
 | Gate | 実経路での確認内容 | 現状 |
 | --- | --- | --- |
-| **MON-01 Rules** | 匿名・通常 MyPage ユーザーから `seats` / `member-seats` / `menu` / `work-name-trend` / `config/constants` の読み取りが拒否されること。有効な許可リスト（`_monitor-readers/{uid}`）の認証済み UID のみ（custom claim 不要）で必要な読み取りが成功し、全クライアントの書き込みが拒否されること | ソース・Client SDK テスト成功。2026-11-15（`v4.33.0` / [#1459](https://github.com/kani3camp/youtube-study-space/issues/1459)）に DEV・本番で適用中 Rules への許可 Monitor 購読と匿名・許可リスト外拒否を運営者確認済み（個別リビジョン・期限切れ/別プロジェクトトークンの個別ケースは未掲載） |
+| **MON-01 Rules** | 匿名・通常 MyPage ユーザーから `seats` / `member-seats` / `menu` / `work-name-trend` / `config/constants` の読み取りが拒否されること。有効な許可リスト（`_monitor-readers/{uid}`）の認証済み UID のみ（custom claim 不要）で必要な読み取りが成功し、全クライアントの書き込みが拒否されること | ソース・Client SDK テスト成功。2026-11-15（`v4.33.0` / [#1459](https://github.com/kani3camp/youtube-study-space/issues/1459)）に DEV・本番で適用中の Rules に対して、許可済み Monitor による購読と匿名・許可リスト外からの拒否を運営者が確認済み（個別リビジョン・期限切れ/別プロジェクトトークンの個別ケースは未掲載） |
 | **MON-02 OBS** | 実 OBS / CEF 上で、ブラウザソースの Interact ログイン、`browserLocalPersistence`、シーン切替、OBS・PC 再起動、24 時間相当稼働、トークン更新・失効・通知・再ログインを確認 | 2026-11-15（[#1459](https://github.com/kani3camp/youtube-study-space/issues/1459)）に OBS 実機でソース更新・OBS/PC 再起動・長時間稼働後の購読復帰・失効/通信断復旧・運営者通知・App Check 強制時接続を運営者確認済み（OBS ログ自体は未掲載） |
 | **MON-03 cutover** | DEV / PROD で Rules バージョン・モニター購読・seat-count API 回帰・バックアウト手順を整合させること（認証不能時に匿名 read へ無断ロールバックしない） | 2026-11-15（`v4.33.0` / [#1459](https://github.com/kani3camp/youtube-study-space/issues/1459)）に匿名読み取り廃止を本番リリースし、DEV → 本番切替手順・匿名再許可なし復旧方針・`POST /set_desired_max_seats` 回帰を運営者確認済み |
 | **COST-01 limits** | Cloud Run の DEV（min 0 / max 1）・PROD（min 0 / max 3）を実環境で確認。timeout / body / query 上限と UID 制限・S01 を Hosting 経由と `run.app` 直アクセスの両方で検証 | 一部ソースあり（実経路要確認） |
@@ -27,7 +27,7 @@ Phase 0A の運営者限定試験と並行して準備できますが、以下�
 
 - [リリース記録テンプレート](release-record.example.json) に、環境・プロジェクト・ドメイン、フロントエンド SHA・Hosting リリース、バックエンド digest・Cloud Run リビジョン、書き換え先・`pinTag=false`、スキーマ・同意バージョン、承認参照、試験範囲を記録します。
 - 秘密情報・個人データの保護: シークレット・トークン・OAuth `code`/`state`・`supportChallenge` / `proofRef`・チャンネル UID・作業内容は公開記録や CI ログに保存しません。生の HAR ファイルも共有・公開せず、非公開の確認資料を秘匿処理したうえで結果・時刻に紐付けます。
-- テストアカウントとデータ保護: 運営者が明示したテストアカウントのみを使用します。実データを変更する操作（ログアウト・失効・削除）は操作と対象を別途承認します。未登録や欠損状態を作るために実 DB を直接破損させないでください（実アカウントで用意できない状態は保留とし、ローカル代替の検証範囲を記録します）。
+- テストアカウントとデータ保護: 運営者が明示したテストアカウントのみを使用します。実データを変更する操作（ログアウト・失効・削除）は操作と対象を別途承認します。未登録や欠損状態を作るために実 DB を直接破損させないでください（実アカウントで用意できない状態は保留とし、ローカルでの代替検証の範囲を記録します）。
 
 ---
 
@@ -50,7 +50,7 @@ Phase 0A の運営者限定試験と並行して準備できますが、以下�
 | **M02** | 定期削除・出力先到達・ハートビート / 失敗アラート | 29 日対象・30 日超保持なし、成功走査間隔 23h 以内・ジョブ 10 分以内、アラート到達 | cleanup / health tests（実結線は別途） |
 | **SUP01** | 人的窓口受付 → 依頼専用 fresh support proof（delete / revoke / disclosure）、誤チャンネル / 誤目的 / replay | request / 環境 / 目的 / チャンネル束縛、参照のみ返却、通常ログインへ流用不可（アプリ内受付 UI 不要） | support auth / runtime / Emulator はソース証拠のみ |
 | **SUP02** | セッションなし / 本人確認不能 / 期限間近の人的受付 | 返信可能な公開窓口で個別対応し、受付から 7 暦日を延長しない（新 Bearer 認証は不使用） | 窓口・担当・実配信は未確定 |
-| **SUP03** | D01 選択後の横断削除 / 再実行 / 復元 / 遅延 writer / キャッシュ | 承認対象のみ削除し、全ストアと backup / export / log を確認。旧データ復活なしで完了通知 | 実アダプター・実棚卸し待ち（dry-run は実行証拠でない） |
+| **SUP03** | D01 選択後の横断削除 / 再実行 / 復元 / 遅延 writer / キャッシュ | 承認対象のみ削除し、全ストアと backup / export / log を確認。旧データ復活なしで完了通知 | 実アダプター・実棚卸し待ち（dry-run は実行証拠ではない） |
 | **C01** | GA4（unset / deny / grant / withdraw / 他タブ、callback / support query） | 同意前リクエスト 0 件、過去イベント再送 0 件、秘匿値 0 件、拒否でもログイン可能 | GA4 / privacy / runtime tests（実管理画面・通信は別） |
 | **U01** | PC / モバイル / 320px / キーボード / 200% / 画像・フォント失敗 / bfcache | 可読・操作可能、横溢れなし、前 UID・遅延応答・proof が復活しない | visual / font / privacy / runtime / 実 bfcache local |
 | **B01** | 実装後の Phase 1 `!app` / `!mypage` / `!page` / `!my page` | 全エイリアスで固定公開入口・UTM へ誘導（秘密・UID なし、既存 `my` オプション不変） | alias / UTM 契約と parser / workspaceapp tests |
@@ -92,9 +92,9 @@ Phase 0A の運営者限定試験と並行して準備できますが、以下�
 
 ## 緊急遮断と復旧のリハーサル（未実施）
 
-既存構成における緊急遮断の候補手段は、オーナーが対象 Cloud Run サービスの公開 Invoker（`allUsers`）を取り消す方法です。これにより OAuth・個人 API への公開経路をサーバー側で閉じつつ、別配信の Hosting 上の静的規約ページを維持します。DEV 環境で遮断と復旧の両方を実証するまで「停止可能」の Gate は合格にしません（IAM 変更は対象・時間窓・復旧対を記録した個別承認後にのみ実施）。
+既存構成における緊急遮断の候補手段は、オーナーが対象 Cloud Run サービスの公開 Invoker（`allUsers`）を取り消す方法です。これにより OAuth・個人 API への公開経路をサーバー側で閉じつつ、別配信の Hosting 上の静的規約ページを維持します。DEV 環境で遮断と復旧の両方を実証するまで「停止可能」の Gate を合格としません（IAM 変更は対象・時間窓・復旧対を記録した個別承認後にのみ実施）。
 
-1. 事前保全: 対象プロジェクト・リージョン・サービス、Hosting 書き換え先、Run URL・トラフィックを読み戻し、レビュー済み FE/BE 対と IAM ポリシーの `version` / `etag` を非公開に記録します。Invoker IAM チェックが有効で、上位プロジェクトや他に迂回できる公開付与がないことを確認します。
+1. 事前保全: 対象プロジェクト・リージョン・サービス、Hosting 書き換え先、Run URL・トラフィックを読み戻し、レビュー済みの FE/BE の組と IAM ポリシーの `version` / `etag` を非公開の記録に残します。Invoker IAM チェックが有効で、上位プロジェクトや他に迂回できる公開付与がないことを確認します。
 2. 遮断の実行: イメージ更新・public apply・Hosting リリース・外部告知を止めたうえで、オーナーが `etag` 保護付きで該当サービスの `roles/run.invoker`（`allUsers`）のみを削除し、他が変わっていないことを読み戻します。反映後、Hosting 経由・直 Run ともに OAuth / 個人 API が拒否され、`/privacy`・`/terms`・`/contact` が `200` で読めることを確認します。
 3. 既存処理への注意: 新規リクエスト遮断だけでは、すでに実行中の処理や発行済み Firebase セッションは止まりません。侵害や削除対応時は [全ランタイムの停止・drain](../support-delete-inventory.md) やセッション失効を別途行います（Firestore Rules をサーバー権限遮断の代用にしません）。
 4. 復旧の実行: 原因修正後、復旧承認を得て同じサービスの元メンバーだけを `etag` 保護で復元します。正常経路・拒否プローブ・同意版・S01/S04 を再検証し、元ポリシーとの差分がないことを確認します。
