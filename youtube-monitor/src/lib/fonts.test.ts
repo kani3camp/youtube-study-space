@@ -58,3 +58,11 @@ test('sourceCodeProFontFamily is normalized for canvas and CSS usage', async () 
 
 	expect(sourceCodeProFontFamily).toBe('"Source Code Pro"')
 })
+
+test('fontFamily escapes backslashes and double quotes inside unquoted family names', async () => {
+	const { fontFamily } = await loadFontsModule({
+		mPlusFontFamily: 'Weird\\Font "X"',
+	})
+
+	expect(fontFamily).toBe('"Weird\\\\Font \\"X\\""')
+})

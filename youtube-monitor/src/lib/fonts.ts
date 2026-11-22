@@ -11,7 +11,7 @@ function normalizeFontFamily(fontFamilyValue: string): string {
 			if ((firstChar === "'" || firstChar === '"') && lastChar === firstChar) {
 				return familyName
 			}
-			return `"${familyName.replace(/"/g, '\\"')}"`
+			return `"${familyName.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 		})
 		.join(', ')
 }
