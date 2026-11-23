@@ -98,3 +98,41 @@ const roomLayoutWithSeatCount = (seatCount: number) => ({
 	})),
 	partitions: [],
 })
+
+test('expandSeatsWithTemporaryRooms returns basic seats when there are no temporary rooms', () => {
+	expect(expandSeatsWithTemporaryRooms(12, 5, [])).toBe(5)
+})
+
+test('expandSeatsWithTemporaryRooms returns basic seats when every temporary room has 0 seats', () => {
+	expect(
+		expandSeatsWithTemporaryRooms(12, 5, [
+			roomLayoutWithSeatCount(0),
+			roomLayoutWithSeatCount(0),
+		]),
+	).toBe(5)
+})
+
+test('expandSeatsWithTemporaryRooms skips 0-seat temporary rooms while expanding', () => {
+	expect(
+		expandSeatsWithTemporaryRooms(8, 5, [
+			roomLayoutWithSeatCount(0),
+			roomLayoutWithSeatCount(3),
+		]),
+	).toBe(8)
+})
+
+test('desiredMaxSeatsByVacancyRate keeps basic seats when there are no temporary rooms', () => {
+	expect(desiredMaxSeatsByVacancyRate(9, 0.25, 10, [])).toBe(10)
+})
+
+test('buildRoomLayouts returns only basic rooms when there are no temporary rooms', () => {
+	const basicRoom = roomLayoutWithSeatCount(4)
+	expect(buildRoomLayouts([basicRoom], [], 20, false)).toEqual([basicRoom])
+})
+
+test('buildRoomLayouts returns only basic rooms when every temporary room has 0 seats', () => {
+	const basicRoom = roomLayoutWithSeatCount(4)
+	expect(
+		buildRoomLayouts([basicRoom], [roomLayoutWithSeatCount(0)], 20, false),
+	).toEqual([basicRoom])
+})

@@ -1,5 +1,6 @@
 import { doc, getDocFromServer, getFirestore } from 'firebase/firestore'
 import { getFirebaseApp } from './firestore'
+import { MonitorConfigMissingError } from './monitor-access-issues'
 
 export type MonitorFirestoreIssue =
 	| 'firestore-denied'
@@ -8,13 +9,17 @@ export type MonitorFirestoreIssue =
 
 export const classifyMonitorFirestoreError = (
 	error: unknown,
-): MonitorFirestoreIssue =>
-	typeof error === 'object' &&
-	error !== null &&
-	'code' in error &&
-	error.code === 'permission-denied'
+): MonitorFirestoreIssue => {
+	if (error instanceof MonitorConfigMissingError) {
+		return 'firestore-config-missing'
+	}
+	return typeof error === 'object' &&
+		error !== null &&
+		'code' in error &&
+		error.code === 'permission-denied'
 		? 'firestore-denied'
 		: 'firestore-error'
+}
 
 export async function checkMonitorFirestoreAccess(): Promise<
 	'ready' | MonitorFirestoreIssue

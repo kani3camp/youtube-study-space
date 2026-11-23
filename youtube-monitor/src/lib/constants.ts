@@ -1,5 +1,3 @@
-import { validateString } from './common'
-
 export const roomConfigNames = ['PROD', 'DEV'] as const
 export type RoomConfigName = (typeof roomConfigNames)[number]
 
@@ -12,32 +10,25 @@ export const parseRoomConfigName = (
 	throw Error(`invalid NEXT_PUBLIC_ROOM_CONFIG: ${value?.toString()}`)
 }
 
-if (
-	process.env.NEXT_PUBLIC_DEBUG !== 'true' &&
-	process.env.NEXT_PUBLIC_DEBUG !== 'false'
-) {
-	throw Error(
-		`invalid NEXT_PUBLIC_DEBUG: ${process.env.NEXT_PUBLIC_DEBUG?.toString()}`,
-	)
+export const parseDebugFlag = (value: string | undefined): boolean => {
+	if (value === 'true') {
+		return true
+	}
+	if (value === 'false') {
+		return false
+	}
+	throw Error(`invalid NEXT_PUBLIC_DEBUG: ${value?.toString()}`)
 }
-if (
-	process.env.NEXT_PUBLIC_CHANNEL_GL !== 'true' &&
-	process.env.NEXT_PUBLIC_CHANNEL_GL !== 'false'
-) {
-	throw Error(
-		`invalid NEXT_PUBLIC_CHANNEL_GL: ${process.env.NEXT_PUBLIC_CHANNEL_GL?.toString()}`,
-	)
-}
-export const DEBUG = process.env.NEXT_PUBLIC_DEBUG === 'true'
 
-if (!validateString(process.env.NEXT_PUBLIC_ROOM_CONFIG)) {
-	throw Error(
-		`invalid NEXT_PUBLIC_ROOM_CONFIG: ${process.env.NEXT_PUBLIC_ROOM_CONFIG?.toString()}`,
-	)
-}
-export const ROOM_CONFIG = parseRoomConfigName(
-	process.env.NEXT_PUBLIC_ROOM_CONFIG,
-)
+// NEXT_PUBLIC_* はビルド時にリテラルアクセスが置換されるため、直接参照する。
+// 読み込み時に評価せず、利用時に検証する。
+export const isDebugEnabled = (): boolean =>
+	parseDebugFlag(process.env.NEXT_PUBLIC_DEBUG)
+
+export const getRoomConfigName = (): RoomConfigName =>
+	parseRoomConfigName(process.env.NEXT_PUBLIC_ROOM_CONFIG)
+
+export const getBgmVolume = (): number => (isDebugEnabled() ? 0.1 : 0.3)
 
 export const sidebarCardVerticalInsetPx = 16
 export const sidebarCardHorizontalInsetPx = 40
@@ -56,7 +47,6 @@ export const Constants = {
 	seatBackgroundColor: '#F4EFE7',
 	vacantSeatBackgroundColor: '#ded5c6ff',
 	breakBadgeZIndex: 10,
-	bgmVolume: DEBUG ? 0.1 : 0.3,
 	chimeVolume: 0.7,
 	chimeSingleFilePath: '/chime/chime1.mp3',
 	chimeDoubleFilePath: '/chime/chime2.mp3',
@@ -77,5 +67,3 @@ export const sidebarBgmHeight =
 	Constants.menuHeight -
 	Constants.timerHeight -
 	Constants.colorBarHeight
-
-export const debug = false

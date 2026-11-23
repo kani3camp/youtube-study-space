@@ -8,6 +8,9 @@ export type SeatAppearance = {
 	num_stars: number
 }
 
+/** バックエンド（system/core/repository の SeatState）と同じ値。 */
+export type SeatState = 'work' | 'break'
+
 export type Seat = {
 	seat_id: number
 	user_id: string

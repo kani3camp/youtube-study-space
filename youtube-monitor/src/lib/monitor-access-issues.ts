@@ -10,6 +10,17 @@ export const monitorAccessMessages = {
 		'Firestoreへの接続を確認できませんでした。ネットワークとFirebaseの設定を確認して、再読み込みしてください。',
 } as const
 
+/**
+ * `config/constants` 文書が存在しないことを表すエラー。
+ * classifyMonitorFirestoreError が 'firestore-config-missing' に分類する。
+ */
+export class MonitorConfigMissingError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = 'MonitorConfigMissingError'
+	}
+}
+
 export type MonitorAccessIssue = keyof typeof monitorAccessMessages
 
 export const isMonitorAccessIssue = (

@@ -5,7 +5,11 @@ import { Monitor } from '../pages/index'
 const firestoreMocks = vi.hoisted(() => ({
 	subscriptions: new Map<
 		string,
-		{ fail: (error?: unknown) => void; unsubscribe: ReturnType<typeof vi.fn> }
+		{
+			next: (snapshot: unknown) => void
+			fail: (error?: unknown) => void
+			unsubscribe: ReturnType<typeof vi.fn>
+		}
 	>(),
 }))
 
@@ -17,9 +21,13 @@ vi.mock('firebase/firestore', async (importOriginal) => ({
 	})),
 	getFirestore: vi.fn(() => ({})),
 	onSnapshot: vi.fn(
-		({ path }: { path: string }, _next, fail: (error?: unknown) => void) => {
+		(
+			{ path }: { path: string },
+			next: (snapshot: unknown) => void,
+			fail: (error?: unknown) => void,
+		) => {
 			const unsubscribe = vi.fn()
-			firestoreMocks.subscriptions.set(path, { fail, unsubscribe })
+			firestoreMocks.subscriptions.set(path, { next, fail, unsubscribe })
 			return unsubscribe
 		},
 	),
@@ -133,5 +141,48 @@ describe('Monitor Firestore failure boundary', () => {
 		for (const { unsubscribe } of firestoreMocks.subscriptions.values()) {
 			expect(unsubscribe).toHaveBeenCalledOnce()
 		}
+	})
+
+	test('routes a seat document that cannot be converted to the read error path', () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined)
+		render(<Monitor />)
+		act(() =>
+			firestoreMocks.subscriptions.get('seats')?.next({
+				docs: [
+					{
+						data: () => {
+							throw new Error('unsupported seat schema')
+						},
+					},
+				],
+			}),
+		)
+		expect(screen.getByText('配信画面を表示できません')).toBeInTheDocument()
+		expect(fetch).toHaveBeenCalledExactlyOnceWith(
+			'/api/monitor-auth-required',
+			expect.objectContaining({
+				headers: { 'X-Monitor-Auth-Required': 'firestore-error' },
+			}),
+		)
+	})
+
+	test('routes a room config failure while reviewing max seats to the read error path', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined)
+		vi.stubEnv('NEXT_PUBLIC_ROOM_CONFIG', 'INVALID')
+		render(<Monitor />)
+		await act(async () =>
+			firestoreMocks.subscriptions.get('config/constants')?.next({
+				exists: () => true,
+				data: () => ({
+					max_seats: 10,
+					member_max_seats: 5,
+					min_vacancy_rate: 0.2,
+					youtube_membership_enabled: true,
+					fixed_max_seats_enabled: false,
+				}),
+			}),
+		)
+		expect(screen.getByText('配信画面を表示できません')).toBeInTheDocument()
+		vi.unstubAllEnvs()
 	})
 })

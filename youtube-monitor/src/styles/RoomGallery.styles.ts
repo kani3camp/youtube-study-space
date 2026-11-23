@@ -1,5 +1,5 @@
 import { css } from '@emotion/react'
-import { fontFamily } from '../lib/common'
+import { fontFamily } from '../lib/fonts'
 
 export const page = css`
 	min-height: 100vh;

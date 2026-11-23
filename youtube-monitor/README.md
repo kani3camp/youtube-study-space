@@ -1,6 +1,6 @@
 # YouTube Monitor
 
-`youtube-monitor/` は、YouTubeライブ配信に表示するNext.js製のUIです。Firestoreから部屋の状態を読み取り、横型・縦型のレイアウトを描画します。
+`youtube-monitor/` は、YouTubeライブ配信に表示するNext.js製のUIです。Firestoreから部屋の状態を読み取り、横型のレイアウトを描画します。
 
 > [!IMPORTANT]
 > 現在の構成では、モニターは**表示だけを担当するわけではありません**。`src/components/MainContent.tsx` は、部屋の定義と現在の利用状況から一般席・メンバー限定席の希望席数を計算し、`POST /set_desired_max_seats` を呼び出すことがあります。部屋の定義や席数を変更する前に、[`../docs/development/architecture.md`](../docs/development/architecture.md) を確認してください。
@@ -38,7 +38,6 @@ pnpm start
 | 変数 | 用途 | ブラウザからの参照 |
 | --- | --- | --- |
 | `NEXT_PUBLIC_DEBUG` | モニターのデバッグ動作を有効にします。`true` または `false` を指定します。 | 可 |
-| `NEXT_PUBLIC_CHANNEL_GL` | チャンネル固有の動作を切り替えます。`true` または `false` を指定します。 | 可 |
 | `NEXT_PUBLIC_ROOM_CONFIG` | 部屋・レイアウトの設定を選択します。`PROD` または `DEV` を指定します。 | 可 |
 | `NEXT_PUBLIC_API_ENDPOINT` | `/set_desired_max_seats` など、モニターが呼び出すAPIのベースURLです。 | 可 |
 | `NEXT_PUBLIC_API_KEY` | fetcherがAPIリクエストに使用するクライアント側の設定です。ブラウザへ配布されるため、サーバーの秘密情報としては扱えません。 | 可 |
@@ -67,7 +66,6 @@ pnpm test:watch
 
 ```sh
 NEXT_PUBLIC_DEBUG=false \
-NEXT_PUBLIC_CHANNEL_GL=false \
 NEXT_PUBLIC_ROOM_CONFIG=DEV \
 NEXT_PUBLIC_API_ENDPOINT=http://localhost:3000 \
 NEXT_PUBLIC_API_KEY=ci-dummy-api-key \
@@ -127,7 +125,7 @@ pnpm build:ci
 
 部屋・座席レイアウトの動作を変更する場合は、少なくとも次の項目を確認してください。
 
-- 変更したロジックを共有する横型・縦型の表示
+- 変更したロジックを共有する各レイアウト・ルーム構成の表示
 - 基本ルームの席数とページの境界
 - 固定席数モードと可変席数モードの動作
 - 可変席数モードでの臨時ルームによる席の表示範囲

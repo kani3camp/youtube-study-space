@@ -9,6 +9,10 @@ export const expandSeatsWithTemporaryRooms = (
 	temporaryRooms: RoomLayout[],
 ): number => {
 	let currentSeats = basicRoomSeats
+	// 臨時ルームに席が 1 つもない場合は拡張できないため、ループに入らず基本席数を返す
+	if (numSeatsOfRoomLayouts(temporaryRooms) === 0) {
+		return currentSeats
+	}
 	let currentTemporaryRoomIndex = 0
 	while (currentSeats < minSeats) {
 		currentSeats += temporaryRooms[currentTemporaryRoomIndex].seats.length
@@ -48,6 +52,11 @@ export const buildRoomLayouts = (
 	const nextLayouts = [...basicRooms]
 	let currentSeats = numSeatsOfRoomLayouts(nextLayouts)
 	if (fixedMaxSeatsEnabled || maxSeats <= currentSeats) {
+		return nextLayouts
+	}
+
+	// 臨時ルームに席が 1 つもない場合は拡張できないため、基本ルームのみを返す
+	if (numSeatsOfRoomLayouts(temporaryRooms) === 0) {
 		return nextLayouts
 	}
 
