@@ -20,6 +20,7 @@ import {
 } from '../lib/firestore'
 import {
 	handleConstantsSnapshot,
+	handleSeatsSnapshot,
 	handleWorkNameTrendSnapshot,
 } from '../lib/snapshot-handlers'
 import {
@@ -140,7 +141,10 @@ const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 	 */
 	// biome-ignore lint/correctness/useExhaustiveDependencies: これらの依存関係は意図的に指定
 	useEffect(() => {
-		reviewMaxSeats()
+		reviewMaxSeats().catch((error: unknown) => {
+			console.error('failed to review max seats', error)
+			onReadError(error)
+		})
 	}, [
 		latestGeneralSeats,
 		latestMemberSeats,
@@ -190,13 +194,12 @@ const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 		const unsubscribers = [
 			onSnapshot(
 				generalSeatsQuery,
-				(querySnapshot) => {
-					const seats: Seat[] = []
-					for (const doc of querySnapshot.docs) {
-						seats.push(doc.data())
-					}
-					setLatestGeneralSeats(seats)
-				},
+				(querySnapshot) =>
+					handleSeatsSnapshot(
+						querySnapshot,
+						setLatestGeneralSeats,
+						onReadError,
+					),
 				onReadError,
 			),
 		]
@@ -206,13 +209,8 @@ const Seats: FC<SeatsProps> = ({ menuItems, onReadError }) => {
 		unsubscribers.push(
 			onSnapshot(
 				memberSeatsQuery,
-				(querySnapshot) => {
-					const seats: Seat[] = []
-					for (const doc of querySnapshot.docs) {
-						seats.push(doc.data())
-					}
-					setLatestMemberSeats(seats)
-				},
+				(querySnapshot) =>
+					handleSeatsSnapshot(querySnapshot, setLatestMemberSeats, onReadError),
 				onReadError,
 			),
 		)

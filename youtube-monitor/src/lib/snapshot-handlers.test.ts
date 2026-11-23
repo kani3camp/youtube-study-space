@@ -1,8 +1,10 @@
 import type { Timestamp } from 'firebase/firestore'
-import type { WorkNameTrend } from '../types/api'
+import type { Seat, WorkNameTrend } from '../types/api'
 import type { SystemConstants } from './firestore'
+import { classifyMonitorFirestoreError } from './monitor-firestore-access'
 import {
 	handleConstantsSnapshot,
+	handleSeatsSnapshot,
 	handleWorkNameTrendSnapshot,
 } from './snapshot-handlers'
 
@@ -20,6 +22,9 @@ const trend = (): WorkNameTrend => ({
 })
 
 describe('handleConstantsSnapshot', () => {
+	beforeEach(() => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined)
+	})
 	test('reports a missing config/constants document as a read error without notifying constants', () => {
 		const onConstants = vi.fn()
 		const onReadError = vi.fn()
@@ -32,7 +37,10 @@ describe('handleConstantsSnapshot', () => {
 
 		expect(onConstants).not.toHaveBeenCalled()
 		expect(onReadError).toHaveBeenCalledTimes(1)
-		expect(onReadError.mock.calls[0][0]).toBeInstanceOf(Error)
+		expect(classifyMonitorFirestoreError(onReadError.mock.calls[0][0])).toBe(
+			'firestore-config-missing',
+		)
+		expect(console.error).toHaveBeenCalledOnce()
 	})
 
 	test('notifies the constants of an existing document and reads data once', () => {
@@ -53,6 +61,9 @@ describe('handleConstantsSnapshot', () => {
 })
 
 describe('handleWorkNameTrendSnapshot', () => {
+	beforeEach(() => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined)
+	})
 	test('routes multiple documents to the read error handler instead of throwing', () => {
 		const onWorkNameTrend = vi.fn()
 		const onReadError = vi.fn()
@@ -68,6 +79,7 @@ describe('handleWorkNameTrendSnapshot', () => {
 		expect(onWorkNameTrend).not.toHaveBeenCalled()
 		expect(onReadError).toHaveBeenCalledTimes(1)
 		expect(onReadError.mock.calls[0][0]).toBeInstanceOf(Error)
+		expect(console.error).toHaveBeenCalledOnce()
 	})
 
 	test('notifies the single document', () => {
@@ -93,5 +105,40 @@ describe('handleWorkNameTrendSnapshot', () => {
 
 		expect(onWorkNameTrend).not.toHaveBeenCalled()
 		expect(onReadError).not.toHaveBeenCalled()
+	})
+})
+
+describe('handleSeatsSnapshot', () => {
+	test('notifies the converted seats', () => {
+		const seat = { seat_id: 1 } as Seat
+		const onSeats = vi.fn()
+		const onReadError = vi.fn()
+		handleSeatsSnapshot({ docs: [{ data: () => seat }] }, onSeats, onReadError)
+		expect(onSeats).toHaveBeenCalledWith([seat])
+		expect(onReadError).not.toHaveBeenCalled()
+	})
+
+	test('routes a conversion failure to the read error handler instead of throwing', () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined)
+		const failure = new Error('unsupported seat schema')
+		const onSeats = vi.fn()
+		const onReadError = vi.fn()
+		expect(() =>
+			handleSeatsSnapshot(
+				{
+					docs: [
+						{
+							data: () => {
+								throw failure
+							},
+						},
+					],
+				},
+				onSeats,
+				onReadError,
+			),
+		).not.toThrow()
+		expect(onSeats).not.toHaveBeenCalled()
+		expect(onReadError).toHaveBeenCalledWith(failure)
 	})
 })

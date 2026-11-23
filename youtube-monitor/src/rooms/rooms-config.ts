@@ -106,12 +106,16 @@ export const resolveRoomConfig = (config: RoomConfig): ResolvedRoomConfig => {
 	}
 }
 
-let allRoomsCache: ResolvedRoomConfig | undefined
+const allRoomsCache: Partial<Record<RoomConfigName, ResolvedRoomConfig>> = {}
 
-/** NEXT_PUBLIC_ROOM_CONFIG で選ばれたルーム構成を、初回利用時に解決して返す。 */
+/**
+ * NEXT_PUBLIC_ROOM_CONFIG で選ばれたルーム構成を返す。
+ * 設定名は呼び出しごとに評価し、解決結果だけを設定名ごとにキャッシュする。
+ */
 export const getAllRooms = (): ResolvedRoomConfig => {
-	allRoomsCache ??= resolveRoomConfig(roomConfigs[getRoomConfigName()])
-	return allRoomsCache
+	const name = getRoomConfigName()
+	allRoomsCache[name] ??= resolveRoomConfig(roomConfigs[name])
+	return allRoomsCache[name]
 }
 
 export const numSeatsInGeneralAllBasicRooms = (): number =>
