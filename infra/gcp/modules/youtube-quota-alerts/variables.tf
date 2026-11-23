@@ -43,7 +43,7 @@ variable "policy_keys" {
 }
 
 variable "legacy_notification_channels" {
-  description = "Exact existing per-policy references for import, including dangling references; this does not verify or repair a channel."
+  description = "Per-policy references of existing policies: the exact observed references, or a channel the caller already owns. This module never creates or verifies a channel."
   type        = map(list(string))
   sensitive   = true
   default     = {}

@@ -176,7 +176,7 @@ python3 infra/gcp/scripts/bootstrap_production_normal_ops.py --apply --enable-ap
 
 通常Plan/Applyは既存の管理対象・private tfvarsを維持します。既存Secretのwire schema名と4field形式は互換性のため保持し、
 入力・JSON/圧縮処理、State読取とprovider schema検証は`terraform_runtime.py`を使います。
-新しいimportやStateの初期化が必要な場合は、通常Applyへ流さず、目的と権限を明示して別途設計します。
+新しいimportやStateの初期化が必要な場合は、通常Applyへ流さず、目的と権限を明示して別途設計します。通常経路で許可する取り込みは、型と条件を限定した例外（メール認証設定、[本番の主要メール通知先](docs/production-readiness.md#本番の主要メール通知先の採用と通知の修復)）だけです。
 
 ## ディレクトリと現行の責務
 
@@ -206,6 +206,7 @@ python3 -B infra/gcp/tests/test_terraform_runtime.py
 python3 .github/scripts/test_terraform_authenticated_workflow.py
 python3 -B infra/gcp/tests/test_terraform_normal_ops.py
 python3 -B infra/gcp/tests/test_terraform_normal_ops_native.py
+python3 -B infra/gcp/tests/test_primary_email_adoption.py
 terraform fmt -check -recursive infra/gcp
 for env in dev prod; do
   (cd "infra/gcp/environments/$env" && terraform init -backend=false -lockfile=readonly && terraform validate)

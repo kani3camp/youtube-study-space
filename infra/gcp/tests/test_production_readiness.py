@@ -18,7 +18,9 @@ GCP = ROOT / "infra/gcp"
 WORKFLOW = ROOT / ".github/workflows/gcp-terraform-authenticated.yml"
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / ".github/scripts"))
+sys.path.insert(0, str(GCP / "scripts"))
 from terraform_plan_summary import build_summary
+import terraform_normal_ops as ops
 
 
 def credentialless_environment() -> dict[str, str]:
@@ -268,14 +270,40 @@ class ProductionMockPlanTest(unittest.TestCase):
             for attribute in ("alert_strategy", "combiner", "enabled", "severity", "user_labels"):
                 self.assertEqual(policy[attribute], legacy[attribute])
 
-    def test_email_opt_in_cannot_pass_the_existing_import_only_guard(self):
-        summary = build_summary(self.plans["email_opt_in_is_a_create_not_an_import"],
-                                environment="prod", git_sha="0" * 40, policy="import-only")
-        self.assertFalse(summary["policy_passed"])
-        self.assertEqual(summary["counts"]["create"], 1)
-        self.assertEqual(summary["counts"]["import"], 0)
-        self.assertEqual(summary["resources"][0]["address"],
-                         "module.notification_channels.google_monitoring_notification_channel.primary_email[0]")
+    CHANNEL = "module.notification_channels.google_monitoring_notification_channel.primary_email[0]"
+    ADOPTED = "projects/youtube-study-space/notificationChannels/10000000000000000009"
+
+    def test_email_adoption_is_one_value_preserving_import_accepted_by_the_normal_contract(self):
+        plan = self.plans["email_adoption_imports_the_existing_channel"]
+        self.assertEqual([item["address"] for item in plan["resource_changes"]], [self.CHANNEL])
+        change = plan["resource_changes"][0]["change"]
+        self.assertEqual(change["importing"], {"id": self.ADOPTED})
+        self.assertEqual(change["actions"], ["update"])
+        self.assertEqual(change["before"], change["after"])
+        self.assertEqual(change["after"]["user_labels"], {"environment": "production", "managed_by": "manual"})
+        self.assertEqual(change["after_sensitive"]["labels"], {"email_address": True})
+        self.assertFalse(change["after"]["force_delete"])
+        # The test-run plan carries resource changes only; add the native envelope.
+        native = {"format_version": "1.2", "terraform_version": ops.common.VERSION, "errored": False,
+                  "complete": True, "resource_changes": plan["resource_changes"]}
+        counts = ops.validate(native, {}, project="youtube-study-space", primary_email_channel=self.ADOPTED)
+        self.assertEqual((counts["create"], counts["update"], counts["delete"]), (0, 1, 0))
+        with self.assertRaises(ValueError):
+            ops.validate(native, {}, project="youtube-study-space")
+
+    def test_quota_repair_references_only_the_adopted_channel(self):
+        for run, expected in (
+            ("existing_quota_keeps_observed_references_while_channel_is_adopted", None),
+            ("quota_repair_points_all_three_policies_at_the_adopted_channel", [self.ADOPTED]),
+        ):
+            changes = {item["address"]: item["change"] for item in self.plans[run]["resource_changes"]}
+            for key, suffix in (("minute_80", "minute"), ("day_80", "day-high"), ("day_60", "day-warning")):
+                with self.subTest(run=run, key=key):
+                    policy = changes[self.EXISTING_ADDRESSES[f"quota_{key}"]]
+                    self.assertEqual(policy["after"]["notification_channels"], expected or
+                                     [f"projects/youtube-study-space/notificationChannels/fixture-missing-{suffix}"])
+                    # Imported references keep their non-sensitive representation.
+                    self.assertFalse(self.has_sensitive_leaf(policy["after_sensitive"].get("notification_channels")))
 
     def test_quota_opt_in_cannot_pass_the_existing_import_only_guard(self):
         summary = build_summary(self.plans["quota_opt_in_is_a_create_not_an_import"],

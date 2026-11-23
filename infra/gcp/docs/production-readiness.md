@@ -92,8 +92,8 @@ rootの既定選択は空のままとし、実運用では完全manifestとrevie
 
 Production enabled APIの分類baseline65件はOwn10／Platform・External5／Investigate50です。productionの実callerと同manifestの非API consumerへ結合したOwn10だけ既存ENABLEDのまま採用し、他55は未選択・enable/disable/delete0です。この65は分類baseline時点の件数で、常時再取得した現在値とは扱いません。CI SA2・CI Pool/Provider2・read custom role3の基盤7資源と個別policy5/member追加8はbootstrap-managed例外で、app rootの実owned30に加算せず、runtime Pool/Provider/grant7と区別します。
 
-quotaは既存3件をimport専用定義で扱い、dangling通知先も現設定のまま保存する。
-Production Email channelの作成・検証・通知修復は行わない。legacy Email/quota作成用opt-inとは混在させない。
+quotaは既存3件をimport専用定義で扱い、取り込み時は観測した通知先参照をそのまま保存する。
+本番のEmail channelはTerraformで作成しない。オーナーが作成済みの既存channelを、値を変えない取り込みでだけ所有する（[採用と通知の修復](#本番の主要メール通知先の採用と通知の修復)）。legacy quota作成用opt-inとは混在させない。
 Pool→Provider→個別grant→依存するOwn APIの順で、それまでの所有を保持して1件ずつ取り込む。
 API enable/disable、SA本体・全IAM policy・CI federationのTerraform ownershipは追加しない。
 
@@ -193,11 +193,33 @@ fresh inventory → Own/External/Google-managed/Investigate分類 → exact定�
 - full-rootにdeferred/action invocation/address move/output変化等があればwave契約で説明・拒否する。
 - 原則1 resourceまたは分離不可能な最小unit。resource typeのdev実績を先に確立する。
 - generated subscription/artifact/source bucket/service agents、project IAM全体、用途不明resourceは巻き込まない。
-- notification repair、schema mutation、API enable/disable、Function rebuild/deploy、manual triggerを混ぜない。
+- notification repair、schema mutation、API enable/disable、Function rebuild/deploy、manual triggerをimportと同じPlanへ混ぜない。
 
-quota3の通知先参照はreview済み既存metadataどおり保持します。Email channelの新規作成・delivery/receipt検証・通知修復は今回行いません。
-legacy Email/quotaの作成用opt-inはcreateを提案するため、import準備や修復としてenableしません。既存resourceは上記のimport専用選択を使います。
-通知修復はprivate field-mask/rollbackを揃えた別operator waveです。
+quota3の通知先参照は、取り込みではreview済み既存metadataどおり保持します。Email channelの新規作成とdelivery/receipt検証は行いません。
+legacy quotaの作成用opt-inはcreateを提案するため、import準備や修復としてenableしません。既存resourceは上記のimport専用選択を使います。
+通知の修復は、channelの採用後に行う別の通常変更です（次節）。
+
+## 本番の主要メール通知先の採用と通知の修復
+
+本番の主要メール通知先（`[production] Study Space primary email`）はオーナーが作成済みです。DEVと同じ `module.notification_channels` のアドレスで、次の2段階に分けて所有と修復を行います。どちらも本人による `main` からの通常Plan/Applyで実行し、Applyの後に事後full-root no-opを確認します。
+
+1. **採用（import）**: 両本番Environmentのmanaged入力の`tfvars`に `manage_primary_email=true`、`primary_email_address`、`primary_email_channel_name` を追加します。値は非公開とし、既存の選択とprivate metadataは落としません。本番rootは `primary_email_channel_name` のない選択を拒否するため、新しいchannelは作成されません。Planは当該アドレスへの取り込み1件だけで、変わるのは宛先ラベルへのsensitiveの印だけです（`update`、値の変更なし）。userLabelsは観測値（`managed_by=manual`）のまま宣言します。
+2. **通知の修復（update）**: 採用の事後no-opを確認した後、本番の `normal.tfvars.json` に `youtube_quota_notify_primary_email=true` を記載するPRを作ります。既存quota3件の `notification_channels` が採用したchannelだけに変わる `update` 3件になります。3件すべての取り込みと採用が前提で、どちらかが欠ければ入力の検証で停止します。userLabelsの変更が必要なら、同じ通常変更で扱います。
+
+通常経路は取り込みを拒否します。例外は、型と条件を限定した次の取り込みだけです。
+
+- メール認証設定（[monitor-auth](../modules/monitor-auth/README.md)）
+- 本番の主要メール通知先（[`primary_email_adoption.py`](../scripts/primary_email_adoption.py)）：managed入力で選んだ通知先名と取り込みIDが完全に一致し、本番projectの数値IDで、アドレス・型・providerが一致し、before/afterの値が同一で、未知値と置換がない場合。sensitiveの印は宛先ラベルだけに付き、`update`はその印の追加だけ、`no-op`は印が変わらない場合に限ります。同じPlanのほかの資源はすべて`no-op`でなければならず、事後Planに取り込みが残れば停止します。選択と宛先・通知先名はmanaged入力だけで渡し、`normal.tfvars.json`に置くと実行前に停止します。
+
+必要な権限は既存の通常identityで足ります。Plan SAは `monitoring.notificationChannels.get`、Apply SAは `monitoring.alertPolicies.update` を通常の権限カタログから持っています。
+
+取り消すときは次のとおりです。
+
+- 採用のApply前なら、managed入力を元に戻すだけです。取り込みはクラウドの値を変えません。
+- Apply後のchannelは `prevent_destroy` と `force_delete=false` で保護しています。選択を外すと削除のPlanになり停止します。Stateからの除外（forget）は通常経路にないため、必要なら別途設計します。
+- 通知の修復は、`youtube_quota_notify_primary_email` を戻す通常変更で、観測値の参照へ戻せます。
+
+採用・修復とも、channelが有効であることやno-opは、メールの到達を証明しません。到達確認はこの手順の外で行います。
 #983/#1165/#1166は別Issue、D01のholdはこのscope外です。
 
 ## Offline backend proposal
@@ -331,7 +353,7 @@ MyPage provisioning・Production release・data migration/機能検証を移行�
 - [#1166 最新判断](https://github.com/kani3camp/youtube-study-space/issues/1166#issuecomment-6223368703): durable CloudTrail/S3 data eventsの保存先・範囲・retention・費用は別途判断。今回のimportのためだけに継続費用を追加しない。
 - [#983 最新判断](https://github.com/kani3camp/youtube-study-space/issues/983#issuecomment-6223369320): 過去raw-chat/混在GCS exportの破壊的cleanupは対象外。Privacy/DRの独立laneで継続し、保持設定を今回のimportで変更しない。
 
-Production quotaのdangling通知先、Emailのdelivery/receiptは未修復・未検証です。通知経路Readyの主張には使いません。
+Production quotaの通知先は、上記の修復を本番でApplyするまで存在しない通知先を指します。Emailのdelivery/receiptは未検証です。通知経路Readyの主張には使いません。
 CodeQL [PR #1362](https://github.com/kani3camp/youtube-study-space/pull/1362)は本人の明示承認後にDefault setupを `not-configured` へ切り替えました。H2追随候補Q2（`92b5ea29`）の全31 CIと[run39001207914](https://github.com/kani3camp/youtube-study-space/actions/runs/39001207914)の3言語解析・SARIF受付が成功し、analysis ID3件・error0、既存open alert1件の保持を確認済みです。
 候補と全tree一致のintegration H3（`8b2289c8`）へ統合済みで、H3 pushの[run39001594887](https://github.com/kani3camp/youtube-study-space/actions/runs/39001594887)でも3言語の解析・SARIF受付成功、error0を確認済みです。GCP closureはH2と完全一致し、TerraformのH2当時の正規Plan/Apply証拠と区別します。先行拒否・upload失敗の履歴は[history packet](https://github.com/kani3camp/youtube-study-space/blob/2a92a8874f8d56077d5bb6edf4ef00cfaf7cc908/infra/gcp/docs/development-history-ready-packet.md#codeql-and-mandatory-oidc-claims)へ残します。
 integration refの未解決CodeQL finding6件（critical1/high3/medium2、既存1＋新検出5）は別対応で、dismiss/suppressしません。受付成功を脆弱性0と扱わず、第12波Source H6・最終移行実証Source H7とH3の解析実証を区別します。

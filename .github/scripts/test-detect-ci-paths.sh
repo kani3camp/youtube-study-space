@@ -77,6 +77,8 @@ assert_exact_groups gcp_terraform infra/gcp/README.md
 assert_exact_groups gcp_terraform infra/gcp/environments/dev/main.tf
 assert_exact_groups gcp_terraform infra/gcp/modules/monitor-auth/main.tf
 assert_exact_groups gcp_terraform infra/gcp/scripts/monitor_auth.py
+assert_exact_groups gcp_terraform infra/gcp/scripts/primary_email_adoption.py
+assert_exact_groups gcp_terraform infra/gcp/tests/test_primary_email_adoption.py
 assert_exact_groups gcp_terraform infra/gcp/environments/prod/main.tf
 assert_exact_groups "gcp_terraform mypage" infra/mypage-platform/environments/dev/main.tf
 assert_exact_groups "gcp_terraform mypage" infra/mypage-platform/environments/prod/terraform.tfvars.example
