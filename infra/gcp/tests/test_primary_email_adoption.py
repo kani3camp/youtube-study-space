@@ -82,6 +82,17 @@ class PrimaryEmailAdoption(unittest.TestCase):
                 before_sensitive={'labels': {}, 'name': True}, after_sensitive={'labels': {'email_address': True}, 'name': True}),
             'other label mark removed': lambda p: p['resource_changes'][0]['change'].update(
                 before_sensitive={'labels': {'email_address': True, 'other': True}}),
+            'non-boolean sensitive leaf': lambda p: p['resource_changes'][0]['change'].update(
+                after_sensitive={'labels': {'email_address': True}, 'name': 'true'}),
+            'null sensitive leaf': lambda p: p['resource_changes'][0]['change'].update(
+                before_sensitive={'labels': {}, 'name': None}),
+            'nested mark in a list': lambda p: p['resource_changes'][0]['change'].update(
+                after_sensitive={'labels': {'email_address': True}, 'sensitive_labels': [{'password': True}]}),
+            'extra marks on both sides of a no-op': lambda p: p['resource_changes'][0]['change'].update(
+                actions=['no-op'], before_sensitive={'labels': {'email_address': True}, 'name': True},
+                after_sensitive={'labels': {'email_address': True}, 'name': True}),
+            'null unknown mask': lambda p: p['resource_changes'][0]['change'].update(after_unknown=None),
+            'non-boolean unknown leaf': lambda p: p['resource_changes'][0]['change'].update(after_unknown={'name': None}),
             'mixed with another import': lambda p: p['resource_changes'].append({
                 'address': 'module.monitor_auth[0].google_identity_platform_config.auth', 'mode': 'managed',
                 'type': 'google_identity_platform_config', 'provider_name': 'registry.terraform.io/hashicorp/google',

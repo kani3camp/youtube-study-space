@@ -33,6 +33,15 @@ def _has_unknown(value):
     return value is not False and value is not None
 
 
+def _bool_tree(value):
+    """Terraform のマスク（sensitive / unknown）として読める形か。葉は真偽値だけを許す。"""
+    if isinstance(value, dict):
+        return all(type(key) is str and _bool_tree(item) for key, item in value.items())
+    if isinstance(value, list):
+        return all(_bool_tree(item) for item in value)
+    return type(value) is bool
+
+
 def _marked(mask, path=()):
     """sensitive の印が付いた葉のパス。"""
     if isinstance(mask, dict):
@@ -52,7 +61,10 @@ def allows(item, project, name):
         return False
     before, after = change.get('before'), change.get('after')
     masks = change.get('before_sensitive'), change.get('after_sensitive')
-    if type(masks[0]) is not dict or type(masks[1]) is not dict:
+    unknown = change.get('after_unknown', {})
+    # Fail closed on any mask that is not a tree of booleans, so an unexpected
+    # leaf cannot be read as "not sensitive" or "known".
+    if not all(type(mask) is dict and _bool_tree(mask) for mask in (*masks, unknown)):
         return False
     # Only the recipient label is sensitive afterwards. An update adds exactly
     # that mark to an unmarked import; a no-op keeps identical masks.
@@ -69,6 +81,6 @@ def allows(item, project, name):
             and not change.get('replace_paths')
             and type(before) is dict and type(after) is dict
             and _canonical(before) == _canonical(after)
-            and not _has_unknown(change.get('after_unknown', {}))
+            and not _has_unknown(unknown)
             and after.get('name') == name and after.get('project') == project
             and after.get('type') == 'email')
