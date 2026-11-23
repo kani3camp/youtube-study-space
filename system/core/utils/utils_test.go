@@ -9,6 +9,7 @@ import (
 	"app.modules/core/timeutil"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDivideStringEqually(t *testing.T) {
@@ -311,4 +312,17 @@ func TestSplitStringRunes(t *testing.T) {
 		got := SplitStringRunes("勉強🚀最高", 2)
 		assert.Equal(t, []string{"勉強", "🚀最", "高"}, got)
 	})
+}
+
+func TestMatchEmojiCommand_ReusesCompiledRegex(t *testing.T) {
+	compiledRegexCache.Clear()
+	pattern := EmojiCommandPrefix + `[0-9]*` + InString + `[0-9]*` + EmojiSide
+
+	assert.True(t, MatchEmojiCommand(TestEmojiIn0, InString))
+	first, ok := compiledRegexCache.Load(pattern)
+	require.True(t, ok, "MatchEmojiCommand did not cache the compiled pattern")
+	assert.False(t, MatchEmojiCommand("hello", InString))
+	second, ok := compiledRegexCache.Load(pattern)
+	require.True(t, ok)
+	assert.Same(t, first, second)
 }

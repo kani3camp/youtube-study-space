@@ -151,11 +151,46 @@ func (app *WorkspaceApp) currentTime() time.Time {
 	return timeutil.JstNow()
 }
 
+// RunTransaction は f を Firestore トランザクション内で実行する。
+//
+// f は競合時のリトライで複数回実行されうる。そのため f の中では、
+//   - 返信文や結果は試行ごとに初期化して組み立て、呼び出し元のオプション構造体を書き換えない。
+//   - ライブチャット・Discord・YouTube API などの外部副作用や、トランザクション外の書き込みは直接行わず、
+//     runAfterCommit で登録する。
+//
+// runAfterCommit で登録した処理は、コミットに成功した最後の試行で登録された分だけ、コミット後に実行される。
+// ロールバックされた試行やエラーで終わったトランザクションの登録分は実行されない。
 func (app *WorkspaceApp) RunTransaction(ctx context.Context, f func(ctx context.Context, tx *firestore.Transaction) error) error {
-	if err := app.Repository.FirestoreClient().RunTransaction(ctx, f); err != nil {
+	var hooks *afterCommitHooks
+	err := app.Repository.FirestoreClient().RunTransaction(ctx, func(txCtx context.Context, tx *firestore.Transaction) error {
+		hooks = &afterCommitHooks{}
+		return f(context.WithValue(txCtx, afterCommitHooksKey{}, hooks), tx)
+	})
+	if err != nil {
 		return fmt.Errorf("run Firestore transaction: %w", err)
 	}
+	if hooks != nil {
+		for _, fn := range hooks.funcs {
+			fn(ctx)
+		}
+	}
 	return nil
+}
+
+type afterCommitHooksKey struct{}
+
+type afterCommitHooks struct {
+	funcs []func(ctx context.Context)
+}
+
+// runAfterCommit は、ctx が RunTransaction の試行中であれば fn をコミット後に実行するよう登録する。
+// トランザクション外から呼ばれた場合は fn を即座に実行する。
+func runAfterCommit(ctx context.Context, fn func(ctx context.Context)) {
+	if hooks, ok := ctx.Value(afterCommitHooksKey{}).(*afterCommitHooks); ok {
+		hooks.funcs = append(hooks.funcs, fn)
+		return
+	}
+	fn(ctx)
 }
 
 func (app *WorkspaceApp) SetProcessedUser(userID string, userDisplayName string, userProfileImageURL string, isChatModerator bool, isChatOwner bool, isChatMember bool) {
@@ -174,12 +209,17 @@ func (app *WorkspaceApp) CloseFirestoreClient() {
 	}
 }
 
-// GoroutineCheckLongTimeSitting 長時間座席占有検出ループ
+// GoroutineCheckLongTimeSitting 長時間座席占有検出ループ。ctx がキャンセルされると、実行中のチェックを終えた時点で戻る。
 func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 	minimumInterval := time.Duration(app.Configs.Constants.MinimumCheckLongTimeSittingIntervalMinutes) * time.Minute
 	slog.Info("", "居座りチェックの最小間隔", minimumInterval)
 
 	for {
+		// 待機時間が0のときは select が timer.C を選び得るため、キャンセル済みなら次のチェックを始めずに戻る。
+		if ctx.Err() != nil {
+			slog.InfoContext(ctx, "stopped checking long time sitting", "reason", ctx.Err())
+			return
+		}
 		slog.Info("checking long time sitting.")
 		start := app.currentTime()
 
@@ -187,6 +227,10 @@ func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 			if err := app.CheckLongTimeSitting(ctx, true); err != nil {
 				app.MessageToOwnerWithError(ctx, "in CheckLongTimeSitting", err)
 			}
+		}
+		if ctx.Err() != nil {
+			slog.InfoContext(ctx, "stopped checking long time sitting", "reason", ctx.Err())
+			return
 		}
 		{
 			if err := app.CheckLongTimeSitting(ctx, false); err != nil {
@@ -196,8 +240,13 @@ func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 
 		end := app.currentTime()
 		duration := end.Sub(start)
-		if duration < minimumInterval {
-			time.Sleep(timeutil.NoNegativeDuration(minimumInterval - duration))
+		timer := time.NewTimer(timeutil.NoNegativeDuration(minimumInterval - duration))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			slog.InfoContext(ctx, "stopped checking long time sitting", "reason", ctx.Err())
+			return
+		case <-timer.C:
 		}
 	}
 }

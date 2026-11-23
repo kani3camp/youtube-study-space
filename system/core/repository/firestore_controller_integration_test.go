@@ -557,3 +557,30 @@ func TestFirestoreRepository_TransactionAtomicityRollback(t *testing.T) {
 	assert.Equal(t, originalUser.TotalStudySec, gotUser.TotalStudySec)
 	assert.Equal(t, originalUser.DailyTotalStudySec, gotUser.DailyTotalStudySec)
 }
+
+// 注文回数は、引数のタイムゾーンや実行環境の time.Local によらず JST の暦日で数える。
+func TestFirestoreRepository_CountUserOrdersOfTheDayUsesJSTCalendarDay(t *testing.T) {
+	integrationtest.ResetFirestore(t)
+	controller := newTestRepository(t)
+	ctx := context.Background()
+	jst := timeutil.JapanLocation()
+	const userID = "order-count-user"
+	orderedAts := []time.Time{
+		time.Date(2026, 8, 1, 23, 50, 0, 0, jst), // 前日
+		time.Date(2026, 8, 2, 0, 0, 0, 0, jst),   // 当日0時ちょうど
+		time.Date(2026, 8, 2, 12, 0, 0, 0, jst),
+		time.Date(2026, 8, 2, 23, 50, 0, 0, jst),
+		time.Date(2026, 8, 3, 0, 0, 0, 0, jst), // 翌日0時ちょうど
+	}
+	for _, orderedAt := range orderedAts {
+		runTransaction(t, controller, func(ctx context.Context, tx *firestore.Transaction) error {
+			return controller.CreateOrderHistoryDoc(ctx, tx, repository.OrderHistoryDoc{UserID: userID, MenuCode: "menu", OrderedAt: orderedAt})
+		})
+	}
+
+	// JSTでは8月2日だが、UTCでは8月1日の時刻
+	date := time.Date(2026, 8, 1, 20, 0, 0, 0, time.UTC)
+	count, err := controller.CountUserOrdersOfTheDay(ctx, userID, date)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), count)
+}

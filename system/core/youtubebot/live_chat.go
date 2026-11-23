@@ -90,18 +90,18 @@ func NewYoutubeLiveChatBot(liveChatID string, controller repository.Repository, 
 
 func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken string) ([]*youtube.LiveChatMessage, string, int, error) {
 	// 1回目の試行
-	response, err := b.tryListMessages(nextPageToken, b.LiveChatID)
+	response, err := b.tryListMessages(ctx, nextPageToken, b.LiveChatID)
 	if err == nil {
 		return response.Items, response.NextPageToken, int(response.PollingIntervalMillis), nil
 	}
 
 	slog.Error("first call failed in tryListMessages()", "err", err)
 
-	// エラーコードを確認
+	// エラーコードを確認。APIのエラー応答でない（通信エラーやコンテキストのキャンセルなど）場合は、
+	// 呼び出し元が errors.Is / errors.As で判別できるよう元のエラーをそのまま返す。
 	var errGoogle *googleapi.Error
-	ok := errors.As(err, &errGoogle)
-	if !ok {
-		return nil, "", 0, errors.New("failed to cast error to googleapi.Error")
+	if !errors.As(err, &errGoogle) {
+		return nil, "", 0, err
 	}
 
 	switch errGoogle.Code {
@@ -121,7 +121,7 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 
 	// 2回目の試行（更新されたLiveChatIDで）
 	slog.Info("trying second call in ListMessages()...")
-	response, err = b.tryListMessages(nextPageToken, b.LiveChatID)
+	response, err = b.tryListMessages(ctx, nextPageToken, b.LiveChatID)
 	if err != nil {
 		slog.Error("second call failed in tryListMessages()")
 		return nil, "", 0, err
@@ -131,7 +131,7 @@ func (b *YoutubeLiveChatBot) ListMessages(ctx context.Context, nextPageToken str
 }
 
 // tryListMessages 指定されたLiveChatIDでメッセージリストを取得する
-func (b *YoutubeLiveChatBot) tryListMessages(nextPageToken string, liveChatID string) (*youtube.LiveChatMessageListResponse, error) {
+func (b *YoutubeLiveChatBot) tryListMessages(ctx context.Context, nextPageToken string, liveChatID string) (*youtube.LiveChatMessageListResponse, error) {
 	liveChatMessageService := youtube.NewLiveChatMessagesService(b.BotYoutubeService)
 	part := []string{
 		"snippet",
@@ -143,7 +143,7 @@ func (b *YoutubeLiveChatBot) tryListMessages(nextPageToken string, liveChatID st
 		listCall = listCall.PageToken(nextPageToken)
 	}
 
-	response, err := listCall.Do()
+	response, err := listCall.Context(ctx).Do()
 	if err != nil {
 		return nil, fmt.Errorf("list live chat messages: %w", err)
 	}
@@ -188,7 +188,7 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 	}
 
 	// メッセージ送信を試行
-	err := b.tryPostMessage(message, b.LiveChatID)
+	err := b.tryPostMessage(ctx, message, b.LiveChatID)
 	if err == nil {
 		return nil
 	}
@@ -196,10 +196,14 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 	if handleLiveChatEndedPostFailure(err) {
 		return nil
 	}
+	// ctx がキャンセル・期限切れなら再試行しても失敗するだけなので、そのまま返す。
+	if ctx.Err() != nil {
+		return fmt.Errorf("post live chat message: %w", err)
+	}
 
 	// 2回目の試行
 	slog.Warn("first post failed; retrying", "err", err)
-	err = b.tryPostMessage(message, b.LiveChatID)
+	err = b.tryPostMessage(ctx, message, b.LiveChatID)
 	if err == nil {
 		slog.Info("second post succeeded!")
 		return nil
@@ -207,6 +211,9 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 
 	if handleLiveChatEndedPostFailure(err) {
 		return nil
+	}
+	if ctx.Err() != nil {
+		return fmt.Errorf("post live chat message: %w", err)
 	}
 
 	slog.Warn("second post failed; refreshing live chat id", "err", err)
@@ -217,7 +224,7 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 	}
 
 	// 3回目の試行（更新されたLiveChatIDで）
-	err = b.tryPostMessage(message, b.LiveChatID)
+	err = b.tryPostMessage(ctx, message, b.LiveChatID)
 	if err != nil {
 		if handleLiveChatEndedPostFailure(err) {
 			return nil
@@ -240,7 +247,7 @@ func handleLiveChatEndedPostFailure(err error) bool {
 }
 
 // tryPostMessage 指定されたLiveChatIDでメッセージを送信する
-func (b *YoutubeLiveChatBot) tryPostMessage(message string, liveChatID string) error {
+func (b *YoutubeLiveChatBot) tryPostMessage(ctx context.Context, message string, liveChatID string) error {
 	part := []string{"snippet"}
 	liveChatMessage := youtube.LiveChatMessage{
 		Snippet: &youtube.LiveChatMessageSnippet{
@@ -254,7 +261,7 @@ func (b *YoutubeLiveChatBot) tryPostMessage(message string, liveChatID string) e
 	}
 	liveChatMessageService := youtube.NewLiveChatMessagesService(b.BotYoutubeService)
 	insertCall := liveChatMessageService.Insert(part, &liveChatMessage)
-	_, err := insertCall.Do()
+	_, err := insertCall.Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("insert live chat message: %w", err)
 	}
@@ -266,7 +273,7 @@ func (b *YoutubeLiveChatBot) refreshLiveChatID(ctx context.Context) error {
 	slog.Info(utils.NameOf(b.refreshLiveChatID))
 
 	// 1回目の試行
-	response, err := b.fetchActiveBroadcasts()
+	response, err := b.fetchActiveBroadcasts(ctx)
 	if err != nil {
 		slog.Error("first attempt to fetch broadcasts failed", "err", err)
 		return err
@@ -278,7 +285,7 @@ func (b *YoutubeLiveChatBot) refreshLiveChatID(ctx context.Context) error {
 		slog.Warn("ライブ1個もやってない（1回目）")
 
 		// 配信中にもかかわらずこの結果になる場合がある（未確認）ため、一度だけ再試行する。
-		response, err := b.fetchActiveBroadcasts()
+		response, err := b.fetchActiveBroadcasts(ctx)
 		if err != nil {
 			slog.Error("second attempt to fetch broadcasts failed", "err", err)
 			return err
@@ -297,17 +304,17 @@ func (b *YoutubeLiveChatBot) refreshLiveChatID(ctx context.Context) error {
 }
 
 // fetchActiveBroadcasts アクティブな配信を取得する
-func (b *YoutubeLiveChatBot) fetchActiveBroadcasts() (*youtube.LiveBroadcastListResponse, error) {
+func (b *YoutubeLiveChatBot) fetchActiveBroadcasts(ctx context.Context) (*youtube.LiveBroadcastListResponse, error) {
 	broadCastsService := youtube.NewLiveBroadcastsService(b.ChannelYoutubeService)
 	part := []string{"snippet"}
 	listCall := broadCastsService.List(part).BroadcastStatus("active")
-	response, err := listCall.Do()
-	if err != nil {
+	response, err := listCall.Context(ctx).Do()
+	if err != nil && ctx.Err() == nil {
 		slog.Info("trying second call...")
 		// 失敗した場合は再試行
 		broadCastsService = youtube.NewLiveBroadcastsService(b.ChannelYoutubeService)
 		listCall = broadCastsService.List(part).BroadcastStatus("active")
-		response, err = listCall.Do()
+		response, err = listCall.Context(ctx).Do()
 	}
 	if err != nil {
 		return nil, fmt.Errorf("list active broadcasts: %w", err)
@@ -328,12 +335,16 @@ func (b *YoutubeLiveChatBot) updateLiveChatID(ctx context.Context, newLiveChatID
 // BanUser 指定したユーザー（Youtubeチャンネル）をブロックする。
 func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, userID string) error {
 	// 1回目の試行
-	err := b.tryBanUser(userID, b.LiveChatID)
+	err := b.tryBanUser(ctx, userID, b.LiveChatID)
 	if err == nil {
 		return nil
 	}
 
 	slog.Error("first ban request failed", "err", err)
+	// ctx がキャンセル・期限切れなら live chat id の更新・再試行はせず、そのまま返す。
+	if ctx.Err() != nil {
+		return fmt.Errorf("ban user: %w", err)
+	}
 
 	// live chat idが変わっている可能性があるため、更新して再試行
 	if err := b.refreshLiveChatID(ctx); err != nil {
@@ -341,7 +352,7 @@ func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, userID string) error {
 	}
 
 	// 2回目の試行（更新されたLiveChatIDで）
-	if err := b.tryBanUser(userID, b.LiveChatID); err != nil {
+	if err := b.tryBanUser(ctx, userID, b.LiveChatID); err != nil {
 		slog.Error("second ban request failed", "err", err)
 		return err
 	}
@@ -350,7 +361,7 @@ func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, userID string) error {
 }
 
 // tryBanUser 指定されたLiveChatIDでユーザーをブロックする
-func (b *YoutubeLiveChatBot) tryBanUser(userID string, liveChatID string) error {
+func (b *YoutubeLiveChatBot) tryBanUser(ctx context.Context, userID string, liveChatID string) error {
 	part := []string{"snippet"}
 	liveChatBan := youtube.LiveChatBan{
 		Snippet: &youtube.LiveChatBanSnippet{
@@ -364,7 +375,7 @@ func (b *YoutubeLiveChatBot) tryBanUser(userID string, liveChatID string) error 
 	liveChatBanService := youtube.NewLiveChatBansService(b.BotYoutubeService)
 	insertCall := liveChatBanService.Insert(part, &liveChatBan)
 
-	_, err := insertCall.Do()
+	_, err := insertCall.Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("insert live chat ban: %w", err)
 	}

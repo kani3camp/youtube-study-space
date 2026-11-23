@@ -171,8 +171,10 @@ func CheckEnterExitActivityOrder(activityDocs []repository.UserActivityDoc) bool
 	return true
 }
 
+// MatchEmojiCommand は text がコマンド名 commandName の絵文字コマンドを含むかを返す。
+// 正規表現はパターンごとに一度だけコンパイルしてキャッシュする。
 func MatchEmojiCommand(text string, commandName string) bool {
-	r, err := regexp.Compile(EmojiCommandPrefix + `[0-9]*` + commandName + `[0-9]*` + EmojiSide)
+	r, err := cachedRegex(EmojiCommandPrefix + `[0-9]*` + commandName + `[0-9]*` + EmojiSide)
 	if err != nil {
 		slog.Error("failed to compile regex in MatchEmojiCommand", "error", err, "commandName", commandName)
 		return false

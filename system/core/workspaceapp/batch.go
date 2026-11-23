@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"reflect"
 	"strconv"
 	"time"
 
@@ -60,6 +59,7 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 	for _, seatSnapshot := range candidateSeatsSnapshot {
 		liveChatMessage := ""
 		txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+			liveChatMessage = ""        // リトライされても前の試行の結果を持ち越さない
 			jstNow := app.currentTime() // スナップショットごとに最新の時刻を取得
 			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageURL, false, false, isMemberRoom)
 
@@ -72,7 +72,7 @@ func (app *WorkspaceApp) OrganizeDBAutoExit(ctx context.Context, isMemberRoom bo
 				}
 				return fmt.Errorf("in ReadSeat(): %w", err)
 			}
-			if !reflect.DeepEqual(seat, seatSnapshot) {
+			if !seat.Equal(seatSnapshot) {
 				slog.Info("その座席に少しでも変更が加えられているのでスルー")
 				return nil
 			}
@@ -128,6 +128,7 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 	for _, seatSnapshot := range candidateSeatsSnapshot {
 		liveChatMessage := ""
 		txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+			liveChatMessage = ""        // リトライされても前の試行の結果を持ち越さない
 			jstNow := app.currentTime() // snapshotごとに最新の時刻を取得
 			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageURL, false, false, isMemberRoom)
 
@@ -140,7 +141,7 @@ func (app *WorkspaceApp) OrganizeDBResume(ctx context.Context, isMemberRoom bool
 				}
 				return fmt.Errorf("in ReadSeat(): %w", err)
 			}
-			if !reflect.DeepEqual(seat, seatSnapshot) {
+			if !seat.Equal(seatSnapshot) {
 				slog.Info("その座席に少しでも変更が加えられているのでスルー")
 				return nil
 			}
@@ -229,6 +230,7 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 	for _, seatSnapshot := range seatsSnapshot {
 		var forcedMove bool // 長時間入室制限による強制席移動
 		txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+			forcedMove = false // リトライされても前の試行の結果を持ち越さない
 			app.SetProcessedUser(seatSnapshot.UserID, seatSnapshot.UserDisplayName, seatSnapshot.UserProfileImageURL, false, false, isMemberSeat)
 
 			// 現在も存在しているか
@@ -240,7 +242,7 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 				}
 				return fmt.Errorf("in ReadSeat(): %w", err)
 			}
-			if !reflect.DeepEqual(seat, seatSnapshot) {
+			if !seat.Equal(seatSnapshot) {
 				slog.Info("その座席に少しでも変更が加えられているのでスルー")
 				return nil
 			}
@@ -265,33 +267,8 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 			seatIDStr := presenter.SeatIDStr(seatSnapshot.SeatID, isMemberSeat)
 			app.MessageToLiveChat(ctx, i18nmsg.OthersForceMove(app.ProcessedUserDisplayName, seatIDStr))
 
-			var isOrderSet bool
-			var menuNum int
-			if seatSnapshot.MenuCode != "" {
-				var err error
-				menuNum, err = app.GetMenuNumByCode(seatSnapshot.MenuCode)
-				if err != nil {
-					return fmt.Errorf("in GetMenuNumByCode(): %w", err)
-				}
-			}
-
-			inCommandDetails := &utils.CommandDetails{
-				CommandType: utils.In,
-				InOption: utils.InOption{
-					IsSeatIDSet: true,
-					SeatID:      0,
-					MinWorkOrderOption: &utils.MinWorkOrderOption{
-						IsWorkNameSet:    true,
-						IsDurationMinSet: true,
-						IsOrderSet:       isOrderSet,
-						WorkName:         seatSnapshot.WorkName,
-						DurationMin:      seatSnapshot.RemainingWorkMin(app.currentTime()),
-						OrderNum:         menuNum,
-					},
-					IsMemberSeat: isMemberSeat,
-				},
-			}
-			if err := app.In(ctx, &inCommandDetails.InOption); err != nil {
+			inOption := systemSeatMoveInOption(seatSnapshot, isMemberSeat, app.currentTime())
+			if err := app.In(ctx, &inOption); err != nil {
 				return fmt.Errorf("%sさん（%s）の自動席移動処理中にエラーが発生しました: %w", app.ProcessedUserDisplayName, app.ProcessedUserID, err)
 			}
 		}
@@ -331,6 +308,7 @@ func (app *WorkspaceApp) ResetDailyTotalStudyTime(ctx context.Context) (int, err
 	isDifferentDay := now.Year() != previousDate.Year() || now.Month() != previousDate.Month() || now.Day() != previousDate.Day() // TODO: isDifferentDay := !timeutil.DateEqualJST(now, previousDate)
 	if isDifferentDay && now.After(previousDate) {
 		userIter := app.Repository.GetAllNonDailyZeroUserDocs(ctx)
+		defer userIter.Stop()
 		count := 0
 		for {
 			doc, err := userIter.Next()

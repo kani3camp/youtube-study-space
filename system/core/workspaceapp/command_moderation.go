@@ -45,7 +45,12 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 		return nil
 	}
 
+	var moderatorLog string // コミット後にモデレーターへ送るログ。空なら送らない。
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さない
+		replyMessage = ""
+		moderatorLog = ""
+
 		// ターゲットの座席は誰か使っているか
 		{
 			isSeatAvailable, err := app.IfSeatVacant(ctx, tx, targetSeatID, isTargetMemberSeat)
@@ -92,25 +97,28 @@ func (app *WorkspaceApp) Kick(ctx context.Context, kickOption *utils.KickOption)
 		}
 		replyMessage += i18nmsg.CommandExit(targetSeat.UserDisplayName, workedTimeSec/60, seatIDStr, rpEarned)
 
-		{
-			err := app.LogToModerators(ctx, app.ProcessedUserDisplayName+"さん、"+strconv.Itoa(targetSeat.
-				SeatID)+"番席のユーザーをkickしました。\n"+
-				"チャンネル名: "+targetSeat.UserDisplayName+"\n"+
-				"作業名: "+targetSeat.WorkName+"\n"+
-				"入室時間: "+strconv.Itoa(workedTimeSec/60)+"分\n"+
-				"チャンネルURL: https://youtube.com/channel/"+targetSeat.UserID)
-			if err != nil {
-				return fmt.Errorf("failed LogToModerators(): %w", err)
-			}
-		}
+		moderatorLog = app.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.
+			SeatID) + "番席のユーザーをkickしました。\n" +
+			"チャンネル名: " + targetSeat.UserDisplayName + "\n" +
+			"作業名: " + targetSeat.WorkName + "\n" +
+			"入室時間: " + strconv.Itoa(workedTimeSec/60) + "分\n" +
+			"チャンネルURL: https://youtube.com/channel/" + targetSeat.UserID
 		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in Kick()", "txErr", txErr)
-		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
+		app.MessageToLiveChat(ctx, i18nmsg.CommandError(app.ProcessedUserDisplayName))
+		return txErr
+	}
+	// 退室はコミット済みなので、ログ送信に失敗しても返信は退室結果のままにする
+	var logErr error
+	if moderatorLog != "" {
+		if err := app.LogToModerators(ctx, moderatorLog); err != nil {
+			logErr = fmt.Errorf("failed LogToModerators(): %w", err)
+		}
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
-	return txErr
+	return logErr
 }
 
 func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOption) error {
@@ -119,7 +127,12 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 	isTargetMemberSeat := checkOption.IsTargetMemberSeat
 
 	var replyMessage string
+	var moderatorLog string // コミット後にモデレーターへ送る座席情報。空なら送らない。
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さない
+		replyMessage = ""
+		moderatorLog = ""
+
 		// commanderはモデレーターかチャットオーナーか
 		if !app.ProcessedUserIsModeratorOrOwner {
 			replyMessage = i18nmsg.CommandPermission(app.ProcessedUserDisplayName, utils.CheckCommand)
@@ -149,23 +162,27 @@ func (app *WorkspaceApp) Check(ctx context.Context, checkOption *utils.CheckOpti
 		sinceMinutes := int(timeutil.NoNegativeDuration(jstNow.Sub(seat.EnteredAt)).Minutes())
 		untilMinutes := seat.RemainingWorkMin(jstNow)
 		seatIDStr := presenter.SeatIDStr(targetSeatID, isTargetMemberSeat)
-		message := app.ProcessedUserDisplayName + "さん、" + seatIDStr + "番席のユーザー情報です。\n" +
+		moderatorLog = app.ProcessedUserDisplayName + "さん、" + seatIDStr + "番席のユーザー情報です。\n" +
 			"チャンネル名: " + seat.UserDisplayName + "\n" + "入室時間: " + strconv.Itoa(sinceMinutes) + "分\n" +
 			"作業名: " + seat.WorkName + "\n" +
 			"自動退室まで" + strconv.Itoa(untilMinutes) + "分\n" +
 			"チャンネルURL: https://youtube.com/channel/" + seat.UserID
-		if err := app.LogToModerators(ctx, message); err != nil {
-			return fmt.Errorf("failed LogToModerators(): %w", err)
-		}
 		replyMessage = i18nmsg.CommandSent(app.ProcessedUserDisplayName)
 		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in Check()", "txErr", txErr)
-		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
+		app.MessageToLiveChat(ctx, i18nmsg.CommandError(app.ProcessedUserDisplayName))
+		return txErr
+	}
+	if moderatorLog != "" {
+		if err := app.LogToModerators(ctx, moderatorLog); err != nil {
+			app.MessageToLiveChat(ctx, i18nmsg.CommandError(app.ProcessedUserDisplayName))
+			return fmt.Errorf("failed LogToModerators(): %w", err)
+		}
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
-	return txErr
+	return nil
 }
 
 func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOption) error {
@@ -173,7 +190,14 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 	isTargetMemberSeat := blockOption.IsTargetMemberSeat
 
 	var replyMessage string
+	var bannedUserID string // コミット後にブロックするユーザー。空ならブロックしない。
+	var moderatorLog string
 	txErr := app.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		// リトライされても前の試行の結果を持ち越さない
+		replyMessage = ""
+		bannedUserID = ""
+		moderatorLog = ""
+
 		// commanderはモデレーターかチャットオーナーか
 		if !app.ProcessedUserIsModeratorOrOwner {
 			replyMessage = i18nmsg.CommandPermission(app.ProcessedUserDisplayName, utils.BlockCommand)
@@ -199,7 +223,6 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 				replyMessage = i18nmsg.CommandUnused(app.ProcessedUserDisplayName)
 				return nil
 			}
-			app.MessageToOwnerWithError(ctx, "in ReadSeat", err)
 			return fmt.Errorf("in ReadSeat: %w", err)
 		}
 		seatIDStr := presenter.SeatIDStr(targetSeatID, isTargetMemberSeat)
@@ -226,28 +249,35 @@ func (app *WorkspaceApp) Block(ctx context.Context, blockOption *utils.BlockOpti
 		}
 		replyMessage += i18nmsg.CommandExit(targetSeat.UserDisplayName, workedTimeSec/60, seatIDStr, rpEarned)
 
-		// ブロック
-		if err := app.BanUser(ctx, targetSeat.UserID); err != nil {
-			return fmt.Errorf("in BanUser: %w", err)
-		}
-
-		{
-			err := app.LogToModerators(ctx, app.ProcessedUserDisplayName+"さん、"+strconv.Itoa(targetSeat.
-				SeatID)+"番席のユーザーをblockしました。\n"+
-				"チャンネル名: "+targetSeat.UserDisplayName+"\n"+
-				"作業名: "+targetSeat.WorkName+"\n"+
-				"入室時間: "+strconv.Itoa(workedTimeSec/60)+"分\n"+
-				"チャンネルURL: https://youtube.com/channel/"+targetSeat.UserID)
-			if err != nil {
-				return fmt.Errorf("failed LogToModerators(): %w", err)
-			}
-		}
+		bannedUserID = targetSeat.UserID
+		moderatorLog = app.ProcessedUserDisplayName + "さん、" + strconv.Itoa(targetSeat.
+			SeatID) + "番席のユーザーをblockしました。\n" +
+			"チャンネル名: " + targetSeat.UserDisplayName + "\n" +
+			"作業名: " + targetSeat.WorkName + "\n" +
+			"入室時間: " + strconv.Itoa(workedTimeSec/60) + "分\n" +
+			"チャンネルURL: https://youtube.com/channel/" + targetSeat.UserID
 		return nil
 	})
 	if txErr != nil {
 		slog.Error("txErr in Block()", "txErr", txErr)
-		replyMessage = i18nmsg.CommandError(app.ProcessedUserDisplayName)
+		app.MessageToLiveChat(ctx, i18nmsg.CommandError(app.ProcessedUserDisplayName))
+		return txErr
+	}
+	// YouTube APIによるブロックはロールバックできないため、退室のコミット後に1回だけ行う。
+	// 退室はコミット済みで同じ座席への!blockは再実行できないため、ブロックに失敗した場合は
+	// 対象のチャンネルIDを含むエラーを呼び出し元へ返し、管理者が手動でブロックできるようにする。
+	if bannedUserID != "" {
+		if err := app.BanUser(ctx, bannedUserID); err != nil {
+			app.MessageToLiveChat(ctx, i18nmsg.CommandError(app.ProcessedUserDisplayName))
+			return fmt.Errorf("ban user %s after exit was committed: %w", bannedUserID, err)
+		}
+	}
+	var logErr error
+	if moderatorLog != "" {
+		if err := app.LogToModerators(ctx, moderatorLog); err != nil {
+			logErr = fmt.Errorf("failed LogToModerators(): %w", err)
+		}
 	}
 	app.MessageToLiveChat(ctx, replyMessage)
-	return txErr
+	return logErr
 }

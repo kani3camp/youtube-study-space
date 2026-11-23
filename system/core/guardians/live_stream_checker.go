@@ -55,7 +55,7 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	}
 
 	broadcastsService := youtube.NewLiveBroadcastsService(service)
-	broadcastsListResponse, err := broadcastsService.List([]string{"snippet", "contentDetails"}).BroadcastStatus("active").Do()
+	broadcastsListResponse, err := broadcastsService.List([]string{"snippet", "contentDetails"}).BroadcastStatus("active").Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("broadcasts.List: %w", err)
 	}
@@ -70,7 +70,7 @@ func (checker *LiveStreamChecker) Check(ctx context.Context) error {
 	}
 
 	streamsService := youtube.NewLiveStreamsService(service)
-	liveStreamListResponse, err := streamsService.List([]string{"status"}).Mine(true).Do()
+	liveStreamListResponse, err := streamsService.List([]string{"status"}).Mine(true).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("in streamsService.List: %w", err)
 	}
