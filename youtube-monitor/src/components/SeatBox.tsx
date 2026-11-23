@@ -52,23 +52,30 @@ export const MAX_IMAGE_RELOAD_ATTEMPTS = 3
 /**
  * 画像の読み込み失敗時に、キャッシュバスター付きで再試行するハンドラを作る。
  * 画像ごとの再試行回数が上限に達したら、それ以上は再試行しない。
+ * 読み込みに成功した画像の回数は onLoad で戻し、長時間の稼働中に一時的な失敗が
+ * 積み重なっても再試行できるようにする。
  */
 export function createImageReloader(
 	maxAttempts: number = MAX_IMAGE_RELOAD_ATTEMPTS,
 ) {
 	const attempts = new Map<string, number>()
-	return (
-		event: SyntheticEvent<HTMLImageElement, Event>,
-		imageSrc: string,
-	): void => {
-		const attempted = attempts.get(imageSrc) ?? 0
-		if (attempted >= maxAttempts) {
-			console.error(`giving up loading image: ${imageSrc}`)
-			return
-		}
-		attempts.set(imageSrc, attempted + 1)
-		console.error(`retrying to load image... ${imageSrc}`)
-		event.currentTarget.src = `${imageSrc}?${Date.now().toString()}`
+	return {
+		onError: (
+			event: SyntheticEvent<HTMLImageElement, Event>,
+			imageSrc: string,
+		): void => {
+			const attempted = attempts.get(imageSrc) ?? 0
+			if (attempted >= maxAttempts) {
+				console.error(`giving up loading image: ${imageSrc}`)
+				return
+			}
+			attempts.set(imageSrc, attempted + 1)
+			console.error(`retrying to load image... ${imageSrc}`)
+			event.currentTarget.src = `${imageSrc}?${Date.now().toString()}`
+		},
+		onLoad: (imageSrc: string): void => {
+			attempts.delete(imageSrc)
+		},
 	}
 }
 
@@ -430,7 +437,10 @@ const SeatBox: FC<SeatProps> = (props) => {
 												src={profileImageUrl}
 												width={profileImageSize}
 												height={profileImageSize}
-												onError={(event) => reloadImage(event, profileImageUrl)}
+												onError={(event) =>
+													reloadImage.onError(event, profileImageUrl)
+												}
+												onLoad={() => reloadImage.onLoad(profileImageUrl)}
 												priority={true}
 											/>
 										)}

@@ -1,11 +1,13 @@
 import Image from 'next/image'
-import type { FC } from 'react'
+import { type FC, useRef } from 'react'
 import { Constants } from '../lib/constants'
 import * as styles from '../styles/BackgroundImage.styles'
 
 const BACKGROUND_IMAGE_URL = '/images/background/4167307_214.jpg'
 
 const BackgroundImage: FC = () => {
+	// next/image の onError は onerror = null では止まらないため、再試行済みかを自前で持つ。
+	const fallbackTriedRef = useRef(false)
 	return (
 		<div>
 			<Image
@@ -13,7 +15,10 @@ const BackgroundImage: FC = () => {
 				css={styles.backgroundImage}
 				alt="background image"
 				onError={({ currentTarget }) => {
-					currentTarget.onerror = null // prevents looping
+					if (fallbackTriedRef.current) {
+						return
+					}
+					fallbackTriedRef.current = true
 					currentTarget.src = BACKGROUND_IMAGE_URL
 				}}
 				width={Constants.screenWidth}
