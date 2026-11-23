@@ -48,3 +48,39 @@ func TestGoroutineCheckLongTimeSitting_StopsWhenContextIsCanceled(t *testing.T) 
 		t.Fatal("ctx をキャンセルしても居座りチェックのループが止まらない")
 	}
 }
+
+// キャンセル済みの ctx では、待機時間が0でも次の居座りチェックを始めない。
+func TestGoroutineCheckLongTimeSitting_DoesNotStartCheckAfterCancel(t *testing.T) {
+	t.Run("ループ開始前にキャンセル済み", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		// 座席の読み取りが1回でも起きれば gomock が想定外の呼び出しとして失敗させる。
+		mockDB := mock_repository.NewMockRepository(ctrl)
+		app := &WorkspaceApp{
+			Configs:       &Configs{Constants: repository.ConstantsConfigDoc{MinimumCheckLongTimeSittingIntervalMinutes: 0}},
+			Repository:    mockDB,
+			alertOwnerBot: moderatorbot.DummyMessageBot{},
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		app.GoroutineCheckLongTimeSitting(ctx)
+	})
+
+	t.Run("メンバー席のチェック中にキャンセル", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockDB := mock_repository.NewMockRepository(ctrl)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		mockDB.EXPECT().ReadMemberSeats(gomock.Any()).DoAndReturn(func(context.Context) ([]repository.SeatDoc, error) {
+			cancel()
+			return nil, nil
+		}).Times(1)
+		app := &WorkspaceApp{
+			Configs:       &Configs{Constants: repository.ConstantsConfigDoc{MinimumCheckLongTimeSittingIntervalMinutes: 0}},
+			Repository:    mockDB,
+			alertOwnerBot: moderatorbot.DummyMessageBot{},
+		}
+
+		app.GoroutineCheckLongTimeSitting(ctx)
+	})
+}

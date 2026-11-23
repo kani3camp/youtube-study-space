@@ -196,6 +196,10 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 	if handleLiveChatEndedPostFailure(err) {
 		return nil
 	}
+	// ctx がキャンセル・期限切れなら再試行しても失敗するだけなので、そのまま返す。
+	if ctx.Err() != nil {
+		return fmt.Errorf("post live chat message: %w", err)
+	}
 
 	// 2回目の試行
 	slog.Warn("first post failed; retrying", "err", err)
@@ -207,6 +211,9 @@ func (b *YoutubeLiveChatBot) postMessage(ctx context.Context, message string) er
 
 	if handleLiveChatEndedPostFailure(err) {
 		return nil
+	}
+	if ctx.Err() != nil {
+		return fmt.Errorf("post live chat message: %w", err)
 	}
 
 	slog.Warn("second post failed; refreshing live chat id", "err", err)
@@ -334,6 +341,10 @@ func (b *YoutubeLiveChatBot) BanUser(ctx context.Context, userID string) error {
 	}
 
 	slog.Error("first ban request failed", "err", err)
+	// ctx がキャンセル・期限切れなら live chat id の更新・再試行はせず、そのまま返す。
+	if ctx.Err() != nil {
+		return fmt.Errorf("ban user: %w", err)
+	}
 
 	// live chat idが変わっている可能性があるため、更新して再試行
 	if err := b.refreshLiveChatID(ctx); err != nil {

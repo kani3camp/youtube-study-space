@@ -215,6 +215,11 @@ func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 	slog.Info("", "居座りチェックの最小間隔", minimumInterval)
 
 	for {
+		// 待機時間が0のときは select が timer.C を選び得るため、キャンセル済みなら次のチェックを始めずに戻る。
+		if ctx.Err() != nil {
+			slog.InfoContext(ctx, "stopped checking long time sitting", "reason", ctx.Err())
+			return
+		}
 		slog.Info("checking long time sitting.")
 		start := app.currentTime()
 
@@ -222,6 +227,10 @@ func (app *WorkspaceApp) GoroutineCheckLongTimeSitting(ctx context.Context) {
 			if err := app.CheckLongTimeSitting(ctx, true); err != nil {
 				app.MessageToOwnerWithError(ctx, "in CheckLongTimeSitting", err)
 			}
+		}
+		if ctx.Err() != nil {
+			slog.InfoContext(ctx, "stopped checking long time sitting", "reason", ctx.Err())
+			return
 		}
 		{
 			if err := app.CheckLongTimeSitting(ctx, false); err != nil {

@@ -534,6 +534,8 @@ func (app *WorkspaceApp) DeleteIteratorDocs(ctx context.Context, iter *firestore
 // そのためリストへの登録はトランザクション外で即座に行う。
 //   - 呼び出し元がロールバック・エラー（例: 全候補が制限対象で ErrNoSeatAvailable）になっても、確定した制限は残す。
 //   - トランザクションのリトライ時は、再試行の判定が直前に登録したレコードを読んで早期に返るため、重複登録しない。
+//   - 同じ座席・ユーザーについて有効（Until が現在より後）なレコードは、ホワイト・ブラック合わせて高々1件である。
+//     期限切れのレコードは削除バッチが消すまで残り得るため判定から除外し、新しいレコードと共存しても矛盾とみなさない。
 func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, userID string, seatID int, isMemberSeat bool) (bool, error) {
 	jstNow := app.currentTime()
 
@@ -547,29 +549,25 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 		return false, fmt.Errorf("in ReadSeatLimitsBLACKListWithSeatIDAndUserID(): %w", err)
 	}
 
-	// もし両方あったら矛盾なのでエラー
-	if len(whiteListForUserAndSeat) > 0 && len(blackListForUserAndSeat) > 0 {
-		return false, errors.New("len(whiteListForUserAndSeat) > 0 && len(blackListForUserAndSeat) > 0")
-	}
+	// 期限切れのレコードは OrganizeDBDeleteExpiredSeatLimits が消すまで残るため、有効なレコードだけで判定する。
+	activeWhiteList := activeSeatLimits(whiteListForUserAndSeat, jstNow)
+	activeBlackList := activeSeatLimits(blackListForUserAndSeat, jstNow)
 
-	// 片方しかなければチェックは不要
-	if len(whiteListForUserAndSeat) > 1 {
-		return false, fmt.Errorf("len(whiteListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID)
-	} else if len(whiteListForUserAndSeat) == 1 {
-		if whiteListForUserAndSeat[0].Until.After(jstNow) {
-			slog.InfoContext(ctx, "seat limit check skipped", "reason", "white_list_active")
-			return false, nil
-		}
-		// ホワイトリストに入っているが、期限切れのためチェックを続行
+	// 有効なレコードが両方にあったら矛盾なのでエラー
+	if len(activeWhiteList) > 0 && len(activeBlackList) > 0 {
+		return false, errors.New("len(activeWhiteList) > 0 && len(activeBlackList) > 0")
 	}
-	if len(blackListForUserAndSeat) > 1 {
-		return false, fmt.Errorf("len(blackListForUserAndSeat) > 1, seatID=%d, userID=%s", seatID, userID)
-	} else if len(blackListForUserAndSeat) == 1 {
-		if blackListForUserAndSeat[0].Until.After(jstNow) {
-			slog.InfoContext(ctx, "seat limit check skipped", "reason", "black_list_active")
-			return true, nil
-		}
-		// ブラックリストに入っているが、期限切れのためチェックを続行
+	if len(activeWhiteList) > 1 {
+		return false, fmt.Errorf("len(activeWhiteList) > 1, seatID=%d, userID=%s", seatID, userID)
+	} else if len(activeWhiteList) == 1 {
+		slog.InfoContext(ctx, "seat limit check skipped", "reason", "white_list_active")
+		return false, nil
+	}
+	if len(activeBlackList) > 1 {
+		return false, fmt.Errorf("len(activeBlackList) > 1, seatID=%d, userID=%s", seatID, userID)
+	} else if len(activeBlackList) == 1 {
+		slog.InfoContext(ctx, "seat limit check skipped", "reason", "black_list_active")
+		return true, nil
 	}
 
 	totalEntryDuration, err := app.GetRecentUserSittingTimeForSeat(ctx, userID, seatID, isMemberSeat)
@@ -601,6 +599,17 @@ func (app *WorkspaceApp) CheckIfUserSittingTooMuchForSeat(ctx context.Context, u
 	}
 
 	return ifSittingTooMuch, nil
+}
+
+// activeSeatLimits は、期限（Until）が now より後の有効な入室制限レコードだけを返す。
+func activeSeatLimits(docs []repository.SeatLimitDoc, now time.Time) []repository.SeatLimitDoc {
+	active := make([]repository.SeatLimitDoc, 0, len(docs))
+	for _, doc := range docs {
+		if doc.Until.After(now) {
+			active = append(active, doc)
+		}
+	}
+	return active
 }
 
 func (app *WorkspaceApp) GetRecentUserSittingTimeForSeat(ctx context.Context, userID string, seatID int, isMemberSeat bool) (time.Duration, error) {
