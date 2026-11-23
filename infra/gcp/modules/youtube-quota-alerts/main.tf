@@ -110,7 +110,7 @@ resource "google_monitoring_alert_policy" "existing" {
       condition = length(var.legacy_notification_channels[each.key]) > 0 && alltrue([
         for channel in var.legacy_notification_channels[each.key] : startswith(channel, "projects/${var.project_id}/notificationChannels/")
       ])
-      error_message = "Existing references must belong to the target project. Import preserves dangling references without verification or repair."
+      error_message = "Existing references must belong to the target project. This module neither creates nor verifies a channel."
     }
   }
 }

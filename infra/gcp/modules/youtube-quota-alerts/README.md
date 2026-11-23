@@ -2,7 +2,7 @@
 
 Read-only baseline: 2026-10-05 production has three enabled MQL policies: minute 80%, day 80%, day 60%. Each uses `consumer_quota`, `serviceruntime.googleapis.com/quota/rate/net_usage` divided by `quota/limit`, YouTube default quota metric, OR, duration 60s, trigger count 1, and auto-close 7 days. The minute query uses 1-minute delta alignment; daily usage uses the America/Los_Angeles quota day and a 1-day window; both evaluate every 30s. The 60% daily policy explicitly prompts OPENED/CLOSED; other policies have no explicit prompts. Severity and user labels are absent.
 
-Read-only baseline before the Email wave: both projects had zero notification channels. The approved development Email wave now provides one enabled private primary channel; production still has zero channels and all production policies reference the same missing channel. Do not copy that dangling reference or silently create an unnotified alert.
+Read-only baseline before the Email wave: both projects had zero notification channels, and all production policies reference the same missing channel. Each project now has one operator-created primary Email channel, owned through the `monitoring-notification-channels` module. Do not copy the missing reference into a new policy or silently create an unnotified alert.
 
 ## Migration behavior
 
@@ -18,7 +18,7 @@ The production root has separate default-off import definitions. `import_existin
 
 The import resource is `google_monitoring_alert_policy.existing["<key>"]`. The established `quota` resource and its sensitive channel input remain unchanged, so development ownership is unaffected. Existing import metadata alone is declassified at the provider attribute boundary to preserve imported sensitivity; raw plans, state and logs remain private.
 
-Import preserves existing dangling references without creating, verifying or repairing a channel. Notification repair is a separate normal change after ownership; creation and existing import opt-ins cannot be combined. Source definitions and mocked import plans do not activate production or prove authenticated import/no-op. Production remains dependent on measured Development Exit and protected backend/identity/state verification.
+Import preserves the observed references without creating, verifying or repairing a channel. Notification repair is a separate normal change after ownership: the production root's non-secret `youtube_quota_notify_primary_email` points all three existing policies at the adopted primary Email channel, and requires that adoption and all three imports. Creation and existing import opt-ins cannot be combined. Source definitions and mocked import plans do not activate production or prove authenticated import/no-op. Production remains dependent on measured Development Exit and protected backend/identity/state verification.
 
 MQL is kept to preserve the observed quota semantics. Google still permits API-based creation of MQL policies, although console creation/support ended: [official MQL policy](https://docs.cloud.google.com/stackdriver/docs/deprecations/mql). PromQL migration is a separate behavior change.
 

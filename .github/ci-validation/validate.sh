@@ -80,6 +80,8 @@ case "$1" in
         python3 .github/scripts/test_user_activity_history_preparation.py
         # Test email/password Auth ownership and Terraform contract
         python3 -B infra/gcp/tests/test_monitor_auth.py
+        # Test the value-preserving primary Email channel adoption
+        python3 -B infra/gcp/tests/test_primary_email_adoption.py
         python3 -B infra/gcp/scripts/test_monitor_auth_terraform.py
         # Validate MyPage OAuth TTL Terraform
         bash infra/mypage-oauth-ttl/scripts/check-local.sh

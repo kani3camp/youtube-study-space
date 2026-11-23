@@ -163,6 +163,8 @@ def inputs(env):
     raw = selected_source.read_file(env, REPO, 'infra/gcp/environments/' + env['NORMAL_TARGET'] + '/normal.tfvars.json')
     additions = common.decode(raw) if raw is not None else {}
     need(type(additions) is dict)
+    import primary_email_adoption
+    need(not set(additions) & primary_email_adoption.PRIVATE_KEYS)
     tfvars = value['tfvars'] | additions
     need(tfvars.get('project_id') == project)
     return tfvars, bytes.fromhex(value['plan_integrity_key'])
@@ -332,7 +334,7 @@ def validate_observation_drift(plan, state, provider_schema):
 
 
 def validate(plan, approved, *, post=False, project=PROJECT, project_number=None,
-             state=None, provider_schema=None, monitor_auth_enabled=False):
+             state=None, provider_schema=None, monitor_auth_enabled=False, primary_email_channel=None):
     plan_need(type(plan) is dict and plan.get('format_version') == '1.2'
               and plan.get('terraform_version') == common.VERSION, 'format')
     plan_need(plan.get('errored') is False and plan.get('complete') is True, 'incomplete')
@@ -342,14 +344,22 @@ def validate(plan, approved, *, post=False, project=PROJECT, project_number=None
     changes = plan.get('resource_changes', [])
     need(type(changes) is list)
     destructive, seen, counts = {}, set(), {k: 0 for k in ('create', 'update', 'delete', 'replace', 'no-op', 'read')}
+    adopted = others_changed = False
     for item in changes:
         address, change = item['address'], item['change']
         need(type(address) is str and address not in seen)
         seen.add(address)
         action = tuple(change['actions'])
         need(action in ACTIONS)
-        from monitor_auth import validate_import
-        validate_import(item, project, monitor_auth_enabled)
+        # Imports are rejected except for the typed, value-preserving adoptions.
+        need(not post or not change.get('importing'))
+        import primary_email_adoption
+        if primary_email_adoption.allows(item, project, primary_email_channel):
+            adopted = True
+        else:
+            from monitor_auth import validate_import
+            validate_import(item, project, monitor_auth_enabled)
+            others_changed = others_changed or action != ('no-op',) or bool(change.get('importing'))
         need(item.get('provider_name') in {'registry.terraform.io/hashicorp/google',
                                          'registry.terraform.io/hashicorp/google-beta'})
         need(item.get('mode') in {'managed', 'data'})
@@ -365,6 +375,8 @@ def validate(plan, approved, *, post=False, project=PROJECT, project_number=None
         counts['replace' if len(action) == 2 else action[0]] += 1
     if not post:
         need(destructive == approved)
+    # The channel adoption is applied alone; notification repair is a later change.
+    need(not (adopted and others_changed))
     if post:
         need(all(tuple(c['actions']) == ('no-op',) for c in plan.get('output_changes', {}).values()))
     try:
@@ -671,10 +683,14 @@ def plan(env, root, tfroot, name, approved, *, post=False, state=None):
             print('GCP_NORMAL_DRIFT: ' + json.dumps({'changes': changes}, sort_keys=True))
     phase('plan-validation')
     try:
+        import primary_email_adoption
+        # Import exceptions are selected only by the private inputs of this run.
+        importing = any(item.get('change', {}).get('importing') for item in value.get('resource_changes', []))
+        tfvars = common.decode((root / 'inputs.tfvars.json').read_bytes()) if importing else {}
         counts = validate(value, approved, post=post, project=target_project(env),
                           project_number=env.get('NORMAL_PROJECT_NUMBER'), state=state, provider_schema=schema,
-                          monitor_auth_enabled=any(item.get('change', {}).get('importing') for item in value.get('resource_changes', []))
-                          and common.decode((root / 'inputs.tfvars.json').read_bytes()).get('monitor_email_password_enabled') is True)
+                          monitor_auth_enabled=tfvars.get('monitor_email_password_enabled') is True,
+                          primary_email_channel=primary_email_adoption.channel_name(tfvars))
     except PlanRejected:
         raise
     except Exception:

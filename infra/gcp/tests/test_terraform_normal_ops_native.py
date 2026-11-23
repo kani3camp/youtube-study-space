@@ -161,6 +161,93 @@ resource "google_pubsub_topic" "probe" {
             self.assertEqual([m for m, _ in requests if m != 'GET'], ['PUT', 'PATCH', 'DELETE', 'PUT', 'DELETE'])
             self.assertEqual(json.loads((root / 'terraform.tfstate').read_text())['resources'], [])
 
+    def test_production_primary_email_adoption_preserves_values_and_reaches_noop(self):
+        """Pinned provider import of the prod root against a loopback Monitoring API."""
+        project = ops.PROJECTS['prod']
+        name = f'projects/{project}/notificationChannels/1234567890'
+        channel = {'name': name, 'type': 'email', 'displayName': '[production] Study Space primary email',
+                   'labels': {'email_address': 'fixture@example.invalid'}, 'enabled': True,
+                   'userLabels': {'environment': 'production', 'managed_by': 'manual'}}
+        requests = []
+
+        class API(BaseHTTPRequestHandler):
+            def log_message(self, *_):
+                pass
+
+            def reply(self, value, status=200):
+                raw = json.dumps(value).encode()
+                self.send_response(status)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(raw)))
+                self.end_headers(); self.wfile.write(raw)
+
+            def do_GET(self):
+                key = self.path.split('?', 1)[0]
+                requests.append(('GET', key))
+                self.reply(channel if key == '/v3/' + name else {'error': {'code': 404}}, 200 if key == '/v3/' + name else 404)
+
+            def do_CONNECT(self):
+                requests.append((self.command, self.path))
+                self.reply({'error': 'denied'}, 403)
+
+            do_POST = do_PATCH = do_PUT = do_DELETE = do_CONNECT
+
+        server = HTTPServer(('127.0.0.1', 0), API)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        Thread(target=server.serve_forever, daemon=True).start()
+        endpoint = f'http://127.0.0.1:{server.server_port}/'
+        with tempfile.TemporaryDirectory(prefix='normal-native-email-') as directory:
+            base = Path(directory)
+            root = base / 'environments/prod'
+            shutil.copytree(ops.REPO / 'infra/gcp/environments/prod', root,
+                            ignore=shutil.ignore_patterns('.terraform', 'tests', '*.tfstate*', '*.tfplan', 'backend.hcl'))
+            shutil.copytree(ops.REPO / 'infra/gcp/modules', base / 'modules',
+                            ignore=shutil.ignore_patterns('.terraform', 'tests', 'source.zip'))
+            # Override only the backend and provider endpoints of the real root.
+            (root / 'native_override.tf').write_text('terraform {\n  backend "local" {}\n}\nprovider "google" {\n'
+                '  access_token = "DUMMY_UNUSABLE_TOKEN"\n  monitoring_custom_endpoint = "' + endpoint + '"\n}\n')
+            (base / 'inputs.tfvars.json').write_text(json.dumps({
+                'manage_primary_email': True, 'primary_email_address': 'fixture@example.invalid',
+                'primary_email_channel_name': name}))
+            cli = base / 'terraform.rc'
+            cli.write_text('disable_checkpoint = true\n')
+            clean = {'PATH': os.environ.get('PATH', os.defpath), 'HOME': directory, 'TMPDIR': directory,
+                     'TF_CLI_CONFIG_FILE': str(cli), 'TF_INPUT': 'false', 'TF_IN_AUTOMATION': 'true',
+                     'CHECKPOINT_DISABLE': '1', 'NO_PROXY': '127.0.0.1,localhost', 'no_proxy': '127.0.0.1,localhost'}
+
+            def command(*args, codes=(0,)):
+                environment = dict(clean)
+                if args[0] != 'init':
+                    environment.update({k: endpoint for k in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY',
+                        'http_proxy', 'https_proxy', 'all_proxy')})
+                result = subprocess.run(['terraform', '-chdir=' + str(root), *args],
+                    env=environment, capture_output=True, timeout=120)
+                self.assertIn(result.returncode, codes, 'native adoption fixture failed: ' + args[0])
+                return result.stdout
+            command('init', '-input=false', '-lockfile=readonly')
+            variables = '-var-file=' + str(base / 'inputs.tfvars.json')
+            command('plan', '-input=false', '-detailed-exitcode', variables, '-out=adopt.tfplan', codes=(2,))
+            adopt = json.loads(command('show', '-json', 'adopt.tfplan'))
+            change = adopt['resource_changes'][0]['change']
+            self.assertEqual([item['address'] for item in adopt['resource_changes']],
+                             ['module.notification_channels.google_monitoring_notification_channel.primary_email[0]'])
+            self.assertEqual((change['actions'], change['importing']), (['update'], {'id': name}))
+            self.assertEqual(change['before'], change['after'])
+            ops.validate(adopt, {}, project=project, primary_email_channel=name)
+            with self.assertRaises(ValueError):
+                ops.validate(adopt, {}, project=project)
+            command('apply', '-input=false', 'adopt.tfplan')
+            command('plan', '-input=false', '-detailed-exitcode', variables, '-out=post.tfplan')
+            post = json.loads(command('show', '-json', 'post.tfplan'))
+            ops.validate(post, {}, post=True, project=project, primary_email_channel=name)
+        # Adoption only reads the channel; nothing is written to the API.
+        self.assertTrue(requests)
+        self.assertEqual({method for method, _ in requests} - {'CONNECT'}, {'GET'})
+        # The provider's token-info probe is the only proxied egress, and it is denied.
+        self.assertLessEqual({path for method, path in requests if method == 'CONNECT'}, {'openidconnect.googleapis.com:443'})
+        self.assertEqual({path for method, path in requests if method == 'GET'}, {'/v3/' + name})
+
 
 if __name__ == '__main__':
     unittest.main()
