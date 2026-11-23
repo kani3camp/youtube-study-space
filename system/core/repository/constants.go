@@ -44,14 +44,9 @@ const ( // TODO: ~~CollectionName, DocProperty~~に変更
 	MemberMaxSeatsDocProperty                        = "member-max-seats"
 	LastResetDailyTotalStudySecDocProperty           = "last-reset-daily-total-study-sec"
 	LastTransferCollectionHistoryBigqueryDocProperty = "last-transfer-collection-history-bigquery"
-	LastLongTimeSittingCheckedDocProperty            = "last-long-time-sitting-checked"
 
-	NextPageTokenDocProperty             = "youtube-live-chat-next-page-token"
-	LiveChatIDDocProperty                = "youtube-live-chat-id"
-	YoutubeBotAccessTokenDocProperty     = "youtube-bot-access-token"
-	YoutubeChannelAccessTokenDocProperty = "youtube-channel-access-token"
-	YoutubeBotExpirationDateDocProperty  = "youtube-bot-expiration-date"
-	YoutubeChannelExpirationDate         = "youtube-channel-expiration-date"
+	NextPageTokenDocProperty = "youtube-live-chat-next-page-token"
+	LiveChatIDDocProperty    = "youtube-live-chat-id"
 
 	LastEnteredDocProperty                 = "last-entered"
 	LastExitedDocProperty                  = "last-exited"

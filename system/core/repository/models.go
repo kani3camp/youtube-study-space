@@ -141,9 +141,6 @@ type UserDoc struct {
 	// 登録日
 	RegistrationDate time.Time `json:"registration_date" firestore:"registration-date"`
 
-	// ステータスメッセージ（今は使用されていない）
-	StatusMessage string `json:"status_message" firestore:"status-message"`
-
 	// 前回の入室日時
 	LastEntered time.Time `json:"last_entered" firestore:"last-entered"`
 
@@ -218,17 +215,6 @@ type WorkSegmentDoc struct {
 	StartedAt   time.Time `json:"started_at" firestore:"started-at"`
 	EndedAt     time.Time `json:"ended_at" firestore:"ended-at"`
 	DurationSec int       `json:"duration_sec" firestore:"duration-sec"`
-}
-
-// DailyUserWorkHistoryDoc stores daily totals.
-type DailyUserWorkHistoryDoc struct {
-	UserID string    `json:"user_id" firestore:"user-id"`
-	Date   time.Time `json:"date" firestore:"date"`
-
-	TotalStudySec int `json:"total_study_sec" firestore:"total-study-sec"`
-	TotalBreakSec int `json:"total_break_sec" firestore:"total-break-sec"`
-
-	TimezoneName string `json:"timezone_name" firestore:"timezone-name"`
 }
 
 type MenuDoc struct {

@@ -51,7 +51,6 @@ type Repository interface {
 	UpdateUserTotalTime(tx *firestore.Transaction, userID string, newTotalTimeSec int, newDailyTotalTimeSec int) error
 	UpdateUserRankPoint(tx *firestore.Transaction, userID string, rp int) error
 	UpdateUserLastRPProcessed(tx *firestore.Transaction, userID string, date time.Time) error
-	UpdateUserRPAndLastPenaltyImposedDays(ctx context.Context, tx *firestore.Transaction, userID string, newRP int, newLastPenaltyImposedDays int) error
 	UpdateUserIsContinuousActiveAndCurrentActivityStateStarted(ctx context.Context, tx *firestore.Transaction, userID string, isContinuousActive bool, currentActivityStateStarted time.Time) error
 	UpdateUserLastPenaltyImposedDays(ctx context.Context, tx *firestore.Transaction, userID string, lastPenaltyImposedDays int) error
 
@@ -63,7 +62,6 @@ type Repository interface {
 	// User Activity Operations
 	CreateUserActivityDoc(ctx context.Context, tx *firestore.Transaction, activity UserActivityDoc) error
 	Get500UserActivityDocIDsBeforeDate(ctx context.Context, date time.Time) *firestore.DocumentIterator
-	GetAllUserActivityDocIDsAfterDate(ctx context.Context, date time.Time) *firestore.DocumentIterator
 	Get500OrderHistoryDocIDsBeforeDate(ctx context.Context, date time.Time) *firestore.DocumentIterator
 	GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(ctx context.Context, date time.Time, userID string, seatID int, isMemberSeat bool) ([]UserActivityDoc, error)
 	GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat(ctx context.Context, date time.Time, userID string, seatID int, isMemberSeat bool) ([]UserActivityDoc, error)
@@ -80,8 +78,6 @@ type Repository interface {
 	CreateSeatLimitInBLACKList(ctx context.Context, seatID int, userID string, createdAt, until time.Time, isMemberSeat bool) error
 	Get500SeatLimitsAfterUntilInWHITEList(ctx context.Context, thresholdTime time.Time, isMemberSeat bool) *firestore.DocumentIterator
 	Get500SeatLimitsAfterUntilInBLACKList(ctx context.Context, thresholdTime time.Time, isMemberSeat bool) *firestore.DocumentIterator
-	DeleteSeatLimitInWHITEList(ctx context.Context, docID string, isMemberSeat bool) error
-	DeleteSeatLimitInBLACKList(ctx context.Context, docID string, isMemberSeat bool) error
 
 	// Menu Operations
 	ReadAllMenuDocsOrderByCode(ctx context.Context) ([]MenuDoc, error)
@@ -94,16 +90,12 @@ type Repository interface {
 	UpdateWorkNameTrend(ctx context.Context, tx *firestore.Transaction, workNameTrend WorkNameTrendDoc) error
 
 	// General Operations
-	GetAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error)
 	GetAllNonDailyZeroUserDocs(ctx context.Context) *firestore.DocumentIterator
 	ResetDailyTotalStudyTime(ctx context.Context, userRef *firestore.DocumentRef) error
 	UpdateLastResetDailyTotalStudyTime(ctx context.Context, timestamp time.Time) error
-	UpdateLastLongTimeSittingChecked(ctx context.Context, timestamp time.Time) error
 	UpdateLastTransferCollectionHistoryBigquery(ctx context.Context, timestamp time.Time) error
 	UpdateDesiredMaxSeats(ctx context.Context, tx *firestore.Transaction, desiredMaxSeats int) error
 	UpdateDesiredMemberMaxSeats(ctx context.Context, tx *firestore.Transaction, desiredMemberMaxSeats int) error
 	UpdateMaxSeats(ctx context.Context, tx *firestore.Transaction, maxSeats int) error
 	UpdateMemberMaxSeats(ctx context.Context, tx *firestore.Transaction, memberMaxSeats int) error
-	UpdateAccessTokenOfChannelCredential(ctx context.Context, tx *firestore.Transaction, accessToken string, expireDate time.Time) error
-	UpdateAccessTokenOfBotCredential(ctx context.Context, tx *firestore.Transaction, accessToken string, expireDate time.Time) error
 }

@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 
 	"app.modules/core/timeutil"
@@ -130,7 +129,7 @@ func TestCalcNewRPExitRoom(t *testing.T) {
 			in := testCase.Input
 			rp, err := CalcNewRPExitRoom(in.NetStudyDuration, in.IsWorkNameSet, in.YesterdayContinuedActive, in.CurrentStateStarted, in.LastActiveAt, in.PreviousRankPoint)
 			assert.NoError(t, err)
-			assert.Equal(t, testCase.Output, rp, "input: %# v", pretty.Formatter(in))
+			assert.Equal(t, testCase.Output, rp, "input: %+v", in)
 		})
 	}
 }

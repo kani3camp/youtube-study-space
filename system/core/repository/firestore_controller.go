@@ -389,14 +389,6 @@ func (c *FirestoreControllerImplements) UpdateWorkNameTrend(ctx context.Context,
 	return c.set(ctx, tx, ref, workNameTrend)
 }
 
-func (c *FirestoreControllerImplements) GetAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error) {
-	refs, err := c.usersCollection().DocumentRefs(ctx).GetAll()
-	if err != nil {
-		return nil, fmt.Errorf("get all user document references: %w", err)
-	}
-	return refs, nil
-}
-
 func (c *FirestoreControllerImplements) GetAllNonDailyZeroUserDocs(ctx context.Context) *firestore.DocumentIterator {
 	return c.usersCollection().Where(DailyTotalStudySecDocProperty, "!=", 0).Documents(ctx)
 }
@@ -418,17 +410,6 @@ func (c *FirestoreControllerImplements) UpdateLastResetDailyTotalStudyTime(ctx c
 	})
 	if err != nil {
 		return fmt.Errorf("update last daily reset time: %w", err)
-	}
-	return nil
-}
-
-func (c *FirestoreControllerImplements) UpdateLastLongTimeSittingChecked(ctx context.Context, timestamp time.Time) error {
-	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
-	_, err := ref.Update(ctx, []firestore.Update{
-		{Path: LastLongTimeSittingCheckedDocProperty, Value: timestamp},
-	})
-	if err != nil {
-		return fmt.Errorf("update last long-sitting check time: %w", err)
 	}
 	return nil
 }
@@ -475,22 +456,6 @@ func (c *FirestoreControllerImplements) UpdateMemberMaxSeats(ctx context.Context
 	ref := c.configCollection().Doc(SystemConstantsConfigDocName)
 	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: MemberMaxSeatsDocProperty, Value: memberMaxSeats},
-	})
-}
-
-func (c *FirestoreControllerImplements) UpdateAccessTokenOfChannelCredential(ctx context.Context, tx *firestore.Transaction, accessToken string, expireDate time.Time) error {
-	ref := c.configCollection().Doc(CredentialsConfigDocName)
-	return c.update(ctx, tx, ref, []firestore.Update{
-		{Path: YoutubeChannelAccessTokenDocProperty, Value: accessToken},
-		{Path: YoutubeChannelExpirationDate, Value: expireDate},
-	})
-}
-
-func (c *FirestoreControllerImplements) UpdateAccessTokenOfBotCredential(ctx context.Context, tx *firestore.Transaction, accessToken string, expireDate time.Time) error {
-	ref := c.configCollection().Doc(CredentialsConfigDocName)
-	return c.update(ctx, tx, ref, []firestore.Update{
-		{Path: YoutubeBotAccessTokenDocProperty, Value: accessToken},
-		{Path: YoutubeBotExpirationDateDocProperty, Value: expireDate},
 	})
 }
 
@@ -541,21 +506,6 @@ func (c *FirestoreControllerImplements) Get500OrderHistoryDocIDsBeforeDate(ctx c
 ) *firestore.DocumentIterator {
 	return c.orderHistoryCollection().Where(OrderedAtDocProperty, "<",
 		date).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
-}
-
-func (c *FirestoreControllerImplements) GetAllUserActivityDocIDsAfterDate(ctx context.Context, date time.Time,
-) *firestore.DocumentIterator {
-	return c.userActivitiesCollection().Where(TakenAtDocProperty, ">=", date).Documents(ctx)
-}
-
-func (c *FirestoreControllerImplements) GetAllUserActivityDocIDsAfterDateForUserAndSeat(ctx context.Context,
-	date time.Time, userID string, seatID int, isMemberSeat bool,
-) ([]UserActivityDoc, error) {
-	iter := c.userActivitiesCollection().Where(TakenAtDocProperty, ">=",
-		date).Where(UserIDDocProperty, "==", userID).Where(SeatIDDocProperty, "==", seatID).
-		Where(IsMemberSeatDocProperty, "==", isMemberSeat).OrderBy(TakenAtDocProperty,
-		firestore.Asc).Documents(ctx)
-	return getDocDataFromIterator[UserActivityDoc](iter)
 }
 
 func (c *FirestoreControllerImplements) GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(ctx context.Context,
@@ -611,16 +561,6 @@ func (c *FirestoreControllerImplements) UpdateUserLastPenaltyImposedDays(ctx con
 	ref := c.usersCollection().Doc(userID)
 	return c.update(ctx, tx, ref, []firestore.Update{
 		{Path: LastPenaltyImposedDaysDocProperty, Value: lastPenaltyImposedDays},
-	})
-}
-
-func (c *FirestoreControllerImplements) UpdateUserRPAndLastPenaltyImposedDays(ctx context.Context, tx *firestore.Transaction, userID string,
-	newRP int, newLastPenaltyImposedDays int,
-) error {
-	ref := c.usersCollection().Doc(userID)
-	return c.update(ctx, tx, ref, []firestore.Update{
-		{Path: RankPointDocProperty, Value: newRP},
-		{Path: LastPenaltyImposedDaysDocProperty, Value: newLastPenaltyImposedDays},
 	})
 }
 
@@ -696,28 +636,6 @@ func (c *FirestoreControllerImplements) Get500SeatLimitsAfterUntilInBLACKList(ct
 		collection = c.generalSeatLimitsBLACKListCollection()
 	}
 	return collection.Where(UntilDocProperty, "<", thresholdTime).Limit(FirestoreWritesLimitPerRequest).Documents(ctx)
-}
-
-func (c *FirestoreControllerImplements) DeleteSeatLimitInWHITEList(ctx context.Context, docID string, isMemberSeat bool) error {
-	var collection *firestore.CollectionRef
-	if isMemberSeat {
-		collection = c.memberSeatLimitsWHITEListCollection()
-	} else {
-		collection = c.generalSeatLimitsWHITEListCollection()
-	}
-	ref := collection.Doc(docID)
-	return c.delete(ctx, nil, ref)
-}
-
-func (c *FirestoreControllerImplements) DeleteSeatLimitInBLACKList(ctx context.Context, docID string, isMemberSeat bool) error {
-	var collection *firestore.CollectionRef
-	if isMemberSeat {
-		collection = c.memberSeatLimitsBLACKListCollection()
-	} else {
-		collection = c.generalSeatLimitsBLACKListCollection()
-	}
-	ref := collection.Doc(docID)
-	return c.delete(ctx, nil, ref)
 }
 
 func (c *FirestoreControllerImplements) ReadAllMenuDocsOrderByCode(ctx context.Context) ([]MenuDoc, error) {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,8 +13,6 @@ import (
 
 	"app.modules/core/workspaceapp"
 	"app.modules/internal/logging"
-
-	"github.com/kr/pretty"
 
 	"app.modules/core/wordsreader"
 	"app.modules/core/youtubebot"
@@ -182,7 +181,12 @@ func pollLiveChatPage(ctx context.Context, app *workspaceapp.WorkspaceApp, ngWor
 	// process the command (includes not command)
 	for _, chatMessage := range chatMessages {
 		if youtubebot.IsFanFundingEvent(chatMessage) {
-			app.MessageToOwner(ctx, fmt.Sprintf("Fan funding event:\n```%# v```", pretty.Formatter(chatMessage)))
+			eventJSON, err := json.MarshalIndent(chatMessage, "", "  ")
+			if err != nil {
+				slog.WarnContext(ctx, "failed to marshal fan funding event", "error", err)
+				eventJSON = []byte(chatMessage.Id)
+			}
+			app.MessageToOwner(ctx, fmt.Sprintf("Fan funding event:\n```%s```", eventJSON))
 		}
 
 		// only if chatMessage has text message content

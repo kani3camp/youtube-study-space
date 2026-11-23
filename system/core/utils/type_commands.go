@@ -121,8 +121,3 @@ type OrderOption struct {
 func (o *MinWorkOrderOption) NumOptionsSet() int {
 	return NumTrue(o.IsWorkNameSet, o.IsDurationMinSet)
 }
-
-type UserIDTotalStudySecSet struct {
-	UserID        string `json:"user_id"`
-	TotalStudySec int    `json:"total_study_sec"`
-}

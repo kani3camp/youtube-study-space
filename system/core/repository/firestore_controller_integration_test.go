@@ -244,7 +244,6 @@ func TestFirestoreRepository_UserCreateAndRead(t *testing.T) {
 		DailyTotalStudySec:          7200,
 		TotalStudySec:               86400,
 		RegistrationDate:            time.Date(2026, 7, 1, 9, 0, 0, 0, jst),
-		StatusMessage:               "集中中",
 		LastEntered:                 time.Date(2026, 8, 2, 8, 30, 0, 0, jst),
 		LastExited:                  time.Date(2026, 8, 1, 18, 0, 0, 0, jst),
 		RankVisible:                 true,
@@ -263,7 +262,6 @@ func TestFirestoreRepository_UserCreateAndRead(t *testing.T) {
 
 	assert.Equal(t, want.DailyTotalStudySec, got.DailyTotalStudySec)
 	assert.Equal(t, want.TotalStudySec, got.TotalStudySec)
-	assert.Equal(t, want.StatusMessage, got.StatusMessage)
 	assert.Equal(t, want.RankVisible, got.RankVisible)
 	assert.Equal(t, want.DefaultStudyMin, got.DefaultStudyMin)
 	assert.Equal(t, want.RankPoint, got.RankPoint)
@@ -285,7 +283,6 @@ func TestFirestoreRepository_UserUpdates(t *testing.T) {
 		DailyTotalStudySec:          100,
 		TotalStudySec:               1000,
 		RegistrationDate:            time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
-		StatusMessage:               "維持する設定",
 		LastEntered:                 time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
 		LastExited:                  time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
 		RankVisible:                 false,
@@ -330,7 +327,6 @@ func TestFirestoreRepository_UserUpdates(t *testing.T) {
 	assert.Equal(t, 45, got.DefaultStudyMin)
 	assert.Equal(t, 99, got.RankPoint)
 	assert.Equal(t, original.RegistrationDate, got.RegistrationDate)
-	assert.Equal(t, original.StatusMessage, got.StatusMessage)
 	assert.Equal(t, original.LastRPProcessed, got.LastRPProcessed)
 	assert.Equal(t, original.LastPenaltyImposedDays, got.LastPenaltyImposedDays)
 	assert.Equal(t, original.IsContinuousActive, got.IsContinuousActive)

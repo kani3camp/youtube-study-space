@@ -299,30 +299,6 @@ func (app *WorkspaceApp) OrganizeDBForceMove(ctx context.Context, seatsSnapshot 
 	return nil
 }
 
-func (app *WorkspaceApp) DailyOrganizeDB(ctx context.Context) ([]string, error) {
-	slog.Info(utils.NameOf(app.DailyOrganizeDB))
-	var ownerMessage string
-
-	slog.Info("一時的累計作業時間をリセット")
-	dailyResetCount, err := app.ResetDailyTotalStudyTime(ctx)
-	if err != nil {
-		return []string{}, fmt.Errorf("in ResetDailyTotalStudyTime(): %w", err)
-	}
-	ownerMessage += "\nsuccessfully reset daily total study time. (" + strconv.Itoa(dailyResetCount) + " users)"
-
-	slog.Info("RP関連の情報更新・ペナルティ処理を行うユーザーのIDのリストを取得")
-	userIDsToProcessRP, err := app.GetUserIDsToProcessRP(ctx)
-	if err != nil {
-		return []string{}, fmt.Errorf("in GetUserIDsToProcessRP(): %w", err)
-	}
-
-	ownerMessage += "\n過去31日以内に入室した人数（RP処理対象）: " + strconv.Itoa(len(userIDsToProcessRP))
-	ownerMessage += "\n本日のDailyOrganizeDB()処理が完了しました（RP更新処理以外）。"
-	app.MessageToOwner(ctx, ownerMessage)
-	slog.Info("finished " + utils.NameOf(app.DailyOrganizeDB))
-	return userIDsToProcessRP, nil
-}
-
 func (app *WorkspaceApp) ResetDailyTotalStudyTime(ctx context.Context) (int, error) {
 	slog.Info(utils.NameOf(app.ResetDailyTotalStudyTime))
 	// 時間がかかる処理なのでトランザクションはなし
@@ -353,36 +329,6 @@ func (app *WorkspaceApp) ResetDailyTotalStudyTime(ctx context.Context) (int, err
 		app.MessageToOwner(ctx, "all user's daily total study times are already reset today.")
 		return 0, nil
 	}
-}
-
-func (app *WorkspaceApp) UpdateUserRPBatch(ctx context.Context, userIDs []string, timeLimitSeconds int) []string {
-	startTime := app.currentTime()
-	var doneUserIDs []string
-	for _, userID := range userIDs {
-		// 時間チェック
-		now := app.currentTime()
-		duration := now.Sub(startTime)
-		if int(duration.Seconds()) > timeLimitSeconds {
-			return userIDs
-		}
-
-		// 処理
-		if err := app.UpdateUserRP(ctx, userID, now); err != nil {
-			app.MessageToOwnerWithError(ctx, "failed to UpdateUserRP, while processing "+userID, err)
-			// pass. mark user as done
-		}
-		doneUserIDs = append(doneUserIDs, userID)
-	}
-
-	var remainingUserIDs []string
-	for _, userID := range userIDs {
-		if utils.Contains(doneUserIDs, userID) {
-			continue
-		} else {
-			remainingUserIDs = append(remainingUserIDs, userID)
-		}
-	}
-	return remainingUserIDs
 }
 
 func (app *WorkspaceApp) UpdateUserRP(ctx context.Context, userID string, jstNow time.Time) error {
