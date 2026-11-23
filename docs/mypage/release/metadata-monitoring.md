@@ -3,21 +3,28 @@
 29 日経過した公開メタデータを削除する定期ジョブの呼び出しと、再起動を跨いで監視状態を保持する仕組みを実装しています。
 
 > [!NOTE]
-> 本ドキュメントはソースコード上の仕様と接続例を説明しています。実環境での Cloud Scheduler・クラウドランタイム・IAM・通知先の設定は別途行う必要があります（[配備手順書](README.md) を参照）。
+> 本ドキュメントはソースコード上の仕様と実行コマンドを説明しています。実環境での Cloud Scheduler・クラウドランタイム・IAM・通知先の設定は別途行う必要があります（[配備手順書](README.md) を参照）。
 
-## コールバックの接続例
+## 実行コマンド（`cmd/mypage-metadata-cleanup`）
 
-承認後のランタイムでは Firestore クライアント、明示したプロジェクト ID、書き込み期限に対応した専用シグナル出力先を渡して `MetadataCleanupRunner` を組み立てます。以下は実装構成の例であり、そのまま実環境で実行するコマンドではありません。
+[`system/cmd/mypage-metadata-cleanup`](../../../system/cmd/mypage-metadata-cleanup/main.go) が `MetadataCleanupRunner` を Firestore クライアントと Cloud Logging の健全性シグナル出力先に接続します。バイナリは Maintenance Operator と同じイメージ（[`system/Dockerfile.mypage-maintenance-operator`](../../../system/Dockerfile.mypage-maintenance-operator)）の `/app/mypage-metadata-cleanup` に含め、Cloud Run Job から command 指定で起動する想定です（イメージの ENTRYPOINT は Maintenance Operator のままです）。Cloud Run Job・Cloud Scheduler・IAM・アラートの設定はこのコマンドの外で別途行います。
 
-```go
-signals := &mypage.JSONMetadataCleanupHealthRecorder{Writer: deadlineWriter}
-runner, err := mypage.NewFirestoreMetadataCleanupRunner(
-    client, selectedProjectID, signals, time.Now, 100, 100,
-)
-// err は固定 status へ変換し、依存先の生エラーは公開ログに出しません。
-// 削除ジョブ用コールバック: runner.Run(ctx)
-// 独立監視用コールバック:   runner.CheckHealth(ctx)
-```
+- 実行モード: 引数は `-mode=run`（削除処理 `Run`）か `-mode=health`（独立監視 `CheckHealth`）のどちらか 1 つだけです。引数なし・未知の値・重複指定・余分な引数は、認証情報の探索や Firestore 接続より前に終了コード 1 で拒否します。
+- 実行先の固定: `MYPAGE_ENVIRONMENT` は `development`（`test-youtube-study-space`、`asia-southeast2`）か `production`（`youtube-study-space`、`asia-northeast2`）のどちらかで、`GOOGLE_CLOUD_PROJECT` と一致する必要があります。ログのリソースラベルには Cloud Run Job が設定する `CLOUD_RUN_JOB` を使い、未設定や不正な名前の場合もクライアント作成前に終了します。Firestore と Cloud Logging の接続先が食い違わないよう、`FIRESTORE_EMULATOR_HOST` や `GOOGLE_APPLICATION_CREDENTIALS` が設定されている場合も拒否し、実行環境のデフォルト認証情報だけを使います。
+- 処理量と制限時間: 1 回の `Run` は 100 件 × 最大 100 ページを処理し、残件があれば成功扱いにしません。プロセス全体の制限時間は `run` が 11 分（削除処理本体の 10 分 + 後処理の余裕）、`health` が 30 秒です。SIGTERM / SIGINT はキャンセルとして扱い、ランナーが失敗観測の保存と失敗シグナルの送信を試みてから終了します。
+- 必要な権限: 実行サービスアカウントには、Firestore の `web-accounts` と `mypage-maintenance/metadata-cleanup` の読み書き（例: `roles/datastore.user`）と、健全性シグナル用の `logging.logEntries.create` が必要です。
+- 出力: 標準出力には固定形の JSON を 1 行だけ書きます。`run` は `mode` と匿名の観測結果（開始・完了時刻、結果、固定段階名、件数）、`health` は `mode`・`checkedAt`・`alert`・`reason` です。失敗時は標準エラーへ固定の状態文字列だけを書いて終了コード 1 で終了し、依存先の生エラーは公開ログに出しません。
+
+### 健全性シグナルの出力先（Cloud Logging）
+
+`CloudLoggingMetadataCleanupHealthRecorder` は、シグナルごとに Cloud Logging の `entries:write`（`https://logging.googleapis.com/v2/entries:write`）へ構造化ログを 1 件書き込みます。標準出力は書き込み期限を設定できないため使いません。
+
+- ログ名: `projects/<project>/logs/mypage-metadata-cleanup-health`
+- リソース: `cloud_run_job`（ラベル `job_name`・`location`・`project_id`）
+- 重大度: `alert` が真なら `WARNING`、偽なら `INFO`
+- `jsonPayload`: `checkedAt`・`alert`・`reason` だけを含みます（許可リスト外の値や `alert` と `reason` の不整合は送信前に拒否します）。
+- 認証: アプリケーションのデフォルト認証情報から `logging.write` スコープのトークンを取得します。実行サービスアカウントには `logging.logEntries.create` 権限が必要です。
+- 受理の判定: ランナーが与える 2 秒の制限時間内に HTTP 2xx の応答を最後まで読み切れた場合だけ受理とみなします（途中切断や読み取り失敗は未受理です）。それ以外のステータス・タイムアウト・トークン取得失敗はエラーとし、エラーには固定の文言とステータスコードだけを含めます（応答本文やトークンは含めません）。リダイレクトは追いません。
 
 ### 実行時間とスケジュールの設計
 
@@ -30,8 +37,9 @@ runner, err := mypage.NewFirestoreMetadataCleanupRunner(
   - 独立監視（`CheckHealth`）は例として毎時起動し、削除ジョブ自体の起動漏れや停止を検知します（削除ジョブの終了時だけ確認する構成では、次回起動しない障害を検知できません）。
   - 独立監視自体の未起動や出力先障害を検知する仕組みは、スケジューラー・ランタイム側の失敗監視と組み合わせて確保します。
 - シグナル出力先の要件
-  - `JSONMetadataCleanupHealthRecorder` は、書き込み中の期限設定（`SetWriteDeadline`）やキャンセルが実際に機能する専用パイプやソケットを必要とします。通常ファイルや無期限の `io.Writer` は安全のため拒否します。
-  - 出力先・配送経路・通知先は承認済み一覧から選び、サンプル値を実環境へ流用しないでください。
+  - 実行コマンドは Cloud Logging の出力先（上記）を使います。
+  - `JSONMetadataCleanupHealthRecorder` は、書き込み中の期限設定（`SetWriteDeadline`）やキャンセルが実際に機能する専用パイプやソケットを必要とします。通常ファイル・標準出力・無期限の `io.Writer` は安全のため拒否します。
+  - 配送経路・通知先は承認済み一覧から選び、サンプル値を実環境へ流用しないでください。
 
 ---
 

@@ -106,7 +106,7 @@ go generate ./...
 - Fargateバッチ: `system/Dockerfile.fargate`
 - Lambda群: `system/Dockerfile.lambda`
 - MyPage Cloud Run API: `system/Dockerfile.mypage-api`
-- MyPage Maintenance Operator（Cloud Run Job）: `system/Dockerfile.mypage-maintenance-operator`
+- MyPage Maintenance Operator（Cloud Run Job）: `system/Dockerfile.mypage-maintenance-operator`（メタデータ削除コマンド `/app/mypage-metadata-cleanup` も同じイメージに含む）
 
 ### 手動実行（ローカル確認用）
 ```bash

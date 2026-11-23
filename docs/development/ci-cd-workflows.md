@@ -156,7 +156,7 @@ GitHub Actions のワークフローを「人間が実行したいユースケ�
 
 | 項目 | API | Maintenance Operator |
 | --- | --- | --- |
-| Dockerfile | `system/Dockerfile.mypage-api`（`./cmd/mypage-server` のみ） | `system/Dockerfile.mypage-maintenance-operator`（`./cmd/mypage-maintenance-operator` のみ） |
+| Dockerfile | `system/Dockerfile.mypage-api`（`./cmd/mypage-server` のみ） | `system/Dockerfile.mypage-maintenance-operator`（`./cmd/mypage-maintenance-operator` と `./cmd/mypage-metadata-cleanup` のみ。ENTRYPOINT は operator） |
 | Artifact Registry | `mypage/mypage-api@sha256:...` | `mypage/mypage-maintenance-operator@sha256:...`（同じ `mypage` リポジトリの別パッケージ。既存の repository 単位の push 権限で対応可） |
 | Deploy 対象 | Cloud Run Service `mypage-api` のみ | Cloud Run Job `mypage-maintenance-operator` のみ |
 | Deployer identity | `mypage-backend-deploy`（Job 権限・maintenance SA `actAs` を削除） | 新設 `mypage-operator-deploy`（Job `run.jobs.get/update` と maintenance runtime SA `actAs` のみ。SA/WIF/Environment は [`operator_identity.py`](../../infra/mypage-platform/scripts/operator_identity.py)、Job IAM は Terraform で作成） |

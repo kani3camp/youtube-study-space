@@ -5,9 +5,9 @@ set -euo pipefail
 image="${1:?Usage: check-mypage-image.sh API_IMAGE}"
 test "$(docker image inspect --format '{{.Config.User}}' "$image")" = 'nonroot:nonroot'
 
-# API imageはmaintenance operatorを含めない。Jobは専用imageを独立して配備する。
+# API imageはmaintenance operatorとメタデータ削除コマンドを含めない。Jobは専用imageを独立して配備する。
 # 実行の可否ではなく、image filesystemにそのpathが無いことを確認する。
-bash "$(dirname "$0")/check-image-path-absent.sh" "$image" app/mypage-maintenance-operator
+bash "$(dirname "$0")/check-image-path-absent.sh" "$image" app/mypage-maintenance-operator app/mypage-metadata-cleanup
 
 # 設定不足は、認証情報探索や待ち受け開始より前に失敗する必要がある。
 if docker run --rm --network=none --read-only "$image" --check-config; then

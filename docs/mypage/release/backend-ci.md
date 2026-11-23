@@ -131,7 +131,7 @@ Maintenance Job `mypage-maintenance-operator` のイメージは、API Service �
 
 ### 配備手順
 
-1. `dev` 上で `environment=development`・`mode=build-and-deploy` を実行します（本番は `main` 上で `environment=production`）。資格情報取得の前に System の事前検査（`ci-system.yml`）を通し、`system/Dockerfile.mypage-maintenance-operator`（operator バイナリ専用）をビルドします。オフライン・nonroot 検査後、`mypage/mypage-maintenance-operator:<source SHA>` として push し、Registry と `RepoDigests` を照合した digest を次ジョブへ渡します。
+1. `dev` 上で `environment=development`・`mode=build-and-deploy` を実行します（本番は `main` 上で `environment=production`）。資格情報取得の前に System の事前検査（`ci-system.yml`）を通し、`system/Dockerfile.mypage-maintenance-operator`（operator とメタデータ削除コマンドのバイナリのみ）をビルドします。オフライン・nonroot 検査後、`mypage/mypage-maintenance-operator:<source SHA>` として push し、Registry と `RepoDigests` を照合した digest を次ジョブへ渡します。
 2. [operator_release.py](../../../infra/mypage-platform/scripts/operator_release.py) が、固定 actor・対象環境の ref・caller・初回実行・SHA 一致を認証前に検査したうえで、Environment `mypage-<dev|prod>-operator` と `mypage-operator-deploy` SA/WIF で短命トークンを取得します。
    - `tag → digest` を再確認し、Job の identity・設定・現イメージを読み取ってコンテナイメージだけを 1 回の etag 付き PATCH で更新します。
    - Long-running Operation の完了、generation の更新（前進）、およびイメージ以外の設定が不変であることを読み戻して確認し、初めて成功とします（`labels` / `annotations` は GET から保持し、`executionCount` などの出力専用状態は競合判定に使いません）。
