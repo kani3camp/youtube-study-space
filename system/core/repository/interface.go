@@ -90,7 +90,6 @@ type Repository interface {
 	UpdateWorkNameTrend(ctx context.Context, tx *firestore.Transaction, workNameTrend WorkNameTrendDoc) error
 
 	// General Operations
-	GetAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error)
 	GetAllNonDailyZeroUserDocs(ctx context.Context) *firestore.DocumentIterator
 	ResetDailyTotalStudyTime(ctx context.Context, userRef *firestore.DocumentRef) error
 	UpdateLastResetDailyTotalStudyTime(ctx context.Context, timestamp time.Time) error

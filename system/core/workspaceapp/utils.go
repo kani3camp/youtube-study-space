@@ -583,7 +583,7 @@ func (app *WorkspaceApp) GetRecentUserSittingTimeForSeat(ctx context.Context, us
 	utils.SortUserActivityByTakenAtAscending(activityOnlyEnterExitList)
 	orderOK := utils.CheckEnterExitActivityOrder(activityOnlyEnterExitList)
 	if !orderOK {
-		slog.ErrorContext(ctx, "seat activities are not alternating enter/exit", "activity_count", len(activityOnlyEnterExitList), "seat_id", seatID)
+		slog.ErrorContext(ctx, "seat activities are not alternating enter/exit", "activity_count", len(activityOnlyEnterExitList))
 		return 0, errors.New("入室activityと退室activityが交互に並んでいない")
 	}
 

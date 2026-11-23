@@ -381,21 +381,6 @@ func (mr *MockRepositoryMockRecorder) GetAllNonDailyZeroUserDocs(ctx any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllNonDailyZeroUserDocs", reflect.TypeOf((*MockRepository)(nil).GetAllNonDailyZeroUserDocs), ctx)
 }
 
-// GetAllUserDocRefs mocks base method.
-func (m *MockRepository) GetAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllUserDocRefs", ctx)
-	ret0, _ := ret[0].([]*firestore.DocumentRef)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAllUserDocRefs indicates an expected call of GetAllUserDocRefs.
-func (mr *MockRepositoryMockRecorder) GetAllUserDocRefs(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllUserDocRefs", reflect.TypeOf((*MockRepository)(nil).GetAllUserDocRefs), ctx)
-}
-
 // GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat mocks base method.
 func (m *MockRepository) GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(ctx context.Context, date time.Time, userID string, seatID int, isMemberSeat bool) ([]repository.UserActivityDoc, error) {
 	m.ctrl.T.Helper()

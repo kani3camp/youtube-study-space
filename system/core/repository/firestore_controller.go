@@ -389,14 +389,6 @@ func (c *FirestoreControllerImplements) UpdateWorkNameTrend(ctx context.Context,
 	return c.set(ctx, tx, ref, workNameTrend)
 }
 
-func (c *FirestoreControllerImplements) GetAllUserDocRefs(ctx context.Context) ([]*firestore.DocumentRef, error) {
-	refs, err := c.usersCollection().DocumentRefs(ctx).GetAll()
-	if err != nil {
-		return nil, fmt.Errorf("get all user document references: %w", err)
-	}
-	return refs, nil
-}
-
 func (c *FirestoreControllerImplements) GetAllNonDailyZeroUserDocs(ctx context.Context) *firestore.DocumentIterator {
 	return c.usersCollection().Where(DailyTotalStudySecDocProperty, "!=", 0).Documents(ctx)
 }

@@ -140,7 +140,7 @@ func TestSeatLimitProcessLogsExcludeChannelAndPrivateDurations(t *testing.T) {
 			if !strings.Contains(logs.String(), tc.wantLog) {
 				t.Fatalf("missing safe seat limit status: %s", logs.String())
 			}
-			for _, field := range []string{`"userID"`, `"seatID"`, "過去何分", "合計何分"} {
+			for _, field := range []string{`"userID"`, `"seatID"`, `"seat_id"`, "過去何分", "合計何分"} {
 				if strings.Contains(logs.String(), field) {
 					t.Fatalf("seat limit log contains private detail: %s", logs.String())
 				}
@@ -148,6 +148,38 @@ func TestSeatLimitProcessLogsExcludeChannelAndPrivateDurations(t *testing.T) {
 			requirePrivateValuesAbsentFromLogs(t, logs.String(), channelID)
 		})
 	}
+}
+
+func TestNonAlternatingSeatActivityLogExcludesChannelAndSeat(t *testing.T) {
+	const channelID = "PRIVATE_CHANNEL_ID_543"
+	now := time.Date(2026, time.October, 8, 10, 0, 0, 0, timeutil.JapanLocation())
+	logs := captureLegacyProcessLogs(t)
+	ctrl := gomock.NewController(t)
+	mockDB := mock_repository.NewMockRepository(ctrl)
+	mockDB.EXPECT().GetEnterRoomUserActivityDocIDsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), channelID, 7, false).Return([]repository.UserActivityDoc{
+		{ActivityType: repository.EnterRoomActivity, UserID: channelID, SeatID: 7, TakenAt: now.Add(-20 * time.Minute)},
+		{ActivityType: repository.EnterRoomActivity, UserID: channelID, SeatID: 7, TakenAt: now.Add(-10 * time.Minute)},
+	}, nil)
+	mockDB.EXPECT().GetExitRoomUserActivityDocIDsAfterDateForUserAndSeat(gomock.Any(), gomock.Any(), channelID, 7, false).Return(nil, nil)
+	app := WorkspaceApp{
+		Repository: mockDB,
+		Configs:    &Configs{Constants: repository.ConstantsConfigDoc{RecentRangeMin: 30}},
+		nowFunc:    func() time.Time { return now },
+	}
+
+	_, err := app.GetRecentUserSittingTimeForSeat(context.Background(), channelID, 7, false)
+	if err == nil {
+		t.Fatal("non-alternating enter/exit activities must be rejected")
+	}
+	if !strings.Contains(logs.String(), `"activity_count":2`) {
+		t.Fatalf("missing safe activity count: %s", logs.String())
+	}
+	for _, field := range []string{`"seat_id"`, `"seatID"`, `"userID"`} {
+		if strings.Contains(logs.String(), field) {
+			t.Fatalf("seat activity log contains private detail: %s", logs.String())
+		}
+	}
+	requirePrivateValuesAbsentFromLogs(t, logs.String()+err.Error(), channelID)
 }
 
 func TestSeatLimitFailureDoesNotLogWrappedPrivateError(t *testing.T) {
