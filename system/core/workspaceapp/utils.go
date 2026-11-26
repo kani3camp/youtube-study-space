@@ -261,7 +261,16 @@ func (app *WorkspaceApp) MessageToLiveChat(ctx context.Context, message string) 
 	}
 }
 
+// LogOwnerMessages は定時バッチの開始前に設定し、MessageToOwner の出力先を実行ログに切り替える。
+func (app *WorkspaceApp) LogOwnerMessages() {
+	app.logOwnerMessages = true
+}
+
 func (app *WorkspaceApp) MessageToOwner(ctx context.Context, message string) {
+	if app.logOwnerMessages {
+		slog.InfoContext(ctx, message)
+		return
+	}
 	if err := app.alertOwnerBot.SendMessage(ctx, message); err != nil {
 		slog.ErrorContext(ctx, "failed to send message to owner", logging.ErrorClassAttrs("delivery_failed", err)...)
 	}

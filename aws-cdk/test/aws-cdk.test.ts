@@ -44,6 +44,76 @@ describe('AwsCdkStack', () => {
 		})
 	})
 
+	test('publishes one Discord completion only after all scheduled batch jobs succeed', () => {
+		const completionTopic = template.getResourceId('AWS::SNS::Topic', {
+			Properties: { DisplayName: 'youtube-study-space-batch-completion' },
+		})
+		const notifier = template.getResourceId('AWS::Lambda::Function', {
+			Properties: { FunctionName: 'sns_notify_discord' },
+		})
+		const completionSubscriptions = template.findResources('AWS::SNS::Subscription', {
+			Properties: { TopicArn: { Ref: completionTopic } },
+		})
+		expect(Object.values(completionSubscriptions)).toMatchObject([
+			{ Properties: { Protocol: 'lambda', Endpoint: { 'Fn::GetAtt': [notifier, 'Arn'] } } },
+		])
+
+		const stateMachines = Object.values(template.findResources('AWS::StepFunctions::StateMachine'))
+			.map(({ Properties }) => {
+				const [separator, parts] = Properties.DefinitionString['Fn::Join'] as [
+					string,
+					Array<string | { Ref?: string }>,
+				]
+				return JSON.parse(parts.map((part) => {
+					if (typeof part === 'string') return part
+					if (part.Ref === 'AWS::Partition') return 'aws'
+					return part.Ref ?? 'resource-arn'
+				}).join(separator))
+			})
+		const jobs = ['reset-daily-total', 'update-rp', 'transfer-bq']
+		const daily = stateMachines.find(({ StartAt }) => StartAt === 'wait-00:00:15')
+		expect(daily.States[daily.StartAt].Next).toBe(jobs[0])
+		const successState = 'notify-on-success-sns'
+		for (const [index, job] of jobs.entries()) {
+			expect(daily.States[job]).toMatchObject({
+				Type: 'Task',
+				Resource: 'arn:aws:states:::ecs:runTask.sync',
+				Next: jobs[index + 1] ?? successState,
+				Catch: [{
+					ErrorEquals: ['States.ALL'],
+					ResultPath: '$.jobFailure',
+					Next: 'notify-on-failure-sns',
+				}],
+				Parameters: {
+					Overrides: {
+						ContainerOverrides: [{
+							Name: 'daily-batch',
+							Environment: [
+								{ Name: 'JOB', Value: job },
+								{ Name: 'BATCH_PROGRESS_LOG_ONLY', Value: 'true' },
+							],
+						}],
+					},
+				},
+			})
+		}
+		expect(daily.States[successState]).toMatchObject({
+			Type: 'Task',
+			Resource: 'arn:aws:states:::sns:publish',
+			End: true,
+			Parameters: {
+				TopicArn: completionTopic,
+				Subject: '日次バッチ完了',
+				Message: 'すべて正常に終了しました。',
+			},
+		})
+		expect(daily.States[daily.States['notify-on-failure-sns'].Next]).toMatchObject({ Type: 'Fail' })
+		for (const { States } of stateMachines.filter((machine) => machine !== daily)) {
+			expect(JSON.stringify(States)).not.toContain(completionTopic)
+			expect(JSON.stringify(States)).not.toContain('BATCH_PROGRESS_LOG_ONLY')
+		}
+	})
+
 	test('disables retry for all 1 minute rule targets', () => {
 		const resources = template.toJSON().Resources as Record<
 			string,
@@ -242,7 +312,12 @@ describe('AwsCdkStack', () => {
 				}
 			>
 		}
-		const subs = t.findResources('AWS::SNS::Subscription')
+		const alarmsTopic = t.getResourceId('AWS::SNS::Topic', {
+			Properties: { DisplayName: 'youtube-study-space-alarms' },
+		})
+		const subs = t.findResources('AWS::SNS::Subscription', {
+			Properties: { TopicArn: { Ref: alarmsTopic } },
+		})
 		expect(Object.keys(subs).length).toBe(2)
 		expect(json.Conditions).toHaveProperty('HasAlarmEmail')
 		t.hasResourceProperties('AWS::SNS::Subscription', {

@@ -77,6 +77,7 @@ pnpm cdk:deploy AwsCdkStack --profile soraride-prod --require-approval never --p
 ## 日次バッチと通知の運用メモ
 
 - 日次バッチ: EventBridge Scheduler が **00:00 JST** に `start_daily_batch` を実行 → Step Functions 起動。**SFN は先頭で 15 秒 Wait** したうえで ECS Fargate を直列実行（`reset-daily-total` → `update-rp` → `transfer-bq`）。
+- 定時実行では各ジョブの進捗・件数を CloudWatch Logs に記録し、全ジョブが成功したときに `BatchCompletionTopic` 経由で Discord へ完了を1件送信。
 - 失敗通知は SNS Topic 経由で `sns_notify_discord` Lambda が Discord へ送信。
 - Lambdaの Errors>0 と Step Functions ExecutionsFailed>0 のアラームをSNSに連携。
 - 主要出力（CfnOutput）:

@@ -218,6 +218,12 @@ export class AwsCdkStack extends cdk.Stack {
 		alarmsTopic.addSubscription(
 			new subs.LambdaSubscription(snsNotifyDiscordFunction),
 		)
+		const batchCompletionTopic = new sns.Topic(this, 'BatchCompletionTopic', {
+			displayName: 'youtube-study-space-batch-completion',
+		})
+		batchCompletionTopic.addSubscription(
+			new subs.LambdaSubscription(snsNotifyDiscordFunction),
+		)
 		const alarmEmailSubscription = new sns.CfnSubscription(
 			this,
 			'AlarmsTopicEmailSubscription',
@@ -297,6 +303,10 @@ export class AwsCdkStack extends cdk.Stack {
 			resultPath: sfn.JsonPath.DISCARD,
 			integrationPattern: sfn.IntegrationPattern.RUN_JOB,
 		}
+		const batchProgressLogOnly = {
+			name: 'BATCH_PROGRESS_LOG_ONLY',
+			value: 'true',
+		}
 
 		const resetDailyTotalTask = new sfn_tasks.EcsRunTask(
 			this,
@@ -306,7 +316,10 @@ export class AwsCdkStack extends cdk.Stack {
 				containerOverrides: [
 					{
 						containerDefinition: batchContainer,
-						environment: [{ name: 'JOB', value: 'reset-daily-total' }],
+						environment: [
+							{ name: 'JOB', value: 'reset-daily-total' },
+							batchProgressLogOnly,
+						],
 					},
 				],
 			},
@@ -316,7 +329,10 @@ export class AwsCdkStack extends cdk.Stack {
 			containerOverrides: [
 				{
 					containerDefinition: batchContainer,
-					environment: [{ name: 'JOB', value: 'update-rp' }],
+					environment: [
+						{ name: 'JOB', value: 'update-rp' },
+						batchProgressLogOnly,
+					],
 				},
 			],
 		})
@@ -325,7 +341,10 @@ export class AwsCdkStack extends cdk.Stack {
 			containerOverrides: [
 				{
 					containerDefinition: batchContainer,
-					environment: [{ name: 'JOB', value: 'transfer-bq' }],
+					environment: [
+						{ name: 'JOB', value: 'transfer-bq' },
+						batchProgressLogOnly,
+					],
 				},
 			],
 		})
@@ -383,35 +402,43 @@ export class AwsCdkStack extends cdk.Stack {
 				topic: alarmsTopic,
 				message: sfn.TaskInput.fromObject({
 					workflow: 'daily-batch',
-					stateName: sfn.JsonPath.stringAt('$$.State.Name'),
 					executionArn: sfn.JsonPath.stringAt('$$.Execution.Id'),
-					error: sfn.JsonPath.stringAt('$.Error'),
-					cause: sfn.JsonPath.stringAt('$.Cause'),
+					failure: sfn.JsonPath.objectAt('$.jobFailure'),
 				}),
 				subject: 'daily-batch failed',
 				resultPath: sfn.JsonPath.DISCARD,
 			},
 		)
+		notifyOnFailure.next(new sfn.Fail(this, 'daily-batch-job-failed'))
 
-		// 手動実行用は別グラフになるため、各グラフ専用のSNS通知ステートを定義して接続する
+		const notifyOnSuccess = new sfn_tasks.SnsPublish(
+			this,
+			'notify-on-success-sns',
+			{
+				topic: batchCompletionTopic,
+				subject: '日次バッチ完了',
+				message: sfn.TaskInput.fromText('すべて正常に終了しました。'),
+				resultPath: sfn.JsonPath.DISCARD,
+			},
+		)
 
-		// Execute all three sequentially but continue on failure (each task has local catch → notify → continue)
 		const definition = sfn.Chain.start(wait15s)
 			.next(
 				resetDailyTotalTask.addCatch(notifyOnFailure, {
-					resultPath: sfn.JsonPath.DISCARD,
+					resultPath: '$.jobFailure',
 				}),
 			)
 			.next(
 				updateRpTask.addCatch(notifyOnFailure, {
-					resultPath: sfn.JsonPath.DISCARD,
+					resultPath: '$.jobFailure',
 				}),
 			)
 			.next(
 				transferBqTask.addCatch(notifyOnFailure, {
-					resultPath: sfn.JsonPath.DISCARD,
+					resultPath: '$.jobFailure',
 				}),
 			)
+			.next(notifyOnSuccess)
 
 		const dailyBatchStateMachine = new sfn.StateMachine(
 			this,
