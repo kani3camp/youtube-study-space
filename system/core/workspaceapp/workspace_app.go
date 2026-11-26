@@ -27,6 +27,7 @@ type WorkspaceApp struct {
 	alertOwnerBot      moderatorbot.MessageBot
 	alertModeratorsBot moderatorbot.MessageBot
 	logModeratorsBot   moderatorbot.MessageBot
+	logOwnerMessages   bool
 
 	ProcessedUserID                 string
 	ProcessedUserDisplayName        string

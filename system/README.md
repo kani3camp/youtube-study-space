@@ -100,7 +100,7 @@ go generate ./...
 - Google Cloud認証: AWS Task RoleからWorkload Identity Federation (WIF)で既存Service Accountをimpersonate
 - ネットワーク: Public Subnet, Public IP割当, HTTPS/DNS/ECS Task credential endpointへの最小egress
 - ログ: CloudWatch Logs（ECS/Step Functions/Lambda）
-- 通知: CloudWatch Alarm/SFN失敗 → SNS → `sns_notify_discord` Lambda → Discord
+- 通知: 定時実行の全ジョブ成功時に Discord へ完了を1件送信。各ジョブの進捗・件数は CloudWatch Logs に記録。完了通知と CloudWatch Alarm/SFN失敗の通知はいずれも SNS → `sns_notify_discord` Lambda → Discord で送信
 
 ### ビルド/イメージ
 - Fargateバッチ: `system/Dockerfile.fargate`

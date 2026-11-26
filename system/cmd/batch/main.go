@@ -33,6 +33,10 @@ func main() {
 	}
 	defer app.CloseFirestoreClient()
 
+	if os.Getenv("BATCH_PROGRESS_LOG_ONLY") == "true" {
+		app.LogOwnerMessages()
+	}
+
 	job := os.Getenv("JOB")
 	if job == "" {
 		job = "all"

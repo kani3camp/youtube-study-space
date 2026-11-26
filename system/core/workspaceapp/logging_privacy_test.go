@@ -50,6 +50,27 @@ func TestOwnerDeliveryFailureDoesNotLogNotificationOrProviderError(t *testing.T)
 	}
 }
 
+func TestLogOwnerMessagesKeepsErrorNotifications(t *testing.T) {
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	bot := &privateOwnerBotFake{}
+	app := WorkspaceApp{alertOwnerBot: bot}
+	app.LogOwnerMessages()
+	ctx := context.Background()
+	app.MessageToOwner(ctx, "reset-daily-total finished")
+	app.MessageToOwnerWithError(ctx, "daily-batch failed", errors.New("job failure"))
+
+	if !strings.Contains(logs.String(), "reset-daily-total finished") {
+		t.Fatalf("missing batch progress log: %s", logs.String())
+	}
+	if len(bot.messages) != 1 || bot.messages[0] != "daily-batch failed" {
+		t.Fatalf("unexpected Discord notifications: %q", bot.messages)
+	}
+}
+
 func TestSeatExitResultDoesNotLogTransactionPayload(t *testing.T) {
 	const privateValue = "PRIVATE_DISPLAY_NAME_711"
 	for _, tc := range []struct {
